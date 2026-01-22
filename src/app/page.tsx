@@ -122,10 +122,15 @@ export default function Home() {
                  const res = await fetch(`/api/ai/tripo/${job.id}`, {
                      headers: { 'Authorization': `Bearer ${job.apiKey}` }
                  });
-                 if (!res.ok) return;
+                 if (!res.ok) {
+                    console.error("Tripo Poll Failed:", res.status, await res.text());
+                    return;
+                 }
                  const json = await res.json();
                  if (json.data) {
                      const tData = json.data;
+                     console.log("Tripo Poll:", tData.status, tData.progress, tData.output); 
+
                      // Map Tripo status to internal format
                      if (tData.status === 'success') status = 'SUCCEEDED';
                      else if (tData.status === 'failed' || tData.status === 'cancelled') status = 'FAILED';
@@ -135,12 +140,15 @@ export default function Home() {
                      resultUrl = tData.output?.model;
                      thumbnailUrl = tData.output?.rendered_image;
                      data = tData; // Keep raw for logging if needed
+                 } else if (json.code !== undefined && json.code !== 0) {
+                     console.error("Tripo Poll Error Code:", json);
+                     status = 'FAILED';
                  }
             } else {
                 // Default: Meshy
                 const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
-                // Using v2 for polling
-                const res = await fetch(`https://api.meshy.ai/openapi/v2/${endpoint}/${job.id}`, {
+                // Using local proxy for polling
+                const res = await fetch(`/api/ai/meshy?endpoint=${endpoint}/${job.id}`, {
                      headers: { 'Authorization': `Bearer ${job.apiKey}` }
                 });
                 

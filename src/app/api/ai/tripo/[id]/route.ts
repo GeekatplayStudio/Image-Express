@@ -6,6 +6,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    console.log(`[Tripo Proxy] Polling ID: ${id}`);
+
     const authHeader = req.headers.get('authorization');
 
     if (!authHeader) {

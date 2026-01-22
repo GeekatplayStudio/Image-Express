@@ -92,6 +92,29 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
         }
     };
 
+    const deleteAsset = async (path: string, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent selection
+        if (!confirm('Are you sure you want to delete this asset?')) return;
+
+        try {
+            const res = await fetch('/api/assets/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filePath: path }),
+            });
+
+            const data = await res.json();
+            if (data.success || res.ok) {
+                await fetchAssets();
+            } else {
+                alert('Delete failed: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error deleting asset:', error);
+            alert('Delete failed');
+        }
+    };
+
     return (
         <div className="absolute left-[80px] top-[160px] bg-card border border-border rounded-lg shadow-xl w-80 h-[500px] flex flex-col z-50 animate-in fade-in slide-in-from-left-4 duration-200">
             {/* Header */}
@@ -176,36 +199,48 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                     </div>
                 ) : (
                     <div className="grid grid-cols-3 gap-2">
-                        {assets.map((asset) => (
-                            <button
-                                key={asset.path}
-                                onClick={() => {
-                                    onSelect(asset.path, asset.type);
-                                    // Optionally close or keep open for multiple additions
-                                }}
-                                className="group relative aspect-square bg-secondary/30 rounded-md overflow-hidden border border-border/50 hover:border-primary/50 transition-all"
+                        {assets.map((asset, index) => (
+                            <div
+                                key={asset.path + index}
+                                className="group relative aspect-square bg-secondary/30 rounded-md overflow-hidden border border-border/50 hover:border-primary/50 transition-all cursor-pointer"
                                 title={asset.name}
                             >
-                                {asset.type === 'images' ? (
-                                    <div className="w-full h-full relative">
-                                        <img 
-                                            src={asset.path} 
-                                            alt={asset.name} 
-                                            className="w-full h-full object-cover"
-                                            loading="lazy"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
-                                        <Box size={24} className="mb-1" />
-                                        <span className="text-[8px] px-1 truncate w-full text-center">{asset.name.split('-')[0]}</span>
-                                    </div>
-                                )}
-                                
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-medium text-[10px]">
-                                    Add
+                                <div 
+                                    className="w-full h-full" 
+                                    onClick={() => {
+                                        onSelect(asset.path, asset.type);
+                                        onClose();
+                                    }}
+                                >
+                                    {asset.type === 'images' ? (
+                                        <div className="w-full h-full relative">
+                                            <img 
+                                                src={asset.path} 
+                                                alt={asset.name} 
+                                                className="w-full h-full object-cover"
+                                                loading="lazy"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
+                                            <Box size={24} className="mb-1" />
+                                            <span className="text-[8px] px-1 truncate w-full text-center">{asset.name.split('-')[0]}</span>
+                                        </div>
+                                    )}
                                 </div>
-                            </button>
+
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 pointer-events-none">
+                                     <span className="text-white font-medium text-[10px] bg-primary/80 px-2 py-1 rounded">Add</span>
+                                </div>
+                                
+                                <button
+                                    onClick={(e) => deleteAsset(asset.path, e)}
+                                    className="p-1.5 bg-red-500/90 text-white rounded-full hover:bg-red-600 transition-colors absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-10"
+                                    title="Delete Asset"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                            </div>
                         ))}
                     </div>
                 )}
