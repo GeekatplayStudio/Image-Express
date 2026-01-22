@@ -18,3 +18,15 @@ export interface CanvasState {
     activeSelection: any | null; // Placeholder for Fabric Object
     zoom: number;
 }
+
+export interface BackgroundJob {
+    id: string; // Task ID
+    type: 'text-to-3d' | 'image-to-3d';
+    status: 'PENDING' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED';
+    progress?: number;
+    prompt?: string;
+    apiKey: string;
+    createdAt: number;
+    resultUrl?: string;
+    thumbnailUrl?: string; // If available
+}

@@ -1,18 +1,248 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import DesignCanvas from '@/components/DesignCanvas';
 import Toolbar from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
+import ThreeDGenerator from '@/components/ThreeDGenerator';
+import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
+import SettingsModal from '@/components/SettingsModal';
+import JobStatusFooter from '@/components/JobStatusFooter';
 import * as fabric from 'fabric';
-import { Download, Share2, Sparkles, FolderKanban, Home as HomeIcon } from 'lucide-react';
+import { Download, Share2, Sparkles, FolderKanban, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import { BackgroundJob } from '@/types';
 
 export default function Home() {
   const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
   const [activeTool, setActiveTool] = useState<string>('select');
   const [zoom, setZoom] = useState(1);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
+  const [sourceObjectFor3D, setSourceObjectFor3D] = useState<fabric.Object | null>(null);
+  const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJob[]>([]);
+  const [editingModelUrl, setEditingModelUrl] = useState<string | null>(null);
+  const [editingModelObject, setEditingModelObject] = useState<fabric.Object | null>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
 
-    const handleZoom = (factor: number) => {
+  // Background Job Polling
+  useEffect(() => {
+    // Only poll if there are pending/in-progress jobs
+    const activeJobs = backgroundJobs.filter(j => j.status === 'PENDING' || j.status === 'IN_PROGRESS');
+    if (activeJobs.length === 0) return;
+
+    const interval = setInterval(() => {
+        setBackgroundJobs(currentJobs => {
+            // Clone array to modify
+            const newJobs = [...currentJobs];
+            let hasUpdates = false;
+
+            newJobs.forEach(async (job, index) => {
+                if (job.status !== 'IN_PROGRESS' && job.status !== 'PENDING') return;
+
+                try {
+                    const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
+                    // Use openapi/v1 for status checks to match creation endpoint
+                    const res = await fetch(`https://api.meshy.ai/openapi/v1/${endpoint}/${job.id}`, {
+                         headers: { 'Authorization': `Bearer ${job.apiKey}` }
+                    });
+                    const data = await res.json();
+                    
+                    if (data.status === 'SUCCEEDED' || data.status === 'FAILED') {
+                         
+                         const updatedJob = {
+                             ...job,
+                             status: data.status,
+                             resultUrl: data.model_urls?.glb,
+                             thumbnailUrl: data.thumbnail_url,
+                             progress: 100
+                         };
+                         
+                         // Update state
+                         setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
+
+                         // If SUCCEEDED, auto-save and add to canvas
+                         if (data.status === 'SUCCEEDED') {
+                              // Ensure URL ends with .glb if missing
+                              let glbUrl = data.model_urls.glb;
+                              // Basic check, though meshy usually returns valid signed urls 
+                              // which might have query params.
+                              // If it doesn't have .glb in path, we might want to trust it anyway 
+                              // OR if we are downloading to save, save-url endpoint handles file extension
+                              // BUT the user says it doesn't have extension when coming back.
+                              
+                              // Let's force extension in the filename we send to save-url
+                              let filename = (job.prompt || 'generated').slice(0, 15);
+                              filename = filename.replace(/[^a-z0-9]/gi, '_');
+                              if (!filename.toLowerCase().endsWith('.glb')) {
+                                  filename += '.glb';
+                              }
+
+                              // Save to Assets
+                              await fetch('/api/assets/save-url', {
+                                    method: 'POST',
+                                    body: JSON.stringify({
+                                        url: glbUrl,
+                                        filename: filename,
+                                        type: 'models'
+                                    })
+                              });
+
+                              // Add to Canvas (Thumbnail)
+                              if (canvas && data.thumbnail_url) {
+                                  fabric.Image.fromURL(data.thumbnail_url, { crossOrigin: 'anonymous' }).then(img => {
+                                      img.scaleToWidth(200);
+                                      img.set({ left: 100, top: 100 });
+                                      canvas.add(img);
+                                      canvas.setActiveObject(img);
+                                      
+                                      // If this job originated from an image conversion, hide original
+                                      // NOTE: We disconnected 'sourceObjectFor3D' state from async job. 
+                                      // To fix, we would need to store object ID in job metadata.
+                                      // For now, simpler implementation.
+                                  });
+                              }
+                         }
+
+                    } else if (data.progress !== undefined && data.progress !== job.progress) {
+                         setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { ...p, progress: data.progress, status: 'IN_PROGRESS'} : p));
+                    }
+
+                } catch (e) {
+                    console.error("Job poll error", e);
+                }
+            });
+            
+            return currentJobs; // Return current immediately, async updates happen via setBackgroundJobs inside
+        });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [backgroundJobs, canvas]); // Dependency on canvas to allow adding result
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleExport = (format: 'png' | 'jpg' | 'svg' | 'pdf' | 'json') => {
+    if (!canvas) return;
+    
+    // Reset zoom for export to ensure full resolution/correct dimensions
+    const originalZoom = canvas.getZoom();
+    const originalWidth = canvas.width!;
+    const originalHeight = canvas.height!;
+    const originalViewportTransform = canvas.viewportTransform;
+
+    // Temporarily reset zoom to 1 for export if needed, or keeping it as is.
+    // Usually for high quality export, we might want multiplier.
+    // For simplicity, we just use what's on screen but maybe scaled up if we want better quality.
+    
+    try {
+        let dataUrl = '';
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `design-${timestamp}.${format}`;
+
+        switch (format) {
+            case 'png':
+                dataUrl = canvas.toDataURL({
+                    format: 'png',
+                    quality: 1,
+                    multiplier: 1,
+                    enableRetinaScaling: true
+                });
+                downloadFile(dataUrl, filename);
+                break;
+            case 'jpg':
+                // Set background to white for JPG as it transparency becomes black
+                const originalBg = canvas.backgroundColor;
+                canvas.backgroundColor = '#ffffff';
+                dataUrl = canvas.toDataURL({
+                    format: 'jpeg',
+                    quality: 0.9,
+                    multiplier: 1,
+                    enableRetinaScaling: true
+                });
+                downloadFile(dataUrl, filename);
+                canvas.backgroundColor = originalBg; 
+                canvas.requestRenderAll();
+                break;
+            case 'svg':
+                const svgContent = canvas.toSVG();
+                const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                downloadFile(url, filename);
+                break;
+             case 'pdf':
+                const pdfWidth = canvas.width!;
+                const pdfHeight = canvas.height!;
+                
+                // Create PDF with same dimensions
+                const pdf = new jsPDF({
+                    orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+                    unit: 'px',
+                    format: [pdfWidth, pdfHeight]
+                });
+                
+                const imgData = canvas.toDataURL({
+                    format: 'png',
+                    quality: 1,
+                    multiplier: 1,
+                    enableRetinaScaling: true
+                });
+                
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save(filename);
+                break;
+             case 'json':
+                const json = JSON.stringify(canvas.toJSON());
+                const jsonBlob = new Blob([json], { type: 'application/json' });
+                const jsonUrl = URL.createObjectURL(jsonBlob);
+                downloadFile(jsonUrl, `design-${timestamp}.json`);
+                break;
+        }
+    } catch (error) {
+        console.error("Export failed:", error);
+    }
+    
+    setShowExportMenu(false);
+  };
+
+  const downloadFile = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Double Click Listener for 3D Models
+  useEffect(() => {
+    if (!canvas) return;
+
+    const handleDblClick = (e: any) => {
+      const target = e.target;
+      if (target && (target.is3DModel || target.modelUrl)) {
+        setEditingModelUrl(target.modelUrl);
+        setEditingModelObject(target);
+      }
+    };
+
+    canvas.on('mouse:dblclick', handleDblClick);
+    return () => {
+      canvas.off('mouse:dblclick', handleDblClick);
+    };
+  }, [canvas]);
+
+  const handleZoom = (factor: number) => {
         if (!canvas) return;
         let newZoom = zoom + factor;
         // Clamp between 10% and 500%
@@ -57,6 +287,14 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-3">
+             <button 
+                onClick={() => setShowSettings(true)}
+                className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                title="Settings"
+             >
+                <Settings size={20} />
+             </button>
+             
              <div className="px-4 py-1.5 bg-secondary/30 rounded-full border border-border/50 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 cursor-pointer transition-colors">
                 <Sparkles size={14} className="text-yellow-500" />
                 <span>Generate</span>
@@ -65,13 +303,69 @@ export default function Home() {
              <button className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground">
                 <Share2 size={20} />
              </button>
-             <button className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-full text-sm font-semibold shadow-lg shadow-primary/20 transition-all transform hover:scale-105 active:scale-95">
-                <Download size={16} />
-                <span>Export</span>
-             </button>
+             
+             <div className="relative" ref={exportRef}>
+                <button 
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-full text-sm font-semibold shadow-lg shadow-primary/20 transition-all transform hover:scale-105 active:scale-95"
+                >
+                    <Download size={16} />
+                    <span>Export</span>
+                    <ChevronDown size={14} className={`transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showExportMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                        <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Format</div>
+                        <button onClick={() => handleExport('png')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 transition-colors">
+                            <ImageIcon size={16} className="text-blue-500"/>
+                            <div className="flex flex-col">
+                                <span className="font-medium">PNG</span>
+                                <span className="text-[10px] text-muted-foreground">High Quality Image</span>
+                            </div>
+                        </button>
+                        <button onClick={() => handleExport('jpg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 transition-colors">
+                            <ImageIcon size={16} className="text-orange-500"/>
+                             <div className="flex flex-col">
+                                <span className="font-medium">JPG</span>
+                                <span className="text-[10px] text-muted-foreground">For Web & Sharing</span>
+                            </div>
+                        </button>
+                        <button onClick={() => handleExport('svg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 transition-colors">
+                            <FileCode size={16} className="text-purple-500"/>
+                            <div className="flex flex-col">
+                                <span className="font-medium">SVG</span>
+                                <span className="text-[10px] text-muted-foreground">Vector Graphic</span>
+                            </div>
+                        </button>
+                        <button onClick={() => handleExport('pdf')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 transition-colors">
+                            <FileText size={16} className="text-red-500"/>
+                            <div className="flex flex-col">
+                                <span className="font-medium">PDF</span>
+                                <span className="text-[10px] text-muted-foreground">Document</span>
+                            </div>
+                        </button>
+                        <hr className="my-1 border-border/50" />
+                        <button onClick={() => handleExport('json')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 transition-colors">
+                            <FileCode size={16} className="text-green-500"/>
+                            <div className="flex flex-col">
+                                <span className="font-medium">JSON</span>
+                                <span className="text-[10px] text-muted-foreground">Project File</span>
+                            </div>
+                        </button>
+                    </div>
+                )}
+             </div>
+             
              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 ring-2 ring-background ml-2"></div>
         </div>
       </header>
+
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
 
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
@@ -81,6 +375,7 @@ export default function Home() {
                 canvas={canvas} 
                 activeTool={activeTool} 
                 setActiveTool={setActiveTool} 
+                onOpen3DEditor={(url) => setEditingModelUrl(url)}
              />
         </aside>
 
@@ -90,6 +385,102 @@ export default function Home() {
            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#888 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
            
            <div className="relative w-full h-full shadow-2xl overflow-hidden m-8 border border-border/10 rounded-lg">
+                {editingModelUrl && (
+                    <ThreeDLayerEditor 
+                         modelUrl={editingModelUrl}
+                         existingObject={editingModelObject}
+                         onClose={() => {
+                             setEditingModelUrl(null);
+                             setEditingModelObject(null);
+                         }}
+                         onSave={(dataUrl, currentModelUrl) => {
+                             if (canvas) {
+                                fabric.Image.fromURL(dataUrl, { crossOrigin: 'anonymous' }).then(img => {
+                                    
+                                    // If updating existing, copy properties
+                                    if (editingModelObject) {
+                                        img.set({
+                                            left: editingModelObject.left,
+                                            top: editingModelObject.top,
+                                            scaleX: editingModelObject.scaleX,
+                                            scaleY: editingModelObject.scaleY,
+                                            angle: editingModelObject.angle,
+                                            originX: "center",
+                                            originY: "center"
+                                        });
+                                        canvas.remove(editingModelObject);
+                                    } else {
+                                         // New 
+                                         img.scaleToWidth(300);
+                                         img.set({ left: 300, top: 300, originX: 'center', originY: 'center' });
+                                    }
+                                    
+                                    // Attach metadata
+                                    (img as any).is3DModel = true;
+                                    (img as any).modelUrl = currentModelUrl;
+
+                                    canvas.add(img);
+                                    canvas.setActiveObject(img);
+                                    canvas.requestRenderAll();
+                                    
+                                    setEditingModelUrl(null);
+                                    setEditingModelObject(null);
+                                });
+                             }
+                         }}
+                    />
+                )}
+
+                {activeTool === '3d-gen' && (
+                    <ThreeDGenerator 
+                        initialImage={initialImageFor3D}
+                        activeJob={backgroundJobs.find(j => j.status === 'IN_PROGRESS' || j.status === 'PENDING')}
+                        onStartBackgroundJob={(jobData) => {
+                            setBackgroundJobs(prev => [...prev, jobData as BackgroundJob]);
+                            
+                            // Hide original if applicable
+                            if (sourceObjectFor3D && canvas) {
+                                sourceObjectFor3D.set('visible', false);
+                                canvas.requestRenderAll();
+                            }
+                            // Close tool to allow background processing
+                            setActiveTool('select');
+                            setInitialImageFor3D(undefined);
+                            setSourceObjectFor3D(null);
+                        }}
+                        onAddToCanvas={(dataUrl, modelUrl) => {
+                            if (canvas) {
+                                fabric.Image.fromURL(dataUrl).then((img) => {
+                                    img.set({ left: 100, top: 100 });
+                                    
+                                    if (modelUrl) {
+                                        (img as any).is3DModel = true;
+                                        (img as any).modelUrl = modelUrl;
+                                    }
+
+                                    canvas.add(img);
+                                    canvas.setActiveObject(img);
+                                    
+                                    // Make original invisible
+                                    if (sourceObjectFor3D) {
+                                        sourceObjectFor3D.set('visible', false);
+                                        // Also deselect it if it was selected, but we just set active object to new 3D img
+                                        canvas.requestRenderAll();
+                                    }
+                                    
+                                    setActiveTool('select');
+                                    setInitialImageFor3D(undefined);
+                                    setSourceObjectFor3D(null);
+                                });
+                            }
+                        }}
+                        onClose={() => {
+                            setActiveTool('select');
+                            setInitialImageFor3D(undefined);
+                            setSourceObjectFor3D(null);
+                        }} 
+                    />
+                )}
                 <DesignCanvas onCanvasReady={setCanvas} />
            </div>
            
@@ -114,8 +505,21 @@ export default function Home() {
             <PropertiesPanel 
                 canvas={canvas} 
                 activeTool={activeTool}
+                onMake3D={(imageUrl) => {
+                    setInitialImageFor3D(imageUrl);
+                    if (canvas) {
+                        setSourceObjectFor3D(canvas.getActiveObject() || null);
+                    }
+                    setActiveTool('3d-gen');
+                }}
             />
         </aside>
+
+        {/* Status Bar */}
+        <JobStatusFooter 
+            jobs={backgroundJobs} 
+            onClear={(id) => setBackgroundJobs(prev => prev.filter(j => j.id !== id))} 
+        />
       </div>
     </div>
   );

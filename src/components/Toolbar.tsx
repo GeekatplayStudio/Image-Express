@@ -1,20 +1,49 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { StarPolygon } from '@/types';
+import AssetLibrary from './AssetLibrary';
+import TemplateLibrary from './TemplateLibrary';
+import InputModal from './InputModal';
 
 interface ToolbarProps {
     canvas: fabric.Canvas | null;
     activeTool: string;
     setActiveTool: (tool: string) => void;
+    onOpen3DEditor?: (url: string) => void;
 }
 
-export default function Toolbar({ canvas, activeTool, setActiveTool }: ToolbarProps) {
+const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: number) => {
+    const points = [];
+    const angleStep = Math.PI / numPoints;
+    for (let i = 0; i < 2 * numPoints; i++) {
+        const r = (i % 2 === 0) ? outerRadius : innerRadius;
+        const a = i * angleStep - Math.PI / 2;
+        points.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+    }
+    return points;
+};
+
+// Start of component
+export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor }: ToolbarProps) {
     const [showShapesMenu, setShowShapesMenu] = useState(false);
+    const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
     const shapesMenuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [showSaveModal, setShowSaveModal] = useState(false);
+
+    const tools = [
+        { name: 'select', icon: Move, label: 'Select' },
+        { name: 'templates', icon: LayoutTemplate, label: 'Templates' },
+        { name: 'shapes', icon: Shapes, label: 'Shapes' },
+        { name: 'text', icon: Type, label: 'Text' },
+        { name: 'media', icon: ImageIcon, label: 'Media' },
+        { name: 'layers', icon: Layers, label: 'Layers' },
+        { name: 'assets', icon: Folder, label: 'Assets' },
+        { name: '3d-gen', icon: Box, label: 'AI 3D' },
+    ];
 
     // Close shapes menu when clicking outside
     useEffect(() => {
@@ -45,7 +74,16 @@ export default function Toolbar({ canvas, activeTool, setActiveTool }: ToolbarPr
                 addText();
                 break;
             case 'media':
+                // Instead of direct file upload, we now open the Asset Library
+                // But for backward compat or if user wants direct upload, we can keep it or redirect.
+                // Request says: "my workspace. in this area we need save images i uploaded"
+                // So renaming Media to Assets might be cleaner, but user asked for "option to add items from asset library".
+                // I'll make 'media' trigger the file picker (quick upload) BUT maybe we should ask to save?
+                // Actually, I added a specific 'assets' tool.
                 handleUploadClick();
+                break;
+            case 'assets':
+                // Toggle asset library
                 break;
             case 'layers':
                 // Properties Panel handles the view reset, we just set activeTool
@@ -113,18 +151,6 @@ export default function Toolbar({ canvas, activeTool, setActiveTool }: ToolbarPr
         canvas.setActiveObject(star);
     };
 
-    // Helper to generate star points
-    const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: number) => {
-        const points = [];
-        const angleStep = Math.PI / numPoints;
-        for (let i = 0; i < 2 * numPoints; i++) {
-            const r = (i % 2 === 0) ? outerRadius : innerRadius;
-            const a = i * angleStep - Math.PI / 2; // -90deg to start at top
-            points.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
-        }
-        return points;
-    };
-
     const addText = () => {
         if (!canvas) return;
         const text = new fabric.IText('Tap to edit', {
@@ -139,6 +165,47 @@ export default function Toolbar({ canvas, activeTool, setActiveTool }: ToolbarPr
         canvas.setActiveObject(text);
     };
 
+    const add3DPlaceholder = (url: string) => {
+        if (!canvas) return;
+        
+        const group = new fabric.Group([], {
+            left: 150,
+            top: 150,
+            subTargetCheck: true,
+            interactive: true 
+        });
+
+        const box = new fabric.Rect({
+            width: 80,
+            height: 80,
+            fill: '#3b82f6',
+            rx: 10,
+            ry: 10,
+            shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.3)', blur: 10, offsetX: 5, offsetY: 5 })
+        });
+
+        const text = new fabric.IText('3D', {
+            fontSize: 30,
+            fill: 'white',
+            left: 20,
+            top: 25,
+            fontFamily: 'sans-serif',
+            fontWeight: 'bold',
+            selectable: false
+        });
+        
+        group.add(box);
+        group.add(text);
+        
+        // Attach metadata
+        (group as any).is3DModel = true;
+        (group as any).modelUrl = url;
+
+        canvas.add(group);
+        canvas.setActiveObject(group);
+        canvas.requestRenderAll();
+    };
+
     const handleUploadClick = () => {
         if (fileInputRef.current) {
             fileInputRef.current.click();
@@ -149,6 +216,16 @@ export default function Toolbar({ canvas, activeTool, setActiveTool }: ToolbarPr
         const file = e.target.files?.[0];
         if (!file || !canvas) return;
 
+        // Reset file input
+        if (fileInputRef.current) fileInputRef.current.value = '';
+
+        // If 'media' tool button was used, we assume it's a direct upload. 
+        // User asked: "when i select add asset it should have check box ask if i want store on server"
+        // The Asset Library component handles this best.
+        // But if we stick to the old 'media' button just putting it on canvas, we miss the feature.
+        // Let's rely on the new Asset Library for uploading with options.
+        // The old media button behavior is preserved here for quick ephemeral access.
+
         const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
         if (!supportedTypes.includes(file.type)) {
             alert('Unsupported file type. Please upload JPEG, PNG, WEBP, or SVG.');
@@ -158,44 +235,93 @@ export default function Toolbar({ canvas, activeTool, setActiveTool }: ToolbarPr
         const reader = new FileReader();
         reader.onload = (f) => {
             const data = f.target?.result as string;
-            fabric.Image.fromURL(data, {
-                crossOrigin: 'anonymous'
-            }).then((img) => {
-                // Scale down if image is too large
-                const maxWidth = canvas.width! * 0.5;
-                const scale = maxWidth / img.width!;
-                if (scale < 1) {
-                    img.scale(scale);
-                }
-                
-                img.set({
-                    left: 100,
-                    top: 100
-                });
-                
-                canvas.add(img);
-                canvas.setActiveObject(img);
-                canvas.requestRenderAll();
-                
-                // Clear input
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                }
-            }).catch((err) => {
-                console.error("Error loading image:", err);
-            });
+            loadDataUrlToCanvas(data);
         };
         reader.readAsDataURL(file);
     };
 
-    const tools = [
-        { name: 'select', icon: Move, label: 'Select' },
-        { name: 'templates', icon: LayoutTemplate, label: 'Templates' },
-        { name: 'text', icon: Type, label: 'Text' },
-        { name: 'media', icon: ImageIcon, label: 'Media' },
-        { name: 'shapes', icon: Shapes, label: 'Shapes' }, 
-        { name: 'layers', icon: Layers, label: 'Layers' },
-    ];
+    const loadDataUrlToCanvas = (data: string) => {
+        if (!canvas) return;
+        fabric.Image.fromURL(data, {
+             crossOrigin: 'anonymous'
+        }).then((img) => {
+             // Scale down if image is too large
+             const maxWidth = canvas.width! * 0.5;
+             const scale = maxWidth / img.width!;
+             if (scale < 1) {
+                 img.scale(scale);
+             }
+             
+             img.set({
+                 left: 100,
+                 top: 100
+             });
+             
+             canvas.add(img);
+             canvas.setActiveObject(img);
+             canvas.requestRenderAll();
+        }).catch((err) => {
+             console.error("Error loading image:", err);
+        });
+    }
+
+    const handleSaveTemplateTrigger = () => {
+        if (!canvas) return;
+        setShowSaveModal(true);
+    };
+
+    const handleSaveTemplateConfirm = async (name: string) => {
+        if (!canvas) return;
+        setShowSaveModal(false);
+
+        try {
+            // Include custom properties in serialization
+            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius']); 
+            const dataUrl = canvas.toDataURL({
+                format: 'png',
+                multiplier: 0.5,
+                quality: 0.8
+            });
+
+            const res = await fetch('/api/templates/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    canvasData: json,
+                    thumbnailDataUrl: dataUrl
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                // Trigger refresh
+                setRefreshTemplatesTrigger(prev => prev + 1);
+            } else {
+                alert('Failed to save: ' + data.message);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error saving template');
+        }
+    };
+
+    const handleLoadTemplate = (url: string) => {
+         if (!canvas) return;
+         fetch(url)
+            .then(res => res.json())
+            .then(json => {
+                canvas.clear();
+                canvas.loadFromJSON(json, () => {
+                    canvas.requestRenderAll();
+                    setActiveTool('select');
+                });
+            })
+            .catch(err => {
+                console.error("Error loading template", err);
+                alert("Failed to load template");
+            });
+    }
 
     return (
         <div className="flex flex-col gap-6 w-full items-center pt-2 relative">
@@ -224,6 +350,47 @@ export default function Toolbar({ canvas, activeTool, setActiveTool }: ToolbarPr
                     </span>
                 </button>
             ))}
+
+            {/* Template Library */}
+            {activeTool === 'templates' && (
+                <TemplateLibrary 
+                    key={refreshTemplatesTrigger}
+                    onClose={() => setActiveTool('select')}
+                    onSelect={handleLoadTemplate}
+                    onSaveCurrent={handleSaveTemplateTrigger}
+                />
+            )}
+
+            {showSaveModal && (
+                <InputModal 
+                    isOpen={showSaveModal}
+                    title="Save Template"
+                    description="Enter a name for your custom template."
+                    placeholder="My Awesome Template"
+                    confirmLabel="Save Template"
+                    onConfirm={handleSaveTemplateConfirm}
+                    onCancel={() => setShowSaveModal(false)}
+                />
+            )}
+
+            {/* Asset Library */}
+            {activeTool === 'assets' && (
+                <AssetLibrary 
+                    onClose={() => setActiveTool('select')}
+                    onSelect={(path, type) => {
+                        if (type === 'models') {
+                            if (onOpen3DEditor) {
+                                onOpen3DEditor(path);
+                                setActiveTool('select');
+                            } else {
+                                add3DPlaceholder(path);
+                            }
+                        } else {
+                            loadDataUrlToCanvas(path);
+                        }
+                    }}
+                />
+            )}
 
             {/* Shapes Popover */}
             {showShapesMenu && (

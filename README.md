@@ -1,6 +1,25 @@
-# CreativeFlow (Adobe Express Clone)
+# CreativeFlow - AI Design Studio
 
-A comprehensive content creation platform built with Next.js 16, TypeScript, Tailwind CSS, and Fabric.js.
+A professional content creation platform built with Next.js 16, TypeScript, Tailwind CSS, and Fabric.js. Seamlessly integrates 2D design with AI-powered 3D model generation.
+
+## 🚀 Key Features
+
+- **Infinite Canvas**: Advanced workspace manipulation.
+- **AI 3D Generation**: Meshy AI integration for text-to-3D and image-to-3D.
+- **Asset & Template Library**: Save custom templates and managing 3D/2D assets.
+- **Layer Management**: Professional layer locking, visibility, and reordering.
+
+## 🚀 Deployment (Render.com / Docker)
+
+This project includes a `Dockerfile` for easy deployment.
+
+1. **Build**: `docker build -t creative-flow .`
+2. **Run**: `docker run -p 3000:3000 creative-flow`
+
+For Render.com:
+- Select "Docker" as environment.
+- Root directory: `.`
+- Build Context: `.`
 
 ## 🚀 Getting Started
 
