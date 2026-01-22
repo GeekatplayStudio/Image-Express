@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import * as fabric from 'fabric';
 import { StarPolygon } from '@/types';
-import { ArrowUp, ArrowDown, Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon } from 'lucide-react';
+import { ArrowUp, ArrowDown, Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -10,10 +10,11 @@ import { CSS } from '@dnd-kit/utilities';
 interface PropertiesPanelProps {
     canvas: fabric.Canvas | null;
     activeTool?: string;
+    onMake3D?: (imageUrl: string) => void;
 }
 
 // Sortable Layer Item Component
-function SortableLayerItem({ obj, index, selectedObject, selectLayer, deleteLayer, total }: any) {
+function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisibility, deleteLayer, total }: any) {
     const {
         attributes,
         listeners,
@@ -29,6 +30,9 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, deleteLaye
         zIndex: isDragging ? 999 : 'auto',
         position: 'relative' as const,
     };
+    
+    // Check internal visible state
+    const isVisible = obj.visible !== false; // Default true if undefined
 
     return (
         <div 
@@ -58,7 +62,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, deleteLaye
                     {obj.type === 'image' && <div className="text-[8px] font-mono">IMG</div>}
                     {'isStar' in obj && <div className="text-[8px]">★</div>}
                 </div>
-                <div className="flex flex-col min-w-0 select-none">
+                <div className={`flex flex-col min-w-0 select-none ${!isVisible ? 'opacity-50 grayscale' : ''}`}>
                     <span className="text-sm font-medium truncate w-24">
                         {obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')}
                     </span>
@@ -67,6 +71,13 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, deleteLaye
             </div>
             
             <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleVisibility(obj); }}
+                    className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground"
+                    title={isVisible ? "Hide" : "Show"}
+                >
+                    {isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+                </button>
                 <button 
                     onClick={(e) => { e.stopPropagation(); deleteLayer(obj); }}
                     className="p-1.5 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive border border-transparent hover:border-destructive/20"
@@ -79,21 +90,10 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, deleteLaye
     );
 }
 
-export default function PropertiesPanel({ canvas, activeTool }: PropertiesPanelProps) {
+export default function PropertiesPanel({ canvas, activeTool, onMake3D }: PropertiesPanelProps) {
     const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
-
-    // Assign stable IDs to objects if they don't have one, needed for DnD
-    useEffect(() => {
-        if (!canvas) return;
-        canvas.getObjects().forEach((obj, i) => {
-            if (!(obj as any).id) {
-                // simple ID generation
-                (obj as any).id = `obj-${Date.now()}-${i}`;
-            }
-        });
-    }, [canvas, objects]);
-
+    
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -116,11 +116,30 @@ export default function PropertiesPanel({ canvas, activeTool }: PropertiesPanelP
     const [starInnerRadius, setStarInnerRadius] = useState(0.5);
 
     useEffect(() => {
+        if (canvas) {
+            // Read Logical Width (Zoom-independent)
+            const zoom = canvas.getZoom();
+            setCanvasWidth((canvas.width || 1080) / zoom);
+            setCanvasHeight((canvas.height || 1080) / zoom);
+            setCanvasColor(canvas.backgroundColor as string || '#ffffff');
+        }
+    }, [canvas]);
+
+    useEffect(() => {
         if (!canvas) return;
 
         const updateObjects = () => {
-            setObjects([...canvas.getObjects().reverse()]); // Reverse to show top layer first
+            const objs = canvas.getObjects();
+            objs.forEach((obj, i) => {
+                if (!(obj as any).id) {
+                    (obj as any).id = `obj-${Date.now()}-${i}`;
+                }
+            });
+            setObjects([...objs.reverse()]); // Reverse to show top layer first
         };
+        
+        // Initial load
+        updateObjects();
 
         const handleSelection = (e: { selected?: fabric.Object[] }) => {
             const selection = e.selected ? e.selected[0] : null;
@@ -256,8 +275,33 @@ export default function PropertiesPanel({ canvas, activeTool }: PropertiesPanelP
         // updates handled by event listener
     };
 
+    const toggleVisibility = (obj: fabric.Object) => {
+        if (!canvas) return;
+        // Toggle visible property, defaulting to true if undefined
+        obj.set('visible', !(obj.visible ?? true));
+        // Deselect if hiding current selection
+        if (!obj.visible && canvas.getActiveObject() === obj) {
+            canvas.discardActiveObject();
+        }
+        canvas.requestRenderAll();
+        
+        // Force update local state to reflect visibility change in UI
+        setObjects([...canvas.getObjects().reverse()]); 
+    };
+
     const selectLayer = (obj: fabric.Object) => {
         if (!canvas) return;
+        // If hidden, make visible when selecting via layer panel? 
+        // Or just allow selecting hidden objects? Usually better to keep hidden.
+        // If user wants to see it, they should click eye. 
+        // BUT, Fabric doesn't allow selecting invisible objects by click. 
+        // We can manually set active object though.
+        
+        if (!obj.visible) {
+             // Optional: Auto-unhide on select?
+             // obj.set('visible', true);
+        }
+        
         canvas.setActiveObject(obj);
         canvas.requestRenderAll();
     };
@@ -293,6 +337,33 @@ export default function PropertiesPanel({ canvas, activeTool }: PropertiesPanelP
         }
     };
 
+    const updateCanvasSize = (w: number, h: number) => {
+        if(canvas) {
+            const zoom = canvas.getZoom();
+            // Set Physical Dimensions = Logical w * Zoom
+            canvas.setDimensions({ width: w * zoom, height: h * zoom });
+            setCanvasWidth(w);
+            setCanvasHeight(h);
+            canvas.requestRenderAll();
+        }
+    };
+
+    const updateCanvasColor = (c: string) => {
+        if(canvas) {
+            canvas.backgroundColor = c;
+            setCanvasColor(c);
+            canvas.requestRenderAll();
+        }
+    }
+
+    const presetSizes = [
+        { name: 'Square (IG)', w: 1080, h: 1080, icon: Square },
+        { name: 'Story (IG)', w: 1080, h: 1920, icon: Smartphone },
+        { name: 'Landscape', w: 1920, h: 1080, icon: Monitor },
+        { name: 'Portrait', w: 1080, h: 1350, icon: ImageIcon },
+        { name: 'Thumbnail', w: 1280, h: 720, icon: Monitor },
+    ];
+
     // If Layers tool is active
     if (activeTool === 'layers') {
         return (
@@ -321,8 +392,7 @@ export default function PropertiesPanel({ canvas, activeTool }: PropertiesPanelP
                                     total={objects.length}
                                     selectedObject={selectedObject}
                                     selectLayer={selectLayer}
-                                    deleteLayer={deleteLayer}
-                                 />
+                                    deleteLayer={deleteLayer}                                    toggleVisibility={toggleVisibility}                                 />
                             ))}
                          </SortableContext>
                     </DndContext>
@@ -337,43 +407,6 @@ export default function PropertiesPanel({ canvas, activeTool }: PropertiesPanelP
             </div>
         );
     }
-
-    useEffect(() => {
-        if (canvas) {
-            // Read Logical Width (Zoom-independent)
-            const zoom = canvas.getZoom();
-            setCanvasWidth((canvas.width || 1080) / zoom);
-            setCanvasHeight((canvas.height || 1080) / zoom);
-            setCanvasColor(canvas.backgroundColor as string || '#ffffff');
-        }
-    }, [canvas]);
-
-    const updateCanvasSize = (w: number, h: number) => {
-        if(canvas) {
-            const zoom = canvas.getZoom();
-            // Set Physical Dimensions = Logical w * Zoom
-            canvas.setDimensions({ width: w * zoom, height: h * zoom });
-            setCanvasWidth(w);
-            setCanvasHeight(h);
-            canvas.requestRenderAll();
-        }
-    };
-
-    const updateCanvasColor = (c: string) => {
-        if(canvas) {
-            canvas.backgroundColor = c;
-            setCanvasColor(c);
-            canvas.requestRenderAll();
-        }
-    }
-
-    const presetSizes = [
-        { name: 'Square (IG)', w: 1080, h: 1080, icon: Square },
-        { name: 'Story (IG)', w: 1080, h: 1920, icon: Smartphone },
-        { name: 'Landscape', w: 1920, h: 1080, icon: Monitor },
-        { name: 'Portrait', w: 1080, h: 1350, icon: ImageIcon },
-        { name: 'Thumbnail', w: 1280, h: 720, icon: Monitor },
-    ];
 
     if (!selectedObject) {
         // Show Canvas Settings
@@ -505,6 +538,24 @@ export default function PropertiesPanel({ canvas, activeTool }: PropertiesPanelP
                         />
                     </div>
                 </div>
+
+                {selectedObject.type === 'image' && onMake3D && (
+                    <div className="pt-6 border-t border-border/50 space-y-4">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">AI Actions</label>
+                        <button
+                            onClick={() => {
+                                const imgObj = selectedObject as fabric.Image;
+                                // Use toDataURL to get the image content, enabling it to be sent to API
+                                const dataUrl = imgObj.toDataURL();
+                                onMake3D(dataUrl);
+                            }}
+                            className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                        >
+                            <Box size={16} />
+                            <span>Make 3D</span>
+                        </button>
+                    </div>
+                )}
                 
                 {(selectedObject.type === 'text' || selectedObject.type === 'i-text') && (
                      <div className="pt-6 border-t border-border/50 space-y-4">
