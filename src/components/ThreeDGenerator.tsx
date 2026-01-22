@@ -282,10 +282,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
              alert(`Error starting Tripo generation: ${data.message || data.code || 'Unknown error'}`);
              setIsLoading(false);
         }
-            console.error("Tripo Task Start Error", data);
-            alert(`Error starting Tripo generation: ${data.message || data.msg || JSON.stringify(data)}`);
-            setIsLoading(false);
-        }
     };
 
     const handleCapture = () => {
