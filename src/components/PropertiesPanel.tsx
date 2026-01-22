@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { StarPolygon } from '@/types';
 import { ArrowUp, ArrowDown, Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff } from 'lucide-react';
@@ -7,6 +7,11 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+/**
+ * PropertiesPanel
+ * Right sidebar for managing object properties, layers, and canvas settings.
+ * Includes Layer Tagging (Double-click grip) and Gradient/Solid Fill controls.
+ */
 interface PropertiesPanelProps {
     canvas: fabric.Canvas | null;
     activeTool?: string;
@@ -24,6 +29,17 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
         isDragging
     } = useSortable({ id: (obj as any).id || (obj as any).cacheKey || `obj-${index}` });
 
+    const [isEditing, setIsEditing] = useState(false);
+    const [name, setName] = useState(obj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')));
+    // Use fill as color, defaulting to transparent or black if complex
+    const [layerColor, setLayerColor] = useState(() => {
+         if (typeof obj.fill === 'string') return obj.fill;
+         return '#000000';
+    });
+    // Layer Tag Color (Grab Area)
+    const [tagColor, setTagColor] = useState(obj.layerTagColor || 'transparent');
+    const tagColorInputRef = useRef<HTMLInputElement>(null);
+
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
@@ -32,45 +48,123 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
     };
     
     // Check internal visible state
-    const isVisible = obj.visible !== false; // Default true if undefined
+    const isVisible = obj.visible !== false; 
+
+    const handleNameSave = () => {
+        setIsEditing(false);
+        obj.set('name', name);
+    };
+
+    const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newColor = e.target.value;
+        setLayerColor(newColor);
+        obj.set('fill', newColor);
+        obj.canvas?.requestRenderAll();
+    };
+
+    const handleTagColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newColor = e.target.value;
+        setTagColor(newColor);
+        obj.set('layerTagColor', newColor);
+        // We don't need re-render canvas for this usually, but to be safe if we serialize later
+    };
 
     return (
         <div 
             ref={setNodeRef} 
             style={style} 
             onClick={() => selectLayer(obj)}
-            className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all group mb-1 ${
+            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all group mb-1 ${
                 selectedObject === obj 
                 ? 'bg-primary/10 border-primary/30 shadow-sm' 
                 : 'bg-card border-border/50 hover:bg-secondary/50'
             } ${isDragging ? 'opacity-50 shadow-xl ring-2 ring-primary/20' : ''}`}
         >
-            <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div 
                     {...attributes} 
                     {...listeners} 
-                    className="cursor-move text-muted-foreground/50 hover:text-foreground p-1 hover:bg-secondary rounded touch-none"
+                    className="cursor-move text-muted-foreground/50 hover:text-foreground p-1 hover:bg-secondary rounded touch-none relative"
+                    style={{ backgroundColor: tagColor !== 'transparent' ? tagColor : undefined, color: tagColor !== 'transparent' ? '#fff' : undefined }}
+                    onMouseDown={(e) => isEditing && e.stopPropagation()}
+                    onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        tagColorInputRef.current?.click();
+                    }}
+                    title="Double-click to set layer tag color"
                 >
-                    <GripVertical size={14} />
+                    <GripVertical size={14} style={{ mixBlendMode: tagColor !== 'transparent' ? 'difference' : 'normal' }} />
+                    <input 
+                        ref={tagColorInputRef}
+                        type="color"
+                        className="sr-only"
+                        value={tagColor === 'transparent' ? '#808080' : tagColor}
+                        onChange={handleTagColorChange}
+                    />
                 </div>
                 
-                <div className="w-8 h-8 rounded bg-background border flex items-center justify-center text-muted-foreground shrink-0 select-none">
-                    {obj.type === 'rect' && <div className="w-4 h-4 bg-current rounded-sm" />}
-                    {obj.type === 'circle' && <div className="w-4 h-4 bg-current rounded-full" />}
-                    {obj.type === 'triangle' && <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-current" />}
+                <div className="relative w-8 h-8 rounded bg-background border flex items-center justify-center text-muted-foreground shrink-0 select-none overflow-hidden group/color">
+                    {/* Background Color Indicator */}
+                    <div 
+                        className="absolute inset-0 opacity-20" 
+                        style={{ backgroundColor: typeof obj.fill === 'string' ? obj.fill : undefined }} 
+                    />
+                    
+                    {/* Icon */}
+                    {obj.type === 'rect' && <div className="w-4 h-4 bg-foreground rounded-sm opacity-50" />}
+                    {obj.type === 'circle' && <div className="w-4 h-4 bg-foreground rounded-full opacity-50" />}
+                    {obj.type === 'triangle' && <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-foreground opacity-50" />}
                     {(obj.type === 'text' || obj.type === 'i-text') && <span className="text-xs font-serif font-bold">T</span>}
-                    {obj.type === 'image' && <div className="text-[8px] font-mono">IMG</div>}
+                    {obj.type === 'image' && <ImageIcon size={14} />}
                     {'isStar' in obj && <div className="text-[8px]">★</div>}
+
+                     {/* Color Input Overlay (Not for images) */}
+                     {obj.type !== 'image' && (
+                        <input 
+                            type="color" 
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                            value={layerColor}
+                            onChange={handleColorChange}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Change Color"
+                        />
+                    )}
                 </div>
-                <div className={`flex flex-col min-w-0 select-none ${!isVisible ? 'opacity-50 grayscale' : ''}`}>
-                    <span className="text-sm font-medium truncate w-24">
-                        {obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')}
-                    </span>
+
+                <div className="flex flex-col min-w-0 select-none flex-1">
+                    {isEditing ? (
+                        <input 
+                            autoFocus
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            onBlur={handleNameSave}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleNameSave();
+                                if (e.key === 'Escape') {
+                                    setIsEditing(false);
+                                    setName(obj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')));
+                                }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-sm font-medium bg-background border rounded px-1 h-5 min-w-0 outline-none focus:ring-1 focus:ring-primary"
+                        />
+                    ) : (
+                        <span 
+                            className="text-sm font-medium truncate"
+                            onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setIsEditing(true);
+                            }}
+                            title="Double click to rename"
+                        >
+                            {obj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object'))}
+                        </span>
+                    )}
                     <span className="text-[10px] text-muted-foreground">Layer {total - index}</span>
                 </div>
             </div>
             
-            <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+            <div className={`flex items-center gap-1 ${selectedObject === obj ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'} transition-opacity ml-2`}>
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleVisibility(obj); }}
                     className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground"
@@ -102,6 +196,11 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
     );
 
     const [color, setColor] = useState('#000000');
+    // Gradient State
+    const [isGradient, setIsGradient] = useState(false);
+    const [gradientStart, setGradientStart] = useState('#000000');
+    const [gradientEnd, setGradientEnd] = useState('#ffffff');
+
     const [opacity, setOpacity] = useState(1);
     const [fontFamily, setFontFamily] = useState('Arial');
     const [fontWeight, setFontWeight] = useState('normal');
@@ -146,8 +245,26 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
             setSelectedObject(selection || null);
             
             if (selection) {
-                // ... existing logic ...
-                setColor(selection.get('fill') as string || '#000000');
+                // Check Fill Type
+                const fill = selection.get('fill');
+                
+                if (typeof fill === 'string') {
+                    setIsGradient(false);
+                    setColor(fill);
+                } else if (fill && typeof fill === 'object' && (fill as any).type === 'linear') {
+                    setIsGradient(true);
+                    // Extract colors (approximate for UI)
+                    const stops = (fill as any).colorStops || [];
+                    if (stops.length >= 2) {
+                        setGradientStart(stops[0].color);
+                        setGradientEnd(stops[stops.length - 1].color);
+                    }
+                    setColor('#000000'); // Dummy for picker
+                } else {
+                     setIsGradient(false);
+                     setColor('#000000');
+                }
+
                 setOpacity(selection.get('opacity') || 1);
                 
                 // Check if it is a text object
@@ -193,11 +310,42 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
 
     const updateColor = (newColor: string) => {
         setColor(newColor);
+        setIsGradient(false);
         if (selectedObject && canvas) {
             selectedObject.set('fill', newColor);
             canvas.requestRenderAll();
         }
     };
+
+    const updateGradientStops = (start: string, end: string) => {
+         // Update state
+         setGradientStart(start);
+         setGradientEnd(end);
+
+         if (selectedObject && canvas) {
+             const currentFill = selectedObject.get('fill');
+             let coords = { x1: 0, y1: 0, x2: 1, y2: 0 }; // Default Horizontal
+            
+             // Preserve existing gradient direction if possible
+             if (currentFill && typeof currentFill === 'object' && (currentFill as any).coords) {
+                 coords = (currentFill as any).coords;
+             }
+
+             const gradient = new fabric.Gradient({
+                type: 'linear',
+                gradientUnits: 'percentage',
+                coords: coords,
+                colorStops: [
+                    { offset: 0, color: start },
+                    { offset: 1, color: end }
+                ]
+             });
+             
+             setIsGradient(true);
+             selectedObject.set('fill', gradient);
+             canvas.requestRenderAll();
+         }
+    }
 
     const updateOpacity = (newOpacity: number) => {
         setOpacity(newOpacity);
@@ -497,27 +645,72 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-8">
-                {/* Color Section */}
+                {/* Fill / Gradient Section */}
                 <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fill Color</label>
-                         <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{color}</span>
+                         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fill Style</label>
+                         <div className="flex gap-1 text-[10px] bg-secondary/50 p-1 rounded">
+                             <button 
+                                onClick={() => updateColor(gradientStart)} 
+                                className={`px-2 py-0.5 rounded transition-all ${!isGradient ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:bg-background/50'}`}
+                            >
+                                Solid
+                             </button>
+                             <button 
+                                onClick={() => updateGradientStops(gradientStart, gradientEnd)}
+                                className={`px-2 py-0.5 rounded transition-all ${isGradient ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:bg-background/50'}`}
+                            >
+                                Gradient
+                             </button>
+                         </div>
                     </div>
-                    <div className="flex items-center gap-3 bg-secondary/30 p-2 rounded-lg border border-border/50">
-                        <div className="relative w-full flex items-center gap-3">
-                             <div 
-                                className="w-8 h-8 rounded-full shadow-sm ring-1 ring-border/20"
-                                style={{ backgroundColor: color }}
-                             ></div>
-                             <input 
-                                type="color" 
-                                value={color} 
-                                onChange={(e) => updateColor(e.target.value)}
-                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                             />
-                             <span className="text-sm text-foreground font-medium flex-1">Pick a color</span>
+                    
+                    {!isGradient ? (
+                        <div className="flex items-center gap-3 bg-secondary/30 p-2 rounded-lg border border-border/50">
+                            <div className="relative w-full flex items-center gap-3">
+                                <div 
+                                    className="w-8 h-8 rounded-full shadow-sm ring-1 ring-border/20"
+                                    style={{ backgroundColor: color }}
+                                ></div>
+                                <input 
+                                    type="color" 
+                                    value={color} 
+                                    onChange={(e) => updateColor(e.target.value)}
+                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                />
+                                <span className="text-sm text-foreground font-medium flex-1">Pick a color</span>
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="space-y-2 bg-secondary/20 p-2 rounded-lg border border-border/50">
+                             <div className="flex items-center gap-2">
+                                <span className="text-[10px] w-8">Start</span>
+                                <div className="relative flex-1 h-6 rounded border border-border flex items-center gap-2 px-2 bg-background">
+                                     <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: gradientStart }} />
+                                     <input 
+                                        type="color" 
+                                        value={gradientStart}
+                                        onChange={(e) => updateGradientStops(e.target.value, gradientEnd)}
+                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                                     />
+                                     <span className="text-xs flex-1">{gradientStart}</span>
+                                </div>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                <span className="text-[10px] w-8">End</span>
+                                <div className="relative flex-1 h-6 rounded border border-border flex items-center gap-2 px-2 bg-background">
+                                     <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: gradientEnd }} />
+                                     <input 
+                                        type="color" 
+                                        value={gradientEnd}
+                                        onChange={(e) => updateGradientStops(gradientStart, e.target.value)}
+                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                                     />
+                                     <span className="text-xs flex-1">{gradientEnd}</span>
+                                </div>
+                             </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Opacity Section */}
