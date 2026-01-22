@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CreativeFlow - AI Design Studio",
+  title: "Image Express - AI Design Studio",
   description: "Advanced content creation platform with AI-powered 3D generation, templates, and professional design tools.",
 };
 

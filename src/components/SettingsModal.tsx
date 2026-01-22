@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Save, Key, ShieldCheck, AlertCircle, HelpCircle, Server, Cloud } from 'lucide-react';
+import { X, Save, Key, ShieldCheck, AlertCircle, HelpCircle, Server, Cloud, Box } from 'lucide-react';
 import HelpPopup from './HelpPopup';
 
 interface SettingsModalProps {
@@ -10,21 +10,34 @@ interface SettingsModalProps {
 }
 
 export const STORAGE_KEYS = {
-    MESHY_API_KEY: 'image-express-meshy-key',
-    TRIPO_API_KEY: 'image-express-tripo-key',
-    HITEMS_API_KEY: 'image-express-hitems-key',
-    // New Keys
+    // 3D Services
+    MESHY_API_KEY: 'meshy_api_key',
+    TRIPO_API_KEY: 'tripo_api_key',
+    HITEMS_API_KEY: 'hitems_api_key',
+    
+    // Image Services
+    STABILITY_API_KEY: 'stability_api_key',
+    OPENAI_API_KEY: 'openai_api_key',
+    GOOGLE_API_KEY: 'google_api_key', // Google Nano/Gemini
+    BANANA_API_KEY: 'banana_api_key', // Banana.dev
+    
+    // Legacy / Others
     IMG_GEN_PROVIDER: 'image-express-provider',
-    IMG_GEN_API_KEY: 'image-express-gen-key',
     COMFY_UI_URL: 'image-express-comfy-url',
 };
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+    // 3D Keys
     const [meshyKey, setMeshyKey] = useState('');
-    const [imgProvider, setImgProvider] = useState('comfy'); // 'comfy' | 'api'
-    const [apiKey, setApiKey] = useState('');
-    const [comfyUrl, setComfyUrl] = useState('http://127.0.0.1:8188');
-    
+    const [tripoKey, setTripoKey] = useState('');
+    const [hitemsKey, setHitemsKey] = useState('');
+
+    // Image Keys
+    const [stabilityKey, setStabilityKey] = useState('');
+    const [openaiKey, setOpenaiKey] = useState('');
+    const [googleKey, setGoogleKey] = useState('');
+    const [bananaKey, setBananaKey] = useState('');
+
     const [status, setStatus] = useState<'idle' | 'saved'>('idle');
     const [helpType, setHelpType] = useState<'comfy' | 'api' | null>(null);
 
@@ -32,17 +45,25 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     useEffect(() => {
         if (typeof window !== 'undefined') {
             setMeshyKey(localStorage.getItem(STORAGE_KEYS.MESHY_API_KEY) || '');
-            setImgProvider(localStorage.getItem(STORAGE_KEYS.IMG_GEN_PROVIDER) || 'comfy');
-            setApiKey(localStorage.getItem(STORAGE_KEYS.IMG_GEN_API_KEY) || '');
-            setComfyUrl(localStorage.getItem(STORAGE_KEYS.COMFY_UI_URL) || 'http://127.0.0.1:8188');
+            setTripoKey(localStorage.getItem(STORAGE_KEYS.TRIPO_API_KEY) || '');
+            setHitemsKey(localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '');
+            
+            setStabilityKey(localStorage.getItem(STORAGE_KEYS.STABILITY_API_KEY) || '');
+            setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
+            setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
+            setBananaKey(localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
         }
     }, [isOpen]);
 
     const handleSave = () => {
         localStorage.setItem(STORAGE_KEYS.MESHY_API_KEY, meshyKey);
-        localStorage.setItem(STORAGE_KEYS.IMG_GEN_PROVIDER, imgProvider);
-        localStorage.setItem(STORAGE_KEYS.IMG_GEN_API_KEY, apiKey);
-        localStorage.setItem(STORAGE_KEYS.COMFY_UI_URL, comfyUrl);
+        localStorage.setItem(STORAGE_KEYS.TRIPO_API_KEY, tripoKey);
+        localStorage.setItem(STORAGE_KEYS.HITEMS_API_KEY, hitemsKey);
+        
+        localStorage.setItem(STORAGE_KEYS.STABILITY_API_KEY, stabilityKey);
+        localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiKey);
+        localStorage.setItem(STORAGE_KEYS.GOOGLE_API_KEY, googleKey);
+        localStorage.setItem(STORAGE_KEYS.BANANA_API_KEY, bananaKey);
         
         setStatus('saved');
         setTimeout(() => setStatus('idle'), 2000);
@@ -73,101 +94,124 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </div>
                 </div>
 
-                <div className="space-y-4">
-                    {/* Meshy AI */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium flex items-center gap-2">
-                            Meshy AI Key
-                            {process.env.NEXT_PUBLIC_MESHY_API_KEY && (
-                                <span className="text-[10px] bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded border border-green-500/20 flex items-center gap-1">
-                                    <ShieldCheck size={10} /> Env Var Detected
-                                </span>
-                            )}
-                        </label>
-                        <input 
-                            type="password"
-                            value={meshyKey}
-                            onChange={(e) => setMeshyKey(e.target.value)}
-                            placeholder={process.env.NEXT_PUBLIC_MESHY_API_KEY ? "Using Key from .env" : "Enter Meshy API Key"}
-                            className="w-full h-10 px-3 rounded-md bg-secondary/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm"
-                        />
-                         <p className="text-[10px] text-muted-foreground">Used for 3D generation (Text-to-3D, Image-to-3D).</p>
+
+                <div className="flex-1 overflow-y-auto pr-2 space-y-6 max-h-[60vh]">
+                    {/* 3D Generation Section */}
+                    <div className="space-y-4">
+                         <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
+                             <Box size={16} className="text-indigo-500"/>
+                             3D Services
+                        </h4>
+                        
+                        <div className="grid gap-3">
+                            {/* Meshy */}
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                                <label className="text-xs font-semibold mb-1.5 block">Meshy AI</label>
+                                <input 
+                                    type="password"
+                                    value={meshyKey}
+                                    onChange={(e) => setMeshyKey(e.target.value)}
+                                    placeholder="Enter Meshy API Key"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                />
+                            </div>
+
+                            {/* Tripo */}
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                                <label className="text-xs font-semibold mb-1.5 block">Tripo AI</label>
+                                <input 
+                                    type="password"
+                                    value={tripoKey}
+                                    onChange={(e) => setTripoKey(e.target.value)}
+                                    placeholder="Enter Tripo API Key"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                />
+                            </div>
+
+                            {/* Hitems3D (Generic/Placeholder) */}
+                             <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                                <label className="text-xs font-semibold mb-1.5 block">Hitems3D / Hy3D</label>
+                                <input 
+                                    type="password"
+                                    value={hitemsKey}
+                                    onChange={(e) => setHitemsKey(e.target.value)}
+                                    placeholder="Enter API Key"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="h-px bg-border/50 my-6" />
+                    <div className="h-px bg-border/50" />
 
                     {/* Image Generation Config */}
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm flex items-center gap-2">
-                             <Cloud size={16} className="text-primary"/> 
-                             Image Generation Configuration
+                        <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
+                             <Cloud size={16} className="text-pink-500"/> 
+                             Image & Vision
                         </h4>
                         
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setImgProvider('comfy')}
-                                className={`flex-1 flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${
-                                    imgProvider === 'comfy' 
-                                    ? 'bg-primary/5 border-primary shadow-sm' 
-                                    : 'bg-card border-border hover:bg-secondary/50'
-                                }`}
-                            >
-                                <Server size={20} className={imgProvider === 'comfy' ? 'text-primary' : 'text-muted-foreground'} />
-                                <span className="text-xs font-medium">Local ComfyUI</span>
-                            </button>
-                            <button
-                                onClick={() => setImgProvider('api')}
-                                className={`flex-1 flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${
-                                    imgProvider === 'api' 
-                                    ? 'bg-primary/5 border-primary shadow-sm' 
-                                    : 'bg-card border-border hover:bg-secondary/50'
-                                }`}
-                            >
-                                <Cloud size={20} className={imgProvider === 'api' ? 'text-primary' : 'text-muted-foreground'} />
-                                <span className="text-xs font-medium">Remote API</span>
-                            </button>
-                        </div>
-
-                        {imgProvider === 'comfy' ? (
-                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <label className="text-sm font-medium flex items-center gap-2">
-                                    ComfyUI Server URL
-                                    <button onClick={() => setHelpType('comfy')} className="text-muted-foreground hover:text-primary transition-colors" title="Help">
-                                        <HelpCircle size={14} />
-                                    </button>
-                                </label>
-                                <input 
-                                    type="text"
-                                    value={comfyUrl}
-                                    onChange={(e) => setComfyUrl(e.target.value)}
-                                    placeholder="http://127.0.0.1:8188"
-                                    className="w-full h-10 px-3 rounded-md bg-secondary/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm placeholder:text-muted-foreground/50 font-mono"
-                                />
-                                <p className="text-[10px] text-muted-foreground">
-                                    Ensure your server is running with <code className="bg-secondary px-1 rounded">--enable-cors-header</code>
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <label className="text-sm font-medium flex items-center gap-2">
-                                    Provider API Key
-                                    <button onClick={() => setHelpType('api')} className="text-muted-foreground hover:text-primary transition-colors" title="Help">
-                                        <HelpCircle size={14} />
-                                    </button>
-                                </label>
+                        <div className="grid gap-3">
+                            {/* Stability AI */}
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                                <div className="flex justify-between mb-1.5">
+                                    <label className="text-xs font-semibold">Stability AI</label>
+                                    <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">SD3 / Core</span>
+                                </div>
                                 <input 
                                     type="password"
-                                    value={apiKey}
-                                    onChange={(e) => setApiKey(e.target.value)}
+                                    value={stabilityKey}
+                                    onChange={(e) => setStabilityKey(e.target.value)}
                                     placeholder="sk-..."
-                                    className="w-full h-10 px-3 rounded-md bg-secondary/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm placeholder:text-muted-foreground/50"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none text-xs font-mono placeholder:font-sans"
                                 />
-                                <div className="text-[10px] text-muted-foreground bg-secondary/30 p-2 rounded flex gap-2 items-start">
-                                    <AlertCircle size={12} className="mt-0.5 shrink-0" />
-                                    <span>Supports OpenAI-compatible endpoints or Stability AI (configured in .env)</span>
-                                </div>
                             </div>
-                        )}
+
+                            {/* OpenAI */}
+                             <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                                <div className="flex justify-between mb-1.5">
+                                    <label className="text-xs font-semibold">OpenAI</label>
+                                    <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">DALL-E 3</span>
+                                </div>
+                                <input 
+                                    type="password"
+                                    value={openaiKey}
+                                    onChange={(e) => setOpenaiKey(e.target.value)}
+                                    placeholder="sk-..."
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none text-xs font-mono placeholder:font-sans"
+                                />
+                            </div>
+
+                            {/* Google Nano */}
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                                <div className="flex justify-between mb-1.5">
+                                    <label className="text-xs font-semibold">Google Gemini / Vertex</label>
+                                    <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">Nano / Imagen</span>
+                                </div>
+                                <input 
+                                    type="password"
+                                    value={googleKey}
+                                    onChange={(e) => setGoogleKey(e.target.value)}
+                                    placeholder="Enter API Key"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none text-xs font-mono placeholder:font-sans"
+                                />
+                            </div>
+
+                             {/* Banana.dev */}
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                                <div className="flex justify-between mb-1.5">
+                                    <label className="text-xs font-semibold">Banana.dev</label>
+                                    <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">GPU Cloud</span>
+                                </div>
+                                <input 
+                                    type="password"
+                                    value={bananaKey}
+                                    onChange={(e) => setBananaKey(e.target.value)}
+                                    placeholder="Enter API Key"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none text-xs font-mono placeholder:font-sans"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
