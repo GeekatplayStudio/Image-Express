@@ -118,7 +118,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                     prompt: prompt,
                     art_style: "realistic",
                     negative_prompt: "low quality, low res",
-                    ai_model: "latest", // Meshy 6
+                    ai_model: "meshy-4", // Updated to valid model
                     topology: "quad",
                     should_remesh: true
                 };
@@ -128,15 +128,15 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 endpoint = 'image-to-3d';
                 body = {
                     image_url: initialImage, 
-                    enable_pbr: true, // High res texture maps
+                    enable_pbr: true, 
                     should_texture: true,
                     should_remesh: true,
-                    ai_model: "latest" // Meshy 6
+                    ai_model: "meshy-4" // Updated to valid model
                 };
             }
 
-            // Using v2 endpoints
-            const res = await fetch(`https://api.meshy.ai/openapi/v2/${endpoint}`, {
+            // Using local proxy to avoid CORS
+            const res = await fetch(`/api/ai/meshy?endpoint=${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${key}`,
@@ -191,9 +191,16 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 try {
                     const fetchRes = await fetch(initialImage);
                     const blob = await fetchRes.blob();
+                    
+                    // Detect file extension from mime type
+                    const mimeType = blob.type; 
+                    let fileExt = 'png';
+                    // Tripo expects 'jpg' for JPEGs
+                    if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') fileExt = 'jpg';
+                    else if (mimeType === 'image/webp') fileExt = 'webp';
 
                     const formData = new FormData();
-                    formData.append('file', blob, 'image.png');
+                    formData.append('file', blob, `image.${fileExt}`);
 
                     // Upload
                     const uploadRes = await fetch('/api/ai/tripo/upload', {
@@ -210,29 +217,36 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                          body = {
                             type: "image_to_model",
                             file: {
-                                type: "png",
+                                type: fileExt,
                                 file_token: uploadJson.data.image_token
                             }
                         };
                     } else {
-                        console.error("Tripo Upload Error", uploadJson);
-                        alert("Failed to upload image to Tripo: " + (uploadJson.message || 'Unknown error'));
+                        console.error("Tripo Upload fail:", uploadJson);
+                        alert("Failed to upload image to Tripo. Error: " + (uploadJson.message || 'Unknown'));
                         setIsLoading(false);
                         return;
                     }
-
                 } catch (e) {
                      console.error("Failed to process image for upload", e);
-                     alert("Failed to process image");
+                     alert("Failed to process upload: " + String(e));
                      setIsLoading(false);
                      return;
                 }
             } else {
                 // Public URL
+                let fileExt = 'png';
+                // Basic extension check, defaulting to png if unknown
+                if (initialImage.toLowerCase().endsWith('.jpg') || initialImage.toLowerCase().endsWith('.jpeg')) {
+                    fileExt = 'jpg';
+                } else if (initialImage.toLowerCase().endsWith('.webp')) {
+                    fileExt = 'webp';
+                }
+                
                 body = {
                     type: "image_to_model",
                     file: {
-                        type: "png",
+                        type: fileExt,
                         url: initialImage
                     }
                 };
@@ -264,8 +278,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 });
             }
         } else {
-            console.error("Tripo Error", data);
-            alert("Error starting Tripo generation: " + (data.message || 'Unknown error'));
+             console.error("Tripo Start Error:", data);
+             alert(`Error starting Tripo generation: ${data.message || data.code || 'Unknown error'}`);
+             setIsLoading(false);
+        }
+            console.error("Tripo Task Start Error", data);
+            alert(`Error starting Tripo generation: ${data.message || data.msg || JSON.stringify(data)}`);
             setIsLoading(false);
         }
     };
