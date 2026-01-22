@@ -89,10 +89,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             if (selectedProvider === 'meshy') {
                 await generateMeshy(currentKey);
             } else if (selectedProvider === 'tripo') {
-                 // Placeholder for Tripo Logic
-                 // await generateTripo(currentKey);
-                 alert("Tripo integration coming soon in V2");
-                 setIsLoading(false);
+                 // Tripo Integration
+                 await generateTripo(currentKey);
             } else {
                  alert("Service integration in progress");
                  setIsLoading(false);
@@ -137,8 +135,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 };
             }
 
-            // Using openapi/v1 as per documentation for latest features
-            const res = await fetch(`https://api.meshy.ai/openapi/v1/${endpoint}`, {
+            // Using v2 endpoints
+            const res = await fetch(`https://api.meshy.ai/openapi/v2/${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${key}`,
@@ -148,11 +146,15 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             });
             // ... (rest of fetch logic)
             const data = await res.json();
-             if (data.result) {
+             // V2 returns 'result': 'id' string on creation often, or check 'id'
+             const taskId = data.result || data.id;
+
+             if (taskId) {
                 if (onStartBackgroundJob) {
                     onStartBackgroundJob({
-                        id: data.result,
+                        id: taskId,
                         type: mode === 'text' ? 'text-to-3d' : 'image-to-3d',
+                        provider: 'meshy',
                         status: 'IN_PROGRESS',
                         prompt: mode === 'text' ? prompt : 'Image to 3D',
                         createdAt: Date.now(),
@@ -164,6 +166,63 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 alert("Error starting generation: " + (data.message || 'Unknown error'));
                 setIsLoading(false);
             }
+    };
+
+    const generateTripo = async (key: string) => {
+        let body: any = {};
+        
+        if (mode === 'text') {
+             if (!prompt) {
+                alert('Please enter prompt');
+                setIsLoading(false);
+                return;
+            }
+            body = {
+                type: "text_to_model",
+                prompt: prompt
+            };
+        } else {
+            // Image to 3D
+            if (!initialImage) return;
+            // Tripo supports direct URL for image_to_model
+            body = {
+                type: "image_to_model",
+                file: {
+                    type: "png", // Defaulting to png, Tripo might be flexible or detect
+                    url: initialImage
+                }
+            };
+        }
+
+        // Use local proxy to avoid CORS
+        const res = await fetch(`/api/ai/tripo`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        const data = await res.json();
+        
+        if (data.code === 0 && data.data?.task_id) {
+            if (onStartBackgroundJob) {
+                onStartBackgroundJob({
+                    id: data.data.task_id,
+                    type: mode === 'text' ? 'text-to-3d' : 'image-to-3d',
+                    provider: 'tripo',
+                    status: 'IN_PROGRESS',
+                    prompt: mode === 'text' ? prompt : 'Image to 3D',
+                    createdAt: Date.now(),
+                    apiKey: key
+                });
+            }
+        } else {
+            console.error("Tripo Error", data);
+            alert("Error starting Tripo generation: " + (data.message || 'Unknown error'));
+            setIsLoading(false);
+        }
     };
 
     const handleCapture = () => {

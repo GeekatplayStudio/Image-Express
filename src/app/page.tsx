@@ -110,44 +110,73 @@ export default function Home() {
         if (!job.id || !job.apiKey) return;
         
         try {
-            const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
-            // Use openapi/v1 for status checks
-            const res = await fetch(`https://api.meshy.ai/openapi/v1/${endpoint}/${job.id}`, {
-                 headers: { 'Authorization': `Bearer ${job.apiKey}` }
-            });
-            
-            if (!res.ok) {
-                 console.warn(`Meshy Poll Failed ${res.status}: ${res.statusText}`);
-                 return;
+            let data: any = null;
+            let status = job.status;
+            let progress = job.progress || 0;
+            let resultUrl = job.resultUrl;
+            let thumbnailUrl = job.thumbnailUrl;
+
+            // --- 1. Fetch Status based on Provider ---
+            if (job.provider === 'tripo') {
+                 // Use local proxy
+                 const res = await fetch(`/api/ai/tripo/${job.id}`, {
+                     headers: { 'Authorization': `Bearer ${job.apiKey}` }
+                 });
+                 if (!res.ok) return;
+                 const json = await res.json();
+                 if (json.data) {
+                     const tData = json.data;
+                     // Map Tripo status to internal format
+                     if (tData.status === 'success') status = 'SUCCEEDED';
+                     else if (tData.status === 'failed' || tData.status === 'cancelled') status = 'FAILED';
+                     else status = 'IN_PROGRESS';
+
+                     progress = tData.progress;
+                     resultUrl = tData.output?.model;
+                     thumbnailUrl = tData.output?.rendered_image;
+                     data = tData; // Keep raw for logging if needed
+                 }
+            } else {
+                // Default: Meshy
+                const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
+                // Using v2 for polling
+                const res = await fetch(`https://api.meshy.ai/openapi/v2/${endpoint}/${job.id}`, {
+                     headers: { 'Authorization': `Bearer ${job.apiKey}` }
+                });
+                
+                if (!res.ok) return;
+
+                data = await res.json();
+                
+                if (data.status === 'SUCCEEDED') status = 'SUCCEEDED';
+                else if (data.status === 'FAILED' || data.status === 'EXPIRED') status = 'FAILED';
+                else status = 'IN_PROGRESS'; // Meshy uses PENDING/IN_PROGRESS
+
+                progress = data.progress;
+                resultUrl = data.model_urls?.glb;
+                thumbnailUrl = data.thumbnail_url;
             }
 
-            const data = await res.json();
-            console.log(`[Meshy Poll] Job ${job.id}: ${data.status} (${data.progress}%)`);
-            
-            if (data.status === 'SUCCEEDED' || data.status === 'FAILED' || data.status === 'EXPIRED') {
-                 
-                 const isSuccess = data.status === 'SUCCEEDED';
-                 const newStatus: 'SUCCEEDED' | 'FAILED' = isSuccess ? 'SUCCEEDED' : 'FAILED';
+            if (!data) return;
+
+            // --- 2. Handle Completion ---
+            if (status === 'SUCCEEDED' || status === 'FAILED') {
                  
                  const updatedJob: BackgroundJob = {
                      ...job,
-                     status: newStatus,
-                     resultUrl: data.model_urls?.glb,
-                     thumbnailUrl: data.thumbnail_url,
-                     progress: isSuccess ? 100 : (data.progress || 0)
+                     status: status as any,
+                     resultUrl: resultUrl,
+                     thumbnailUrl: thumbnailUrl,
+                     progress: status === 'SUCCEEDED' ? 100 : progress
                  };
                  
                  // Update state safely
                  setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
 
                  // If SUCCEEDED, auto-save and add to canvas
-                 if (isSuccess) {
-                      let glbUrl = data.model_urls?.glb;
-                      if (!glbUrl) {
-                          console.error("Meshy succeeded but no GLB url found", data);
-                          return;
-                      }
-
+                 if (status === 'SUCCEEDED' && resultUrl) {
+                      
+                      // Auto-save logic
                       let filename = (job.prompt || 'generated').slice(0, 15);
                       filename = filename.replace(/[^a-z0-9]/gi, '_');
                       if (!filename.toLowerCase().endsWith('.glb')) {
@@ -159,7 +188,7 @@ export default function Home() {
                         await fetch('/api/assets/save-url', {
                                 method: 'POST',
                                 body: JSON.stringify({
-                                    url: glbUrl,
+                                    url: resultUrl,
                                     filename: filename,
                                     type: 'models'
                                 })
@@ -169,13 +198,13 @@ export default function Home() {
                       }
 
                       // Add to Canvas (Thumbnail)
-                      if (canvas && data.thumbnail_url) {
-                          fabric.Image.fromURL(data.thumbnail_url, { crossOrigin: 'anonymous' }).then(img => {
+                      if (canvas && thumbnailUrl) {
+                          fabric.Image.fromURL(thumbnailUrl, { crossOrigin: 'anonymous' }).then(img => {
                               img.scaleToWidth(200);
                               img.set({ left: 100, top: 100 });
                               
                               (img as any).is3DModel = true;
-                              (img as any).modelUrl = glbUrl;
+                              (img as any).modelUrl = resultUrl;
 
                               canvas.add(img);
                               canvas.setActiveObject(img);
@@ -183,12 +212,13 @@ export default function Home() {
                       }
                  }
 
-            } else if (data.progress !== undefined) {
-                 if (data.progress !== job.progress || data.status !== job.status) {
+            } else {
+                 // Update Progress
+                 if (progress !== job.progress || status !== job.status) {
                      setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { 
                          ...p, 
-                         progress: data.progress, 
-                         status: data.status as any
+                         progress: progress, 
+                         status: status as any
                      } : p));
                  }
             }
