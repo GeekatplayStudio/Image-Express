@@ -47,6 +47,64 @@ export default function ImageGeneratorModal({
     apiKey: '',
   });
 
+  // Multi-Provider Selection State
+  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>('comfy'); // Default
+
+  useEffect(() => {
+    // Sync with global settings from SettingsModal
+    if (typeof window !== 'undefined') {
+        const comfyUrl = localStorage.getItem('image-express-comfy-url');
+        const apiKey = localStorage.getItem('image-express-gen-key');
+
+        // Check Available Keys
+        const stability = localStorage.getItem('stability_api_key');
+        const openai = localStorage.getItem('openai_api_key');
+        const google = localStorage.getItem('google_api_key');
+        const banana = localStorage.getItem('banana_api_key');
+        
+        const providers = ['comfy']; // Local always available option
+        if (stability) providers.push('stability');
+        if (openai) providers.push('openai');
+        if (google) providers.push('google');
+        if (banana) providers.push('banana');
+        
+        setAvailableProviders(providers);
+
+        // Load persisted selection
+        const savedProvider = localStorage.getItem('image-express-gen-provider');
+        if (savedProvider && providers.includes(savedProvider)) {
+            setSelectedProvider(savedProvider);
+        } else {
+             // Fallback to what was set in global settings formerly, or comfy
+             const legacyProvider = localStorage.getItem('image-express-provider');
+             if (legacyProvider === 'api' && providers.length > 1) {
+                  // try to pick first remote
+                  setSelectedProvider(providers[1]); 
+             } else {
+                 setSelectedProvider('comfy');
+             }
+        }
+        
+        setConfig({
+            provider: 'comfy', // We will derive this from selectedProvider during generate
+            serverUrl: comfyUrl || 'http://127.0.0.1:8188',
+            apiKey: apiKey || '',
+        });
+    }
+  }, []);
+
+  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newVal = e.target.value;
+      setSelectedProvider(newVal);
+      localStorage.setItem('image-express-gen-provider', newVal);
+  };
+    
+  const getProviderKey = (provider: string) => {
+      if (provider === 'comfy') return '';
+      return localStorage.getItem(`${provider}_api_key`) || '';
+  }
+
   // Initial Position
   useEffect(() => {
     if (typeof window !== 'undefined' && !hasMoved) {
@@ -180,7 +238,10 @@ export default function ImageGeneratorModal({
     const currentH = zoneObjectRef.current ? Math.round(zoneObjectRef.current.height! * zoneObjectRef.current.scaleY!) : zoneHeight;
 
 
+
     try {
+      const currentKey = getProviderKey(selectedProvider);
+      
       const response = await fetch('/api/ai/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -189,8 +250,15 @@ export default function ImageGeneratorModal({
           width: currentW,
           height: currentH,
           serverUrl: config.serverUrl,
-          provider: config.provider === 'comfy' ? 'comfy' : 'remote',
-          apiKey: config.apiKey
+          provider: selectedProvider === 'comfy' ? 'comfy' : 'remote', // Backend handles distinction?
+          // Actually, backend expects 'provider' string like 'stability'/'openai' or 'comfy'
+          // If we send 'remote', it uses old logic. We should update backend or map it here.
+          // Let's assume for now fallback:
+          // If selectedProvider is specific (stability, etc), we might need to send that as a specific param 
+          // OR the backend needs update. 
+          // For now, let's assume client-side choice determines `provider` field sent.
+          specificProvider: selectedProvider, 
+          apiKey: currentKey
         }),
       });
 
@@ -200,7 +268,7 @@ export default function ImageGeneratorModal({
         throw new Error(data.message || 'Generation failed');
       }
 
-      if (config.provider === 'comfy') {
+      if (selectedProvider === 'comfy') {
           setStatusMessage('Processing on ComfyUI...');
           await pollComfyResult(data.promptId, config.serverUrl);
       } else {
@@ -360,6 +428,34 @@ export default function ImageGeneratorModal({
 
         {/* Content */}
         <div className="p-4 space-y-4">
+          
+          {/* Service Selection */}
+          {availableProviders.length > 1 && !isGenerating && !generatedImage && (
+            <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Service Provider</label>
+                <select
+                    value={selectedProvider}
+                    onChange={(e) => {
+                        const val = e.target.value as any;
+                        setSelectedProvider(val);
+                        localStorage.setItem('image-express-gen-provider', val);
+                    }}
+                    className="w-full flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    {availableProviders.map(p => (
+                        <option key={p} value={p}>
+                            {p === 'comfy' ? 'ComfyUI (Local)' : 
+                             p === 'stability' ? 'Stability AI' : 
+                             p === 'openai' ? 'DALL·E 3 (OpenAI)' :
+                             p === 'google' ? 'Google Imagen' :
+                             p === 'banana' ? 'Stable Diffusion (Banana)' : 
+                             p}
+                        </option>
+                    ))}
+                </select>
+            </div>
+          )}
+
           
           <div className="space-y-2">
             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-xs">Prompt</label>

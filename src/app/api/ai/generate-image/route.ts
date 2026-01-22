@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
  */
 export async function POST(request: Request) {
   try {
-    const { prompt, width, height, serverUrl, provider, apiKey } = await request.json();
+    const { prompt, width, height, serverUrl, provider, apiKey, specificProvider } = await request.json();
 
     if (provider === 'comfy') {
         const comfyHost = serverUrl || 'http://127.0.0.1:8188';
@@ -102,48 +102,11 @@ export async function POST(request: Request) {
         if (!apiKey) {
              return NextResponse.json({ success: false, message: 'API Key is required for remote generation.' });
         }
+        
+        const mode = specificProvider || 'stability'; // Default to stability if legacy
 
-        // Try Stability AI First (SDXL)
-        // Note: Stability uses different format than OpenAI.
-        const stabilityUrl = 'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image';
-        
-        const stabilityRes = await fetch(stabilityUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-                Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                text_prompts: [
-                    {
-                        text: prompt,
-                    },
-                ],
-                cfg_scale: 7,
-                height: height ? Math.floor(height / 64) * 64 : 1024,
-                width: width ? Math.floor(width / 64) * 64 : 1024,
-                steps: 30,
-                samples: 1,
-            }),
-        });
-        
-        if (stabilityRes.ok) {
-            const data = await stabilityRes.json();
-            // Stability returns base64
-            const base64Image = data.artifacts[0].base64;
-            return NextResponse.json({ 
-                success: true, 
-                imageUrl: `data:image/png;base64,${base64Image}`, 
-                provider: 'stability' 
-            });
-        }
-        
-        // If Stability fails (e.g. 401 Unauthorized), Fallback to OpenAI
-        // But only if it was an auth error, otherwise it might be a bad request we should report.
-        // For simplicity in this demo, if Stability fails with 401/403 (likely due to wrong key type), we try OpenAI.
-        if (stabilityRes.status === 401 || stabilityRes.status === 403 || stabilityRes.status === 404) {
-             // Try OpenAI DALL-E 3
+        // --- OPENAI HANDLER ---
+        if (mode === 'openai') {
             const ratio = width && height ? width / height : 1;
             let openAiSize = "1024x1024";
             if (ratio >= 1.3) openAiSize = "1792x1024";
@@ -168,20 +131,85 @@ export async function POST(request: Request) {
             const data = await openAiRes.json();
             
             if (!openAiRes.ok) {
-                // If both failed, report OpenAI error (or Stability error if we prefer)
-                // Let's report the one that seemed more relevant or just generic.
-                const errorMsg = data.error?.message || 'Remote API Failed (Invalid Key for both Stability and OpenAI)';
-                console.error('API Error:', errorMsg);
+                const errorMsg = data.error?.message || 'OpenAI API Failed';
+                console.error('OpenAI Error:', errorMsg);
                 return NextResponse.json({ success: false, message: errorMsg });
             }
             
             return NextResponse.json({ success: true, imageUrl: data.data[0].url, provider: 'openai' });
+        }
+
+        // --- GOOGLE HANDLER ---
+        if (mode === 'google') {
+            return NextResponse.json({ success: false, message: 'Google Imagen integration coming soon' });
+        }
+
+        // --- BANANA HANDLER ---
+        if (mode === 'banana') {
+             return NextResponse.json({ success: false, message: 'Banana.dev integration coming soon' });
+        }
+
+        // --- STABILITY AI HANDLER (Default) ---
+        // SDXL required dimensions
+        const validDimensions = [
+            { w: 1024, h: 1024 },
+            { w: 1152, h: 896 },
+            { w: 1216, h: 832 },
+            { w: 1344, h: 768 },
+            { w: 1536, h: 640 },
+            { w: 640, h: 1536 },
+            { w: 768, h: 1344 },
+            { w: 832, h: 1216 },
+            { w: 896, h: 1152 },
+        ];
+        
+        // Find closest supported dimension
+        const targetW = width || 1024;
+        const targetH = height || 1024;
+        
+        const bestDim = validDimensions.reduce((prev, curr) => {
+            const prevDiff = Math.abs(prev.w - targetW) + Math.abs(prev.h - targetH);
+            const currDiff = Math.abs(curr.w - targetW) + Math.abs(curr.h - targetH);
+            return currDiff < prevDiff ? curr : prev;
+        });
+
+        const stabilityUrl = 'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image';
+        
+        const stabilityRes = await fetch(stabilityUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                text_prompts: [
+                    {
+                        text: prompt,
+                    },
+                ],
+                cfg_scale: 7,
+                height: bestDim.h,
+                width: bestDim.w,
+                steps: 30,
+                samples: 1,
+            }),
+        });
+        
+        if (stabilityRes.ok) {
+            const data = await stabilityRes.json();
+            const base64Image = data.artifacts[0].base64;
+            return NextResponse.json({ 
+                success: true, 
+                imageUrl: `data:image/png;base64,${base64Image}`, 
+                provider: 'stability' 
+            });
         } else {
-            // It was a Stability API specific error (like out of credits, bad parameters, etc)
              const data = await stabilityRes.json();
              return NextResponse.json({ success: false, message: `Stability AI Error: ${data.message || 'Unknown'}` });
         }
     }
+
 
   } catch (error) {
     console.error('Generation Error:', error);

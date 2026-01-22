@@ -8,8 +8,11 @@ import ThreeDGenerator from '@/components/ThreeDGenerator';
 import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
 import SettingsModal from '@/components/SettingsModal';
 import JobStatusFooter from '@/components/JobStatusFooter';
+import LoginModal from '@/components/LoginModal';
+import UserProfileModal from '@/components/UserProfileModal';
+import Dashboard from '@/components/Dashboard';
 import * as fabric from 'fabric';
-import { Download, Share2, Sparkles, FolderKanban, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings } from 'lucide-react';
+import { Download, Share2, Sparkles, FolderKanban, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob } from '@/types';
 
@@ -19,17 +22,82 @@ import { BackgroundJob } from '@/types';
  * Handles interactive tools like Gradient Drag and Zoom.
  */
 export default function Home() {
+  // Auth State
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [username, setUsername] = useState('Guest');
+  
+  // View State
+  const [currentView, setCurrentView] = useState<'dashboard' | 'editor'>('dashboard');
+
   const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
   const [activeTool, setActiveTool] = useState<string>('select');
   const [zoom, setZoom] = useState(1);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    // Check session
+    const user = localStorage.getItem('image-express-user');
+    if (user) {
+      setIsLoggedIn(true);
+      setUsername(user);
+    } else {
+      setShowLoginModal(true);
+    }
+  }, []);
+
+  const handleLogin = (user: string) => {
+    localStorage.setItem('image-express-user', user);
+    setIsLoggedIn(true);
+    setUsername(user);
+    setShowLoginModal(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('image-express-user');
+    setIsLoggedIn(false);
+    setUsername('Guest');
+    setShowProfileModal(false);
+    setShowLoginModal(true);
+  };
   const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
   const [sourceObjectFor3D, setSourceObjectFor3D] = useState<fabric.Object | null>(null);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJob[]>([]);
   const [editingModelUrl, setEditingModelUrl] = useState<string | null>(null);
   const [editingModelObject, setEditingModelObject] = useState<fabric.Object | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
+  
+  // API Key State for UI Feedback
+  const [apiKeys, setApiKeys] = useState<{
+        meshy?: string, 
+        tripo?: string, 
+        stability?: string, 
+        openai?: string, 
+        google?: string,
+        banana?: string
+    }>({});
+
+  // Check API keys on mount and when settings close
+  useEffect(() => {
+    const checkKeys = () => {
+        setApiKeys({
+            meshy: localStorage.getItem('meshy_api_key') || undefined,
+            tripo: localStorage.getItem('tripo_api_key') || undefined,
+            stability: localStorage.getItem('stability_api_key') || undefined,
+            openai: localStorage.getItem('openai_api_key') || undefined,
+            google: localStorage.getItem('google_api_key') || undefined,
+            banana: localStorage.getItem('banana_api_key') || undefined,
+        });
+    };
+    checkKeys();
+  }, [showSettings]);
+
+  const is3DMode = activeTool === '3d-gen';
+  const has2DKey = !!(apiKeys.stability || apiKeys.openai || apiKeys.google || apiKeys.banana);
+  const has3DKey = !!(apiKeys.meshy || apiKeys.tripo);
+  const isConnected = is3DMode ? has3DKey : has2DKey;
 
   // Background Job Polling
   useEffect(() => {
@@ -37,90 +105,100 @@ export default function Home() {
     const activeJobs = backgroundJobs.filter(j => j.status === 'PENDING' || j.status === 'IN_PROGRESS');
     if (activeJobs.length === 0) return;
 
-    const interval = setInterval(() => {
-        setBackgroundJobs(currentJobs => {
-            // Clone array to modify
-            const newJobs = [...currentJobs];
-            let hasUpdates = false;
-
-            newJobs.forEach(async (job, index) => {
-                if (job.status !== 'IN_PROGRESS' && job.status !== 'PENDING') return;
-
-                try {
-                    const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
-                    // Use openapi/v1 for status checks to match creation endpoint
-                    const res = await fetch(`https://api.meshy.ai/openapi/v1/${endpoint}/${job.id}`, {
-                         headers: { 'Authorization': `Bearer ${job.apiKey}` }
-                    });
-                    const data = await res.json();
-                    
-                    if (data.status === 'SUCCEEDED' || data.status === 'FAILED') {
-                         
-                         const updatedJob = {
-                             ...job,
-                             status: data.status,
-                             resultUrl: data.model_urls?.glb,
-                             thumbnailUrl: data.thumbnail_url,
-                             progress: 100
-                         };
-                         
-                         // Update state
-                         setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
-
-                         // If SUCCEEDED, auto-save and add to canvas
-                         if (data.status === 'SUCCEEDED') {
-                              // Ensure URL ends with .glb if missing
-                              let glbUrl = data.model_urls.glb;
-                              // Basic check, though meshy usually returns valid signed urls 
-                              // which might have query params.
-                              // If it doesn't have .glb in path, we might want to trust it anyway 
-                              // OR if we are downloading to save, save-url endpoint handles file extension
-                              // BUT the user says it doesn't have extension when coming back.
-                              
-                              // Let's force extension in the filename we send to save-url
-                              let filename = (job.prompt || 'generated').slice(0, 15);
-                              filename = filename.replace(/[^a-z0-9]/gi, '_');
-                              if (!filename.toLowerCase().endsWith('.glb')) {
-                                  filename += '.glb';
-                              }
-
-                              // Save to Assets
-                              await fetch('/api/assets/save-url', {
-                                    method: 'POST',
-                                    body: JSON.stringify({
-                                        url: glbUrl,
-                                        filename: filename,
-                                        type: 'models'
-                                    })
-                              });
-
-                              // Add to Canvas (Thumbnail)
-                              if (canvas && data.thumbnail_url) {
-                                  fabric.Image.fromURL(data.thumbnail_url, { crossOrigin: 'anonymous' }).then(img => {
-                                      img.scaleToWidth(200);
-                                      img.set({ left: 100, top: 100 });
-                                      canvas.add(img);
-                                      canvas.setActiveObject(img);
-                                      
-                                      // If this job originated from an image conversion, hide original
-                                      // NOTE: We disconnected 'sourceObjectFor3D' state from async job. 
-                                      // To fix, we would need to store object ID in job metadata.
-                                      // For now, simpler implementation.
-                                  });
-                              }
-                         }
-
-                    } else if (data.progress !== undefined && data.progress !== job.progress) {
-                         setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { ...p, progress: data.progress, status: 'IN_PROGRESS'} : p));
-                    }
-
-                } catch (e) {
-                    console.error("Job poll error", e);
-                }
+    const checkJobStatus = async (job: BackgroundJob) => {
+        // Validate inputs before fetch to prevent TypeError
+        if (!job.id || !job.apiKey) return;
+        
+        try {
+            const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
+            // Use openapi/v1 for status checks
+            const res = await fetch(`https://api.meshy.ai/openapi/v1/${endpoint}/${job.id}`, {
+                 headers: { 'Authorization': `Bearer ${job.apiKey}` }
             });
             
-            return currentJobs; // Return current immediately, async updates happen via setBackgroundJobs inside
-        });
+            if (!res.ok) {
+                 console.warn(`Meshy Poll Failed ${res.status}: ${res.statusText}`);
+                 return;
+            }
+
+            const data = await res.json();
+            console.log(`[Meshy Poll] Job ${job.id}: ${data.status} (${data.progress}%)`);
+            
+            if (data.status === 'SUCCEEDED' || data.status === 'FAILED' || data.status === 'EXPIRED') {
+                 
+                 const isSuccess = data.status === 'SUCCEEDED';
+                 const newStatus: 'SUCCEEDED' | 'FAILED' = isSuccess ? 'SUCCEEDED' : 'FAILED';
+                 
+                 const updatedJob: BackgroundJob = {
+                     ...job,
+                     status: newStatus,
+                     resultUrl: data.model_urls?.glb,
+                     thumbnailUrl: data.thumbnail_url,
+                     progress: isSuccess ? 100 : (data.progress || 0)
+                 };
+                 
+                 // Update state safely
+                 setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
+
+                 // If SUCCEEDED, auto-save and add to canvas
+                 if (isSuccess) {
+                      let glbUrl = data.model_urls?.glb;
+                      if (!glbUrl) {
+                          console.error("Meshy succeeded but no GLB url found", data);
+                          return;
+                      }
+
+                      let filename = (job.prompt || 'generated').slice(0, 15);
+                      filename = filename.replace(/[^a-z0-9]/gi, '_');
+                      if (!filename.toLowerCase().endsWith('.glb')) {
+                          filename += '.glb';
+                      }
+
+                      // Save to Assets
+                      try {
+                        await fetch('/api/assets/save-url', {
+                                method: 'POST',
+                                body: JSON.stringify({
+                                    url: glbUrl,
+                                    filename: filename,
+                                    type: 'models'
+                                })
+                        });
+                      } catch (err) {
+                          console.error("Failed to auto-save asset", err);
+                      }
+
+                      // Add to Canvas (Thumbnail)
+                      if (canvas && data.thumbnail_url) {
+                          fabric.Image.fromURL(data.thumbnail_url, { crossOrigin: 'anonymous' }).then(img => {
+                              img.scaleToWidth(200);
+                              img.set({ left: 100, top: 100 });
+                              
+                              (img as any).is3DModel = true;
+                              (img as any).modelUrl = glbUrl;
+
+                              canvas.add(img);
+                              canvas.setActiveObject(img);
+                          });
+                      }
+                 }
+
+            } else if (data.progress !== undefined) {
+                 if (data.progress !== job.progress || data.status !== job.status) {
+                     setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { 
+                         ...p, 
+                         progress: data.progress, 
+                         status: data.status as any
+                     } : p));
+                 }
+            }
+        } catch (e) {
+            console.error("Job poll error", e);
+        }
+    };
+
+    const interval = setInterval(() => {
+        activeJobs.forEach(job => checkJobStatus(job));
     }, 2000);
 
     return () => clearInterval(interval);
@@ -426,15 +504,26 @@ export default function Home() {
       {/* Header */}
       <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-20 relative shadow-sm">
         <div className="flex items-center gap-6">
-           <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center">
-             <span className="font-bold text-white text-lg">Cf</span>
+           <div className="flex items-center gap-2">
+               <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center">
+                 <span className="font-bold text-white text-lg">IE</span>
+               </div>
+               <span className="font-bold text-lg hidden lg:block bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500">
+                 Image Express
+               </span>
            </div>
            <nav className="hidden md:flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
-              <button className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-background/80 transition-all text-sm font-medium text-muted-foreground hover:text-foreground">
+              <button 
+                 onClick={() => setCurrentView('dashboard')}
+                 className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'dashboard' ? 'bg-background shadow-sm border border-border/50 text-foreground' : 'text-muted-foreground hover:bg-background/80 hover:text-foreground'}`}
+              >
                 <HomeIcon size={16} />
                 <span>Home</span>
               </button>
-              <button className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-foreground bg-background shadow-sm border border-border/50">
+              <button 
+                 onClick={() => setCurrentView('editor')}
+                 className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'editor' ? 'bg-background shadow-sm border border-border/50 text-foreground' : 'text-muted-foreground hover:bg-background/80 hover:text-foreground'}`}
+              >
                 <FolderKanban size={16} />
                 <span>Design</span>
               </button>
@@ -449,11 +538,66 @@ export default function Home() {
              >
                 <Settings size={20} />
              </button>
+
+             <button 
+                onClick={() => setShowProfileModal(true)}
+                className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground ml-1"
+                title="User Profile"
+             >
+                <User size={20} />
+             </button>
              
-             <div className="px-4 py-1.5 bg-secondary/30 rounded-full border border-border/50 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 cursor-pointer transition-colors">
-                <Sparkles size={14} className="text-yellow-500" />
-                <span>Generate</span>
+             {/* Service Status Indicators */}
+             <div className="flex items-center gap-2 mr-2">
+                 {/* 3D Services Status */}
+                 <div 
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border transition-all ${
+                        has3DKey 
+                        ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-600' 
+                        : 'bg-secondary/30 border-transparent text-muted-foreground/30 opacity-50'
+                    }`}
+                    title={has3DKey ? "3D Services Connected" : "No 3D Services Connected"}
+                 >
+                    <Box size={14} strokeWidth={has3DKey ? 2 : 1.5} />
+                    {has3DKey && <span className="text-[10px] font-bold">3D</span>}
+                 </div>
+
+                 {/* Image Services Status */}
+                 <div 
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border transition-all ${
+                        has2DKey 
+                        ? 'bg-purple-500/10 border-purple-500/20 text-purple-600' 
+                        : 'bg-secondary/30 border-transparent text-muted-foreground/30 opacity-50'
+                    }`}
+                    title={has2DKey ? "Generative AI Connected" : "No Generative AI Connected"}
+                 >
+                    <Cloud size={14} strokeWidth={has2DKey ? 2 : 1.5} />
+                     {has2DKey && <span className="text-[10px] font-bold">AI</span>}
+                 </div>
              </div>
+
+             <button
+                onClick={() => {
+                    if (!isConnected) {
+                        setShowSettings(true);
+                        return;
+                    }
+                    if (!is3DMode) {
+                         setActiveTool(activeTool === 'ai-zone' ? 'select' : 'ai-zone');
+                    }
+                }}
+                className={`p-2.5 rounded-full border flex items-center justify-center transition-all duration-200 ${
+                    isConnected 
+                    ? 'bg-gradient-to-tr from-yellow-400/20 to-orange-500/20 border-orange-500/30 text-orange-600 hover:bg-orange-500/30 hover:shadow-md cursor-pointer'
+                    : 'bg-secondary/30 border-transparent text-muted-foreground/40 cursor-not-allowed group'
+                }`}
+                title={isConnected ? "Open Generator" : "Connect AI Services in Settings"}
+             >
+                <Sparkles 
+                    size={18} 
+                    className={`transition-all ${isConnected ? "text-orange-500 fill-orange-500/20" : "text-muted-foreground/40"}`} 
+                />
+             </button>
              <div className="h-6 w-px bg-border mx-1"></div>
              <button className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground">
                 <Share2 size={20} />
@@ -522,8 +666,30 @@ export default function Home() {
         onClose={() => setShowSettings(false)} 
       />
 
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onLogin={handleLogin} 
+      />
+      
+      <UserProfileModal 
+        isOpen={showProfileModal} 
+        onClose={() => setShowProfileModal(false)}
+        username={username}
+        onLogout={handleLogout}
+      />
+
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
+        {currentView === 'dashboard' ? (
+           <Dashboard 
+              user={username}
+              onNewDesign={() => setCurrentView('editor')}
+              onSelectTemplate={(t) => {
+                  setCurrentView('editor');
+              }}
+           />
+        ) : (
+        <>
         {/* Left Sidebar (Asset Rail) */}
         <aside className="w-[60px] bg-card border-r flex flex-col items-center py-4 z-10 shadow-sm gap-4">
              <Toolbar 
@@ -675,6 +841,8 @@ export default function Home() {
             jobs={backgroundJobs} 
             onClear={(id) => setBackgroundJobs(prev => prev.filter(j => j.id !== id))} 
         />
+        </>
+        )}
       </div>
     </div>
   );

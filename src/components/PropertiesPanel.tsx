@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { StarPolygon } from '@/types';
-import { ArrowUp, ArrowDown, Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff } from 'lucide-react';
+import { ArrowUp, ArrowDown, Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -198,8 +198,11 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
     const [color, setColor] = useState('#000000');
     // Gradient State
     const [isGradient, setIsGradient] = useState(false);
+    const [gradientType, setGradientType] = useState<'linear' | 'radial'>('linear');
     const [gradientStart, setGradientStart] = useState('#000000');
     const [gradientEnd, setGradientEnd] = useState('#ffffff');
+    const [gradientAngle, setGradientAngle] = useState(0);
+    const [gradientTransition, setGradientTransition] = useState(1); // Default 1 (full spread)
 
     const [opacity, setOpacity] = useState(1);
     const [fontFamily, setFontFamily] = useState('Arial');
@@ -213,6 +216,18 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
     // Star specific properties
     const [starPoints, setStarPoints] = useState(5);
     const [starInnerRadius, setStarInnerRadius] = useState(0.5);
+
+    // Advanced Effects State
+    const [curveStrength, setCurveStrength] = useState(0);
+    const [skewX, setSkewX] = useState(0);
+    const [skewY, setSkewY] = useState(0);
+    const [strokeColor, setStrokeColor] = useState('#000000');
+    const [strokeWidth, setStrokeWidth] = useState(0);
+    const [shadowEnabled, setShadowEnabled] = useState(false);
+    const [shadowColor, setShadowColor] = useState('#000000');
+    const [shadowBlur, setShadowBlur] = useState(10);
+    const [shadowOffsetX, setShadowOffsetX] = useState(5);
+    const [shadowOffsetY, setShadowOffsetY] = useState(5);
 
     useEffect(() => {
         if (canvas) {
@@ -259,6 +274,15 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
                         setGradientStart(stops[0].color);
                         setGradientEnd(stops[stops.length - 1].color);
                     }
+                    
+                    // Estimate Angle from coords
+                    const c = (fill as any).coords || { x1: 0, y1: 0, x2: 1, y2: 0 };
+                    const dx = c.x2 - c.x1;
+                    const dy = c.y2 - c.y1;
+                    let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                    if (angle < 0) angle += 360;
+                    setGradientAngle(Math.round(angle));
+
                     setColor('#000000'); // Dummy for picker
                 } else {
                      setIsGradient(false);
@@ -267,6 +291,36 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
 
                 setOpacity(selection.get('opacity') || 1);
                 
+                // Read Effects
+                // Check if path exists (Curved Text)
+                // Fabric stores 'path' object on text
+                const path = selection.get('path') as fabric.Path;
+                if (path && (selection as any).curveStrength !== undefined) {
+                     setCurveStrength((selection as any).curveStrength);
+                } else {
+                     setCurveStrength(0);
+                }
+
+                setSkewX(selection.get('skewX') || 0);
+                setSkewY(selection.get('skewY') || 0);
+                setStrokeColor(selection.get('stroke') || '#000000');
+                setStrokeWidth(selection.get('strokeWidth') || 0);
+                
+                const shadow = selection.get('shadow') as fabric.Shadow;
+                if (shadow) {
+                    setShadowEnabled(true);
+                    setShadowColor(shadow.color || '#000000');
+                    setShadowBlur(shadow.blur || 10);
+                    setShadowOffsetX(shadow.offsetX || 5);
+                    setShadowOffsetY(shadow.offsetY || 5);
+                } else {
+                    setShadowEnabled(false);
+                    // Reset defaults for clean UI if re-enabled
+                    setShadowBlur(10);
+                    setShadowOffsetX(5);
+                    setShadowOffsetY(5);
+                }
+
                 // Check if it is a text object
                 if (selection.type === 'text' || selection.type === 'i-text') {
                     const textObject = selection as fabric.IText;
@@ -317,27 +371,51 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
         }
     };
 
-    const updateGradientStops = (start: string, end: string) => {
+    const updateGradientStops = (start: string, end: string, angle: number = gradientAngle, type: 'linear' | 'radial' = gradientType, transition: number = gradientTransition) => {
          // Update state
          setGradientStart(start);
          setGradientEnd(end);
+         setGradientAngle(angle);
+         setGradientType(type);
+         setGradientTransition(transition);
 
          if (selectedObject && canvas) {
-             const currentFill = selectedObject.get('fill');
-             let coords = { x1: 0, y1: 0, x2: 1, y2: 0 }; // Default Horizontal
-            
-             // Preserve existing gradient direction if possible
-             if (currentFill && typeof currentFill === 'object' && (currentFill as any).coords) {
-                 coords = (currentFill as any).coords;
+             // Calculate Coords based on Angle
+             let coords: any = { x1: 0, y1: 0, x2: 1, y2: 0 };
+             
+             if (type === 'linear') {
+                const rad = angle * (Math.PI / 180);
+                const len = 1; 
+                coords = {
+                    x1: 0.5 - (Math.cos(rad) * len)/2,
+                    y1: 0.5 - (Math.sin(rad) * len)/2,
+                    x2: 0.5 + (Math.cos(rad) * len)/2,
+                    y2: 0.5 + (Math.sin(rad) * len)/2
+                };
+             } else {
+                 // Radial
+                 coords = {
+                     x1: 0.5, y1: 0.5,
+                     x2: 0.5, y2: 0.5,
+                     r1: 0,
+                     r2: 0.5 // Fit to box half-width (radius)
+                 };
              }
 
+             // Calculate Transition offsets
+             // Transition = 1 (Smooth, offsets 0 and 1)
+             // Transition = 0 (Hard, offsets 0.5 and 0.5)
+             const halfSpread = transition / 2;
+             const offset1 = 0.5 - halfSpread;
+             const offset2 = 0.5 + halfSpread;
+
              const gradient = new fabric.Gradient({
-                type: 'linear',
+                type: type,
                 gradientUnits: 'percentage',
                 coords: coords,
                 colorStops: [
-                    { offset: 0, color: start },
-                    { offset: 1, color: end }
+                    { offset: offset1, color: start },
+                    { offset: offset2, color: end }
                 ]
              });
              
@@ -415,6 +493,142 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
              canvas.requestRenderAll();
         }
     }
+
+    // --- EFFECTS HANDLERS ---
+    
+    // Create or update text path for curvature
+    const updateTextCurve = (strength: number) => {
+         // Strength: -100 to 100
+         if (!selectedObject || (selectedObject.type !== 'text' && selectedObject.type !== 'i-text')) return;
+         
+         const textObj = selectedObject as fabric.IText;
+         setCurveStrength(strength);
+         // Store strength for UI consistency
+         (textObj as any).curveStrength = strength;
+
+         if (strength === 0) {
+             textObj.set('path', null);
+         } else {
+             // Calculate Path
+             // A simple Quadratic curve
+             const len = textObj.width || 200;
+             const height = (strength / 100) * len * 0.5; // Height of arch
+             
+             // In SVG path format: M startX startY Q controlX controlY endX endY
+             // Start at 0,0 relative to path
+             // End at len, 0
+             // Control at len/2, height*2 (approx)
+             const pathData = `M 0 0 Q ${len/2} ${height * -1.5} ${len} 0`;
+             
+             const path = new fabric.Path(pathData);
+             path.set({ 
+                 visible: false,
+                 // Align text to path center usually looks best for arches
+                 left: -len/2,
+                 top: 0
+             });
+             
+             textObj.set('path', path);
+             // Center align often needed for symmetry
+             // textObj.set('textAlign', 'center'); 
+         }
+         
+         textObj.canvas?.requestRenderAll();
+    };
+
+    const updateSkew = (axis: 'x'|'y', val: number) => {
+         if (!selectedObject) return;
+         if (axis === 'x') {
+             setSkewX(val);
+             selectedObject.set('skewX', val);
+         } else {
+             setSkewY(val);
+             selectedObject.set('skewY', val);
+         }
+         selectedObject.canvas?.requestRenderAll();
+    };
+
+    const updateStroke = (newWidth: number) => {
+         if (!selectedObject) return;
+         setStrokeWidth(newWidth);
+         selectedObject.set({
+             stroke: strokeColor,
+             strokeWidth: newWidth
+         });
+         selectedObject.canvas?.requestRenderAll();
+    };
+
+    const updateStrokeColor = (newColor: string) => {
+         if (!selectedObject) return;
+         setStrokeColor(newColor);
+         if (strokeWidth > 0) {
+            selectedObject.set('stroke', newColor);
+            selectedObject.canvas?.requestRenderAll();
+         } else {
+             // If width is 0, user probably wants to see it, so set width to 1
+             setStrokeWidth(1);
+             selectedObject.set({ stroke: newColor, strokeWidth: 1 });
+             selectedObject.canvas?.requestRenderAll();
+         }
+    };
+
+    const toggleShadow = (enable: boolean) => {
+        if (!selectedObject) return;
+        setShadowEnabled(enable);
+        
+        if (enable) {
+             const shadow = new fabric.Shadow({
+                color: shadowColor,
+                blur: shadowBlur,
+                offsetX: shadowOffsetX,
+                offsetY: shadowOffsetY
+            });
+            selectedObject.set('shadow', shadow);
+        } else {
+            selectedObject.set('shadow', null);
+        }
+        selectedObject.canvas?.requestRenderAll();
+    };
+
+    const updateShadowProp = (prop: string, value: any) => {
+        if (!selectedObject) return;
+        
+        let shadow = selectedObject.shadow as fabric.Shadow;
+        
+        if (!shadow) {
+            // Create if missing (e.g. user drags slider before checking box)
+             setShadowEnabled(true);
+             shadow = new fabric.Shadow({
+                color: shadowColor,
+                blur: shadowBlur,
+                offsetX: shadowOffsetX,
+                offsetY: shadowOffsetY
+            });
+            selectedObject.set('shadow', shadow);
+        }
+
+        if (prop === 'color') { 
+            setShadowColor(value);
+            shadow.color = value;
+        }
+        if (prop === 'blur') {
+            setShadowBlur(value);
+            shadow.blur = value;
+        }
+        if (prop === 'offsetX') {
+            setShadowOffsetX(value);
+            shadow.offsetX = value;
+        }
+        if (prop === 'offsetY') {
+             setShadowOffsetY(value);
+             shadow.offsetY = value;
+        }
+        
+        // Fabric doesn't always auto-detect deep property change on shadow
+        // So we reset it or mark dirty
+        selectedObject.set('dirty', true);
+        selectedObject.canvas?.requestRenderAll();
+    };
 
     const deleteLayer = (obj: fabric.Object) => {
         if (!canvas) return;
@@ -682,32 +896,104 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-2 bg-secondary/20 p-2 rounded-lg border border-border/50">
-                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] w-8">Start</span>
-                                <div className="relative flex-1 h-6 rounded border border-border flex items-center gap-2 px-2 bg-background">
-                                     <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: gradientStart }} />
-                                     <input 
-                                        type="color" 
-                                        value={gradientStart}
-                                        onChange={(e) => updateGradientStops(e.target.value, gradientEnd)}
-                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
-                                     />
-                                     <span className="text-xs flex-1">{gradientStart}</span>
+                        <div className="space-y-4 bg-secondary/20 p-3 rounded-lg border border-border/50">
+                             
+                             {/* Gradient Type */}
+                             <div className="flex gap-1 bg-secondary/30 p-1 rounded-md mb-2">
+                                <button
+                                    onClick={() => updateGradientStops(gradientStart, gradientEnd, gradientAngle, 'linear', gradientTransition)}
+                                    className={`flex-1 flex items-center justify-center gap-1 py-1 text-[10px] uppercase font-medium rounded transition-all ${gradientType === 'linear' ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-background/50'}`}
+                                >
+                                    Linear
+                                </button>
+                                <button
+                                    onClick={() => updateGradientStops(gradientStart, gradientEnd, gradientAngle, 'radial', gradientTransition)}
+                                    className={`flex-1 flex items-center justify-center gap-1 py-1 text-[10px] uppercase font-medium rounded transition-all ${gradientType === 'radial' ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-background/50'}`}
+                                >
+                                    Radial
+                                </button>
+                             </div>
+
+                             {/* Gradient Preview Bar */}
+                             <div 
+                                className="h-6 rounded-md w-full shadow-inner ring-1 ring-border/20 transition-all"
+                                style={{ 
+                                    background: gradientType === 'linear' 
+                                        ? `linear-gradient(${gradientAngle + 90}deg, ${gradientStart}, ${gradientEnd})`
+                                        : `radial-gradient(circle, ${gradientStart}, ${gradientEnd})`
+                                }}
+                             />
+                             
+                             {/* Colors */}
+                             <div className="flex items-center gap-3">
+                                 <div className="space-y-1 flex-1">
+                                    <label className="text-[10px] text-muted-foreground uppercase">Start</label>
+                                    <div className="relative h-8 rounded border border-border flex items-center gap-2 px-2 bg-background hover:bg-secondary/50">
+                                        <div className="w-5 h-5 rounded-full border shadow-sm" style={{ backgroundColor: gradientStart }} />
+                                        <input 
+                                            type="color" 
+                                            value={gradientStart}
+                                            onChange={(e) => updateGradientStops(e.target.value, gradientEnd, gradientAngle, gradientType, gradientTransition)}
+                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                                        />
+                                        <span className="text-xs font-mono">{gradientStart}</span>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => updateGradientStops(gradientEnd, gradientStart, gradientAngle, gradientType, gradientTransition)}
+                                    className="mt-4 p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                    title="Swap Colors"
+                                >
+                                    <ArrowLeftRight size={14} />
+                                </button>
+                                <div className="space-y-1 flex-1">
+                                    <label className="text-[10px] text-muted-foreground uppercase">End</label>
+                                    <div className="relative h-8 rounded border border-border flex items-center gap-2 px-2 bg-background hover:bg-secondary/50">
+                                        <div className="w-5 h-5 rounded-full border shadow-sm" style={{ backgroundColor: gradientEnd }} />
+                                        <input 
+                                            type="color" 
+                                            value={gradientEnd}
+                                            onChange={(e) => updateGradientStops(gradientStart, e.target.value, gradientAngle, gradientType, gradientTransition)}
+                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                                        />
+                                        <span className="text-xs font-mono">{gradientEnd}</span>
+                                    </div>
                                 </div>
                              </div>
-                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] w-8">End</span>
-                                <div className="relative flex-1 h-6 rounded border border-border flex items-center gap-2 px-2 bg-background">
-                                     <div className="w-4 h-4 rounded-sm border" style={{ backgroundColor: gradientEnd }} />
-                                     <input 
-                                        type="color" 
-                                        value={gradientEnd}
-                                        onChange={(e) => updateGradientStops(gradientStart, e.target.value)}
-                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
-                                     />
-                                     <span className="text-xs flex-1">{gradientEnd}</span>
+
+                             {/* Angle Control */}
+                             {gradientType === 'linear' && (
+                                <div className="space-y-2 pt-2 border-t border-border/30">
+                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                        <span>Angle</span>
+                                        <span>{gradientAngle}°</span>
+                                    </div>
+                                    <input 
+                                        type="range" 
+                                        min="0" 
+                                        max="360" 
+                                        value={gradientAngle}
+                                        onChange={(e) => updateGradientStops(gradientStart, gradientEnd, parseInt(e.target.value), gradientType, gradientTransition)}
+                                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                    />
                                 </div>
+                             )}
+
+                             {/* Transition / Spread Control */}
+                             <div className="space-y-2 pt-2 border-t border-border/30">
+                                <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                    <span>Transition Area</span>
+                                    <span>{Math.round(gradientTransition * 100)}%</span>
+                                </div>
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="1" 
+                                    step="0.01" 
+                                    value={gradientTransition}
+                                    onChange={(e) => updateGradientStops(gradientStart, gradientEnd, gradientAngle, gradientType, parseFloat(e.target.value))}
+                                    className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                />
                              </div>
                         </div>
                     )}
@@ -729,6 +1015,137 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
                             onChange={(e) => updateOpacity(parseFloat(e.target.value))}
                             className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
                         />
+                    </div>
+                </div>
+
+                {/* Effects Section (Stroke, Shadow, Skew) */}
+                <div className="pt-6 border-t border-border/50 space-y-4">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Effects</label>
+                    
+                    {/* Stroke */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                            <span>Stroke</span>
+                            <div className="flex items-center gap-2">
+                                <input type="number" min="0" max="20" value={strokeWidth} onChange={(e) => updateStroke(parseFloat(e.target.value))} className="w-8 h-4 bg-transparent text-right outline-none text-xs" />
+                                <span>px</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                             <input 
+                                type="range" 
+                                min="0" 
+                                max="20" 
+                                step="0.5" 
+                                value={strokeWidth}
+                                onChange={(e) => updateStroke(parseFloat(e.target.value))}
+                                className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div className="w-6 h-6 rounded-full border border-border shadow-sm relative overflow-hidden shrink-0">
+                                <div className="absolute inset-0" style={{ backgroundColor: strokeColor }} />
+                                <input 
+                                    type="color" 
+                                    value={strokeColor} 
+                                    onChange={(e) => updateStrokeColor(e.target.value)}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Skew */}
+                     <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                             <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                                <span>Skew X</span>
+                                <span>{Math.round(skewX)}°</span>
+                             </div>
+                             <input 
+                                type="range" 
+                                min="-45" 
+                                max="45" 
+                                value={skewX}
+                                onChange={(e) => updateSkew('x', parseFloat(e.target.value))}
+                                className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                             <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                                <span>Skew Y</span>
+                                <span>{Math.round(skewY)}°</span>
+                             </div>
+                             <input 
+                                type="range" 
+                                min="-45" 
+                                max="45" 
+                                value={skewY}
+                                onChange={(e) => updateSkew('y', parseFloat(e.target.value))}
+                                className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Shadow */}
+                    <div className="space-y-3 pt-2">
+                         <div className="flex items-center justify-between">
+                             <span className="text-xs font-medium">Drop Shadow</span>
+                             <div className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors ${shadowEnabled ? 'bg-primary' : 'bg-secondary'}`} onClick={() => toggleShadow(!shadowEnabled)}>
+                                 <div className={`w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${shadowEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                             </div>
+                         </div>
+                         
+                         {shadowEnabled && (
+                             <div className="space-y-3 p-3 bg-secondary/10 rounded-lg border border-border/30 animate-in fade-in slide-in-from-top-2">
+                                 {/* Color & Blur */}
+                                 <div className="flex gap-3">
+                                     <div className="w-8 h-8 rounded-md border border-border shadow-sm relative overflow-hidden shrink-0">
+                                        <div className="absolute inset-0" style={{ backgroundColor: shadowColor }} />
+                                        <input 
+                                            type="color" 
+                                            value={shadowColor} 
+                                            onChange={(e) => updateShadowProp('color', e.target.value)}
+                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                        />
+                                    </div>
+                                    <div className="flex-1 space-y-1">
+                                        <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                                            <span>Blur</span>
+                                            <span>{shadowBlur}px</span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="50" 
+                                            value={shadowBlur}
+                                            onChange={(e) => updateShadowProp('blur', parseFloat(e.target.value))}
+                                            className="w-full h-1 bg-secondary/50 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                 </div>
+                                 
+                                 {/* Offset */}
+                                 <div className="grid grid-cols-2 gap-3">
+                                     <div className="space-y-1">
+                                         <label className="text-[10px] text-muted-foreground uppercase">Offset X</label>
+                                         <input 
+                                            type="number" 
+                                            value={shadowOffsetX}
+                                            onChange={(e) => updateShadowProp('offsetX', parseFloat(e.target.value))}
+                                            className="w-full bg-secondary btn-ghost text-xs p-1 px-2 rounded-md border border-border/50 outline-none"
+                                         />
+                                     </div>
+                                     <div className="space-y-1">
+                                         <label className="text-[10px] text-muted-foreground uppercase">Offset Y</label>
+                                         <input 
+                                            type="number" 
+                                            value={shadowOffsetY}
+                                            onChange={(e) => updateShadowProp('offsetY', parseFloat(e.target.value))}
+                                            className="w-full bg-secondary btn-ghost text-xs p-1 px-2 rounded-md border border-border/50 outline-none"
+                                         />
+                                     </div>
+                                 </div>
+                             </div>
+                         )}
                     </div>
                 </div>
 
@@ -780,6 +1197,22 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
                                 <option value="800">Extra Bold</option>
                             </select>
                         </div>
+                        
+                         <div className="space-y-2 pt-2 border-t border-border/30">
+                            <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                                <span>Curvature (Arch)</span>
+                                <span>{curveStrength}</span>
+                             </div>
+                             <input 
+                                type="range" 
+                                min="-100" 
+                                max="100" 
+                                value={curveStrength}
+                                onChange={(e) => updateTextCurve(parseInt(e.target.value))}
+                                className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                        </div>
+
                      </div>
                 )}
 

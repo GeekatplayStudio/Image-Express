@@ -43,22 +43,69 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     }, [activeJob]);
     
     // Load API Key
+
+    // Load API Key
+    const [selectedProvider, setSelectedProvider] = useState<string>('meshy');
+    // const [availableProviders, setAvailableProviders] = useState<string[]>([]); // Deprecated: Always show all
+    const SUPPORTED_PROVIDERS = ['meshy', 'tripo', 'hitems'];
+    const [hasSavedKey, setHasSavedKey] = useState(true); // Assume true initially to prevent flicker
+
     useEffect(() => {
-        const key = getApiKey('meshy');
-        if (key) setApiKey(key);
+        // Load persist selection
+        const savedProvider = localStorage.getItem('image-express-3d-provider');
+        
+        if (savedProvider && SUPPORTED_PROVIDERS.includes(savedProvider)) {
+            setSelectedProvider(savedProvider);
+        }
     }, []);
 
+    // Check for key when provider changes
+    useEffect(() => {
+        const key = localStorage.getItem(`${selectedProvider}_api_key`);
+        setHasSavedKey(!!key);
+        setApiKey(''); // Clear manual input on switch
+    }, [selectedProvider]);
+
+    const getSelectedKey = () => {
+         return localStorage.getItem(`${selectedProvider}_api_key`) || apiKey;
+    };
+
+    const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedProvider(e.target.value);
+        localStorage.setItem('image-express-3d-provider', e.target.value);
+    };
+
     const handleGenerate = async () => {
-        if (!apiKey) {
-            alert('Please enter API Key');
+        const currentKey = getSelectedKey();
+        if (!currentKey) {
+            alert(`Please configure API Key for ${selectedProvider} in settings or enter it below`);
             return;
         }
 
         setIsLoading(true);
-        // setStatus('Starting generation...'); // Handled by prop now
 
         try {
-            let body = {};
+            // ... Logic branches based on Provider ...
+            if (selectedProvider === 'meshy') {
+                await generateMeshy(currentKey);
+            } else if (selectedProvider === 'tripo') {
+                 // Placeholder for Tripo Logic
+                 // await generateTripo(currentKey);
+                 alert("Tripo integration coming soon in V2");
+                 setIsLoading(false);
+            } else {
+                 alert("Service integration in progress");
+                 setIsLoading(false);
+            }
+        } catch (e) {
+            console.error(e);
+            setIsLoading(false);
+        }
+    };
+
+    const generateMeshy = async (key: string) => {
+        // reuse existing logic but wrapped
+         let body = {};
             let endpoint = '';
             
             if (mode === 'text') {
@@ -94,32 +141,29 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             const res = await fetch(`https://api.meshy.ai/openapi/v1/${endpoint}`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${apiKey}`,
+                    'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(body)
             });
-
+            // ... (rest of fetch logic)
             const data = await res.json();
-            if (data.result) {
-                // Pass back to parent to manage state
-                onStartBackgroundJob?.({
-                    id: data.result,
-                    type: mode === 'text' ? 'text-to-3d' : 'image-to-3d',
-                    status: 'PENDING',
-                    progress: 0,
-                    prompt: mode === 'text' ? prompt : 'Image Conversion',
-                    apiKey: apiKey,
-                    createdAt: Date.now()
-                });
+             if (data.result) {
+                if (onStartBackgroundJob) {
+                    onStartBackgroundJob({
+                        id: data.result,
+                        type: mode === 'text' ? 'text-to-3d' : 'image-to-3d',
+                        status: 'IN_PROGRESS',
+                        prompt: mode === 'text' ? prompt : 'Image to 3D',
+                        createdAt: Date.now(),
+                        apiKey: key // Store key with job to poll correctly
+                    });
+                }
             } else {
-                throw new Error(data.message || 'Failed to start. Note: For Image-to-3D, Meshy requires a public accessible URL, not a local data URL.');
+                console.error("Meshy Error", data);
+                alert("Error starting generation: " + (data.message || 'Unknown error'));
+                setIsLoading(false);
             }
-        } catch (e: any) {
-            console.error(e);
-            alert('Error: ' + e.message);
-            setIsLoading(false);
-        }
     };
 
     const handleCapture = () => {
@@ -141,17 +185,36 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
 
-            <div className="p-4 space-y-4">
-                 <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Meshy API Key</label>
-                    <input 
-                        type="password" 
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="sk-..."
-                        className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm"
-                    />
+            {/* Service Selection */}
+            {!isJobRunning && !modelUrl && (
+                <div className="px-4 pt-3">
+                    <label className="text-xs text-muted-foreground font-medium mb-1 block">Provider</label>
+                    <select 
+                        value={selectedProvider} 
+                        onChange={handleProviderChange}
+                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border focus:border-indigo-500 outline-none"
+                    >
+                        {SUPPORTED_PROVIDERS.map(p => (
+                            <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                        ))}
+                    </select>
                 </div>
+            )}
+
+            <div className="p-4 space-y-4">
+
+                    {!hasSavedKey && (
+                        <div className="space-y-1">
+                            <label className="text-xs font-medium text-muted-foreground">{selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} API Key (Quick Input)</label>
+                             <input 
+                                type="password" 
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                placeholder="sk-..."
+                                className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm"
+                            />
+                        </div>
+                    )}
 
                 {initialImage && (
                     <div className="space-y-2">
