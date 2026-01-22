@@ -1,13 +1,19 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Folder } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Folder, Wand2, PaintBucket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { StarPolygon } from '@/types';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
+import ImageGeneratorModal from './ImageGeneratorModal';
 
+/**
+ * Toolbar
+ * Left sidebar providing access to all creation tools.
+ * Manages active tool state and sub-menus (Shapes, Assets).
+ */
 interface ToolbarProps {
     canvas: fabric.Canvas | null;
     activeTool: string;
@@ -33,16 +39,19 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
     const shapesMenuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
+    const [showImageGen, setShowImageGen] = useState(false);
 
+    // Reordered tools based on standard workflows (Select -> Create -> Assets -> AI -> Layers)
     const tools = [
         { name: 'select', icon: Move, label: 'Select' },
-        { name: 'templates', icon: LayoutTemplate, label: 'Templates' },
         { name: 'shapes', icon: Shapes, label: 'Shapes' },
         { name: 'text', icon: Type, label: 'Text' },
-        { name: 'media', icon: ImageIcon, label: 'Media' },
-        { name: 'layers', icon: Layers, label: 'Layers' },
-        { name: 'assets', icon: Folder, label: 'Assets' },
+        { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
+        { name: 'assets', icon: ImageIcon, label: 'Gallery' },
+        { name: 'ai-zone', icon: Wand2, label: 'AI Zone' }, // New Tool
         { name: '3d-gen', icon: Box, label: 'AI 3D' },
+        { name: 'templates', icon: LayoutTemplate, label: 'Library' },
+        { name: 'layers', icon: Layers, label: 'Layers' },
     ];
 
     // Close shapes menu when clicking outside
@@ -62,28 +71,49 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
              setActiveTool('shapes');
              return;
         }
+
+        // Toggle behavior: Close tool if clicking standard panel icons again
+        if (activeTool === toolName) {
+            // Exceptions: 'text' (add new text), 'select' (deselect all)
+            const nonTogglingTools = ['select', 'text'];
+            if (!nonTogglingTools.includes(toolName)) {
+                setActiveTool('select');
+                return;
+            }
+        }
+
         setActiveTool(toolName);
         setShowShapesMenu(false);
         
+        // Handle single-action tools
         switch(toolName) {
             case 'select':
-                canvas?.discardActiveObject(); 
-                canvas?.requestRenderAll();
+                if (canvas) {
+                    canvas.discardActiveObject(); 
+                    canvas.requestRenderAll();
+                    canvas.defaultCursor = 'default';
+                    canvas.hoverCursor = 'move';
+                    canvas.selection = true;
+                }
+                break;
+            case 'gradient': 
+                if (canvas) {
+                    // Enable gradient mode
+                    // Disable normal selection for canvas (but allow object selection? No, usually tool takes over)
+                    // We'll handle this in a useEffect in parent or separate interactive component
+                    canvas.defaultCursor = 'crosshair';
+                    canvas.hoverCursor = 'crosshair';
+                    canvas.selection = false;
+                }
                 break;
             case 'text':
                 addText();
                 break;
-            case 'media':
-                // Instead of direct file upload, we now open the Asset Library
-                // But for backward compat or if user wants direct upload, we can keep it or redirect.
-                // Request says: "my workspace. in this area we need save images i uploaded"
-                // So renaming Media to Assets might be cleaner, but user asked for "option to add items from asset library".
-                // I'll make 'media' trigger the file picker (quick upload) BUT maybe we should ask to save?
-                // Actually, I added a specific 'assets' tool.
-                handleUploadClick();
-                break;
             case 'assets':
-                // Toggle asset library
+                // Toggle asset library (merged functionality for media/upload)
+                break;
+            case 'ai-zone':
+                // logic handled by tool activation
                 break;
             case 'layers':
                 // Properties Panel handles the view reset, we just set activeTool
@@ -324,7 +354,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
     }
 
     return (
-        <div className="flex flex-col gap-6 w-full items-center pt-2 relative">
+        <div className="flex flex-col gap-3 w-full items-center pt-2 relative">
             <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -337,14 +367,14 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                     key={tool.name}
                     onClick={() => handleToolClick(tool.name)}
                     className={cn(
-                        "flex flex-col items-center justify-center gap-1 group relative w-12 h-12 rounded-xl transition-all duration-200 z-20",
+                        "flex flex-col items-center justify-center gap-1 group relative w-10 h-10 rounded-xl transition-all duration-200 z-20",
                         activeTool === tool.name 
                             ? "bg-primary/20 text-primary shadow-sm" 
                             : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                     )}
                     title={tool.label}
                 >
-                    <tool.icon size={22} strokeWidth={1.5} className="group-hover:scale-110 transition-transform duration-200"/>
+                    <tool.icon size={20} strokeWidth={1.5} className="group-hover:scale-110 transition-transform duration-200"/>
                     <span className="text-[10px] font-medium opacity-0 group-hover:opacity-100 absolute -bottom-4 transition-opacity duration-200 pointer-events-none whitespace-nowrap bg-popover text-popover-foreground px-2 py-0.5 rounded shadow-md border z-50">
                         {tool.label}
                     </span>
@@ -361,8 +391,16 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                 />
             )}
 
+            {/* AI Image Generation (Zone Selector Overlay) */}
+            {activeTool === 'ai-zone' && canvas && (
+                 <ImageGeneratorModal 
+                    canvas={canvas}
+                    onClose={() => setActiveTool('select')}
+                 />
+            )}
+
             {showSaveModal && (
-                <InputModal 
+                <InputModal  
                     isOpen={showSaveModal}
                     title="Save Template"
                     description="Enter a name for your custom template."
@@ -396,7 +434,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
             {showShapesMenu && (
                 <div 
                     ref={shapesMenuRef}
-                    className="absolute left-[80px] top-[260px] bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-50 w-32 animate-in fade-in slide-in-from-left-2 duration-200"
+                    className="absolute left-[80px] top-[70px] bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-50 w-32 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
                     <button onClick={addRectangle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Square size={20} />

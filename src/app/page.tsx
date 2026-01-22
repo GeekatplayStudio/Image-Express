@@ -13,6 +13,11 @@ import { Download, Share2, Sparkles, FolderKanban, Home as HomeIcon, ChevronDown
 import { jsPDF } from 'jspdf';
 import { BackgroundJob } from '@/types';
 
+/**
+ * Home (Main Editor)
+ * Central component orchestrating the Canvas, Toolbar, and Properties Panel.
+ * Handles interactive tools like Gradient Drag and Zoom.
+ */
 export default function Home() {
   const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
   const [activeTool, setActiveTool] = useState<string>('select');
@@ -236,11 +241,161 @@ export default function Home() {
       }
     };
 
-    canvas.on('mouse:dblclick', handleDblClick);
-    return () => {
-      canvas.off('mouse:dblclick', handleDblClick);
+    const handleWheel = (opt: any) => {
+        const evt = opt.e;
+        evt.preventDefault();
+        evt.stopPropagation();
+  
+        const delta = evt.deltaY;
+        let currentZoom = canvas.getZoom();
+        let newZoom = currentZoom * (0.999 ** delta);
+        
+        if (newZoom > 5) newZoom = 5;
+        if (newZoom < 0.1) newZoom = 0.1;
+
+        // Consistent "Paper Resize" Zoom Logic
+        const width = canvas.width!;
+        const height = canvas.height!;
+        const baseWidth = width / currentZoom;
+        const baseHeight = height / currentZoom;
+
+        canvas.setZoom(newZoom);
+        canvas.setDimensions({
+            width: baseWidth * newZoom,
+            height: baseHeight * newZoom
+        });
+        canvas.requestRenderAll();
+        
+        setZoom(newZoom);
     };
-  }, [canvas]);
+
+    // Gradient Tool Interaction
+    const handleGradientTool = () => {
+        let isDown = false;
+        let startPoint = { x: 0, y: 0 };
+        let activeObj: fabric.Object | null | undefined = null;
+
+        return {
+            'mouse:down': (opt: any) => {
+                if (activeTool !== 'gradient') return;
+                
+                // Allow selecting object if clicked directly on it, otherwise use currently active
+                if (opt.target) {
+                    canvas.setActiveObject(opt.target);
+                    activeObj = opt.target;
+                } else {
+                    activeObj = canvas.getActiveObject();
+                }
+
+                if (!activeObj) return;
+
+                isDown = true;
+                const pointer = canvas.getScenePoint(opt.e);
+                startPoint = { x: pointer.x, y: pointer.y };
+            },
+            'mouse:move': (opt: any) => {
+                if (!isDown || activeTool !== 'gradient' || !activeObj) return;
+                
+                const pointer = canvas.getScenePoint(opt.e);
+                
+                // Calculate Vector relative to Object
+                // This is complex because objects can be rotated/scaled.
+                // Assuming simple case for V1: Map canvas points to object bounding box percentage?
+                // Or just use coords 'pixels' mode if fabric supports it robustly? 
+                
+                // Easier Approach:
+                // Fabric Gradients use 'coords' {x1, y1, x2, y2}
+                // If gradientUnits = 'percentage' (default), 0,0 is top-left, 1,1 is bottom-right.
+                
+                // Transform to Local Coordinates using Matrix
+                const m = activeObj.calcTransformMatrix();
+                const mInv = fabric.util.invertTransform(m);
+                const p1Local = fabric.util.transformPoint(new fabric.Point(startPoint.x, startPoint.y), mInv);
+                const p2Local = fabric.util.transformPoint(new fabric.Point(pointer.x, pointer.y), mInv);
+
+                // Determine offsets based on origin (Handle Center vs Left/Top)
+                const w = activeObj.width || 1; 
+                const h = activeObj.height || 1;
+                const ox = activeObj.originX === 'center' ? 0.5 : (activeObj.originX === 'right' ? 1 : 0);
+                const oy = activeObj.originY === 'center' ? 0.5 : (activeObj.originY === 'bottom' ? 1 : 0);
+
+                const n1 = {
+                    x: (p1Local.x / w) + ox,
+                    y: (p1Local.y / h) + oy
+                };
+                const n2 = {
+                    x: (p2Local.x / w) + ox,
+                    y: (p2Local.y / h) + oy
+                };
+
+                const newGradient = new fabric.Gradient({
+                    type: 'linear',
+                    gradientUnits: 'percentage', // Relative to object size
+                    coords: {
+                        x1: n1.x,
+                        y1: n1.y,
+                        x2: n2.x,
+                        y2: n2.y
+                    },
+                    colorStops: [
+                        { offset: 0, color: 'blue' }, // Should use current start/end color state but tricky to access from here without ref
+                        { offset: 1, color: 'red' }
+                    ]
+                });
+                
+                // If the object already has a gradient, preserve colors
+                const currentFill = activeObj.get('fill');
+                if (currentFill && (currentFill as any).type === 'linear') {
+                    // Update coords only? No, set returns new instance usually safer
+                     newGradient.colorStops = (currentFill as any).colorStops;
+                }
+
+                activeObj.set('fill', newGradient);
+                canvas.requestRenderAll();
+            },
+            'mouse:up': () => {
+                isDown = false;
+                activeObj = null;
+            }
+        };
+    };
+
+    const gradientHandlers = handleGradientTool();
+    
+    // Bind Events
+    canvas.on('mouse:wheel', handleWheel);
+    canvas.on('mouse:dblclick', handleDblClick);
+    
+    // We need to add/remove these dynamically or just have them check 'activeTool' inside
+    canvas.on('mouse:down', gradientHandlers['mouse:down']);
+    canvas.on('mouse:move', gradientHandlers['mouse:move']);
+    canvas.on('mouse:up', gradientHandlers['mouse:up']);
+
+    return () => {
+      canvas.off('mouse:wheel', handleWheel);
+      canvas.off('mouse:dblclick', handleDblClick);
+      canvas.off('mouse:down', gradientHandlers['mouse:down']);
+      canvas.off('mouse:move', gradientHandlers['mouse:move']);
+      canvas.off('mouse:up', gradientHandlers['mouse:up']);
+    };
+  }, [canvas, activeTool]); // Re-bind when activeTool changes to ensure closure scope is fresh? 
+  // Actually if we check activeTool valid inside handler, we just need to re-bind if tool changes if we assume closure captures old state? 
+  // Yes, handleGradientTool runs inside useEffect, so it captures current 'activeTool'.
+  // IF 'activeTool' changes, useEffect runs again -> unbinds old -> binds new. Correct.
+
+  // Handle Loading Template
+  const handleLoadTemplate = async (templateJsonUrl: string) => {
+     if (!canvas) return;
+     try {
+        const res = await fetch(templateJsonUrl);
+        const json = await res.json();
+        canvas.loadFromJSON(json, () => {
+             canvas.requestRenderAll();
+        });
+     } catch (e) {
+         console.error("Failed to load template", e);
+     }
+  };
 
   const handleZoom = (factor: number) => {
         if (!canvas) return;
@@ -370,7 +525,7 @@ export default function Home() {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar (Asset Rail) */}
-        <aside className="w-[72px] bg-card border-r flex flex-col items-center py-4 z-10 shadow-sm gap-4">
+        <aside className="w-[60px] bg-card border-r flex flex-col items-center py-4 z-10 shadow-sm gap-4">
              <Toolbar 
                 canvas={canvas} 
                 activeTool={activeTool} 
@@ -501,7 +656,7 @@ export default function Home() {
         </main>
 
         {/* Right Sidebar (Properties) */}
-        <aside className="w-80 bg-card border-l flex flex-col z-10 shadow-xl overflow-y-auto">
+        <aside className="w-80 bg-card border-l flex flex-col z-10 shadow-xl overflow-hidden">
             <PropertiesPanel 
                 canvas={canvas} 
                 activeTool={activeTool}

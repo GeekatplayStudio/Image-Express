@@ -93,7 +93,7 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
     };
 
     return (
-        <div className="absolute left-[80px] top-20 bg-card border border-border rounded-lg shadow-xl w-80 h-[500px] flex flex-col z-50 animate-in fade-in slide-in-from-left-4 duration-200">
+        <div className="absolute left-[80px] top-[160px] bg-card border border-border rounded-lg shadow-xl w-80 h-[500px] flex flex-col z-50 animate-in fade-in slide-in-from-left-4 duration-200">
             {/* Header */}
             <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg">
                 <h3 className="font-semibold text-sm">Asset Library</h3>

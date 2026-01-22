@@ -41,7 +41,7 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
     }, []);
 
     return (
-        <div className="absolute left-[80px] top-20 bg-card border border-border rounded-lg shadow-xl w-80 h-[500px] flex flex-col z-50 animate-in fade-in slide-in-from-left-4 duration-200">
+        <div className="absolute left-[80px] top-[320px] bg-card border border-border rounded-lg shadow-xl w-80 h-[500px] flex flex-col z-50 animate-in fade-in slide-in-from-left-4 duration-200">
             {/* Header */}
             <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg">
                 <div className="flex items-center gap-2">
