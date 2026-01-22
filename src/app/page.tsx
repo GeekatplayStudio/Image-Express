@@ -354,6 +354,9 @@ export default function Home() {
       if (target && (target.is3DModel || target.modelUrl)) {
         setEditingModelUrl(target.modelUrl);
         setEditingModelObject(target);
+      } else if (target) {
+        // Switch to properties panel (select tool) for any other object
+        setActiveTool('select');
       }
     };
 
@@ -864,6 +867,7 @@ export default function Home() {
             <PropertiesPanel 
                 canvas={canvas} 
                 activeTool={activeTool}
+                onLayerDblClick={() => setActiveTool('select')}
                 onMake3D={(imageUrl) => {
                     setInitialImageFor3D(imageUrl);
                     if (canvas) {

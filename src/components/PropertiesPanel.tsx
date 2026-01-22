@@ -16,10 +16,11 @@ interface PropertiesPanelProps {
     canvas: fabric.Canvas | null;
     activeTool?: string;
     onMake3D?: (imageUrl: string) => void;
+    onLayerDblClick?: () => void;
 }
 
 // Sortable Layer Item Component
-function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisibility, deleteLayer, total }: any) {
+function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisibility, deleteLayer, total, onDblClick }: any) {
     const {
         attributes,
         listeners,
@@ -74,6 +75,12 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
             ref={setNodeRef} 
             style={style} 
             onClick={() => selectLayer(obj)}
+            onDoubleClick={(e) => {
+                 // Propagate double click to switch view
+                 // Don't stop propagation if we hit inner elements like name edit
+                 // But wait, name edit has stopPropagation.
+                 if (onDblClick) onDblClick();
+            }}
             className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all group mb-1 ${
                 selectedObject === obj 
                 ? 'bg-primary/10 border-primary/30 shadow-sm' 
@@ -184,7 +191,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
     );
 }
 
-export default function PropertiesPanel({ canvas, activeTool, onMake3D }: PropertiesPanelProps) {
+export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerDblClick }: PropertiesPanelProps) {
     const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     
@@ -754,7 +761,10 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D }: Proper
                                     total={objects.length}
                                     selectedObject={selectedObject}
                                     selectLayer={selectLayer}
-                                    deleteLayer={deleteLayer}                                    toggleVisibility={toggleVisibility}                                 />
+                                    deleteLayer={deleteLayer}                                    
+                                    toggleVisibility={toggleVisibility}                                 
+                                    onDblClick={onLayerDblClick}
+                                 />
                             ))}
                          </SortableContext>
                     </DndContext>
