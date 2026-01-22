@@ -1,0 +1,254 @@
+'use client';
+import { useEffect, useState, useRef } from 'react';
+import * as fabric from 'fabric';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { StarPolygon } from '@/types';
+
+interface ToolbarProps {
+    canvas: fabric.Canvas | null;
+    activeTool: string;
+    setActiveTool: (tool: string) => void;
+}
+
+export default function Toolbar({ canvas, activeTool, setActiveTool }: ToolbarProps) {
+    const [showShapesMenu, setShowShapesMenu] = useState(false);
+    const shapesMenuRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Close shapes menu when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (shapesMenuRef.current && !shapesMenuRef.current.contains(event.target as Node)) {
+                setShowShapesMenu(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const handleToolClick = (toolName: string) => {
+        if (toolName === 'shapes') {
+             setShowShapesMenu(!showShapesMenu);
+             setActiveTool('shapes');
+             return;
+        }
+        setActiveTool(toolName);
+        setShowShapesMenu(false);
+        
+        switch(toolName) {
+            case 'select':
+                canvas?.discardActiveObject(); 
+                canvas?.requestRenderAll();
+                break;
+            case 'text':
+                addText();
+                break;
+            case 'media':
+                handleUploadClick();
+                break;
+            case 'layers':
+                // Properties Panel handles the view reset, we just set activeTool
+                break;
+        }
+    };
+
+    const addRectangle = () => {
+        if (!canvas) return;
+        const rect = new fabric.Rect({
+            left: 100,
+            top: 100,
+            fill: '#8b5cf6',
+            width: 100,
+            height: 100,
+            rx: 0, 
+            ry: 0,
+        });
+        canvas.add(rect);
+        canvas.setActiveObject(rect);
+    };
+
+    const addCircle = () => {
+        if (!canvas) return;
+        const circle = new fabric.Circle({
+            left: 150,
+            top: 150,
+            fill: '#ec4899', // Pink
+            radius: 50,
+        });
+        canvas.add(circle);
+        canvas.setActiveObject(circle);
+    };
+
+    const addTriangle = () => {
+        if (!canvas) return;
+        const triangle = new fabric.Triangle({
+            left: 200,
+            top: 200,
+            fill: '#06b6d4', // Cyan
+            width: 100,
+            height: 100,
+        });
+        canvas.add(triangle);
+        canvas.setActiveObject(triangle);
+    };
+
+    const addStar = () => {
+        if (!canvas) return;
+        
+        const points = getStarPoints(5, 25, 50);
+        const star = new fabric.Polygon(points, {
+            left: 250,
+            top: 250,
+            fill: '#eab308', // Yellow
+            objectCaching: false,
+        }) as StarPolygon;
+        
+        // Attach custom properties for the star
+        star.isStar = true;
+        star.starPoints = 5;
+        star.starInnerRadius = 0.5; // ratio
+
+        canvas.add(star);
+        canvas.setActiveObject(star);
+    };
+
+    // Helper to generate star points
+    const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: number) => {
+        const points = [];
+        const angleStep = Math.PI / numPoints;
+        for (let i = 0; i < 2 * numPoints; i++) {
+            const r = (i % 2 === 0) ? outerRadius : innerRadius;
+            const a = i * angleStep - Math.PI / 2; // -90deg to start at top
+            points.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+        }
+        return points;
+    };
+
+    const addText = () => {
+        if (!canvas) return;
+        const text = new fabric.IText('Tap to edit', {
+            left: 100,
+            top: 250,
+            fontFamily: 'Arial',
+            fill: '#1f2937',
+            fontSize: 40,
+            fontWeight: 'bold'
+        });
+        canvas.add(text);
+        canvas.setActiveObject(text);
+    };
+
+    const handleUploadClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !canvas) return;
+
+        const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+        if (!supportedTypes.includes(file.type)) {
+            alert('Unsupported file type. Please upload JPEG, PNG, WEBP, or SVG.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (f) => {
+            const data = f.target?.result as string;
+            fabric.Image.fromURL(data, {
+                crossOrigin: 'anonymous'
+            }).then((img) => {
+                // Scale down if image is too large
+                const maxWidth = canvas.width! * 0.5;
+                const scale = maxWidth / img.width!;
+                if (scale < 1) {
+                    img.scale(scale);
+                }
+                
+                img.set({
+                    left: 100,
+                    top: 100
+                });
+                
+                canvas.add(img);
+                canvas.setActiveObject(img);
+                canvas.requestRenderAll();
+                
+                // Clear input
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+            }).catch((err) => {
+                console.error("Error loading image:", err);
+            });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const tools = [
+        { name: 'select', icon: Move, label: 'Select' },
+        { name: 'templates', icon: LayoutTemplate, label: 'Templates' },
+        { name: 'text', icon: Type, label: 'Text' },
+        { name: 'media', icon: ImageIcon, label: 'Media' },
+        { name: 'shapes', icon: Shapes, label: 'Shapes' }, 
+        { name: 'layers', icon: Layers, label: 'Layers' },
+    ];
+
+    return (
+        <div className="flex flex-col gap-6 w-full items-center pt-2 relative">
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                onChange={handleFileChange}
+            />
+            {tools.map((tool) => (
+                <button 
+                    key={tool.name}
+                    onClick={() => handleToolClick(tool.name)}
+                    className={cn(
+                        "flex flex-col items-center justify-center gap-1 group relative w-12 h-12 rounded-xl transition-all duration-200 z-20",
+                        activeTool === tool.name 
+                            ? "bg-primary/20 text-primary shadow-sm" 
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                    title={tool.label}
+                >
+                    <tool.icon size={22} strokeWidth={1.5} className="group-hover:scale-110 transition-transform duration-200"/>
+                    <span className="text-[10px] font-medium opacity-0 group-hover:opacity-100 absolute -bottom-4 transition-opacity duration-200 pointer-events-none whitespace-nowrap bg-popover text-popover-foreground px-2 py-0.5 rounded shadow-md border z-50">
+                        {tool.label}
+                    </span>
+                </button>
+            ))}
+
+            {/* Shapes Popover */}
+            {showShapesMenu && (
+                <div 
+                    ref={shapesMenuRef}
+                    className="absolute left-[80px] top-[260px] bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-50 w-32 animate-in fade-in slide-in-from-left-2 duration-200"
+                >
+                    <button onClick={addRectangle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <Square size={20} />
+                        <span className="text-[10px]">Rect</span>
+                    </button>
+                    <button onClick={addCircle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <Circle size={20} />
+                        <span className="text-[10px]">Circle</span>
+                    </button>
+                    <button onClick={addTriangle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <Triangle size={20} />
+                        <span className="text-[10px]">Triangle</span>
+                    </button>
+                    <button onClick={addStar} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <Star size={20} />
+                        <span className="text-[10px]">Star</span>
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
