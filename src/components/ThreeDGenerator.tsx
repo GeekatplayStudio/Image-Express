@@ -184,14 +184,59 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
         } else {
             // Image to 3D
             if (!initialImage) return;
-            // Tripo supports direct URL for image_to_model
-            body = {
-                type: "image_to_model",
-                file: {
-                    type: "png", // Defaulting to png, Tripo might be flexible or detect
-                    url: initialImage
+
+            // Handle Base64 Data URL (Upload first)
+            if (initialImage.startsWith('data:')) {
+                // Convert Base64 to Blob
+                try {
+                    const fetchRes = await fetch(initialImage);
+                    const blob = await fetchRes.blob();
+
+                    const formData = new FormData();
+                    formData.append('file', blob, 'image.png');
+
+                    // Upload
+                    const uploadRes = await fetch('/api/ai/tripo/upload', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${key}`
+                        },
+                        body: formData
+                    });
+
+                    const uploadJson = await uploadRes.json();
+                    
+                    if (uploadJson.code === 0 && uploadJson.data?.image_token) {
+                         body = {
+                            type: "image_to_model",
+                            file: {
+                                type: "png",
+                                file_token: uploadJson.data.image_token
+                            }
+                        };
+                    } else {
+                        console.error("Tripo Upload Error", uploadJson);
+                        alert("Failed to upload image to Tripo: " + (uploadJson.message || 'Unknown error'));
+                        setIsLoading(false);
+                        return;
+                    }
+
+                } catch (e) {
+                     console.error("Failed to process image for upload", e);
+                     alert("Failed to process image");
+                     setIsLoading(false);
+                     return;
                 }
-            };
+            } else {
+                // Public URL
+                body = {
+                    type: "image_to_model",
+                    file: {
+                        type: "png",
+                        url: initialImage
+                    }
+                };
+            }
         }
 
         // Use local proxy to avoid CORS
