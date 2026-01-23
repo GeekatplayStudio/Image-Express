@@ -36,6 +36,7 @@ Image Express is a professional content creation platform built with Next.js 16,
   - **Renaming System**: Interactive renaming overlay for assets.
 - **Authentication**: Secure login system with server-side key persistence for API access.
 - **Audit Logging**: Automatic login activity logging with IP and user agent; viewable from Settings.
+- **Desktop Shell**: Single-codebase Electron build with auto-update checks and in-app update prompts.
 
 ## 🚀 Deployment
 
@@ -53,6 +54,30 @@ Image Express is a professional content creation platform built with Next.js 16,
 
 3. **Open the app**:
    Visit [http://localhost:3000](http://localhost:3000) (or port 3001 if 3000 is busy).
+
+### Desktop App (macOS & Windows)
+
+Run Image Express as a standalone desktop application without manual login on localhost.
+
+1. **Install dependencies** (once):
+   ```bash
+   npm install
+   ```
+2. **Desktop development mode** (hot reload for both Next.js and Electron):
+   ```bash
+   npm run desktop:dev
+   ```
+3. **Desktop production preview** (build + serve the desktop shell):
+   ```bash
+   npm run desktop:start
+   ```
+   This command runs `next build`, boots the standalone Next.js server on port 3927, and launches Electron.
+4. **Create installers** (macOS DMG, Windows NSIS, Linux AppImage):
+   ```bash
+   npm run desktop:build
+   ```
+
+Inside the packaged app the Settings modal exposes “Desktop Updates” so users can manually check for new releases. Automatic checks run shortly after startup and every six hours; when an update finishes downloading the modal offers a restart button to install it.
 
 ### Docker Deployment
 
