@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { StarPolygon, ThreeDGroup } from '@/types';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
 import ImageGeneratorModal from './ImageGeneratorModal';
+import StabilityGenerator from './AI/StabilityGenerator';
 
 /**
  * Toolbar
@@ -19,6 +20,8 @@ interface ToolbarProps {
     activeTool: string;
     setActiveTool: (tool: string) => void;
     onOpen3DEditor?: (url: string) => void;
+    apiKeys?: { stability?: string };
+    onJobCreated?: (job: any) => void;
 }
 
 const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: number) => {
@@ -47,21 +50,21 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
 };
 
 // Start of component
-export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor }: ToolbarProps) {
+export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, onJobCreated }: ToolbarProps) {
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
     const shapesMenuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
-    // Reordered tools based on standard workflows (Select -> Create -> Assets -> AI -> Layers)
+    // Reordered tools based on standard workflows
     const tools = [
         { name: 'select', icon: Move, label: 'Select' },
         { name: 'shapes', icon: Shapes, label: 'Shapes' },
         { name: 'text', icon: Type, label: 'Text' },
         { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
         { name: 'assets', icon: ImageIcon, label: 'Gallery' },
-        { name: 'ai-zone', icon: Wand2, label: 'AI Zone' }, // New Tool
+        { name: 'ai-zone', icon: Wand2, label: 'AI Zone' }, 
         { name: '3d-gen', icon: Box, label: 'AI 3D' },
         { name: 'templates', icon: LayoutTemplate, label: 'Library' },
         { name: 'layers', icon: Layers, label: 'Layers' },
@@ -276,17 +279,22 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         fabric.Image.fromURL(data, {
              crossOrigin: 'anonymous'
         }).then((img) => {
-             // Scale down if image is too large
-             const maxWidth = canvas.width! * 0.5;
-             const scale = maxWidth / img.width!;
-             if (scale < 1) {
-                 img.scale(scale);
+             // Use Artboard dimensions if available, else fallback to canvas or default
+             // @ts-ignore
+             const artboard = canvas.artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+             const targetWidth = artboard.width;
+             const targetHeight = artboard.height;
+             
+             // Scale down if larger than 80% of canvas/artboard to ensure visibility
+             if (img.width! > targetWidth * 0.8 || img.height! > targetHeight * 0.8) {
+                 const scaleX = (targetWidth * 0.8) / img.width!;
+                 const scaleY = (targetHeight * 0.8) / img.height!;
+                 const finalScale = Math.min(scaleX, scaleY);
+                 img.scale(finalScale);
              }
              
-             img.set({
-                 left: 100,
-                 top: 100
-             });
+             // Center it (this centers in the Viewport, which is aligned with Artboard center)
+             canvas.centerObject(img);
              
              canvas.add(img);
              canvas.setActiveObject(img);
@@ -397,6 +405,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                  <ImageGeneratorModal 
                     canvas={canvas}
                     onClose={() => setActiveTool('select')}
+                    apiKey={apiKeys?.stability}
                  />
             )}
 

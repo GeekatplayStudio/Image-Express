@@ -1,19 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Wand2, Loader2, RotateCw, GripHorizontal } from 'lucide-react';
 import * as fabric from 'fabric';
+import StabilityGenerator from './AI/StabilityGenerator';
 
 /**
  * ImageGeneratorModal
- * Floating draggable window for AI Image Generation.
- * Supports auto-saving generated assets and placing them on canvas.
+ * 
+ * A floating, draggable modal window for AI Image Generation.
+ * Features:
+ * - "Magic Zone" creation on canvas (defining area for generation)
+ * - Integration with Local ComfyUI and Remote APIs (Stability, OpenAI, etc)
+ * - Interface for prompt entry and generation control
+ * - Auto-saving of generated results to the "Generated" asset library
  */
 interface ImageGeneratorModalProps {
+  /** Visibility state */
   isOpen?: boolean;
+  /** Reference to the main Fabric.js canvas */
   canvas?: fabric.Canvas | null;
+  /** Callback to close the modal */
   onClose: () => void;
+  /** Optional callback when image is generated (legacy support) */
   onGenerate?: (imageSrc: string) => void;
+  /** Default width for the generation zone */
   initialWidth?: number;
+  /** Default height for the generation zone */
   initialHeight?: number;
+  /** Optional API Key override */
+  apiKey?: string; 
 }
 
 export default function ImageGeneratorModal({
@@ -23,47 +37,49 @@ export default function ImageGeneratorModal({
   onGenerate,
   initialWidth = 512,
   initialHeight = 512,
+  apiKey,
 }: ImageGeneratorModalProps) {
+  // --- Generation State ---
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   
-  // Draggable State
+  // --- UI State (Draggable Window) ---
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [hasMoved, setHasMoved] = useState(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   
-  // Zone Management
+  // --- Canvas Zone Management ---
   const [zoneWidth, setZoneWidth] = useState(initialWidth);
   const [zoneHeight, setZoneHeight] = useState(initialHeight);
   const zoneObjectRef = useRef<fabric.Rect | null>(null);
 
-  // Load config
+  // --- Configuration ---
   const [config, setConfig] = useState({
     provider: 'local',
     serverUrl: 'http://127.0.0.1:8188',
     apiKey: '',
   });
 
-  // Multi-Provider Selection State
+  // --- Provider Selection ---
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('comfy'); // Default
 
+  // Init: Synch with LocalStorage settings
   useEffect(() => {
-    // Sync with global settings from SettingsModal
     if (typeof window !== 'undefined') {
         const comfyUrl = localStorage.getItem('image-express-comfy-url');
-        const apiKey = localStorage.getItem('image-express-gen-key');
+        const savedApiKey = localStorage.getItem('image-express-gen-key');
 
-        // Check Available Keys
+        // Check for Available API Keys in storage
         const stability = localStorage.getItem('stability_api_key');
         const openai = localStorage.getItem('openai_api_key');
         const google = localStorage.getItem('google_api_key');
         const banana = localStorage.getItem('banana_api_key');
         
-        const providers = ['comfy']; // Local always available option
+        const providers = ['comfy']; // Local ComfyUI is always an option
         if (stability) providers.push('stability');
         if (openai) providers.push('openai');
         if (google) providers.push('google');
@@ -71,15 +87,14 @@ export default function ImageGeneratorModal({
         
         setAvailableProviders(providers);
 
-        // Load persisted selection
+        // Load previously selected provider
         const savedProvider = localStorage.getItem('image-express-gen-provider');
         if (savedProvider && providers.includes(savedProvider)) {
             setSelectedProvider(savedProvider);
         } else {
-             // Fallback to what was set in global settings formerly, or comfy
+             // Fallback logic
              const legacyProvider = localStorage.getItem('image-express-provider');
              if (legacyProvider === 'api' && providers.length > 1) {
-                  // try to pick first remote
                   setSelectedProvider(providers[1]); 
              } else {
                  setSelectedProvider('comfy');
@@ -87,73 +102,67 @@ export default function ImageGeneratorModal({
         }
         
         setConfig({
-            provider: 'comfy', // We will derive this from selectedProvider during generate
+            provider: 'comfy', // Base default
             serverUrl: comfyUrl || 'http://127.0.0.1:8188',
-            apiKey: apiKey || '',
+            apiKey: savedApiKey || '',
         });
     }
   }, []);
 
+  /**
+   * Updates selected provider and persists choice.
+   */
   const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const newVal = e.target.value;
       setSelectedProvider(newVal);
       localStorage.setItem('image-express-gen-provider', newVal);
   };
     
+  /**
+   * Retreives the API key for a specific provider from storage.
+   */
   const getProviderKey = (provider: string) => {
       if (provider === 'comfy') return '';
       return localStorage.getItem(`${provider}_api_key`) || '';
   }
 
-  // Initial Position
+  // --- Modal View Mode (Local Zone vs Stability Specific UI) ---
+  const [mode, setMode] = useState<'zone' | 'stability'>('zone');
+
+  // Initial Window Position
   useEffect(() => {
     if (typeof window !== 'undefined' && !hasMoved) {
-       // Position next to the AI Zone icon (approx 5th item)
+       // Position next to the AI Zone icon (approx 5th item in toolbar)
        setPosition({ 
            x: 90, 
            y: 220 
        });
     }
-  }, []);
+  }, [hasMoved]); 
 
-  useEffect(() => {
-    // Sync with global settings from SettingsModal
-    if (typeof window !== 'undefined') {
-        const provider = localStorage.getItem('image-express-provider');
-        const comfyUrl = localStorage.getItem('image-express-comfy-url');
-        const apiKey = localStorage.getItem('image-express-gen-key');
-        
-        setConfig({
-            provider: provider || 'local', // 'comfy' (from SettingsModal) might be value, let's normalize
-            serverUrl: comfyUrl || 'http://127.0.0.1:8188',
-            apiKey: apiKey || '',
-        });
-    }
-  }, []);
-
-  // Initialize Zone on Canvas
+  // --- Zone Logic: Create/Destroy on Canvas ---
   useEffect(() => {
     if (!canvas) return;
 
-    // Check if user already selected something to transform into a zone
+    // Check if user already selected a rect to transform into a zone
     const activeObj = canvas.getActiveObject();
     
     if (activeObj && activeObj.type === 'rect') {
-        // Use existing selection
+        // Use existing selection as zone
         setZoneWidth(activeObj.width! * activeObj.scaleX!);
         setZoneHeight(activeObj.height! * activeObj.scaleY!);
         zoneObjectRef.current = activeObj as fabric.Rect;
     } else {
-        // Create new Zone
+        // Create new UI Zone indicator
         const zone = new fabric.Rect({
             left: 100,
             top: 100,
             width: 512,
             height: 512,
-            fill: 'rgba(139, 92, 246, 0.1)', // Purple transparent
+            fill: 'rgba(139, 92, 246, 0.1)', // Transluscent Purple
             stroke: '#8b5cf6',
             strokeWidth: 2,
-            strokeDashArray: [5, 5],
+            strokeDashArray: [5, 5], // Dashed line
             transparentCorners: false,
             cornerColor: '#8b5cf6',
             cornerStrokeColor: '#fff',
@@ -163,7 +172,7 @@ export default function ImageGeneratorModal({
         canvas.setActiveObject(zone);
         zoneObjectRef.current = zone;
         
-        // Listen for scaling to update dimensions
+        // Listen for scaling to update dimensions state
         zone.on('scaling', () => {
              setZoneWidth(Math.round(zone.width! * zone.scaleX!));
              setZoneHeight(Math.round(zone.height! * zone.scaleY!));
@@ -172,7 +181,7 @@ export default function ImageGeneratorModal({
         canvas.requestRenderAll();
     }
 
-    // Cleanup
+    // Cleanup: Remove zone when modal closes
     return () => {
         if (zoneObjectRef.current && canvas.contains(zoneObjectRef.current)) {
             canvas.remove(zoneObjectRef.current);
@@ -181,9 +190,9 @@ export default function ImageGeneratorModal({
     };
   }, [canvas]);
 
-  // Drag Handlers
+  // --- Draggable Window Handlers ---
   const handleMouseDown = (e: React.MouseEvent) => {
-      // Only start drag if clicking header
+      if ((e.target as HTMLElement).closest('.no-drag')) return; // Prevent drag interaction on inputs
       setIsDragging(true);
       setHasMoved(true);
       dragStartPos.current = {
@@ -196,7 +205,7 @@ export default function ImageGeneratorModal({
     const handleMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
         
-        // Compute new position
+        // Compute new position based on delta
         const newX = e.clientX - dragStartPos.current.x;
         const newY = e.clientY - dragStartPos.current.y;
         
@@ -207,16 +216,171 @@ export default function ImageGeneratorModal({
         setIsDragging(false);
     };
 
+    // Attach global listeners while dragging to catch mouse leaving the window
     if (isDragging) {
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
     }
+    
     return () => {
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging]);
 
+
+  // --- Helper Functions ---
+
+  /**
+   * Polls a local ComfyUI instance for generation results.
+   * @param promptId The ID of the queued job
+   * @param host The base URL of the ComfyUI server
+   */
+  const pollComfyResult = async (promptId: string, host: string) => {
+      const maxRetries = 60; // Wait up to 60 seconds
+      let attempts = 0;
+
+      const interval = setInterval(async () => {
+          attempts++;
+          try {
+              const res = await fetch(`${host}/history/${promptId}`);
+              const history = await res.json();
+              
+              // Check if output is ready
+              if (history && history[promptId] && history[promptId].outputs) {
+                  clearInterval(interval);
+                  const outputs = history[promptId].outputs;
+                  let imageName = null;
+                  
+                  // Find first image output from any node
+                  for (const nodeId in outputs) {
+                      if (outputs[nodeId].images && outputs[nodeId].images.length > 0) {
+                          imageName = outputs[nodeId].images[0];
+                          break;
+                      }
+                  }
+
+                  if (imageName) {
+                      // Construct URL for ComfyUI view endpoint
+                      const imgUrl = `${host}/view?filename=${imageName.filename}&subfolder=${imageName.subfolder}&type=${imageName.type}`;
+                      setGeneratedImage(imgUrl);
+                      setStatusMessage('Generation complete!');
+                  }
+                  setIsGenerating(false);
+              } else if (attempts >= maxRetries) {
+                  clearInterval(interval);
+                  setStatusMessage('Timeout waiting for ComfyUI.');
+                  setIsGenerating(false);
+              }
+          } catch (e) {
+              // ignore errors during polling
+          }
+      }, 1000);
+  };
+
+  /**
+   * Saves a generated image (URL or Data URI) to the persistent workspace assets.
+   * Target folder: public/assets/generated/images
+   */
+  const saveToAssets = async (url: string) => {
+    try {
+        if (url.startsWith('data:')) {
+            // Case: Base64 Data URI (e.g. from Stability API)
+            const blob = await (await fetch(url)).blob();
+            const file = new File([blob], `generated-${Date.now()}.png`, { type: 'image/png' });
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', 'images');
+            formData.append('category', 'generated');
+            
+            await fetch('/api/assets/upload', {
+                method: 'POST',
+                body: formData
+            });
+        } else {
+            // Case: External URL (e.g. from ComfyUI or other Remote URL)
+             await fetch('/api/assets/save-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    url: url,
+                    filename: `generated-${Date.now()}.png`,
+                    type: 'images',
+                    category: 'generated'
+                })
+            });
+        }
+    } catch (e) {
+        console.error("Failed to auto-save asset", e);
+    }
+  };
+
+  /**
+   * Finalizes the generation process:
+   * 1. Auto-saves the image
+   * 2. Adds the image to the Fabric.js canvas
+   * 3. Fits image to the "Magic Zone" if it exists, or centers it
+   */
+  const handleAddToCanvas = () => {
+    if (!generatedImage || !canvas) {
+        if (onGenerate && generatedImage) onGenerate(generatedImage);
+        onClose();
+        return;
+    }
+
+    // Auto-save generated image to assets history
+    saveToAssets(generatedImage);
+
+    fabric.Image.fromURL(generatedImage, { crossOrigin: 'anonymous' }).then((img) => {
+        if (!zoneObjectRef.current) {
+             // Use Artboard dimensions if available
+             // @ts-ignore
+             const artboard = canvas.artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+             const targetWidth = artboard.width;
+             const targetHeight = artboard.height;
+             
+             // Scale down if larger than 80% of canvas to ensure visibility
+             if (img.width! > targetWidth * 0.8 || img.height! > targetHeight * 0.8) {
+                 const scale = Math.min(
+                     (targetWidth * 0.8) / img.width!,
+                     (targetHeight * 0.8) / img.height!
+                 );
+                 img.scale(scale);
+             }
+             canvas.centerObject(img);
+             canvas.add(img);
+             canvas.setActiveObject(img);
+        } else {
+            // Fit to Zone
+            const z = zoneObjectRef.current;
+            img.set({
+                left: z.left,
+                top: z.top,
+                scaleX: (z.width! * z.scaleX!) / img.width!,
+                scaleY: (z.height! * z.scaleY!) / img.height!,
+            });
+            // Remove the zone indicator guide
+            canvas.remove(z);
+            // Replace with actual image
+            canvas.add(img);
+            canvas.setActiveObject(img);
+        }
+        canvas.requestRenderAll();
+        onClose(); 
+    }).catch(err => {
+        console.error("Failed to load image to canvas", err);
+        setStatusMessage("Failed to place image on canvas");
+    });
+  };
+
+  const placeImageOnCanvas = () => {
+    handleAddToCanvas();
+  };
+
+  /**
+   * Main Generation Handler.
+   * Routes request to appropriate provider (Comfy, Stability, etc).
+   */
   const handleGenerate = async () => {
     if (!prompt) return;
 
@@ -237,8 +401,6 @@ export default function ImageGeneratorModal({
     const currentW = zoneObjectRef.current ? Math.round(zoneObjectRef.current.width! * zoneObjectRef.current.scaleX!) : zoneWidth;
     const currentH = zoneObjectRef.current ? Math.round(zoneObjectRef.current.height! * zoneObjectRef.current.scaleY!) : zoneHeight;
 
-
-
     try {
       const currentKey = getProviderKey(selectedProvider);
       
@@ -250,13 +412,7 @@ export default function ImageGeneratorModal({
           width: currentW,
           height: currentH,
           serverUrl: config.serverUrl,
-          provider: selectedProvider === 'comfy' ? 'comfy' : 'remote', // Backend handles distinction?
-          // Actually, backend expects 'provider' string like 'stability'/'openai' or 'comfy'
-          // If we send 'remote', it uses old logic. We should update backend or map it here.
-          // Let's assume for now fallback:
-          // If selectedProvider is specific (stability, etc), we might need to send that as a specific param 
-          // OR the backend needs update. 
-          // For now, let's assume client-side choice determines `provider` field sent.
+          provider: selectedProvider === 'comfy' ? 'comfy' : 'remote',
           specificProvider: selectedProvider, 
           apiKey: currentKey
         }),
@@ -289,235 +445,146 @@ export default function ImageGeneratorModal({
     }
   };
 
-  const pollComfyResult = async (promptId: string, host: string) => {
-      const maxRetries = 60; 
-      let attempts = 0;
-
-      const interval = setInterval(async () => {
-          attempts++;
-          try {
-              const res = await fetch(`${host}/history/${promptId}`);
-              const history = await res.json();
-              
-              if (history && history[promptId] && history[promptId].outputs) {
-                  clearInterval(interval);
-                  const outputs = history[promptId].outputs;
-                  let imageName = null;
-                  
-                  for (const nodeId in outputs) {
-                      if (outputs[nodeId].images && outputs[nodeId].images.length > 0) {
-                          imageName = outputs[nodeId].images[0];
-                          break;
-                      }
-                  }
-
-                  if (imageName) {
-                      const imgUrl = `${host}/view?filename=${imageName.filename}&subfolder=${imageName.subfolder}&type=${imageName.type}`;
-                      setGeneratedImage(imgUrl);
-                      setStatusMessage('Generation complete!');
-                  }
-                  setIsGenerating(false);
-              } else if (attempts >= maxRetries) {
-                  clearInterval(interval);
-                  setStatusMessage('Timeout waiting for ComfyUI.');
-                  setIsGenerating(false);
-              }
-          } catch (e) {
-              // ignore
-          }
-      }, 1000);
-  };
-
-  const saveToAssets = async (url: string) => {
-    try {
-        if (url.startsWith('data:')) {
-            // Upload Base64
-            const blob = await (await fetch(url)).blob();
-            const file = new File([blob], `generated-${Date.now()}.png`, { type: 'image/png' });
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('type', 'images');
-            
-            await fetch('/api/assets/upload', {
-                method: 'POST',
-                body: formData
-            });
-        } else {
-            // Upload URL
-             await fetch('/api/assets/save-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    url: url,
-                    filename: `generated-${Date.now()}.png`,
-                    type: 'images'
-                })
-            });
-        }
-    } catch (e) {
-        console.error("Failed to auto-save asset", e);
-    }
-  };
-
-  const handleAddToCanvas = () => {
-    if (!generatedImage || !canvas) {
-        if (onGenerate && generatedImage) onGenerate(generatedImage);
-        onClose();
-        return;
-    }
-
-    // Auto-save generated image to assets history
-    saveToAssets(generatedImage);
-
-    fabric.Image.fromURL(generatedImage, { crossOrigin: 'anonymous' }).then((img) => {
-        if (!zoneObjectRef.current) {
-            canvas.add(img);
-        } else {
-            const z = zoneObjectRef.current;
-            img.set({
-                left: z.left,
-                top: z.top,
-                scaleX: (z.width! * z.scaleX!) / img.width!,
-                scaleY: (z.height! * z.scaleY!) / img.height!,
-            });
-            canvas.remove(z);
-            canvas.add(img);
-            canvas.setActiveObject(img);
-        }
-        canvas.requestRenderAll();
-        onClose(); 
-    }).catch(err => {
-        console.error("Failed to load image to canvas", err);
-        setStatusMessage("Failed to place image on canvas");
-    });
-  };
 
   if (!isOpen) return null;
 
   return (
     <div 
-        className="fixed z-50 w-[350px] shadow-2xl animate-in fade-in duration-300 rounded-lg overflow-hidden border bg-background"
-        style={{ 
-            left: position.x, 
-            top: position.y,
-            // If moved, disable auto positioning classes, otherwise use default
-            transform: !hasMoved ? 'none' : 'none'
-        }}
+      className="fixed z-[100] bg-card border border-border shadow-2xl rounded-xl overflow-hidden flex flex-col w-[350px] animate-in fade-in zoom-in-95 duration-200"
+      style={{
+          left: position.x,
+          top: position.y
+      }}
     >
-        {/* Header - Draggable Area */}
-        <div 
-            className="flex items-center justify-between p-3 border-b bg-muted/30 cursor-move select-none"
-            onMouseDown={handleMouseDown}
-        >
-          <div className="flex items-center gap-2">
-               <GripHorizontal className="w-4 h-4 text-muted-foreground/50" />
-               <h2 className="font-semibold flex items-center gap-2 text-sm pointer-events-none">
-                <Wand2 className="w-4 h-4 text-purple-500" />
-                AI Zone Generator
-               </h2>
-          </div>
+      {/* 
+        Modal Header - Draggable Handle 
+      */}
+      <div 
+        className="h-10 bg-secondary/50 border-b flex items-center justify-between px-3 cursor-move select-none"
+        onMouseDown={handleMouseDown}
+      >
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
+           <Wand2 size={16} className="text-purple-500"/>
+           AI Generation Zone
+        </div>
+        <button onClick={onClose} className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors no-drag">
+           <X size={16} />
+        </button>
+      </div>
+      
+      {/* 
+        Mode Switcher: Simple Zone vs Dedicated Provider UI (Stability) 
+      */}
+      <div className="flex border-b bg-muted/20">
           <button 
-             onClick={onClose} 
-             // Stop propagation so clicking close doesn't start drag
-             onMouseDown={(e) => e.stopPropagation()}
-             className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-6 w-6"
+             onClick={() => setMode('zone')}
+             className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${mode === 'zone' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
-            <X className="w-3 h-3" />
+             Local / Zone
           </button>
-        </div>
+          <button 
+             onClick={() => setMode('stability')}
+             className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${mode === 'stability' ? 'border-purple-500 text-purple-600 bg-purple-500/5' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+             Stability AI
+          </button>
+      </div>
 
-        {/* Content */}
-        <div className="p-4 space-y-4">
-          
-          {/* Service Selection */}
-          {availableProviders.length > 1 && !isGenerating && !generatedImage && (
-            <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Service Provider</label>
-                <select
-                    value={selectedProvider}
-                    onChange={(e) => {
-                        const val = e.target.value as any;
-                        setSelectedProvider(val);
-                        localStorage.setItem('image-express-gen-provider', val);
-                    }}
-                    className="w-full flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    {availableProviders.map(p => (
-                        <option key={p} value={p}>
-                            {p === 'comfy' ? 'ComfyUI (Local)' : 
-                             p === 'stability' ? 'Stability AI' : 
-                             p === 'openai' ? 'DALL·E 3 (OpenAI)' :
-                             p === 'google' ? 'Google Imagen' :
-                             p === 'banana' ? 'Stable Diffusion (Banana)' : 
-                             p}
-                        </option>
-                    ))}
-                </select>
+      <div className="p-4 bg-background max-h-[70vh] overflow-y-auto no-drag">
+        {mode === 'stability' ? (
+             /* Stability AI Specific UI */
+             <StabilityGenerator 
+                 isOpen={true}
+                 onClose={onClose}
+                 canvas={canvas || null}
+                 apiKey={apiKey || getProviderKey('stability')}
+                 embedded={true} 
+                 onAssetSave={saveToAssets}
+             />
+        ) : (
+        <>
+            {/* 
+              Generic / ComfyUI Zone Content 
+              Renders controls for dimensions based on canvas selection
+            */}
+            <div className="space-y-4">
+               {/* Controls */}
+               <div className="space-y-2">
+                 <label className="text-xs font-medium text-muted-foreground flex justify-between">
+                    Prompt
+                    <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground">{zoneWidth}x{zoneHeight}</span>
+                 </label>
+                 <textarea 
+                    className="w-full text-sm p-3 rounded-lg border bg-background focus:ring-2 focus:ring-primary/20 min-h-[80px] resize-none transition-all placeholder:text-muted-foreground/50"
+                    placeholder="Describe what you want to appear in the zone..."
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                 />
+               </div>
+
+               {/* Provider Select */}
+               <div className="grid grid-cols-2 gap-2">
+                   <div className="space-y-1">
+                      <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Provider</label>
+                      <select 
+                         className="w-full text-xs p-2 rounded-md border bg-background"
+                         value={selectedProvider}
+                         onChange={handleProviderChange}
+                      >
+                         {availableProviders.map(p => (
+                             <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                         ))}
+                      </select>
+                   </div>
+                   <div className="space-y-1">
+                      <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Aspect</label>
+                      <div className="w-full text-xs p-2 rounded-md border bg-secondary/20 text-muted-foreground truncate" title="Resize zone on canvas to change">
+                          Custom ({zoneWidth}x{zoneHeight})
+                      </div>
+                   </div>
+               </div>
+
+               {/* Generate Button */}
+               <button 
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !prompt}
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm"
+               >
+                  {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                  {isGenerating ? 'Dreaming...' : 'Generate Image'}
+               </button>
+
+               {statusMessage && (
+                  <div className={`text-xs text-center py-2 px-3 rounded-md ${statusMessage.includes('Error') ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-secondary-foreground'}`}>
+                      {statusMessage}
+                  </div>
+               )}
+               
+               {/* Result Preview Area */}
+               {generatedImage && (
+                   <div className="relative group rounded-lg overflow-hidden border bg-checkerboard aspect-square animate-in zoom-in-95">
+                       <img src={generatedImage} className="w-full h-full object-contain" alt="Generated" />
+                       
+                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                           <button 
+                              onClick={placeImageOnCanvas}
+                              className="bg-white text-black px-4 py-1.5 rounded-full text-xs font-bold hover:bg-white/90 transform hover:scale-105 transition-all"
+                           >
+                              Place on Canvas
+                           </button>
+                           <button 
+                              onClick={() => setGeneratedImage(null)}
+                              className="text-white/70 hover:text-white text-xs underline"
+                           >
+                              Discard
+                           </button>
+                       </div>
+                   </div>
+               )}
             </div>
-          )}
-
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-xs">Prompt</label>
-            <textarea
-              className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-              placeholder="A futuristic city with neon lights..."
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              disabled={isGenerating}
-            />
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-muted-foreground bg-secondary/30 p-2 rounded border border-dashed">
-             <span>Zone Size:</span>
-             <span className="font-mono">{Math.round(zoneWidth)} x {Math.round(zoneHeight)}</span>
-          </div>
-
-          {!generatedImage && isGenerating && (
-             <div className="flex flex-col items-center justify-center py-4 space-y-2 text-xs text-muted-foreground">
-                 <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-                 <span>{statusMessage}</span>
-             </div>
-          )}
-
-          {generatedImage && (
-            <div className="rounded-md border overflow-hidden aspect-video relative group bg-checkerboard">
-                <img src={generatedImage} alt="Generated" className="w-full h-full object-contain" />
-            </div>
-          )}
-          
-          {/* Footer Actions */}
-          <div className="pt-2 flex flex-col gap-2">
-            {!generatedImage ? (
-                <button 
-                    onClick={handleGenerate} 
-                    disabled={isGenerating || !prompt} 
-                    className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md transition-all hover:scale-[1.02] h-9 px-4 py-2"
-                >
-                    {isGenerating ? 'Generating...' : 'Generate Frame'}
-                </button>
-            ) : (
-                <div className="flex gap-2">
-                    <button 
-                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 flex-1" 
-                        onClick={() => setGeneratedImage(null)}
-                    >
-                        Retry
-                    </button>
-                    <button 
-                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 flex-1" 
-                        onClick={handleAddToCanvas}
-                    >
-                        Accept
-                    </button>
-                </div>
-            )}
-            <p className="text-[10px] text-center text-muted-foreground">
-                Using {config.provider === 'comfy' ? 'Local ComfyUI' : 'Cloud API'}
-            </p>
-          </div>
-
-        </div>
+        </>
+        )}
+      </div>
     </div>
   );
 }

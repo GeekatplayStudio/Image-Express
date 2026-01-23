@@ -42,6 +42,10 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
     const [status, setStatus] = useState<'idle' | 'saved' | 'saving' | 'error'>('idle');
     const [syncStatus, setSyncStatus] = useState<'local' | 'synced' | 'syncing'>('local');
     const [helpType, setHelpType] = useState<'comfy' | 'api' | null>(null);
+    const [isLogVisible, setIsLogVisible] = useState(false);
+    const [logContent, setLogContent] = useState('');
+    const [isLogLoading, setIsLogLoading] = useState(false);
+    const [logError, setLogError] = useState<string | null>(null);
 
     // Load keys on mount
     useEffect(() => {
@@ -139,6 +143,28 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
 
     // Helper to mask key for display if it comes from env (not implemented here per se, but good for UX)
     // Here we just input what is in local storage.
+
+    const handleToggleLog = async () => {
+        if (!isLogVisible) {
+            setIsLogLoading(true);
+            setLogError(null);
+            try {
+                const res = await fetch('/api/logs/login');
+                if (!res.ok) {
+                    throw new Error(`Status ${res.status}`);
+                }
+                const text = await res.text();
+                setLogContent(text);
+            } catch (error) {
+                console.error('Failed to load login log', error);
+                setLogError('Failed to load log. Please try again later.');
+                setLogContent('');
+            } finally {
+                setIsLogLoading(false);
+            }
+        }
+        setIsLogVisible(prev => !prev);
+    };
 
     if (!isOpen) return null;
 
@@ -317,6 +343,27 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                     <p className="text-xs text-muted-foreground">
                         Keys are stored locally in your browser. We never transmit them to our servers, only directly to the AI providers.
                     </p>
+                </div>
+
+                <div className="mt-4 border-t border-border/40 pt-4">
+                    <button 
+                        onClick={handleToggleLog}
+                        className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                    >
+                        {isLogVisible ? 'Hide Login Activity Log' : 'View Login Activity Log'}
+                    </button>
+
+                    {isLogVisible && (
+                        <div className="mt-3 bg-secondary/20 border border-border/60 rounded-lg p-3 max-h-48 overflow-y-auto">
+                            {isLogLoading ? (
+                                <p className="text-xs text-muted-foreground">Loading log...</p>
+                            ) : logError ? (
+                                <p className="text-xs text-destructive">{logError}</p>
+                            ) : (
+                                <pre className="text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground">{logContent}</pre>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

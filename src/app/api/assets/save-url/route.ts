@@ -4,13 +4,14 @@ import path from 'path';
 
 export async function POST(request: Request) {
   try {
-    const { url, filename, type } = await request.json();
+    const { url, filename, type, category } = await request.json();
 
     if (!url || !filename) {
       return NextResponse.json({ success: false, message: 'Missing url or filename' }, { status: 400 });
     }
 
     const folderType = type || 'models'; // Default to models for generated content usually
+    const folderCategory = category || 'uploads';
     
     // Fetch the content
     const response = await fetch(url);
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Save to disk
-    const uploadDir = path.join(process.cwd(), 'public', 'assets', 'uploads', folderType);
+    const uploadDir = path.join(process.cwd(), 'public', 'assets', folderCategory, folderType);
     
     await mkdir(uploadDir, { recursive: true });
 

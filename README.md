@@ -20,6 +20,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Layer Management**: Professional layer locking, visibility, and reordering.
 - **Interactive Tools**: Gradient editor, shape tools, and text manipulation.
 - **Export Options**: Export designs to PNG, JPG, SVG, PDF, and JSON.
+- **In-App Manual**: Contextual help modal with persistent chapter navigation and quick close actions.
 
 ### AI Capabilities
 - **Advanced 3D Generation**: 
@@ -34,6 +35,7 @@ Image Express is a professional content creation platform built with Next.js 16,
   - Upload, organize, and manage images and 3D models.
   - **Renaming System**: Interactive renaming overlay for assets.
 - **Authentication**: Secure login system with server-side key persistence for API access.
+- **Audit Logging**: Automatic login activity logging with IP and user agent; viewable from Settings.
 
 ## 🚀 Deployment
 
