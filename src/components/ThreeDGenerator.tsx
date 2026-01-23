@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { OrbitControls, Stage, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import { Loader2, Plus, RotateCw, Box } from 'lucide-react';
+import { Loader2, Plus, RotateCw, Box, Settings2 } from 'lucide-react';
 import * as fabric from 'fabric';
 import { getApiKey } from './SettingsModal';
 import { BackgroundJob } from '@/types';
+import { useDialog } from '@/providers/DialogProvider';
 
 interface ThreeDGeneratorProps {
     onAddToCanvas: (dataUrl: string, modelUrl?: string) => void;
@@ -17,6 +18,15 @@ interface ThreeDGeneratorProps {
     activeJob?: BackgroundJob | null; // Pass active job if it exists
 }
 
+// Helper to capture Threejs context
+const CaptureHelper = ({ controlRef }: { controlRef: React.MutableRefObject<any> }) => {
+    const { gl, scene, camera } = useThree();
+    useEffect(() => {
+        controlRef.current = { gl, scene, camera };
+    }, [gl, scene, camera, controlRef]);
+    return null;
+};
+
 // Component to render the GLTF Model
 const ModelViewer = ({ url }: { url: string }) => {
     const { scene } = useGLTF(url);
@@ -24,10 +34,14 @@ const ModelViewer = ({ url }: { url: string }) => {
 };
 
 export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, onStartBackgroundJob, activeJob }: ThreeDGeneratorProps) {
+    const dialog = useDialog();
     const [prompt, setPrompt] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [apiKey, setApiKey] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const captureRef = useRef<any>(null);
+    const [resolution, setResolution] = useState<{width: number, height: number}>({ width: 2048, height: 2048 });
+    const [showResSettings, setShowResSettings] = useState(false);
     const [mode, setMode] = useState<'text' | 'image'>(initialImage ? 'image' : 'text');
     
     // Use internal state OR prop state
@@ -84,7 +98,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     const handleGenerate = async () => {
         let key = getSelectedKey();
         if (!key) {
-            alert(`Please configure API Key for ${selectedProvider} in settings or enter it below`);
+            dialog.alert(`Please configure API Key for ${selectedProvider} in settings or enter it below`, { title: 'Missing API Key' });
             return;
         }
 
@@ -104,7 +118,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                  // Tripo Integration
                  await generateTripo(key);
             } else {
-                 alert("Service integration in progress");
+                 dialog.alert("Service integration in progress", { title: 'Coming Soon' });
                  setIsLoading(false);
             }
         } catch (e) {
@@ -300,6 +314,38 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     };
 
     const handleCapture = () => {
+        const state = captureRef.current;
+        if (state && state.gl && state.scene && state.camera) {
+             const { gl, scene, camera } = state;
+             try {
+                // Save original state
+                const originalSize = new THREE.Vector2();
+                gl.getSize(originalSize);
+                const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
+                
+                // Resize for high-res capture
+                gl.setSize(resolution.width, resolution.height, false);
+                (camera as THREE.PerspectiveCamera).aspect = resolution.width / resolution.height;
+                (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+                
+                // Render
+                gl.render(scene, camera);
+                
+                // Capture
+                const data = gl.domElement.toDataURL('image/png');
+                
+                // Restore
+                gl.setSize(originalSize.x, originalSize.y, false);
+                (camera as THREE.PerspectiveCamera).aspect = originalAspect;
+                (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+                
+                onAddToCanvas(data, modelUrl || undefined);
+                return;
+             } catch (e) {
+                 console.error("High-res capture failed, falling back", e);
+             }
+        }
+
         const canvas = document.querySelector('#three-d-canvas canvas') as HTMLCanvasElement;
         if (canvas) {
             const data = canvas.toDataURL('image/png');
@@ -390,12 +436,67 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 {/* 3D Preview Area */}
                 <div id="three-d-canvas" className="w-full aspect-square bg-black/5 rounded-lg overflow-hidden border border-border/30 relative">
                      {modelUrl ? (
-                        <Canvas gl={{ preserveDrawingBuffer: true }} camera={{ position: [0, 0, 4], fov: 50 }}>
-                            <Stage environment="city" intensity={0.6}>
-                                <ModelViewer url={modelUrl} />
-                            </Stage>
-                            <OrbitControls makeDefault autoRotate />
-                        </Canvas>
+                        <>
+                            <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 items-end pointer-events-none">
+                                <div className="pointer-events-auto flex flex-col items-end gap-1">
+                                    <button 
+                                        onClick={() => setShowResSettings(!showResSettings)}
+                                        className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-black dark:text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
+                                        title="Export Resolution Settings"
+                                    >
+                                        <Settings2 size={12} />
+                                        {resolution.width}x{resolution.height}
+                                    </button>
+                                    {showResSettings && (
+                                        <div className="bg-popover p-3 rounded-lg shadow-xl border border-border text-xs w-48 animate-in fade-in zoom-in-95 origin-top-right">
+                                            <h4 className="font-semibold mb-2">Export Resolution</h4>
+                                            <div className="grid grid-cols-2 gap-2 mb-3">
+                                                <div>
+                                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">Width</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={resolution.width} 
+                                                        onChange={e => {
+                                                            const val = parseInt(e.target.value);
+                                                            setResolution(p => ({...p, width: val, height: val})) // Keep square by default? No, let's keep aspect ratio usually used for models? Canvas is square usually.
+                                                        }}
+                                                        className="w-full bg-muted px-2 py-1 rounded border border-border/50 text-right" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">Height</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={resolution.height} 
+                                                        onChange={e => setResolution(p => ({...p, height: parseInt(e.target.value)}))}
+                                                        className="w-full bg-muted px-2 py-1 rounded border border-border/50 text-right" 
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-1">
+                                                {[512, 1024, 2048].map(size => (
+                                                    <button 
+                                                        key={size}
+                                                        onClick={() => setResolution({width: size, height: size})} 
+                                                        className={`px-2 py-1 rounded text-[10px] border transition-colors ${resolution.width === size ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted hover:bg-muted/80 border-transparent'}`}
+                                                    >
+                                                        {size}px
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <Canvas gl={{ preserveDrawingBuffer: true }} camera={{ position: [0, 0, 4], fov: 50 }}>
+                                <CaptureHelper controlRef={captureRef} />
+                                <Stage environment="city" intensity={0.6}>
+                                    <ModelViewer url={modelUrl} />
+                                </Stage>
+                                <OrbitControls makeDefault autoRotate />
+                            </Canvas>
+                        </>
                      ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
                              Preview will appear here

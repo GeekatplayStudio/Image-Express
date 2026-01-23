@@ -11,10 +11,19 @@ import JobStatusFooter from '@/components/JobStatusFooter';
 import LoginModal from '@/components/LoginModal';
 import UserProfileModal from '@/components/UserProfileModal';
 import Dashboard from '@/components/Dashboard';
+import AssetLibrary from '@/components/AssetLibrary'; // For replacing missing assets
+import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
-import { Download, Share2, Sparkles, FolderKanban, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User } from 'lucide-react';
+import { Download, Share2, Sparkles, FolderKanban, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup } from '@/types';
+
+// Helper interface for validation
+interface MissingItem {
+    id: string; 
+    type: 'image' | 'model';
+    originalSrc: string;
+}
 
 /**
  * Home (Main Editor)
@@ -36,6 +45,127 @@ export default function Home() {
   const [zoom, setZoom] = useState(1);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Unsaved Changes Tracking
+  const [isDirty, setIsDirty] = useState(false);
+  const [currentDesignId, setCurrentDesignId] = useState<string | null>(null);
+  const [currentDesignName, setCurrentDesignName] = useState<string>('Untitled Design');
+  const [pendingDesignToLoad, setPendingDesignToLoad] = useState<any>(null);
+
+  // Missing Assets State
+  const [showMissingAssetsModal, setShowMissingAssetsModal] = useState(false);
+  const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
+  const [pendingTemplateJson, setPendingTemplateJson] = useState<any>(null);
+  const [showAssetBrowserForMissing, setShowAssetBrowserForMissing] = useState(false);
+  const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
+  const [replacementMap, setReplacementMap] = useState<Record<string, string>>({});
+
+  // Load pending design when canvas is ready
+  useEffect(() => {
+      if (canvas && pendingDesignToLoad) {
+          handleOpenDesign(pendingDesignToLoad);
+          setPendingDesignToLoad(null);
+      }
+  }, [canvas, pendingDesignToLoad]);
+
+  // Listen for browser close/refresh
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        if (isDirty) {
+            e.preventDefault();
+            e.returnValue = ''; // Standard for triggering prompt
+        }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // Navigation Guard / Check Unsaved
+  const checkUnsavedChanges = (callback: () => void) => {
+      if (isDirty) {
+          if (confirm('You have unsaved changes. Do you want to save them before leaving? \n\nClick OK to Save, Cancel to Discard changes and leave.')) {
+              handleSave().then(() => {
+                  callback();
+              });
+              // Note: The confirm logic here is a bit tricky. 
+              // Usually: OK = Stay and Save? Or OK = Save then Leave?
+              // Standard behavior: "Do you want to save?" -> Yes -> Save -> (Then what? Leave)
+              // "Cancel" -> (Don't save? Or Don't leave?)
+              // Let's stick to standard practice:
+              // "You have unsaved changes. Leave without saving?" -> OK = Leave, Cancel = Stay.
+              // BUT prompt says "ask if they want to save...".
+              
+              // Refined Logic (Text based confirm limitation):
+              // "Save changes to "Name"? OK=Save, Cancel=Don't Save (Discard)"
+              // But we can't block navigation easily with async save.
+              
+              // Simplification for now:
+              // if(!confirm("Discard unsaved changes?")) return;
+              // callback();
+              // THE USER ASKED: "prompt asking user if they want to save... so no work was lost"
+              // So I should try to save if they say yes.
+          } else {
+             // If they click Cancel (meaning "No I don't want to save" OR "I want to stay")
+             // It's ambiguous. Let's use a clearer prompt.
+             if (confirm("Discard unsaved changes and leave?")) {
+                 setIsDirty(false); // Reset so we don't block
+                 callback();
+             }
+          }
+      } else {
+          callback();
+      }
+  };
+
+  const handleSave = async () => {
+       if (!canvas) return;
+       
+       let name = currentDesignName;
+       // Unused id since server generates it? 
+       // Actually keeping existing ID for updates would be nice, but simple filename based ID works for now.
+       // The server creates new ID every time based on timestamp in my impl. 
+       // To update, we'd need to pass ID and server would overwrite. 
+       // My simple server implementation generates new ID always (creates copy).
+       // That's fine for now to avoid complexity of overwriting/checking existence.
+
+       if (!currentDesignId && name === 'Untitled Design') {
+           const inputName = prompt("Enter design name:", currentDesignName);
+           if (!inputName) return; 
+           name = inputName;
+       } else if (name === 'Untitled Design') {
+            const inputName = prompt("Enter design name:", currentDesignName);
+            if (inputName) name = inputName;
+       }
+       
+       const json = canvas.toJSON();
+       const thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5 });
+
+       try {
+           const response = await fetch('/api/designs/save', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                   id: currentDesignId,
+                   name,
+                   canvasData: json,
+                   thumbnailDataUrl
+               })
+           });
+           
+           const result = await response.json();
+           if (result.success) {
+                setCurrentDesignId(result.design.id);
+                setCurrentDesignName(result.design.name);
+                setIsDirty(false);
+                alert("Design saved successfully!");
+           } else {
+                alert("Failed to save design: " + result.message);
+           }
+       } catch (error) {
+           console.error("Save error:", error);
+           alert("Error saving design to server.");
+       }
+  };
 
   useEffect(() => {
     // Check session asynchronously to avoid render blocking
@@ -584,22 +714,173 @@ export default function Home() {
   // Yes, handleGradientTool runs inside useEffect, so it captures current 'activeTool'.
   // IF 'activeTool' changes, useEffect runs again -> unbinds old -> binds new. Correct.
 
-  // Handle Loading Template
+  // Handle Loading Template with Asset Validation
   const handleLoadTemplate = async (templateJsonUrl: string) => {
      if (!canvas) return;
+
+     // Reset State
+     setMissingItems([]);
+     setPendingTemplateJson(null);
+
      try {
         const res = await fetch(templateJsonUrl);
+        if(!res.ok) throw new Error("Failed to fetch template JSON");
+        
         const json = await res.json();
-        canvas.loadFromJSON(json, () => {
-             canvas.requestRenderAll();
+        
+        // Scan for external assets (images)
+        // Fabric JSON structure: objects array. Look for 'src' in 'image' type or similar.
+        const objects = json.objects || [];
+        const missing: MissingItem[] = [];
+
+        // Helper to check URL availability
+        const checkUrl = (url: string): Promise<boolean> => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                img.src = url; 
+                // Note: CORS issues might affect this check for some external URLs, 
+                // but usually fine for internal assets or public ones.
+            });
+        };
+        
+        // Using Promise.all for parallel checks could be fast but complex to map back to ID.
+        // We'll traverse and collect candidates first.
+        const candidates: { index: number, src: string, type: 'image' | 'model' }[] = [];
+        
+        objects.forEach((obj: any, index: number) => {
+            if (obj.type === 'image' && obj.src) {
+                candidates.push({ index, src: obj.src, type: 'image' });
+            }
+            // Add other types if needed (e.g. your custom 3D model type if it stores URL differently)
+            if (obj.is3DModel && obj.modelUrl) {
+                candidates.push({ index, src: obj.modelUrl, type: 'model' });
+            }
         });
+
+        // Validate
+        for (const cand of candidates) {
+            // Simple fetch HEAD check might be better for non-images like GLB
+            // For images, Image() object is good.
+            let exists = false;
+             
+            if (cand.type === 'model') {
+                 // Fetch HEAD
+                 try {
+                     const head = await fetch(cand.src, { method: 'HEAD' });
+                     exists = head.ok;
+                 } catch { exists = false; }
+            } else {
+                 exists = await checkUrl(cand.src);
+            }
+
+            if (!exists) {
+                // Determine ID: Fabric objects in JSON don't always have ID unless set.
+                // We'll use the array index as ID for replacement logic in the JSON structure.
+                missing.push({
+                    id: cand.index.toString(), // Store index as ID
+                    type: cand.type,
+                    originalSrc: cand.src
+                });
+            }
+        }
+
+        if (missing.length > 0) {
+            setMissingItems(missing);
+            setPendingTemplateJson(json);
+            setShowMissingAssetsModal(true);
+        } else {
+            // All good, load directly
+            canvas.loadFromJSON(json, () => {
+                canvas.requestRenderAll();
+                setIsDirty(false); // Template loaded = fresh state (usually)
+                // Or true if you consider loading a template as a change from blank? 
+                // Usually "Opening" a design resets dirty. "Importing" might set dirty.
+                // If this is "Open Design", false. If "Add Template", true.
+                // Assuming "Open" semantic here.
+            });
+        }
+
      } catch (e) {
          console.error("Failed to load template", e);
+         alert("Error loading template file.");
      }
   };
+
+  const handleResolveMissing = (replaceMap: Record<string, string> | null) => {
+      // replaceMap: { [objectIndex]: newUrl } or null if ignoring all
+      if (!canvas || !pendingTemplateJson) return;
+      
+      const json = JSON.parse(JSON.stringify(pendingTemplateJson)); // Deep copy
+      
+      if (replaceMap) {
+          Object.entries(replaceMap).forEach(([indexStr, newUrl]) => {
+              const idx = parseInt(indexStr);
+              if (json.objects && json.objects[idx]) {
+                   const obj = json.objects[idx];
+                   if (obj.type === 'image') obj.src = newUrl;
+                   if (obj.is3DModel) obj.modelUrl = newUrl;
+                   // Handle potential 'src' inside weird structures if needed
+              }
+          });
+      } else {
+          // Ignore mode: Remove missing objects from JSON
+          // We need missingItems state to know which ones failed
+          const indicesToRemove = missingItems.map(m => parseInt(m.id)).sort((a,b) => b-a);
+          indicesToRemove.forEach(idx => {
+               json.objects.splice(idx, 1);
+          });
+      }
+
+      canvas.loadFromJSON(json, () => {
+          canvas.requestRenderAll();
+          setIsDirty(false);
+          setPendingTemplateJson(null);
+          setMissingItems([]);
+          setShowMissingAssetsModal(false);
+      });
+  };
+   
+  // Navigation Handlers
+  const goHome = () => {
+      checkUnsavedChanges(() => {
+          setCurrentView('dashboard');
+          setCurrentDesignId(null); // Reset context
+      });
+  };
   
-  // Suppress unused warning for now as this might be used later or via Dashboard
-  void handleLoadTemplate;
+  const handleOpenDesign = async (design: any) => {
+      if (!canvas) return;
+      
+      // Handle Template loading via pending mechanism
+      if (design.isTemplate && design.jsonUrl) {
+           handleLoadTemplate(design.jsonUrl);
+           return;
+      }
+      
+      // If data is a string (URL), load it. If object, load directly.
+      let designData = design.data;
+      if (typeof designData === 'string') {
+          try {
+              const res = await fetch(designData);
+              if (!res.ok) throw new Error("Failed to fetch design data");
+              designData = await res.json();
+          } catch (e) {
+              console.error("Error loading design data", e);
+              alert("Could not load design data.");
+              return;
+          }
+      }
+
+      canvas.loadFromJSON(designData, () => {
+          canvas.requestRenderAll();
+          setCurrentDesignId(design.id);
+          setCurrentDesignName(design.name);
+          setIsDirty(false);
+          setCurrentView('editor');
+      });
+  };
 
   const handleZoom = (factor: number) => {
         if (!canvas) return;
@@ -640,14 +921,18 @@ export default function Home() {
            </div>
            <nav className="hidden md:flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
               <button 
-                 onClick={() => setCurrentView('dashboard')}
+                 onClick={goHome}
                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'dashboard' ? 'bg-background shadow-sm border border-border/50 text-foreground' : 'text-muted-foreground hover:bg-background/80 hover:text-foreground'}`}
               >
                 <HomeIcon size={16} />
                 <span>Home</span>
               </button>
               <button 
-                 onClick={() => setCurrentView('editor')}
+                 onClick={() => {
+                     // Check before switching? Actually "Design" just goes to editor. 
+                     // If we are already there, nothing. If on dashboard, just go.
+                     if (currentView === 'dashboard') setCurrentView('editor');
+                 }}
                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'editor' ? 'bg-background shadow-sm border border-border/50 text-foreground' : 'text-muted-foreground hover:bg-background/80 hover:text-foreground'}`}
               >
                 <FolderKanban size={16} />
@@ -657,6 +942,14 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-3">
+             <button 
+                onClick={() => handleSave()}
+                className={`p-2 hover:bg-secondary rounded-full transition-colors ${isDirty ? 'text-primary animate-pulse' : 'text-muted-foreground'}`}
+                title="Save Design"
+             >
+                <Save size={20} />
+             </button>
+
              <button 
                 onClick={() => setShowSettings(true)}
                 className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
@@ -805,15 +1098,97 @@ export default function Home() {
         onLogout={handleLogout}
       />
 
-      {/* Main Workspace */}
+      {/* Asset Browser for Replacements using same component but in modal */}
+      {showAssetBrowserForMissing && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+             <div className="bg-card w-[800px] h-[600px] rounded-xl shadow-2xl relative flex flex-col overflow-hidden border border-border">
+                  <div className="flex-1 overflow-hidden">
+                      <AssetLibrary 
+                          onSelect={(url) => {
+                              if (replacingItemId) {
+                                  setReplacementMap(prev => ({ ...prev, [replacingItemId]: url }));
+                              }
+                              setShowAssetBrowserForMissing(false);
+                              setReplacingItemId(null);
+                          }}
+                          onClose={() => setShowAssetBrowserForMissing(false)}
+                      />
+                  </div>
+                  <button onClick={() => setShowAssetBrowserForMissing(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground bg-background/50 rounded-full p-1 z-50">
+                     <X size={20} />
+                  </button>
+             </div>
+        </div>
+      )}
+
+      {/* Missing Assets Modal */}
+      <MissingAssetsModal 
+          isOpen={showMissingAssetsModal}
+          missingItems={missingItems.map(item => ({
+              ...item,
+              // Show status?
+          }))}
+          onReplace={(id) => {
+              setReplacingItemId(id);
+              setShowAssetBrowserForMissing(true);
+          }}
+          onIgnore={() => {
+              handleResolveMissing(Object.keys(replacementMap).length > 0 ? replacementMap : null);
+          }}
+          onClose={() => {
+              setShowMissingAssetsModal(false);
+              setPendingTemplateJson(null);
+          }}
+      />
+
       <div className="flex flex-1 overflow-hidden">
         {currentView === 'dashboard' ? (
            <Dashboard 
               user={username}
-              onNewDesign={() => setCurrentView('editor')}
+              onNewDesign={() => {
+                  checkUnsavedChanges(() => {
+                      // Reset and go to editor
+                      // New canvas will be created on mount, so no need to clear old one
+                      
+                      setCurrentDesignId(null);
+                      setCurrentDesignName('Untitled Design');
+                      setIsDirty(false);
+                      setCurrentView('editor');
+                  });
+              }}
               onSelectTemplate={(t) => {
-                  console.log("Template selected:", t);
-                  setCurrentView('editor');
+                  checkUnsavedChanges(() => {
+                        console.log("Loading template", t);
+                        // If template has URL, we need to load it. 
+                        // If we are in Dashboard, set it as pending.
+                        if (currentView === 'dashboard') {
+                             if (t.jsonUrl) {
+                                 // We need to fetch the JSON first or pass the object to pending
+                                 // Let's assume pending accepts the template object with jsonUrl
+                                 // But handleOpenDesign expects { data: ... } usually.
+                                 // Let's adapt handleOpenDesign to handle this or create a wrapper.
+                                 // Actually handleLoadTemplate handles fetching.
+                                 // Let's reuse pendingDesignToLoad but flag it as a template?
+                                 // Or simpler: just use setPendingDesignToLoad with a special flag/structure
+                                 setPendingDesignToLoad({ ...t, isTemplate: true });
+                             }
+                             setCurrentView('editor');
+                        } else {
+                            if (t.jsonUrl) {
+                                handleLoadTemplate(t.jsonUrl);
+                            }
+                        }
+                  });
+              }}
+              onOpenDesign={(d) => {
+                   checkUnsavedChanges(() => {
+                        if (currentView === 'dashboard') {
+                            setPendingDesignToLoad(d);
+                            setCurrentView('editor');
+                        } else {
+                            handleOpenDesign(d);
+                        }
+                   });
               }}
            />
         ) : (
@@ -932,7 +1307,10 @@ export default function Home() {
                         }} 
                     />
                 )}
-                <DesignCanvas onCanvasReady={setCanvas} />
+                <DesignCanvas 
+                    onCanvasReady={setCanvas} 
+                    onModified={() => setIsDirty(true)}
+                />
            </div>
            
            {/* Floating Action Bar */}
