@@ -7,6 +7,7 @@ import HelpPopup from './HelpPopup';
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
+    userId?: string;
 }
 
 export const STORAGE_KEYS = {
@@ -26,7 +27,7 @@ export const STORAGE_KEYS = {
     COMFY_UI_URL: 'image-express-comfy-url',
 };
 
-export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, userId }: SettingsModalProps) {
     // 3D Keys
     const [meshyKey, setMeshyKey] = useState('');
     const [tripoKey, setTripoKey] = useState('');
@@ -38,12 +39,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const [googleKey, setGoogleKey] = useState('');
     const [bananaKey, setBananaKey] = useState('');
 
-    const [status, setStatus] = useState<'idle' | 'saved'>('idle');
+    const [status, setStatus] = useState<'idle' | 'saved' | 'saving' | 'error'>('idle');
+    const [syncStatus, setSyncStatus] = useState<'local' | 'synced' | 'syncing'>('local');
     const [helpType, setHelpType] = useState<'comfy' | 'api' | null>(null);
 
     // Load keys on mount
     useEffect(() => {
         if (typeof window !== 'undefined') {
+            // Always load from local storage first for immediate UI
             setMeshyKey(localStorage.getItem(STORAGE_KEYS.MESHY_API_KEY) || '');
             setTripoKey(localStorage.getItem(STORAGE_KEYS.TRIPO_API_KEY) || '');
             setHitemsKey(localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '');
@@ -52,10 +55,42 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
             setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
             setBananaKey(localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
-        }
-    }, [isOpen]);
 
-    const handleSave = () => {
+            // If user is logged in, fetch from server
+            if (userId && userId !== 'Guest') {
+                setSyncStatus('syncing');
+                fetch(`/api/user/keys?userId=${encodeURIComponent(userId)}`)
+                    .then(res => {
+                        if (res.ok) return res.json();
+                        throw new Error('Failed to fetch keys');
+                    })
+                    .then(data => {
+                        if (data && data.keys) {
+                            if (data.keys.meshy) setMeshyKey(data.keys.meshy);
+                            if (data.keys.tripo) setTripoKey(data.keys.tripo);
+                            if (data.keys.stability) setStabilityKey(data.keys.stability);
+                            if (data.keys.openai) setOpenaiKey(data.keys.openai);
+                            if (data.keys.google) setGoogleKey(data.keys.google);
+                            if (data.keys.banana) setBananaKey(data.keys.banana);
+                            setSyncStatus('synced');
+                        } else {
+                             setSyncStatus('local'); // No keys on server yet
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Failed to sync keys:", err);
+                        setSyncStatus('local');
+                    });
+            } else {
+                setSyncStatus('local');
+            }
+        }
+    }, [isOpen, userId]);
+
+    const handleSave = async () => {
+        setStatus('saving');
+
+        // 1. Save Local
         localStorage.setItem(STORAGE_KEYS.MESHY_API_KEY, meshyKey);
         localStorage.setItem(STORAGE_KEYS.TRIPO_API_KEY, tripoKey);
         localStorage.setItem(STORAGE_KEYS.HITEMS_API_KEY, hitemsKey);
@@ -64,6 +99,39 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiKey);
         localStorage.setItem(STORAGE_KEYS.GOOGLE_API_KEY, googleKey);
         localStorage.setItem(STORAGE_KEYS.BANANA_API_KEY, bananaKey);
+
+        // 2. Save Server (if logged in)
+        if (userId && userId !== 'Guest') {
+            try {
+                const keysToSave = {
+                    meshy: meshyKey,
+                    tripo: tripoKey,
+                    stability: stabilityKey,
+                    openai: openaiKey,
+                    google: googleKey,
+                    banana: bananaKey
+                };
+
+                const res = await fetch('/api/user/keys', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: userId,
+                        keys: keysToSave
+                    })
+                });
+
+                if (res.ok) {
+                    setSyncStatus('synced');
+                } else {
+                    console.error("Failed to save to server, status:", res.status);
+                    setSyncStatus('local');
+                }
+            } catch (e) {
+                console.error("Exception saving to server", e);
+                setSyncStatus('local');
+            }
+        }
         
         setStatus('saved');
         setTimeout(() => setStatus('idle'), 2000);
@@ -90,10 +158,17 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </div>
                     <div>
                         <h2 className="text-lg font-bold">API Configurations</h2>
-                        <p className="text-xs text-muted-foreground">Manage your keys for external AI services</p>
+                        <div className="flex flex-col">
+                             <p className="text-xs text-muted-foreground">Manage your keys for external AI services</p>
+                             {userId && userId !== 'Guest' && (
+                                 <span className={`text-[10px] flex items-center gap-1 mt-1 ${syncStatus === 'synced' ? 'text-green-500' : 'text-amber-500'}`}>
+                                     <Server size={10} />
+                                     {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'synced' ? 'Synced with Account' : 'Local Storage Only'}
+                                 </span>
+                             )}
+                        </div>
                     </div>
                 </div>
-
 
                 <div className="flex-1 overflow-y-auto pr-2 space-y-6 max-h-[60vh]">
                     {/* 3D Generation Section */}

@@ -11,15 +11,19 @@ A professional content creation platform built with Next.js 16, TypeScript, Tail
 - **Export Options**: Export designs to PNG, JPG, SVG, PDF, and JSON.
 
 ### AI Capabilities
-- **AI 3D Generation**: Integration with Meshy/Tripo for text-to-3D and image-to-3D conversion.
-- **Background Processing**: Asynchronous job handling for long-running AI tasks.
-- **3D Viewer**: Interactive 3D model inspector and editor using Three.js / React Three Fiber.
+- **Advanced 3D Generation**: 
+  - Integrated **Meshy** and **Tripo** AI for high-quality 3D models.
+  - **Textured Models**: Enforced PBR texture generation for realistic results.
+  - **Background Processing**: Robust polling system for long-running AI tasks.
+- **Image Generation**: (Coming Soon) Text-to-Image support.
 
-### Workspace Management
+### Asset & Workspace Management
+- **Asset Library**: 
+  - Upload, organize, and manage images and 3D models.
+  - **Renaming System**: Interactive renaming overlay for assets.
+  - **Server-Side API Keys**: Securely store and sync API keys across sessions.
 - **Dashboard**: Home screen with templates and recent designs.
-- **Authentication**: Secure login system (Demo credentials: `test` / `test`).
-- **User Profile**: Profile management and session handling.
-- **Templates**: Start quickly with pre-defined layouts.
+- **Authentication**: Secure login system with server-side key persistence.
 
 ## 🚀 Deployment
 

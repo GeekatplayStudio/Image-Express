@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Folder, Wand2, PaintBucket } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { StarPolygon } from '@/types';
+import { StarPolygon, ThreeDGroup } from '@/types';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
@@ -32,6 +32,20 @@ const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: numb
     return points;
 };
 
+const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
+    if (tool === 'select') {
+        canvas.discardActiveObject();
+        canvas.requestRenderAll();
+        canvas.defaultCursor = 'default';
+        canvas.hoverCursor = 'move';
+        canvas.selection = true;
+    } else if (tool === 'gradient') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    }
+};
+
 // Start of component
 export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor }: ToolbarProps) {
     const [showShapesMenu, setShowShapesMenu] = useState(false);
@@ -39,7 +53,6 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
     const shapesMenuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
-    const [showImageGen, setShowImageGen] = useState(false);
 
     // Reordered tools based on standard workflows (Select -> Create -> Assets -> AI -> Layers)
     const tools = [
@@ -89,11 +102,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         switch(toolName) {
             case 'select':
                 if (canvas) {
-                    canvas.discardActiveObject(); 
-                    canvas.requestRenderAll();
-                    canvas.defaultCursor = 'default';
-                    canvas.hoverCursor = 'move';
-                    canvas.selection = true;
+                    configureCanvasForTool(canvas, 'select');
                 }
                 break;
             case 'gradient': 
@@ -101,9 +110,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                     // Enable gradient mode
                     // Disable normal selection for canvas (but allow object selection? No, usually tool takes over)
                     // We'll handle this in a useEffect in parent or separate interactive component
-                    canvas.defaultCursor = 'crosshair';
-                    canvas.hoverCursor = 'crosshair';
-                    canvas.selection = false;
+                    configureCanvasForTool(canvas, 'gradient');
                 }
                 break;
             case 'text':
@@ -228,18 +235,12 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         group.add(text);
         
         // Attach metadata
-        (group as any).is3DModel = true;
-        (group as any).modelUrl = url;
+        (group as ThreeDGroup).is3DModel = true;
+        (group as ThreeDGroup).modelUrl = url;
 
         canvas.add(group);
         canvas.setActiveObject(group);
         canvas.requestRenderAll();
-    };
-
-    const handleUploadClick = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.click();
-        }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

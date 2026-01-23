@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = 'https://api.meshy.ai/v2';
+const BASE_URL_V1 = 'https://api.meshy.ai/openapi/v1';
+const BASE_URL_V2 = 'https://api.meshy.ai/openapi/v2';
 
 async function handleRequest(req: NextRequest, method: string) {
   try {
@@ -11,9 +12,10 @@ async function handleRequest(req: NextRequest, method: string) {
          return NextResponse.json({ message: 'Missing endpoint' }, { status: 400 });
     }
 
-    // Security/Format check: Allow "text-to-3d", "image-to-3d", and "text-to-3d/taskId" strategies
-    if (!endpoint.startsWith('text-to-3d') && !endpoint.startsWith('image-to-3d')) {
-         return NextResponse.json({ message: 'Invalid endpoint' }, { status: 400 });
+    // Determine correct version based on endpoint
+    let baseUrl = BASE_URL_V2;
+    if (endpoint.startsWith('image-to-3d')) {
+        baseUrl = BASE_URL_V1;
     }
 
     const authHeader = req.headers.get('authorization');
@@ -21,7 +23,7 @@ async function handleRequest(req: NextRequest, method: string) {
       return NextResponse.json({ message: 'Missing Authorization header' }, { status: 401 });
     }
 
-    const apiUrl = `${BASE_URL}/${endpoint}`;
+    const apiUrl = `${baseUrl}/${endpoint}`;
 
     const options: RequestInit = {
         method,

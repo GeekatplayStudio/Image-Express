@@ -29,7 +29,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     const [apiKey, setApiKey] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [mode, setMode] = useState<'text' | 'image'>(initialImage ? 'image' : 'text');
-
+    
     // Use internal state OR prop state
     const jobStatus = activeJob?.status || '';
     const jobProgress = activeJob?.progress || 0;
@@ -37,8 +37,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     const isJobRunning = activeJob?.status === 'IN_PROGRESS' || activeJob?.status === 'PENDING';
 
     useEffect(() => {
-        if (activeJob && !isLoading) {
-             setIsLoading(isJobRunning);
+        if (activeJob) {
+             setIsLoading(activeJob.status === 'IN_PROGRESS' || activeJob.status === 'PENDING');
+        } else {
+             setIsLoading(false);
         }
     }, [activeJob]);
     
@@ -67,6 +69,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     }, [selectedProvider]);
 
     const getSelectedKey = () => {
+         // Should use the centralized util to check params too if needed, but direct localstorage is fine here
+         // Need to match STORAGE_KEYS from SettingsModal:
+         // MESHY_API_KEY: 'meshy_api_key'
+         // TRIPO_API_KEY: 'tripo_api_key'
          return localStorage.getItem(`${selectedProvider}_api_key`) || apiKey;
     };
 
@@ -76,21 +82,27 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     };
 
     const handleGenerate = async () => {
-        const currentKey = getSelectedKey();
-        if (!currentKey) {
+        let key = getSelectedKey();
+        if (!key) {
             alert(`Please configure API Key for ${selectedProvider} in settings or enter it below`);
             return;
         }
+
+        // Sanitize Globally: Remove 'Bearer', quotes, and surrounding whitespace
+        key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+        
+        console.log(`[ThreeDGenerator] Generating with provider: ${selectedProvider}`);
+        console.log(`[ThreeDGenerator] Key prefix: ${key.substring(0, 5)}... (${key.length} chars)`);
 
         setIsLoading(true);
 
         try {
             // ... Logic branches based on Provider ...
             if (selectedProvider === 'meshy') {
-                await generateMeshy(currentKey);
+                await generateMeshy(key);
             } else if (selectedProvider === 'tripo') {
                  // Tripo Integration
-                 await generateTripo(currentKey);
+                 await generateTripo(key);
             } else {
                  alert("Service integration in progress");
                  setIsLoading(false);
@@ -113,12 +125,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                     return;
                 }
                 endpoint = 'text-to-3d';
+                // Using Meshy V2 API Preview Mode (Cost: 5 credits)
                 body = {
                     mode: "preview",
                     prompt: prompt,
-                    art_style: "realistic",
-                    negative_prompt: "low quality, low res",
-                    ai_model: "meshy-4", // Updated to valid model
+                    // Deprecated parameters removed for Meshy-6
+                    ai_model: "meshy-6", 
                     topology: "quad",
                     should_remesh: true
                 };
@@ -126,12 +138,13 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 // Image to 3D
                 if (!initialImage) return;
                 endpoint = 'image-to-3d';
+                // Using Meshy V1 API
                 body = {
                     image_url: initialImage, 
                     enable_pbr: true, 
-                    should_texture: true,
+                    should_texture: true, // Always texture
                     should_remesh: true,
-                    ai_model: "meshy-4" // Updated to valid model
+                    ai_model: "meshy-6" 
                 };
             }
 
@@ -278,8 +291,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 });
             }
         } else {
-             console.error("Tripo Start Error:", data);
-             alert(`Error starting Tripo generation: ${data.message || data.code || 'Unknown error'}`);
+             console.error("Tripo Start Error Response:", JSON.stringify(data, null, 2));
+             // Fallback error extraction
+             const errorMsg = data.message || (data.data?.code ? `Code: ${data.data.code}` : null) || data.error || 'Unknown error';
+             alert(`Error starting Tripo generation: ${errorMsg}`);
              setIsLoading(false);
         }
     };
@@ -339,9 +354,9 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                          <div className="flex justify-center bg-black/10 p-2 rounded">
                             <img src={initialImage} className="max-h-24 rounded object-contain" alt="Source" />
                         </div>
+                        
                         <p className="text-[10px] text-muted-foreground text-center">
                             Note: Meshy automatically isolates the subject. For best results, use images with clear contrast or transparent backgrounds.
-                            <br/><span className="text-primary font-medium">✨ High-Res & PBR Enabled</span>
                         </p>
                     </div>
                 )}

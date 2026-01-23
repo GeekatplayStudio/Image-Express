@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing Authorization header' }, { status: 401 });
     }
 
+    console.log("[Tripo Upload Proxy] Auth Header received. Prefix:", authHeader.substring(0, 15) + "...");
+
     // Capture the incoming form data
     const formData = await req.formData();
     
@@ -37,9 +39,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Tripo Upload Failed:", res.status, errorText);
-        return NextResponse.json({ message: `Tripo Upload Failed: ${errorText}`}, { status: res.status });
+        let errorData;
+        try {
+             errorData = await res.json();
+        } catch {
+             errorData = { error: await res.text() };
+        }
+        console.error("Tripo Upload Failed:", res.status, errorData);
+        return NextResponse.json(errorData, { status: res.status });
     }
 
     const data = await res.json();

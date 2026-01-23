@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw } from 'lucide-react';
+import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
@@ -22,6 +22,8 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [saveToServer, setSaveToServer] = useState(true);
+    const [editingAsset, setEditingAsset] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Fetch assets
@@ -89,6 +91,37 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleRename = async (oldName: string) => {
+        if (!editName.trim() || editName === oldName) {
+            setEditingAsset(null);
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/assets/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: activeTab,
+                    oldName: oldName,
+                    newName: editName.trim()
+                })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                await fetchAssets();
+            } else {
+                alert('Rename failed: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Rename error:', error);
+            alert('Rename failed');
+        } finally {
+            setEditingAsset(null);
         }
     };
 
@@ -204,42 +237,105 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                                 key={asset.path + index}
                                 className="group relative aspect-square bg-secondary/30 rounded-md overflow-hidden border border-border/50 hover:border-primary/50 transition-all cursor-pointer"
                                 title={asset.name}
+                                onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    setEditingAsset(asset.name);
+                                    setEditName(asset.name);
+                                }}
                             >
-                                <div 
-                                    className="w-full h-full" 
-                                    onClick={() => {
-                                        onSelect(asset.path, asset.type);
-                                        onClose();
-                                    }}
-                                >
-                                    {asset.type === 'images' ? (
-                                        <div className="w-full h-full relative">
-                                            <img 
-                                                src={asset.path} 
-                                                alt={asset.name} 
-                                                className="w-full h-full object-cover"
-                                                loading="lazy"
+                                {editingAsset === asset.name ? (
+                                    <div className="absolute inset-0 z-30 bg-background/95 flex flex-col items-center justify-center p-1" onClick={(e) => e.stopPropagation()}>
+                                        <div className="w-full flex items-center justify-center gap-1 mb-1">
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleRename(asset.name);
+                                                    if (e.key === 'Escape') setEditingAsset(null);
+                                                }}
+                                                className="w-full text-xs p-1 border border-primary rounded bg-background text-foreground text-center focus:outline-none h-6"
                                             />
                                         </div>
-                                    ) : (
-                                        <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
-                                            <Box size={24} className="mb-1" />
-                                            <span className="text-[8px] px-1 truncate w-full text-center">{asset.name.split('-')[0]}</span>
+                                        <div className="flex gap-1">
+                                            <button 
+                                                onClick={() => handleRename(asset.name)}
+                                                className="p-1 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded"
+                                                title="Save"
+                                            >
+                                                <CheckCircle size={12} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setEditingAsset(null)}
+                                                className="p-1 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded"
+                                                title="Cancel"
+                                            >
+                                                <X size={12} />
+                                            </button>
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div 
+                                            className="w-full h-full" 
+                                            onClick={() => {
+                                                if (editingAsset !== asset.name) {
+                                                    onSelect(asset.path, asset.type);
+                                                    onClose();
+                                                }
+                                            }}
+                                        >
+                                            {asset.type === 'images' ? (
+                                                <div className="w-full h-full relative">
+                                                    <img 
+                                                        src={asset.path} 
+                                                        alt={asset.name} 
+                                                        className="w-full h-full object-cover"
+                                                        loading="lazy"
+                                                    />
+                                                    {/* Small Label for Images */}
+                                                    <div className="absolute bottom-0 w-full bg-black/60 text-white text-[9px] truncate px-1 py-0.5 text-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                        {asset.name}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
+                                                    <Box size={24} className="mb-1" />
+                                                    <span className="text-[8px] px-1 truncate w-full text-center">{asset.name.split('-')[0]}</span>
+                                                </div>
+                                            )}
+                                        </div>
 
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 pointer-events-none">
-                                     <span className="text-white font-medium text-[10px] bg-primary/80 px-2 py-1 rounded">Add</span>
-                                </div>
-                                
-                                <button
-                                    onClick={(e) => deleteAsset(asset.path, e)}
-                                    className="p-1.5 bg-red-500/90 text-white rounded-full hover:bg-red-600 transition-colors absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-10"
-                                    title="Delete Asset"
-                                >
-                                    <Trash2 size={12} />
-                                </button>
+                                        {/* Hover Overlay Actions */}
+                                        <div className="absolute inset-x-0 top-0 p-1 flex justify-between items-start opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    setEditingAsset(asset.name);
+                                                    setEditName(asset.name);
+                                                }}
+                                                className="pointer-events-auto p-1.5 bg-background/80 hover:bg-background text-foreground rounded-md shadow-sm transition-colors border border-border/50"
+                                                title="Rename Asset"
+                                            >
+                                                <Pen size={10} />
+                                            </button>
+
+                                            <button
+                                                onClick={(e) => deleteAsset(asset.path, e)}
+                                                className="pointer-events-auto p-1.5 bg-red-500/90 hover:bg-red-600 text-white rounded-md shadow-sm transition-colors border border-red-600/50"
+                                                title="Delete Asset"
+                                            >
+                                                <Trash2 size={10} />
+                                            </button>
+                                        </div>
+                                        
+                                        {/* Original Middle Overlay - Keeping for explicit 'Add' if needed, or removing to clean up since clicking adds it */}
+                                        {/* We'll keep the click-to-add behavior as primary interaction */}
+                                    </>
+                                )}
                             </div>
                         ))}
                     </div>
