@@ -36,6 +36,26 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
         }
     };
 
+    const handleDelete = async (e: React.MouseEvent, templatePath: string) => {
+        e.stopPropagation();
+        if(!confirm("Delete this template?")) return;
+
+        try {
+            const res = await fetch('/api/templates/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filePath: templatePath })
+            });
+            if(res.ok) {
+                fetchTemplates();
+            } else {
+                alert("Failed to delete template");
+            }
+        } catch(e) {
+            console.error(e);
+        }
+    };
+
     useEffect(() => {
         fetchTemplates();
     }, []);
@@ -74,10 +94,10 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
                 ) : (
                     <div className="grid grid-cols-2 gap-3">
                         {templates.map((template) => (
-                            <button
+                            <div
                                 key={template.id}
                                 onClick={() => onSelect(template.path)}
-                                className="group relative flex flex-col items-start gap-2 p-2 rounded-lg border border-border/50 hover:bg-secondary/50 hover:border-primary/50 transition-all text-left"
+                                className="group relative flex flex-col items-start gap-2 p-2 rounded-lg border border-border/50 hover:bg-secondary/50 hover:border-primary/50 transition-all text-left cursor-pointer"
                             >
                                 <div className="w-full aspect-square relative bg-white/5 rounded overflow-hidden border border-border/30">
                                     <Image 
@@ -89,7 +109,14 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
                                     />
                                 </div>
                                 <span className="text-xs font-medium truncate w-full">{template.name}</span>
-                            </button>
+                                <button 
+                                    onClick={(e) => handleDelete(e, template.path)}
+                                    className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-destructive text-white rounded opacity-0 group-hover:opacity-100 transition-all"
+                                    title="Delete"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                            </div>
                         ))}
                     </div>
                 )}

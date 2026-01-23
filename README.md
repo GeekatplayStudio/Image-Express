@@ -1,6 +1,17 @@
-# CreativeFlow - AI Design Studio
+# Image Express - Open Source AI Design Studio
 
-A professional content creation platform built with Next.js 16, TypeScript, Tailwind CSS, and Fabric.js. Seamlessly integrates 2D design with AI-powered 3D model generation.
+Image Express is a professional content creation platform built with Next.js 16, TypeScript, Tailwind CSS, and Fabric.js. It seamlessly integrates 2D design with AI-powered 3D model generation.
+
+**Open Source Project by [GeekatplayStudio](https://github.com/GeekatplayStudio)**
+
+## 🌟 Connect with Us
+
+- **GitHub Repository**: [GeekatplayStudio](https://github.com/GeekatplayStudio)
+- **LinkedIn**: [Geekatplay](https://www.linkedin.com/in/geekatplay/)
+- **YouTube (English)**: [@geekatplay](https://www.youtube.com/@geekatplay)
+- **YouTube (Russian)**: [@geekatplay-ru](https://www.youtube.com/@geekatplay-ru)
+- **Website**: [Geekatplay.com](https://www.geekatplay.com)
+- **Photography**: [ChopinePhotography.com](https://www.chopinephotography.com)
 
 ## 🚀 Key Features
 
@@ -17,13 +28,12 @@ A professional content creation platform built with Next.js 16, TypeScript, Tail
   - **Background Processing**: Robust polling system for long-running AI tasks.
 - **Image Generation**: (Coming Soon) Text-to-Image support.
 
-### Asset & Workspace Management
+### Storage & Management
+- **Server-Side Design Storage**: Designs are saved securely on the server (via filesystem in this edition), bypassing browser storage limits.
 - **Asset Library**: 
   - Upload, organize, and manage images and 3D models.
   - **Renaming System**: Interactive renaming overlay for assets.
-  - **Server-Side API Keys**: Securely store and sync API keys across sessions.
-- **Dashboard**: Home screen with templates and recent designs.
-- **Authentication**: Secure login system with server-side key persistence.
+- **Authentication**: Secure login system with server-side key persistence for API access.
 
 ## 🚀 Deployment
 
@@ -40,33 +50,29 @@ A professional content creation platform built with Next.js 16, TypeScript, Tail
    ```
 
 3. **Open the app**:
-   Visit [http://localhost:3000](http://localhost:3000).
+   Visit [http://localhost:3000](http://localhost:3000) (or port 3001 if 3000 is busy).
 
-### Docker Deployment (Render.com / Vercel / Railway)
+### Docker Deployment
 
 This project includes a `Dockerfile` optimized for production.
 
 1. **Build**: 
    ```bash
-   docker build -t creative-flow .
+   docker build -t image-express .
    ```
 2. **Run**: 
    ```bash
-   docker run -p 3000:3000 creative-flow
+   docker run -p 3000:3000 image-express
    ```
-
-**Environment Variables:**
-- `MESHY_API_KEY`: API key for 3D generation.
-- `OPENAI_API_KEY`: (Optional) For AI text assistant.
 
 ## 🏗 Project Structure
 
 - **`src/app`**:
   - `page.tsx`: Main layout handling views (Dashboard vs Editor).
-  - `api/`: Backend routes for AI proxies and asset management.
+  - `api/`: Backend routes for AI proxies, assets, and **design persistence**.
+    - `api/designs/`: Endpoints for saving, listing, and deleting designs server-side.
 - **`src/components`**:
   - `Dashboard.tsx`: Template selector and home view.
-  - `LoginModal.tsx` & `UserProfileModal.tsx`: Authentication UI.
   - `DesignCanvas.tsx`: Core Fabric.js workspace.
   - `ThreeDGenerator.tsx`: AI integration panel.
   - `PropertiesPanel.tsx`: Context-aware editing sidebar.

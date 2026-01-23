@@ -4,9 +4,10 @@ import * as fabric from 'fabric'; // Import all to be safe with versioning, or n
 
 interface DesignCanvasProps {
   onCanvasReady: (canvas: fabric.Canvas) => void;
+  onModified?: () => void;
 }
 
-export default function DesignCanvas({ onCanvasReady }: DesignCanvasProps) {
+export default function DesignCanvas({ onCanvasReady, onModified }: DesignCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
@@ -25,10 +26,22 @@ export default function DesignCanvas({ onCanvasReady }: DesignCanvasProps) {
       preserveObjectStacking: true,
     });
     
+    // Modification Listeners
+    const notifyModified = () => {
+         if (onModified) onModified();
+    };
+
+    canvas.on('object:modified', notifyModified);
+    canvas.on('object:added', notifyModified);
+    canvas.on('object:removed', notifyModified);
+    
     fabricRef.current = canvas;
     onCanvasReady(canvas);
 
     return () => {
+      canvas.off('object:modified', notifyModified);
+      canvas.off('object:added', notifyModified);
+      canvas.off('object:removed', notifyModified);
       canvas.dispose();
       // resizeObserver.disconnect();
     };

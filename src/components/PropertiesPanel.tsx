@@ -1267,7 +1267,19 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             
             {/* Footer Actions */}
             <div className="p-4 border-t border-border/50 bg-secondary/5">
-                <button className="w-full py-2 bg-destructive/10 text-destructive text-sm font-medium rounded-md hover:bg-destructive/20 transition-colors">
+                <button 
+                    onClick={() => {
+                        if (canvas && selectedObject) {
+                            if (confirm('Delete selected element?')) {
+                                canvas.remove(selectedObject);
+                                canvas.discardActiveObject();
+                                canvas.requestRenderAll();
+                            }
+                        }
+                    }}
+                    className="w-full py-2 bg-destructive/10 text-destructive text-sm font-medium rounded-md hover:bg-destructive/20 transition-colors flex items-center justify-center gap-2"
+                >
+                    <Trash2 size={16} />
                     Delete Element
                 </button>
             </div>

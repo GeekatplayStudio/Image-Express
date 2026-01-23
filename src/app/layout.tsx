@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "Advanced content creation platform with AI-powered 3D generation, templates, and professional design tools.",
 };
 
+import { DialogProvider } from "@/providers/DialogProvider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,7 +29,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <DialogProvider>
+          {children}
+        </DialogProvider>
       </body>
     </html>
   );

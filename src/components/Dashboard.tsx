@@ -1,9 +1,10 @@
-import React from 'react';
-import { Plus, File, Image as ImageIcon, MoreVertical, Clock, Layout } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Plus, File, Image as ImageIcon, MoreVertical, Clock, Layout, Trash2 } from 'lucide-react';
 
 interface DashboardProps {
   onNewDesign: () => void;
   onSelectTemplate: (template: any) => void;
+  onOpenDesign: (design: any) => void;
   user: string;
 }
 
@@ -14,7 +15,8 @@ const MOCK_TEMPLATES = [
     thumbnail: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80',
     width: 1080,
     height: 1080,
-    type: 'Instagram'
+    type: 'Instagram',
+    jsonUrl: '/assets/templates/test2-1769108044838.json' 
   },
   {
     id: 't2',
@@ -22,7 +24,8 @@ const MOCK_TEMPLATES = [
     thumbnail: 'https://images.unsplash.com/photo-1557838923-2985c318be48?w=400&q=80',
     width: 1920,
     height: 600,
-    type: 'Web'
+    type: 'Web',
+    jsonUrl: '/assets/templates/vlad-cowboy-1769103769516.json'
   },
   {
     id: 't3',
@@ -30,42 +33,106 @@ const MOCK_TEMPLATES = [
     thumbnail: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80',
     width: 1200,
     height: 1200,
-    type: 'E-commerce'
+    type: 'E-commerce',
+    jsonUrl: '/assets/templates/test2-1769108044838.json'
   }
 ];
 
-const RECENT_DESIGNS = [
-  {
-    id: 'd1',
-    name: 'Summer Campaign',
-    lastModified: '2 hours ago',
-    thumbnail: null // Placeholder
-  },
-  {
-    id: 'd2',
-    name: 'Logo Draft v2',
-    lastModified: '1 day ago',
-    thumbnail: null
-  }
-];
+export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign, user }: DashboardProps) {
+  const [recentDesigns, setRecentDesigns] = useState<any[]>([]);
 
-export default function Dashboard({ onNewDesign, onSelectTemplate, user }: DashboardProps) {
+  useEffect(() => {
+      // Load designs from server
+      const loadDesigns = async () => {
+          try {
+              const res = await fetch('/api/designs/list');
+              const data = await res.json();
+              if (data.success) {
+                  setRecentDesigns(data.designs);
+              }
+          } catch (e) {
+              console.error("Failed to load designs", e);
+          }
+      };
+      loadDesigns();
+  }, []);
+  
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if(confirm('Delete this design?')) {
+          try {
+              const res = await fetch('/api/designs/delete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id })
+              });
+              const result = await res.json();
+              if (result.success) {
+                  const updated = recentDesigns.filter(d => d.id !== id);
+                  setRecentDesigns(updated);
+              } else {
+                  alert("Failed to delete design");
+              }
+          } catch (err) {
+              console.error("Delete failed", err);
+              alert("Error deleting design");
+          }
+      }
+  };
+
   return (
     <div className="flex-1 bg-secondary/10 p-8 overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-10">
         
         {/* Welcome Section */}
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Welcome back, {user}</h1>
-            <p className="text-muted-foreground mt-2">Ready to create something amazing today?</p>
+        <div className="flex flex-col md:flex-row items-center gap-8 bg-card/50 p-8 rounded-2xl border border-border/50 shadow-sm">
+          <div className="relative shrink-0">
+            <div className="w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden ring-4 ring-background shadow-xl">
+               <img 
+                 src="https://github.com/GeekatplayStudio.png" 
+                 alt="GeekatplayStudio" 
+                 className="w-full h-full object-cover"
+               />
+            </div>
+            <div className="absolute bottom-1 right-1 w-6 h-6 bg-green-500 border-4 border-background rounded-full"></div>
           </div>
+
+          <div className="flex-1 text-center md:text-left space-y-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600">Image Express</span></h1>
+              <div className="text-muted-foreground text-lg mt-1">
+                Open source project by <span className="font-semibold text-foreground">V Chopine</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+               <a href="https://github.com/GeekatplayStudio" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 rounded-full text-sm font-medium transition-colors flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-foreground"></span> GitHub Repo
+               </a>
+               <a href="https://www.linkedin.com/in/geekatplay/" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-[#0077b5]/10 text-[#0077b5] hover:bg-[#0077b5]/20 rounded-full text-sm font-medium transition-colors flex items-center gap-2">
+                  LinkedIn: Geekatplay
+               </a>
+               <a href="https://www.youtube.com/@geekatplay" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-[#FF0000]/10 text-[#FF0000] hover:bg-[#FF0000]/20 rounded-full text-sm font-medium transition-colors flex items-center gap-2">
+                  YouTube: @geekatplay
+               </a>
+               <a href="https://www.youtube.com/@geekatplay-ru" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-[#FF0000]/10 text-[#FF0000] hover:bg-[#FF0000]/20 rounded-full text-sm font-medium transition-colors flex items-center gap-2">
+                  YouTube: @geekatplay-ru
+               </a>
+               <a href="https://www.geekatplay.com" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-indigo-500/10 text-indigo-600 hover:bg-indigo-500/20 rounded-full text-sm font-medium transition-colors flex items-center gap-2">
+                  Website: Geekatplay.com
+               </a>
+               <a href="https://www.chopinephotography.com" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 rounded-full text-sm font-medium transition-colors flex items-center gap-2">
+                  Website: ChopinePhotography.com
+               </a>
+            </div>
+          </div>
+
           <button 
             onClick={onNewDesign}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 px-6 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-all shadow-lg shadow-primary/20"
+            className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-3 transition-all shadow-xl shadow-primary/20 hover:scale-105 hover:-translate-y-1"
           >
-            <Plus size={20} />
-            Create New Design
+            <Plus size={24} strokeWidth={3} />
+            Start Creating
           </button>
         </div>
 
@@ -123,31 +190,60 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, user }: Dashb
              Recent Designs
            </h2>
            
+           {recentDesigns.length === 0 ? (
+               <div className="text-center py-12 bg-card rounded-xl border border-dashed border-border text-muted-foreground">
+                   <p>No saved designs yet. Create one to get started!</p>
+               </div>
+           ) : (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {RECENT_DESIGNS.map(design => (
-                 <div key={design.id} className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow group cursor-pointer">
-                    <div className="aspect-[16/9] bg-secondary/50 flex items-center justify-center relative">
-                        <ImageIcon className="text-muted-foreground/30 w-12 h-12" />
+              {recentDesigns.map(design => (
+                 <div 
+                    key={design.id} 
+                    onClick={() => onOpenDesign(design)}
+                    className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow group cursor-pointer relative"
+                 >
+                    <div className="aspect-[16/9] bg-secondary/50 flex items-center justify-center relative bg-checkerboard">
+                         {/* Generate a preview if we had one, for now placeholder */}
+                         {/* fabric.js can export dataURL but storing it in localStorage might be heavy. */}
+                         {/* design.thumbnail could be stored if we updated handleSave to export small jpg */}
+                        {design.thumbnail ? (
+                            <img src={design.thumbnail} className="w-full h-full object-contain" alt={design.name}/>
+                        ) : (
+                            <ImageIcon className="text-muted-foreground/30 w-12 h-12" />
+                        )}
                         
                         {/* Overlay Actions */}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px]">
-                           <button className="bg-white text-black px-4 py-1.5 rounded-md text-sm font-medium hover:bg-white/90">
-                              Edit
+                           <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenDesign(design);
+                                }}
+                                className="bg-white text-black px-4 py-1.5 rounded-md text-sm font-medium hover:bg-white/90 shadow-lg"
+                           >
+                              Open
                            </button>
                         </div>
                     </div>
                     <div className="p-3 flex items-start justify-between">
                        <div>
-                          <h3 className="font-medium text-sm text-foreground">{design.name}</h3>
-                          <p className="text-xs text-muted-foreground mt-1">Edited {design.lastModified}</p>
+                          <h3 className="font-medium text-sm text-foreground truncate max-w-[150px]">{design.name}</h3>
+                          <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(design.lastModified).toLocaleDateString()}
+                          </p>
                        </div>
-                       <button className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-secondary">
-                          <MoreVertical size={16} />
+                       <button 
+                            onClick={(e) => handleDelete(design.id, e)}
+                            className="text-muted-foreground hover:text-destructive p-1.5 rounded hover:bg-destructive/10 transition-colors"
+                            title="Delete"
+                        >
+                          <Trash2 size={16} />
                        </button>
                     </div>
                  </div>
               ))}
            </div>
+           )}
         </section>
 
       </div>
