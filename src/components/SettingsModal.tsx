@@ -170,7 +170,7 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-card w-full max-w-md rounded-xl border border-border shadow-2xl p-6 relative animate-in zoom-in-95 duration-200">
+            <div className="bg-card w-full max-w-md max-h-[85vh] rounded-xl border border-border shadow-2xl p-6 relative animate-in zoom-in-95 duration-200 flex flex-col">
                 <button 
                     onClick={onClose}
                     className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
@@ -196,7 +196,7 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto pr-2 space-y-6 max-h-[60vh]">
+                <div className="flex-1 overflow-y-auto pr-2 space-y-6">
                     {/* 3D Generation Section */}
                     <div className="space-y-4">
                          <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
@@ -314,6 +314,34 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                             </div>
                         </div>
                     </div>
+
+                    <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md flex items-start gap-3">
+                        <AlertCircle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-muted-foreground">
+                            Keys are stored locally in your browser. We never transmit them to our servers, only directly to the AI providers.
+                        </p>
+                    </div>
+
+                    <div className="border-t border-border/40 pt-4">
+                        <button 
+                            onClick={handleToggleLog}
+                            className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                        >
+                            {isLogVisible ? 'Hide Login Activity Log' : 'View Login Activity Log'}
+                        </button>
+
+                        {isLogVisible && (
+                            <div className="mt-3 bg-secondary/20 border border-border/60 rounded-lg p-3 max-h-48 overflow-y-auto">
+                                {isLogLoading ? (
+                                    <p className="text-xs text-muted-foreground">Loading log...</p>
+                                ) : logError ? (
+                                    <p className="text-xs text-destructive">{logError}</p>
+                                ) : (
+                                    <pre className="text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground">{logContent}</pre>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="mt-8 flex justify-end gap-3">
@@ -337,34 +365,6 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                     onClose={() => setHelpType(null)} 
                     type={helpType || 'comfy'} 
                 />
-
-                <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md flex items-start gap-3">
-                    <AlertCircle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
-                    <p className="text-xs text-muted-foreground">
-                        Keys are stored locally in your browser. We never transmit them to our servers, only directly to the AI providers.
-                    </p>
-                </div>
-
-                <div className="mt-4 border-t border-border/40 pt-4">
-                    <button 
-                        onClick={handleToggleLog}
-                        className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-                    >
-                        {isLogVisible ? 'Hide Login Activity Log' : 'View Login Activity Log'}
-                    </button>
-
-                    {isLogVisible && (
-                        <div className="mt-3 bg-secondary/20 border border-border/60 rounded-lg p-3 max-h-48 overflow-y-auto">
-                            {isLogLoading ? (
-                                <p className="text-xs text-muted-foreground">Loading log...</p>
-                            ) : logError ? (
-                                <p className="text-xs text-destructive">{logError}</p>
-                            ) : (
-                                <pre className="text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground">{logContent}</pre>
-                            )}
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     );
