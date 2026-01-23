@@ -7,13 +7,14 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'images'; 
+    const category = searchParams.get('category') || 'uploads'; // 'uploads' or 'generated'
     
     // Validate type to prevent traversing out of allowed directories
-    if (!['images', 'models'].includes(type)) {
-        return NextResponse.json({ success: false, message: 'Invalid type' }, { status: 400 });
+    if (!['images', 'models'].includes(type) || !['uploads', 'generated'].includes(category)) {
+        return NextResponse.json({ success: false, message: 'Invalid type or category' }, { status: 400 });
     }
 
-    const dirPath = path.join(process.cwd(), 'public', 'assets', 'uploads', type);
+    const dirPath = path.join(process.cwd(), 'public', 'assets', category, type);
 
     // Check if dir exists
     if (!fs.existsSync(dirPath)) {
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
         .filter(file => !file.startsWith('.'))
         .map(file => ({
             name: file,
-            path: `/assets/uploads/${type}/${file}`,
+            path: `/assets/${category}/${type}/${file}`,
             type: type
         }));
 

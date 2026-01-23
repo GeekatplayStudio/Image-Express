@@ -21,9 +21,10 @@ export async function POST(request: Request) {
     const fullPath = path.join(process.cwd(), 'public', safePath);
     
     // Double check it starts with the correct root prefix to be extra safe
-    const expectedRoot = path.join(process.cwd(), 'public', 'assets', 'uploads');
+    const expectedRootUploads = path.join(process.cwd(), 'public', 'assets', 'uploads');
+    const expectedRootGenerated = path.join(process.cwd(), 'public', 'assets', 'generated');
     
-    if (!fullPath.startsWith(expectedRoot)) {
+    if (!fullPath.startsWith(expectedRootUploads) && !fullPath.startsWith(expectedRootGenerated)) {
          return NextResponse.json({ success: false, message: 'Invalid file path restriction' }, { status: 403 });
     }
 

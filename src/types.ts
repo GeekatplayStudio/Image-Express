@@ -31,8 +31,8 @@ export interface CanvasState {
 
 export interface BackgroundJob {
     id: string; // Task ID
-    type: 'text-to-3d' | 'image-to-3d';
-    provider?: 'meshy' | 'tripo' | 'hitems'; // Added provider field
+    type: 'text-to-3d' | 'image-to-3d' | 'stability-generate' | 'stability-inpaint' | 'stability-upscale' | 'stability-remove-bg';
+    provider?: 'meshy' | 'tripo' | 'hitems' | 'stability'; // Added provider field
     status: 'PENDING' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED';
     progress?: number;
     prompt?: string;

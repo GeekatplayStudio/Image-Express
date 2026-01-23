@@ -7,6 +7,7 @@ export async function POST(request: Request) {
     const data = await request.formData();
     const file: File | null = data.get('file') as unknown as File;
     const type = data.get('type') as string || 'images'; // 'images' or 'models'
+    const category = data.get('category') as string || 'uploads'; // 'uploads' or 'generated'
 
     if (!file) {
       return NextResponse.json({ success: false, message: 'No file uploaded' }, { status: 400 });
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const filename = `${path.basename(file.name, ext)}-${uniqueSuffix}${ext}`;
     
     // Determine directory
-    const uploadDir = path.join(process.cwd(), 'public', 'assets', 'uploads', type);
+    const uploadDir = path.join(process.cwd(), 'public', 'assets', category, type);
 
     // Ensure directory exists
     try {
