@@ -27,6 +27,7 @@ interface EditorViewProps {
     initialTemplateJsonUrl: string | null;
     user: string;
     onBack: () => void;
+    onLogout: () => void;
     currentDesignName: string;
     currentDesignId: string | null;
     onUpdateDesignInfo: (id: string | null, name: string) => void;
@@ -40,6 +41,7 @@ export default function EditorView({
     initialTemplateJsonUrl,
     user, 
     onBack,
+    onLogout,
     currentDesignName: propDesignName,
     currentDesignId: propDesignId,
     onUpdateDesignInfo,
@@ -835,7 +837,15 @@ export default function EditorView({
 
             {/* Overlays */}
             <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={user} />
-            <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} username={user} onLogout={onBack} />
+            <UserProfileModal 
+                isOpen={showProfileModal} 
+                onClose={() => setShowProfileModal(false)}
+                username={user} 
+                onLogout={() => {
+                    setShowProfileModal(false);
+                    onLogout();
+                }} 
+            />
             
             {showAssetBrowserForMissing && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">

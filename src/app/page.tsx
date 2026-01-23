@@ -60,6 +60,11 @@ export default function Home() {
     setUsername('Guest');
     setShowProfileModal(false);
     setShowLoginModal(true);
+    setCurrentView('dashboard');
+    setCurrentDesignId(null);
+    setCurrentDesignName('Untitled Design');
+    setPendingDesignToLoad(null);
+    setPendingTemplateJsonUrl(null);
   };
 
   // Render
@@ -77,6 +82,7 @@ export default function Home() {
             setPendingDesignToLoad(null);
             setPendingTemplateJsonUrl(null);
           }}
+          onLogout={handleLogout}
           currentDesignId={currentDesignId}
           currentDesignName={currentDesignName}
           onUpdateDesignInfo={(id, name) => {
