@@ -6,16 +6,26 @@ export interface StarPolygon extends fabric.Polygon {
     starInnerRadius?: number;
 }
 
+export interface ThreeDGroup extends fabric.Group {
+    is3DModel?: boolean;
+    modelUrl?: string;
+}
+
+export interface ThreeDImage extends fabric.Image {
+    is3DModel?: boolean;
+    modelUrl?: string;
+}
+
 export interface CanvasElement {
     id: string;
     type: 'text' | 'image' | 'rect';
-    properties: any;
+    properties: Record<string, unknown>;
 }
 
 export type ActiveTool = 'select' | 'text' | 'rect' | 'circle';
 
 export interface CanvasState {
-    activeSelection: any | null; // Placeholder for Fabric Object
+    activeSelection: fabric.Object | null; // Placeholder for Fabric Object
     zoom: number;
 }
 

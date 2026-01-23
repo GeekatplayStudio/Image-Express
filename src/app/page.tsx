@@ -14,7 +14,7 @@ import Dashboard from '@/components/Dashboard';
 import * as fabric from 'fabric';
 import { Download, Share2, Sparkles, FolderKanban, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { BackgroundJob } from '@/types';
+import { BackgroundJob, ThreeDImage, ThreeDGroup } from '@/types';
 
 /**
  * Home (Main Editor)
@@ -23,7 +23,7 @@ import { BackgroundJob } from '@/types';
  */
 export default function Home() {
   // Auth State
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // Removed unused isLoggedIn state
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [username, setUsername] = useState('Guest');
@@ -38,26 +38,26 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    // Check session
-    const user = localStorage.getItem('image-express-user');
-    if (user) {
-      setIsLoggedIn(true);
-      setUsername(user);
-    } else {
-      setShowLoginModal(true);
-    }
+    // Check session asynchronously to avoid render blocking
+    const timer = setTimeout(() => {
+      const user = localStorage.getItem('image-express-user');
+      if (user) {
+        setUsername(user);
+      } else {
+        setShowLoginModal(true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleLogin = (user: string) => {
     localStorage.setItem('image-express-user', user);
-    setIsLoggedIn(true);
     setUsername(user);
     setShowLoginModal(false);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('image-express-user');
-    setIsLoggedIn(false);
     setUsername('Guest');
     setShowProfileModal(false);
     setShowLoginModal(true);
@@ -110,8 +110,28 @@ export default function Home() {
         if (!job.id || !job.apiKey) return;
         
         try {
-            let data: any = null;
-            let status = job.status;
+            // Define response structure to avoid 'any'
+            type ApiResponse = {
+                status?: string;
+                progress?: number;
+                model_urls?: { glb: string };
+                thumbnail_url?: string;
+                data?: {
+                   status: string;
+                   progress: number;
+                   output?: { 
+                       model?: string; 
+                       rendered_image?: string;
+                       pbr_model?: string;
+                       base_model?: string;
+                       render_image?: string;
+                   };
+                };
+                code?: number; 
+            };
+
+            let data: ApiResponse | null = null;
+            let status: BackgroundJob['status'] = job.status;
             let progress = job.progress || 0;
             let resultUrl = job.resultUrl;
             let thumbnailUrl = job.thumbnailUrl;
@@ -126,7 +146,7 @@ export default function Home() {
                     console.error("Tripo Poll Failed:", res.status, await res.text());
                     return;
                  }
-                 const json = await res.json();
+                 const json = (await res.json()) as ApiResponse;
                  if (json.data) {
                      const tData = json.data;
                      console.log("Tripo Poll:", tData.status, tData.progress, tData.output); 
@@ -137,9 +157,15 @@ export default function Home() {
                      else status = 'IN_PROGRESS';
 
                      progress = tData.progress;
-                     resultUrl = tData.output?.model;
-                     thumbnailUrl = tData.output?.rendered_image;
-                     data = tData; // Keep raw for logging if needed
+                     // Try multiple keys for model URL just in case
+                     resultUrl = tData.output?.model || tData.output?.pbr_model || tData.output?.base_model;
+                     thumbnailUrl = tData.output?.rendered_image || tData.output?.render_image;
+                     
+                     if (status === 'SUCCEEDED') {
+                        console.log("Tripo Success! Found URL:", resultUrl);
+                     }
+                     
+                     data = json; // Keep raw for logging if needed
                  } else if (json.code !== undefined && json.code !== 0) {
                      console.error("Tripo Poll Error Code:", json);
                      status = 'FAILED';
@@ -154,13 +180,13 @@ export default function Home() {
                 
                 if (!res.ok) return;
 
-                data = await res.json();
+                data = (await res.json()) as ApiResponse;
                 
                 if (data.status === 'SUCCEEDED') status = 'SUCCEEDED';
                 else if (data.status === 'FAILED' || data.status === 'EXPIRED') status = 'FAILED';
                 else status = 'IN_PROGRESS'; // Meshy uses PENDING/IN_PROGRESS
 
-                progress = data.progress;
+                if (data.progress !== undefined) progress = data.progress;
                 resultUrl = data.model_urls?.glb;
                 thumbnailUrl = data.thumbnail_url;
             }
@@ -172,7 +198,7 @@ export default function Home() {
                  
                  const updatedJob: BackgroundJob = {
                      ...job,
-                     status: status as any,
+                     status: status,
                      resultUrl: resultUrl,
                      thumbnailUrl: thumbnailUrl,
                      progress: status === 'SUCCEEDED' ? 100 : progress
@@ -205,28 +231,84 @@ export default function Home() {
                           console.error("Failed to auto-save asset", err);
                       }
 
-                      // Add to Canvas (Thumbnail)
-                      if (canvas && thumbnailUrl) {
-                          fabric.Image.fromURL(thumbnailUrl, { crossOrigin: 'anonymous' }).then(img => {
-                              img.scaleToWidth(200);
-                              img.set({ left: 100, top: 100 });
-                              
-                              (img as any).is3DModel = true;
-                              (img as any).modelUrl = resultUrl;
 
-                              canvas.add(img);
-                              canvas.setActiveObject(img);
+                      // Define fallback handler (Needs canvas check inside or passed)
+                      const addFallbackPlaceholder = () => {
+                          if (!canvas) return; // Guard clause
+                          const group = new fabric.Group([], {
+                              left: 150,
+                              top: 150,
+                              subTargetCheck: true,
+                              interactive: true 
                           });
-                      }
-                 }
 
+                          const box = new fabric.Rect({
+                              width: 100,
+                              height: 100,
+                              fill: '#3b82f6',
+                              rx: 10,
+                              ry: 10,
+                              shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.3)', blur: 10, offsetX: 5, offsetY: 5 })
+                          });
+
+                          const text = new fabric.IText('3D', {
+                              fontSize: 30,
+                              fill: 'white',
+                              left: 30,
+                              top: 35,
+                              fontFamily: 'sans-serif',
+                              fontWeight: 'bold',
+                              selectable: false
+                          });
+                          
+                          group.add(box);
+                          group.add(text);
+                          
+                          // Attach 3D metadata to group
+                          const threeDGroup = group as ThreeDGroup;
+                          threeDGroup.is3DModel = true;
+                          threeDGroup.modelUrl = resultUrl;
+
+                          canvas.add(threeDGroup);
+                          canvas.setActiveObject(threeDGroup);
+                          canvas.requestRenderAll();
+                      };
+
+
+                      // Add to Canvas (Thumbnail or Placeholder)
+                      if (canvas) {
+                          if (thumbnailUrl) {
+                            console.log("Loading Thumbnail:", thumbnailUrl);
+                            fabric.FabricImage.fromURL(thumbnailUrl, { crossOrigin: 'anonymous' })
+                                .then(img => {
+                                    if (!img) throw new Error("Image loaded but null");
+                                    img.scaleToWidth(200);
+                                    img.set({ left: 100, top: 100 });
+                                    
+                                    const threeDImg = img as ThreeDImage;
+                                    threeDImg.is3DModel = true;
+                                    threeDImg.modelUrl = resultUrl;
+
+                                    canvas.add(threeDImg);
+                                    canvas.setActiveObject(threeDImg);
+                                    canvas.requestRenderAll();
+                                })
+                                .catch(err => {
+                                    console.error("Failed to load thumbnail, using fallback:", err);
+                                    addFallbackPlaceholder();
+                                });
+                          } else {
+                              addFallbackPlaceholder();
+                          }
+                      }
+                  }
             } else {
                  // Update Progress
                  if (progress !== job.progress || status !== job.status) {
                      setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { 
                          ...p, 
                          progress: progress, 
-                         status: status as any
+                         status: status
                      } : p));
                  }
             }
@@ -256,11 +338,11 @@ export default function Home() {
   const handleExport = (format: 'png' | 'jpg' | 'svg' | 'pdf' | 'json') => {
     if (!canvas) return;
     
-    // Reset zoom for export to ensure full resolution/correct dimensions
-    const originalZoom = canvas.getZoom();
-    const originalWidth = canvas.width!;
-    const originalHeight = canvas.height!;
-    const originalViewportTransform = canvas.viewportTransform;
+    // Unused variables removed
+    // const originalZoom = canvas.getZoom();
+    // const originalWidth = canvas.width!;
+    // const originalHeight = canvas.height!;
+    // const originalViewportTransform = canvas.viewportTransform;
 
     // Temporarily reset zoom to 1 for export if needed, or keeping it as is.
     // Usually for high quality export, we might want multiplier.
@@ -284,7 +366,7 @@ export default function Home() {
             case 'jpg':
                 // Set background to white for JPG as it transparency becomes black
                 const originalBg = canvas.backgroundColor;
-                canvas.backgroundColor = '#ffffff';
+                canvas.set('backgroundColor', '#ffffff');
                 dataUrl = canvas.toDataURL({
                     format: 'jpeg',
                     quality: 0.9,
@@ -292,7 +374,7 @@ export default function Home() {
                     enableRetinaScaling: true
                 });
                 downloadFile(dataUrl, filename);
-                canvas.backgroundColor = originalBg; 
+                canvas.set('backgroundColor', originalBg); 
                 canvas.requestRenderAll();
                 break;
             case 'svg':
@@ -349,10 +431,10 @@ export default function Home() {
   useEffect(() => {
     if (!canvas) return;
 
-    const handleDblClick = (e: any) => {
-      const target = e.target;
+    const handleDblClick = (e: fabric.TPointerEventInfo) => {
+      const target = e.target as ThreeDImage | undefined;
       if (target && (target.is3DModel || target.modelUrl)) {
-        setEditingModelUrl(target.modelUrl);
+        setEditingModelUrl(target.modelUrl || null);
         setEditingModelObject(target);
       } else if (target) {
         // Switch to properties panel (select tool) for any other object
@@ -360,13 +442,13 @@ export default function Home() {
       }
     };
 
-    const handleWheel = (opt: any) => {
+    const handleWheel = (opt: fabric.TPointerEventInfo<WheelEvent>) => {
         const evt = opt.e;
         evt.preventDefault();
         evt.stopPropagation();
   
         const delta = evt.deltaY;
-        let currentZoom = canvas.getZoom();
+        const currentZoom = canvas.getZoom();
         let newZoom = currentZoom * (0.999 ** delta);
         
         if (newZoom > 5) newZoom = 5;
@@ -395,7 +477,7 @@ export default function Home() {
         let activeObj: fabric.Object | null | undefined = null;
 
         return {
-            'mouse:down': (opt: any) => {
+            'mouse:down': (opt: fabric.TPointerEventInfo) => {
                 if (activeTool !== 'gradient') return;
                 
                 // Allow selecting object if clicked directly on it, otherwise use currently active
@@ -412,7 +494,7 @@ export default function Home() {
                 const pointer = canvas.getScenePoint(opt.e);
                 startPoint = { x: pointer.x, y: pointer.y };
             },
-            'mouse:move': (opt: any) => {
+            'mouse:move': (opt: fabric.TPointerEventInfo) => {
                 if (!isDown || activeTool !== 'gradient' || !activeObj) return;
                 
                 const pointer = canvas.getScenePoint(opt.e);
@@ -464,9 +546,9 @@ export default function Home() {
                 
                 // If the object already has a gradient, preserve colors
                 const currentFill = activeObj.get('fill');
-                if (currentFill && (currentFill as any).type === 'linear') {
+                if (currentFill && (currentFill as fabric.Gradient<'linear'>).type === 'linear') {
                     // Update coords only? No, set returns new instance usually safer
-                     newGradient.colorStops = (currentFill as any).colorStops;
+                     newGradient.colorStops = (currentFill as fabric.Gradient<'linear'>).colorStops;
                 }
 
                 activeObj.set('fill', newGradient);
@@ -515,6 +597,9 @@ export default function Home() {
          console.error("Failed to load template", e);
      }
   };
+  
+  // Suppress unused warning for now as this might be used later or via Dashboard
+  void handleLoadTemplate;
 
   const handleZoom = (factor: number) => {
         if (!canvas) return;
@@ -705,6 +790,7 @@ export default function Home() {
       <SettingsModal 
         isOpen={showSettings} 
         onClose={() => setShowSettings(false)} 
+        userId={username}
       />
 
       <LoginModal 
@@ -726,6 +812,7 @@ export default function Home() {
               user={username}
               onNewDesign={() => setCurrentView('editor')}
               onSelectTemplate={(t) => {
+                  console.log("Template selected:", t);
                   setCurrentView('editor');
               }}
            />
@@ -757,7 +844,7 @@ export default function Home() {
                          }}
                          onSave={(dataUrl, currentModelUrl) => {
                              if (canvas) {
-                                fabric.Image.fromURL(dataUrl, { crossOrigin: 'anonymous' }).then(img => {
+                                fabric.FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' }).then(img => {
                                     
                                     // If updating existing, copy properties
                                     if (editingModelObject) {
@@ -778,11 +865,12 @@ export default function Home() {
                                     }
                                     
                                     // Attach metadata
-                                    (img as any).is3DModel = true;
-                                    (img as any).modelUrl = currentModelUrl;
+                                    const threeDImg = img as ThreeDImage;
+                                    threeDImg.is3DModel = true;
+                                    threeDImg.modelUrl = currentModelUrl;
 
-                                    canvas.add(img);
-                                    canvas.setActiveObject(img);
+                                    canvas.add(threeDImg);
+                                    canvas.setActiveObject(threeDImg);
                                     canvas.requestRenderAll();
                                     
                                     setEditingModelUrl(null);
@@ -812,12 +900,13 @@ export default function Home() {
                         }}
                         onAddToCanvas={(dataUrl, modelUrl) => {
                             if (canvas) {
-                                fabric.Image.fromURL(dataUrl).then((img) => {
+                                fabric.FabricImage.fromURL(dataUrl).then((img) => {
                                     img.set({ left: 100, top: 100 });
                                     
                                     if (modelUrl) {
-                                        (img as any).is3DModel = true;
-                                        (img as any).modelUrl = modelUrl;
+                                        const threeDImg = img as ThreeDImage;
+                                        threeDImg.is3DModel = true;
+                                        threeDImg.modelUrl = modelUrl;
                                     }
 
                                     canvas.add(img);

@@ -22,10 +22,10 @@ export default function LoginModal({ isOpen, onLogin }: LoginModalProps) {
         // Mock delay
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        if (username === 'test' && password === 'test') {
+        if (username === 'adobe' && password === 'adobe') {
             onLogin(username);
         } else {
-            setError('Invalid credentials. Try test/test');
+            setError('Invalid credentials.');
             setIsLoading(false);
         }
     };
@@ -50,7 +50,7 @@ export default function LoginModal({ isOpen, onLogin }: LoginModalProps) {
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                placeholder="Enter username"
+                                placeholder="Username"
                                 required
                             />
                         </div>
@@ -86,9 +86,7 @@ export default function LoginModal({ isOpen, onLogin }: LoginModalProps) {
                         {!isLoading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                     </button>
                     
-                    <div className="text-center mt-4">
-                         <p className="text-xs text-muted-foreground">Demo credentials: <code className="bg-secondary px-1 py-0.5 rounded text-foreground">test</code> / <code className="bg-secondary px-1 py-0.5 rounded text-foreground">test</code></p>
-                    </div>
+
                 </form>
             </div>
         </div>
