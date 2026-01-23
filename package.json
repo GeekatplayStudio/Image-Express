@@ -2,11 +2,16 @@
   "name": "creative-flow",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "desktop:dev": "concurrently \"cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 next dev -p 3927\" \"wait-on http://localhost:3927 && cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 electron .\"",
+    "desktop:serve": "concurrently \"cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 next start -p 3927\" \"wait-on http://localhost:3927 && cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 electron .\"",
+    "desktop:start": "npm run build && npm run desktop:serve",
+    "desktop:build": "next build && electron-builder"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -34,6 +39,47 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.0.5",
+    "electron-updater": "^6.3.9",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.imageexpress.desktop",
+    "productName": "Image Express",
+    "files": [
+      "electron/**/*",
+      "package.json",
+      "next.config.ts",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "next-standalone"
+      },
+      {
+        "from": ".next/static",
+        "to": "next-standalone/.next/static"
+      },
+      {
+        "from": "public",
+        "to": "next-standalone/public"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }

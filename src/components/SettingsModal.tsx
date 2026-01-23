@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Save, Key, ShieldCheck, AlertCircle, HelpCircle, Server, Cloud, Box } from 'lucide-react';
+import { X, Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud } from 'lucide-react';
 import HelpPopup from './HelpPopup';
+import type { DesktopUpdatePayload, DesktopUpdateStatus } from '@/types';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -46,49 +47,74 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
     const [logContent, setLogContent] = useState('');
     const [isLogLoading, setIsLogLoading] = useState(false);
     const [logError, setLogError] = useState<string | null>(null);
+    const [isDesktopApp, setIsDesktopApp] = useState(false);
+    const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus>('idle');
+    const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 
     // Load keys on mount
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            // Always load from local storage first for immediate UI
-            setMeshyKey(localStorage.getItem(STORAGE_KEYS.MESHY_API_KEY) || '');
-            setTripoKey(localStorage.getItem(STORAGE_KEYS.TRIPO_API_KEY) || '');
-            setHitemsKey(localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '');
-            
-            setStabilityKey(localStorage.getItem(STORAGE_KEYS.STABILITY_API_KEY) || '');
-            setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
-            setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
-            setBananaKey(localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
-
-            // If user is logged in, fetch from server
-            if (userId && userId !== 'Guest') {
-                setSyncStatus('syncing');
-                fetch(`/api/user/keys?userId=${encodeURIComponent(userId)}`)
-                    .then(res => {
-                        if (res.ok) return res.json();
-                        throw new Error('Failed to fetch keys');
-                    })
-                    .then(data => {
-                        if (data && data.keys) {
-                            if (data.keys.meshy) setMeshyKey(data.keys.meshy);
-                            if (data.keys.tripo) setTripoKey(data.keys.tripo);
-                            if (data.keys.stability) setStabilityKey(data.keys.stability);
-                            if (data.keys.openai) setOpenaiKey(data.keys.openai);
-                            if (data.keys.google) setGoogleKey(data.keys.google);
-                            if (data.keys.banana) setBananaKey(data.keys.banana);
-                            setSyncStatus('synced');
-                        } else {
-                             setSyncStatus('local'); // No keys on server yet
-                        }
-                    })
-                    .catch(err => {
-                        console.error("Failed to sync keys:", err);
-                        setSyncStatus('local');
-                    });
-            } else {
-                setSyncStatus('local');
-            }
+        if (typeof window === 'undefined') {
+            return;
         }
+
+        const bridge = window.desktop;
+        let unsubscribe: (() => void) | undefined;
+
+        if (bridge?.isDesktop) {
+            setIsDesktopApp(true);
+            setUpdateStatus('idle');
+            setUpdateMessage(null);
+            unsubscribe = bridge.onUpdateStatus?.((payload: DesktopUpdatePayload) => {
+                if (!payload) {
+                    return;
+                }
+                setUpdateStatus(payload.status || 'idle');
+                setUpdateMessage(payload.message || null);
+            });
+        }
+
+        // Always load from local storage first for immediate UI
+        setMeshyKey(localStorage.getItem(STORAGE_KEYS.MESHY_API_KEY) || '');
+        setTripoKey(localStorage.getItem(STORAGE_KEYS.TRIPO_API_KEY) || '');
+        setHitemsKey(localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '');
+        
+        setStabilityKey(localStorage.getItem(STORAGE_KEYS.STABILITY_API_KEY) || '');
+        setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
+        setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
+        setBananaKey(localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
+
+        // If user is logged in, fetch from server
+        if (userId && userId !== 'Guest') {
+            setSyncStatus('syncing');
+            fetch(`/api/user/keys?userId=${encodeURIComponent(userId)}`)
+                .then(res => {
+                    if (res.ok) return res.json();
+                    throw new Error('Failed to fetch keys');
+                })
+                .then(data => {
+                    if (data && data.keys) {
+                        if (data.keys.meshy) setMeshyKey(data.keys.meshy);
+                        if (data.keys.tripo) setTripoKey(data.keys.tripo);
+                        if (data.keys.stability) setStabilityKey(data.keys.stability);
+                        if (data.keys.openai) setOpenaiKey(data.keys.openai);
+                        if (data.keys.google) setGoogleKey(data.keys.google);
+                        if (data.keys.banana) setBananaKey(data.keys.banana);
+                        setSyncStatus('synced');
+                    } else {
+                         setSyncStatus('local'); // No keys on server yet
+                    }
+                })
+                .catch(err => {
+                    console.error("Failed to sync keys:", err);
+                    setSyncStatus('local');
+                });
+        } else {
+            setSyncStatus('local');
+        }
+
+        return () => {
+            unsubscribe?.();
+        };
     }, [isOpen, userId]);
 
     const handleSave = async () => {
@@ -164,6 +190,40 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
             }
         }
         setIsLogVisible(prev => !prev);
+    };
+
+    const handleManualUpdateCheck = async () => {
+        if (!isDesktopApp) return;
+        const api = typeof window !== 'undefined' ? window.desktop : undefined;
+        if (!api?.checkForUpdates) return;
+        setUpdateStatus('checking');
+        setUpdateMessage('Checking for updates…');
+        try {
+            const result = await api.checkForUpdates();
+            if (result?.message) {
+                setUpdateMessage(result.message);
+            }
+            if (result?.status && result.status !== 'restarting') {
+                setUpdateStatus(result.status as DesktopUpdateStatus);
+            }
+        } catch (error) {
+            setUpdateStatus('error');
+            setUpdateMessage(error instanceof Error ? error.message : 'Unable to check for updates.');
+        }
+    };
+
+    const handleInstallUpdate = async () => {
+        if (!isDesktopApp) return;
+        const api = typeof window !== 'undefined' ? window.desktop : undefined;
+        if (!api?.installUpdate) return;
+        try {
+            setUpdateStatus('ready');
+            setUpdateMessage('Restarting to apply update…');
+            await api.installUpdate();
+        } catch (error) {
+            setUpdateStatus('error');
+            setUpdateMessage(error instanceof Error ? error.message : 'Failed to install update.');
+        }
     };
 
     if (!isOpen) return null;
@@ -321,6 +381,44 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                             Keys are stored locally in your browser. We never transmit them to our servers, only directly to the AI providers.
                         </p>
                     </div>
+
+                    {isDesktopApp && (
+                        <div className="border-t border-border/40 pt-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                                        <ShieldCheck size={16} className="text-primary" />
+                                        Desktop Updates
+                                    </h4>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Stay current with the latest Image Express desktop features.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleManualUpdateCheck}
+                                    className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1"
+                                    disabled={updateStatus === 'checking'}
+                                >
+                                    <RefreshCcw size={14} className={updateStatus === 'checking' ? 'animate-spin' : ''} />
+                                    Check Now
+                                </button>
+                            </div>
+                            {updateMessage && (
+                                <div className="text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md px-3 py-2">
+                                    {updateMessage}
+                                </div>
+                            )}
+                            {updateStatus === 'ready' && (
+                                <button
+                                    onClick={handleInstallUpdate}
+                                    className="w-full py-2 text-xs font-semibold bg-primary text-primary-foreground rounded-md flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
+                                >
+                                    <DownloadCloud size={14} />
+                                    Restart & Install Update
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     <div className="border-t border-border/40 pt-4">
                         <button 

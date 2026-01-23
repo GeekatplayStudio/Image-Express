@@ -41,3 +41,25 @@ export interface BackgroundJob {
     resultUrl?: string;
     thumbnailUrl?: string; // If available
 }
+
+export type DesktopUpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'none' | 'error';
+
+export interface DesktopUpdatePayload {
+    status: DesktopUpdateStatus;
+    message?: string;
+}
+
+declare global {
+    interface DesktopBridge {
+        isDesktop?: boolean;
+        checkForUpdates?: () => Promise<{ status: DesktopUpdateStatus | 'restarting'; message?: string }>;
+        installUpdate?: () => Promise<{ status: string; message?: string }>;
+        onUpdateStatus?: (callback: (payload: DesktopUpdatePayload) => void) => () => void;
+    }
+
+    interface Window {
+        desktop?: DesktopBridge;
+    }
+}
+
+export {};

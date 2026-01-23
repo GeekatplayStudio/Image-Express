@@ -13,6 +13,7 @@ export default function Home() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [username, setUsername] = useState('Guest');
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
   
   // View State
   const [currentView, setCurrentView] = useState<'dashboard' | 'editor'>('dashboard');
@@ -28,16 +29,36 @@ export default function Home() {
 
   // Auth Effects
   useEffect(() => {
-    // Check session asynchronously to avoid render blocking
-    const timer = setTimeout(() => {
-      const user = localStorage.getItem('image-express-user');
-      if (user) {
-        setUsername(user);
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const timer = window.setTimeout(() => {
+      if (cancelled) {
+        return;
+      }
+
+      const desktopBridge = window.desktop;
+      const desktopDetected = Boolean(desktopBridge?.isDesktop);
+      setIsDesktopApp(desktopDetected);
+
+      const storedUser = localStorage.getItem('image-express-user');
+      if (desktopDetected) {
+        setUsername(storedUser || 'Local Desktop');
+        setShowLoginModal(false);
+      } else if (storedUser) {
+        setUsername(storedUser);
       } else {
         setShowLoginModal(true);
       }
     }, 0);
-    return () => clearTimeout(timer);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   const handleLogin = (user: string) => {
@@ -46,20 +67,22 @@ export default function Home() {
     setShowLoginModal(false);
 
     // Fire and forget logging of the authentication event.
-    fetch('/api/logs/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: user })
-    }).catch(() => {
-      // Swallow errors to avoid blocking UX if logging fails.
-    });
+    if (!isDesktopApp) {
+      fetch('/api/logs/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user })
+      }).catch(() => {
+        // Swallow errors to avoid blocking UX if logging fails.
+      });
+    }
   };
 
   const handleLogout = () => {
     localStorage.removeItem('image-express-user');
-    setUsername('Guest');
+    setUsername(isDesktopApp ? 'Local Desktop' : 'Guest');
     setShowProfileModal(false);
-    setShowLoginModal(true);
+    setShowLoginModal(!isDesktopApp);
     setCurrentView('dashboard');
     setCurrentDesignId(null);
     setCurrentDesignName('Untitled Design');
@@ -129,10 +152,12 @@ export default function Home() {
         </div>
       </header>
       
-      <LoginModal 
-        isOpen={showLoginModal} 
-        onLogin={handleLogin} 
-      />
+      {!isDesktopApp && (
+        <LoginModal 
+          isOpen={showLoginModal} 
+          onLogin={handleLogin} 
+        />
+      )}
       
       <UserProfileModal 
         isOpen={showProfileModal} 
