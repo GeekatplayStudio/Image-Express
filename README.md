@@ -16,6 +16,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 ## 🚀 Key Features
 
 ### Studio & Design
+- **Modern Dashboard**: Redesigned home screen with quick-start templates (Instagram, YouTube, A4), recent designs grid, and community support links.
 - **Infinite Canvas**: Advanced vector workspace using Fabric.js.
 - **Layer Management**: Professional layer locking, visibility, and reordering.
 - **Advanced Masking**: Non-destructive masking functionality. Select two objects to mask the bottom one with the top one; includes support for inverting masks.
@@ -34,8 +35,10 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Server-Side Design Storage**: Designs are saved securely on the server (via filesystem in this edition), bypassing browser storage limits.
 - **Asset Library**: 
   - Upload, organize, and manage images and 3D models.
+  - **3D Previews**: Hover over any 3D model asset to see a real-time rotating 3D preview popup.
   - **Renaming System**: Interactive renaming overlay for assets.
 - **Authentication**: Secure login system with server-side key persistence for API access.
+- **Session Security**: Automatic 30-minute inactivity timeout for guest and web users to protect sessions.
 - **Audit Logging**: Automatic login activity logging with IP and user agent; viewable from Settings.
 - **Desktop Shell**: Single-codebase Electron build with auto-update checks and in-app update prompts.
 

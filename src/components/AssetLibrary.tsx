@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import Asset3DPreview from './Asset3DPreview';
 
 /**
  * Asset Interface represents a file stored in the system.
@@ -51,6 +52,9 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
     const [editingAsset, setEditingAsset] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
     
+    // Preview popup state
+    const [hoveredAsset, setHoveredAsset] = useState<string | null>(null);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     /**
@@ -327,6 +331,8 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                                 key={asset.path + index}
                                 className="group relative aspect-square bg-secondary/30 rounded-md overflow-hidden border border-border/50 hover:border-primary/50 transition-all cursor-pointer"
                                 title={asset.name}
+                                onMouseEnter={() => asset.type === 'models' && setHoveredAsset(asset.path)}
+                                onMouseLeave={() => setHoveredAsset(null)}
                                 onDoubleClick={(e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
@@ -429,6 +435,12 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                     </div>
                 )}
             </div>
+            {/* 3D Preview Portal - Fixed to the right of the library */}
+            {hoveredAsset && activeTab === 'models' && (
+                <div className="fixed left-[410px] top-[140px] w-64 h-64 z-[110] animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
+                    <Asset3DPreview url={hoveredAsset} />
+                </div>
+            )}
         </div>
     );
 }

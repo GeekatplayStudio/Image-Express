@@ -70,9 +70,10 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="dashboard" title="Dashboard Overview">
                             <ul className="list-disc list-inside space-y-2">
                                 <li><span className="font-medium">Welcome banner:</span> confirms the current profile and links to community resources.</li>
-                                <li><span className="font-medium">Start Creating:</span> opens a blank canvas with the editor ready for a custom project.</li>
-                                <li><span className="font-medium">Template cards:</span> load predefined layouts stored under assets/templates for quick starts.</li>
+                                <li><span className="font-medium">Quick Start:</span> One-click access to popular formats (Instagram, YouTube, A4, Letter) to instantly launch a sized canvas.</li>
+                                <li><span className="font-medium">Start Creating:</span> opens a custom blank canvas dialog.</li>
                                 <li><span className="font-medium">Recent designs:</span> shows saved canvases from /api/designs/list with delete shortcuts and thumbnail previews.</li>
+                                <li><span className="font-medium">Support:</span> Footer links to support the developer ("Buy me a Coffee") and social channels.</li>
                             </ul>
                         </Section>
 
@@ -122,6 +123,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="assets" title="Asset Library">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Tabs split workspace assets into Uploads, 3D Models, and AI Generated images.</li>
+                                <li><span className="font-medium">3D Preview:</span> Hover your mouse over any 3D model thumbnail to see a large, rotating 3D preview on the right side of the library.</li>
                                 <li>Uploads respect the “Save to Workspace Assets” toggle: disable to drop items straight on the canvas without persisting.</li>
                                 <li>Supports inline renaming, deletion, refresh, and double-click to edit filenames.</li>
                                 <li>Uploads push files into public/assets/... via /api/assets endpoints for consistent server storage.</li>
@@ -193,6 +195,9 @@ function IntroSection() {
         <Section id="introduction" title="Introduction">
             <p>
                 Image Express combines a Fabric.js design surface, AI image synthesis, and 3D model tooling to accelerate creative workflows. The app opens on a personal dashboard where you can start a blank project, resume saved designs, or adapt a template. Switching to the editor reveals a left-hand creation toolbar, central canvas, and right-hand inspector for precise adjustments.
+            </p>
+            <p className="mt-2 text-xs bg-yellow-500/10 border border-yellow-500/20 p-2 rounded text-yellow-600 dark:text-yellow-400">
+                <strong>Note:</strong> Web sessions include a security timer. If inactive for 30 minutes, you will be automatically logged out to protect your work and session.
             </p>
         </Section>
     );
