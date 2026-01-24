@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, File, Image as ImageIcon, MoreVertical, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart } from 'lucide-react';
+import { Plus, File, Image as ImageIcon, MoreVertical, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box, Wand2 } from 'lucide-react';
 
 interface DashboardProps {
   onNewDesign: () => void;
@@ -7,6 +7,41 @@ interface DashboardProps {
   onOpenDesign: (design: any) => void;
   user: string;
 }
+
+const START_ACTIONS = [
+    {
+        id: 'start-custom',
+        label: 'Custom Size',
+        icon: Plus,
+        color: 'bg-gradient-to-br from-yellow-400 to-orange-500',
+        textColor: 'text-yellow-950',
+        action: 'new'
+    },
+    {
+        id: 'start-upload',
+        label: 'Upload Media',
+        icon: Upload,
+        color: 'bg-gradient-to-br from-blue-400 to-indigo-500',
+         textColor: 'text-blue-50',
+        action: 'upload'
+    },
+    {
+        id: 'start-ai-3d',
+        label: 'Create 3D',
+        icon: Box,
+        color: 'bg-gradient-to-br from-emerald-400 to-teal-500',
+         textColor: 'text-emerald-50',
+        action: '3d'
+    },
+    {
+        id: 'start-ai-img',
+        label: 'Generate Image',
+        icon: Sparkles,
+        color: 'bg-gradient-to-br from-pink-500 to-rose-600',
+         textColor: 'text-pink-50',
+        action: 'ai'
+    }
+];
 
 const POPULAR_TEMPLATES = [
   {
@@ -58,6 +93,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign,
   const [recentDesigns, setRecentDesigns] = useState<any[]>([]);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [showAllDesigns, setShowAllDesigns] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('All');
 
   useEffect(() => {
       // Load designs from server
@@ -136,6 +172,58 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign,
                     </button>
                 </div>
             </div>
+        </div>
+
+        {/* Start Creating Section (Adobe Style) */}
+        <section>
+             <div className="flex items-center justify-between mb-4 px-1">
+                <h2 className="text-xl font-bold text-foreground">How would you like to start?</h2>
+             </div>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 {START_ACTIONS.map((action) => (
+                     <button
+                        key={action.id}
+                        onClick={() => {
+                            if (action.action === 'new') onNewDesign();
+                            else if (action.action === 'ai') onNewDesign(); // Temporary map to new
+                            else if (action.action === '3d') onNewDesign(); // Temporary
+                            else alert("Upload feature coming to dashboard soon!");
+                        }}
+                        className={`group relative h-32 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left p-0 ${action.color}`}
+                     >
+                        <div className="absolute inset-0 bg-white/10 group-hover:bg-transparent transition-colors" />
+                        <div className="absolute top-4 left-4">
+                             <div className={`p-2 rounded-full bg-white/20 backdrop-blur-md ${action.textColor}`}>
+                                 <action.icon size={24} />
+                             </div>
+                        </div>
+                        <div className="absolute bottom-4 left-4 right-4">
+                            <h3 className={`font-bold text-lg ${action.textColor}`}>{action.label}</h3>
+                        </div>
+                        {/* Decorative Icon Background */}
+                        <div className="absolute -bottom-4 -right-4 opacity-20 transform rotate-12 scale-150 pointer-events-none text-white">
+                             <action.icon size={100} />
+                        </div>
+                     </button>
+                 ))}
+             </div>
+        </section>
+
+        {/* Categories Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            {['All', 'Social Media', 'Video', 'Print', 'Web', 'Marketing'].map(cat => (
+                <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                        activeCategory === cat 
+                        ? 'bg-foreground text-background border-foreground' 
+                        : 'bg-background text-muted-foreground border-border hover:border-foreground/50'
+                    }`}
+                >
+                    {cat}
+                </button>
+            ))}
         </div>
 
         {/* Popular Templates Row */}
