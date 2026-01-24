@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.js",
+  "overrides": {
+    "tar": "^7.5.6"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -36,15 +39,15 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.5.0",
+    "electron-updater": "^6.3.9",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "concurrently": "^9.1.0",
-    "cross-env": "^7.0.3",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.0.5",
-    "electron-updater": "^6.3.9",
     "wait-on": "^7.2.0"
   },
   "build": {
