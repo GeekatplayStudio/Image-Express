@@ -23,7 +23,7 @@ export default function Home() {
   const [currentDesignName, setCurrentDesignName] = useState<string>('Untitled Design');
   
   // Pending Load State (from Dashboard selection)
-  const [pendingDesignToLoad, setPendingDesignToLoad] = useState<any>(null);
+  const [pendingDesignToLoad, setPendingDesignToLoad] = useState<Record<string, unknown> | null>(null);
   const [pendingTemplateJsonUrl, setPendingTemplateJsonUrl] = useState<string | null>(null);
   const [showDocumentation, setShowDocumentation] = useState(false);
 

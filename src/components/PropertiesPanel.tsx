@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { StarPolygon } from '@/types';
-import { ArrowUp, ArrowDown, Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight } from 'lucide-react';
+import { ArrowUp, ArrowDown, Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight, Blend, Wand2, Plus, X } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -236,6 +236,22 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     const [shadowOffsetX, setShadowOffsetX] = useState(5);
     const [shadowOffsetY, setShadowOffsetY] = useState(5);
 
+    // Blending & Filters State
+    const [blendMode, setBlendMode] = useState<string>('source-over');
+    const [blurValue, setBlurValue] = useState(0);
+    const [brightnessValue, setBrightnessValue] = useState(0);
+    const [contrastValue, setContrastValue] = useState(0);
+    const [noiseValue, setNoiseValue] = useState(0);
+    const [saturationValue, setSaturationValue] = useState(0);
+    const [vibranceValue, setVibranceValue] = useState(0);
+    const [pixelateValue, setPixelateValue] = useState(0);
+    
+    // Masking State
+    const [maskInverted, setMaskInverted] = useState(false);
+    
+    // Mask Candidate (If 2 objects selected, this is the Top object)
+    const [maskCandidate, setMaskCandidate] = useState<fabric.Object | null>(null);
+
     useEffect(() => {
         if (canvas) {
             // Read Logical Width (Zoom-independent)
@@ -262,13 +278,46 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         // Initial load
         updateObjects();
 
-        const handleSelection = (e: { selected?: fabric.Object[] }) => {
-            const selection = e.selected ? e.selected[0] : null;
-            setSelectedObject(selection || null);
+const handleSelection = (e: any = null) => {
+            const selection = canvas.getActiveObject();
+            const activeObjects = (e && e.selected) ? e.selected : (canvas.getActiveObjects() || []);
+
+            let targetForProps: fabric.Object | null | undefined = selection;
+
+            // Check for potential Mask pair (Exactly 2 objects)
+            // we trust the activeObjects count. If 2 items are selected, we treat as mask candidate.
+            if (activeObjects.length === 2) {
+                const allObjects = canvas.getObjects();
+                
+                // Sort by Z-Index (ascending: 0=Bottom, N=Top)
+                const sorted = [...activeObjects].sort((a: any, b: any) => {
+                    const idxA = allObjects.indexOf(a);
+                    const idxB = allObjects.indexOf(b);
+                    if (idxA === -1) return 1;
+                    if (idxB === -1) return -1;
+                    return idxA - idxB;
+                });
+
+                const bottom = sorted[0]; 
+                const top = sorted[1];
+                
+                // Select Bottom (Content) for properties
+                setSelectedObject(bottom);
+                // Mark Top as Mask Candidate
+                setMaskCandidate(top);
+                
+                targetForProps = bottom;
+            } else {
+                setSelectedObject(selection || null);
+                setMaskCandidate(null);
+                targetForProps = selection;
+            }
             
-            if (selection) {
-                // Check Fill Type
-                const fill = selection.get('fill');
+            // Refetch target
+            const availableTarget = targetForProps;
+
+            if (availableTarget && availableTarget.type !== 'activeSelection' && availableTarget.type !== 'group') {
+                const fill = availableTarget.get('fill');
                 
                 if (typeof fill === 'string') {
                     setIsGradient(false);
@@ -296,24 +345,32 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                      setColor('#000000');
                 }
 
-                setOpacity(selection.get('opacity') || 1);
+                setOpacity(availableTarget.get('opacity') || 1);
+                
+                // Read Masking State
+                if (availableTarget.clipPath) {
+                    // @ts-ignore
+                    setMaskInverted(availableTarget.clipPath.inverted || false);
+                } else {
+                    setMaskInverted(false);
+                }
                 
                 // Read Effects
                 // Check if path exists (Curved Text)
                 // Fabric stores 'path' object on text
-                const path = selection.get('path') as fabric.Path;
-                if (path && (selection as any).curveStrength !== undefined) {
-                     setCurveStrength((selection as any).curveStrength);
+                const path = availableTarget.get('path') as fabric.Path;
+                if (path && (availableTarget as any).curveStrength !== undefined) {
+                     setCurveStrength((availableTarget as any).curveStrength);
                 } else {
                      setCurveStrength(0);
                 }
 
-                setSkewX(selection.get('skewX') || 0);
-                setSkewY(selection.get('skewY') || 0);
-                setStrokeColor(selection.get('stroke') || '#000000');
-                setStrokeWidth(selection.get('strokeWidth') || 0);
+                setSkewX(availableTarget.get('skewX') || 0);
+                setSkewY(availableTarget.get('skewY') || 0);
+                setStrokeColor(availableTarget.get('stroke') || '#000000');
+                setStrokeWidth(availableTarget.get('strokeWidth') || 0);
                 
-                const shadow = selection.get('shadow') as fabric.Shadow;
+                const shadow = availableTarget.get('shadow') as fabric.Shadow;
                 if (shadow) {
                     setShadowEnabled(true);
                     setShadowColor(shadow.color || '#000000');
@@ -328,16 +385,55 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                     setShadowOffsetY(5);
                 }
 
+                // Read Blending Mode
+                setBlendMode(availableTarget.globalCompositeOperation || 'source-over');
+
+                // Read Filters (Images Only)
+                if (availableTarget.type === 'image') {
+                    const img = availableTarget as fabric.Image;
+                    // Reset all filters first
+                    setBlurValue(0);
+                    setBrightnessValue(0);
+                    setContrastValue(0);
+                    setNoiseValue(0);
+                    setSaturationValue(0);
+                    setPixelateValue(0);
+                    setVibranceValue(0);
+
+                    // Map filters from active array
+                    // Note: In Fabric, filters is an array of instances. We need to check their type.
+                    if (img.filters && img.filters.length > 0) {
+                        img.filters.forEach(filter => {
+                            if (!filter) return;
+                            const type = filter.type;
+                            // @ts-ignore
+                            if (type === 'Blur') setBlurValue(filter.blur || 0);
+                            // @ts-ignore
+                            if (type === 'Brightness') setBrightnessValue(filter.brightness || 0);
+                            // @ts-ignore
+                            if (type === 'Contrast') setContrastValue(filter.contrast || 0);
+                            // @ts-ignore
+                            if (type === 'Noise') setNoiseValue(filter.noise || 0);
+                            // @ts-ignore
+                            if (type === 'Saturation') setSaturationValue(filter.saturation || 0);
+                             // @ts-ignore
+                            if (type === 'Vibrance') setVibranceValue(filter.vibrance || 0);
+                            // @ts-ignore
+                            if (type === 'Pixelate') setPixelateValue(filter.blocksize || 0);
+                        });
+                    }
+                }
+
                 // Check if it is a text object
-                if (selection.type === 'text' || selection.type === 'i-text') {
-                    const textObject = selection as fabric.IText;
+                if (availableTarget.type === 'text' || availableTarget.type === 'i-text') {
+                    const textObject = availableTarget as fabric.IText;
                     setFontFamily(textObject.get('fontFamily') || 'Arial');
                     setFontWeight((textObject.get('fontWeight') as string) || 'normal');
                 }
 
                 // Check for Star properties
-                if ('isStar' in selection && (selection as StarPolygon).isStar) {
-                     const starSelection = selection as StarPolygon;
+                if ('isStar' in availableTarget && (availableTarget as StarPolygon).isStar) {
+                     const starSelection = availableTarget as StarPolygon;
                     setStarPoints(starSelection.starPoints || 5);
                     setStarInnerRadius(starSelection.starInnerRadius || 0.5);
                 }
@@ -637,6 +733,200 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         selectedObject.canvas?.requestRenderAll();
     };
 
+    const updateBlendMode = (mode: string) => {
+        setBlendMode(mode);
+        if (selectedObject && canvas) {
+            // @ts-ignore - globalCompositeOperation is valid but sometimes typed strictly
+            selectedObject.globalCompositeOperation = mode;
+            // Force re-render of key things
+            selectedObject.set('dirty', true);
+            canvas.requestRenderAll();
+        }
+    };
+
+    const updateImageFilter = (type: string, value: number) => {
+        if (!selectedObject || selectedObject.type !== 'image' || !canvas) return;
+        const img = selectedObject as fabric.Image;
+
+        const applyFilterValue = (filterType: string, prop: string, val: number) => {
+             // Fabric filters array
+             if (!img.filters) img.filters = [];
+             
+             // Find existing
+             const idx = img.filters.findIndex(f => f && f.type === filterType);
+             
+             // If value effectively disables the filter (usually 0), remove it
+             // Exceptions: Pixelate (min blocksize usually 2 or something, 0 might crash or mean disabled)
+             // Brightness/Contrast 0 means no change.
+             // Noise 0 means no change.
+             // Blur 0 means no change.
+             
+             let shouldRemove = false;
+             if (filterType !== 'Pixelate' && val === 0) shouldRemove = true;
+             // Pixelate needs > 1 to be visible usually. If < 2 remove.
+             if (filterType === 'Pixelate' && val < 2) shouldRemove = true;
+             
+             if (shouldRemove) {
+                 if (idx > -1) {
+                     img.filters.splice(idx, 1);
+                 }
+             } else {
+                 if (idx > -1) {
+                     // Update
+                     // @ts-ignore
+                     img.filters[idx][prop] = val;
+                 } else {
+                     // Add new
+                     // @ts-ignore
+                     const FilterClass = fabric.filters[filterType];
+                     if (FilterClass) {
+                         const filter = new FilterClass({ [prop]: val });
+                         img.filters.push(filter);
+                     }
+                 }
+             }
+        };
+
+        if (type === 'Blur') {
+            setBlurValue(value);
+            applyFilterValue('Blur', 'blur', value);
+        } else if (type === 'Brightness') {
+            setBrightnessValue(value);
+            applyFilterValue('Brightness', 'brightness', value);
+        } else if (type === 'Contrast') {
+            setContrastValue(value);
+            applyFilterValue('Contrast', 'contrast', value);
+        } else if (type === 'Noise') {
+             setNoiseValue(value);
+             applyFilterValue('Noise', 'noise', value);
+        } else if (type === 'Saturation') {
+             setSaturationValue(value);
+             applyFilterValue('Saturation', 'saturation', value);
+        } else if (type === 'Vibrance') {
+             setVibranceValue(value);
+             applyFilterValue('Vibrance', 'vibrance', value);
+        } else if (type === 'Pixelate') {
+             setPixelateValue(value);
+             applyFilterValue('Pixelate', 'blocksize', value);
+        }
+
+        img.applyFilters();
+        canvas.requestRenderAll();
+    };
+
+    const toggleMaskInvert = () => {
+        if (!selectedObject || !selectedObject.clipPath || !canvas) return;
+        const mask = selectedObject.clipPath;
+        // @ts-ignore
+        mask.inverted = !mask.inverted;
+        // @ts-ignore
+        setMaskInverted(mask.inverted);
+        mask.dirty = true;
+        selectedObject.dirty = true;
+        canvas.requestRenderAll();
+    };
+
+    // --- MASKING ---
+    const createMask = () => {
+        if (!canvas) return;
+
+        // Check if we are in 'pending mask' mode (2 items selected)
+        if (maskCandidate && selectedObject) {
+             const bottom = selectedObject;
+             const top = maskCandidate;
+             
+             // Ungroup if needed
+             canvas.discardActiveObject();
+             
+             // Apply Mask
+             bottom.set('clipPath', top);
+             canvas.remove(top);
+             // @ts-ignore
+             top.absolutePositioned = true;
+             
+             bottom.set('dirty', true);
+             canvas.requestRenderAll();
+             
+             // Reset candidates/selection
+             canvas.setActiveObject(bottom);
+             setSelectedObject(bottom);
+             setMaskCandidate(null);
+             return;
+        }
+        
+        const activeObjects = canvas.getActiveObjects();
+
+        if (activeObjects.length !== 2) {
+            alert(`Create Mask Failed: Please select exactly 2 objects. Currently selected: ${activeObjects.length}. Object Type: ${canvas.getActiveObject()?.type}`);
+            return;
+        }
+
+        const bottom = activeObjects[0];
+        const top = activeObjects[1];
+
+        // 1. Ungroup (Restore objects to canvas coordinates)
+        canvas.discardActiveObject();
+        
+        // 2. Set the top object as the clipPath of the bottom object
+        // 'top' now has canvas-relative coordinates because we ungrouped
+        bottom.set('clipPath', top);
+        
+        // 3. Remove the mask object from the canvas (it's now part of the bottom object)
+        canvas.remove(top);
+        
+        // 4. Ensure the mask tends to use absolute coordinates (canvas coordinates) 
+        // instead of being relative to the object center
+        // @ts-ignore
+        top.absolutePositioned = true;
+        
+        bottom.set('dirty', true);
+        canvas.requestRenderAll();
+        
+        // 5. Select the masked object to show updated state
+        canvas.setActiveObject(bottom);
+        setSelectedObject(bottom);
+    };
+
+    const releaseMask = () => {
+        if (!selectedObject || !selectedObject.clipPath || !canvas) return;
+        
+        const mask = selectedObject.clipPath;
+        
+        // We move the mask back to the canvas as a regular object
+        // We need to clone it because clipPath object instance handling can be tricky if reused
+        
+        mask.clone().then((cloned: fabric.Object) => {
+             // Restore properties if needed
+             // If absolutePositioned was true, coords are global.
+             // If false, they were relative.
+             
+             // If it was absolute, we just add it.
+             canvas.add(cloned);
+             
+             if (mask.absolutePositioned) {
+                 cloned.set({
+                     left: mask.left,
+                     top: mask.top,
+                     scaleX: mask.scaleX,
+                     scaleY: mask.scaleY,
+                     angle: mask.angle
+                 });
+             } else {
+                 // Convert relative to absolute? Complex.
+                 // For now assume we always used absolutePositioned = true
+                 // But if we want to be safe, center it on object.
+                 cloned.set({
+                     left: selectedObject.left,
+                     top: selectedObject.top
+                 });
+             }
+             
+             selectedObject.set('clipPath', undefined);
+             selectedObject.set('dirty', true);
+             canvas.requestRenderAll();
+        });
+    };
+
     const deleteLayer = (obj: fabric.Object) => {
         if (!canvas) return;
         canvas.remove(obj);
@@ -780,6 +1070,38 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         );
     }
 
+    const isMultipleSelection = selectedObject && (selectedObject.type === 'activeSelection' || selectedObject.type === 'group');
+
+    // Force single view if mask candidate is present
+    if (isMultipleSelection && !maskCandidate) {
+        return (
+            <div className="flex flex-col h-full bg-card">
+                 <div className="p-4 border-b border-border/50 bg-secondary/10">
+                    <h2 className="font-semibold text-sm tracking-tight text-foreground/90 uppercase flex items-center gap-2">
+                        Multiple Selection
+                    </h2>
+                </div>
+                <div className="p-4 space-y-6">
+                     <div className="bg-secondary/20 p-4 rounded-lg border border-border/50 text-center">
+                         <p className="text-xs text-muted-foreground mb-4">
+                             {(selectedObject as any)._objects?.length || (selectedObject as any).getObjects?.()?.length || 0} objects selected
+                         </p>
+                         
+                         <button
+                            onClick={createMask}
+                            className="w-full py-2 bg-primary text-primary-foreground rounded-md text-xs font-medium mb-2 hover:bg-primary/90 transition-all"
+                         >
+                            Create Mask
+                         </button>
+                         <p className="text-[10px] text-muted-foreground leading-relaxed">
+                             Uses the top object as a mask for the bottom object. Only works with 2 objects selected.
+                         </p>
+                     </div>
+                </div>
+            </div>
+        );
+    }
+
     if (!selectedObject) {
         // Show Canvas Settings
         return (
@@ -863,12 +1185,31 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         <div className="flex flex-col h-full bg-card">
             {/* Header */}
             <div className="p-4 border-b border-border/50 bg-secondary/10">
-                <h2 className="font-semibold text-sm tracking-tight text-foreground/90 uppercase">
-                    {selectedObject.type} Properties
+                <h2 className="font-semibold text-sm tracking-tight text-foreground/90 uppercase inline-flex items-center gap-2">
+                    {selectedObject.type} Properties 
+                    {maskCandidate && <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] rounded-full">Mask Mode</span>}
                 </h2>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-8">
+                {/* Pending Mask Creation Action */}
+                {maskCandidate && (
+                    <div className="bg-primary/10 p-3 rounded-lg border border-primary/20 animate-in fade-in slide-in-from-top-2">
+                         <div className="flex justify-between items-center mb-2">
+                            <label className="text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-2">
+                                <Blend size={12} /> Masking Available
+                            </label>
+                            <span className="text-[10px] text-muted-foreground">Top object will mask Bottom</span>
+                         </div>
+                         <button
+                            onClick={createMask}
+                            className="w-full py-2 bg-primary text-primary-foreground rounded-md text-xs font-medium hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
+                         >
+                            Apply Mask
+                         </button>
+                    </div>
+                )}
+
                 {/* Fill / Gradient Section */}
                 <div className="space-y-3">
                     <div className="flex justify-between items-center">
@@ -1026,6 +1367,248 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                             className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
                         />
                     </div>
+                </div>
+
+                {/* Blending Mode */}
+                <div className="space-y-3">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                        <Blend size={12} /> Blending Mode
+                    </label>
+                    <select
+                        value={blendMode}
+                        onChange={(e) => updateBlendMode(e.target.value)}
+                        className="w-full bg-secondary/50 border border-border rounded-md px-2 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    >
+                        <option value="source-over">Normal</option>
+                        <option value="multiply">Multiply</option>
+                        <option value="screen">Screen</option>
+                        <option value="overlay">Overlay</option>
+                        <option value="darken">Darken</option>
+                        <option value="lighten">Lighten</option>
+                        <option value="color-dodge">Color Dodge</option>
+                        <option value="color-burn">Color Burn</option>
+                        <option value="hard-light">Hard Light</option>
+                        <option value="soft-light">Soft Light</option>
+                        <option value="difference">Difference</option>
+                        <option value="exclusion">Exclusion</option>
+                        <option value="hue">Hue</option>
+                        <option value="saturation">Saturation</option>
+                        <option value="color">Color</option>
+                        <option value="luminosity">Luminosity</option>
+                    </select>
+                </div>
+
+                {/* Effects Section */}
+                <div className="space-y-4 pt-4 border-t border-border/50">
+                    <h3 className="font-semibold text-sm tracking-tight text-foreground/90 uppercase flex items-center gap-2">
+                        <Wand2 size={14} /> Effects
+                    </h3>
+                    
+                    {/* Shadow Effect */}
+                    <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 space-y-3">
+                        <div className="flex items-center justify-between">
+                             <div className="flex items-center gap-2">
+                                <label className="text-xs font-medium text-foreground">Drop Shadow</label>
+                             </div>
+                             <input 
+                                type="checkbox"
+                                checked={shadowEnabled}
+                                onChange={(e) => toggleShadow(e.target.checked)}
+                                className="accent-primary w-4 h-4 cursor-pointer"
+                             />
+                        </div>
+                        
+                        {shadowEnabled && (
+                            <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                                        <span>Color</span>
+                                    </div>
+                                    <div className="relative h-6 w-full rounded border border-border flex items-center px-1 bg-background">
+                                        <div className="w-full h-4 rounded-sm border shadow-sm" style={{ backgroundColor: shadowColor }} />
+                                        <input 
+                                            type="color"
+                                            value={shadowColor}
+                                            onChange={(e) => updateShadowProp('color', e.target.value)}
+                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                        <span>Blur</span>
+                                        <span>{shadowBlur}</span>
+                                    </div>
+                                    <input 
+                                        type="range" min="0" max="50" value={shadowBlur} 
+                                        onChange={(e) => updateShadowProp('blur', parseInt(e.target.value))}
+                                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                            <span>Offset X</span>
+                                            <span>{shadowOffsetX}</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="-50" max="50" value={shadowOffsetX} 
+                                            onChange={(e) => updateShadowProp('offsetX', parseInt(e.target.value))}
+                                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                            <span>Offset Y</span>
+                                            <span>{shadowOffsetY}</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="-50" max="50" value={shadowOffsetY} 
+                                            onChange={(e) => updateShadowProp('offsetY', parseInt(e.target.value))}
+                                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Image Filters (Only for Images) */}
+                    {selectedObject.type === 'image' && (
+                        <div className="space-y-3">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Image Filters</label>
+                            
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 space-y-4">
+                                {/* Blur */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                        <span>Blur</span>
+                                        <span>{Math.round(blurValue * 100)}%</span>
+                                    </div>
+                                    <input 
+                                        type="range" min="0" max="1" step="0.01" value={blurValue} 
+                                        onChange={(e) => updateImageFilter('Blur', parseFloat(e.target.value))}
+                                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+
+                                {/* Brightness */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                        <span>Brightness</span>
+                                        <span>{Math.round(brightnessValue * 100)}%</span>
+                                    </div>
+                                    <input 
+                                        type="range" min="-1" max="1" step="0.01" value={brightnessValue} 
+                                        onChange={(e) => updateImageFilter('Brightness', parseFloat(e.target.value))}
+                                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+
+                                {/* Contrast */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                        <span>Contrast</span>
+                                        <span>{Math.round(contrastValue * 100)}%</span>
+                                    </div>
+                                    <input 
+                                        type="range" min="-1" max="1" step="0.01" value={contrastValue} 
+                                        onChange={(e) => updateImageFilter('Contrast', parseFloat(e.target.value))}
+                                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+
+                                {/* Saturation and Vibrance */}
+                                <div className="space-y-3">
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                            <span>Saturation</span>
+                                            <span>{Math.round(saturationValue * 100)}%</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="-1" max="1" step="0.01" value={saturationValue} 
+                                            onChange={(e) => updateImageFilter('Saturation', parseFloat(e.target.value))}
+                                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                    
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                            <span>Vibrance</span>
+                                            <span>{Math.round(vibranceValue * 100)}%</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="-1" max="1" step="0.01" value={vibranceValue} 
+                                            onChange={(e) => updateImageFilter('Vibrance', parseFloat(e.target.value))}
+                                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Noise */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                        <span>Noise</span>
+                                        <span>{noiseValue}</span>
+                                    </div>
+                                    <input 
+                                        type="range" min="0" max="1000" step="10" value={noiseValue} 
+                                        onChange={(e) => updateImageFilter('Noise', parseInt(e.target.value))}
+                                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+                                
+                                {/* Pixelate */}
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                        <span>Pixelate</span>
+                                        <span>{pixelateValue}</span>
+                                    </div>
+                                    <input 
+                                        type="range" min="0" max="20" step="1" value={pixelateValue} 
+                                        onChange={(e) => updateImageFilter('Pixelate', parseInt(e.target.value))}
+                                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Masking Release */}
+                    {selectedObject.clipPath && (
+                         <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 transition-all hover:bg-secondary/30 mt-4">
+                             <div className="flex justify-between items-center mb-2">
+                                 <label className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                                     <ArrowLeftRight size={12} className="text-primary" /> Masking
+                                 </label>
+                             </div>
+                             <p className="text-[10px] text-muted-foreground mb-3">
+                                 This object is currently masked by another shape.
+                             </p>
+                             
+                             <div className="flex items-center gap-2 mb-3">
+                                <input 
+                                    type="checkbox" 
+                                    id="invertMask"
+                                    checked={maskInverted}
+                                    onChange={toggleMaskInvert}
+                                    className="accent-primary w-3.5 h-3.5 cursor-pointer"
+                                />
+                                <label htmlFor="invertMask" className="text-[10px] text-foreground cursor-pointer select-none">
+                                    Invert Mask
+                                </label>
+                             </div>
+
+                             <button 
+                                onClick={releaseMask}
+                                className="w-full text-xs font-medium bg-destructive/10 text-destructive px-3 py-2 rounded-md hover:bg-destructive/20 border border-destructive/20 flex items-center justify-center gap-2 transition-colors"
+                             >
+                                <Trash2 size={12} /> Release Mask
+                             </button>
+                         </div>
+                    )}
                 </div>
 
                 {/* Effects Section (Stroke, Shadow, Skew) */}

@@ -112,6 +112,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="properties" title="Properties & Layers">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Edit fill, gradients, opacity, stroke, shadows, skew, curved text, and star parameters depending on selection.</li>
+                                <li><span className="font-medium">Masking:</span> Select two overlapping objects to activate Mask Mode. The top object (mask) clips the bottom object (content). Use the "Masking Available" banner to apply or invert the mask.</li>
                                 <li>Adjust canvas size, background colour, and export-safe artboard settings under Canvas Controls.</li>
                                 <li>Layer list supports drag-and-drop reordering, visibility toggles, colour tagging, renaming, and deletion.</li>
                                 <li>Double-click a layer grip to assign custom colour tags for quick visual grouping.</li>
