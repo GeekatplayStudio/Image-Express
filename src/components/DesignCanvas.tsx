@@ -6,9 +6,11 @@ interface DesignCanvasProps {
   onCanvasReady: (canvas: fabric.Canvas) => void;
   onModified?: () => void;
   onRightClick?: (e: MouseEvent) => void;
+  initialWidth?: number;
+  initialHeight?: number;
 }
 
-export default function DesignCanvas({ onCanvasReady, onModified, onRightClick }: DesignCanvasProps) {
+export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, initialWidth = 1080, initialHeight = 1080 }: DesignCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
@@ -23,8 +25,8 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick }
     const container = containerRef.current;
     
     // Config
-    const DESIGN_WIDTH = 1080;
-    const DESIGN_HEIGHT = 1080;
+    const DESIGN_WIDTH = initialWidth;
+    const DESIGN_HEIGHT = initialHeight;
 
     const canvas = new CanvasClass(canvasRef.current, {
       width: container.clientWidth,
@@ -37,8 +39,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick }
     });
     
     // Attach custom property to canvas for other components to know the "Page" dimensions
-    // @ts-ignore
-    canvas.artboard = { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
+    (canvas as fabric.Canvas & { artboard: { width: number; height: number; left: number; top: number } }).artboard = { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
 
     // --- Create Artboard (The White Page) ---
     const artboard = new fabric.Rect({
@@ -76,10 +77,14 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick }
     let isFirstResize = true;
     const resizeObserver = new ResizeObserver(() => {
         if (!container) return;
-        const w = container.clientWidth;
-        const h = container.clientHeight;
+        // Use getBoundingClientRect for sub-pixel precision to avoid 1px gaps/clipping
+        const rect = container.getBoundingClientRect();
+        // Use ceil to ensure we cover the sub-pixel gap. Overflow hidden on container will handle clipping.
+        const w = Math.ceil(rect.width);
+        const h = Math.ceil(rect.height);
         
         canvas.setDimensions({ width: w, height: h });
+        canvas.calcOffset(); // Recalculate offsets to ensure pointer events map correctly
         
         // Only center on the very first resize detection to avoid jarring resets
         // Note: Fabric canvas init might happen before this observer fires depending on React timing
@@ -100,10 +105,14 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick }
     canvas.on('mouse:wheel', (opt) => {
         // Enforce full-size canvas during zoom interaction to prevent clipping drift
         if (container) {
-             const vw = container.clientWidth;
-             const vh = container.clientHeight;
-             if (canvas.width !== vw || canvas.height !== vh) {
-                 canvas.setDimensions({ width: vw, height: vh });
+             const rect = container.getBoundingClientRect();
+             const w = Math.ceil(rect.width);
+             const h = Math.ceil(rect.height);
+             
+             // Only update if actually changed to avoid thrashing
+             if (canvas.width !== w || canvas.height !== h) {
+                canvas.setDimensions({ width: w, height: h });
+                canvas.calcOffset();
              }
         }
 
@@ -221,7 +230,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick }
       canvas.dispose();
       resizeObserver.disconnect();
     };
-  }, [onRightClick]); // Add onRightClick dependence to ensure latest handler is used
+  }, [onRightClick, onCanvasReady, onModified, initialWidth, initialHeight]);
 
   return (
     <div ref={containerRef} className="w-full h-full bg-[#1E1E1E] relative overflow-hidden block">

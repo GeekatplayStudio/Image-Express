@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import DesignCanvas from '@/components/DesignCanvas';
 import Toolbar from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
@@ -25,6 +25,7 @@ interface MissingItem {
 interface EditorViewProps {
     initialDesign: any | null;
     initialTemplateJsonUrl: string | null;
+    initialSize?: { width: number, height: number } | null;
     user: string;
     onBack: () => void;
     onLogout: () => void;
@@ -39,6 +40,7 @@ type PanelMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' 
 export default function EditorView({ 
     initialDesign, 
     initialTemplateJsonUrl,
+    initialSize,
     user, 
     onBack,
     onLogout,
@@ -53,6 +55,8 @@ export default function EditorView({
     const [activeTool, setActiveTool] = useState<string>('select');
     const [zoom, setZoom] = useState(1);
     const [isDirty, setIsDirty] = useState(false);
+
+    const handleCanvasModified = useCallback(() => setIsDirty(true), []);
 
     // Panel State
     const [panelState, setPanelState] = useState<{
@@ -727,7 +731,7 @@ export default function EditorView({
                  <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
                         <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center">
-                          <span className="font-bold text-white text-lg">IE</span>
+                          <span className="font-bold text-white text-lg">iEX</span>
                         </div>
                         <span className="font-bold text-lg hidden lg:block bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500">
                           {propDesignName || 'Explorer'}
@@ -979,7 +983,12 @@ export default function EditorView({
                                 onClose={() => { setActiveTool('select'); setInitialImageFor3D(undefined); setSourceObjectFor3D(null); }} 
                             />
                         )}
-                        <DesignCanvas onCanvasReady={setCanvas} onModified={() => setIsDirty(true)} />
+                        <DesignCanvas 
+                            onCanvasReady={setCanvas} 
+                            onModified={handleCanvasModified}
+                            initialWidth={initialSize?.width}
+                            initialHeight={initialSize?.height}
+                        />
                    </div>
                    
                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-popover/90 backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-border/50 z-20 transform hover:-translate-y-1 transition-transform duration-300">

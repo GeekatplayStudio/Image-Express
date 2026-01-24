@@ -25,6 +25,7 @@ export default function Home() {
   // Pending Load State (from Dashboard selection)
   const [pendingDesignToLoad, setPendingDesignToLoad] = useState<Record<string, unknown> | null>(null);
   const [pendingTemplateJsonUrl, setPendingTemplateJsonUrl] = useState<string | null>(null);
+  const [pendingDesignSize, setPendingDesignSize] = useState<{width: number, height: number} | null>(null);
   const [showDocumentation, setShowDocumentation] = useState(false);
 
   // Auth Effects
@@ -90,6 +91,51 @@ export default function Home() {
     setPendingTemplateJsonUrl(null);
   };
 
+  // Inactivity Timeout (30 mins) - Server/Web Only
+  useEffect(() => {
+    // Skip if Desktop App, or Guest (not logged in), or Login Modal is already showing
+    if (isDesktopApp || username === 'Guest' || showLoginModal) {
+      return;
+    }
+
+    const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+    let timeoutId: NodeJS.Timeout;
+
+    const performLogout = () => {
+       console.log("User inactive for 30mins, logging out...");
+       handleLogout();
+       alert("Session expired due to inactivity.");
+    };
+
+    const resetTimer = () => {
+       if (timeoutId) clearTimeout(timeoutId);
+       timeoutId = setTimeout(performLogout, TIMEOUT_MS);
+    };
+
+    // Events to track
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+    
+    // Throttled handler
+    let lastReset = 0;
+    const handleActivity = () => {
+        const now = Date.now();
+        // Limit resets to once per second
+        if (now - lastReset > 1000) {
+            resetTimer();
+            lastReset = now;
+        }
+    };
+
+    // Init
+    resetTimer();
+    events.forEach(evt => window.addEventListener(evt, handleActivity));
+
+    return () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        events.forEach(evt => window.removeEventListener(evt, handleActivity));
+    };
+  }, [isDesktopApp, username, showLoginModal]);
+
   // Render
     if (currentView === 'editor') {
       return (
@@ -97,6 +143,7 @@ export default function Home() {
           <EditorView 
           initialDesign={pendingDesignToLoad}
           initialTemplateJsonUrl={pendingTemplateJsonUrl}
+          initialSize={pendingDesignSize}
           user={username}
           onBack={() => {
             setCurrentView('dashboard');
@@ -126,7 +173,7 @@ export default function Home() {
         <div className="flex items-center gap-6">
            <div className="flex items-center gap-2">
                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center">
-                 <span className="font-bold text-white text-lg">IE</span>
+                 <span className="font-bold text-white text-lg">iEX</span>
                </div>
                <span className="font-bold text-lg hidden lg:block bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500">
                  Image Express
@@ -174,15 +221,22 @@ export default function Home() {
                   setCurrentDesignName('Untitled Design');
                   setPendingDesignToLoad(null);
                   setPendingTemplateJsonUrl(null);
+                  setPendingDesignSize(null);
                   setCurrentView('editor');
               }}
               onSelectTemplate={(t) => {
                   console.log("Loading template", t);
+                  setPendingDesignToLoad(null);
+                  
                   if (t.jsonUrl) {
-                      setPendingDesignToLoad(null);
                       setPendingTemplateJsonUrl(t.jsonUrl);
-                      setCurrentDesignName(t.name || 'Untitled Template');
+                      setPendingDesignSize(null);
+                  } else if (t.width && t.height) {
+                      setPendingTemplateJsonUrl(null);
+                      setPendingDesignSize({ width: t.width, height: t.height });
                   }
+                  
+                  setCurrentDesignName(t.name || 'Untitled Template');
                   setCurrentView('editor'); 
               }}
               onOpenDesign={(d) => {
