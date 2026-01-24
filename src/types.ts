@@ -16,6 +16,15 @@ export interface ThreeDImage extends fabric.Image {
     modelUrl?: string;
 }
 
+export interface ExtendedFabricObject extends fabric.Object {
+    id?: string;
+    name?: string;
+    layerTagColor?: string;
+    curveStrength?: number;
+    // absolutePositioned removed as it conflicts with base
+    cacheKey?: string;
+}
+
 export interface CanvasElement {
     id: string;
     type: 'text' | 'image' | 'rect';

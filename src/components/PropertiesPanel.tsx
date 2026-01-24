@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
-import { StarPolygon } from '@/types';
-import { ArrowUp, ArrowDown, Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight, Blend, Wand2, Plus, X } from 'lucide-react';
+import { StarPolygon, ExtendedFabricObject } from '@/types';
+import { Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight, Blend, Wand2 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -19,8 +19,20 @@ interface PropertiesPanelProps {
     onLayerDblClick?: () => void;
 }
 
+interface SortableLayerItemProps {
+    obj: fabric.Object;
+    index: number;
+    selectedObject: fabric.Object | null;
+    selectLayer: (obj: fabric.Object) => void;
+    toggleVisibility: (obj: fabric.Object) => void;
+    deleteLayer: (obj: fabric.Object) => void;
+    total: number;
+    onDblClick?: () => void;
+}
+
 // Sortable Layer Item Component
-function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisibility, deleteLayer, total, onDblClick }: any) {
+function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisibility, deleteLayer, total, onDblClick }: SortableLayerItemProps) {
+    const extendedObj = obj as ExtendedFabricObject;
     const {
         attributes,
         listeners,
@@ -28,17 +40,17 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
         transform,
         transition,
         isDragging
-    } = useSortable({ id: (obj as any).id || (obj as any).cacheKey || `obj-${index}` });
+    } = useSortable({ id: extendedObj.id || extendedObj.cacheKey || `obj-${index}` });
 
     const [isEditing, setIsEditing] = useState(false);
-    const [name, setName] = useState(obj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')));
+    const [name, setName] = useState(extendedObj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')));
     // Use fill as color, defaulting to transparent or black if complex
     const [layerColor, setLayerColor] = useState(() => {
          if (typeof obj.fill === 'string') return obj.fill;
          return '#000000';
     });
     // Layer Tag Color (Grab Area)
-    const [tagColor, setTagColor] = useState(obj.layerTagColor || 'transparent');
+    const [tagColor, setTagColor] = useState(extendedObj.layerTagColor || 'transparent');
     const tagColorInputRef = useRef<HTMLInputElement>(null);
 
     const style = {
@@ -66,7 +78,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
     const handleTagColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newColor = e.target.value;
         setTagColor(newColor);
-        obj.set('layerTagColor', newColor);
+        extendedObj.set('layerTagColor', newColor);
         // We don't need re-render canvas for this usually, but to be safe if we serialize later
     };
 
@@ -75,7 +87,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
             ref={setNodeRef} 
             style={style} 
             onClick={() => selectLayer(obj)}
-            onDoubleClick={(e) => {
+            onDoubleClick={() => {
                  // Propagate double click to switch view
                  // Don't stop propagation if we hit inner elements like name edit
                  // But wait, name edit has stopPropagation.
@@ -149,7 +161,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                                 if (e.key === 'Enter') handleNameSave();
                                 if (e.key === 'Escape') {
                                     setIsEditing(false);
-                                    setName(obj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')));
+                                    setName((obj as ExtendedFabricObject).name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')));
                                 }
                             }}
                             onClick={(e) => e.stopPropagation()}
@@ -164,7 +176,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                             }}
                             title="Double click to rename"
                         >
-                            {obj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object'))}
+                            {(obj as ExtendedFabricObject).name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object'))}
                         </span>
                     )}
                     <span className="text-[10px] text-muted-foreground">Layer {total - index}</span>
@@ -254,11 +266,13 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
 
     useEffect(() => {
         if (canvas) {
-            // Read Logical Width (Zoom-independent)
-            const zoom = canvas.getZoom();
-            setCanvasWidth((canvas.width || 1080) / zoom);
-            setCanvasHeight((canvas.height || 1080) / zoom);
-            setCanvasColor(canvas.backgroundColor as string || '#ffffff');
+            requestAnimationFrame(() => {
+                // Read Logical Width (Zoom-independent)
+                const zoom = canvas.getZoom();
+                setCanvasWidth((canvas.width || 1080) / zoom);
+                setCanvasHeight((canvas.height || 1080) / zoom);
+                setCanvasColor(canvas.backgroundColor as string || '#ffffff');
+            });
         }
     }, [canvas]);
 
@@ -268,8 +282,9 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         const updateObjects = () => {
             const objs = canvas.getObjects();
             objs.forEach((obj, i) => {
-                if (!(obj as any).id) {
-                    (obj as any).id = `obj-${Date.now()}-${i}`;
+                const extendedObj = obj as ExtendedFabricObject;
+                if (!extendedObj.id) {
+                    extendedObj.id = `obj-${Date.now()}-${i}`;
                 }
             });
             setObjects([...objs.reverse()]); // Reverse to show top layer first
@@ -278,7 +293,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         // Initial load
         updateObjects();
 
-const handleSelection = (e: any = null) => {
+        const handleSelection = (e: { selected?: fabric.Object[] } = {}) => {
             const selection = canvas.getActiveObject();
             const activeObjects = (e && e.selected) ? e.selected : (canvas.getActiveObjects() || []);
 
@@ -290,7 +305,7 @@ const handleSelection = (e: any = null) => {
                 const allObjects = canvas.getObjects();
                 
                 // Sort by Z-Index (ascending: 0=Bottom, N=Top)
-                const sorted = [...activeObjects].sort((a: any, b: any) => {
+                const sorted = [...activeObjects].sort((a, b) => {
                     const idxA = allObjects.indexOf(a);
                     const idxB = allObjects.indexOf(b);
                     if (idxA === -1) return 1;
@@ -322,17 +337,18 @@ const handleSelection = (e: any = null) => {
                 if (typeof fill === 'string') {
                     setIsGradient(false);
                     setColor(fill);
-                } else if (fill && typeof fill === 'object' && (fill as any).type === 'linear') {
+                } else if (fill && typeof fill === 'object' && (fill as fabric.Gradient<'linear'>).type === 'linear') {
                     setIsGradient(true);
                     // Extract colors (approximate for UI)
-                    const stops = (fill as any).colorStops || [];
+                    const gradient = fill as fabric.Gradient<'linear'>;
+                    const stops = gradient.colorStops || [];
                     if (stops.length >= 2) {
                         setGradientStart(stops[0].color);
                         setGradientEnd(stops[stops.length - 1].color);
                     }
                     
                     // Estimate Angle from coords
-                    const c = (fill as any).coords || { x1: 0, y1: 0, x2: 1, y2: 0 };
+                    const c = gradient.coords || { x1: 0, y1: 0, x2: 1, y2: 0 };
                     const dx = c.x2 - c.x1;
                     const dy = c.y2 - c.y1;
                     let angle = Math.atan2(dy, dx) * (180 / Math.PI);
@@ -349,8 +365,9 @@ const handleSelection = (e: any = null) => {
                 
                 // Read Masking State
                 if (availableTarget.clipPath) {
-                    // @ts-ignore
-                    setMaskInverted(availableTarget.clipPath.inverted || false);
+                    // fabric.Object does not technically expose 'inverted' in typings sometimes, check casting
+                    const clip = availableTarget.clipPath as fabric.Object & { inverted?: boolean };
+                    setMaskInverted(clip.inverted || false);
                 } else {
                     setMaskInverted(false);
                 }
@@ -359,8 +376,8 @@ const handleSelection = (e: any = null) => {
                 // Check if path exists (Curved Text)
                 // Fabric stores 'path' object on text
                 const path = availableTarget.get('path') as fabric.Path;
-                if (path && (availableTarget as any).curveStrength !== undefined) {
-                     setCurveStrength((availableTarget as any).curveStrength);
+                if (path && (availableTarget as ExtendedFabricObject).curveStrength !== undefined) {
+                     setCurveStrength((availableTarget as ExtendedFabricObject).curveStrength || 0);
                 } else {
                      setCurveStrength(0);
                 }
@@ -406,20 +423,14 @@ const handleSelection = (e: any = null) => {
                         img.filters.forEach(filter => {
                             if (!filter) return;
                             const type = filter.type;
-                            // @ts-ignore
-                            if (type === 'Blur') setBlurValue(filter.blur || 0);
-                            // @ts-ignore
-                            if (type === 'Brightness') setBrightnessValue(filter.brightness || 0);
-                            // @ts-ignore
-                            if (type === 'Contrast') setContrastValue(filter.contrast || 0);
-                            // @ts-ignore
-                            if (type === 'Noise') setNoiseValue(filter.noise || 0);
-                            // @ts-ignore
-                            if (type === 'Saturation') setSaturationValue(filter.saturation || 0);
-                             // @ts-ignore
-                            if (type === 'Vibrance') setVibranceValue(filter.vibrance || 0);
-                            // @ts-ignore
-                            if (type === 'Pixelate') setPixelateValue(filter.blocksize || 0);
+                            
+                            if (type === 'Blur') setBlurValue((filter as { blur?: number }).blur || 0);
+                            if (type === 'Brightness') setBrightnessValue((filter as { brightness?: number }).brightness || 0);
+                            if (type === 'Contrast') setContrastValue((filter as { contrast?: number }).contrast || 0);
+                            if (type === 'Noise') setNoiseValue((filter as { noise?: number }).noise || 0);
+                            if (type === 'Saturation') setSaturationValue((filter as { saturation?: number }).saturation || 0);
+                            if (type === 'Vibrance') setVibranceValue((filter as { vibrance?: number }).vibrance || 0);
+                            if (type === 'Pixelate') setPixelateValue((filter as { blocksize?: number }).blocksize || 0);
                         });
                     }
                 }
@@ -484,7 +495,7 @@ const handleSelection = (e: any = null) => {
 
          if (selectedObject && canvas) {
              // Calculate Coords based on Angle
-             let coords: any = { x1: 0, y1: 0, x2: 1, y2: 0 };
+             let coords: Record<string, number> = { x1: 0, y1: 0, x2: 1, y2: 0 };
              
              if (type === 'linear') {
                 const rad = angle * (Math.PI / 180);
@@ -607,7 +618,7 @@ const handleSelection = (e: any = null) => {
          const textObj = selectedObject as fabric.IText;
          setCurveStrength(strength);
          // Store strength for UI consistency
-         (textObj as any).curveStrength = strength;
+         (textObj as ExtendedFabricObject).set({ curveStrength: strength });
 
          if (strength === 0) {
              textObj.set('path', null);
@@ -693,10 +704,12 @@ const handleSelection = (e: any = null) => {
         selectedObject.canvas?.requestRenderAll();
     };
 
-    const updateShadowProp = (prop: string, value: any) => {
-        if (!selectedObject) return;
+    const updateShadowProp = (prop: string, value: string | number) => {
+        // Retrieve fresh reference from canvas to avoid linting "state mutation" errors
+        const activeObject = canvas?.getActiveObject();
+        if (!activeObject) return;
         
-        let shadow = selectedObject.shadow as fabric.Shadow;
+        let shadow = activeObject.shadow as fabric.Shadow;
         
         if (!shadow) {
             // Create if missing (e.g. user drags slider before checking box)
@@ -707,37 +720,39 @@ const handleSelection = (e: any = null) => {
                 offsetX: shadowOffsetX,
                 offsetY: shadowOffsetY
             });
-            selectedObject.set('shadow', shadow);
+            activeObject.set('shadow', shadow);
         }
 
-        if (prop === 'color') { 
+        if (prop === 'color' && typeof value === 'string') { 
             setShadowColor(value);
             shadow.color = value;
         }
         if (prop === 'blur') {
-            setShadowBlur(value);
-            shadow.blur = value;
+            const val = typeof value === 'number' ? value : Number(value);
+            setShadowBlur(val);
+            shadow.blur = val;
         }
         if (prop === 'offsetX') {
-            setShadowOffsetX(value);
-            shadow.offsetX = value;
+            const val = typeof value === 'number' ? value : Number(value);
+            setShadowOffsetX(val);
+            shadow.offsetX = val;
         }
         if (prop === 'offsetY') {
-             setShadowOffsetY(value);
-             shadow.offsetY = value;
+            const val = typeof value === 'number' ? value : Number(value);
+             setShadowOffsetY(val);
+             shadow.offsetY = val;
         }
         
         // Fabric doesn't always auto-detect deep property change on shadow
         // So we reset it or mark dirty
-        selectedObject.set('dirty', true);
-        selectedObject.canvas?.requestRenderAll();
+        activeObject.set('dirty', true);
+        canvas?.requestRenderAll();
     };
 
     const updateBlendMode = (mode: string) => {
         setBlendMode(mode);
         if (selectedObject && canvas) {
-            // @ts-ignore - globalCompositeOperation is valid but sometimes typed strictly
-            selectedObject.globalCompositeOperation = mode;
+            selectedObject.set('globalCompositeOperation', mode);
             // Force re-render of key things
             selectedObject.set('dirty', true);
             canvas.requestRenderAll();
@@ -745,84 +760,77 @@ const handleSelection = (e: any = null) => {
     };
 
     const updateImageFilter = (type: string, value: number) => {
-        if (!selectedObject || selectedObject.type !== 'image' || !canvas) return;
-        const img = selectedObject as fabric.Image;
+        // Retrieve fresh reference from canvas to avoid linting "state mutation" errors
+        const activeObject = canvas?.getActiveObject();
+        if (!activeObject || activeObject.type !== 'image') return;
+        
+        const img = activeObject as fabric.Image;
 
-        const applyFilterValue = (filterType: string, prop: string, val: number) => {
-             // Fabric filters array
-             if (!img.filters) img.filters = [];
-             
-             // Find existing
-             const idx = img.filters.findIndex(f => f && f.type === filterType);
-             
-             // If value effectively disables the filter (usually 0), remove it
-             // Exceptions: Pixelate (min blocksize usually 2 or something, 0 might crash or mean disabled)
-             // Brightness/Contrast 0 means no change.
-             // Noise 0 means no change.
-             // Blur 0 means no change.
-             
-             let shouldRemove = false;
-             if (filterType !== 'Pixelate' && val === 0) shouldRemove = true;
-             // Pixelate needs > 1 to be visible usually. If < 2 remove.
-             if (filterType === 'Pixelate' && val < 2) shouldRemove = true;
-             
-             if (shouldRemove) {
-                 if (idx > -1) {
-                     img.filters.splice(idx, 1);
-                 }
-             } else {
-                 if (idx > -1) {
-                     // Update
-                     // @ts-ignore
-                     img.filters[idx][prop] = val;
-                 } else {
-                     // Add new
-                     // @ts-ignore
-                     const FilterClass = fabric.filters[filterType];
-                     if (FilterClass) {
-                         const filter = new FilterClass({ [prop]: val });
-                         img.filters.push(filter);
-                     }
-                 }
-             }
-        };
-
-        if (type === 'Blur') {
-            setBlurValue(value);
-            applyFilterValue('Blur', 'blur', value);
-        } else if (type === 'Brightness') {
-            setBrightnessValue(value);
-            applyFilterValue('Brightness', 'brightness', value);
-        } else if (type === 'Contrast') {
-            setContrastValue(value);
-            applyFilterValue('Contrast', 'contrast', value);
-        } else if (type === 'Noise') {
-             setNoiseValue(value);
-             applyFilterValue('Noise', 'noise', value);
-        } else if (type === 'Saturation') {
-             setSaturationValue(value);
-             applyFilterValue('Saturation', 'saturation', value);
-        } else if (type === 'Vibrance') {
-             setVibranceValue(value);
-             applyFilterValue('Vibrance', 'vibrance', value);
-        } else if (type === 'Pixelate') {
-             setPixelateValue(value);
-             applyFilterValue('Pixelate', 'blocksize', value);
+        // Fabric filters array
+        if (!img.filters) img.filters = [];
+        
+        // Find existing
+        const idx = img.filters.findIndex(f => f.type === type);
+        
+        let shouldRemove = false;
+        if (type !== 'Pixelate' && value === 0) shouldRemove = true;
+        if (type === 'Pixelate' && value < 2) shouldRemove = true;
+        
+        if (shouldRemove) {
+            if (idx > -1) {
+                img.filters.splice(idx, 1);
+            }
+        } else {
+            if (idx > -1) {
+                // Update
+                const filter = img.filters[idx];
+                if (type === 'Blur') (filter as unknown as { blur: number }).blur = value;
+                else if (type === 'Brightness') (filter as unknown as { brightness: number }).brightness = value;
+                else if (type === 'Contrast') (filter as unknown as { contrast: number }).contrast = value;
+                else if (type === 'Noise') (filter as unknown as { noise: number }).noise = value;
+                else if (type === 'Saturation') (filter as unknown as { saturation: number }).saturation = value;
+                else if (type === 'Vibrance') (filter as unknown as { vibrance: number }).vibrance = value;
+                else if (type === 'Pixelate') (filter as unknown as { blocksize: number }).blocksize = value;
+            } else {
+                // Add new
+                let newFilter = null;
+                // Use imported fabric namespace
+                if (type === 'Blur') newFilter = new fabric.filters.Blur({ blur: value });
+                else if (type === 'Brightness') newFilter = new fabric.filters.Brightness({ brightness: value });
+                else if (type === 'Contrast') newFilter = new fabric.filters.Contrast({ contrast: value });
+                else if (type === 'Noise') newFilter = new fabric.filters.Noise({ noise: value });
+                else if (type === 'Saturation') newFilter = new fabric.filters.Saturation({ saturation: value });
+                else if (type === 'Vibrance') newFilter = new fabric.filters.Vibrance({ vibrance: value });
+                else if (type === 'Pixelate') newFilter = new fabric.filters.Pixelate({ blocksize: value });
+                
+                if (newFilter) img.filters.push(newFilter);
+            }
         }
 
+        // Update UI State
+        if (type === 'Blur') setBlurValue(value);
+        else if (type === 'Brightness') setBrightnessValue(value);
+        else if (type === 'Contrast') setContrastValue(value);
+        else if (type === 'Noise') setNoiseValue(value);
+        else if (type === 'Saturation') setSaturationValue(value);
+        else if (type === 'Vibrance') setVibranceValue(value);
+        else if (type === 'Pixelate') setPixelateValue(value);
+
         img.applyFilters();
-        canvas.requestRenderAll();
+        canvas?.requestRenderAll();
     };
 
     const toggleMaskInvert = () => {
-        if (!selectedObject || !selectedObject.clipPath || !canvas) return;
-        const mask = selectedObject.clipPath;
-        // @ts-ignore
+        const activeObject = canvas?.getActiveObject();
+        if (!activeObject || !activeObject.clipPath || !canvas) return;
+        
+        const mask = activeObject.clipPath as fabric.Object & { inverted?: boolean };
+        
         mask.inverted = !mask.inverted;
-        // @ts-ignore
-        setMaskInverted(mask.inverted);
+        
+        setMaskInverted(mask.inverted || false);
         mask.dirty = true;
-        selectedObject.dirty = true;
+        activeObject.set('dirty', true);
         canvas.requestRenderAll();
     };
 
@@ -841,8 +849,9 @@ const handleSelection = (e: any = null) => {
              // Apply Mask
              bottom.set('clipPath', top);
              canvas.remove(top);
-             // @ts-ignore
-             top.absolutePositioned = true;
+             
+             // absolutePositioned is in standard types
+             top.set('absolutePositioned', true);
              
              bottom.set('dirty', true);
              canvas.requestRenderAll();
@@ -876,8 +885,7 @@ const handleSelection = (e: any = null) => {
         
         // 4. Ensure the mask tends to use absolute coordinates (canvas coordinates) 
         // instead of being relative to the object center
-        // @ts-ignore
-        top.absolutePositioned = true;
+        top.set('absolutePositioned', true);
         
         bottom.set('dirty', true);
         canvas.requestRenderAll();
@@ -895,14 +903,13 @@ const handleSelection = (e: any = null) => {
         // We move the mask back to the canvas as a regular object
         // We need to clone it because clipPath object instance handling can be tricky if reused
         
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mask.clone().then((cloned: any) => {
+        mask.clone().then((cloned) => {
              // Restore properties if needed
              // If absolutePositioned was true, coords are global.
              // If false, they were relative.
              
              // If it was absolute, we just add it.
-             canvas.add(cloned);
+             canvas.add(cloned as ExtendedFabricObject);
              
              if (mask.absolutePositioned) {
                  cloned.set({
@@ -972,8 +979,8 @@ const handleSelection = (e: any = null) => {
 
         if (active.id !== over?.id && canvas) {
             setObjects((items) => {
-                 const oldIndex = items.findIndex((item) => (item as any).id === active.id);
-                 const newIndex = items.findIndex((item) => (item as any).id === over?.id);
+                 const oldIndex = items.findIndex((item) => (item as ExtendedFabricObject).id === active.id);
+                 const newIndex = items.findIndex((item) => (item as ExtendedFabricObject).id === over?.id);
                  
                  // UI Array Logic (Reversed)
                  const newItems = arrayMove(items, oldIndex, newIndex);
@@ -1010,7 +1017,7 @@ const handleSelection = (e: any = null) => {
 
     const updateCanvasColor = (c: string) => {
         if(canvas) {
-            canvas.backgroundColor = c;
+            canvas.set('backgroundColor', c);
             setCanvasColor(c);
             canvas.requestRenderAll();
         }
@@ -1041,12 +1048,12 @@ const handleSelection = (e: any = null) => {
                         onDragEnd={handleDragEnd}
                     >
                          <SortableContext 
-                            items={objects.map(obj => (obj as any).id)}
+                            items={objects.map(obj => (obj as ExtendedFabricObject).id || '')}
                             strategy={verticalListSortingStrategy}
                          >
                             {objects.map((obj, index) => (
                                  <SortableLayerItem 
-                                    key={(obj as any).id}
+                                    key={(obj as ExtendedFabricObject).id || index}
                                     obj={obj}
                                     index={index}
                                     total={objects.length}
@@ -1085,7 +1092,7 @@ const handleSelection = (e: any = null) => {
                 <div className="p-4 space-y-6">
                      <div className="bg-secondary/20 p-4 rounded-lg border border-border/50 text-center">
                          <p className="text-xs text-muted-foreground mb-4">
-                             {(selectedObject as any)._objects?.length || (selectedObject as any).getObjects?.()?.length || 0} objects selected
+                             {(selectedObject as fabric.Group).getObjects().length} objects selected
                          </p>
                          
                          <button
