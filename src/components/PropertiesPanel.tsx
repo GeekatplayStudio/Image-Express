@@ -895,7 +895,8 @@ const handleSelection = (e: any = null) => {
         // We move the mask back to the canvas as a regular object
         // We need to clone it because clipPath object instance handling can be tricky if reused
         
-        mask.clone().then((cloned: fabric.Object) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mask.clone().then((cloned: any) => {
              // Restore properties if needed
              // If absolutePositioned was true, coords are global.
              // If false, they were relative.
