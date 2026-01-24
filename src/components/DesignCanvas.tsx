@@ -101,7 +101,6 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     // Responsive Resize monitoring
     // We allow auto-centering for a short window (e.g. 1 second) after mount/resize starts
     // to ensure we catch the final layout state after any sidebar animations or flex adjustments.
-    const mountTime = Date.now();
     // Track if user has manually moved/zoomed the canvas. If false, we keep auto-centering on resize.
     let hasUserInteracted = false;
 

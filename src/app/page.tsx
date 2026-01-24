@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import LoginModal from '@/components/LoginModal';
 import UserProfileModal from '@/components/UserProfileModal';
 import Dashboard from '@/components/Dashboard';
@@ -79,7 +79,7 @@ export default function Home() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('image-express-user');
     setUsername(isDesktopApp ? 'Local Desktop' : 'Guest');
     setShowProfileModal(false);
@@ -89,7 +89,7 @@ export default function Home() {
     setCurrentDesignName('Untitled Design');
     setPendingDesignToLoad(null);
     setPendingTemplateJsonUrl(null);
-  };
+  }, [isDesktopApp]);
 
   // Inactivity Timeout (30 mins) - Server/Web Only
   useEffect(() => {
@@ -134,7 +134,7 @@ export default function Home() {
         if (timeoutId) clearTimeout(timeoutId);
         events.forEach(evt => window.removeEventListener(evt, handleActivity));
     };
-  }, [isDesktopApp, username, showLoginModal]);
+  }, [isDesktopApp, username, showLoginModal, handleLogout]);
 
   // Render
     if (currentView === 'editor') {
