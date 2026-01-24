@@ -12,7 +12,8 @@ import UserProfileModal from '@/components/UserProfileModal';
 import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
-import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal } from 'lucide-react';
+import { GridOverlay, GridType } from '@/components/GridOverlay';
+import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup } from '@/types';
 
@@ -136,6 +137,8 @@ export default function EditorView({
     
     // UI States
     const [showExportMenu, setShowExportMenu] = useState(false);
+    const [showGridMenu, setShowGridMenu] = useState(false);
+    const [gridType, setGridType] = useState<GridType>('none');
     const [showSettings, setShowSettings] = useState(false);
     const [showProfileModal, setShowProfileModal] = useState(false);
     
@@ -812,6 +815,37 @@ export default function EditorView({
                         <Sparkles size={18} className={`transition-all ${isConnected ? "text-orange-500 fill-orange-500/20" : "text-muted-foreground/40"}`} />
                      </button>
                      <div className="h-6 w-px bg-border mx-1"></div>
+                     
+                     {/* Grid Menu */}
+                     <div className="relative">
+                        <button 
+                            onClick={() => setShowGridMenu(!showGridMenu)}
+                            className={`p-2 hover:bg-secondary rounded-full transition-colors ${gridType !== 'none' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                            title="Grid & Guides"
+                        >
+                            <Grid3x3 size={20} />
+                        </button>
+                        {showGridMenu && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                <button onClick={() => { setGridType('none'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'none' ? 'bg-secondary/30' : ''}`}>
+                                    <X size={16} className="text-muted-foreground"/> <span className="font-medium">None</span>
+                                </button>
+                                <button onClick={() => { setGridType('rule-of-thirds'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'rule-of-thirds' ? 'bg-secondary/30' : ''}`}>
+                                    <Grid3x3 size={16} className="text-blue-500"/> <span className="font-medium">Rule of Thirds</span>
+                                </button>
+                                <button onClick={() => { setGridType('golden-ratio'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'golden-ratio' ? 'bg-secondary/30' : ''}`}>
+                                    <LayoutGrid size={16} className="text-orange-500"/> <span className="font-medium">Golden Ratio</span>
+                                </button>
+                                <button onClick={() => { setGridType('cross'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'cross' ? 'bg-secondary/30' : ''}`}>
+                                    <CrosshairIcon size={16} className="text-red-500"/> <span className="font-medium">Center Cross</span>
+                                </button>
+                                 <button onClick={() => { setGridType('grid-4x4'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'grid-4x4' ? 'bg-secondary/30' : ''}`}>
+                                    <LayoutGrid size={16} className="text-green-500"/> <span className="font-medium">4x4 Grid</span>
+                                </button>
+                            </div>
+                        )}
+                     </div>
+
                      <button className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground">
                         <Share2 size={20} />
                      </button>
@@ -840,6 +874,7 @@ export default function EditorView({
             </header>
 
             {/* Overlays */}
+            <GridOverlay canvas={canvas} gridType={gridType} />
             <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={user} />
             <UserProfileModal 
                 isOpen={showProfileModal} 
