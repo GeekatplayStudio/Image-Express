@@ -3,6 +3,15 @@ import * as fabric from 'fabric';
 
 export type GridType = 'none' | 'rule-of-thirds' | 'golden-ratio' | 'cross' | 'grid-4x4';
 
+type ArtboardInfo = {
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+};
+
+type CanvasWithArtboard = fabric.Canvas & { artboard?: ArtboardInfo };
+
 interface GridOverlayProps {
   canvas: fabric.Canvas | null;
   gridType: GridType;
@@ -14,11 +23,12 @@ export const GridOverlay = ({ canvas, gridType, color = 'rgba(0, 163, 255, 0.4)'
     if (!canvas) return;
 
     // Drawing function
-    const drawGrid = (opt: any) => {
+    const drawGrid = (opt: { ctx: CanvasRenderingContext2D }) => {
        if (gridType === 'none') return;
-       
-       const ctx = opt.ctx as CanvasRenderingContext2D;
-       const artboard = (canvas as any).artboard;
+
+       const ctx = opt.ctx;
+
+       const artboard = (canvas as CanvasWithArtboard).artboard;
        
        if (!artboard) {
           // Fallback if artboard property is missing, though DesignCanvas sets it.
