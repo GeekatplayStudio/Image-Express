@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric'; // Import all to be safe with versioning, or named imports
 
 interface DesignCanvasProps {
@@ -14,6 +14,9 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
+  const centerArtboardRef = useRef<(() => void) | null>(null);
+
+  const [selectionDims, setSelectionDims] = useState<{ width: number, height: number } | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
@@ -48,6 +51,8 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         width: DESIGN_WIDTH,
         height: DESIGN_HEIGHT,
         fill: '#ffffff',
+        originX: 'left', // EXPLICITLY set origin to Top-Left to avoid Center-Origin defaults in Fabric v7?
+        originY: 'top',
         selectable: false,
         evented: false, // Don't intercept events, let them fall through to canvas/selection
         excludeFromExport: true, // We will handle export by cropping manually usually
@@ -61,20 +66,45 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     // We can use insertAt(0) when adding? Or canvas.sendObjectToBack(artboard).
     canvas.sendObjectToBack(artboard);
 
-    // Center the view on the artboard
+    // Center the view on the artboard (Fit within view)
     const centerArtboard = () => {
          const vW = canvas.width!;
          const vH = canvas.height!;
-         const panX = (vW - DESIGN_WIDTH) / 2;
-         const panY = (vH - DESIGN_HEIGHT) / 2;
-         canvas.setViewportTransform([1, 0, 0, 1, panX, panY]); // Zoom 1
+         
+         if (!vW || !vH) return; // Wait for dimensions
+         
+         // Calculate zoom to fit artboard with some padding (e.g. 50px)
+         const padding = 50;
+         const availableW = vW - padding * 2;
+         const availableH = vH - padding * 2;
+         
+         // Determine scale to fit
+         const scaleX = availableW / DESIGN_WIDTH;
+         const scaleY = availableH / DESIGN_HEIGHT;
+         
+         // Fit logic
+         let fitScale = Math.min(scaleX, scaleY);
+         if (fitScale < 0.001) fitScale = 0.001;
+         if (fitScale > 1) fitScale = 1; 
+         
+         const panX = (vW - DESIGN_WIDTH * fitScale) / 2;
+         const panY = (vH - DESIGN_HEIGHT * fitScale) / 2;
+         
+         canvas.setViewportTransform([fitScale, 0, 0, fitScale, panX, panY]);
+         canvas.requestRenderAll();
     };
+    centerArtboardRef.current = centerArtboard;
     
-    // Initial centering
+    // Initial centering (immediate)
     centerArtboard();
     
-    // Responsive Resize
-    let isFirstResize = true;
+    // Responsive Resize monitoring
+    // We allow auto-centering for a short window (e.g. 1 second) after mount/resize starts
+    // to ensure we catch the final layout state after any sidebar animations or flex adjustments.
+    const mountTime = Date.now();
+    // Track if user has manually moved/zoomed the canvas. If false, we keep auto-centering on resize.
+    let hasUserInteracted = false;
+
     const resizeObserver = new ResizeObserver(() => {
         if (!container) return;
         // Use getBoundingClientRect for sub-pixel precision to avoid 1px gaps/clipping
@@ -83,14 +113,16 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         const w = Math.ceil(rect.width);
         const h = Math.ceil(rect.height);
         
+        // Skip if size is invalid
+        if (w === 0 || h === 0) return;
+        
         canvas.setDimensions({ width: w, height: h });
         canvas.calcOffset(); // Recalculate offsets to ensure pointer events map correctly
         
-        // Only center on the very first resize detection to avoid jarring resets
-        // Note: Fabric canvas init might happen before this observer fires depending on React timing
-        if (isFirstResize) {
+        // Always re-center on resize if the user hasn't taken control yet.
+        // This ensures that as the sidebar/window expands, the artboard stays centered.
+        if (!hasUserInteracted) {
              centerArtboard();
-             isFirstResize = false;
         }
         
         canvas.requestRenderAll();
@@ -103,6 +135,8 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     let lastPosY = 0;
 
     canvas.on('mouse:wheel', (opt) => {
+        hasUserInteracted = true; // User took control
+        
         // Enforce full-size canvas during zoom interaction to prevent clipping drift
         if (container) {
              const rect = container.getBoundingClientRect();
@@ -139,6 +173,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         const evt = opt.e as MouseEvent;
         // Pan with Alt + Left Click
         if (evt.altKey && evt.button === 0) {
+            hasUserInteracted = true; // User took control
             isDragging = true;
             canvas.selection = false; // Disable selection while panning
             lastPosX = evt.clientX;
@@ -149,8 +184,8 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     });
 
     canvas.on('mouse:move', (opt) => {
+        const e = opt.e as MouseEvent;
         if (isDragging) {
-            const e = opt.e as MouseEvent;
             const vpt = canvas.viewportTransform!;
             vpt[4] += e.clientX - lastPosX;
             vpt[5] += e.clientY - lastPosY;
@@ -169,6 +204,27 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
             canvas.setCursor('default');
         }
     });
+    
+    // Selection & Object Mutation Monitoring
+    const updateSelectionDims = () => {
+        const active = canvas.getActiveObject();
+        if (active) {
+            // getScaledWidth returns the visual width (including scale)
+            setSelectionDims({ 
+                width: Math.round(active.getScaledWidth()), 
+                height: Math.round(active.getScaledHeight()) 
+            });
+        } else {
+            setSelectionDims(null);
+        }
+    };
+    
+    // Wire up events
+    canvas.on('selection:created', updateSelectionDims);
+    canvas.on('selection:updated', updateSelectionDims);
+    canvas.on('selection:cleared', () => setSelectionDims(null));
+    canvas.on('object:scaling', updateSelectionDims);
+    canvas.on('object:resizing', updateSelectionDims);
 
     // Double Click to Center Artboard on Mouse Position
     canvas.on('mouse:dblclick', (opt) => {
@@ -244,10 +300,15 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         <div className="absolute inset-0 z-10 w-full h-full">
             <canvas ref={canvasRef} />
         </div>
-        
-        {/* Helper Note */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none z-20">
-            Alt + Click & Drag to Pan • Scroll to Zoom
+
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none z-20 transition-all">
+            {selectionDims ? (
+                 <span className="font-mono font-bold text-amber-300">
+                    {selectionDims.width}px × {selectionDims.height}px
+                 </span>
+            ) : (
+                <span>Alt + Click & Drag to Pan • Scroll to Zoom</span>
+            )}
         </div>
     </div>
   );
