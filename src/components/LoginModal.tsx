@@ -22,7 +22,7 @@ export default function LoginModal({ isOpen, onLogin }: LoginModalProps) {
         // Mock delay
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        if (username === 'vovka' && password === 'l3TD4nc3!') {
+        if (username === 'vovka' && password === 'vovka') {
             onLogin(username);
         } else {
             setError('Invalid credentials.');
