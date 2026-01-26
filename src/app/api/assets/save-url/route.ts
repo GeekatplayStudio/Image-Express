@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
+const VALID_TYPES = ['images', 'models', 'videos', 'audio'] as const;
+const VALID_CATEGORIES = ['uploads', 'generated'] as const;
+
+type AssetType = (typeof VALID_TYPES)[number];
+type AssetCategory = (typeof VALID_CATEGORIES)[number];
+
 export async function POST(request: Request) {
   try {
     const { url, filename, type, category } = await request.json();
@@ -10,8 +16,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Missing url or filename' }, { status: 400 });
     }
 
-    const folderType = type || 'models'; // Default to models for generated content usually
-    const folderCategory = category || 'uploads';
+    const folderType = (type && VALID_TYPES.includes(type as AssetType) ? type : 'models') as AssetType;
+    const folderCategory = (category && VALID_CATEGORIES.includes(category as AssetCategory) ? category : 'uploads') as AssetCategory;
     
     // Fetch the content
     const response = await fetch(url);
@@ -34,9 +40,9 @@ export async function POST(request: Request) {
 
     await writeFile(filepath, buffer);
 
-    const publicPath = `/assets/uploads/${folderType}/${uniqueName}`;
+    const publicPath = `/assets/${folderCategory}/${folderType}/${uniqueName}`;
 
-    return NextResponse.json({ success: true, path: publicPath });
+    return NextResponse.json({ success: true, path: publicPath, type: folderType, category: folderCategory });
   } catch (error) {
     console.error('Save external error:', error);
     return NextResponse.json({ success: false, message: 'Failed to save external file' }, { status: 500 });
