@@ -27,6 +27,7 @@
     "clsx": "^2.1.1",
     "fabric": "^7.1.0",
     "jspdf": "^4.0.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "next": "16.1.4",
     "react": "19.2.3",
@@ -47,6 +48,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "tailwindcss": "^4",
+    "@types/jszip": "^3.4.1",
     "typescript": "^5",
     "wait-on": "^7.2.0"
   },
