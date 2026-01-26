@@ -6,16 +6,17 @@ import Toolbar from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
 import ThreeDGenerator from '@/components/ThreeDGenerator';
 import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
-import SettingsModal from '@/components/SettingsModal';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import UserProfileModal from '@/components/UserProfileModal';
 import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
 import { GridOverlay, GridType } from '@/components/GridOverlay';
-import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon } from 'lucide-react';
+import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { BackgroundJob, ThreeDImage, ThreeDGroup } from '@/types';
+import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject } from '@/types';
+import JSZip from 'jszip';
+import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 
 interface MissingItem {
     id: string; 
@@ -34,6 +35,8 @@ interface EditorViewProps {
     currentDesignId: string | null;
     onUpdateDesignInfo: (id: string | null, name: string) => void;
     onOpenDocumentation?: () => void;
+    onOpenSettings: () => void;
+    settingsOpen: boolean;
 }
 
 type PanelMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' | 'collapsed-right';
@@ -48,8 +51,11 @@ export default function EditorView({
     currentDesignName: propDesignName,
     currentDesignId: propDesignId,
     onUpdateDesignInfo,
-    onOpenDocumentation
+    onOpenDocumentation,
+    onOpenSettings,
+    settingsOpen
 }: EditorViewProps) {
+    const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
     
     // Core Logic States
     const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
@@ -139,7 +145,6 @@ export default function EditorView({
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [showGridMenu, setShowGridMenu] = useState(false);
     const [gridType, setGridType] = useState<GridType>('none');
-    const [showSettings, setShowSettings] = useState(false);
     const [showProfileModal, setShowProfileModal] = useState(false);
     
     // Assets & Missing Items
@@ -156,6 +161,7 @@ export default function EditorView({
     const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJob[]>([]);
     const [editingModelUrl, setEditingModelUrl] = useState<string | null>(null);
     const [editingModelObject, setEditingModelObject] = useState<fabric.Object | null>(null);
+    const [mediaPreview, setMediaPreview] = useState<{ type: 'video' | 'audio'; url: string } | null>(null);
     const exportRef = useRef<HTMLDivElement>(null);
     
     // Context Menu State
@@ -249,6 +255,7 @@ export default function EditorView({
        }
        
        const json = canvas.toJSON();
+        const jsonString = JSON.stringify(json);
        const thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5 });
 
        try {
@@ -258,7 +265,7 @@ export default function EditorView({
                body: JSON.stringify({
                    id: propDesignId,
                    name,
-                   canvasData: json,
+                    canvasData: json,
                    thumbnailDataUrl
                })
            });
@@ -268,6 +275,28 @@ export default function EditorView({
                 onUpdateDesignInfo(result.design.id, result.design.name);
                 setIsDirty(false);
                 alert("Design saved successfully!");
+
+                 if (typeof window !== 'undefined') {
+                     const driveConfig = loadDriveConfig();
+                     if (driveConfig.enabled) {
+                         const clientId = (driveConfig.clientId || envDriveClientId || '').trim();
+                         if (!clientId) {
+                             console.warn('Google Drive backup skipped: missing client ID');
+                         } else {
+                             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                             const backupName = `${name || 'design'}-${timestamp}.json`;
+                             uploadBackup(
+                                 clientId,
+                                 backupName,
+                                 jsonString,
+                                 'application/json',
+                                 thumbnailDataUrl
+                             ).catch((error) => {
+                                 console.error('Google Drive backup failed', error);
+                             });
+                         }
+                     }
+                 }
            } else {
                 alert("Failed to save design: " + result.message);
            }
@@ -288,7 +317,7 @@ export default function EditorView({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const handleExport = (format: 'png' | 'jpg' | 'svg' | 'pdf' | 'json') => {
+    const handleExport = async (format: 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html') => {
         if (!canvas) return;
         try {
             let dataUrl = '';
@@ -341,11 +370,14 @@ export default function EditorView({
                     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
                     pdf.save(filename);
                     break;
-                 case 'json':
+                case 'json':
                     const json = JSON.stringify(canvas.toJSON());
                     const jsonBlob = new Blob([json], { type: 'application/json' });
                     const jsonUrl = URL.createObjectURL(jsonBlob);
                     downloadFile(jsonUrl, `design-${timestamp}.json`);
+                    break;
+                case 'html':
+                    await exportHtmlBundle(filename.replace(/\.html$/, ''), timestamp);
                     break;
             }
         } catch (error) {
@@ -361,6 +393,545 @@ export default function EditorView({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    const downloadBlob = (blob: Blob, filename: string) => {
+        const url = URL.createObjectURL(blob);
+        downloadFile(url, filename);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+
+    const exportHtmlBundle = async (baseName: string, timestamp: string) => {
+        if (!canvas) return;
+
+        const zip = new JSZip();
+        const assetsFolder = zip.folder('assets');
+        const libsFolder = zip.folder('libs');
+        const scriptsFolder = zip.folder('scripts');
+
+        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor'];
+        const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => Record<string, any> }).toJSON(customProps);
+
+        const metadata = {
+            canvasWidth: canvas.getWidth(),
+            canvasHeight: canvas.getHeight(),
+            backgroundColor: typeof canvas.backgroundColor === 'string' ? canvas.backgroundColor : undefined,
+            workspaceBackground: undefined as string | undefined,
+            mediaAssets: [] as Array<{ type: 'video' | 'audio'; label: string; path: string }>,
+        };
+
+        const workspaceBackground = (canvas as unknown as { getWorkspaceBackground?: () => string | undefined; workspaceBackground?: string }).getWorkspaceBackground?.()
+            ?? (canvas as unknown as { workspaceBackground?: string }).workspaceBackground;
+
+        if (typeof workspaceBackground === 'string' && workspaceBackground.trim().length > 0) {
+            metadata.workspaceBackground = workspaceBackground;
+        }
+
+        designJson.metadata = metadata;
+
+        const assetMap = new Map<string, string>();
+        const usedNames = new Set<string>();
+        const assetPromises: Array<Promise<void>> = [];
+
+        const sanitizeSegment = (segment: string) => segment.replace(/[^a-z0-9._-]/gi, '_');
+
+        const ensureExtension = (name: string, fallback: string) => {
+            if (name.includes('.')) return name;
+            return `${name}.${fallback}`;
+        };
+
+        const getUniqueFileName = (rawName: string) => {
+            const parts = rawName.split('.');
+            const ext = parts.length > 1 ? `.${parts.pop()}` : '';
+            let base = sanitizeSegment(parts.join('.') || 'asset');
+            let extension = sanitizeSegment(ext.replace('.', ''));
+            if (!extension) extension = 'bin';
+            let candidate = `${base}.${extension}`;
+            let counter = 1;
+            while (usedNames.has(candidate)) {
+                candidate = `${base}-${counter}.${extension}`;
+                counter += 1;
+            }
+            usedNames.add(candidate);
+            return candidate;
+        };
+
+        const deriveFileName = (url: string, contentType: string | null) => {
+            const withoutQuery = url.split('?')[0];
+            const urlName = withoutQuery.split('/').pop() || '';
+            let clean = sanitizeSegment(decodeURIComponent(urlName));
+            if (!clean) {
+                if (contentType?.includes('image/')) clean = `image.${contentType.split('/')[1]?.split(';')[0] ?? 'png'}`;
+                else if (contentType?.includes('video/')) clean = `video.${contentType.split('/')[1]?.split(';')[0] ?? 'mp4'}`;
+                else if (contentType?.includes('audio/')) clean = `audio.${contentType.split('/')[1]?.split(';')[0] ?? 'mp3'}`;
+                else if (contentType?.includes('model/')) clean = `model.${contentType.split('/')[1]?.split(';')[0] ?? 'glb'}`;
+                else clean = 'asset.bin';
+            }
+            return ensureExtension(clean, 'bin');
+        };
+
+        const getDisplayName = (url: string) => {
+            const withoutQuery = url.split('?')[0];
+            const last = decodeURIComponent(withoutQuery.split('/').pop() || 'Media');
+            return last || 'Media';
+        };
+
+        const decodeDataUrl = (dataUrl: string) => {
+            const match = dataUrl.match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+            if (!match) return null;
+            const mimeType = match[1] || 'application/octet-stream';
+            const isBase64 = Boolean(match[2]);
+            const dataPart = match[3] || '';
+
+            try {
+                let buffer: ArrayBuffer;
+                if (isBase64) {
+                    const binary = atob(dataPart);
+                    const view = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i += 1) {
+                        view[i] = binary.charCodeAt(i);
+                    }
+                    buffer = view.buffer;
+                } else {
+                    const decoded = decodeURIComponent(dataPart.replace(/\+/g, '%20'));
+                    buffer = new TextEncoder().encode(decoded).buffer;
+                }
+
+                const extension = mimeType.split('/')[1]?.split(';')[0] ?? 'bin';
+                return { buffer, mimeType, extension };
+            } catch (error) {
+                console.error('Failed to decode data URL asset:', error);
+                return null;
+            }
+        };
+
+        const queueAsset = (url: string | undefined, setter: (relative: string) => void, manifest?: { record?: { type: 'video' | 'audio'; label: string; path: string } }) => {
+            if (!url || !assetsFolder) {
+                if (url) setter(url);
+                if (manifest?.record) manifest.record.path = url || '';
+                return;
+            }
+
+            if (url.startsWith('data:')) {
+                const decoded = decodeDataUrl(url);
+                if (!decoded) {
+                    setter(url);
+                    if (manifest?.record) manifest.record.path = url;
+                    return;
+                }
+
+                const assetKey = url;
+                if (assetMap.has(assetKey)) {
+                    const existingPath = assetMap.get(assetKey)!;
+                    setter(existingPath);
+                    if (manifest?.record) manifest.record.path = existingPath;
+                    return;
+                }
+
+                const inferredName = `inline-asset.${decoded.extension || 'bin'}`;
+                const fileName = getUniqueFileName(inferredName);
+                assetsFolder.file(fileName, decoded.buffer);
+                const relativePath = `assets/${fileName}`;
+                assetMap.set(assetKey, relativePath);
+                setter(relativePath);
+                if (manifest?.record) manifest.record.path = relativePath;
+                return;
+            }
+
+            const resolveAbsoluteUrl = (input: string) => {
+                try {
+                    if (typeof window === 'undefined') return input;
+                    return new URL(input, window.location.href).toString();
+                } catch {
+                    return input;
+                }
+            };
+
+            const absoluteUrl = resolveAbsoluteUrl(url);
+            const assetKey = absoluteUrl || url;
+
+            if (assetMap.has(assetKey)) {
+                const existing = assetMap.get(assetKey)!;
+                setter(existing);
+                if (manifest?.record) manifest.record.path = existing;
+                return;
+            }
+
+            const isCrossOrigin = (() => {
+                if (typeof window === 'undefined') return false;
+                try {
+                    return new URL(absoluteUrl).origin !== window.location.origin;
+                } catch {
+                    return false;
+                }
+            })();
+
+            const candidates: string[] = [];
+            if (isCrossOrigin) {
+                candidates.push(`/api/export/proxy?url=${encodeURIComponent(absoluteUrl)}`);
+            }
+            candidates.push(absoluteUrl);
+            if (url.startsWith('blob:')) {
+                candidates.push(url);
+            }
+
+            const promise = (async () => {
+                let lastError: unknown = null;
+                for (const candidate of candidates) {
+                    try {
+                        const response = await fetch(candidate, { credentials: 'include', mode: 'cors' });
+                        if (!response.ok) throw new Error(`Failed to fetch asset: ${candidate}`);
+                        const buffer = await response.arrayBuffer();
+                        const contentType = response.headers.get('content-type');
+                        const fileName = getUniqueFileName(deriveFileName(absoluteUrl, contentType));
+                        assetsFolder.file(fileName, buffer);
+                        const relativePath = `assets/${fileName}`;
+                        assetMap.set(assetKey, relativePath);
+                        setter(relativePath);
+                        if (manifest?.record) manifest.record.path = relativePath;
+                        return;
+                    } catch (error) {
+                        lastError = error;
+                    }
+                }
+
+                console.error('Asset bundling failed:', lastError);
+                setter(url);
+                if (manifest?.record) manifest.record.path = url;
+            })();
+
+            assetPromises.push(promise);
+        };
+
+        let includes3DModel = false;
+
+        const processFill = (fill: any) => {
+            if (!fill || typeof fill !== 'object') return;
+
+            if (typeof fill.src === 'string') {
+                queueAsset(fill.src, (newPath) => {
+                    fill.src = newPath;
+                });
+            }
+
+            if (typeof fill.source === 'string') {
+                queueAsset(fill.source, (newPath) => {
+                    fill.source = newPath;
+                });
+            }
+
+            if (Array.isArray(fill.colorStops)) {
+                fill.colorStops.forEach((stop: any) => {
+                    if (stop && typeof stop === 'object' && typeof stop.src === 'string') {
+                        queueAsset(stop.src, (newPath) => {
+                            stop.src = newPath;
+                        });
+                    }
+                });
+            }
+        };
+
+        const processObject = (obj: Record<string, any>) => {
+            if (!obj) return;
+
+            if (obj.type === 'image' && typeof obj.src === 'string') {
+                queueAsset(obj.src, (newPath) => {
+                    obj.src = newPath;
+                });
+            }
+
+            if (obj.is3DModel && typeof obj.modelUrl === 'string') {
+                includes3DModel = true;
+                queueAsset(obj.modelUrl, (newPath) => {
+                    obj.modelUrl = newPath;
+                });
+            }
+
+            if (obj.mediaType && typeof obj.mediaSource === 'string') {
+                const record = {
+                    type: obj.mediaType as 'video' | 'audio',
+                    label: obj.name || getDisplayName(obj.mediaSource),
+                    path: ''
+                };
+                metadata.mediaAssets.push(record);
+                queueAsset(obj.mediaSource, (newPath) => {
+                    obj.mediaSource = newPath;
+                }, { record });
+            }
+
+            if (obj.clipPath) {
+                processObject(obj.clipPath);
+            }
+
+            if (Array.isArray(obj.objects)) {
+                obj.objects.forEach((nested) => processObject(nested));
+            }
+
+            if (Array.isArray(obj.paths)) {
+                obj.paths.forEach((pathItem: any) => processObject(pathItem));
+            }
+
+            processFill(obj.fill);
+            processFill(obj.stroke);
+            processFill(obj.backgroundColor);
+            processFill(obj.overlayFill);
+        };
+
+        if (Array.isArray(designJson.objects)) {
+            designJson.objects.forEach((object: Record<string, any>) => processObject(object));
+        }
+
+        if (designJson.backgroundImage && typeof designJson.backgroundImage.src === 'string') {
+            queueAsset(designJson.backgroundImage.src, (newPath) => {
+                designJson.backgroundImage.src = newPath;
+            });
+        }
+
+        if (designJson.overlayImage && typeof designJson.overlayImage.src === 'string') {
+            queueAsset(designJson.overlayImage.src, (newPath) => {
+                designJson.overlayImage.src = newPath;
+            });
+        }
+
+        if (designJson.clipPath) {
+            processObject(designJson.clipPath);
+        }
+
+        await Promise.all(assetPromises);
+
+        zip.file('design.json', JSON.stringify(designJson, null, 2));
+
+        const styles = `:root { color-scheme: light dark; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --workspace-bg: #0b1120; --canvas-shadow: 0 40px 120px rgba(8, 15, 35, 0.55); --media-border: rgba(148, 163, 184, 0.28); --media-surface: rgba(12, 18, 32, 0.94); }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--workspace-bg); color: #e2e8f0; display: flex; align-items: center; justify-content: center; }
+    main { width: 100%; display: flex; justify-content: center; padding: 2.5rem 1.5rem; }
+    .canvas-wrapper { position: relative; box-shadow: var(--canvas-shadow); border-radius: 18px; overflow: hidden; background: transparent; }
+    canvas { display: block; width: 100%; height: auto; background: transparent; }
+    #media-overlay { position: absolute; inset: 0; pointer-events: none; }
+    #media-overlay > * { pointer-events: auto; }
+    .media-element { position: absolute; display: flex; align-items: center; justify-content: center; border-radius: 16px; border: 1px solid var(--media-border); background: var(--media-surface); box-shadow: 0 20px 60px rgba(15, 23, 42, 0.45); overflow: hidden; }
+    .media-element[data-media-type="video"] video,
+    .media-element[data-media-type="model"] model-viewer { width: 100%; height: 100%; display: block; object-fit: cover; background: #020617; }
+    .media-element[data-media-type="audio"] { padding: 16px 20px; min-height: 76px; }
+    .media-element[data-media-type="audio"] audio { width: 100%; }
+    @media (max-width: 900px) { main { padding: 1.5rem; } }
+    `;
+
+        zip.file('styles.css', styles);
+
+        let fabricScriptTag = '<script src="https://cdn.jsdelivr.net/npm/fabric@7.1.0/dist/fabric.min.js"></script>';
+        try {
+            if (libsFolder) {
+                const fabricResponse = await fetch('https://cdn.jsdelivr.net/npm/fabric@7.1.0/dist/fabric.min.js');
+                if (fabricResponse.ok) {
+                    libsFolder.file('fabric.min.js', await fabricResponse.text());
+                    fabricScriptTag = '<script src="libs/fabric.min.js"></script>';
+                }
+            }
+        } catch (error) {
+            console.warn('Falling back to CDN fabric.js for HTML export:', error);
+        }
+
+        let modelViewerScriptTag = includes3DModel
+            ? '<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>'
+            : '';
+
+        if (includes3DModel) {
+            try {
+                if (libsFolder) {
+                    const modelViewerResponse = await fetch('https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js');
+                    if (modelViewerResponse.ok) {
+                        libsFolder.file('model-viewer.min.js', await modelViewerResponse.text());
+                        modelViewerScriptTag = '<script type="module" src="libs/model-viewer.min.js"></script>';
+                    }
+                }
+            } catch (error) {
+                console.warn('Falling back to CDN model-viewer for HTML export:', error);
+            }
+        }
+
+        const mainScript = `document.addEventListener('DOMContentLoaded', () => {
+    const canvasEl = document.getElementById('artboard');
+    const overlayEl = document.getElementById('media-overlay');
+    const wrapperEl = document.querySelector('.canvas-wrapper');
+
+    if (!canvasEl || !overlayEl) return;
+
+    const canvas = new fabric.Canvas(canvasEl, { preserveObjectStacking: true });
+
+    const syncDimensions = () => {
+        overlayEl.style.width = \`\${canvas.getWidth()}px\`;
+        overlayEl.style.height = \`\${canvas.getHeight()}px\`;
+        canvasEl.style.width = \`\${canvas.getWidth()}px\`;
+        canvasEl.style.height = \`\${canvas.getHeight()}px\`;
+        canvasEl.width = canvas.getWidth();
+        canvasEl.height = canvas.getHeight();
+        if (wrapperEl) {
+            wrapperEl.style.width = \`\${canvas.getWidth()}px\`;
+            wrapperEl.style.height = \`\${canvas.getHeight()}px\`;
+        }
+    };
+
+    const renderMediaOverlays = () => {
+        overlayEl.innerHTML = '';
+        const objects = canvas.getObjects();
+
+        objects.forEach((obj, index) => {
+            if (!obj) return;
+
+            const mediaType = obj.mediaType as 'video' | 'audio' | undefined;
+            const mediaSource = typeof obj.mediaSource === 'string' ? obj.mediaSource : undefined;
+            const isModel = Boolean(obj.is3DModel && typeof obj.modelUrl === 'string');
+            const modelUrl = isModel ? (obj.modelUrl as string) : undefined;
+
+            if (!mediaType && !isModel) return;
+            if (mediaType && !mediaSource) return;
+
+            const container = document.createElement('div');
+            container.className = 'media-element';
+            container.dataset.mediaType = isModel ? 'model' : mediaType!;
+
+            const scaledWidth = typeof obj.getScaledWidth === 'function'
+                ? obj.getScaledWidth()
+                : (typeof obj.width === 'number' ? obj.width * (typeof obj.scaleX === 'number' ? obj.scaleX : 1) : 0);
+            const scaledHeight = typeof obj.getScaledHeight === 'function'
+                ? obj.getScaledHeight()
+                : (typeof obj.height === 'number' ? obj.height * (typeof obj.scaleY === 'number' ? obj.scaleY : 1) : 0);
+            const center = typeof obj.getCenterPoint === 'function'
+                ? obj.getCenterPoint()
+                : { x: typeof obj.left === 'number' ? obj.left : 0, y: typeof obj.top === 'number' ? obj.top : 0 };
+            const angle = typeof obj.angle === 'number' ? obj.angle : 0;
+
+            container.style.width = \`\${scaledWidth}px\`;
+            container.style.height = \`\${scaledHeight}px\`;
+            container.style.left = \`\${center.x}px\`;
+            container.style.top = \`\${center.y}px\`;
+            container.style.transform = \`translate(-50%, -50%) rotate(\${angle}deg)\`;
+            container.style.transformOrigin = 'center center';
+            container.style.zIndex = String(1000 + index);
+
+            const assignBorderRadius = (target: any) => {
+                if (!target) return;
+                const rx = typeof target.rx === 'number' ? target.rx : undefined;
+                const ry = typeof target.ry === 'number' ? target.ry : undefined;
+                const radius = Math.max(rx ?? 0, ry ?? 0);
+                if (radius > 0) {
+                    container.style.borderRadius = \`\${radius}px\`;
+                }
+            };
+
+            if (obj.type === 'group' && Array.isArray((obj as any)._objects)) {
+                const backgroundRect = (obj as any)._objects.find((child: any) => child && child.type === 'rect');
+                assignBorderRadius(backgroundRect);
+            } else {
+                assignBorderRadius(obj);
+            }
+
+            let interactive: HTMLElement | null = null;
+
+            if (isModel && modelUrl) {
+                const viewer = document.createElement('model-viewer');
+                viewer.setAttribute('src', modelUrl);
+                viewer.setAttribute('camera-controls', '');
+                viewer.setAttribute('auto-rotate', '');
+                viewer.setAttribute('shadow-intensity', '1');
+                viewer.style.width = '100%';
+                viewer.style.height = '100%';
+                interactive = viewer;
+            } else if (mediaType === 'video' && mediaSource) {
+                const video = document.createElement('video');
+                video.src = mediaSource;
+                video.controls = true;
+                video.preload = 'metadata';
+                video.playsInline = true;
+                video.setAttribute('playsinline', 'true');
+                video.setAttribute('webkit-playsinline', 'true');
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.style.objectFit = 'cover';
+                interactive = video;
+            } else if (mediaType === 'audio' && mediaSource) {
+                const audio = document.createElement('audio');
+                audio.src = mediaSource;
+                audio.controls = true;
+                audio.preload = 'metadata';
+                audio.style.width = '100%';
+                interactive = audio;
+            }
+
+            if (!interactive) return;
+
+            container.appendChild(interactive);
+            overlayEl.appendChild(container);
+
+            if (typeof obj.set === 'function') {
+                obj.set('visible', false);
+            }
+        });
+
+        canvas.requestRenderAll();
+    };
+
+    fetch('design.json')
+        .then((res) => res.json())
+        .then((data) => {
+            if (data.metadata) {
+                if (typeof data.metadata.canvasWidth === 'number') canvas.setWidth(data.metadata.canvasWidth);
+                if (typeof data.metadata.canvasHeight === 'number') canvas.setHeight(data.metadata.canvasHeight);
+                if (data.metadata.backgroundColor) {
+                    canvas.setBackgroundColor(data.metadata.backgroundColor, () => canvas.renderAll());
+                }
+                if (data.metadata.workspaceBackground) {
+                    document.documentElement.style.setProperty('--workspace-bg', data.metadata.workspaceBackground);
+                }
+            }
+
+            canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+            canvas.loadFromJSON(data, () => {
+                syncDimensions();
+                renderMediaOverlays();
+            });
+        })
+        .catch((error) => {
+            console.error('Failed to initialise canvas export:', error);
+        });
+});
+`;
+
+
+        scriptsFolder?.file('main.js', mainScript);
+
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Image Express Export</title>
+    <link rel="stylesheet" href="styles.css" />
+    ${fabricScriptTag}
+    ${modelViewerScriptTag}
+</head>
+<body>
+    <main>
+        <div class="canvas-wrapper">
+            <canvas id="artboard"></canvas>
+            <div id="media-overlay"></div>
+        </div>
+    </main>
+    <script src="scripts/main.js"></script>
+</body>
+</html>`;
+
+        zip.file('index.html', html);
+
+        try {
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const archiveName = baseName ? `${baseName}.zip` : `design-${timestamp}.zip`;
+            downloadBlob(zipBlob, archiveName);
+        } catch (error) {
+            console.error('Failed to generate HTML export bundle:', error);
+            alert('Unable to generate HTML export. Please check console for details.');
+        }
     };
 
     // --- Template Loading Helper (Missing Assets Logic) ---
@@ -508,15 +1079,22 @@ export default function EditorView({
     useEffect(() => {
         if (!canvas) return;
     
-        const handleDblClick = (e: fabric.TPointerEventInfo) => {
-          const target = e.target as ThreeDImage | undefined;
-          if (target && (target.is3DModel || target.modelUrl)) {
-            setEditingModelUrl(target.modelUrl || null);
-            setEditingModelObject(target);
-          } else if (target) {
-            setActiveTool('select');
-          }
-        };
+                const handleDblClick = (e: fabric.TPointerEventInfo) => {
+                    const target = e.target as (ThreeDImage & ExtendedFabricObject) | undefined;
+                    if (!target) return;
+
+                    if (target.mediaType && target.mediaSource) {
+                        setMediaPreview({ type: target.mediaType, url: target.mediaSource });
+                        return;
+                    }
+
+                    if (target.is3DModel || target.modelUrl) {
+                        setEditingModelUrl(target.modelUrl || null);
+                        setEditingModelObject(target);
+                    } else {
+                        setActiveTool('select');
+                    }
+                };
     
         const handleWheel = (opt: fabric.TPointerEventInfo<WheelEvent>) => {
             const evt = opt.e;
@@ -604,22 +1182,32 @@ export default function EditorView({
         };
     }, [canvas, activeTool]);
 
+    useEffect(() => {
+        if (!mediaPreview) return;
+
+        const handleKeydown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setMediaPreview(null);
+        };
+
+        window.addEventListener('keydown', handleKeydown);
+        return () => {
+            window.removeEventListener('keydown', handleKeydown);
+        };
+    }, [mediaPreview]);
+
 
     // --- Background Jobs (AI) ---
     // Check API keys on mount and when settings close
     useEffect(() => {
-        const checkKeys = () => {
-            setApiKeys({
-                meshy: localStorage.getItem('meshy_api_key') || undefined,
-                tripo: localStorage.getItem('tripo_api_key') || undefined,
-                stability: localStorage.getItem('stability_api_key') || undefined,
-                openai: localStorage.getItem('openai_api_key') || undefined,
-                google: localStorage.getItem('google_api_key') || undefined,
-                banana: localStorage.getItem('banana_api_key') || undefined,
-            });
-        };
-        checkKeys();
-    }, [showSettings]);
+        setApiKeys({
+            meshy: localStorage.getItem('meshy_api_key') || undefined,
+            tripo: localStorage.getItem('tripo_api_key') || undefined,
+            stability: localStorage.getItem('stability_api_key') || undefined,
+            openai: localStorage.getItem('openai_api_key') || undefined,
+            google: localStorage.getItem('google_api_key') || undefined,
+            banana: localStorage.getItem('banana_api_key') || undefined,
+        });
+    }, [settingsOpen]);
     
     const is3DMode = activeTool === '3d-gen';
     const has2DKey = !!(apiKeys.stability || apiKeys.openai || apiKeys.google || apiKeys.banana);
@@ -768,13 +1356,13 @@ export default function EditorView({
                         <Save size={20} />
                      </button>
         
-                     <button 
-                        onClick={() => setShowSettings(true)}
-                        className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
-                        title="Settings"
-                     >
-                        <Settings size={20} />
-                     </button>
+                            <button 
+                                onClick={onOpenSettings}
+                                className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                                title="Settings"
+                            >
+                                <Settings size={20} />
+                            </button>
         
                      <button 
                         onClick={() => setShowProfileModal(true)}
@@ -803,7 +1391,7 @@ export default function EditorView({
         
                      <button
                         onClick={() => {
-                            if (!isConnected) { setShowSettings(true); return; }
+                            if (!isConnected) { onOpenSettings(); return; }
                             if (!is3DMode) { setActiveTool(activeTool === 'ai-zone' ? 'select' : 'ai-zone'); }
                         }}
                         className={`p-2.5 rounded-full border flex items-center justify-center transition-all duration-200 ${
@@ -860,12 +1448,13 @@ export default function EditorView({
                             <ChevronDown size={14} className={`transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
                         </button>
                         {showExportMenu && (
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
-                                <button onClick={() => handleExport('png')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-blue-500"/> <span className="font-medium">PNG</span></button>
-                                <button onClick={() => handleExport('jpg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-orange-500"/> <span className="font-medium">JPG</span></button>
-                                <button onClick={() => handleExport('svg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-purple-500"/> <span className="font-medium">SVG</span></button>
-                                <button onClick={() => handleExport('pdf')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileText size={16} className="text-red-500"/> <span className="font-medium">PDF</span></button>
-                                <button onClick={() => handleExport('json')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-green-500"/> <span className="font-medium">JSON</span></button>
+                              <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                  <button onClick={() => handleExport('png')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-blue-500"/> <span className="font-medium">PNG</span></button>
+                                  <button onClick={() => handleExport('jpg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-orange-500"/> <span className="font-medium">JPG</span></button>
+                                  <button onClick={() => handleExport('svg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-purple-500"/> <span className="font-medium">SVG</span></button>
+                                  <button onClick={() => handleExport('pdf')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileText size={16} className="text-red-500"/> <span className="font-medium">PDF</span></button>
+                                  <button onClick={() => handleExport('json')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-green-500"/> <span className="font-medium">JSON</span></button>
+                                  <button onClick={() => handleExport('html')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-sky-400"/> <span className="font-medium">HTML Bundle</span></button>
                             </div>
                         )}
                      </div>
@@ -875,7 +1464,6 @@ export default function EditorView({
 
             {/* Overlays */}
             <GridOverlay canvas={canvas} gridType={gridType} />
-            <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={user} />
             <UserProfileModal 
                 isOpen={showProfileModal} 
                 onClose={() => setShowProfileModal(false)}
@@ -908,6 +1496,54 @@ export default function EditorView({
                   onClose={() => { setShowMissingAssetsModal(false); setPendingTemplateJson(null); }}
             />
 
+            {mediaPreview && (
+                <div
+                    className="fixed inset-0 z-[85] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
+                    onClick={() => setMediaPreview(null)}
+                >
+                    <div
+                        className="w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={mediaPreview.type === 'video' ? 'Video player' : 'Audio player'}
+                    >
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-secondary/40">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-foreground/90">{mediaPreview.type === 'video' ? 'Video Player' : 'Audio Player'}</span>
+                                <span className="text-xs text-muted-foreground truncate max-w-[420px]">
+                                    {mediaPreview.url}
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => setMediaPreview(null)}
+                                className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                aria-label="Close media player"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <div className="p-4 bg-background">
+                            {mediaPreview.type === 'video' ? (
+                                <video
+                                    key={mediaPreview.url}
+                                    src={mediaPreview.url}
+                                    controls
+                                    className="w-full max-h-[70vh] rounded-lg bg-black"
+                                />
+                            ) : (
+                                <audio
+                                    key={mediaPreview.url}
+                                    src={mediaPreview.url}
+                                    controls
+                                    className="w-full"
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Main Editor Layout */}
             <div className="flex flex-1 overflow-hidden relative">
                 <aside className="w-[60px] bg-card border-r flex flex-col items-center py-4 z-20 shadow-xl gap-4 relative">
@@ -933,8 +1569,11 @@ export default function EditorView({
                         </div>
                         <div className="flex-1 overflow-hidden relative">
                              <PropertiesPanel 
-                                canvas={canvas} activeTool={activeTool} onLayerDblClick={() => setActiveTool('select')}
+                                canvas={canvas} 
+                                activeTool={activeTool} 
+                                onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
+                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                             />
                         </div>
                     </aside>
@@ -1045,8 +1684,11 @@ export default function EditorView({
                         </div>
                         <div className="flex-1 overflow-hidden relative">
                             <PropertiesPanel 
-                                canvas={canvas} activeTool={activeTool} onLayerDblClick={() => setActiveTool('select')}
+                                canvas={canvas} 
+                                activeTool={activeTool} 
+                                onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
+                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                             />
                         </div>
                     </aside>
@@ -1077,8 +1719,11 @@ export default function EditorView({
                         </div>
                         <div className="flex-1 overflow-hidden relative">
                              <PropertiesPanel 
-                                canvas={canvas} activeTool={activeTool} onLayerDblClick={() => setActiveTool('select')}
+                                canvas={canvas} 
+                                activeTool={activeTool} 
+                                onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
+                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                             />
                         </div>
                     </div>

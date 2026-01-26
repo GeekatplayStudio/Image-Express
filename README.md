@@ -21,7 +21,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Layer Management**: Professional layer locking, visibility, and reordering.
 - **Advanced Masking**: Non-destructive masking functionality. Select two objects to mask the bottom one with the top one; includes support for inverting masks.
 - **Interactive Tools**: Gradient editor, shape tools, and text manipulation.
-- **Export Options**: Export designs to PNG, JPG, SVG, PDF, and JSON.
+- **Export Options**: Export designs to PNG, JPG, SVG, PDF, JSON, and self-contained HTML bundles with all assets rewritten for offline playback.
 - **In-App Manual**: Contextual help modal with persistent chapter navigation and quick close actions.
 
 ### AI Capabilities
@@ -41,6 +41,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Session Security**: Automatic 30-minute inactivity timeout for guest and web users to protect sessions.
 - **Audit Logging**: Automatic login activity logging with IP and user agent; viewable from Settings.
 - **Desktop Shell**: Single-codebase Electron build with auto-update checks and in-app update prompts.
+- **Optional Drive Backup**: One-click Google Drive integration to mirror saved designs into your personal Drive folder.
 
 ## 🚀 Deployment
 
@@ -83,6 +84,20 @@ Run Image Express as a standalone desktop application without manual login on lo
 
 Inside the packaged app the Settings modal exposes “Desktop Updates” so users can manually check for new releases. Automatic checks run shortly after startup and every six hours; when an update finishes downloading the modal offers a restart button to install it.
 
+### Optional: Google Drive Backups
+
+Keep a personal copy of every saved design in your Google Drive without exposing your credentials to the server.
+
+1. Create an OAuth **Web application** in Google Cloud Console and note the **Client ID**.
+2. Add the authorized JavaScript origins that match your dev/prod domains (e.g., `http://localhost:3000`).
+3. Either set the environment variable before starting the app _or_ paste the Client ID directly into the Settings modal:
+   ```bash
+   export NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+   ```
+   Creating a `.env.local` works too; if omitted, you can paste the ID into **Settings → Google Drive Backup** and it will be stored locally.
+4. Run the app and open **Settings → Google Drive Backup → Connect** to approve access.
+5. After connecting, every successful save keeps the local copy and uploads a JSON snapshot (with thumbnail metadata) to the `Image Express Backups` folder in your Drive.
+
 ### Docker Deployment
 
 This project includes a `Dockerfile` optimized for production.
@@ -115,3 +130,7 @@ This project includes a `Dockerfile` optimized for production.
 - **Styling**: Tailwind CSS
 - **Graphics**: Fabric.js (2D), Three.js / React Three Fiber (3D)
 - **Icons**: Lucide React
+
+## 📚 Documentation
+
+- HTML export details, asset coverage, and QA guidance: [docs/html-export-notes.md](docs/html-export-notes.md)
