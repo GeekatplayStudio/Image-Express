@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { StarPolygon, ThreeDGroup } from '@/types';
+import { StarPolygon, ThreeDGroup, ExtendedFabricObject } from '@/types';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
@@ -304,6 +304,91 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         });
     }
 
+    const getFileDisplayName = (url: string) => {
+        try {
+            const cleanUrl = url.split('?')[0];
+            const segments = cleanUrl.split('/');
+            return decodeURIComponent(segments[segments.length - 1] || url);
+        } catch (err) {
+            return url;
+        }
+    };
+
+    const addMediaPlaceholder = (mediaType: 'video' | 'audio', url: string) => {
+        if (!canvas) return;
+
+        const isVideo = mediaType === 'video';
+        const width = isVideo ? 320 : 280;
+        const height = isVideo ? 180 : 90;
+        const accent = isVideo ? '#38bdf8' : '#22c55e';
+        const baseFill = isVideo ? '#101827' : '#11211c';
+        const symbol = isVideo ? '▶' : '♪';
+        const labelText = isVideo ? 'VIDEO' : 'AUDIO';
+        const fileName = getFileDisplayName(url);
+
+        const background = new fabric.Rect({
+            width,
+            height,
+            rx: 16,
+            ry: 16,
+            fill: baseFill,
+            stroke: `${accent}55`,
+            strokeWidth: 2,
+            originX: 'center',
+            originY: 'center'
+        });
+
+        const symbolText = new fabric.Text(symbol, {
+            fontSize: isVideo ? 52 : 40,
+            fill: accent,
+            fontWeight: 'bold',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            originX: 'center',
+            originY: 'center',
+            top: isVideo ? -6 : -4
+        });
+
+        const mediaLabel = new fabric.Text(labelText, {
+            fontSize: 14,
+            fontWeight: 'bold',
+            fill: '#e2e8f0',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            originX: 'center',
+            originY: 'center',
+            top: -height / 2 + 24
+        });
+
+        const fileLabel = new fabric.Textbox(fileName, {
+            fontSize: 12,
+            fill: '#e0f2f1',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            originX: 'center',
+            originY: 'center',
+            width: width - 40,
+            textAlign: 'center',
+            top: height / 2 - 28,
+            splitByGrapheme: true
+        });
+
+        const group = new fabric.Group([background, symbolText, mediaLabel, fileLabel], {
+            originX: 'center',
+            originY: 'center',
+            padding: 12
+        });
+
+        (group as ExtendedFabricObject).mediaType = mediaType;
+        (group as ExtendedFabricObject).mediaSource = url;
+        (group as ExtendedFabricObject).name = `${labelText}: ${fileName}`;
+
+        canvas.add(group);
+        canvas.centerObject(group);
+        canvas.setActiveObject(group);
+        canvas.requestRenderAll();
+    };
+
+    const addVideoPlaceholder = (url: string) => addMediaPlaceholder('video', url);
+    const addAudioPlaceholder = (url: string) => addMediaPlaceholder('audio', url);
+
     const handleSaveTemplateTrigger = () => {
         if (!canvas) return;
         setShowSaveModal(true);
@@ -315,7 +400,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
 
         try {
             // Include custom properties in serialization
-            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius']); 
+            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor']); 
             const dataUrl = canvas.toDataURL({
                 format: 'png',
                 multiplier: 0.5,
@@ -433,6 +518,12 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                             } else {
                                 add3DPlaceholder(path);
                             }
+                        } else if (type === 'videos') {
+                            addVideoPlaceholder(path);
+                            setActiveTool('select');
+                        } else if (type === 'audio') {
+                            addAudioPlaceholder(path);
+                            setActiveTool('select');
                         } else {
                             loadDataUrlToCanvas(path);
                         }

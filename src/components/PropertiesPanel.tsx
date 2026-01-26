@@ -1,8 +1,53 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { StarPolygon, ExtendedFabricObject } from '@/types';
-import { Trash2, Layers, GripVertical, Settings, Smartphone, Monitor, Square, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight, Blend, Wand2 } from 'lucide-react';
+import { Trash2, Layers, GripVertical, Settings, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight, Blend, Wand2, Play, ExternalLink } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+
+type CanvasWithArtboard = fabric.Canvas & {
+    artboard?: { width: number; height: number; left: number; top: number };
+    artboardRect?: fabric.Rect;
+    centerArtboard?: () => void;
+    hostContainer?: HTMLDivElement;
+    workspaceBackground?: string;
+    setWorkspaceBackground?: (color: string) => void;
+    getWorkspaceBackground?: () => string;
+};
+
+const PRESET_SIZES = [
+    { name: 'Square (IG)', w: 1080, h: 1080 },
+    { name: 'Story (IG)', w: 1080, h: 1920 },
+    { name: 'Landscape', w: 1920, h: 1080 },
+    { name: 'Portrait', w: 1080, h: 1350 },
+    { name: 'Thumbnail', w: 1280, h: 720 },
+];
+
+const channelToHex = (value: number) => Math.max(0, Math.min(255, value)).toString(16).padStart(2, '0');
+
+const normalizeColorValue = (value?: string) => {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (trimmed.startsWith('#')) {
+        if (trimmed.length === 4) {
+            const r = trimmed[1];
+            const g = trimmed[2];
+            const b = trimmed[3];
+            return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+        }
+        return trimmed.toLowerCase();
+    }
+
+    const rgbMatch = trimmed.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (rgbMatch) {
+        const r = parseInt(rgbMatch[1], 10);
+        const g = parseInt(rgbMatch[2], 10);
+        const b = parseInt(rgbMatch[3], 10);
+        return `#${channelToHex(r)}${channelToHex(g)}${channelToHex(b)}`;
+    }
+
+    return trimmed;
+};
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -17,6 +62,7 @@ interface PropertiesPanelProps {
     activeTool?: string;
     onMake3D?: (imageUrl: string) => void;
     onLayerDblClick?: () => void;
+    onPreviewMedia?: (payload: { type: 'video' | 'audio'; url: string }) => void;
 }
 
 interface SortableLayerItemProps {
@@ -203,7 +249,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
     );
 }
 
-export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerDblClick }: PropertiesPanelProps) {
+export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerDblClick, onPreviewMedia }: PropertiesPanelProps) {
     const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     
@@ -231,6 +277,8 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     const [canvasWidth, setCanvasWidth] = useState(1080);
     const [canvasHeight, setCanvasHeight] = useState(1080);
     const [canvasColor, setCanvasColor] = useState('#ffffff');
+    const [selectedPreset, setSelectedPreset] = useState<string>('Custom');
+    const [workspaceBgColor, setWorkspaceBgColor] = useState('#1e1e1e');
 
     // Star specific properties
     const [starPoints, setStarPoints] = useState(5);
@@ -264,17 +312,65 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     // Mask Candidate (If 2 objects selected, this is the Top object)
     const [maskCandidate, setMaskCandidate] = useState<fabric.Object | null>(null);
 
-    useEffect(() => {
-        if (canvas) {
-            requestAnimationFrame(() => {
-                // Read Logical Width (Zoom-independent)
-                const zoom = canvas.getZoom();
-                setCanvasWidth((canvas.width || 1080) / zoom);
-                setCanvasHeight((canvas.height || 1080) / zoom);
-                setCanvasColor(canvas.backgroundColor as string || '#ffffff');
-            });
+    const syncCanvasMetrics = useCallback(() => {
+        if (!canvas) return;
+        const extendedCanvas = canvas as CanvasWithArtboard;
+
+        const artboardInfo = extendedCanvas.artboard;
+        if (artboardInfo) {
+            setCanvasWidth(Math.round(artboardInfo.width));
+            setCanvasHeight(Math.round(artboardInfo.height));
+        } else {
+            const zoom = canvas.getZoom() || 1;
+            setCanvasWidth(Math.round((canvas.width || 1080) / zoom));
+            setCanvasHeight(Math.round((canvas.height || 1080) / zoom));
+        }
+
+        const artboardRect = extendedCanvas.artboardRect;
+        if (artboardRect && typeof artboardRect.fill === 'string') {
+            const normalizedFill = normalizeColorValue(artboardRect.fill) || '#ffffff';
+            setCanvasColor(normalizedFill);
+        } else if (typeof canvas.backgroundColor === 'string') {
+            const normalizedFill = normalizeColorValue(canvas.backgroundColor) || '#ffffff';
+            setCanvasColor(normalizedFill);
+        } else {
+            setCanvasColor('#ffffff');
+        }
+
+        const presetMatch = PRESET_SIZES.find((preset) => preset.w === Math.round(extendedCanvas.artboard?.width || 0) && preset.h === Math.round(extendedCanvas.artboard?.height || 0));
+        setSelectedPreset(presetMatch?.name ?? 'Custom');
+
+        const workspaceColor = normalizeColorValue(extendedCanvas.getWorkspaceBackground?.() || extendedCanvas.workspaceBackground);
+        if (workspaceColor) {
+            setWorkspaceBgColor(workspaceColor);
+        } else if (extendedCanvas.hostContainer) {
+            const computed = normalizeColorValue(getComputedStyle(extendedCanvas.hostContainer).backgroundColor);
+            if (computed) setWorkspaceBgColor(computed);
         }
     }, [canvas]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        let animationFrame: number | null = null;
+
+        const queueSync = () => {
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            animationFrame = requestAnimationFrame(() => {
+                animationFrame = null;
+                syncCanvasMetrics();
+            });
+        };
+
+        queueSync();
+        ((canvas.on as unknown) as (eventName: string, handler: (...args: unknown[]) => void) => void)('artboard:resize', queueSync);
+        ((canvas.on as unknown) as (eventName: string, handler: (...args: unknown[]) => void) => void)('workspace:color', queueSync);
+
+        return () => {
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            ((canvas.off as unknown) as (eventName: string, handler: (...args: unknown[]) => void) => void)('artboard:resize', queueSync);
+            ((canvas.off as unknown) as (eventName: string, handler: (...args: unknown[]) => void) => void)('workspace:color', queueSync);
+        };
+    }, [canvas, syncCanvasMetrics]);
 
     useEffect(() => {
         if (!canvas) return;
@@ -1004,32 +1100,103 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         }
     };
 
-    const updateCanvasSize = (w: number, h: number) => {
-        if(canvas) {
-            const zoom = canvas.getZoom();
-            // Set Physical Dimensions = Logical w * Zoom
-            canvas.setDimensions({ width: w * zoom, height: h * zoom });
-            setCanvasWidth(w);
-            setCanvasHeight(h);
-            canvas.requestRenderAll();
+    const handlePresetChange = (value: string) => {
+        setSelectedPreset(value);
+
+        if (value === 'Custom') {
+            return;
+        }
+
+        const preset = PRESET_SIZES.find((item) => item.name === value);
+        if (preset) {
+            updateCanvasSize(preset.w, preset.h);
+        } else {
+            setSelectedPreset('Custom');
         }
     };
 
-    const updateCanvasColor = (c: string) => {
-        if(canvas) {
-            canvas.set('backgroundColor', c);
-            setCanvasColor(c);
+    const updateCanvasSize = (w: number, h: number) => {
+        if (!canvas) return;
+
+        const width = Math.max(Math.round(w || 0), 1);
+        const height = Math.max(Math.round(h || 0), 1);
+
+        setCanvasWidth(width);
+        setCanvasHeight(height);
+
+        const match = PRESET_SIZES.find((preset) => preset.w === width && preset.h === height);
+        setSelectedPreset(match?.name ?? 'Custom');
+
+        const extendedCanvas = canvas as CanvasWithArtboard;
+        const artboardRect = extendedCanvas.artboardRect;
+        if (artboardRect) {
+            artboardRect.set({ width, height });
+            artboardRect.setCoords();
+        }
+
+        if (extendedCanvas.artboard) {
+            extendedCanvas.artboard.width = width;
+            extendedCanvas.artboard.height = height;
+        } else {
+            extendedCanvas.artboard = { width, height, left: 0, top: 0 };
+        }
+
+        const hostContainer = extendedCanvas.hostContainer;
+        if (hostContainer) {
+            const rect = hostContainer.getBoundingClientRect();
+            const containerWidth = Math.ceil(rect.width);
+            const containerHeight = Math.ceil(rect.height);
+            if (canvas.width !== containerWidth || canvas.height !== containerHeight) {
+                canvas.setDimensions({ width: containerWidth, height: containerHeight });
+                canvas.calcOffset();
+            }
+        }
+
+        if (extendedCanvas.centerArtboard) {
+            extendedCanvas.centerArtboard();
+        } else {
             canvas.requestRenderAll();
         }
-    }
 
-    const presetSizes = [
-        { name: 'Square (IG)', w: 1080, h: 1080, icon: Square },
-        { name: 'Story (IG)', w: 1080, h: 1920, icon: Smartphone },
-        { name: 'Landscape', w: 1920, h: 1080, icon: Monitor },
-        { name: 'Portrait', w: 1080, h: 1350, icon: ImageIcon },
-        { name: 'Thumbnail', w: 1280, h: 720, icon: Monitor },
-    ];
+        (canvas.fire as (eventName: string, options?: Record<string, unknown>) => fabric.Canvas)('artboard:resize', { width, height });
+        canvas.requestRenderAll();
+    };
+
+    const updateCanvasColor = (c: string) => {
+        if (!canvas) return;
+
+        const nextColor = normalizeColorValue(c) || '#ffffff';
+
+        const extendedCanvas = canvas as CanvasWithArtboard;
+        const artboardRect = extendedCanvas.artboardRect;
+
+        if (artboardRect) {
+            artboardRect.set({ fill: nextColor });
+        } else {
+            canvas.set('backgroundColor', nextColor);
+        }
+
+        setCanvasColor(nextColor);
+        (canvas.fire as (eventName: string, options?: Record<string, unknown>) => fabric.Canvas)('artboard:color', { color: nextColor });
+        canvas.requestRenderAll();
+    };
+
+    const updateWorkspaceColor = (value: string) => {
+        if (!canvas) return;
+
+        const nextColor = normalizeColorValue(value) || '#1e1e1e';
+        const extendedCanvas = canvas as CanvasWithArtboard;
+
+        if (extendedCanvas.setWorkspaceBackground) {
+            extendedCanvas.setWorkspaceBackground(nextColor);
+        } else if (extendedCanvas.hostContainer) {
+            extendedCanvas.hostContainer.style.backgroundColor = nextColor;
+            (canvas.fire as (eventName: string, options?: Record<string, unknown>) => fabric.Canvas)('workspace:color', { color: nextColor });
+            canvas.requestRenderAll();
+        }
+
+        setWorkspaceBgColor(nextColor);
+    };
 
     // If Layers tool is active
     if (activeTool === 'layers') {
@@ -1078,7 +1245,24 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         );
     }
 
-    const isMultipleSelection = selectedObject && (selectedObject.type === 'activeSelection' || selectedObject.type === 'group');
+    const isMultipleSelection = selectedObject?.type === 'activeSelection';
+    const selectionCount = selectedObject?.type === 'activeSelection'
+        ? (selectedObject as fabric.ActiveSelection).getObjects().length
+        : 0;
+    const canCreateMask = selectionCount === 2;
+    const extendedSelection = selectedObject as ExtendedFabricObject | null;
+    const selectedMediaType = extendedSelection?.mediaType;
+    const selectedMediaSource = extendedSelection?.mediaSource;
+    const isMediaPlaceholder = Boolean(selectedMediaType && selectedMediaSource);
+
+    const handleMediaPreview = () => {
+        if (!selectedMediaType || !selectedMediaSource) return;
+        if (onPreviewMedia) {
+            onPreviewMedia({ type: selectedMediaType, url: selectedMediaSource });
+        } else {
+            window.open(selectedMediaSource, '_blank', 'noopener');
+        }
+    };
 
     // Force single view if mask candidate is present
     if (isMultipleSelection && !maskCandidate) {
@@ -1091,18 +1275,19 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                 </div>
                 <div className="p-4 space-y-6">
                      <div className="bg-secondary/20 p-4 rounded-lg border border-border/50 text-center">
-                         <p className="text-xs text-muted-foreground mb-4">
-                             {(selectedObject as fabric.Group).getObjects().length} objects selected
-                         </p>
-                         
+                        <p className="text-xs text-muted-foreground mb-4">
+                            {selectionCount} objects selected
+                        </p>
+                        
                          <button
                             onClick={createMask}
-                            className="w-full py-2 bg-primary text-primary-foreground rounded-md text-xs font-medium mb-2 hover:bg-primary/90 transition-all"
+                            disabled={!canCreateMask}
+                            className="w-full py-2 bg-primary text-primary-foreground rounded-md text-xs font-medium mb-2 hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                          >
                             Create Mask
                          </button>
                          <p className="text-[10px] text-muted-foreground leading-relaxed">
-                             Uses the top object as a mask for the bottom object. Only works with 2 objects selected.
+                            Uses the top object as a mask for the bottom object. Select exactly two objects to enable masking.
                          </p>
                      </div>
                 </div>
@@ -1122,20 +1307,23 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                 <div className="flex-1 overflow-y-auto p-4 space-y-6">
                     {/* Size Presets */}
                     <div className="space-y-3">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Presets</label>
-                        <div className="grid grid-cols-2 gap-2">
-                            {presetSizes.map(preset => (
-                                <button
-                                    key={preset.name}
-                                    onClick={() => updateCanvasSize(preset.w, preset.h)}
-                                    className="flex flex-col items-center justify-center gap-2 p-3 rounded-lg border border-border/50 bg-secondary/20 hover:bg-secondary hover:border-primary/30 transition-all text-muted-foreground hover:text-foreground"
-                                >
-                                    <preset.icon size={20} className="opacity-70" />
-                                    <span className="text-xs font-medium">{preset.name}</span>
-                                    <span className="text-[10px] opacity-50">{preset.w} x {preset.h}</span>
-                                </button>
-                            ))}
-                        </div>
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preset</label>
+                        <Select value={selectedPreset} onValueChange={handlePresetChange}>
+                            <SelectTrigger className="relative h-auto flex flex-col items-start gap-1 py-2">
+                                <div className="text-sm font-medium text-foreground">{selectedPreset}</div>
+                                <div className="text-xs text-muted-foreground">{canvasWidth} x {canvasHeight}</div>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">v</span>
+                                <SelectValue className="sr-only" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {PRESET_SIZES.map((preset) => (
+                                    <SelectItem key={preset.name} value={preset.name}>
+                                        {preset.name} - {preset.w} x {preset.h}
+                                    </SelectItem>
+                                ))}
+                                <SelectItem value="Custom">Custom size</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Custom Size */}
@@ -1163,26 +1351,47 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                          </div>
                     </div>
 
-                    {/* Background Color */}
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Background</label>
-                             <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{canvasColor}</span>
-                        </div>
-                        <div className="relative w-full flex items-center gap-3 bg-secondary/30 p-2 rounded-lg border border-border/50">
-                             <div 
-                                className="w-8 h-8 rounded-full shadow-sm ring-1 ring-border/20"
-                                style={{ backgroundColor: canvasColor }}
-                             ></div>
-                             <input 
-                                type="color" 
-                                value={canvasColor} 
-                                onChange={(e) => updateCanvasColor(e.target.value)}
-                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                             />
-                             <span className="text-sm text-foreground font-medium flex-1">Pick a color</span>
-                        </div>
-                    </div>
+                          {/* Artboard Background */}
+                          <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Artboard</label>
+                                      <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{canvasColor}</span>
+                                </div>
+                                <div className="relative w-full flex items-center gap-3 bg-secondary/30 p-2 rounded-lg border border-border/50">
+                                      <div 
+                                          className="w-8 h-8 rounded-full shadow-sm ring-1 ring-border/20"
+                                          style={{ backgroundColor: canvasColor }}
+                                      ></div>
+                                      <input 
+                                          type="color" 
+                                          value={canvasColor} 
+                                          onChange={(e) => updateCanvasColor(e.target.value)}
+                                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                      />
+                                      <span className="text-sm text-foreground font-medium flex-1">Artboard color</span>
+                                </div>
+                          </div>
+
+                          {/* Workspace Background */}
+                          <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Workspace</label>
+                                      <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{workspaceBgColor}</span>
+                                </div>
+                                <div className="relative w-full flex items-center gap-3 bg-secondary/30 p-2 rounded-lg border border-border/50">
+                                      <div 
+                                          className="w-8 h-8 rounded-full shadow-sm ring-1 ring-border/20"
+                                          style={{ backgroundColor: workspaceBgColor }}
+                                      ></div>
+                                      <input 
+                                          type="color" 
+                                          value={workspaceBgColor} 
+                                          onChange={(e) => updateWorkspaceColor(e.target.value)}
+                                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                      />
+                                      <span className="text-sm text-foreground font-medium flex-1">Workspace color</span>
+                                </div>
+                          </div>
 
                 </div>
              </div>
@@ -1217,6 +1426,44 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                          </button>
                     </div>
                 )}
+
+                  {/* Media Placeholder Preview */}
+                  {isMediaPlaceholder && selectedMediaType && selectedMediaSource && (
+                      <div className="space-y-3 bg-secondary/20 border border-border/50 rounded-lg p-3">
+                          <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Media Preview</label>
+                              <span className="text-[10px] font-semibold uppercase text-primary">{selectedMediaType}</span>
+                          </div>
+                          <div className="rounded-md overflow-hidden border border-border/50 bg-background">
+                              {selectedMediaType === 'video' ? (
+                                  <video
+                                      key={selectedMediaSource}
+                                      src={selectedMediaSource}
+                                      controls
+                                      className="w-full aspect-video bg-black"
+                                  />
+                              ) : (
+                                  <audio
+                                      key={selectedMediaSource}
+                                      src={selectedMediaSource}
+                                      controls
+                                      className="w-full"
+                                  />
+                              )}
+                          </div>
+                          <div className="flex flex-col gap-2 text-[11px] text-muted-foreground">
+                              <span>Double-click the media placeholder on the canvas or use the button below to open a floating player.</span>
+                              <button
+                                  onClick={handleMediaPreview}
+                                  className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-md hover:bg-primary/90 transition-colors"
+                              >
+                                  <Play size={14} />
+                                  Open Floating Player
+                                  <ExternalLink size={12} className="opacity-80" />
+                              </button>
+                          </div>
+                      </div>
+                  )}
 
                 {/* Fill / Gradient Section */}
                 <div className="space-y-3">

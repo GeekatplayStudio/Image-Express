@@ -1,24 +1,104 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X } from 'lucide-react';
+import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
 import Asset3DPreview from './Asset3DPreview';
+import { AssetDescriptor, AssetType, AssetCategory } from '@/types';
+
+const ACCEPTED_FILE_TYPES = 'image/*,video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply';
 
 /**
- * Asset Interface represents a file stored in the system.
+ * Media tab configuration describing available asset categories and upload behavior.
  */
-interface Asset {
-    name: string;
-    path: string;
-    type: 'images' | 'models';
-    category?: 'uploads' | 'generated';
-}
+const LIBRARY_TABS = [
+    {
+        key: 'images',
+        label: 'Uploads',
+        icon: Upload,
+        type: 'images' as AssetType,
+        category: 'uploads' as AssetCategory,
+        accept: 'image/*'
+    },
+    {
+        key: 'videos',
+        label: 'Videos',
+        icon: Video,
+        type: 'videos' as AssetType,
+        category: 'uploads' as AssetCategory,
+        accept: 'video/*'
+    },
+    {
+        key: 'audio',
+        label: 'Audio',
+        icon: Music,
+        type: 'audio' as AssetType,
+        category: 'uploads' as AssetCategory,
+        accept: 'audio/*'
+    },
+    {
+        key: 'models',
+        label: '3D',
+        icon: Box,
+        type: 'models' as AssetType,
+        category: 'uploads' as AssetCategory,
+        accept: '.glb,.gltf'
+    },
+    {
+        key: 'generated',
+        label: 'Generated',
+        icon: ImageIcon,
+        type: 'images' as AssetType,
+        category: 'generated' as AssetCategory,
+        accept: 'image/*'
+    }
+] as const;
+
+type LibraryTab = typeof LIBRARY_TABS[number]['key'];
+
+const TAB_CONFIG: Record<LibraryTab, typeof LIBRARY_TABS[number]> = LIBRARY_TABS.reduce(
+    (acc, tab) => {
+        acc[tab.key] = tab;
+        return acc;
+    },
+    {} as Record<LibraryTab, typeof LIBRARY_TABS[number]>
+);
+
+const typeToTabKey: Record<AssetType, LibraryTab> = {
+    images: 'images',
+    videos: 'videos',
+    audio: 'audio',
+    models: 'models'
+};
+
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.tif', '.tiff', '.heic']);
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v', '.ogv']);
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.oga']);
+const MODEL_EXTENSIONS = new Set(['.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply']);
+
+const inferAssetType = (filename: string, mimeType?: string): AssetType => {
+    const lowerName = filename.toLowerCase();
+    const dotIndex = lowerName.lastIndexOf('.');
+    const extension = dotIndex >= 0 ? lowerName.slice(dotIndex) : '';
+
+    if (mimeType) {
+        if (mimeType.startsWith('video/')) return 'videos';
+        if (mimeType.startsWith('audio/')) return 'audio';
+        if (mimeType === 'model/gltf-binary' || mimeType === 'model/gltf+json') return 'models';
+        if (mimeType.startsWith('image/')) return 'images';
+    }
+
+    if (VIDEO_EXTENSIONS.has(extension)) return 'videos';
+    if (AUDIO_EXTENSIONS.has(extension)) return 'audio';
+    if (MODEL_EXTENSIONS.has(extension)) return 'models';
+    if (IMAGE_EXTENSIONS.has(extension)) return 'images';
+
+    return 'images';
+};
 
 interface AssetLibraryProps {
     /** Callback when user selects an asset to add to canvas */
-    onSelect: (path: string, type: 'images' | 'models') => void;
+    onSelect: (path: string, type: AssetType) => void;
     /** Callback to close the library window */
     onClose: () => void;
 }
@@ -26,20 +106,22 @@ interface AssetLibraryProps {
 /**
  * AssetLibrary Component
  * 
- * Displays a gallery of assets (Images, 3D Models, Generated Content).
+ * Displays a gallery of assets (Images, Video, Audio, 3D Models, Generated Content).
  * Allows users to Upload, Delete, Rename, and Select assets.
  * 
- * Assets are organized into three tabs:
- * 1. Uploads: User uploaded images (public/assets/uploads/images)
- * 2. 3D: User uploaded 3D models (public/assets/uploads/models)
- * 3. Generated: AI generated images (public/assets/generated/images)
+ * Assets are organized into dedicated tabs driven by configuration:
+ * - Uploads: User uploaded imagery (public/assets/uploads/images)
+ * - Videos: User uploaded video clips (public/assets/uploads/videos)
+ * - Audio: User uploaded audio clips (public/assets/uploads/audio)
+ * - 3D: User uploaded 3D models (public/assets/uploads/models)
+ * - Generated: AI generated images (public/assets/generated/images)
  */
 export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
     // Current active view tab
-    const [activeTab, setActiveTab] = useState<'uploads' | 'models' | 'generated'>('uploads');
+    const [activeTab, setActiveTab] = useState<LibraryTab>('images');
     
     // List of assets currently displayed
-    const [assets, setAssets] = useState<Asset[]>([]);
+    const [assets, setAssets] = useState<AssetDescriptor[]>([]);
     
     // UI Loading States
     const [isLoading, setIsLoading] = useState(false);
@@ -63,22 +145,16 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
     const fetchAssets = async () => {
         setIsLoading(true);
         try {
-            // Map UI tabs to API query parameters
-            let type = 'images';
-            let category = 'uploads';
-            
-            if (activeTab === 'models') {
-                type = 'models';
-                category = 'uploads';
-            } else if (activeTab === 'generated') {
-                type = 'images';
-                category = 'generated';
-            }
-
-            const res = await fetch(`/api/assets/list?type=${type}&category=${category}`);
+            const config = TAB_CONFIG[activeTab];
+            const res = await fetch(`/api/assets/list?type=${config.type}&category=${config.category}`);
             const data = await res.json();
             if (data.success) {
-                setAssets(data.files);
+                const normalized: AssetDescriptor[] = (data.files || []).map((file: AssetDescriptor) => ({
+                    ...file,
+                    category: file.category || config.category,
+                    type: file.type || config.type
+                }));
+                setAssets(normalized);
             }
         } catch (error) {
             console.error("Failed to load assets", error);
@@ -100,6 +176,9 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        const config = TAB_CONFIG[activeTab];
+        const detectedType = inferAssetType(file.name, file.type);
+
         // Mode: Local Only (No Server Upload)
         // Useful for quick testing without cluttering the library
         if (!saveToServer) {
@@ -109,7 +188,7 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                 // For models (glb), this simple reader might be just string, but fabric usually needs URL
                 // Actually for images dataURL is fine.
                 // For 'models', dataURL might be large.
-                onSelect(data, activeTab === 'models' ? 'models' : 'images');
+                onSelect(data, detectedType);
                 onClose();
             };
             reader.readAsDataURL(file);
@@ -120,18 +199,10 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
         setIsUploading(true);
         const formData = new FormData();
         formData.append('file', file);
-        
-        // Map current UI context to backend storage location
-        if (activeTab === 'generated') {
-            formData.append('type', 'images');
-            formData.append('category', 'generated');
-        } else if (activeTab === 'models') {
-             formData.append('type', 'models');
-             formData.append('category', 'uploads');
-        } else {
-             // Default: 'uploads' tab
-             formData.append('type', 'images');
-             formData.append('category', 'uploads');
+
+        // Respect selected category when applicable (e.g. Generated tab)
+        if (config.category) {
+            formData.append('category', config.category);
         }
 
         try {
@@ -142,9 +213,17 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
             const data = await res.json();
             
             if (data.success) {
-                // Refresh list to show new asset
-                await fetchAssets();
-                // Optional: Auto-select? Or just stay in library
+                const responseType = data.type as AssetType | undefined;
+                const responseCategory = data.category as AssetCategory | undefined;
+                const targetTab = responseCategory === 'generated'
+                    ? 'generated'
+                    : (responseType ? typeToTabKey[responseType] : undefined);
+
+                if (targetTab && targetTab !== activeTab) {
+                    setActiveTab(targetTab);
+                } else {
+                    await fetchAssets();
+                }
             } else {
                 alert('Upload failed: ' + data.message);
             }
@@ -169,22 +248,14 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
         }
 
         try {
-            // Determine API parameters based on active tab
-            let typeParam = 'images';
-            let categoryParam = 'uploads';
-            
-            if (activeTab === 'models') {
-                typeParam = 'models';
-            } else if (activeTab === 'generated') {
-                 categoryParam = 'generated';
-            }
+            const config = TAB_CONFIG[activeTab];
 
             const res = await fetch('/api/assets/rename', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: typeParam,
-                    category: categoryParam,
+                    type: config.type,
+                    category: config.category,
                     oldName: oldName,
                     newName: editName.trim()
                 })
@@ -251,33 +322,21 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
 
             {/* Navigation Tabs */}
             <div className="flex p-2 gap-1 border-b border-border/50">
-                <button 
-                    onClick={() => setActiveTab('uploads')}
-                    className={cn(
-                        "flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium rounded-md transition-colors",
-                        activeTab === 'uploads' ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"
-                    )}
-                >
-                    <Upload size={14} /> Uploads
-                </button>
-                <button 
-                    onClick={() => setActiveTab('models')}
-                    className={cn(
-                        "flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium rounded-md transition-colors",
-                        activeTab === 'models' ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"
-                    )}
-                >
-                    <Box size={14} /> 3D
-                </button>
-                <button 
-                    onClick={() => setActiveTab('generated')}
-                    className={cn(
-                        "flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium rounded-md transition-colors",
-                        activeTab === 'generated' ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"
-                    )}
-                >
-                    <ImageIcon size={14} /> Generated
-                </button>
+                {LIBRARY_TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            className={cn(
+                                "flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium rounded-md transition-colors",
+                                activeTab === tab.key ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"
+                            )}
+                        >
+                            <Icon size={14} /> {tab.label}
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Upload Controls */}
@@ -299,8 +358,8 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                     type="file" 
                     ref={fileInputRef}
                     className="hidden"
-                    // Determine accepted file types based on active tab
-                    accept={activeTab === 'models' ? ".glb,.gltf" : "image/*"}
+                    // Allow all supported asset types; backend will classify them
+                    accept={ACCEPTED_FILE_TYPES}
                     onChange={handleUpload}
                 />
                 
@@ -310,7 +369,7 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                     className="w-full py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-md flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-50 transition-all"
                 >
                     {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                    {isUploading ? 'Uploading...' : `Upload New ${activeTab === 'models' ? 'Model' : 'Image'}`}
+                    {isUploading ? 'Uploading...' : 'Upload Asset'}
                 </button>
             </div>
 
@@ -384,7 +443,7 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                                                 }
                                             }}
                                         >
-                                            {asset.type === 'images' ? (
+                                            {asset.type === 'images' && (
                                                 <div className="w-full h-full relative">
                                                     <img 
                                                         src={asset.path} 
@@ -392,15 +451,42 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                                                         className="w-full h-full object-cover"
                                                         loading="lazy"
                                                     />
-                                                    {/* Small Label for Images */}
                                                     <div className="absolute bottom-0 w-full bg-black/60 text-white text-[9px] truncate px-1 py-0.5 text-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                                         {asset.name}
                                                     </div>
                                                 </div>
-                                            ) : (
-                                                <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
-                                                    <Box size={24} className="mb-1" />
-                                                    <span className="text-[8px] px-1 truncate w-full text-center">{asset.name.split('-')[0]}</span>
+                                            )}
+                                            {asset.type === 'videos' && (
+                                                <div className="w-full h-full relative flex items-center justify-center bg-black/60">
+                                                    <video 
+                                                        src={asset.path}
+                                                        className="w-full h-full object-cover"
+                                                        muted
+                                                        loop
+                                                        playsInline
+                                                        preload="metadata"
+                                                    />
+                                                    <div className="absolute bottom-0 w-full bg-black/70 text-white text-[9px] truncate px-1 py-0.5 text-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                        {asset.name}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {asset.type === 'audio' && (
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                                    <Music size={24} />
+                                                    <span className="text-[10px] text-center px-1 truncate w-full text-foreground/80">{asset.name}</span>
+                                                </div>
+                                            )}
+                                            {asset.type === 'models' && (
+                                                <div className="relative w-full h-full flex items-center justify-center">
+                                                    {hoveredAsset === asset.path ? (
+                                                        <Asset3DPreview url={asset.path} />
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full w-full">
+                                                            <Box size={20} />
+                                                            <span className="text-[10px] text-center px-1 truncate w-full">{asset.name}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

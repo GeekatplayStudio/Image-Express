@@ -417,6 +417,23 @@ export default function EditorView({
             canvasHeight: canvas.getHeight(),
             backgroundColor: typeof canvas.backgroundColor === 'string' ? canvas.backgroundColor : undefined,
             workspaceBackground: undefined as string | undefined,
+            artboard: undefined as
+                | {
+                      width: number;
+                      height: number;
+                      left: number;
+                      top: number;
+                      fill?: string;
+                      rx?: number;
+                      ry?: number;
+                      shadow?: {
+                          color?: string;
+                          blur?: number;
+                          offsetX?: number;
+                          offsetY?: number;
+                      };
+                  }
+                | undefined,
             mediaAssets: [] as Array<{ type: 'video' | 'audio'; label: string; path: string }>,
         };
 
@@ -425,6 +442,27 @@ export default function EditorView({
 
         if (typeof workspaceBackground === 'string' && workspaceBackground.trim().length > 0) {
             metadata.workspaceBackground = workspaceBackground;
+        }
+
+        const artboardRect = (canvas as unknown as { artboardRect?: fabric.Rect }).artboardRect;
+        if (artboardRect) {
+            metadata.artboard = {
+                width: artboardRect.width ?? artboardRect.getScaledWidth?.() ?? canvas.getWidth(),
+                height: artboardRect.height ?? artboardRect.getScaledHeight?.() ?? canvas.getHeight(),
+                left: artboardRect.left ?? 0,
+                top: artboardRect.top ?? 0,
+                fill: typeof artboardRect.fill === 'string' ? artboardRect.fill : undefined,
+                rx: typeof artboardRect.rx === 'number' ? artboardRect.rx : undefined,
+                ry: typeof artboardRect.ry === 'number' ? artboardRect.ry : undefined,
+                shadow: artboardRect.shadow
+                    ? {
+                          color: artboardRect.shadow.color,
+                          blur: artboardRect.shadow.blur,
+                          offsetX: artboardRect.shadow.offsetX,
+                          offsetY: artboardRect.shadow.offsetY
+                      }
+                    : undefined
+            };
         }
 
         designJson.metadata = metadata;
@@ -701,11 +739,36 @@ export default function EditorView({
 
         zip.file('design.json', JSON.stringify(designJson, null, 2));
 
-        const styles = `:root { color-scheme: light dark; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --workspace-bg: #0b1120; --canvas-shadow: 0 40px 120px rgba(8, 15, 35, 0.55); --media-border: rgba(148, 163, 184, 0.28); --media-surface: rgba(12, 18, 32, 0.94); }
+        const encodeDesignPayload = () => {
+            try {
+                const jsonString = JSON.stringify(designJson);
+                const utf8 = new TextEncoder().encode(jsonString);
+                const chunkSize = 0x8000;
+                let binary = '';
+                for (let i = 0; i < utf8.length; i += chunkSize) {
+                    const chunk = utf8.subarray(i, i + chunkSize);
+                    binary += String.fromCharCode(...chunk);
+                }
+                if (typeof globalThis !== 'undefined' && typeof globalThis.btoa === 'function') {
+                    return globalThis.btoa(binary);
+                }
+                if (typeof btoa === 'function') {
+                    return btoa(unescape(encodeURIComponent(jsonString)));
+                }
+            } catch (error) {
+                console.error('Failed to encode design payload for HTML export:', error);
+            }
+            return '';
+        };
+
+        const designJsonBase64 = encodeDesignPayload();
+
+        const styles = `:root { color-scheme: light dark; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --workspace-bg: #0b1120; --canvas-shadow: 0 40px 120px rgba(8, 15, 35, 0.55); --media-border: rgba(148, 163, 184, 0.28); --media-surface: rgba(12, 18, 32, 0.94); --workspace-pattern: radial-gradient(#4d4d4d 1px, transparent 1px); }
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: var(--workspace-bg); color: #e2e8f0; display: flex; align-items: center; justify-content: center; }
-    main { width: 100%; display: flex; justify-content: center; padding: 2.5rem 1.5rem; }
-    .canvas-wrapper { position: relative; box-shadow: var(--canvas-shadow); border-radius: 18px; overflow: hidden; background: transparent; }
+    body { margin: 0; min-height: 100vh; background: var(--workspace-bg); color: #e2e8f0; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+    main { width: 100%; display: flex; justify-content: center; padding: 2.5rem 1.5rem; position: relative; }
+    main::before { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: var(--workspace-pattern); background-size: 20px 20px; opacity: 0.18; }
+    .canvas-wrapper { position: relative; box-shadow: var(--canvas-shadow); border-radius: 18px; overflow: hidden; background: transparent; backdrop-filter: saturate(120%); }
     canvas { display: block; width: 100%; height: auto; background: transparent; }
     #media-overlay { position: absolute; inset: 0; pointer-events: none; }
     #media-overlay > * { pointer-events: auto; }
@@ -750,7 +813,30 @@ export default function EditorView({
             }
         }
 
-        const mainScript = `document.addEventListener('DOMContentLoaded', () => {
+        const mainScript = `const DESIGN_DATA_BASE64 = '${designJsonBase64}';
+
+const decodeDesignData = () => {
+    if (!DESIGN_DATA_BASE64) return null;
+    try {
+        const binary = atob(DESIGN_DATA_BASE64);
+        if (typeof TextDecoder !== 'undefined') {
+            const length = binary.length;
+            const bytes = new Uint8Array(length);
+            for (let i = 0; i < length; i += 1) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            const decoder = new TextDecoder();
+            return JSON.parse(decoder.decode(bytes));
+        }
+        const escaped = binary.replace(/(.)/g, (match, char) => '%' + char.charCodeAt(0).toString(16).padStart(2, '0'));
+        return JSON.parse(decodeURIComponent(escaped));
+    } catch (error) {
+        console.error('Failed to decode design payload for export viewer:', error);
+        return null;
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
     const canvasEl = document.getElementById('artboard');
     const overlayEl = document.getElementById('media-overlay');
     const wrapperEl = document.querySelector('.canvas-wrapper');
@@ -758,6 +844,17 @@ export default function EditorView({
     if (!canvasEl || !overlayEl) return;
 
     const canvas = new fabric.Canvas(canvasEl, { preserveObjectStacking: true });
+    const designData = decodeDesignData();
+
+    if (!designData) {
+        return;
+    }
+
+    const metadata = designData.metadata || {};
+
+    if (metadata.workspaceBackground) {
+        document.documentElement.style.setProperty('--workspace-bg', metadata.workspaceBackground);
+    }
 
     const syncDimensions = () => {
         overlayEl.style.width = \`\${canvas.getWidth()}px\`;
@@ -770,6 +867,40 @@ export default function EditorView({
             wrapperEl.style.width = \`\${canvas.getWidth()}px\`;
             wrapperEl.style.height = \`\${canvas.getHeight()}px\`;
         }
+    };
+
+    const applyArtboard = () => {
+        if (!metadata.artboard) return;
+
+        const info = metadata.artboard;
+        const artboard = new fabric.Rect({
+            left: typeof info.left === 'number' ? info.left : 0,
+            top: typeof info.top === 'number' ? info.top : 0,
+            width: typeof info.width === 'number' ? info.width : canvas.getWidth(),
+            height: typeof info.height === 'number' ? info.height : canvas.getHeight(),
+            fill: info.fill || '#ffffff',
+            originX: 'left',
+            originY: 'top',
+            rx: typeof info.rx === 'number' ? info.rx : 0,
+            ry: typeof info.ry === 'number' ? info.ry : 0,
+            selectable: false,
+            evented: false,
+            excludeFromExport: true
+        });
+
+        if (info.shadow) {
+            artboard.set('shadow', new fabric.Shadow({
+                color: info.shadow.color || 'rgba(0,0,0,0.2)',
+                blur: typeof info.shadow.blur === 'number' ? info.shadow.blur : 20,
+                offsetX: typeof info.shadow.offsetX === 'number' ? info.shadow.offsetX : 0,
+                offsetY: typeof info.shadow.offsetY === 'number' ? info.shadow.offsetY : 0,
+                includeDefaultValues: false
+            }));
+        }
+
+        canvas.add(artboard);
+        canvas.sendToBack(artboard);
+        canvas.requestRenderAll();
     };
 
     const renderMediaOverlays = () => {
@@ -871,30 +1002,26 @@ export default function EditorView({
 
         canvas.requestRenderAll();
     };
+    if (metadata.backgroundColor) {
+        canvas.setBackgroundColor(metadata.backgroundColor, () => canvas.renderAll());
+    }
 
-    fetch('design.json')
-        .then((res) => res.json())
-        .then((data) => {
-            if (data.metadata) {
-                if (typeof data.metadata.canvasWidth === 'number') canvas.setWidth(data.metadata.canvasWidth);
-                if (typeof data.metadata.canvasHeight === 'number') canvas.setHeight(data.metadata.canvasHeight);
-                if (data.metadata.backgroundColor) {
-                    canvas.setBackgroundColor(data.metadata.backgroundColor, () => canvas.renderAll());
-                }
-                if (data.metadata.workspaceBackground) {
-                    document.documentElement.style.setProperty('--workspace-bg', data.metadata.workspaceBackground);
-                }
-            }
+    if (typeof metadata.canvasWidth === 'number' && typeof metadata.canvasHeight === 'number') {
+        canvas.setDimensions({ width: metadata.canvasWidth, height: metadata.canvasHeight });
+    }
 
-            canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-            canvas.loadFromJSON(data, () => {
-                syncDimensions();
-                renderMediaOverlays();
-            });
-        })
-        .catch((error) => {
-            console.error('Failed to initialise canvas export:', error);
-        });
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+    canvas.loadFromJSON(designData, () => {
+        applyArtboard();
+        syncDimensions();
+        renderMediaOverlays();
+    });
+
+    window.addEventListener('resize', () => {
+        syncDimensions();
+        renderMediaOverlays();
+    });
 });
 `;
 
