@@ -23,6 +23,8 @@ export interface ExtendedFabricObject extends fabric.Object {
     curveStrength?: number;
     // absolutePositioned removed as it conflicts with base
     cacheKey?: string;
+    mediaType?: 'video' | 'audio';
+    mediaSource?: string;
 }
 
 export interface CanvasElement {
@@ -58,6 +60,25 @@ export interface DesktopUpdatePayload {
     message?: string;
 }
 
+export interface GoogleDriveConfig {
+    enabled: boolean;
+    folderId?: string;
+    folderName?: string;
+    accessToken?: string;
+    tokenExpiry?: number;
+    clientId?: string;
+}
+
+export type AssetType = 'images' | 'models' | 'videos' | 'audio';
+export type AssetCategory = 'uploads' | 'generated';
+
+export interface AssetDescriptor {
+    name: string;
+    path: string;
+    type: AssetType;
+    category: AssetCategory;
+}
+
 declare global {
     interface DesktopBridge {
         isDesktop?: boolean;
@@ -68,6 +89,7 @@ declare global {
 
     interface Window {
         desktop?: DesktopBridge;
+        gapi?: unknown;
     }
 }
 

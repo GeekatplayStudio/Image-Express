@@ -2,6 +2,23 @@
 import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric'; // Import all to be safe with versioning, or named imports
 
+type ArtboardInfo = {
+    width: number;
+    height: number;
+    left: number;
+    top: number;
+};
+
+type CanvasWithArtboard = fabric.Canvas & {
+    artboard?: ArtboardInfo;
+    artboardRect?: fabric.Rect;
+    centerArtboard?: () => void;
+    hostContainer?: HTMLDivElement;
+    workspaceBackground?: string;
+    setWorkspaceBackground?: (color: string) => void;
+    getWorkspaceBackground?: () => string;
+};
+
 interface DesignCanvasProps {
   onCanvasReady: (canvas: fabric.Canvas) => void;
   onModified?: () => void;
@@ -15,8 +32,10 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
   const containerRef = useRef<HTMLDivElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const centerArtboardRef = useRef<(() => void) | null>(null);
+    const workspaceColorRef = useRef('#1E1E1E');
 
   const [selectionDims, setSelectionDims] = useState<{ width: number, height: number } | null>(null);
+    const [workspaceColor, setWorkspaceColor] = useState('#1E1E1E');
 
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
@@ -31,7 +50,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     const DESIGN_WIDTH = initialWidth;
     const DESIGN_HEIGHT = initialHeight;
 
-    const canvas = new CanvasClass(canvasRef.current, {
+        const canvas = new CanvasClass(canvasRef.current, {
       width: container.clientWidth,
       height: container.clientHeight,
       // We use transparent background for the main canvas, and rely on the "Artboard" rect for the white page.
@@ -40,9 +59,24 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
       preserveObjectStacking: true,
       controlsAboveOverlay: true, 
     });
-    
-    // Attach custom property to canvas for other components to know the "Page" dimensions
-    (canvas as fabric.Canvas & { artboard: { width: number; height: number; left: number; top: number } }).artboard = { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
+        const extendedCanvas = canvas as CanvasWithArtboard;
+
+        // Attach custom property to canvas for other components to know the "Page" dimensions
+        extendedCanvas.artboard = { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
+        extendedCanvas.hostContainer = container;
+        extendedCanvas.workspaceBackground = workspaceColorRef.current;
+        extendedCanvas.getWorkspaceBackground = () => workspaceColorRef.current;
+        extendedCanvas.setWorkspaceBackground = (color: string) => {
+            if (workspaceColorRef.current === color) return;
+            workspaceColorRef.current = color;
+            setWorkspaceColor(color);
+            extendedCanvas.workspaceBackground = color;
+            (canvas.fire as (eventName: string, options?: Record<string, unknown>) => fabric.Canvas)(
+                'workspace:color',
+                { color }
+            );
+            canvas.requestRenderAll();
+        };
 
     // --- Create Artboard (The White Page) ---
     const artboard = new fabric.Rect({
@@ -58,42 +92,45 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         excludeFromExport: true, // We will handle export by cropping manually usually
         shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.3)', blur: 20, offsetX: 0, offsetY: 0, includeDefaultValues: false })
     });
-    canvas.add(artboard);
+        canvas.add(artboard);
     // In Fabric.js v6+, methods like sendToBack are on the object itself using canvas.moveObjectTo(obj, index) or obj methods
     // Actually, in v6 it is canvas.moveObjectTo(object, index) or canvas.sendObjectToBack(object)
     // Let's check Fabric 6 docs or try standard method.
     // If sendToBack is not on canvas, it might be removed in v6.
     // We can use insertAt(0) when adding? Or canvas.sendObjectToBack(artboard).
     canvas.sendObjectToBack(artboard);
+        extendedCanvas.artboardRect = artboard;
 
     // Center the view on the artboard (Fit within view)
     const centerArtboard = () => {
-         const vW = canvas.width!;
-         const vH = canvas.height!;
+            const vW = canvas.width!;
+            const vH = canvas.height!;
+            const artboard = extendedCanvas.artboard || { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
          
-         if (!vW || !vH) return; // Wait for dimensions
+            if (!vW || !vH) return; // Wait for dimensions
          
-         // Calculate zoom to fit artboard with some padding (e.g. 50px)
-         const padding = 50;
-         const availableW = vW - padding * 2;
-         const availableH = vH - padding * 2;
+            // Calculate zoom to fit artboard with some padding (e.g. 50px)
+            const padding = 50;
+            const availableW = vW - padding * 2;
+            const availableH = vH - padding * 2;
          
-         // Determine scale to fit
-         const scaleX = availableW / DESIGN_WIDTH;
-         const scaleY = availableH / DESIGN_HEIGHT;
+            // Determine scale to fit
+            const scaleX = availableW / artboard.width;
+            const scaleY = availableH / artboard.height;
          
-         // Fit logic
-         let fitScale = Math.min(scaleX, scaleY);
-         if (fitScale < 0.001) fitScale = 0.001;
-         if (fitScale > 1) fitScale = 1; 
+            // Fit logic
+            let fitScale = Math.min(scaleX, scaleY);
+            if (fitScale < 0.001) fitScale = 0.001;
+            if (fitScale > 1) fitScale = 1; 
          
-         const panX = (vW - DESIGN_WIDTH * fitScale) / 2;
-         const panY = (vH - DESIGN_HEIGHT * fitScale) / 2;
+            const panX = (vW - artboard.width * fitScale) / 2 - artboard.left * fitScale;
+            const panY = (vH - artboard.height * fitScale) / 2 - artboard.top * fitScale;
          
-         canvas.setViewportTransform([fitScale, 0, 0, fitScale, panX, panY]);
-         canvas.requestRenderAll();
+            canvas.setViewportTransform([fitScale, 0, 0, fitScale, panX, panY]);
+            canvas.requestRenderAll();
     };
     centerArtboardRef.current = centerArtboard;
+        extendedCanvas.centerArtboard = centerArtboard;
     
     // Initial centering (immediate)
     centerArtboard();
@@ -242,8 +279,9 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         // We solve for Pan:
         // Pan = ScreenCoord - (WorldCoord * Zoom)
         
-        const artboardCenterX = DESIGN_WIDTH / 2;
-        const artboardCenterY = DESIGN_HEIGHT / 2;
+        const artboard = extendedCanvas.artboard || { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
+        const artboardCenterX = artboard.left + artboard.width / 2;
+        const artboardCenterY = artboard.top + artboard.height / 2;
         
         const newPanX = clickX - (artboardCenterX * zoom);
         const newPanY = clickY - (artboardCenterY * zoom);
@@ -278,6 +316,10 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     onCanvasReady(canvas);
 
     return () => {
+            extendedCanvas.hostContainer = undefined;
+            extendedCanvas.workspaceBackground = undefined;
+            extendedCanvas.getWorkspaceBackground = undefined;
+            extendedCanvas.setWorkspaceBackground = undefined;
       if (upperCanvas) upperCanvas.removeEventListener('contextmenu', handleContextMenu);
       canvas.off('object:modified', notifyModified);
       canvas.off('object:added', notifyModified);
@@ -287,8 +329,20 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     };
   }, [onRightClick, onCanvasReady, onModified, initialWidth, initialHeight]);
 
+    useEffect(() => {
+        workspaceColorRef.current = workspaceColor;
+        const canvas = fabricRef.current as CanvasWithArtboard | null;
+        if (canvas) {
+            canvas.workspaceBackground = workspaceColor;
+        }
+    }, [workspaceColor]);
+
   return (
-    <div ref={containerRef} className="w-full h-full bg-[#1E1E1E] relative overflow-hidden block">
+        <div
+            ref={containerRef}
+            className="w-full h-full relative overflow-hidden block"
+            style={{ backgroundColor: workspaceColor }}
+        >
         {/* Workspace Background Pattern using CSS */}
         <div className="absolute inset-0 pointer-events-none opacity-20" 
              style={{ 

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud } from 'lucide-react';
+import { X, Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud, HardDrive, Loader2, HelpCircle } from 'lucide-react';
 import HelpPopup from './HelpPopup';
-import type { DesktopUpdatePayload, DesktopUpdateStatus } from '@/types';
+import type { DesktopUpdatePayload, DesktopUpdateStatus, GoogleDriveConfig } from '@/types';
+import { connectGoogleDrive, disconnectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -50,6 +51,12 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
     const [isDesktopApp, setIsDesktopApp] = useState(false);
     const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus>('idle');
     const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+    const [driveConfig, setDriveConfig] = useState<GoogleDriveConfig>(() => loadDriveConfig());
+    const [isDriveBusy, setIsDriveBusy] = useState(false);
+    const [driveError, setDriveError] = useState<string | null>(null);
+    const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
+    const [clientIdInput, setClientIdInput] = useState(envDriveClientId);
+    const [showDriveHelp, setShowDriveHelp] = useState(false);
 
     // Load keys on mount
     useEffect(() => {
@@ -71,6 +78,14 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                 setUpdateStatus(payload.status || 'idle');
                 setUpdateMessage(payload.message || null);
             });
+        }
+
+        const storedDrive = loadDriveConfig();
+        setDriveConfig(storedDrive);
+        if (storedDrive.clientId) {
+            setClientIdInput(storedDrive.clientId);
+        } else {
+            setClientIdInput(envDriveClientId || '');
         }
 
         // Always load from local storage first for immediate UI
@@ -223,6 +238,40 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
         } catch (error) {
             setUpdateStatus('error');
             setUpdateMessage(error instanceof Error ? error.message : 'Failed to install update.');
+        }
+    };
+
+    const handleConnectDrive = async () => {
+        const resolvedClientId = (driveConfig.clientId || clientIdInput || envDriveClientId || '').trim();
+        if (!resolvedClientId) {
+            setDriveError('Add a Google OAuth client ID before connecting.');
+            return;
+        }
+        setIsDriveBusy(true);
+        setDriveError(null);
+        try {
+            const config = await connectGoogleDrive(resolvedClientId);
+            setDriveConfig(config);
+            setClientIdInput(resolvedClientId);
+        } catch (error) {
+            setDriveError(error instanceof Error ? error.message : 'Failed to connect Google Drive.');
+        } finally {
+            setIsDriveBusy(false);
+        }
+    };
+
+    const handleDisconnectDrive = async () => {
+        setIsDriveBusy(true);
+        setDriveError(null);
+        try {
+            await disconnectGoogleDrive();
+            const updated = loadDriveConfig();
+            setDriveConfig(updated);
+            setClientIdInput(updated.clientId || envDriveClientId || '');
+        } catch (error) {
+            setDriveError(error instanceof Error ? error.message : 'Failed to disconnect Google Drive.');
+        } finally {
+            setIsDriveBusy(false);
         }
     };
 
@@ -419,6 +468,105 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                             )}
                         </div>
                     )}
+
+                    <div className="border-t border-border/40 pt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <HardDrive size={16} className="text-primary" />
+                                    Google Drive Backup
+                                </h4>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Optional backup for saved designs to your Drive.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setShowDriveHelp((prev) => !prev)}
+                                    className="px-2 py-1 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
+                                >
+                                    <HelpCircle size={14} />
+                                    Help
+                                </button>
+                            {driveConfig.enabled ? (
+                                <button
+                                    onClick={handleDisconnectDrive}
+                                    className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
+                                    disabled={isDriveBusy}
+                                >
+                                    {isDriveBusy ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin" />
+                                            Disconnecting...
+                                        </>
+                                    ) : (
+                                        'Disconnect'
+                                    )}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleConnectDrive}
+                                    className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
+                                    disabled={isDriveBusy}
+                                >
+                                    {isDriveBusy ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin" />
+                                            Connecting...
+                                        </>
+                                    ) : (
+                                        'Connect'
+                                    )}
+                                </button>
+                            )}
+                            </div>
+                        </div>
+                        {showDriveHelp && (
+                            <div className="text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md px-3 py-3 space-y-2">
+                                <p className="font-semibold text-foreground">How to create a Google OAuth Client ID</p>
+                                <ol className="list-decimal list-inside space-y-1">
+                                    <li>Visit Google Cloud Console and create (or select) a project.</li>
+                                    <li>Enable the Drive API under APIs and Services.</li>
+                                    <li>Configure the OAuth consent screen (External) and add your app domains.</li>
+                                    <li>Create OAuth credentials: choose Web application, add your origins (for example http://localhost:3000), and copy the Client ID.</li>
+                                    <li>Paste the Client ID here or set NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID before running the app.</li>
+                                </ol>
+                                <p>If you publish the app, submit the OAuth consent screen for verification so users see the Google account picker without warnings.</p>
+                            </div>
+                        )}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold block">Google OAuth Client ID</label>
+                            <input
+                                type="text"
+                                value={clientIdInput}
+                                onChange={(event) => {
+                                    const value = event.target.value.trim();
+                                    setClientIdInput(value);
+                                    const updated = updateDriveConfig({ clientId: value || undefined });
+                                    setDriveConfig(updated);
+                                }}
+                                placeholder="1234567890-abcdef.apps.googleusercontent.com"
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                            />
+                            {!envDriveClientId && (
+                                <p className="text-[11px] text-muted-foreground">
+                                    Paste the Client ID from your Google Cloud OAuth credentials. Enable the Drive API and include the <span className="font-mono">drive.file</span> scope.
+                                </p>
+                            )}
+                        </div>
+                        {driveConfig.enabled && (
+                            <div className="text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md px-3 py-2">
+                                <p className="font-semibold">Status: Connected</p>
+                                {driveConfig.folderName && <p>Folder: {driveConfig.folderName}</p>}
+                                <p className="text-muted-foreground/80">Backups run after each successful save.</p>
+                            </div>
+                        )}
+                        {driveError && (
+                            <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+                                {driveError}
+                            </div>
+                        )}
+                    </div>
 
                     <div className="border-t border-border/40 pt-4">
                         <button 
