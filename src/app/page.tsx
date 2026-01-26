@@ -6,7 +6,8 @@ import UserProfileModal from '@/components/UserProfileModal';
 import Dashboard from '@/components/Dashboard';
 import EditorView from '@/components/Editor/EditorView';
 import DocumentationModal from '@/components/DocumentationModal';
-import { User } from 'lucide-react';
+import SettingsModal from '@/components/SettingsModal';
+import { User, Settings, Box, Cloud } from 'lucide-react';
 
 export default function Home() {
   // Auth State
@@ -27,6 +28,8 @@ export default function Home() {
   const [pendingTemplateJsonUrl, setPendingTemplateJsonUrl] = useState<string | null>(null);
   const [pendingDesignSize, setPendingDesignSize] = useState<{width: number, height: number} | null>(null);
   const [showDocumentation, setShowDocumentation] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState({ has2D: false, has3D: false });
 
   // Auth Effects
   useEffect(() => {
@@ -136,6 +139,20 @@ export default function Home() {
     };
   }, [isDesktopApp, username, showLoginModal, handleLogout]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const has3D = Boolean(localStorage.getItem('meshy_api_key') || localStorage.getItem('tripo_api_key'));
+    const has2D = Boolean(
+      localStorage.getItem('stability_api_key') ||
+      localStorage.getItem('openai_api_key') ||
+      localStorage.getItem('google_api_key') ||
+      localStorage.getItem('banana_api_key')
+    );
+    setConnectionStatus({ has2D, has3D });
+  }, [showSettings, currentView]);
+
   // Render
     if (currentView === 'editor') {
       return (
@@ -160,8 +177,11 @@ export default function Home() {
             setCurrentDesignName(name);
           }}
           onOpenDocumentation={() => setShowDocumentation(true)}
+          onOpenSettings={() => setShowSettings(true)}
+          settingsOpen={showSettings}
           />
           <DocumentationModal isOpen={showDocumentation} onClose={() => setShowDocumentation(false)} />
+          <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={username} />
         </>
       );
   }
@@ -182,12 +202,43 @@ export default function Home() {
         </div>
         
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 mr-2">
+              <div
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border transition-all ${
+                  connectionStatus.has3D
+                    ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-600'
+                    : 'bg-secondary/30 border-transparent text-muted-foreground/30 opacity-60'
+                }`}
+                title={connectionStatus.has3D ? '3D Services Connected' : 'No 3D Services Connected'}
+              >
+                <Box size={14} strokeWidth={connectionStatus.has3D ? 2 : 1.5} />
+                {connectionStatus.has3D && <span className="text-[10px] font-bold">3D</span>}
+              </div>
+              <div
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border transition-all ${
+                  connectionStatus.has2D
+                    ? 'bg-purple-500/10 border-purple-500/20 text-purple-600'
+                    : 'bg-secondary/30 border-transparent text-muted-foreground/30 opacity-60'
+                }`}
+                title={connectionStatus.has2D ? 'Generative AI Connected' : 'No Generative AI Connected'}
+              >
+                <Cloud size={14} strokeWidth={connectionStatus.has2D ? 2 : 1.5} />
+                {connectionStatus.has2D && <span className="text-[10px] font-bold">AI</span>}
+              </div>
+            </div>
              <button 
                onClick={() => setShowDocumentation(true)}
                className="w-9 h-9 rounded-full border border-border/60 flex items-center justify-center text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                title="How to use Image Express"
              >
                ?
+             </button>
+             <button 
+                onClick={() => setShowSettings(true)}
+                className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                title="Settings"
+             >
+                <Settings size={20} />
              </button>
              <button 
                 onClick={() => setShowProfileModal(true)}
@@ -212,6 +263,7 @@ export default function Home() {
         username={username}
         onLogout={handleLogout}
       />
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={username} />
 
         <div className="flex flex-1 overflow-hidden">
            <Dashboard 
