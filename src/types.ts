@@ -21,6 +21,16 @@ export interface ExtendedFabricObject extends fabric.Object {
     name?: string;
     layerTagColor?: string;
     curveStrength?: number;
+    curveCenter?: number;
+    skewZ?: number;
+    skewZBaseScale?: number;
+    skewZBaseScaleX?: number;
+    skewZBaseScaleY?: number;
+    skewZBaseSkewX?: number;
+    skewZBaseSkewY?: number;
+    taperDirection?: number;
+    taperBaseLeft?: number;
+    taperBaseTop?: number;
     // absolutePositioned removed as it conflicts with base
     cacheKey?: string;
     mediaType?: 'video' | 'audio';

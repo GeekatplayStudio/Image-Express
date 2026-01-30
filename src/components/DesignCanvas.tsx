@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric'; // Import all to be safe with versioning, or named imports
+import { useDialog } from '@/providers/DialogProvider';
+import { useToast } from '@/providers/ToastProvider';
 
 type ArtboardInfo = {
     width: number;
@@ -19,6 +21,114 @@ type CanvasWithArtboard = fabric.Canvas & {
     getWorkspaceBackground?: () => string;
 };
 
+type WarpCorner = 'TL' | 'TR' | 'BR' | 'BL';
+type WarpPoint = { x: number; y: number };
+
+class WarpedImage extends fabric.Image {
+    isWarpedText = true;
+    warpTL?: WarpPoint;
+    warpTR?: WarpPoint;
+    warpBR?: WarpPoint;
+    warpBL?: WarpPoint;
+
+    override _render(ctx: CanvasRenderingContext2D) {
+        const img = (this as unknown as { _element?: HTMLImageElement })._element;
+        if (!img) return;
+
+        const w = this.width ?? 0;
+        const h = this.height ?? 0;
+        if (!w || !h) return;
+
+        const base = {
+            tl: { x: -w / 2, y: -h / 2 },
+            tr: { x: w / 2, y: -h / 2 },
+            br: { x: w / 2, y: h / 2 },
+            bl: { x: -w / 2, y: h / 2 }
+        };
+
+        const tl = this.warpTL ?? base.tl;
+        const tr = this.warpTR ?? base.tr;
+        const br = this.warpBR ?? base.br;
+        const bl = this.warpBL ?? base.bl;
+
+        const map = (u: number, v: number) => ({
+            x: tl.x * (1 - u) * (1 - v) + tr.x * u * (1 - v) + bl.x * (1 - u) * v + br.x * u * v,
+            y: tl.y * (1 - u) * (1 - v) + tr.y * u * (1 - v) + bl.y * (1 - u) * v + br.y * u * v
+        });
+
+        const getTransform = (src: WarpPoint, src1: WarpPoint, src2: WarpPoint, dst: WarpPoint, dst1: WarpPoint, dst2: WarpPoint) => {
+            const x0 = src.x, y0 = src.y;
+            const x1 = src1.x, y1 = src1.y;
+            const x2 = src2.x, y2 = src2.y;
+            const X0 = dst.x, Y0 = dst.y;
+            const X1 = dst1.x, Y1 = dst1.y;
+            const X2 = dst2.x, Y2 = dst2.y;
+
+            const denom = x0 * (y1 - y2) + x1 * (y2 - y0) + x2 * (y0 - y1);
+            if (Math.abs(denom) < 1e-6) return null;
+
+            const a = (X0 * (y1 - y2) + X1 * (y2 - y0) + X2 * (y0 - y1)) / denom;
+            const c = (X0 * (x2 - x1) + X1 * (x0 - x2) + X2 * (x1 - x0)) / denom;
+            const e = (X0 * (x1 * y2 - x2 * y1) + X1 * (x2 * y0 - x0 * y2) + X2 * (x0 * y1 - x1 * y0)) / denom;
+
+            const b = (Y0 * (y1 - y2) + Y1 * (y2 - y0) + Y2 * (y0 - y1)) / denom;
+            const d = (Y0 * (x2 - x1) + Y1 * (x0 - x2) + Y2 * (x1 - x0)) / denom;
+            const f = (Y0 * (x1 * y2 - x2 * y1) + Y1 * (x2 * y0 - x0 * y2) + Y2 * (x0 * y1 - x1 * y0)) / denom;
+
+            return { a, b, c, d, e, f };
+        };
+
+        const cols = 6;
+        const rows = 6;
+        for (let yi = 0; yi < rows; yi += 1) {
+            for (let xi = 0; xi < cols; xi += 1) {
+                const u0 = xi / cols;
+                const u1 = (xi + 1) / cols;
+                const v0 = yi / rows;
+                const v1 = (yi + 1) / rows;
+
+                const dst00 = map(u0, v0);
+                const dst10 = map(u1, v0);
+                const dst01 = map(u0, v1);
+                const dst11 = map(u1, v1);
+
+                const src00 = { x: u0 * w, y: v0 * h };
+                const src10 = { x: u1 * w, y: v0 * h };
+                const src01 = { x: u0 * w, y: v1 * h };
+                const src11 = { x: u1 * w, y: v1 * h };
+
+                const t1 = getTransform(src00, src10, src01, dst00, dst10, dst01);
+                if (t1) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(dst00.x, dst00.y);
+                    ctx.lineTo(dst10.x, dst10.y);
+                    ctx.lineTo(dst01.x, dst01.y);
+                    ctx.closePath();
+                    ctx.clip();
+                    ctx.transform(t1.a, t1.b, t1.c, t1.d, t1.e - w / 2, t1.f - h / 2);
+                    ctx.drawImage(img, 0, 0);
+                    ctx.restore();
+                }
+
+                const t2 = getTransform(src11, src01, src10, dst11, dst01, dst10);
+                if (t2) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(dst11.x, dst11.y);
+                    ctx.lineTo(dst01.x, dst01.y);
+                    ctx.lineTo(dst10.x, dst10.y);
+                    ctx.closePath();
+                    ctx.clip();
+                    ctx.transform(t2.a, t2.b, t2.c, t2.d, t2.e - w / 2, t2.f - h / 2);
+                    ctx.drawImage(img, 0, 0);
+                    ctx.restore();
+                }
+            }
+        }
+    }
+}
+
 interface DesignCanvasProps {
   onCanvasReady: (canvas: fabric.Canvas) => void;
   onModified?: () => void;
@@ -33,9 +143,18 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const centerArtboardRef = useRef<(() => void) | null>(null);
     const workspaceColorRef = useRef('#1E1E1E');
+    const dialog = useDialog();
+    const { toast } = useToast();
+    const dialogRef = useRef(dialog);
+    const toastRef = useRef(toast);
 
   const [selectionDims, setSelectionDims] = useState<{ width: number, height: number } | null>(null);
     const [workspaceColor, setWorkspaceColor] = useState('#1E1E1E');
+
+    useEffect(() => {
+        dialogRef.current = dialog;
+        toastRef.current = toast;
+    }, [dialog, toast]);
 
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
@@ -50,7 +169,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     const DESIGN_WIDTH = initialWidth;
     const DESIGN_HEIGHT = initialHeight;
 
-        const canvas = new CanvasClass(canvasRef.current, {
+                const canvas = new CanvasClass(canvasRef.current, {
       width: container.clientWidth,
       height: container.clientHeight,
       // We use transparent background for the main canvas, and rely on the "Artboard" rect for the white page.
@@ -60,6 +179,173 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
       controlsAboveOverlay: true, 
     });
         const extendedCanvas = canvas as CanvasWithArtboard;
+
+        const attachTextDistortControls = () => {
+            const renderDistortControl: fabric.Control['render'] = (ctx, left, top, styleOverride, fabricObject) => {
+                const size = styleOverride?.cornerSize ?? fabricObject.cornerSize ?? 12;
+                ctx.save();
+                ctx.fillStyle = '#a78bfa';
+                ctx.strokeStyle = '#f5f3ff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(left, top, size / 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            };
+
+            const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
+
+            const getCanvasPointer = (eventData: MouseEvent, target: fabric.Object, transform: fabric.Transform) => {
+                const targetCanvas = (transform as unknown as { canvas?: fabric.Canvas }).canvas ?? target.canvas;
+                if (!targetCanvas) return { x: eventData.clientX, y: eventData.clientY };
+                const getPointer = (targetCanvas as unknown as { getPointer?: (e: MouseEvent) => { x: number; y: number } }).getPointer;
+                return typeof getPointer === 'function'
+                    ? getPointer.call(targetCanvas, eventData)
+                    : (fabric.util as unknown as { getPointer?: (e: MouseEvent, el?: HTMLCanvasElement) => { x: number; y: number } })
+                        .getPointer?.(eventData, (targetCanvas as unknown as { upperCanvasEl?: HTMLCanvasElement }).upperCanvasEl)
+                        ?? { x: eventData.clientX, y: eventData.clientY };
+            };
+
+            const createWarpControl = (corner: WarpCorner, x: number, y: number) => new fabric.Control({
+                x,
+                y,
+                cursorStyleHandler: () => 'crosshair',
+                render: renderDistortControl,
+                actionHandler: (eventData, transform) => {
+                    const target = transform.target as WarpedImage;
+                    const pointer = getCanvasPointer(eventData, target, transform);
+                    const pointerPoint = new fabric.Point(pointer.x, pointer.y);
+                    const invert = (fabric.util as unknown as { invertTransform: (m: number[]) => number[] }).invertTransform;
+                    const transformPoint = (fabric.util as unknown as { transformPoint: (p: fabric.Point, m: number[]) => fabric.Point }).transformPoint;
+                    const inverted = invert(target.calcTransformMatrix());
+                    const local = transformPoint(pointerPoint, inverted);
+                    const w = (target.width ?? 1) / 2;
+                    const h = (target.height ?? 1) / 2;
+                    const next = {
+                        x: clamp(local.x, -w * 1.5, w * 1.5),
+                        y: clamp(local.y, -h * 1.5, h * 1.5)
+                    };
+                    if (corner === 'TL') target.warpTL = next;
+                    if (corner === 'TR') target.warpTR = next;
+                    if (corner === 'BR') target.warpBR = next;
+                    if (corner === 'BL') target.warpBL = next;
+                    target.setCoords();
+                    target.canvas?.requestRenderAll();
+                    return true;
+                }
+            });
+
+            const applyControlsToWarped = (obj: WarpedImage) => {
+                obj.controls = {
+                    ...obj.controls,
+                    tl: createWarpControl('TL', -0.5, -0.5),
+                    tr: createWarpControl('TR', 0.5, -0.5),
+                    bl: createWarpControl('BL', -0.5, 0.5),
+                    br: createWarpControl('BR', 0.5, 0.5)
+                } as fabric.Controls;
+                obj.setCoords();
+            };
+
+            const convertTextToWarped = async (obj: fabric.Object) => {
+                const targetCanvas = canvas;
+                if (!targetCanvas) return null;
+                const textObj = obj as fabric.IText;
+                const center = textObj.getCenterPoint();
+                const multiplier = 2;
+                const dataUrl = textObj.toDataURL({ format: 'png', withoutTransform: true, multiplier });
+                const img = await fabric.FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' });
+                const element = (img as unknown as { _element?: HTMLImageElement; _originalElement?: HTMLImageElement; getElement?: () => HTMLImageElement })._element
+                    || (img as unknown as { _originalElement?: HTMLImageElement })._originalElement
+                    || (img as unknown as { getElement?: () => HTMLImageElement }).getElement?.();
+                if (!element) return null;
+
+                const warped = new WarpedImage(element, {
+                    left: center.x,
+                    top: center.y,
+                    angle: textObj.angle,
+                    scaleX: (textObj.scaleX ?? 1) / multiplier,
+                    scaleY: (textObj.scaleY ?? 1) / multiplier,
+                    originX: 'center',
+                    originY: 'center',
+                    opacity: textObj.opacity,
+                    shadow: textObj.shadow,
+                    objectCaching: false
+                } as fabric.IImageOptions);
+                warped.warpTL = undefined;
+                warped.warpTR = undefined;
+                warped.warpBR = undefined;
+                warped.warpBL = undefined;
+
+                targetCanvas.remove(textObj);
+                targetCanvas.add(warped);
+                applyControlsToWarped(warped);
+                targetCanvas.setActiveObject(warped);
+                targetCanvas.requestRenderAll();
+                return warped;
+            };
+
+            const createConvertControl = (x: number, y: number) => new fabric.Control({
+                x,
+                y,
+                cursorStyleHandler: () => 'crosshair',
+                render: renderDistortControl,
+                mouseDownHandler: (_eventData, transform) => {
+                    const target = transform.target as fabric.Object & { isWarpedText?: boolean };
+                    if (target.isWarpedText) return true;
+                    if (!['text', 'i-text', 'textbox'].includes(target.type || '')) return true;
+                    void (async () => {
+                        const ok = await dialogRef.current.confirm('Enable free distort?', {
+                            title: 'Convert text to warp',
+                            description: 'This converts text to a shape, so it will no longer be editable as text.',
+                            confirmText: 'Convert',
+                            cancelText: 'Cancel'
+                        });
+                        if (!ok) {
+                            toastRef.current({ title: 'Conversion canceled', description: 'Text remains editable.' });
+                            return;
+                        }
+                        await convertTextToWarped(target);
+                        toastRef.current({ title: 'Text converted', description: 'Free distort enabled. Text is no longer editable.' , variant: 'warning' });
+                    })();
+                    return false;
+                }
+            });
+
+            const applyControls = (proto?: { controls?: fabric.Controls }) => {
+                if (!proto?.controls) return;
+                proto.controls = {
+                    ...proto.controls,
+                    tl: createConvertControl(-0.5, -0.5),
+                    tr: createConvertControl(0.5, -0.5)
+                } as fabric.Controls;
+            };
+
+            const applyControlsToObject = (obj?: fabric.Object | null) => {
+                if (!obj) return;
+                if ((obj as { isWarpedText?: boolean }).isWarpedText) {
+                    applyControlsToWarped(obj as WarpedImage);
+                    return;
+                }
+                if (!['text', 'i-text', 'textbox'].includes(obj.type || '')) return;
+                obj.controls = {
+                    ...obj.controls,
+                    tl: createConvertControl(-0.5, -0.5),
+                    tr: createConvertControl(0.5, -0.5)
+                } as fabric.Controls;
+                obj.setCoords();
+            };
+
+            applyControls((fabric.IText as unknown as { prototype?: { controls?: fabric.Controls } })?.prototype);
+            applyControls((fabric.Textbox as unknown as { prototype?: { controls?: fabric.Controls } })?.prototype);
+            applyControls((fabric.Text as unknown as { prototype?: { controls?: fabric.Controls } })?.prototype);
+
+            canvas.on('selection:created', (e) => applyControlsToObject(e.selected?.[0] ?? canvas.getActiveObject()));
+            canvas.on('selection:updated', (e) => applyControlsToObject(e.selected?.[0] ?? canvas.getActiveObject()));
+            canvas.on('object:added', (e) => applyControlsToObject(e.target));
+        };
+
+        attachTextDistortControls();
 
         // Attach custom property to canvas for other components to know the "Page" dimensions
         extendedCanvas.artboard = { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
@@ -327,7 +613,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
       canvas.dispose();
       resizeObserver.disconnect();
     };
-  }, [onRightClick, onCanvasReady, onModified, initialWidth, initialHeight]);
+    }, [onRightClick, onCanvasReady, onModified, initialWidth, initialHeight, dialog, toast]);
 
     useEffect(() => {
         workspaceColorRef.current = workspaceColor;

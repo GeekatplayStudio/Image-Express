@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, File, Image as ImageIcon, MoreVertical, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box, Wand2 } from 'lucide-react';
+import { useDialog } from '@/providers/DialogProvider';
+import { useToast } from '@/providers/ToastProvider';
 
 interface DashboardProps {
   onNewDesign: () => void;
@@ -90,6 +92,8 @@ const MORE_TEMPLATES = [
 ];
 
 export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign, user }: DashboardProps) {
+    const dialog = useDialog();
+    const { toast } = useToast();
   const [recentDesigns, setRecentDesigns] = useState<any[]>([]);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [showAllDesigns, setShowAllDesigns] = useState(false);
@@ -117,7 +121,8 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign,
   
   const handleDelete = async (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
-      if(confirm('Delete this design?')) {
+      const confirmed = await dialog.confirm('Delete this design?', { title: 'Delete design', variant: 'destructive' });
+      if(confirmed) {
           try {
               const res = await fetch('/api/designs/delete', {
                   method: 'POST',
@@ -129,11 +134,11 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign,
                   const updated = recentDesigns.filter(d => d.id !== id);
                   setRecentDesigns(updated);
               } else {
-                  alert("Failed to delete design");
+                  toast({ title: 'Delete failed', description: 'Failed to delete design.', variant: 'destructive' });
               }
           } catch (err) {
               console.error("Delete failed", err);
-              alert("Error deleting design");
+              toast({ title: 'Delete failed', description: 'Error deleting design.', variant: 'destructive' });
           }
       }
   };
@@ -187,7 +192,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign,
                             if (action.action === 'new') onNewDesign();
                             else if (action.action === 'ai') onNewDesign(); // Temporary map to new
                             else if (action.action === '3d') onNewDesign(); // Temporary
-                            else alert("Upload feature coming to dashboard soon!");
+                            else toast({ title: 'Coming soon', description: 'Upload feature coming to dashboard soon!', variant: 'warning' });
                         }}
                         className={`group relative h-32 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left p-0 ${action.color}`}
                      >

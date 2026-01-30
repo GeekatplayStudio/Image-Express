@@ -7,6 +7,7 @@ import { Label } from '../ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Slider } from '../ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { useToast } from '@/providers/ToastProvider';
 
 /**
  * Props for the Stability Generator Component
@@ -39,6 +40,7 @@ interface StabilityGeneratorProps {
  * - Background Removal
  */
 export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, onJobCreated, embedded, onAssetSave }: StabilityGeneratorProps) {
+    const { toast } = useToast();
     // --- UI State ---
     const [activeTab, setActiveTab] = useState('generate');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -132,7 +134,10 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
      * Uses Stability Core API.
      */
     const handleGenerate = async () => {
-        if (!apiKey) return alert("Please set Stability API Key in settings.");
+        if (!apiKey) {
+            toast({ title: 'Missing API key', description: 'Please set Stability API Key in settings.', variant: 'warning' });
+            return;
+        }
         setIsProcessing(true);
         setResultImage(null);
 
@@ -152,12 +157,12 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             if (data.success) {
                 setResultImage(`data:image/png;base64,${data.image}`);
             } else {
-                alert(`Error: ${data.message}`);
+                toast({ title: 'Generation failed', description: data.message || 'Error generating image.', variant: 'destructive' });
             }
 
         } catch (e) {
             console.error(e);
-            alert("Generation failed");
+            toast({ title: 'Generation failed', description: 'Something went wrong.', variant: 'destructive' });
         } finally {
             setIsProcessing(false);
         }
@@ -167,8 +172,14 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
      * Removes the background from the selected canvas image.
      */
     const handleRemoveBg = async () => {
-        if (!apiKey) return alert("Please set Stability API Key");
-        if (!selectedCanvasImage) return alert("Select an image on canvas first");
+        if (!apiKey) {
+            toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+            return;
+        }
+        if (!selectedCanvasImage) {
+            toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+            return;
+        }
         
         setIsProcessing(true);
         try {
@@ -189,11 +200,11 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             if (data.success) {
                 setResultImage(`data:image/png;base64,${data.image}`);
             } else {
-                alert(`Error: ${data.message}`);
+                toast({ title: 'Remove BG failed', description: data.message || 'Error removing background.', variant: 'destructive' });
             }
         } catch (e) {
             console.error(e);
-            alert("Remove BG Failed");
+            toast({ title: 'Remove BG failed', description: 'Something went wrong.', variant: 'destructive' });
         } finally {
             setIsProcessing(false);
         }
@@ -204,8 +215,14 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
      * @param type 'conservative' (details) or 'creative' (hallucinate details)
      */
     const handleUpscale = async (type: 'conservative' | 'creative') => {
-        if (!apiKey) return alert("Please set Stability API Key");
-        if (!selectedCanvasImage) return alert("Select an image on canvas first");
+        if (!apiKey) {
+            toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+            return;
+        }
+        if (!selectedCanvasImage) {
+            toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+            return;
+        }
 
         setIsProcessing(true);
         try {
@@ -233,17 +250,17 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                         apiKey: apiKey,
                         provider: 'stability'
                     });
-                    alert("Creative Upscale started in background. Check status footer.");
+                    toast({ title: 'Upscale started', description: 'Creative upscale running in background.', variant: 'success' });
                     onClose(); 
                 } else {
                     setResultImage(`data:image/png;base64,${data.image}`);
                 }
             } else {
-                alert(`Error: ${data.message}`);
+                toast({ title: 'Upscale failed', description: data.message || 'Error starting upscale.', variant: 'destructive' });
             }
         } catch (e) {
             console.error(e);
-            alert("Upscale failed");
+            toast({ title: 'Upscale failed', description: 'Something went wrong.', variant: 'destructive' });
         } finally {
             setIsProcessing(false);
         }
@@ -253,8 +270,14 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
      * Performs Image-to-Image generation based on canvas selection + prompt.
      */
     const handleImg2Img = async () => {
-         if (!apiKey) return alert("Please set Stability API Key");
-         if (!selectedCanvasImage) return alert("Select an image on canvas first");
+         if (!apiKey) {
+             toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+             return;
+         }
+         if (!selectedCanvasImage) {
+             toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+             return;
+         }
          
          setIsProcessing(true);
          try {
@@ -276,11 +299,11 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             if (data.success) {
                 setResultImage(`data:image/png;base64,${data.image}`);
             } else {
-                alert(`Error: ${data.message}`);
+                toast({ title: 'Img2Img failed', description: data.message || 'Error generating image.', variant: 'destructive' });
             }
          } catch (e) {
             console.error(e);
-            alert("Img2Img Failed");
+            toast({ title: 'Img2Img failed', description: 'Something went wrong.', variant: 'destructive' });
          } finally {
              setIsProcessing(false);
          }
@@ -290,9 +313,18 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
      * Performs Inpainting (replacing masked area) based on canvas selection + mask.
      */
     const handleInpaint = async () => {
-        if (!apiKey) return alert("Please set Stability API Key");
-        if (!selectedCanvasImage) return alert("Select an image on canvas first");
-        if (!maskDataUrl) return alert("Please draw a mask on the image");
+        if (!apiKey) {
+            toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+            return;
+        }
+        if (!selectedCanvasImage) {
+            toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+            return;
+        }
+        if (!maskDataUrl) {
+            toast({ title: 'No mask', description: 'Please draw a mask on the image.', variant: 'warning' });
+            return;
+        }
 
         setIsProcessing(true);
         try {
@@ -316,11 +348,11 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
            if (data.success) {
                setResultImage(`data:image/png;base64,${data.image}`);
            } else {
-               alert(`Error: ${data.message}`);
+               toast({ title: 'Inpaint failed', description: data.message || 'Error running inpaint.', variant: 'destructive' });
            }
         } catch (e) {
             console.error(e);
-            alert("Inpaint Failed");
+            toast({ title: 'Inpaint failed', description: 'Something went wrong.', variant: 'destructive' });
         } finally {
             setIsProcessing(false);
         }
@@ -473,7 +505,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                  </div>
                                  <div className="space-y-2">
                                      <Label>Strength ({strength[0]})</Label>
-                                     <Slider value={strength} onValueChange={(val) => setStrength(val)} min={0} max={1} step={0.05} />
+                                     <Slider value={strength} onValueChange={(val) => setStrength(val)} min={0} max={1} step={0.05} data-default="0.7" />
                                      <p className="text-xs text-muted-foreground">0 = No change, 1 = Full change</p>
                                  </div>
                                  <Button className="w-full" onClick={handleImg2Img} disabled={isProcessing}>
@@ -508,7 +540,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                     <span>Brush Size: {brushSize}px</span>
-                                    <Slider className="w-32" value={brushSize} onValueChange={(val) => setBrushSize(val)} min={5} max={50} />
+                                    <Slider className="w-32" value={brushSize} onValueChange={(val) => setBrushSize(val)} min={5} max={50} data-default="20" />
                                 </div>
                                 
                                 <div className="space-y-2 mt-2">

@@ -2,8 +2,10 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { StarPolygon, ExtendedFabricObject } from '@/types';
-import { Trash2, Layers, GripVertical, Settings, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight, Blend, Wand2, Play, ExternalLink } from 'lucide-react';
+import { Trash2, Layers, GripVertical, Settings, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight, Blend, Wand2, Play, ExternalLink, Video, Music, Type as TypeIcon, Shapes } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useDialog } from '@/providers/DialogProvider';
+import { useToast } from '@/providers/ToastProvider';
 
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number; left: number; top: number };
@@ -47,6 +49,33 @@ const normalizeColorValue = (value?: string) => {
     }
 
     return trimmed;
+};
+
+const parseColorWithAlpha = (value?: string) => {
+    if (!value) return { color: '#000000', alpha: 1 };
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed === 'transparent') return { color: '#000000', alpha: 0 };
+    const rgbaMatch = trimmed.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/i);
+    if (rgbaMatch) {
+        const r = parseInt(rgbaMatch[1], 10);
+        const g = parseInt(rgbaMatch[2], 10);
+        const b = parseInt(rgbaMatch[3], 10);
+        const alpha = rgbaMatch[4] !== undefined ? Math.min(1, Math.max(0, parseFloat(rgbaMatch[4]))) : 1;
+        return { color: `#${channelToHex(r)}${channelToHex(g)}${channelToHex(b)}`, alpha };
+    }
+
+    const normalized = normalizeColorValue(trimmed);
+    return { color: normalized ?? trimmed, alpha: 1 };
+};
+
+const applyAlphaToColor = (color: string, alpha: number) => {
+    const normalized = normalizeColorValue(color) ?? color;
+    if (!normalized.startsWith('#')) return normalized;
+    const hex = normalized.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0, alpha))})`;
 };
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -108,6 +137,21 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
     
     // Check internal visible state
     const isVisible = obj.visible !== false; 
+
+    const getLayerTypeInfo = () => {
+        if (extendedObj.is3DModel) return { icon: Box, className: 'text-indigo-500' };
+        if (extendedObj.mediaType === 'video') return { icon: Video, className: 'text-sky-500' };
+        if (extendedObj.mediaType === 'audio') return { icon: Music, className: 'text-emerald-500' };
+        if (obj.type === 'image') return { icon: ImageIcon, className: 'text-amber-500' };
+        if (obj.type === 'text' || obj.type === 'i-text') return { icon: TypeIcon, className: 'text-purple-500' };
+        if (['rect', 'circle', 'triangle', 'polygon', 'line', 'path'].includes(obj.type || '')) {
+            return { icon: Shapes, className: 'text-slate-500' };
+        }
+        if ('isStar' in obj) return { icon: Shapes, className: 'text-slate-500' };
+        return { icon: Shapes, className: 'text-slate-500' };
+    };
+
+    const typeInfo = getLayerTypeInfo();
 
     const handleNameSave = () => {
         setIsEditing(false);
@@ -225,14 +269,22 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                             {(obj as ExtendedFabricObject).name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object'))}
                         </span>
                     )}
-                    <span className="text-[10px] text-muted-foreground">Layer {total - index}</span>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span>Layer {total - index}</span>
+                        <typeInfo.icon size={12} className={typeInfo.className} />
+                        {isVisible ? (
+                            <Eye size={12} className="text-emerald-500" />
+                        ) : (
+                            <EyeOff size={12} className="text-rose-500" />
+                        )}
+                    </div>
                 </div>
             </div>
             
             <div className={`flex items-center gap-1 ${selectedObject === obj ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'} transition-opacity ml-2`}>
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleVisibility(obj); }}
-                    className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground"
+                    className={`p-1.5 hover:bg-secondary rounded-md ${isVisible ? 'text-emerald-500 hover:text-emerald-600' : 'text-rose-500 hover:text-rose-600'}`}
                     title={isVisible ? "Hide" : "Show"}
                 >
                     {isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -250,6 +302,8 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
 }
 
 export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerDblClick, onPreviewMedia }: PropertiesPanelProps) {
+    const dialog = useDialog();
+    const { toast } = useToast();
     const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     
@@ -286,15 +340,23 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
 
     // Advanced Effects State
     const [curveStrength, setCurveStrength] = useState(0);
+    const [curveCenter, setCurveCenter] = useState(0);
     const [skewX, setSkewX] = useState(0);
     const [skewY, setSkewY] = useState(0);
+    const [skewZ, setSkewZ] = useState(0);
+    const [taperDirection, setTaperDirection] = useState(0);
+    const [isTaperDirectionDragging, setIsTaperDirectionDragging] = useState(false);
+    const taperGuideRef = useRef<fabric.Circle | null>(null);
     const [strokeColor, setStrokeColor] = useState('#000000');
     const [strokeWidth, setStrokeWidth] = useState(0);
+    const [strokeOpacity, setStrokeOpacity] = useState(1);
+    const [strokeInside, setStrokeInside] = useState(true);
     const [shadowEnabled, setShadowEnabled] = useState(false);
     const [shadowColor, setShadowColor] = useState('#000000');
     const [shadowBlur, setShadowBlur] = useState(10);
     const [shadowOffsetX, setShadowOffsetX] = useState(5);
     const [shadowOffsetY, setShadowOffsetY] = useState(5);
+    const [shadowOpacity, setShadowOpacity] = useState(1);
 
     // Blending & Filters State
     const [blendMode, setBlendMode] = useState<string>('source-over');
@@ -371,6 +433,56 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             ((canvas.off as unknown) as (eventName: string, handler: (...args: unknown[]) => void) => void)('workspace:color', queueSync);
         };
     }, [canvas, syncCanvasMetrics]);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        const removeGuide = () => {
+            if (taperGuideRef.current) {
+                canvas.remove(taperGuideRef.current);
+                taperGuideRef.current = null;
+                canvas.requestRenderAll();
+            }
+        };
+
+        if (!selectedObject || !isTaperDirectionDragging) {
+            removeGuide();
+            return;
+        }
+
+        const rect = selectedObject.getBoundingRect(true, true);
+        const dir = Math.max(-100, Math.min(100, taperDirection)) / 100;
+        const x = rect.left + rect.width / 2 + (rect.width / 2) * dir;
+        const y = rect.top;
+
+        let guide = taperGuideRef.current;
+        if (!guide) {
+            guide = new fabric.Circle({
+                radius: 4,
+                fill: '#7c3aed',
+                stroke: '#ffffff',
+                strokeWidth: 1,
+                left: x,
+                top: y,
+                originX: 'center',
+                originY: 'center',
+                selectable: false,
+                evented: false,
+                excludeFromExport: true,
+                hasControls: false,
+                hasBorders: false
+            });
+            taperGuideRef.current = guide;
+            canvas.add(guide);
+        } else {
+            guide.set({ left: x, top: y });
+        }
+
+        guide.setCoords();
+        canvas.requestRenderAll();
+
+        return () => removeGuide();
+    }, [canvas, selectedObject, isTaperDirectionDragging, taperDirection]);
 
     useEffect(() => {
         if (!canvas) return;
@@ -474,19 +586,30 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                 const path = availableTarget.get('path') as fabric.Path;
                 if (path && (availableTarget as ExtendedFabricObject).curveStrength !== undefined) {
                      setCurveStrength((availableTarget as ExtendedFabricObject).curveStrength || 0);
+                     setCurveCenter((availableTarget as ExtendedFabricObject).curveCenter || 0);
                 } else {
                      setCurveStrength(0);
+                     setCurveCenter(0);
                 }
 
                 setSkewX(availableTarget.get('skewX') || 0);
                 setSkewY(availableTarget.get('skewY') || 0);
-                setStrokeColor(availableTarget.get('stroke') || '#000000');
+                setSkewZ((availableTarget as ExtendedFabricObject).skewZ ?? 0);
+                setTaperDirection((availableTarget as ExtendedFabricObject).taperDirection ?? 0);
+
+                const strokeInfo = parseColorWithAlpha(availableTarget.get('stroke'));
+                setStrokeColor(strokeInfo.color || '#000000');
+                setStrokeOpacity(strokeInfo.alpha ?? 1);
                 setStrokeWidth(availableTarget.get('strokeWidth') || 0);
+                const paintFirst = availableTarget.get('paintFirst');
+                setStrokeInside(paintFirst !== 'stroke');
                 
                 const shadow = availableTarget.get('shadow') as fabric.Shadow;
                 if (shadow) {
                     setShadowEnabled(true);
-                    setShadowColor(shadow.color || '#000000');
+                    const shadowInfo = parseColorWithAlpha(shadow.color || '#000000');
+                    setShadowColor(shadowInfo.color || '#000000');
+                    setShadowOpacity(shadowInfo.alpha ?? 1);
                     setShadowBlur(shadow.blur || 10);
                     setShadowOffsetX(shadow.offsetX || 5);
                     setShadowOffsetY(shadow.offsetY || 5);
@@ -496,6 +619,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                     setShadowBlur(10);
                     setShadowOffsetX(5);
                     setShadowOffsetY(5);
+                    setShadowOpacity(1);
                 }
 
                 // Read Blending Mode
@@ -707,14 +831,15 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     // --- EFFECTS HANDLERS ---
     
     // Create or update text path for curvature
-    const updateTextCurve = (strength: number) => {
+        const updateTextCurve = (strength: number, centerOverride?: number) => {
          // Strength: -100 to 100
          if (!selectedObject || (selectedObject.type !== 'text' && selectedObject.type !== 'i-text')) return;
          
          const textObj = selectedObject as fabric.IText;
+            const center = centerOverride ?? curveCenter;
          setCurveStrength(strength);
          // Store strength for UI consistency
-         (textObj as ExtendedFabricObject).set({ curveStrength: strength });
+            (textObj as ExtendedFabricObject).set({ curveStrength: strength, curveCenter: center });
 
          if (strength === 0) {
              textObj.set('path', null);
@@ -723,12 +848,13 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
              // A simple Quadratic curve
              const len = textObj.width || 200;
              const height = (strength / 100) * len * 0.5; // Height of arch
+             const offset = (center / 100) * len * 0.5;
              
              // In SVG path format: M startX startY Q controlX controlY endX endY
              // Start at 0,0 relative to path
              // End at len, 0
              // Control at len/2, height*2 (approx)
-             const pathData = `M 0 0 Q ${len/2} ${height * -1.5} ${len} 0`;
+             const pathData = `M 0 0 Q ${len/2 + offset} ${height * -1.5} ${len} 0`;
              
              const path = new fabric.Path(pathData);
              path.set({ 
@@ -751,19 +877,121 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
          if (axis === 'x') {
              setSkewX(val);
              selectedObject.set('skewX', val);
+             const extended = selectedObject as ExtendedFabricObject;
+             if (extended.skewZ !== undefined) {
+                 extended.set({ skewZBaseSkewX: val });
+             }
          } else {
              setSkewY(val);
              selectedObject.set('skewY', val);
+             const extended = selectedObject as ExtendedFabricObject;
+             if (extended.skewZ !== undefined) {
+                 extended.set({ skewZBaseSkewY: val });
+             }
          }
          selectedObject.canvas?.requestRenderAll();
     };
+
+            const applyTaper = (zVal: number, dirVal: number) => {
+                if (!selectedObject) return;
+                const extended = selectedObject as ExtendedFabricObject;
+                const baseScaleX = extended.skewZBaseScaleX ?? selectedObject.scaleX ?? 1;
+                const baseScaleY = extended.skewZBaseScaleY ?? selectedObject.scaleY ?? 1;
+                const baseSkewX = extended.skewZBaseSkewX ?? selectedObject.skewX ?? 0;
+                const baseSkewY = extended.skewZBaseSkewY ?? selectedObject.skewY ?? 0;
+                const baseLeft = extended.taperBaseLeft ?? selectedObject.left ?? 0;
+                const baseTop = extended.taperBaseTop ?? selectedObject.top ?? 0;
+
+                if (
+                    extended.skewZBaseScaleX === undefined ||
+                    extended.skewZBaseScaleY === undefined ||
+                    extended.skewZBaseSkewX === undefined ||
+                    extended.skewZBaseSkewY === undefined
+                ) {
+                    extended.set({
+                        skewZBaseScaleX: baseScaleX,
+                        skewZBaseScaleY: baseScaleY,
+                        skewZBaseSkewX: baseSkewX,
+                        skewZBaseSkewY: baseSkewY
+                    });
+                }
+
+                if (extended.taperBaseLeft === undefined || extended.taperBaseTop === undefined) {
+                    extended.set({ taperBaseLeft: baseLeft, taperBaseTop: baseTop });
+                }
+
+                const clamped = Math.max(-100, Math.min(100, zVal));
+                const direction = clamped >= 0 ? 1 : -1;
+                const magnitude = Math.min(Math.abs(clamped), 100) / 100; // 0..1
+                const dir = Math.max(-100, Math.min(100, dirVal)) / 100; // -1..1
+
+                if (magnitude === 0) {
+                    selectedObject.set({
+                        originX: 'center',
+                        originY: 'center',
+                        scaleX: baseScaleX,
+                        scaleY: baseScaleY,
+                        skewX: baseSkewX,
+                        skewY: baseSkewY,
+                        left: baseLeft,
+                        top: baseTop
+                    });
+                    extended.set({ skewZ: 0, taperDirection: dirVal });
+                    selectedObject.canvas?.requestRenderAll();
+                    return;
+                }
+
+                // Symmetric taper from both sides, centered
+                const taper = 0.6 * magnitude;
+                const zoom = 0.25 * magnitude;
+
+                const scaleXRaw = baseScaleX * (1 + direction * taper);
+                const scaleYRaw = baseScaleY * (1 + direction * zoom);
+                const scaleX = Math.max(0.2, Math.min(3, scaleXRaw));
+                const scaleY = Math.max(0.2, Math.min(3, scaleYRaw));
+
+                // Aim the taper toward the direction point
+                const skewAim = dir * 18 * magnitude; // degrees
+                const skewX = baseSkewX + clamped * 0.22 + skewAim;
+                const skewY = baseSkewY + clamped * 0.06 + dir * 6 * magnitude;
+                const originY = clamped >= 0 ? 'top' : 'bottom';
+
+                const baseWidth = (selectedObject.width ?? 0) * baseScaleX;
+                const shiftX = dir * magnitude * baseWidth * 0.18;
+
+                selectedObject.set({
+                    originX: 'center',
+                    originY,
+                    scaleX,
+                    scaleY,
+                    skewX,
+                    skewY,
+                    left: baseLeft + shiftX,
+                    top: baseTop
+                });
+                extended.set({ skewZ: clamped, taperDirection: dirVal });
+                selectedObject.canvas?.requestRenderAll();
+            };
+
+            const updateSkewZ = (val: number) => {
+                if (!selectedObject) return;
+                setSkewZ(val);
+                applyTaper(val, taperDirection);
+            };
+
+            const updateTaperDirection = (val: number) => {
+                if (!selectedObject) return;
+                setTaperDirection(val);
+                applyTaper(skewZ, val);
+            };
 
     const updateStroke = (newWidth: number) => {
          if (!selectedObject) return;
          setStrokeWidth(newWidth);
          selectedObject.set({
-             stroke: strokeColor,
-             strokeWidth: newWidth
+             stroke: applyAlphaToColor(strokeColor, strokeOpacity),
+             strokeWidth: newWidth,
+             paintFirst: strokeInside ? 'fill' : 'stroke'
          });
          selectedObject.canvas?.requestRenderAll();
     };
@@ -771,15 +999,36 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     const updateStrokeColor = (newColor: string) => {
          if (!selectedObject) return;
          setStrokeColor(newColor);
+         const colorWithAlpha = applyAlphaToColor(newColor, strokeOpacity);
          if (strokeWidth > 0) {
-            selectedObject.set('stroke', newColor);
+            selectedObject.set({ stroke: colorWithAlpha, paintFirst: strokeInside ? 'fill' : 'stroke' });
             selectedObject.canvas?.requestRenderAll();
          } else {
              // If width is 0, user probably wants to see it, so set width to 1
              setStrokeWidth(1);
-             selectedObject.set({ stroke: newColor, strokeWidth: 1 });
+             selectedObject.set({ stroke: colorWithAlpha, strokeWidth: 1, paintFirst: strokeInside ? 'fill' : 'stroke' });
              selectedObject.canvas?.requestRenderAll();
          }
+    };
+
+    const updateStrokeOpacity = (val: number) => {
+        if (!selectedObject) return;
+        setStrokeOpacity(val);
+        const colorWithAlpha = applyAlphaToColor(strokeColor, val);
+        if (strokeWidth > 0) {
+            selectedObject.set({ stroke: colorWithAlpha, paintFirst: strokeInside ? 'fill' : 'stroke' });
+        } else {
+            setStrokeWidth(1);
+            selectedObject.set({ stroke: colorWithAlpha, strokeWidth: 1, paintFirst: strokeInside ? 'fill' : 'stroke' });
+        }
+        selectedObject.canvas?.requestRenderAll();
+    };
+
+    const updateStrokeInside = (inside: boolean) => {
+        if (!selectedObject) return;
+        setStrokeInside(inside);
+        selectedObject.set({ paintFirst: inside ? 'fill' : 'stroke' });
+        selectedObject.canvas?.requestRenderAll();
     };
 
     const toggleShadow = (enable: boolean) => {
@@ -788,7 +1037,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         
         if (enable) {
              const shadow = new fabric.Shadow({
-                color: shadowColor,
+                color: applyAlphaToColor(shadowColor, shadowOpacity),
                 blur: shadowBlur,
                 offsetX: shadowOffsetX,
                 offsetY: shadowOffsetY
@@ -821,7 +1070,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
 
         if (prop === 'color' && typeof value === 'string') { 
             setShadowColor(value);
-            shadow.color = value;
+            shadow.color = applyAlphaToColor(value, shadowOpacity);
         }
         if (prop === 'blur') {
             const val = typeof value === 'number' ? value : Number(value);
@@ -837,6 +1086,11 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             const val = typeof value === 'number' ? value : Number(value);
              setShadowOffsetY(val);
              shadow.offsetY = val;
+        }
+        if (prop === 'opacity') {
+            const val = typeof value === 'number' ? value : Number(value);
+            setShadowOpacity(val);
+            shadow.color = applyAlphaToColor(shadowColor, val);
         }
         
         // Fabric doesn't always auto-detect deep property change on shadow
@@ -962,7 +1216,11 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         const activeObjects = canvas.getActiveObjects();
 
         if (activeObjects.length !== 2) {
-            alert(`Create Mask Failed: Please select exactly 2 objects. Currently selected: ${activeObjects.length}. Object Type: ${canvas.getActiveObject()?.type}`);
+            toast({
+                title: 'Create mask failed',
+                description: `Select exactly 2 objects. Currently selected: ${activeObjects.length}.`,
+                variant: 'warning'
+            });
             return;
         }
 
@@ -1207,6 +1465,58 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                         <Layers size={14} /> Layers
                     </h2>
                     <span className="text-xs text-muted-foreground">{objects.length} elements</span>
+                </div>
+                <div className="px-3 py-2 border-b border-border/50 bg-secondary/5">
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                        Selected Layer
+                    </div>
+                    {selectedObject ? (
+                        <div className="grid grid-cols-2 gap-2 items-center">
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                    <span>Opacity</span>
+                                    <span>{Math.round(opacity * 100)}%</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={opacity}
+                                    onChange={(e) => updateOpacity(parseFloat(e.target.value))}
+                                    data-default="1"
+                                    className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-muted-foreground uppercase">Blend</label>
+                                <select
+                                    value={blendMode}
+                                    onChange={(e) => updateBlendMode(e.target.value)}
+                                    className="w-full bg-secondary/50 border border-border rounded-md px-2 py-1 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                    <option value="source-over">Normal</option>
+                                    <option value="multiply">Multiply</option>
+                                    <option value="screen">Screen</option>
+                                    <option value="overlay">Overlay</option>
+                                    <option value="darken">Darken</option>
+                                    <option value="lighten">Lighten</option>
+                                    <option value="color-dodge">Color Dodge</option>
+                                    <option value="color-burn">Color Burn</option>
+                                    <option value="hard-light">Hard Light</option>
+                                    <option value="soft-light">Soft Light</option>
+                                    <option value="difference">Difference</option>
+                                    <option value="exclusion">Exclusion</option>
+                                    <option value="hue">Hue</option>
+                                    <option value="saturation">Saturation</option>
+                                    <option value="color">Color</option>
+                                    <option value="luminosity">Luminosity</option>
+                                </select>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-xs text-muted-foreground">Select a layer to edit opacity and blending.</div>
+                    )}
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     <DndContext 
@@ -1580,6 +1890,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                         max="360" 
                                         value={gradientAngle}
                                         onChange={(e) => updateGradientStops(gradientStart, gradientEnd, parseInt(e.target.value), gradientType, gradientTransition)}
+                                        data-default="0"
                                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                     />
                                 </div>
@@ -1598,6 +1909,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     step="0.01" 
                                     value={gradientTransition}
                                     onChange={(e) => updateGradientStops(gradientStart, gradientEnd, gradientAngle, gradientType, parseFloat(e.target.value))}
+                                    data-default="1"
                                     className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                 />
                              </div>
@@ -1619,6 +1931,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                             step="0.01" 
                             value={opacity} 
                             onChange={(e) => updateOpacity(parseFloat(e.target.value))}
+                                     data-default="1"
                             className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
                         />
                     </div>
@@ -1698,6 +2011,23 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     <input 
                                         type="range" min="0" max="50" value={shadowBlur} 
                                         onChange={(e) => updateShadowProp('blur', parseInt(e.target.value))}
+                                        data-default="10"
+                                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase">
+                                        <span>Opacity</span>
+                                        <span>{Math.round(shadowOpacity * 100)}%</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        value={shadowOpacity}
+                                        onChange={(e) => updateShadowProp('opacity', parseFloat(e.target.value))}
+                                        data-default="1"
                                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                     />
                                 </div>
@@ -1711,6 +2041,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                         <input 
                                             type="range" min="-50" max="50" value={shadowOffsetX} 
                                             onChange={(e) => updateShadowProp('offsetX', parseInt(e.target.value))}
+                                            data-default="5"
                                             className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                         />
                                     </div>
@@ -1722,6 +2053,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                         <input 
                                             type="range" min="-50" max="50" value={shadowOffsetY} 
                                             onChange={(e) => updateShadowProp('offsetY', parseInt(e.target.value))}
+                                            data-default="5"
                                             className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                         />
                                     </div>
@@ -1745,6 +2077,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     <input 
                                         type="range" min="0" max="1" step="0.01" value={blurValue} 
                                         onChange={(e) => updateImageFilter('Blur', parseFloat(e.target.value))}
+                                        data-default="0"
                                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                     />
                                 </div>
@@ -1758,6 +2091,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     <input 
                                         type="range" min="-1" max="1" step="0.01" value={brightnessValue} 
                                         onChange={(e) => updateImageFilter('Brightness', parseFloat(e.target.value))}
+                                        data-default="0"
                                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                     />
                                 </div>
@@ -1771,6 +2105,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     <input 
                                         type="range" min="-1" max="1" step="0.01" value={contrastValue} 
                                         onChange={(e) => updateImageFilter('Contrast', parseFloat(e.target.value))}
+                                        data-default="0"
                                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                     />
                                 </div>
@@ -1785,6 +2120,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                         <input 
                                             type="range" min="-1" max="1" step="0.01" value={saturationValue} 
                                             onChange={(e) => updateImageFilter('Saturation', parseFloat(e.target.value))}
+                                            data-default="0"
                                             className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                         />
                                     </div>
@@ -1797,6 +2133,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                         <input 
                                             type="range" min="-1" max="1" step="0.01" value={vibranceValue} 
                                             onChange={(e) => updateImageFilter('Vibrance', parseFloat(e.target.value))}
+                                            data-default="0"
                                             className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                         />
                                     </div>
@@ -1811,6 +2148,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     <input 
                                         type="range" min="0" max="1000" step="10" value={noiseValue} 
                                         onChange={(e) => updateImageFilter('Noise', parseInt(e.target.value))}
+                                        data-default="0"
                                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                     />
                                 </div>
@@ -1824,6 +2162,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     <input 
                                         type="range" min="0" max="20" step="1" value={pixelateValue} 
                                         onChange={(e) => updateImageFilter('Pixelate', parseInt(e.target.value))}
+                                        data-default="0"
                                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                     />
                                 </div>
@@ -1887,6 +2226,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                 step="0.5" 
                                 value={strokeWidth}
                                 onChange={(e) => updateStroke(parseFloat(e.target.value))}
+                                          data-default="0"
                                 className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                             />
                             <div className="w-6 h-6 rounded-full border border-border shadow-sm relative overflow-hidden shrink-0">
@@ -1896,6 +2236,33 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     value={strokeColor} 
                                     onChange={(e) => updateStrokeColor(e.target.value)}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-2">
+                            <label className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase">
+                                <input
+                                    type="checkbox"
+                                    checked={strokeInside}
+                                    onChange={(e) => updateStrokeInside(e.target.checked)}
+                                    className="accent-primary w-3.5 h-3.5 cursor-pointer"
+                                />
+                                Inside Stroke
+                            </label>
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                                    <span>Opacity</span>
+                                    <span>{Math.round(strokeOpacity * 100)}%</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={strokeOpacity}
+                                    onChange={(e) => updateStrokeOpacity(parseFloat(e.target.value))}
+                                    data-default="1"
+                                    className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                 />
                             </div>
                         </div>
@@ -1914,6 +2281,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                 max="45" 
                                 value={skewX}
                                 onChange={(e) => updateSkew('x', parseFloat(e.target.value))}
+                                          data-default="0"
                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                             />
                         </div>
@@ -1928,8 +2296,50 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                 max="45" 
                                 value={skewY}
                                 onChange={(e) => updateSkew('y', parseFloat(e.target.value))}
+                                          data-default="0"
                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                             />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                            <span>Taper (Depth)</span>
+                            <span>{Math.round(skewZ)}</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="-180"
+                            max="180"
+                            value={skewZ}
+                            onChange={(e) => updateSkewZ(parseFloat(e.target.value))}
+                            data-default="0"
+                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                            <span>Taper Direction</span>
+                            <span>{Math.round(taperDirection)}</span>
+                        </div>
+                        <div className="relative h-8">
+                            <input
+                                type="range"
+                                min="-100"
+                                max="100"
+                                value={taperDirection}
+                                onChange={(e) => updateTaperDirection(parseFloat(e.target.value))}
+                                onPointerDown={() => setIsTaperDirectionDragging(true)}
+                                onPointerUp={() => setIsTaperDirectionDragging(false)}
+                                onPointerLeave={() => setIsTaperDirectionDragging(false)}
+                                data-default="0"
+                                className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                            {isTaperDirectionDragging && (
+                                <div
+                                    className="absolute top-4 h-2 w-2 rounded-full bg-primary shadow"
+                                    style={{ left: `calc(${((taperDirection + 100) / 200) * 100}% - 4px)` }}
+                                />
+                            )}
                         </div>
                     </div>
 
@@ -1966,9 +2376,26 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                             max="50" 
                                             value={shadowBlur}
                                             onChange={(e) => updateShadowProp('blur', parseFloat(e.target.value))}
+                                            data-default="10"
                                             className="w-full h-1 bg-secondary/50 rounded-lg appearance-none cursor-pointer"
                                         />
                                     </div>
+                                 </div>
+                                 <div className="space-y-1">
+                                     <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
+                                         <span>Opacity</span>
+                                         <span>{Math.round(shadowOpacity * 100)}%</span>
+                                     </div>
+                                     <input
+                                         type="range"
+                                         min="0"
+                                         max="1"
+                                         step="0.01"
+                                         value={shadowOpacity}
+                                         onChange={(e) => updateShadowProp('opacity', parseFloat(e.target.value))}
+                                         data-default="1"
+                                         className="w-full h-1 bg-secondary/50 rounded-lg appearance-none cursor-pointer"
+                                     />
                                  </div>
                                  
                                  {/* Offset */}
@@ -2057,6 +2484,24 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                 max="100" 
                                 value={curveStrength}
                                 onChange={(e) => updateTextCurve(parseInt(e.target.value))}
+                                data-default="0"
+                                className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div className="flex justify-between text-[10px] text-muted-foreground uppercase pt-2">
+                                <span>Arch Center</span>
+                                <span>{curveCenter}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="-100"
+                                max="100"
+                                value={curveCenter}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setCurveCenter(val);
+                                    updateTextCurve(curveStrength, val);
+                                }}
+                                data-default="0"
                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                             />
                         </div>
@@ -2080,6 +2525,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                 step="1" 
                                 value={starPoints} 
                                 onChange={(e) => updateStarPoints(parseInt(e.target.value))}
+                                data-default="5"
                                 className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
                             />
                         </div>
@@ -2096,6 +2542,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                 step="0.05" 
                                 value={starInnerRadius} 
                                 onChange={(e) => updateStarInnerRadius(parseFloat(e.target.value))}
+                                data-default="0.5"
                                 className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
                             />
                         </div>
@@ -2106,9 +2553,10 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             {/* Footer Actions */}
             <div className="p-4 border-t border-border/50 bg-secondary/5">
                 <button 
-                    onClick={() => {
+                    onClick={async () => {
                         if (canvas && selectedObject) {
-                            if (confirm('Delete selected element?')) {
+                            const confirmed = await dialog.confirm('Delete selected element?', { title: 'Delete element', variant: 'destructive' });
+                            if (confirmed) {
                                 canvas.remove(selectedObject);
                                 canvas.discardActiveObject();
                                 canvas.requestRenderAll();

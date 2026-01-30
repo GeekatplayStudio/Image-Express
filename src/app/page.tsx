@@ -8,8 +8,10 @@ import EditorView from '@/components/Editor/EditorView';
 import DocumentationModal from '@/components/DocumentationModal';
 import SettingsModal from '@/components/SettingsModal';
 import { User, Settings, Box, Cloud } from 'lucide-react';
+import { useToast } from '@/providers/ToastProvider';
 
 export default function Home() {
+  const { toast } = useToast();
   // Auth State
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -107,7 +109,7 @@ export default function Home() {
     const performLogout = () => {
        console.log("User inactive for 30mins, logging out...");
        handleLogout();
-       alert("Session expired due to inactivity.");
+       toast({ title: 'Session expired', description: 'Logged out due to inactivity.', variant: 'warning' });
     };
 
     const resetTimer = () => {

@@ -5,6 +5,9 @@ import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
 import { AssetDescriptor, AssetType, AssetCategory } from '@/types';
+import { useDialog } from '@/providers/DialogProvider';
+import { useToast } from '@/providers/ToastProvider';
+import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 
 const ACCEPTED_FILE_TYPES = 'image/*,video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply';
 
@@ -98,7 +101,7 @@ const inferAssetType = (filename: string, mimeType?: string): AssetType => {
 
 interface AssetLibraryProps {
     /** Callback when user selects an asset to add to canvas */
-    onSelect: (path: string, type: AssetType) => void;
+    onSelect: (path: string, type: AssetType, name?: string) => void;
     /** Callback to close the library window */
     onClose: () => void;
 }
@@ -136,6 +139,9 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
     
     // Preview popup state
     const [hoveredAsset, setHoveredAsset] = useState<string | null>(null);
+
+    const dialog = useDialog();
+    const { toast } = useToast();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -188,7 +194,7 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                 // For models (glb), this simple reader might be just string, but fabric usually needs URL
                 // Actually for images dataURL is fine.
                 // For 'models', dataURL might be large.
-                onSelect(data, detectedType);
+                onSelect(data, detectedType, file.name);
                 onClose();
             };
             reader.readAsDataURL(file);
@@ -225,11 +231,15 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                     await fetchAssets();
                 }
             } else {
-                alert('Upload failed: ' + data.message);
+                toast({
+                    title: 'Upload failed',
+                    description: data.message || 'Unknown error',
+                    variant: 'destructive'
+                });
             }
         } catch (error) {
             console.error(error);
-            alert('Upload error');
+            toast({ title: 'Upload error', description: 'Could not upload asset.', variant: 'destructive' });
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -265,11 +275,15 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
             if (data.success) {
                 await fetchAssets();
             } else {
-                alert('Rename failed: ' + (data.message || 'Unknown error'));
+                toast({
+                    title: 'Rename failed',
+                    description: data.message || 'Unknown error',
+                    variant: 'destructive'
+                });
             }
         } catch (error) {
             console.error('Rename error:', error);
-            alert('Rename failed');
+            toast({ title: 'Rename failed', description: 'Could not rename asset.', variant: 'destructive' });
         } finally {
             setEditingAsset(null);
         }
@@ -282,7 +296,8 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
      */
     const deleteAsset = async (path: string, e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent selection when clicking delete
-        if (!confirm('Are you sure you want to delete this asset?')) return;
+        const confirmed = await dialog.confirm('Are you sure you want to delete this asset?', { title: 'Delete Asset', variant: 'destructive' });
+        if (!confirmed) return;
 
         try {
             const res = await fetch('/api/assets/delete', {
@@ -295,18 +310,28 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
             if (data.success || res.ok) {
                 await fetchAssets();
             } else {
-                alert('Delete failed: ' + (data.message || 'Unknown error'));
+                toast({
+                    title: 'Delete failed',
+                    description: data.message || 'Unknown error',
+                    variant: 'destructive'
+                });
             }
         } catch (error) {
             console.error('Error deleting asset:', error);
-            alert('Delete failed');
+            toast({ title: 'Delete failed', description: 'Could not delete asset.', variant: 'destructive' });
         }
     };
 
     return (
-        <div className="fixed left-[80px] top-[140px] bg-card border border-border rounded-lg shadow-2xl w-80 h-[calc(100vh-200px)] max-h-[600px] flex flex-col z-[100] animate-in fade-in slide-in-from-left-4 duration-200">
+        <DraggableResizablePanel
+            className="bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-4 duration-200"
+            initialPosition={{ x: 80, y: 140 }}
+            initialSize={{ width: 320, height: 560 }}
+            minWidth={300}
+            minHeight={360}
+        >
             {/* Header Section */}
-            <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg">
+            <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg draggable-handle cursor-move">
                 <h3 className="font-semibold text-sm">Asset Library</h3>
                 <div className="flex items-center gap-1">
                      <button 
@@ -438,7 +463,7 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                                             className="w-full h-full" 
                                             onClick={() => {
                                                 if (editingAsset !== asset.name) {
-                                                    onSelect(asset.path, asset.type);
+                                                    onSelect(asset.path, asset.type, asset.name);
                                                     onClose();
                                                 }
                                             }}
@@ -527,6 +552,6 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                     <Asset3DPreview url={hoveredAsset} />
                 </div>
             )}
-        </div>
+        </DraggableResizablePanel>
     );
 }
