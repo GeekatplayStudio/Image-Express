@@ -9,6 +9,7 @@ import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
 import ImageGeneratorModal from './ImageGeneratorModal';
 import StabilityGenerator from './AI/StabilityGenerator';
+import { useToast } from '@/providers/ToastProvider';
 
 /**
  * Toolbar
@@ -51,6 +52,7 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
 
 // Start of component
 export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, onJobCreated }: ToolbarProps) {
+    const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
     const shapesMenuRef = useRef<HTMLDivElement>(null);
@@ -205,7 +207,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         canvas.setActiveObject(text);
     };
 
-    const add3DPlaceholder = (url: string) => {
+    const add3DPlaceholder = (url: string, nameOverride?: string) => {
         if (!canvas) return;
         
         const group = new fabric.Group([], {
@@ -240,6 +242,10 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         // Attach metadata
         (group as ThreeDGroup).is3DModel = true;
         (group as ThreeDGroup).modelUrl = url;
+        const displayName = nameOverride || getFileDisplayName(url);
+        if (displayName) {
+            (group as ExtendedFabricObject).name = displayName;
+        }
 
         canvas.add(group);
         canvas.setActiveObject(group);
@@ -262,23 +268,32 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
 
         const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
         if (!supportedTypes.includes(file.type)) {
-            alert('Unsupported file type. Please upload JPEG, PNG, WEBP, or SVG.');
+            toast({
+                title: 'Unsupported file',
+                description: 'Please upload JPEG, PNG, WEBP, or SVG.',
+                variant: 'warning'
+            });
             return;
         }
 
         const reader = new FileReader();
         reader.onload = (f) => {
             const data = f.target?.result as string;
-            loadDataUrlToCanvas(data);
+            loadDataUrlToCanvas(data, file.name);
         };
         reader.readAsDataURL(file);
     };
 
-    const loadDataUrlToCanvas = (data: string) => {
+    const loadDataUrlToCanvas = (data: string, nameOverride?: string) => {
         if (!canvas) return;
         fabric.Image.fromURL(data, {
              crossOrigin: 'anonymous'
         }).then((img) => {
+             const isDataUrl = data.startsWith('data:');
+             const displayName = nameOverride || (!isDataUrl ? getFileDisplayName(data) : undefined);
+             if (displayName) {
+                 (img as ExtendedFabricObject).name = displayName;
+             }
              // Use Artboard dimensions if available, else fallback to canvas or default
              // @ts-ignore
              const artboard = canvas.artboard || { width: canvas.width || 800, height: canvas.height || 600 };
@@ -422,11 +437,15 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                 // Trigger refresh
                 setRefreshTemplatesTrigger(prev => prev + 1);
             } else {
-                alert('Failed to save: ' + data.message);
+                toast({
+                    title: 'Save failed',
+                    description: data.message || 'Unable to save template.',
+                    variant: 'destructive'
+                });
             }
         } catch (err) {
             console.error(err);
-            alert('Error saving template');
+            toast({ title: 'Save failed', description: 'Error saving template.', variant: 'destructive' });
         }
     };
 
@@ -443,7 +462,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
             })
             .catch(err => {
                 console.error("Error loading template", err);
-                alert("Failed to load template");
+                toast({ title: 'Load failed', description: 'Failed to load template.', variant: 'destructive' });
             });
     }
 
@@ -510,13 +529,13 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
             {activeTool === 'assets' && (
                 <AssetLibrary 
                     onClose={() => setActiveTool('select')}
-                    onSelect={(path, type) => {
+                    onSelect={(path, type, name) => {
                         if (type === 'models') {
                             if (onOpen3DEditor) {
                                 onOpen3DEditor(path);
                                 setActiveTool('select');
                             } else {
-                                add3DPlaceholder(path);
+                                add3DPlaceholder(path, name);
                             }
                         } else if (type === 'videos') {
                             addVideoPlaceholder(path);
@@ -525,7 +544,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                             addAudioPlaceholder(path);
                             setActiveTool('select');
                         } else {
-                            loadDataUrlToCanvas(path);
+                            loadDataUrlToCanvas(path, name || getFileDisplayName(path));
                         }
                     }}
                 />

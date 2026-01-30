@@ -1,0 +1,14 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="iex-gradient" x1="48" y1="48" x2="464" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366F1" />
+      <stop offset="0.55" stop-color="#8B5CF6" />
+      <stop offset="1" stop-color="#EC4899" />
+    </linearGradient>
+  </defs>
+  <rect x="48" y="48" width="416" height="416" rx="96" fill="url(#iex-gradient)" />
+  <rect x="72" y="72" width="368" height="368" rx="80" fill="rgba(255,255,255,0.08)" />
+  <text x="50%" y="53%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="170" font-weight="700" fill="white" letter-spacing="-6">
+    iEX
+  </text>
+</svg>

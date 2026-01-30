@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { LayoutTemplate, Plus, Loader2, Trash2 } from 'lucide-react';
 import Image from 'next/image';
+import { useDialog } from '@/providers/DialogProvider';
+import { useToast } from '@/providers/ToastProvider';
+import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 
 interface Template {
     id: string;
@@ -20,6 +23,8 @@ interface TemplateLibraryProps {
 export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: TemplateLibraryProps) {
     const [templates, setTemplates] = useState<Template[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const dialog = useDialog();
+    const { toast } = useToast();
 
     const fetchTemplates = async () => {
         setIsLoading(true);
@@ -38,7 +43,8 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
 
     const handleDelete = async (e: React.MouseEvent, templatePath: string) => {
         e.stopPropagation();
-        if(!confirm("Delete this template?")) return;
+        const confirmed = await dialog.confirm('Delete this template?', { title: 'Delete Template', variant: 'destructive' });
+        if (!confirmed) return;
 
         try {
             const res = await fetch('/api/templates/delete', {
@@ -49,10 +55,11 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
             if(res.ok) {
                 fetchTemplates();
             } else {
-                alert("Failed to delete template");
+                toast({ title: 'Delete failed', description: 'Failed to delete template.', variant: 'destructive' });
             }
         } catch(e) {
             console.error(e);
+            toast({ title: 'Delete failed', description: 'Something went wrong while deleting.', variant: 'destructive' });
         }
     };
 
@@ -61,9 +68,15 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
     }, []);
 
     return (
-        <div className="absolute left-[80px] top-[320px] bg-card border border-border rounded-lg shadow-xl w-80 h-[500px] flex flex-col z-50 animate-in fade-in slide-in-from-left-4 duration-200">
+        <DraggableResizablePanel
+            className="bg-card border border-border rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-left-4 duration-200"
+            initialPosition={{ x: 80, y: 320 }}
+            initialSize={{ width: 320, height: 500 }}
+            minWidth={300}
+            minHeight={360}
+        >
             {/* Header */}
-            <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg">
+            <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg draggable-handle cursor-move">
                 <div className="flex items-center gap-2">
                     <LayoutTemplate size={16} />
                     <h3 className="font-semibold text-sm">Templates</h3>
@@ -131,6 +144,6 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
                     Close
                 </button>
             </div>
-        </div>
+        </DraggableResizablePanel>
     );
 }

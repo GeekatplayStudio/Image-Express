@@ -15,9 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Image Express - AI Design Studio",
   description: "Advanced content creation platform with AI-powered 3D generation, templates, and professional design tools.",
+  icons: {
+    icon: "/icon.svg"
+  }
 };
 
 import { DialogProvider } from "@/providers/DialogProvider";
+import { ToastProvider } from "@/providers/ToastProvider";
+import RangeResetListener from "@/components/ui/RangeResetListener";
 
 export default function RootLayout({
   children,
@@ -31,7 +36,10 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <DialogProvider>
-          {children}
+          <ToastProvider>
+            <RangeResetListener />
+            {children}
+          </ToastProvider>
         </DialogProvider>
       </body>
     </html>

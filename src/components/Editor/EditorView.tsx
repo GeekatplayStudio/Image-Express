@@ -17,6 +17,8 @@ import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject } from '@/types';
 import JSZip from 'jszip';
 import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
+import { useDialog } from '@/providers/DialogProvider';
+import { useToast } from '@/providers/ToastProvider';
 
 interface MissingItem {
     id: string; 
@@ -55,6 +57,14 @@ export default function EditorView({
     onOpenSettings,
     settingsOpen
 }: EditorViewProps) {
+    const dialog = useDialog();
+    const { toast } = useToast();
+
+    const getDisplayName = (url: string) => {
+        const withoutQuery = url.split('?')[0];
+        const last = decodeURIComponent(withoutQuery.split('/').pop() || 'Media');
+        return last || 'Media';
+    };
     const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
     
     // Core Logic States
@@ -204,7 +214,7 @@ export default function EditorView({
                 designData = await res.json();
             } catch (e) {
                 console.error("Error loading design data", e);
-                alert("Could not load design data.");
+                toast({ title: 'Load failed', description: 'Could not load design data.', variant: 'destructive' });
                 return;
             }
         }
@@ -228,9 +238,10 @@ export default function EditorView({
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isDirty]);
 
-    const handleBack = () => {
+    const handleBack = async () => {
         if (isDirty) {
-            if (confirm("Discard unsaved changes and leave?")) {
+            const confirmed = await dialog.confirm('Discard unsaved changes and leave?', { title: 'Unsaved changes', variant: 'destructive' });
+            if (confirmed) {
                 setIsDirty(false);
                 onBack();
             }
@@ -246,11 +257,19 @@ export default function EditorView({
        let name = propDesignName;
        
        if (!propDesignId && name === 'Untitled Design') {
-           const inputName = prompt("Enter design name:", propDesignName);
-           if (!inputName) return; 
+           const inputName = await dialog.prompt('Enter design name:', {
+               title: 'Design name',
+               defaultValue: propDesignName,
+               placeholder: 'My Design'
+           });
+           if (!inputName) return;
            name = inputName;
        } else if (name === 'Untitled Design') {
-            const inputName = prompt("Enter design name:", propDesignName);
+            const inputName = await dialog.prompt('Enter design name:', {
+                title: 'Design name',
+                defaultValue: propDesignName,
+                placeholder: 'My Design'
+            });
             if (inputName) name = inputName;
        }
        
@@ -274,7 +293,7 @@ export default function EditorView({
            if (result.success) {
                 onUpdateDesignInfo(result.design.id, result.design.name);
                 setIsDirty(false);
-                alert("Design saved successfully!");
+                toast({ title: 'Design saved', description: 'Your changes are saved.', variant: 'success' });
 
                  if (typeof window !== 'undefined') {
                      const driveConfig = loadDriveConfig();
@@ -298,11 +317,15 @@ export default function EditorView({
                      }
                  }
            } else {
-                alert("Failed to save design: " + result.message);
+                toast({
+                    title: 'Save failed',
+                    description: result.message || 'Failed to save design.',
+                    variant: 'destructive'
+                });
            }
        } catch (error) {
            console.error("Save error:", error);
-           alert("Error saving design to server.");
+           toast({ title: 'Save failed', description: 'Error saving design to server.', variant: 'destructive' });
        }
     };
 
@@ -506,12 +529,6 @@ export default function EditorView({
                 else clean = 'asset.bin';
             }
             return ensureExtension(clean, 'bin');
-        };
-
-        const getDisplayName = (url: string) => {
-            const withoutQuery = url.split('?')[0];
-            const last = decodeURIComponent(withoutQuery.split('/').pop() || 'Media');
-            return last || 'Media';
         };
 
         const decodeDataUrl = (dataUrl: string) => {
@@ -1057,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', () => {
             downloadBlob(zipBlob, archiveName);
         } catch (error) {
             console.error('Failed to generate HTML export bundle:', error);
-            alert('Unable to generate HTML export. Please check console for details.');
+            toast({ title: 'Export failed', description: 'Unable to generate HTML export.', variant: 'destructive' });
         }
     };
 
@@ -1121,7 +1138,7 @@ document.addEventListener('DOMContentLoaded', () => {
            }
         } catch (e) {
             console.error("Failed to load template", e);
-            alert("Error loading template file.");
+            toast({ title: 'Load failed', description: 'Error loading template file.', variant: 'destructive' });
         }
     };
     
@@ -1606,7 +1623,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      <div className="bg-card w-[800px] h-[600px] rounded-xl shadow-2xl relative flex flex-col overflow-hidden border border-border">
                           <div className="flex-1 overflow-hidden">
                               <AssetLibrary 
-                                  onSelect={(url) => { if (replacingItemId) { setReplacementMap(prev => ({ ...prev, [replacingItemId]: url })); } setShowAssetBrowserForMissing(false); setReplacingItemId(null); }}
+                                  onSelect={(url, _type, _name) => { if (replacingItemId) { setReplacementMap(prev => ({ ...prev, [replacingItemId]: url })); } setShowAssetBrowserForMissing(false); setReplacingItemId(null); }}
                                   onClose={() => setShowAssetBrowserForMissing(false)}
                               />
                           </div>
@@ -1741,6 +1758,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 canvas.remove(editingModelObject);
                                             } else { img.scaleToWidth(300); img.set({ left: 300, top: 300, originX: 'center', originY: 'center' }); }
                                             const threeDImg = img as ThreeDImage; threeDImg.is3DModel = true; threeDImg.modelUrl = currentModelUrl;
+                                            const modelName = getDisplayName(currentModelUrl);
+                                            if (modelName) (threeDImg as ExtendedFabricObject).name = modelName;
                                             canvas.add(threeDImg); canvas.setActiveObject(threeDImg); canvas.requestRenderAll();
                                             setEditingModelUrl(null); setEditingModelObject(null);
                                         });
@@ -1774,7 +1793,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                             // Center object on canvas instead of hardcoded 100,100
                                             canvas.centerObject(img);
                                             
-                                            if (modelUrl) { const threeDImg = img as ThreeDImage; threeDImg.is3DModel = true; threeDImg.modelUrl = modelUrl; }
+                                            if (modelUrl) {
+                                                const threeDImg = img as ThreeDImage;
+                                                threeDImg.is3DModel = true;
+                                                threeDImg.modelUrl = modelUrl;
+                                                const modelName = getDisplayName(modelUrl);
+                                                if (modelName) (threeDImg as ExtendedFabricObject).name = modelName;
+                                            }
                                             canvas.add(img); canvas.setActiveObject(img);
                                             if (sourceObjectFor3D) { sourceObjectFor3D.set('visible', false); canvas.requestRenderAll(); }
                                             setActiveTool('select'); setInitialImageFor3D(undefined); setSourceObjectFor3D(null);
