@@ -1,0 +1,7 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "git stash": true,
+        "git add": true,
+        "type": true
+    }
+}

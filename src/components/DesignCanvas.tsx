@@ -196,13 +196,13 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
             const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
-            const getCanvasPointer = (eventData: MouseEvent, target: fabric.Object, transform: fabric.Transform) => {
+            const getCanvasPointer = (eventData: any, target: fabric.Object, transform: fabric.Transform) => {
                 const targetCanvas = (transform as unknown as { canvas?: fabric.Canvas }).canvas ?? target.canvas;
                 if (!targetCanvas) return { x: eventData.clientX, y: eventData.clientY };
-                const getPointer = (targetCanvas as unknown as { getPointer?: (e: MouseEvent) => { x: number; y: number } }).getPointer;
+                const getPointer = (targetCanvas as unknown as { getPointer?: (e: any) => { x: number; y: number } }).getPointer;
                 return typeof getPointer === 'function'
                     ? getPointer.call(targetCanvas, eventData)
-                    : (fabric.util as unknown as { getPointer?: (e: MouseEvent, el?: HTMLCanvasElement) => { x: number; y: number } })
+                    : (fabric.util as unknown as { getPointer?: (e: any, el?: HTMLCanvasElement) => { x: number; y: number } })
                         .getPointer?.(eventData, (targetCanvas as unknown as { upperCanvasEl?: HTMLCanvasElement }).upperCanvasEl)
                         ?? { x: eventData.clientX, y: eventData.clientY };
             };
@@ -243,7 +243,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                     tr: createWarpControl('TR', 0.5, -0.5),
                     bl: createWarpControl('BL', -0.5, 0.5),
                     br: createWarpControl('BR', 0.5, 0.5)
-                } as fabric.Controls;
+                } as any;
                 obj.setCoords();
             };
 
@@ -271,7 +271,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                     opacity: textObj.opacity,
                     shadow: textObj.shadow,
                     objectCaching: false
-                } as fabric.IImageOptions);
+                } as any);
                 warped.warpTL = undefined;
                 warped.warpTR = undefined;
                 warped.warpBR = undefined;
@@ -312,13 +312,13 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                 }
             });
 
-            const applyControls = (proto?: { controls?: fabric.Controls }) => {
+            const applyControls = (proto?: { controls?: any }) => {
                 if (!proto?.controls) return;
                 proto.controls = {
                     ...proto.controls,
                     tl: createConvertControl(-0.5, -0.5),
                     tr: createConvertControl(0.5, -0.5)
-                } as fabric.Controls;
+                } as any;
             };
 
             const applyControlsToObject = (obj?: fabric.Object | null) => {
@@ -332,13 +332,13 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                     ...obj.controls,
                     tl: createConvertControl(-0.5, -0.5),
                     tr: createConvertControl(0.5, -0.5)
-                } as fabric.Controls;
+                } as any;
                 obj.setCoords();
             };
 
-            applyControls((fabric.IText as unknown as { prototype?: { controls?: fabric.Controls } })?.prototype);
-            applyControls((fabric.Textbox as unknown as { prototype?: { controls?: fabric.Controls } })?.prototype);
-            applyControls((fabric.Text as unknown as { prototype?: { controls?: fabric.Controls } })?.prototype);
+            applyControls((fabric.IText as unknown as { prototype?: { controls?: any } })?.prototype);
+            applyControls((fabric.Textbox as unknown as { prototype?: { controls?: any } })?.prototype);
+            applyControls((fabric.Text as unknown as { prototype?: { controls?: any } })?.prototype);
 
             canvas.on('selection:created', (e) => applyControlsToObject(e.selected?.[0] ?? canvas.getActiveObject()));
             canvas.on('selection:updated', (e) => applyControlsToObject(e.selected?.[0] ?? canvas.getActiveObject()));
