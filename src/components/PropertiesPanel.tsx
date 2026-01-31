@@ -450,7 +450,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             return;
         }
 
-        const rect = selectedObject.getBoundingRect(true, true);
+        const rect = selectedObject.getBoundingRect();
         const dir = Math.max(-100, Math.min(100, taperDirection)) / 100;
         const x = rect.left + rect.width / 2 + (rect.width / 2) * dir;
         const y = rect.top;

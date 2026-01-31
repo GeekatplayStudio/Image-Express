@@ -18,6 +18,7 @@ export interface ThreeDImage extends fabric.Image {
 
 export interface ExtendedFabricObject extends fabric.Object {
     id?: string;
+    is3DModel?: boolean;
     name?: string;
     layerTagColor?: string;
     curveStrength?: number;
