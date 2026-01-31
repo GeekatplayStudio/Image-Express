@@ -18,7 +18,8 @@ Image Express is a professional content creation platform built with Next.js 16,
 ### Studio & Design
 - **Modern Dashboard**: Redesigned home screen with quick-start templates (Instagram, YouTube, A4), recent designs grid, and community support links.
 - **Infinite Canvas**: Advanced vector workspace using Fabric.js.
-- **Layer Management**: Professional layer locking, visibility, and reordering.
+- **Layer Management**: Professional layer locking, visibility, reordering, multi-select, and folder organization (including empty folders and drag/drop).
+- **Paint Folders**: Each paint session is grouped into a single folder; switching tools starts a new paint folder automatically.
 - **Advanced Masking**: Non-destructive masking functionality. Select two objects to mask the bottom one with the top one; includes support for inverting masks.
 - **Interactive Tools**: Gradient editor, shape tools, and text manipulation.
 - **Export Options**: Export designs to PNG, JPG, SVG, PDF, JSON, and self-contained HTML bundles with all assets rewritten for offline playback.

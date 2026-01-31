@@ -196,7 +196,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
             const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
-            const getCanvasPointer = (eventData: MouseEvent | TouchEvent | PointerEvent, target: fabric.Object, transform: fabric.Transform) => {
+            const getCanvasPointer = (eventData: MouseEvent | TouchEvent | PointerEvent, target: fabric.Object) => {
                 const targetCanvas = target.canvas;
                 if (!targetCanvas) return { x: 0, y: 0 }; // Fallback
                 
@@ -211,7 +211,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                 render: renderDistortControl,
                 actionHandler: (eventData, transform) => {
                     const target = transform.target as WarpedImage;
-                    const pointer = getCanvasPointer(eventData, target, transform);
+                    const pointer = getCanvasPointer(eventData, target);
                     const pointerPoint = new fabric.Point(pointer.x, pointer.y);
                     const invert = (fabric.util as unknown as { invertTransform: (m: number[]) => number[] }).invertTransform;
                     const transformPoint = (fabric.util as unknown as { transformPoint: (p: fabric.Point, m: number[]) => fabric.Point }).transformPoint;

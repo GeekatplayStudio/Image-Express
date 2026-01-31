@@ -3,10 +3,31 @@ import { Plus, File, Image as ImageIcon, MoreVertical, Clock, Layout, Trash2, Ch
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 
+type IconType = React.ComponentType<{ size?: number; className?: string }>;
+
+type TemplateDescriptor = {
+    id: string;
+    name: string;
+    width: number;
+    height: number;
+    type: string;
+    icon: IconType;
+    color: string;
+    jsonUrl?: string | null;
+};
+
+type DesignSummary = {
+    id: string;
+    name: string;
+    thumbnail?: string;
+    data?: string;
+    lastModified: string;
+};
+
 interface DashboardProps {
   onNewDesign: () => void;
-  onSelectTemplate: (template: any) => void;
-  onOpenDesign: (design: any) => void;
+    onSelectTemplate: (template: TemplateDescriptor) => void;
+    onOpenDesign: (design: DesignSummary) => void;
   user: string;
 }
 
@@ -45,7 +66,7 @@ const START_ACTIONS = [
     }
 ];
 
-const POPULAR_TEMPLATES = [
+const POPULAR_TEMPLATES: TemplateDescriptor[] = [
   {
     id: 't-insta',
     name: 'Instagram Post',
@@ -86,7 +107,7 @@ const POPULAR_TEMPLATES = [
 ];
 
 // Expanded mock data for when user clicks "Show More"
-const MORE_TEMPLATES = [
+const MORE_TEMPLATES: TemplateDescriptor[] = [
     ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_2', name: t.name + ' II'})),
     ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_3', name: t.name + ' III'})),
 ];
@@ -94,7 +115,7 @@ const MORE_TEMPLATES = [
 export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign, user }: DashboardProps) {
     const dialog = useDialog();
     const { toast } = useToast();
-  const [recentDesigns, setRecentDesigns] = useState<any[]>([]);
+    const [recentDesigns, setRecentDesigns] = useState<DesignSummary[]>([]);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [showAllDesigns, setShowAllDesigns] = useState(false);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -107,7 +128,8 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign,
               const data = await res.json();
               if (data.success) {
                   // Sort by newest first
-                  const sorted = data.designs.sort((a: any, b: any) => 
+                  const designs = Array.isArray(data.designs) ? (data.designs as DesignSummary[]) : [];
+                  const sorted = designs.sort((a, b) => 
                       new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
                   );
                   setRecentDesigns(sorted);

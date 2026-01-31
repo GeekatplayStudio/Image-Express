@@ -27,7 +27,7 @@ interface MissingItem {
 }
 
 interface EditorViewProps {
-    initialDesign: any | null;
+    initialDesign: { data?: unknown } | null;
     initialTemplateJsonUrl: string | null;
     initialSize?: { width: number, height: number } | null;
     user: string;
@@ -42,6 +42,43 @@ interface EditorViewProps {
 }
 
 type PanelMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' | 'collapsed-right';
+
+type CanvasWithArtboard = fabric.Canvas & {
+    artboard?: { width: number; height: number };
+};
+
+type SerializedFill = {
+    src?: string;
+    source?: string;
+    colorStops?: Array<{ src?: string }>;
+};
+
+type SerializedObject = {
+    type?: string;
+    src?: string;
+    modelUrl?: string;
+    mediaType?: 'video' | 'audio' | string;
+    mediaSource?: string;
+    name?: string;
+    is3DModel?: boolean;
+    clipPath?: SerializedObject;
+    objects?: SerializedObject[];
+    paths?: SerializedObject[];
+    fill?: unknown;
+    stroke?: unknown;
+    backgroundColor?: unknown;
+    overlayFill?: unknown;
+    [key: string]: unknown;
+};
+
+type DesignJson = {
+    objects?: SerializedObject[];
+    backgroundImage?: { src?: string };
+    overlayImage?: { src?: string };
+    clipPath?: SerializedObject;
+    metadata?: unknown;
+    [key: string]: unknown;
+};
 
 export default function EditorView({ 
     initialDesign, 
@@ -160,7 +197,7 @@ export default function EditorView({
     // Assets & Missing Items
     const [showMissingAssetsModal, setShowMissingAssetsModal] = useState(false);
     const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
-    const [pendingTemplateJson, setPendingTemplateJson] = useState<any>(null);
+    const [pendingTemplateJson, setPendingTemplateJson] = useState<DesignJson | null>(null);
     const [showAssetBrowserForMissing, setShowAssetBrowserForMissing] = useState(false);
     const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
     const [replacementMap, setReplacementMap] = useState<Record<string, string>>({});
@@ -174,9 +211,6 @@ export default function EditorView({
     const [mediaPreview, setMediaPreview] = useState<{ type: 'video' | 'audio'; url: string } | null>(null);
     const exportRef = useRef<HTMLDivElement>(null);
     
-    // Context Menu State
-    const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number } | null>(null);
-
     // API Keys State
     const [apiKeys, setApiKeys] = useState<{
         meshy?: string, 
@@ -187,26 +221,12 @@ export default function EditorView({
         banana?: string
     }>({});
 
-    // --- Loading Logic ---
-    useEffect(() => {
-        if (!canvas) return;
-
-        // If we have an initial template URL (passed from dashboard selection)
-        if (initialTemplateJsonUrl) {
-            handleLoadTemplate(initialTemplateJsonUrl);
-        } 
-        // Or if we have a full design object (opened from dashboard)
-        else if (initialDesign) {
-            handleOpenDesign(initialDesign);
-        }
-        
-    }, [canvas, initialDesign, initialTemplateJsonUrl]);
-
     // Handle Open Design (Local helpers)
-    const handleOpenDesign = async (design: any) => {
+    const handleOpenDesign = useCallback(async (design: { data?: unknown }) => {
         if (!canvas) return;
         
-        let designData = design.data;
+        let designData: unknown = design.data;
+        if (!designData) return;
         if (typeof designData === 'string') {
             try {
                 const res = await fetch(designData);
@@ -219,12 +239,13 @@ export default function EditorView({
             }
         }
   
-        canvas.loadFromJSON(designData, () => {
+        canvas.loadFromJSON(designData as Record<string, unknown>, () => {
             canvas.requestRenderAll();
             // Don't set isDirty, we just opened it
             setIsDirty(false);
         });
-    };
+    }, [canvas, toast]);
+
 
     // --- Navigation Guard ---
     useEffect(() => {
@@ -277,18 +298,22 @@ export default function EditorView({
        const jsonString = JSON.stringify(json);
         
        let thumbnailDataUrl = '';
-       try {
-            // Attempt with multiplier
-            thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5 });
-       } catch (e) {
-            console.warn('Thumbnail generation with multiplier failed, retrying without:', e);
+       
+       if (canvas.width && canvas.height && canvas.width > 0 && canvas.height > 0) {
             try {
-                // Fallback without multiplier (using 1 as default to satisfy types if needed)
-                thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 });
-            } catch (e2) {
-                console.error('Thumbnail generation failed completely:', e2);
-                // Continue without thumbnail
+                // Attempt with multiplier
+                thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5 });
+            } catch (e) {
+                console.warn('Thumbnail generation with multiplier failed, retrying without:', e);
+                try {
+                     // Fallback without multiplier
+                    thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 });
+                } catch (e2) {
+                    console.error('Thumbnail generation failed completely:', e2);
+                }
             }
+       } else {
+           console.warn('Canvas has invalid dimensions, skipping thumbnail generation.');
        }
 
        try {
@@ -447,7 +472,7 @@ export default function EditorView({
         const scriptsFolder = zip.folder('scripts');
 
         const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor'];
-        const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => Record<string, any> }).toJSON(customProps);
+        const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customProps);
 
         const metadata = {
             canvasWidth: canvas.getWidth(),
@@ -518,7 +543,7 @@ export default function EditorView({
         const getUniqueFileName = (rawName: string) => {
             const parts = rawName.split('.');
             const ext = parts.length > 1 ? `.${parts.pop()}` : '';
-            let base = sanitizeSegment(parts.join('.') || 'asset');
+            const base = sanitizeSegment(parts.join('.') || 'asset');
             let extension = sanitizeSegment(ext.replace('.', ''));
             if (!extension) extension = 'bin';
             let candidate = `${base}.${extension}`;
@@ -674,24 +699,25 @@ export default function EditorView({
 
         let includes3DModel = false;
 
-        const processFill = (fill: any) => {
+        const processFill = (fill: unknown) => {
             if (!fill || typeof fill !== 'object') return;
+            const fillData = fill as SerializedFill;
 
-            if (typeof fill.src === 'string') {
-                queueAsset(fill.src, (newPath) => {
-                    fill.src = newPath;
+            if (typeof fillData.src === 'string') {
+                queueAsset(fillData.src, (newPath) => {
+                    fillData.src = newPath;
                 });
             }
 
-            if (typeof fill.source === 'string') {
-                queueAsset(fill.source, (newPath) => {
-                    fill.source = newPath;
+            if (typeof fillData.source === 'string') {
+                queueAsset(fillData.source, (newPath) => {
+                    fillData.source = newPath;
                 });
             }
 
-            if (Array.isArray(fill.colorStops)) {
-                fill.colorStops.forEach((stop: any) => {
-                    if (stop && typeof stop === 'object' && typeof stop.src === 'string') {
+            if (Array.isArray(fillData.colorStops)) {
+                fillData.colorStops.forEach((stop) => {
+                    if (stop && typeof stop.src === 'string') {
                         queueAsset(stop.src, (newPath) => {
                             stop.src = newPath;
                         });
@@ -700,7 +726,7 @@ export default function EditorView({
             }
         };
 
-        const processObject = (obj: Record<string, any>) => {
+        const processObject = (obj: SerializedObject) => {
             if (!obj) return;
 
             if (obj.type === 'image' && typeof obj.src === 'string') {
@@ -737,7 +763,7 @@ export default function EditorView({
             }
 
             if (Array.isArray(obj.paths)) {
-                obj.paths.forEach((pathItem: any) => processObject(pathItem));
+                obj.paths.forEach((pathItem) => processObject(pathItem));
             }
 
             processFill(obj.fill);
@@ -747,18 +773,20 @@ export default function EditorView({
         };
 
         if (Array.isArray(designJson.objects)) {
-            designJson.objects.forEach((object: Record<string, any>) => processObject(object));
+            designJson.objects.forEach((object) => processObject(object));
         }
 
-        if (designJson.backgroundImage && typeof designJson.backgroundImage.src === 'string') {
-            queueAsset(designJson.backgroundImage.src, (newPath) => {
-                designJson.backgroundImage.src = newPath;
+        const backgroundImage = designJson.backgroundImage;
+        if (backgroundImage && typeof backgroundImage.src === 'string') {
+            queueAsset(backgroundImage.src, (newPath) => {
+                backgroundImage.src = newPath;
             });
         }
 
-        if (designJson.overlayImage && typeof designJson.overlayImage.src === 'string') {
-            queueAsset(designJson.overlayImage.src, (newPath) => {
-                designJson.overlayImage.src = newPath;
+        const overlayImage = designJson.overlayImage;
+        if (overlayImage && typeof overlayImage.src === 'string') {
+            queueAsset(overlayImage.src, (newPath) => {
+                overlayImage.src = newPath;
             });
         }
 
@@ -972,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.style.transformOrigin = 'center center';
             container.style.zIndex = String(1000 + index);
 
-            const assignBorderRadius = (target: any) => {
+            const assignBorderRadius = (target: fabric.Object | null | undefined) => {
                 if (!target) return;
                 const rx = typeof target.rx === 'number' ? target.rx : undefined;
                 const ry = typeof target.ry === 'number' ? target.ry : undefined;
@@ -982,8 +1010,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            if (obj.type === 'group' && Array.isArray((obj as any)._objects)) {
-                const backgroundRect = (obj as any)._objects.find((child: any) => child && child.type === 'rect');
+            const groupObjects = obj.type === 'group'
+                ? (obj as fabric.Group & { _objects?: fabric.Object[] })._objects
+                : undefined;
+
+            if (obj.type === 'group' && Array.isArray(groupObjects)) {
+                const backgroundRect = groupObjects.find((child) => child && child.type === 'rect');
                 assignBorderRadius(backgroundRect);
             } else {
                 assignBorderRadius(obj);
@@ -1093,7 +1125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Template Loading Helper (Missing Assets Logic) ---
-    const handleLoadTemplate = async (templateJsonUrl: string) => {
+    const handleLoadTemplate = useCallback(async (templateJsonUrl: string) => {
         if (!canvas) return;
         setMissingItems([]);
         setPendingTemplateJson(null);
@@ -1103,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', () => {
            if(!res.ok) throw new Error("Failed to fetch template JSON");
            
            const json = await res.json();
-           const objects = json.objects || [];
+           const objects = Array.isArray(json.objects) ? (json.objects as SerializedObject[]) : [];
            const missing: MissingItem[] = [];
    
            const checkUrl = (url: string): Promise<boolean> => {
@@ -1116,7 +1148,7 @@ document.addEventListener('DOMContentLoaded', () => {
            };
            
            const candidates: { index: number, src: string, type: 'image' | 'model' }[] = [];
-           objects.forEach((obj: any, index: number) => {
+           objects.forEach((obj, index) => {
                if (obj.type === 'image' && obj.src) candidates.push({ index, src: obj.src, type: 'image' });
                if (obj.is3DModel && obj.modelUrl) candidates.push({ index, src: obj.modelUrl, type: 'model' });
            });
@@ -1154,7 +1186,22 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Failed to load template", e);
             toast({ title: 'Load failed', description: 'Error loading template file.', variant: 'destructive' });
         }
-    };
+    }, [canvas, toast]);
+
+    // --- Loading Logic ---
+    useEffect(() => {
+        if (!canvas) return;
+
+        // If we have an initial template URL (passed from dashboard selection)
+        if (initialTemplateJsonUrl) {
+            handleLoadTemplate(initialTemplateJsonUrl);
+        } 
+        // Or if we have a full design object (opened from dashboard)
+        else if (initialDesign) {
+            handleOpenDesign(initialDesign);
+        }
+        
+    }, [canvas, initialDesign, initialTemplateJsonUrl, handleLoadTemplate, handleOpenDesign]);
     
     // --- Resolving Missing Assets ---
     const handleResolveMissing = (replaceMap: Record<string, string> | null) => {
@@ -1379,10 +1426,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkJobStatus = async (job: BackgroundJob) => {
             if (!job.id || !job.apiKey) return;
             try {
+                type TripoOutput = {
+                    model?: string;
+                    pbr_model?: string;
+                    base_model?: string;
+                    rendered_image?: string;
+                    render_image?: string;
+                };
+
+                type TripoData = {
+                    status: string;
+                    progress: number;
+                    output?: TripoOutput;
+                };
+
                 type ApiResponse = {
                     status?: string; progress?: number;
                     model_urls?: { glb: string }; thumbnail_url?: string;
-                    data?: { status: string; progress: number; output?: any };
+                    data?: TripoData;
                     code?: number; 
                 };
                 let data: ApiResponse | null = null;
@@ -1458,7 +1519,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         img.scaleToWidth(200); img.set({ left: 100, top: 100 });
                                         const threeDImg = img as ThreeDImage; threeDImg.is3DModel = true; threeDImg.modelUrl = resultUrl;
                                         canvas.add(threeDImg); canvas.setActiveObject(threeDImg); canvas.requestRenderAll();
-                                    }).catch(err => { addFallbackPlaceholder(); });
+                                    }).catch(() => { addFallbackPlaceholder(); });
                               } else { addFallbackPlaceholder(); }
                           }
                       }
@@ -1467,7 +1528,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { ...p, progress: progress, status: status } : p));
                      }
                 }
-            } catch (e) { }
+            } catch { }
         };
         const interval = setInterval(() => { activeJobs.forEach(job => checkJobStatus(job)); }, 2000);
         return () => clearInterval(interval);
@@ -1637,7 +1698,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      <div className="bg-card w-[800px] h-[600px] rounded-xl shadow-2xl relative flex flex-col overflow-hidden border border-border">
                           <div className="flex-1 overflow-hidden">
                               <AssetLibrary 
-                                  onSelect={(url, _type, _name) => { if (replacingItemId) { setReplacementMap(prev => ({ ...prev, [replacingItemId]: url })); } setShowAssetBrowserForMissing(false); setReplacingItemId(null); }}
+                                  onSelect={(url) => { if (replacingItemId) { setReplacementMap(prev => ({ ...prev, [replacingItemId]: url })); } setShowAssetBrowserForMissing(false); setReplacingItemId(null); }}
                                   onClose={() => setShowAssetBrowserForMissing(false)}
                               />
                           </div>
@@ -1711,7 +1772,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         setActiveTool={setActiveTool} 
                         onOpen3DEditor={(url) => setEditingModelUrl(url)} 
                         apiKeys={apiKeys} 
-                        onJobCreated={(job) => setBackgroundJobs(prev => [...prev, job])} 
                      />
                 </aside>
 
@@ -1760,9 +1820,9 @@ document.addEventListener('DOMContentLoaded', () => {
                    {/* Main Canvas Area - Full Width/Height */}
                    <div className="absolute inset-0 z-0 overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
                         {editingModelUrl && (
-                            <ThreeDLayerEditor 
-                                 modelUrl={editingModelUrl}
-                                 existingObject={editingModelObject}
+                               <ThreeDLayerEditor 
+                                   modelUrl={editingModelUrl}
+                                   existingObject={editingModelObject ?? undefined}
                                  onClose={() => { setEditingModelUrl(null); setEditingModelObject(null); }}
                                  onSave={(dataUrl, currentModelUrl) => {
                                      if (canvas) {
@@ -1794,8 +1854,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     if (canvas) {
                                         fabric.FabricImage.fromURL(dataUrl).then((img) => {
                                             // Handle resizing to fit viewport/artboard
-                                            // @ts-ignore
-                                            const artboard = canvas.artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+                                            const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
                                             const viewW = artboard.width;
                                             const viewH = artboard.height;
                                             

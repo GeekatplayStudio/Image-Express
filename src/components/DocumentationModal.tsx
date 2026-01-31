@@ -73,7 +73,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                                 <li><span className="font-medium">Quick Start:</span> One-click access to popular formats (Instagram, YouTube, A4, Letter) to instantly launch a sized canvas.</li>
                                 <li><span className="font-medium">Start Creating:</span> opens a custom blank canvas dialog.</li>
                                 <li><span className="font-medium">Recent designs:</span> shows saved canvases from /api/designs/list with delete shortcuts and thumbnail previews.</li>
-                                <li><span className="font-medium">Support:</span> Footer links to support the developer ("Buy me a Coffee") and social channels.</li>
+                                <li><span className="font-medium">Support:</span> Footer links to support the developer (&quot;Buy me a Coffee&quot;) and social channels.</li>
                             </ul>
                         </Section>
 
@@ -113,9 +113,12 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="properties" title="Properties & Layers">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Edit fill, gradients, opacity, stroke, shadows, skew, curved text, and star parameters depending on selection.</li>
-                                <li><span className="font-medium">Masking:</span> Select two overlapping objects to activate Mask Mode. The top object (mask) clips the bottom object (content). Use the "Masking Available" banner to apply or invert the mask.</li>
+                                <li><span className="font-medium">Masking:</span> Select two overlapping objects to activate Mask Mode. The top object (mask) clips the bottom object (content). Use the &quot;Masking Available&quot; banner to apply or invert the mask.</li>
                                 <li>Adjust canvas size, background colour, and export-safe artboard settings under Canvas Controls.</li>
                                 <li>Layer list supports drag-and-drop reordering, visibility toggles, colour tagging, renaming, and deletion.</li>
+                                <li><span className="font-medium">Multi-select:</span> Click a layer, then Shift-click another to select a range, or Ctrl/Cmd-click to toggle individual layers.</li>
+                                <li><span className="font-medium">Folders:</span> Create empty folders, drag layers into or out of folders, and apply visibility/lock/opacity to the whole folder.</li>
+                                <li><span className="font-medium">Paint folders:</span> Each paint session is grouped into a single folder; leaving Paint and returning starts a new folder.</li>
                                 <li>Double-click a layer grip to assign custom colour tags for quick visual grouping.</li>
                             </ul>
                         </Section>

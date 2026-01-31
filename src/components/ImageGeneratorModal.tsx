@@ -30,6 +30,10 @@ interface ImageGeneratorModalProps {
   apiKey?: string; 
 }
 
+type CanvasWithArtboard = fabric.Canvas & {
+    artboard?: { width: number; height: number };
+};
+
 export default function ImageGeneratorModal({
   isOpen = true,
   canvas,
@@ -334,8 +338,7 @@ export default function ImageGeneratorModal({
     fabric.Image.fromURL(generatedImage, { crossOrigin: 'anonymous' }).then((img) => {
         if (!zoneObjectRef.current) {
              // Use Artboard dimensions if available
-             // @ts-ignore
-             const artboard = canvas.artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+             const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
              const targetWidth = artboard.width;
              const targetHeight = artboard.height;
              
@@ -440,7 +443,8 @@ export default function ImageGeneratorModal({
 
     } catch (error) {
       console.error(error);
-      setStatusMessage(`Error: ${(error as any).message}`);
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            setStatusMessage(`Error: ${message}`);
       setIsGenerating(false);
     }
   };

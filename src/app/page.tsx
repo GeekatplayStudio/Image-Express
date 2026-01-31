@@ -26,7 +26,7 @@ export default function Home() {
   const [currentDesignName, setCurrentDesignName] = useState<string>('Untitled Design');
   
   // Pending Load State (from Dashboard selection)
-  const [pendingDesignToLoad, setPendingDesignToLoad] = useState<Record<string, unknown> | null>(null);
+  const [pendingDesignToLoad, setPendingDesignToLoad] = useState<{ data?: unknown } | null>(null);
   const [pendingTemplateJsonUrl, setPendingTemplateJsonUrl] = useState<string | null>(null);
   const [pendingDesignSize, setPendingDesignSize] = useState<{width: number, height: number} | null>(null);
   const [showDocumentation, setShowDocumentation] = useState(false);
@@ -143,7 +143,7 @@ export default function Home() {
             events.forEach(evt => window.removeEventListener(evt, handleActivity));
         }
     };
-  }, [isDesktopApp, username, showLoginModal, handleLogout]);
+  }, [isDesktopApp, username, showLoginModal, handleLogout, toast]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {

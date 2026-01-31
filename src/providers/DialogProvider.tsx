@@ -42,10 +42,11 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     const [inputValue, setInputValue] = useState('');
     
     // Resolvers to handle Promise-based flow
-    const resolveRef = useRef<(value: any) => void>(() => {});
+    type DialogResult = boolean | string | null | undefined;
+    const resolveRef = useRef<(value: DialogResult) => void>(() => {});
 
     const openDialog = (type: DialogType, message: string, options: DialogOptions = {}) => {
-        return new Promise<any>((resolve) => {
+        return new Promise<DialogResult>((resolve) => {
             setConfig({ type, message, options });
             setInputValue(options.defaultValue || '');
             setIsOpen(true);
@@ -54,15 +55,15 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     };
 
     const alert = useCallback((message: string, options?: DialogOptions) => {
-        return openDialog('alert', message, { title: 'Alert', confirmText: 'OK', ...options });
+        return openDialog('alert', message, { title: 'Alert', confirmText: 'OK', ...options }).then(() => undefined);
     }, []);
 
     const confirm = useCallback((message: string, options?: DialogOptions) => {
-        return openDialog('confirm', message, { title: 'Confirm', confirmText: 'Confirm', cancelText: 'Cancel', ...options });
+        return openDialog('confirm', message, { title: 'Confirm', confirmText: 'Confirm', cancelText: 'Cancel', ...options }).then((result) => result === true);
     }, []);
 
     const prompt = useCallback((message: string, options?: DialogOptions) => {
-        return openDialog('prompt', message, { title: 'Input', confirmText: 'OK', cancelText: 'Cancel', ...options });
+        return openDialog('prompt', message, { title: 'Input', confirmText: 'OK', cancelText: 'Cancel', ...options }).then((result) => (typeof result === 'string' ? result : null));
     }, []);
 
     const handleConfirm = () => {

@@ -8,14 +8,20 @@ import { NextRequest, NextResponse } from 'next/server';
 // which is acceptable for a "remake" demo unless a DB is explicitly requested.
 // Let's use a simple global object for demonstration purposes.
 
-let USER_API_KEYS: Record<string, any> = {};
+type UserApiKeysPayload = {
+    username?: string;
+    userId?: string;
+    keys?: Record<string, string>;
+};
+
+const USER_API_KEYS: Record<string, Record<string, string>> = {};
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
+        const body = (await req.json()) as UserApiKeysPayload;
         // Support both username and userId
         const username = body.username || body.userId;
-        const keys = body.keys;
+        const keys = body.keys || {};
         
         if (!username) {
             return NextResponse.json({ message: 'Username required' }, { status: 400 });
@@ -28,7 +34,7 @@ export async function POST(req: NextRequest) {
         };
 
         return NextResponse.json({ message: 'Keys saved successfully' });
-    } catch (e) {
+    } catch {
         return NextResponse.json({ message: 'Error saving keys' }, { status: 500 });
     }
 }
@@ -45,7 +51,7 @@ export async function GET(req: NextRequest) {
 
         const keys = USER_API_KEYS[username] || {};
         return NextResponse.json({ keys });
-    } catch (e) {
+    } catch {
          return NextResponse.json({ message: 'Error retrieving keys' }, { status: 500 });
     }
 }
