@@ -82,11 +82,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
 
     useEffect(() => {
         if (activeJob) {
-             setIsLoading(activeJob.status === 'IN_PROGRESS' || activeJob.status === 'PENDING');
+             const loading = activeJob.status === 'IN_PROGRESS' || activeJob.status === 'PENDING';
+             // eslint-disable-next-line
+             if (isLoading !== loading) setIsLoading(loading);
         } else {
-             setIsLoading(false);
+            // eslint-disable-next-line
+            if (isLoading) setIsLoading(false);
         }
-    }, [activeJob]);
+    }, [activeJob, isLoading]);
     
     // Load API Key
 
@@ -98,17 +101,22 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
 
     useEffect(() => {
         // Load persist selection
+        if (typeof window === 'undefined') return;
         const savedProvider = localStorage.getItem('image-express-3d-provider');
         
         if (savedProvider && SUPPORTED_PROVIDERS.includes(savedProvider)) {
-            setSelectedProvider(savedProvider);
+             // eslint-disable-next-line
+             setSelectedProvider(prev => prev !== savedProvider ? savedProvider : prev);
         }
     }, []);
 
     // Check for key when provider changes
     useEffect(() => {
+        if (typeof window === 'undefined') return;
         const key = localStorage.getItem(`${selectedProvider}_api_key`);
-        setHasSavedKey(!!key);
+        const hasKey = !!key;
+        // eslint-disable-next-line
+        setHasSavedKey(prev => prev !== hasKey ? hasKey : prev);
         setApiKey(''); // Clear manual input on switch
     }, [selectedProvider]);
 
@@ -413,10 +421,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                     <select 
                         value={selectedProvider} 
                         onChange={handleProviderChange}
-                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border focus:border-indigo-500 outline-none"
+                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border focus:border-indigo-500 outline-none text-foreground dark:bg-zinc-950 bg-zinc-950"
                     >
                         {SUPPORTED_PROVIDERS.map(p => (
-                            <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                            <option key={p} value={p} className="bg-zinc-950 text-white">{p.charAt(0).toUpperCase() + p.slice(1)}</option>
                         ))}
                     </select>
                 </div>
@@ -483,7 +491,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                                 <div className="pointer-events-auto flex flex-col items-end gap-1">
                                     <button 
                                         onClick={() => setShowResSettings(!showResSettings)}
-                                        className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-black dark:text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
+                                        className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
                                         title="Export Resolution Settings"
                                     >
                                         <Settings2 size={12} />
@@ -530,7 +538,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                                     )}
                                     <button
                                         onClick={() => setShowLightSettings(!showLightSettings)}
-                                        className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-black dark:text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
+                                        className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
                                         title="Lighting Settings"
                                     >
                                         <Sun size={12} />

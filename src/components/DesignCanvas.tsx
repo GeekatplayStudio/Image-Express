@@ -196,15 +196,12 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
             const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
-            const getCanvasPointer = (eventData: any, target: fabric.Object, transform: fabric.Transform) => {
-                const targetCanvas = (transform as unknown as { canvas?: fabric.Canvas }).canvas ?? target.canvas;
-                if (!targetCanvas) return { x: eventData.clientX, y: eventData.clientY };
-                const getPointer = (targetCanvas as unknown as { getPointer?: (e: any) => { x: number; y: number } }).getPointer;
-                return typeof getPointer === 'function'
-                    ? getPointer.call(targetCanvas, eventData)
-                    : (fabric.util as unknown as { getPointer?: (e: any, el?: HTMLCanvasElement) => { x: number; y: number } })
-                        .getPointer?.(eventData, (targetCanvas as unknown as { upperCanvasEl?: HTMLCanvasElement }).upperCanvasEl)
-                        ?? { x: eventData.clientX, y: eventData.clientY };
+            const getCanvasPointer = (eventData: MouseEvent | TouchEvent | PointerEvent, target: fabric.Object, transform: fabric.Transform) => {
+                const targetCanvas = target.canvas;
+                if (!targetCanvas) return { x: 0, y: 0 }; // Fallback
+                
+                // fabric.Canvas has getPointer but types might be missing in some versions or strict mode
+                return (targetCanvas as unknown as { getPointer: (e: MouseEvent | TouchEvent | PointerEvent) => fabric.Point }).getPointer(eventData);
             };
 
             const createWarpControl = (corner: WarpCorner, x: number, y: number) => new fabric.Control({
@@ -243,7 +240,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                     tr: createWarpControl('TR', 0.5, -0.5),
                     bl: createWarpControl('BL', -0.5, 0.5),
                     br: createWarpControl('BR', 0.5, 0.5)
-                } as any;
+                };
                 obj.setCoords();
             };
 
@@ -255,9 +252,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                 const multiplier = 2;
                 const dataUrl = textObj.toDataURL({ format: 'png', withoutTransform: true, multiplier });
                 const img = await fabric.FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' });
-                const element = (img as unknown as { _element?: HTMLImageElement; _originalElement?: HTMLImageElement; getElement?: () => HTMLImageElement })._element
-                    || (img as unknown as { _originalElement?: HTMLImageElement })._originalElement
-                    || (img as unknown as { getElement?: () => HTMLImageElement }).getElement?.();
+                const element = img.getElement();
                 if (!element) return null;
 
                 const warped = new WarpedImage(element, {
@@ -271,7 +266,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                     opacity: textObj.opacity,
                     shadow: textObj.shadow,
                     objectCaching: false
-                } as any);
+                });
                 warped.warpTL = undefined;
                 warped.warpTR = undefined;
                 warped.warpBR = undefined;
@@ -312,13 +307,11 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                 }
             });
 
-            const applyControls = (proto?: { controls?: any }) => {
+            const applyControls = (proto?: { controls?: Record<string, fabric.Control> }) => {
                 if (!proto?.controls) return;
-                proto.controls = {
-                    ...proto.controls,
-                    tl: createConvertControl(-0.5, -0.5),
-                    tr: createConvertControl(0.5, -0.5)
-                } as any;
+                const controls = proto.controls; 
+                controls.tl = createConvertControl(-0.5, -0.5);
+                controls.tr = createConvertControl(0.5, -0.5);
             };
 
             const applyControlsToObject = (obj?: fabric.Object | null) => {
@@ -328,17 +321,18 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                     return;
                 }
                 if (!['text', 'i-text', 'textbox'].includes(obj.type || '')) return;
+                
                 obj.controls = {
                     ...obj.controls,
                     tl: createConvertControl(-0.5, -0.5),
                     tr: createConvertControl(0.5, -0.5)
-                } as any;
+                };
                 obj.setCoords();
             };
 
-            applyControls((fabric.IText as unknown as { prototype?: { controls?: any } })?.prototype);
-            applyControls((fabric.Textbox as unknown as { prototype?: { controls?: any } })?.prototype);
-            applyControls((fabric.Text as unknown as { prototype?: { controls?: any } })?.prototype);
+            applyControls(fabric.IText.prototype as unknown as { controls?: Record<string, fabric.Control> });
+            applyControls(fabric.Textbox.prototype as unknown as { controls?: Record<string, fabric.Control> });
+            applyControls(fabric.Text.prototype as unknown as { controls?: Record<string, fabric.Control> });
 
             canvas.on('selection:created', (e) => applyControlsToObject(e.selected?.[0] ?? canvas.getActiveObject()));
             canvas.on('selection:updated', (e) => applyControlsToObject(e.selected?.[0] ?? canvas.getActiveObject()));

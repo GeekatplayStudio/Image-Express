@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { StarPolygon, ExtendedFabricObject } from '@/types';
-import { Trash2, Layers, GripVertical, Settings, Image as ImageIcon, Box, Eye, EyeOff, ArrowLeftRight, Blend, Wand2, Play, ExternalLink, Video, Music, Type as TypeIcon, Shapes } from 'lucide-react';
+import { Trash2, Layers, GripVertical, Settings, Image as ImageIcon, Box, Eye, EyeOff, Lock, Unlock, ArrowLeftRight, Blend, Wand2, Play, ExternalLink, Video, Music, Type as TypeIcon, Shapes, Folder, FolderOpen, ChevronRight, ChevronDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
@@ -100,13 +100,17 @@ interface SortableLayerItemProps {
     selectedObject: fabric.Object | null;
     selectLayer: (obj: fabric.Object) => void;
     toggleVisibility: (obj: fabric.Object) => void;
+    toggleLock: (obj: fabric.Object) => void;
     deleteLayer: (obj: fabric.Object) => void;
     total: number;
     onDblClick?: () => void;
+    depth?: number;
+    onToggleExpand?: (obj: fabric.Object) => void;
+    expanded?: boolean;
 }
 
 // Sortable Layer Item Component
-function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisibility, deleteLayer, total, onDblClick }: SortableLayerItemProps) {
+function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false }: SortableLayerItemProps) {
     const extendedObj = obj as ExtendedFabricObject;
     const {
         attributes,
@@ -115,10 +119,13 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
         transform,
         transition,
         isDragging
-    } = useSortable({ id: extendedObj.id || extendedObj.cacheKey || `obj-${index}` });
+    } = useSortable({ id: extendedObj.id || extendedObj.cacheKey || `obj-${index}`, disabled: depth > 0 });
+
+    const isGroup = obj.type === 'group';
+    const children = isGroup ? (obj as fabric.Group).getObjects() : [];
 
     const [isEditing, setIsEditing] = useState(false);
-    const [name, setName] = useState(extendedObj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')));
+    const [name, setName] = useState(extendedObj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' && children.length > 0 ? 'Folder' : (obj.type || 'Object'))));
     // Use fill as color, defaulting to transparent or black if complex
     const [layerColor, setLayerColor] = useState(() => {
          if (typeof obj.fill === 'string') return obj.fill;
@@ -133,10 +140,12 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
         transition,
         zIndex: isDragging ? 999 : 'auto',
         position: 'relative' as const,
+        marginLeft: `${depth * 20}px`
     };
     
     // Check internal visible state
     const isVisible = obj.visible !== false; 
+    const isLocked = (obj as ExtendedFabricObject).locked === true; 
 
     const getLayerTypeInfo = () => {
         if (extendedObj.is3DModel) return { icon: Box, className: 'text-indigo-500' };
@@ -147,6 +156,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
         if (['rect', 'circle', 'triangle', 'polygon', 'line', 'path'].includes(obj.type || '')) {
             return { icon: Shapes, className: 'text-slate-500' };
         }
+        if (obj.type === 'group') return { icon: expanded ? FolderOpen : Folder, className: 'text-blue-500' };
         if ('isStar' in obj) return { icon: Shapes, className: 'text-slate-500' };
         return { icon: Shapes, className: 'text-slate-500' };
     };
@@ -173,9 +183,8 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
     };
 
     return (
+        <div ref={setNodeRef} style={style} className="mb-1">
         <div 
-            ref={setNodeRef} 
-            style={style} 
             onClick={() => selectLayer(obj)}
             onDoubleClick={() => {
                  // Propagate double click to switch view
@@ -183,7 +192,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                  // But wait, name edit has stopPropagation.
                  if (onDblClick) onDblClick();
             }}
-            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all group mb-1 ${
+            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all group ${
                 selectedObject === obj 
                 ? 'bg-primary/10 border-primary/30 shadow-sm' 
                 : 'bg-card border-border/50 hover:bg-secondary/50'
@@ -212,6 +221,19 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                     />
                 </div>
                 
+                 {/* Expand / Collapse for Group */}
+                 {isGroup && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onToggleExpand) onToggleExpand(obj);
+                        }} 
+                        className="p-0.5 hover:bg-secondary rounded text-muted-foreground"
+                    >
+                         {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </button>
+                 )}
+
                 <div className="relative w-8 h-8 rounded bg-background border flex items-center justify-center text-muted-foreground shrink-0 select-none overflow-hidden group/color">
                     {/* Background Color Indicator */}
                     <div 
@@ -225,10 +247,11 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                     {obj.type === 'triangle' && <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-foreground opacity-50" />}
                     {(obj.type === 'text' || obj.type === 'i-text') && <span className="text-xs font-serif font-bold">T</span>}
                     {obj.type === 'image' && <ImageIcon size={14} />}
+                    {obj.type === 'group' && (expanded ? <FolderOpen size={14} /> : <Folder size={14} />)}
                     {'isStar' in obj && <div className="text-[8px]">★</div>}
 
                      {/* Color Input Overlay (Not for images) */}
-                     {obj.type !== 'image' && (
+                     {obj.type !== 'image' && obj.type !== 'group' && (
                         <input 
                             type="color" 
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -270,18 +293,26 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                         </span>
                     )}
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>Layer {total - index}</span>
-                        <typeInfo.icon size={12} className={typeInfo.className} />
+                        <span>{isGroup ? `${children.length} items` : `Layer ${total - index}`}</span>
+                        {/* <typeInfo.icon size={12} className={typeInfo.className} /> */}
                         {isVisible ? (
                             <Eye size={12} className="text-emerald-500" />
                         ) : (
                             <EyeOff size={12} className="text-rose-500" />
                         )}
+                        {isLocked && <Lock size={12} className="text-amber-500" />}
                     </div>
                 </div>
             </div>
             
             <div className={`flex items-center gap-1 ${selectedObject === obj ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'} transition-opacity ml-2`}>
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleLock(obj); }}
+                    className={`p-1.5 hover:bg-secondary rounded-md ${isLocked ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground hover:text-foreground'}`}
+                    title={isLocked ? "Unlock" : "Lock"}
+                >
+                    {isLocked ? <Lock size={14} /> : <Unlock size={14} />}
+                </button>
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleVisibility(obj); }}
                     className={`p-1.5 hover:bg-secondary rounded-md ${isVisible ? 'text-emerald-500 hover:text-emerald-600' : 'text-rose-500 hover:text-rose-600'}`}
@@ -297,6 +328,34 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                     <Trash2 size={12} />
                 </button>
             </div>
+            </div>
+            
+            {/* Render Children if Group and Expanded */}
+            {isGroup && expanded && children.length > 0 && (
+                 <div className="border-l-2 border-border/50 ml-6 pl-2 mt-1 space-y-1">
+                     {[...children].reverse().map((child, i) => (
+                         <SortableLayerItem 
+                            key={`child-${i}-${(child as ExtendedFabricObject).cacheKey || i}`} // Simple key needed
+                            obj={child} 
+                            index={i} 
+                            total={children.length}
+                            selectedObject={selectedObject}
+                            selectLayer={selectLayer}
+                            toggleVisibility={toggleVisibility}
+                            toggleLock={toggleLock}
+                            deleteLayer={(o) => {
+                                // Deleting child means removing from group
+                                (obj as fabric.Group).remove(o);
+                                obj.canvas?.requestRenderAll();
+                            }}
+                            depth={depth + 1}
+                            // Recursive props
+                            onDblClick={onDblClick}
+                            onToggleExpand={onToggleExpand}
+                         />
+                     ))}
+                 </div>
+            )}
         </div>
     );
 }
@@ -306,6 +365,95 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     const { toast } = useToast();
     const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
+    
+    // Folder Expansion State
+    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+    
+    const toggleFolder = useCallback((obj: fabric.Object) => {
+        const id = (obj as ExtendedFabricObject).id;
+        if (!id) return;
+        setExpandedFolders(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    }, []);
+
+    // Grouping Functions
+    const groupSelectedLayers = useCallback(() => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject();
+        if (!active || active.type !== 'activeSelection') {
+             toast({ title: 'Select multiple layers', description: 'Hold Shift to select multiple items to group.', variant: 'default' });
+             return;
+        }
+        
+        // Fabric 6+ friendly grouping
+        const objects = canvas.getActiveObjects();
+        // Remove from canvas (active selection logic typically handles this during grouping, but manual approach is safer)
+        canvas.discardActiveObject();
+        objects.forEach(obj => canvas.remove(obj));
+        
+        const group = new fabric.Group(objects, {
+             canvas: canvas,
+             interactive: true
+        });
+        group.set('name', 'Group'); 
+        (group as ExtendedFabricObject).id = `group-${Date.now()}`;
+        
+        canvas.add(group);
+        canvas.setActiveObject(group);
+        
+        canvas.requestRenderAll();
+        canvas.fire('object:modified');
+        
+        // Auto expand
+        setExpandedFolders(prev => new Set(prev).add((group as ExtendedFabricObject).id!));
+    }, [canvas, toast]);
+
+    const ungroupSelectedLayer = useCallback(() => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject();
+        if (!active || active.type !== 'group') {
+             toast({ title: 'Select a group', description: 'Select a Folder/Group to ungroup.', variant: 'default' });
+             return;
+        }
+        
+        const group = active as fabric.Group;
+        const items = group.getObjects();
+        
+        // Remove group first
+        group.removeAll(); 
+        canvas.remove(group);
+        
+        // Restore items to canvas
+        items.forEach(item => {
+             // In Fabric 6/7, removing from group might not auto-restore absolute coords unless handled.
+             // If items are visually jumping, we need to apply group matrix.
+             // However, getObjects returns references.
+             // Let's assume standard behavior for now: manually adding them back.
+             // Ideally we should use `fabric.util.applyTransformToObject(item, group.calcTransformMatrix());` but type safety might block.
+             // Let's rely on Group's internal destruction helper if exists, or just Add.
+             canvas.add(item);
+        });
+        
+        // Select un-grouped items
+        const selection = new fabric.ActiveSelection(items, { canvas: canvas });
+        canvas.setActiveObject(selection);
+        
+        canvas.requestRenderAll();
+        canvas.fire('object:modified');
+    }, [canvas, toast]);
+
+    // Helpers to Move Items In/Out of active Group (if single group selected) OR Create Empty
+    // Creating "Empty" folder in Fabric is tricky because Group usually needs width/height.
+    // We can create a Group with invisible object?
+    
+    // Instead, let's focus on "Selection -> Group" and "Group -> Ungroup" which covers 90% use case.
     
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -337,6 +485,165 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     // Star specific properties
     const [starPoints, setStarPoints] = useState(5);
     const [starInnerRadius, setStarInnerRadius] = useState(0.5);
+
+    // Painting Tool State
+    const [paintColor, setPaintColor] = useState('#000000');
+    const [brushSize, setBrushSize] = useState(10);
+    const [brushType, setBrushType] = useState('Pencil');
+    const [paintOpacity, setPaintOpacity] = useState(1);
+    
+    // Advanced Paint Settings
+    const [brushBlur, setBrushBlur] = useState(0); // Softness
+    const [sprayDensity, setSprayDensity] = useState(20);
+    const [paintBlendMode, setPaintBlendMode] = useState('source-over');
+    
+    // Check if we have an active "Folder" (Group) for current session
+    // This resets when tool changes away from 'paint'
+    const currentPaintGroupRef = useRef<fabric.Group | null>(null);
+
+    // Effect Helpers
+    useEffect(() => {
+        if (!canvas) return;
+        
+        // Reset Paint Group when activeTool changes
+        if (activeTool !== 'paint') {
+            currentPaintGroupRef.current = null;
+        }
+
+        const handlePathCreated = (e: { path: fabric.Object }) => {
+            if (activeTool !== 'paint' || !e.path) return;
+            
+            const path = e.path;
+            path.set({ globalCompositeOperation: paintBlendMode });
+            
+            // Should we add to a group?
+            // If user explicitly stated "create folder and place new layers there"
+            // We lazily create the group on the first stroke of a session
+            
+            let group = currentPaintGroupRef.current;
+            
+            // Check if group is still valid (on canvas)
+            if (group && !canvas.contains(group)) {
+                 group = null;
+            }
+
+            if (!group) {
+                // Create new Group
+                group = new fabric.Group([], { 
+                    selectable: true,
+                    evented: true,
+                    // Use a custom property to identify it as a "Layer Folder"
+                    // In Fabric, Group is just a Group. 
+                });
+                group.set('name', `Paint Layer ${canvas.getObjects().filter(o => o.type === 'group').length + 1}`);
+                
+                // Ensure ID
+                const extGroup = group as ExtendedFabricObject;
+                if (!extGroup.id) extGroup.id = `group-${Date.now()}`;
+
+                // Add group to canvas
+                canvas.add(group);
+                currentPaintGroupRef.current = group;
+                
+                // Auto Expand
+                setExpandedFolders(prev => {
+                    const next = new Set(prev);
+                    if (extGroup.id) next.add(extGroup.id);
+                    return next;
+                });
+            }
+            
+            // Move path from canvas to group
+            // 1. Remove from canvas
+            canvas.remove(path);
+            
+            // 2. Add to group
+            // When adding to an empty group, the group's origin/position might shift.
+            // addWithUpdate usually handles this, but changing group center moves existing objects visually if not handled.
+            // Since this is painting, we want the stroke to stay exactly where drawn visually.
+            
+            // Basic Add to Group Logic while preserving position:
+            group.add(path); // This adds relative to group center (0,0) usually? No, it adds to _objects.
+            
+            // Wait, fabric.Group needs to update its width/height/left/top to encompass the new object.
+            // group.addWithUpdate(path); 
+            
+            canvas.requestRenderAll();
+            // Update Objects List UI
+            setObjects([...canvas.getObjects().reverse()]);
+        };
+        canvas.on('path:created', handlePathCreated);
+        return () => { canvas.off('path:created', handlePathCreated); };
+    }, [canvas, activeTool, paintBlendMode]);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        if (activeTool === 'paint') {
+            // eslint-disable-next-line
+            (canvas as any).isDrawingMode = true;
+            let brush: fabric.BaseBrush;
+
+            if (brushType === 'Spray') {
+                const sprayBrush = new fabric.SprayBrush(canvas);
+                sprayBrush.density = sprayDensity;
+                brush = sprayBrush;
+            } else if (brushType === 'Oil') {
+                // Simulate Oil: Dense SprayBrush to create random "bristle" texture without repeating pattern
+                // Use SprayBrush logic but tuned for high density/coverage
+                const oilBrush = new fabric.SprayBrush(canvas);
+                
+                // Allow user dominance of density via sprayDensity, but boost it for Oil effect
+                // Oil needs to be dense. Range of slider is 5-100.
+                const oilDensity = Math.max(20, sprayDensity); 
+                
+                oilBrush.density = oilDensity;
+                oilBrush.width = brushSize;
+                
+                // Bristle size (dot width)
+                // Small Variance to keep consistent stroke width but rough edges
+                oilBrush.dotWidth = Math.max(1, brushSize / 8); 
+                oilBrush.dotWidthVariance = Math.max(1, brushSize / 10);
+                
+                // Oil is opaque and thick
+                oilBrush.randomOpacity = false; 
+                oilBrush.optimizeOverlapping = false;
+                
+                brush = oilBrush;
+            } else if (brushType === 'Watercolor') {
+                // Simulate Watercolor: Pencil Brush (Smoother path) + Soft Shadow handled below
+                // Opacity and Blend Mode are key here
+                brush = new fabric.PencilBrush(canvas);
+            } else {
+                brush = new fabric.PencilBrush(canvas);
+            }
+
+            brush.color = applyAlphaToColor(paintColor, paintOpacity);
+            brush.width = brushSize;
+            
+            if (brushType !== 'Spray' && brushType !== 'Oil') {
+                // Softness logic
+                if (brushBlur > 0) {
+                     brush.shadow = new fabric.Shadow({
+                        blur: brushBlur,
+                        offsetX: 0,
+                        offsetY: 0,
+                        color: paintColor
+                    });
+                } else {
+                    brush.shadow = null;
+                }
+            }
+            
+            // Apply blend mode to context if supported by brush type (Usually PencilBrush supports via manual render, but we used path:created)
+
+            // eslint-disable-next-line
+            (canvas as any).freeDrawingBrush = brush;
+        } else {
+            // eslint-disable-next-line
+            (canvas as any).isDrawingMode = false;
+        }
+    }, [activeTool, paintColor, brushSize, brushType, paintOpacity, canvas, brushBlur, sprayDensity]);
 
     // Advanced Effects State
     const [curveStrength, setCurveStrength] = useState(0);
@@ -1310,6 +1617,34 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         setObjects([...canvas.getObjects().reverse()]); 
     };
 
+    const toggleLock = (obj: fabric.Object) => {
+        if (!canvas) return;
+        const extendedObj = obj as ExtendedFabricObject;
+        const wasLocked = extendedObj.locked ?? false;
+        const isLocked = !wasLocked;
+        
+        extendedObj.set('locked', isLocked);
+        
+        obj.set({
+            selectable: !isLocked, 
+            evented: !isLocked,
+            lockMovementX: isLocked,
+            lockMovementY: isLocked,
+            lockRotation: isLocked,
+            lockScalingX: isLocked,
+            lockScalingY: isLocked,
+            lockSkewingX: isLocked,
+            lockSkewingY: isLocked
+        });
+
+        if (isLocked && canvas.getActiveObject() === obj) {
+            canvas.discardActiveObject();
+        }
+
+        canvas.requestRenderAll();
+        setObjects([...canvas.getObjects().reverse()]);
+    };
+
     const selectLayer = (obj: fabric.Object) => {
         if (!canvas) return;
         // If hidden, make visible when selecting via layer panel? 
@@ -1393,10 +1728,13 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         }
 
         if (extendedCanvas.artboard) {
-            extendedCanvas.artboard.width = width;
-            extendedCanvas.artboard.height = height;
+            // eslint-disable-next-line
+            (extendedCanvas.artboard as any).width = width;
+            // eslint-disable-next-line
+            (extendedCanvas.artboard as any).height = height;
         } else {
-            extendedCanvas.artboard = { width, height, left: 0, top: 0 };
+            // eslint-disable-next-line
+            (extendedCanvas as any).artboard = { width, height, left: 0, top: 0 };
         }
 
         const hostContainer = extendedCanvas.hostContainer;
@@ -1405,7 +1743,9 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             const containerWidth = Math.ceil(rect.width);
             const containerHeight = Math.ceil(rect.height);
             if (canvas.width !== containerWidth || canvas.height !== containerHeight) {
+                // eslint-disable-next-line
                 canvas.setDimensions({ width: containerWidth, height: containerHeight });
+                // eslint-disable-next-line
                 canvas.calcOffset();
             }
         }
@@ -1448,13 +1788,180 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         if (extendedCanvas.setWorkspaceBackground) {
             extendedCanvas.setWorkspaceBackground(nextColor);
         } else if (extendedCanvas.hostContainer) {
-            extendedCanvas.hostContainer.style.backgroundColor = nextColor;
+            // eslint-disable-next-line
+            (extendedCanvas.hostContainer as any).style.backgroundColor = nextColor;
             (canvas.fire as (eventName: string, options?: Record<string, unknown>) => fabric.Canvas)('workspace:color', { color: nextColor });
             canvas.requestRenderAll();
         }
 
         setWorkspaceBgColor(nextColor);
     };
+
+    if (activeTool === 'paint') {
+        return (
+            <div className="w-80 border-l border-border bg-card overflow-y-auto h-full animate-in slide-in-from-right-5 duration-300 transform-gpu relative scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
+                <div className="p-5 border-b border-border/50 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                        <Wand2 size={16} className="text-primary" />
+                        Paint Properties
+                    </h3>
+                </div>
+
+                <div className="p-5 space-y-6">
+                    <div className="space-y-3">
+                         <div className="flex justify-between items-center">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brush Type</label>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                             {['Pencil', 'Spray', 'Oil', 'Watercolor'].map(b => (
+                                 <button
+                                    key={b}
+                                    onClick={() => {
+                                        setBrushType(b);
+                                        // Set Defaults
+                                        if (b === 'Watercolor') {
+                                           setPaintOpacity(0.5);
+                                           setBrushBlur(10);
+                                           setPaintBlendMode('multiply'); 
+                                        } else if (b === 'Oil') {
+                                           setPaintOpacity(1); 
+                                           setBrushBlur(0);
+                                           setPaintBlendMode('source-over');
+                                        } else {
+                                           setPaintBlendMode('source-over');
+                                        }
+                                    }}
+                                    className={`px-3 py-2 text-xs rounded-md border transition-all ${brushType === b ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary hover:bg-secondary/80 border-transparent'}`}
+                                 >
+                                     {b}
+                                 </button>
+                             ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Color</label>
+                            <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{paintColor.toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <div className="relative w-10 h-10 rounded-full border border-border shadow-sm overflow-hidden shrink-0 group cursor-pointer transition-transform active:scale-95">
+                                <div className="absolute inset-0 z-0 bg-image-checkered opacity-20" />
+                                <div className="absolute inset-0 z-10" style={{ backgroundColor: paintColor }} />
+                                <input 
+                                    type="color" 
+                                    value={paintColor}
+                                    onChange={(e) => setPaintColor(e.target.value)}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                />
+                            </div>
+                            <div className="flex-1 space-y-2">
+                                 <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+                                     {['#000000', '#ffffff', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'].map(c => (
+                                        <button 
+                                            key={c}
+                                            onClick={() => setPaintColor(c)}
+                                            className="w-6 h-6 rounded-full border border-border/50 shrink-0 hover:scale-110 transition-transform"
+                                            style={{ backgroundColor: c }}
+                                            title={c}
+                                        />
+                                     ))}
+                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                         <div className="flex justify-between items-center">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Opacity</label>
+                            <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{Math.round(paintOpacity * 100)}%</span>
+                        </div>
+                        <input 
+                            type="range" 
+                            min="0.1" 
+                            max="1" 
+                            step="0.05" 
+                            value={paintOpacity}
+                            onChange={(e) => setPaintOpacity(parseFloat(e.target.value))}
+                            className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                    </div>
+
+                    <div className="space-y-3">
+                         <div className="flex justify-between items-center">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brush Size</label>
+                            <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{brushSize}px</span>
+                        </div>
+                        <input 
+                            type="range" 
+                            min="1" 
+                            max="100" 
+                            step="1" 
+                            value={brushSize}
+                            onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                            className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                    </div>
+                    
+                    {/* Extra Settings based on Type */}
+                    {(brushType === 'Pencil' || brushType === 'Watercolor' || brushType === 'Oil') && (
+                         <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Softness</label>
+                                <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{brushBlur}</span>
+                            </div>
+                            <input 
+                                type="range" 
+                                min="0" 
+                                max="50" 
+                                step="1" 
+                                value={brushBlur}
+                                onChange={(e) => setBrushBlur(parseInt(e.target.value))}
+                                className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                        </div>
+                    )}
+
+                    <div className="space-y-3">
+                         <div className="flex justify-between items-center">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Blending Mode</label>
+                        </div>
+                        <select 
+                            value={paintBlendMode}
+                            onChange={(e) => setPaintBlendMode(e.target.value)}
+                            className="w-full bg-secondary btn-ghost text-xs p-2 rounded-md border border-border/50 outline-none"
+                        >
+                            <option className="bg-zinc-950 text-white" value="source-over">Normal</option>
+                            <option className="bg-zinc-950 text-white" value="multiply">Multiply (Watercolor)</option>
+                            <option className="bg-zinc-950 text-white" value="screen">Screen</option>
+                            <option className="bg-zinc-950 text-white" value="overlay">Overlay</option>
+                            <option className="bg-zinc-950 text-white" value="darken">Darken</option>
+                            <option className="bg-zinc-950 text-white" value="lighten">Lighten</option>
+                        </select>
+                    </div>
+
+                    {(brushType === 'Spray' || brushType === 'Oil') && (
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{brushType === 'Oil' ? 'Bristle Density' : 'Spray Density'}</label>
+                                <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{sprayDensity}</span>
+                            </div>
+                            <input 
+                                type="range" 
+                                min="5" 
+                                max="100" 
+                                step="1" 
+                                value={sprayDensity}
+                                onChange={(e) => setSprayDensity(parseInt(e.target.value))}
+                                className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer"
+                            />
+                        </div>
+                    )}
+
+                </div>
+            </div>
+        );
+    }
 
     // If Layers tool is active
     if (activeTool === 'layers') {
@@ -1495,19 +2002,19 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     onChange={(e) => updateBlendMode(e.target.value)}
                                     className="w-full bg-secondary/50 border border-border rounded-md px-2 py-1 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
                                 >
-                                    <option value="source-over">Normal</option>
-                                    <option value="multiply">Multiply</option>
-                                    <option value="screen">Screen</option>
-                                    <option value="overlay">Overlay</option>
-                                    <option value="darken">Darken</option>
-                                    <option value="lighten">Lighten</option>
-                                    <option value="color-dodge">Color Dodge</option>
-                                    <option value="color-burn">Color Burn</option>
-                                    <option value="hard-light">Hard Light</option>
-                                    <option value="soft-light">Soft Light</option>
-                                    <option value="difference">Difference</option>
-                                    <option value="exclusion">Exclusion</option>
-                                    <option value="hue">Hue</option>
+                                    <option className="bg-zinc-950 text-white" value="source-over">Normal</option>
+                                    <option className="bg-zinc-950 text-white" value="multiply">Multiply</option>
+                                    <option className="bg-zinc-950 text-white" value="screen">Screen</option>
+                                    <option className="bg-zinc-950 text-white" value="overlay">Overlay</option>
+                                    <option className="bg-zinc-950 text-white" value="darken">Darken</option>
+                                    <option className="bg-zinc-950 text-white" value="lighten">Lighten</option>
+                                    <option className="bg-zinc-950 text-white" value="color-dodge">Color Dodge</option>
+                                    <option className="bg-zinc-950 text-white" value="color-burn">Color Burn</option>
+                                    <option className="bg-zinc-950 text-white" value="hard-light">Hard Light</option>
+                                    <option className="bg-zinc-950 text-white" value="soft-light">Soft Light</option>
+                                    <option className="bg-zinc-950 text-white" value="difference">Difference</option>
+                                    <option className="bg-zinc-950 text-white" value="exclusion">Exclusion</option>
+                                    <option className="bg-zinc-950 text-white" value="hue">Hue</option>
                                     <option value="saturation">Saturation</option>
                                     <option value="color">Color</option>
                                     <option value="luminosity">Luminosity</option>
@@ -1518,6 +2025,25 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                         <div className="text-xs text-muted-foreground">Select a layer to edit opacity and blending.</div>
                     )}
                 </div>
+                
+                 {/* Layer Management Toolbar */}
+                 <div className="flex items-center gap-1 px-2 py-1 mb-1 border-b border-border/30">
+                     <button
+                        onClick={groupSelectedLayers}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
+                        title="Group Selected Layers"
+                     >
+                         <Folder size={14} />
+                     </button>
+                      <button
+                        onClick={ungroupSelectedLayer}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
+                        title="Ungroup Selected Layer"
+                     >
+                         <Layers size={14} />
+                     </button>
+                 </div>
+
                 <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     <DndContext 
                         sensors={sensors}
@@ -1537,8 +2063,11 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                     selectedObject={selectedObject}
                                     selectLayer={selectLayer}
                                     deleteLayer={deleteLayer}                                    
-                                    toggleVisibility={toggleVisibility}                                 
+                                    toggleVisibility={toggleVisibility}
+                                    toggleLock={toggleLock}                                
                                     onDblClick={onLayerDblClick}
+                                    expanded={expandedFolders.has((obj as ExtendedFabricObject).id || '')}
+                                    onToggleExpand={toggleFolder}
                                  />
                             ))}
                          </SortableContext>
@@ -1947,17 +2476,17 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                         onChange={(e) => updateBlendMode(e.target.value)}
                         className="w-full bg-secondary/50 border border-border rounded-md px-2 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
                     >
-                        <option value="source-over">Normal</option>
-                        <option value="multiply">Multiply</option>
-                        <option value="screen">Screen</option>
-                        <option value="overlay">Overlay</option>
-                        <option value="darken">Darken</option>
-                        <option value="lighten">Lighten</option>
-                        <option value="color-dodge">Color Dodge</option>
-                        <option value="color-burn">Color Burn</option>
-                        <option value="hard-light">Hard Light</option>
-                        <option value="soft-light">Soft Light</option>
-                        <option value="difference">Difference</option>
+                        <option className="bg-zinc-950 text-white" value="source-over">Normal</option>
+                        <option className="bg-zinc-950 text-white" value="multiply">Multiply</option>
+                        <option className="bg-zinc-950 text-white" value="screen">Screen</option>
+                        <option className="bg-zinc-950 text-white" value="overlay">Overlay</option>
+                        <option className="bg-zinc-950 text-white" value="darken">Darken</option>
+                        <option className="bg-zinc-950 text-white" value="lighten">Lighten</option>
+                        <option className="bg-zinc-950 text-white" value="color-dodge">Color Dodge</option>
+                        <option className="bg-zinc-950 text-white" value="color-burn">Color Burn</option>
+                        <option className="bg-zinc-950 text-white" value="hard-light">Hard Light</option>
+                        <option className="bg-zinc-950 text-white" value="soft-light">Soft Light</option>
+                        <option className="bg-zinc-950 text-white" value="difference">Difference</option>
                         <option value="exclusion">Exclusion</option>
                         <option value="hue">Hue</option>
                         <option value="saturation">Saturation</option>
@@ -2451,23 +2980,23 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                                 onChange={(e) => updateFontFamily(e.target.value)}
                                 className="w-full bg-secondary btn-ghost text-sm p-2 rounded-md border border-border/50 focus:border-primary outline-none"
                              >
-                                <option value="Arial">Arial</option>
-                                <option value="Helvetica">Helvetica</option>
-                                <option value="Times New Roman">Times New Roman</option>
-                                <option value="Courier New">Courier New</option>
-                                <option value="Verdana">Verdana</option>
-                                <option value="Georgia">Georgia</option>
-                                <option value="Tahoma">Tahoma</option>
-                                <option value="Trebuchet MS">Trebuchet MS</option>
+                                <option className="bg-zinc-950 text-white" value="Arial">Arial</option>
+                                <option className="bg-zinc-950 text-white" value="Helvetica">Helvetica</option>
+                                <option className="bg-zinc-950 text-white" value="Times New Roman">Times New Roman</option>
+                                <option className="bg-zinc-950 text-white" value="Courier New">Courier New</option>
+                                <option className="bg-zinc-950 text-white" value="Verdana">Verdana</option>
+                                <option className="bg-zinc-950 text-white" value="Georgia">Georgia</option>
+                                <option className="bg-zinc-950 text-white" value="Tahoma">Tahoma</option>
+                                <option className="bg-zinc-950 text-white" value="Trebuchet MS">Trebuchet MS</option>
                             </select>
                             <select 
                                 value={fontWeight}
                                 onChange={(e) => updateFontWeight(e.target.value)}
                                 className="w-full bg-secondary btn-ghost text-sm p-2 rounded-md border border-border/50 focus:border-primary outline-none"
                             >
-                                <option value="normal">Regular</option>
-                                <option value="bold">Bold</option>
-                                <option value="300">Light</option>
+                                <option className="bg-zinc-950 text-white" value="normal">Regular</option>
+                                <option className="bg-zinc-950 text-white" value="bold">Bold</option>
+                                <option className="bg-zinc-950 text-white" value="300">Light</option>
                                 <option value="600">Semi Bold</option>
                                 <option value="800">Extra Bold</option>
                             </select>

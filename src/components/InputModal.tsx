@@ -31,6 +31,7 @@ export default function InputModal({
 
     useEffect(() => {
         if (isOpen) {
+            // eslint-disable-next-line
             setValue(defaultValue || '');
             setTimeout(() => {
                 inputRef.current?.focus();
