@@ -4,14 +4,23 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
 import { Check, X, RotateCw, Loader2, ZoomIn, ZoomOut, Settings2, Sun } from 'lucide-react';
 import * as THREE from 'three';
+import * as fabric from 'fabric';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 
 interface ThreeDLayerEditorProps {
     modelUrl: string;
-    existingObject?: any; // The fabric object if editing an existing one
+    existingObject?: fabric.Object; // The fabric object if editing an existing one
     onSave: (dataUrl: string, modelUrl: string) => void;
     onClose: () => void;
 }
+
+type CaptureGL = {
+    domElement: HTMLCanvasElement;
+    render: () => void;
+    scene: THREE.Scene;
+    camera: THREE.Camera;
+    glInstance: THREE.WebGLRenderer;
+};
 
 const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) => void }) => {
     const { scene } = useGLTF(url);
@@ -39,7 +48,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, onClose }: ThreeDLayerEditorProps) {
     const [isLoading, setIsLoading] = useState(true);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [gl, setGl] = useState<any>(null);
+    const [gl, setGl] = useState<CaptureGL | null>(null);
     const [resolution, setResolution] = useState<{width: number, height: number}>({ width: 2048, height: 2048 });
     const [showResSettings, setShowResSettings] = useState(false);
     const [showLightSettings, setShowLightSettings] = useState(false);

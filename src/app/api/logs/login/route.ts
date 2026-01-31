@@ -50,8 +50,9 @@ export async function GET() {
         let content = '';
         try {
             content = await fs.readFile(LOG_FILE, 'utf8');
-        } catch (error: any) {
-            if (error?.code !== 'ENOENT') {
+        } catch (error: unknown) {
+            const nodeError = error as NodeJS.ErrnoException | null;
+            if (!nodeError || nodeError.code !== 'ENOENT') {
                 throw error;
             }
             content = 'No log entries yet.';

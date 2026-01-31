@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -62,7 +63,6 @@ async function startProductionServer() {
 
   try {
     // Boot the Next.js standalone server inside the Electron process.
-    // eslint-disable-next-line global-require, import/no-dynamic-require
     require(serverEntry);
     await waitForServer(NEXT_URL, 80, 200);
     productionServerStarted = true;

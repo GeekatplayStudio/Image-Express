@@ -1,14 +1,13 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Sparkles, Brush } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { StarPolygon, ThreeDGroup, ExtendedFabricObject, BackgroundJob } from '@/types';
+import { StarPolygon, ThreeDGroup, ExtendedFabricObject } from '@/types';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
 import ImageGeneratorModal from './ImageGeneratorModal';
-import StabilityGenerator from './AI/StabilityGenerator';
 import { useToast } from '@/providers/ToastProvider';
 
 /**
@@ -22,8 +21,11 @@ interface ToolbarProps {
     setActiveTool: (tool: string) => void;
     onOpen3DEditor?: (url: string) => void;
     apiKeys?: { stability?: string };
-    onJobCreated?: (job: BackgroundJob) => void;
 }
+
+type CanvasWithArtboard = fabric.Canvas & {
+    artboard?: { width: number; height: number };
+};
 
 const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: number) => {
     const points = [];
@@ -51,7 +53,7 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
 };
 
 // Start of component
-export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, onJobCreated }: ToolbarProps) {
+export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys }: ToolbarProps) {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
@@ -296,8 +298,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                  (img as ExtendedFabricObject).name = displayName;
              }
              // Use Artboard dimensions if available, else fallback to canvas or default
-             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-             const artboard = (canvas as any).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+             const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
              const targetWidth = artboard.width;
              const targetHeight = artboard.height;
              
@@ -325,7 +326,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
             const cleanUrl = url.split('?')[0];
             const segments = cleanUrl.split('/');
             return decodeURIComponent(segments[segments.length - 1] || url);
-        } catch (err) {
+        } catch {
             return url;
         }
     };

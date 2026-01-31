@@ -19,8 +19,14 @@ interface ThreeDGeneratorProps {
     activeJob?: BackgroundJob | null; // Pass active job if it exists
 }
 
+type CaptureContext = {
+    gl: THREE.WebGLRenderer;
+    scene: THREE.Scene;
+    camera: THREE.Camera;
+};
+
 // Helper to capture Threejs context
-const CaptureHelper = ({ controlRef }: { controlRef: React.MutableRefObject<any> }) => {
+const CaptureHelper = ({ controlRef }: { controlRef: React.MutableRefObject<CaptureContext | null> }) => {
     const { gl, scene, camera } = useThree();
     useEffect(() => {
         controlRef.current = { gl, scene, camera };
@@ -57,7 +63,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     const [isLoading, setIsLoading] = useState(false);
     const [apiKey, setApiKey] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const captureRef = useRef<any>(null);
+    const captureRef = useRef<CaptureContext | null>(null);
     const [resolution, setResolution] = useState<{width: number, height: number}>({ width: 2048, height: 2048 });
     const [showResSettings, setShowResSettings] = useState(false);
     const [mode, setMode] = useState<'text' | 'image'>(initialImage ? 'image' : 'text');
@@ -171,7 +177,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
 
     const generateMeshy = async (key: string) => {
         // reuse existing logic but wrapped
-         let body = {};
+         let body: Record<string, unknown> = {};
             let endpoint = '';
             
             if (mode === 'text') {
@@ -242,7 +248,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     };
 
     const generateTripo = async (key: string) => {
-        let body: any = {};
+        let body: Record<string, unknown> = {};
         
         if (mode === 'text') {
                  if (!prompt) {

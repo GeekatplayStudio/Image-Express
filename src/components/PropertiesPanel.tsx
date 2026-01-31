@@ -1,8 +1,8 @@
 'use client';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { StarPolygon, ExtendedFabricObject } from '@/types';
-import { Trash2, Layers, GripVertical, Settings, Image as ImageIcon, Box, Eye, EyeOff, Lock, Unlock, ArrowLeftRight, Blend, Wand2, Play, ExternalLink, Video, Music, Type as TypeIcon, Shapes, Folder, FolderOpen, ChevronRight, ChevronDown } from 'lucide-react';
+import { Trash2, Layers, GripVertical, Settings, Image as ImageIcon, Box, Eye, EyeOff, Lock, Unlock, ArrowLeftRight, Blend, Wand2, Play, ExternalLink, Folder, FolderOpen, ChevronRight, ChevronDown, FolderPlus } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
@@ -78,7 +78,7 @@ const applyAlphaToColor = (color: string, alpha: number) => {
     return `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0, alpha))})`;
 };
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 /**
@@ -95,10 +95,11 @@ interface PropertiesPanelProps {
 }
 
 interface SortableLayerItemProps {
+    id: string;
     obj: fabric.Object;
     index: number;
-    selectedObject: fabric.Object | null;
-    selectLayer: (obj: fabric.Object) => void;
+    selectedIds: Set<string>;
+    selectLayer: (obj: fabric.Object, event?: React.MouseEvent) => void;
     toggleVisibility: (obj: fabric.Object) => void;
     toggleLock: (obj: fabric.Object) => void;
     deleteLayer: (obj: fabric.Object) => void;
@@ -107,10 +108,20 @@ interface SortableLayerItemProps {
     depth?: number;
     onToggleExpand?: (obj: fabric.Object) => void;
     expanded?: boolean;
+    expandedIds: Set<string>;
+    childrenNodes?: LayerNode[];
 }
 
+type LayerNode = {
+    id: string;
+    obj: fabric.Object;
+    parentId: string | null;
+    depth: number;
+    children: LayerNode[];
+};
+
 // Sortable Layer Item Component
-function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false }: SortableLayerItemProps) {
+function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [] }: SortableLayerItemProps) {
     const extendedObj = obj as ExtendedFabricObject;
     const {
         attributes,
@@ -118,14 +129,16 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
         setNodeRef,
         transform,
         transition,
-        isDragging
-    } = useSortable({ id: extendedObj.id || extendedObj.cacheKey || `obj-${index}`, disabled: depth > 0 });
+        isDragging,
+        isOver
+    } = useSortable({ id });
 
     const isGroup = obj.type === 'group';
-    const children = isGroup ? (obj as fabric.Group).getObjects() : [];
+    const children = childrenNodes;
+    const isSelected = selectedIds.has(id);
 
     const [isEditing, setIsEditing] = useState(false);
-    const [name, setName] = useState(extendedObj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' && children.length > 0 ? 'Folder' : (obj.type || 'Object'))));
+    const [name, setName] = useState(extendedObj.name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' ? 'Folder' : (obj.type || 'Object'))));
     // Use fill as color, defaulting to transparent or black if complex
     const [layerColor, setLayerColor] = useState(() => {
          if (typeof obj.fill === 'string') return obj.fill;
@@ -147,21 +160,6 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
     const isVisible = obj.visible !== false; 
     const isLocked = (obj as ExtendedFabricObject).locked === true; 
 
-    const getLayerTypeInfo = () => {
-        if (extendedObj.is3DModel) return { icon: Box, className: 'text-indigo-500' };
-        if (extendedObj.mediaType === 'video') return { icon: Video, className: 'text-sky-500' };
-        if (extendedObj.mediaType === 'audio') return { icon: Music, className: 'text-emerald-500' };
-        if (obj.type === 'image') return { icon: ImageIcon, className: 'text-amber-500' };
-        if (obj.type === 'text' || obj.type === 'i-text') return { icon: TypeIcon, className: 'text-purple-500' };
-        if (['rect', 'circle', 'triangle', 'polygon', 'line', 'path'].includes(obj.type || '')) {
-            return { icon: Shapes, className: 'text-slate-500' };
-        }
-        if (obj.type === 'group') return { icon: expanded ? FolderOpen : Folder, className: 'text-blue-500' };
-        if ('isStar' in obj) return { icon: Shapes, className: 'text-slate-500' };
-        return { icon: Shapes, className: 'text-slate-500' };
-    };
-
-    const typeInfo = getLayerTypeInfo();
 
     const handleNameSave = () => {
         setIsEditing(false);
@@ -185,7 +183,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
     return (
         <div ref={setNodeRef} style={style} className="mb-1">
         <div 
-            onClick={() => selectLayer(obj)}
+            onClick={(event) => selectLayer(obj, event)}
             onDoubleClick={() => {
                  // Propagate double click to switch view
                  // Don't stop propagation if we hit inner elements like name edit
@@ -193,10 +191,10 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                  if (onDblClick) onDblClick();
             }}
             className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all group ${
-                selectedObject === obj 
+                isSelected 
                 ? 'bg-primary/10 border-primary/30 shadow-sm' 
                 : 'bg-card border-border/50 hover:bg-secondary/50'
-            } ${isDragging ? 'opacity-50 shadow-xl ring-2 ring-primary/20' : ''}`}
+            } ${isDragging ? 'opacity-50 shadow-xl ring-2 ring-primary/20' : ''} ${isOver && isGroup ? 'ring-2 ring-primary/30 bg-primary/5' : ''}`}
         >
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div 
@@ -274,7 +272,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                                 if (e.key === 'Enter') handleNameSave();
                                 if (e.key === 'Escape') {
                                     setIsEditing(false);
-                                    setName((obj as ExtendedFabricObject).name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object')));
+                                    setName((obj as ExtendedFabricObject).name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' ? 'Folder' : (obj.type || 'Object'))));
                                 }
                             }}
                             onClick={(e) => e.stopPropagation()}
@@ -289,7 +287,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                             }}
                             title="Double click to rename"
                         >
-                            {(obj as ExtendedFabricObject).name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type || 'Object'))}
+                            {(obj as ExtendedFabricObject).name || (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' ? 'Folder' : (obj.type || 'Object')))}
                         </span>
                     )}
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
@@ -305,7 +303,7 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
                 </div>
             </div>
             
-            <div className={`flex items-center gap-1 ${selectedObject === obj ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'} transition-opacity ml-2`}>
+            <div className={`flex items-center gap-1 ${isSelected ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'} transition-opacity ml-2`}>
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleLock(obj); }}
                     className={`p-1.5 hover:bg-secondary rounded-md ${isLocked ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground hover:text-foreground'}`}
@@ -333,25 +331,25 @@ function SortableLayerItem({ obj, index, selectedObject, selectLayer, toggleVisi
             {/* Render Children if Group and Expanded */}
             {isGroup && expanded && children.length > 0 && (
                  <div className="border-l-2 border-border/50 ml-6 pl-2 mt-1 space-y-1">
-                     {[...children].reverse().map((child, i) => (
+                     {children.map((child, i) => (
                          <SortableLayerItem 
-                            key={`child-${i}-${(child as ExtendedFabricObject).cacheKey || i}`} // Simple key needed
-                            obj={child} 
+                            key={`child-${child.id}`} 
+                            id={child.id}
+                            obj={child.obj} 
                             index={i} 
                             total={children.length}
-                            selectedObject={selectedObject}
+                            selectedIds={selectedIds}
                             selectLayer={selectLayer}
                             toggleVisibility={toggleVisibility}
                             toggleLock={toggleLock}
-                            deleteLayer={(o) => {
-                                // Deleting child means removing from group
-                                (obj as fabric.Group).remove(o);
-                                obj.canvas?.requestRenderAll();
-                            }}
+                            deleteLayer={deleteLayer}
                             depth={depth + 1}
                             // Recursive props
                             onDblClick={onDblClick}
                             onToggleExpand={onToggleExpand}
+                                     expanded={expandedIds.has(child.id)}
+                                     expandedIds={expandedIds}
+                            childrenNodes={child.children}
                          />
                      ))}
                  </div>
@@ -365,9 +363,56 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     const { toast } = useToast();
     const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const lastSelectedIdRef = useRef<string | null>(null);
+    const layerOrderRef = useRef<string[]>([]);
     
     // Folder Expansion State
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
+    const ensureObjectId = useCallback((obj: fabric.Object) => {
+        const extendedObj = obj as ExtendedFabricObject;
+        if (!extendedObj.id) {
+            const fallback = extendedObj.cacheKey ? `obj-${extendedObj.cacheKey}` : `obj-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+            extendedObj.id = fallback;
+        }
+        return extendedObj.id;
+    }, []);
+
+    const buildLayerTree = useCallback((items: fabric.Object[], parentId: string | null, depth: number): LayerNode[] => {
+        const walk = (list: fabric.Object[], parent: string | null, level: number): LayerNode[] => {
+            return list.map((obj) => {
+                const id = ensureObjectId(obj);
+                const children = obj.type === 'group'
+                    ? walk([...(obj as fabric.Group).getObjects()].reverse(), id, level + 1)
+                    : [];
+                return {
+                    id,
+                    obj,
+                    parentId: parent,
+                    depth: level,
+                    children
+                };
+            });
+        };
+
+        return walk(items, parentId, depth);
+    }, [ensureObjectId]);
+
+    const flattenLayerTree = useCallback((nodes: LayerNode[]): LayerNode[] => {
+        const walk = (list: LayerNode[]): LayerNode[] => {
+            return list.flatMap((node) => [node, ...walk(node.children)]);
+        };
+        return walk(nodes);
+    }, []);
+
+    const layerTree = useMemo(() => buildLayerTree(objects, null, 0), [buildLayerTree, objects]);
+    const flatLayers = useMemo(() => flattenLayerTree(layerTree), [flattenLayerTree, layerTree]);
+    const layerMap = useMemo(() => new Map(flatLayers.map((node) => [node.id, node])), [flatLayers]);
+
+    useEffect(() => {
+        layerOrderRef.current = flatLayers.map((node) => node.id);
+    }, [flatLayers]);
     
     const toggleFolder = useCallback((obj: fabric.Object) => {
         const id = (obj as ExtendedFabricObject).id;
@@ -382,6 +427,78 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             return next;
         });
     }, []);
+
+    const getNextIndexedName = useCallback((base: string, names: string[]) => {
+        const matcher = new RegExp(`^${base}\\s*(\\d+)?$`, 'i');
+        let max = 0;
+        names.forEach((name) => {
+            const trimmed = name.trim();
+            const match = trimmed.match(matcher);
+            if (match) {
+                const num = match[1] ? parseInt(match[1], 10) : 1;
+                if (!Number.isNaN(num)) max = Math.max(max, num);
+            }
+        });
+        return `${base} ${max + 1}`;
+    }, []);
+
+    const getGroupNames = useCallback(() => {
+        if (!canvas) return [] as string[];
+        return canvas.getObjects().filter((obj) => obj.type === 'group').map((obj) => {
+            const name = (obj as ExtendedFabricObject).name;
+            return name ?? 'Folder';
+        });
+    }, [canvas]);
+
+    const addToGroup = useCallback((group: fabric.Group, obj: fabric.Object) => {
+        const groupWithUpdate = group as fabric.Group & { addWithUpdate?: (obj: fabric.Object) => void };
+        if (typeof groupWithUpdate.addWithUpdate === 'function') {
+            groupWithUpdate.addWithUpdate(obj);
+        } else {
+            group.add(obj);
+            group.setCoords();
+        }
+    }, []);
+
+    const moveObjectToGroup = useCallback((obj: fabric.Object, group: fabric.Group, targetCanvas: fabric.Canvas) => {
+        const objMatrix = obj.calcTransformMatrix();
+        const parentGroup = obj.group as fabric.Group | undefined;
+        if (parentGroup) {
+            parentGroup.remove(obj);
+            parentGroup.setCoords();
+        } else {
+            targetCanvas.remove(obj);
+        }
+
+        const groupMatrix = group.calcTransformMatrix();
+        const inverseGroup = fabric.util.invertTransform(groupMatrix);
+        const finalMatrix = fabric.util.multiplyTransformMatrices(inverseGroup, objMatrix);
+        fabric.util.applyTransformToObject(obj, finalMatrix);
+        obj.setCoords();
+
+        addToGroup(group, obj);
+    }, [addToGroup]);
+
+    const moveObjectToCanvas = useCallback((obj: fabric.Object, parentGroup: fabric.Group, targetCanvas: fabric.Canvas) => {
+        const objMatrix = obj.calcTransformMatrix();
+        const groupMatrix = parentGroup.calcTransformMatrix();
+        const finalMatrix = fabric.util.multiplyTransformMatrices(groupMatrix, objMatrix);
+        fabric.util.applyTransformToObject(obj, finalMatrix);
+        obj.setCoords();
+
+        parentGroup.remove(obj);
+        parentGroup.setCoords();
+        targetCanvas.add(obj);
+    }, []);
+
+    const isDescendant = useCallback((ancestorId: string, nodeId: string) => {
+        let current = layerMap.get(nodeId)?.parentId ?? null;
+        while (current) {
+            if (current === ancestorId) return true;
+            current = layerMap.get(current)?.parentId ?? null;
+        }
+        return false;
+    }, [layerMap]);
 
     // Grouping Functions
     const groupSelectedLayers = useCallback(() => {
@@ -398,22 +515,24 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         canvas.discardActiveObject();
         objects.forEach(obj => canvas.remove(obj));
         
-        const group = new fabric.Group(objects, {
-             canvas: canvas,
-             interactive: true
-        });
-        group.set('name', 'Group'); 
+           const group = new fabric.Group(objects, {
+               canvas: canvas,
+               interactive: true
+           });
+           const folderName = getNextIndexedName('Folder', getGroupNames());
+           group.set('name', folderName);
         (group as ExtendedFabricObject).id = `group-${Date.now()}`;
         
         canvas.add(group);
         canvas.setActiveObject(group);
+        canvas.fire('selection:created', { selected: [group] });
         
         canvas.requestRenderAll();
         canvas.fire('object:modified');
         
         // Auto expand
         setExpandedFolders(prev => new Set(prev).add((group as ExtendedFabricObject).id!));
-    }, [canvas, toast]);
+    }, [canvas, getGroupNames, getNextIndexedName, toast]);
 
     const ungroupSelectedLayer = useCallback(() => {
         if (!canvas) return;
@@ -424,30 +543,41 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         }
         
         const group = active as fabric.Group;
-        const items = group.getObjects();
-        
-        // Remove group first
-        group.removeAll(); 
-        canvas.remove(group);
-        
-        // Restore items to canvas
-        items.forEach(item => {
-             // In Fabric 6/7, removing from group might not auto-restore absolute coords unless handled.
-             // If items are visually jumping, we need to apply group matrix.
-             // However, getObjects returns references.
-             // Let's assume standard behavior for now: manually adding them back.
-             // Ideally we should use `fabric.util.applyTransformToObject(item, group.calcTransformMatrix());` but type safety might block.
-             // Let's rely on Group's internal destruction helper if exists, or just Add.
-             canvas.add(item);
+        const items = [...group.getObjects()];
+
+        // Restore items to canvas with preserved coordinates
+        items.forEach((item) => {
+            moveObjectToCanvas(item, group, canvas);
         });
+
+        // Remove group after extraction
+        canvas.remove(group);
         
         // Select un-grouped items
         const selection = new fabric.ActiveSelection(items, { canvas: canvas });
         canvas.setActiveObject(selection);
+        canvas.fire('selection:created', { selected: items });
         
         canvas.requestRenderAll();
         canvas.fire('object:modified');
-    }, [canvas, toast]);
+    }, [canvas, moveObjectToCanvas, toast]);
+
+    const createEmptyFolder = useCallback(() => {
+        if (!canvas) return;
+        const group = new fabric.Group([], {
+            selectable: true,
+            evented: true
+        });
+        const folderName = getNextIndexedName('Folder', getGroupNames());
+        group.set('name', folderName);
+        const extGroup = group as ExtendedFabricObject;
+        if (!extGroup.id) extGroup.id = `group-${Date.now()}`;
+        canvas.add(group);
+        canvas.setActiveObject(group);
+        canvas.fire('selection:created', { selected: [group] });
+        canvas.requestRenderAll();
+        setExpandedFolders(prev => new Set(prev).add(extGroup.id!));
+    }, [canvas, getGroupNames, getNextIndexedName]);
 
     // Helpers to Move Items In/Out of active Group (if single group selected) OR Create Empty
     // Creating "Empty" folder in Fabric is tricky because Group usually needs width/height.
@@ -520,12 +650,12 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             // If user explicitly stated "create folder and place new layers there"
             // We lazily create the group on the first stroke of a session
             
-            let group = currentPaintGroupRef.current;
+              let group = currentPaintGroupRef.current;
             
-            // Check if group is still valid (on canvas)
-            if (group && !canvas.contains(group)) {
-                 group = null;
-            }
+              // Check if group is still valid (on canvas)
+              if (group && !canvas.getObjects().includes(group)) {
+                  group = null;
+              }
 
             if (!group) {
                 // Create new Group
@@ -535,7 +665,8 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                     // Use a custom property to identify it as a "Layer Folder"
                     // In Fabric, Group is just a Group. 
                 });
-                group.set('name', `Paint Layer ${canvas.getObjects().filter(o => o.type === 'group').length + 1}`);
+                const paintFolderName = getNextIndexedName('Paint Folder', getGroupNames());
+                group.set('name', paintFolderName);
                 
                 // Ensure ID
                 const extGroup = group as ExtendedFabricObject;
@@ -553,20 +684,8 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                 });
             }
             
-            // Move path from canvas to group
-            // 1. Remove from canvas
-            canvas.remove(path);
-            
-            // 2. Add to group
-            // When adding to an empty group, the group's origin/position might shift.
-            // addWithUpdate usually handles this, but changing group center moves existing objects visually if not handled.
-            // Since this is painting, we want the stroke to stay exactly where drawn visually.
-            
-            // Basic Add to Group Logic while preserving position:
-            group.add(path); // This adds relative to group center (0,0) usually? No, it adds to _objects.
-            
-            // Wait, fabric.Group needs to update its width/height/left/top to encompass the new object.
-            // group.addWithUpdate(path); 
+            // Move path from canvas to group with preserved coordinates
+            moveObjectToGroup(path, group, canvas);
             
             canvas.requestRenderAll();
             // Update Objects List UI
@@ -574,14 +693,18 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         };
         canvas.on('path:created', handlePathCreated);
         return () => { canvas.off('path:created', handlePathCreated); };
-    }, [canvas, activeTool, paintBlendMode]);
+    }, [canvas, activeTool, paintBlendMode, getGroupNames, getNextIndexedName, moveObjectToGroup]);
 
     useEffect(() => {
         if (!canvas) return;
+        const drawingCanvas = canvas as fabric.Canvas & {
+            isDrawingMode: boolean;
+            freeDrawingBrush?: fabric.BaseBrush;
+            set: (key: string, value: unknown) => void;
+        };
 
         if (activeTool === 'paint') {
-            // eslint-disable-next-line
-            (canvas as any).isDrawingMode = true;
+            drawingCanvas.set('isDrawingMode', true);
             let brush: fabric.BaseBrush;
 
             if (brushType === 'Spray') {
@@ -637,11 +760,9 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             
             // Apply blend mode to context if supported by brush type (Usually PencilBrush supports via manual render, but we used path:created)
 
-            // eslint-disable-next-line
-            (canvas as any).freeDrawingBrush = brush;
+            drawingCanvas.set('freeDrawingBrush', brush);
         } else {
-            // eslint-disable-next-line
-            (canvas as any).isDrawingMode = false;
+            drawingCanvas.set('isDrawingMode', false);
         }
     }, [activeTool, paintColor, brushSize, brushType, paintOpacity, canvas, brushBlur, sprayDensity]);
 
@@ -796,12 +917,13 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
 
         const updateObjects = () => {
             const objs = canvas.getObjects();
-            objs.forEach((obj, i) => {
-                const extendedObj = obj as ExtendedFabricObject;
-                if (!extendedObj.id) {
-                    extendedObj.id = `obj-${Date.now()}-${i}`;
+            const assignIds = (obj: fabric.Object) => {
+                ensureObjectId(obj);
+                if (obj.type === 'group') {
+                    (obj as fabric.Group).getObjects().forEach(assignIds);
                 }
-            });
+            };
+            objs.forEach(assignIds);
             setObjects([...objs.reverse()]); // Reverse to show top layer first
         };
         
@@ -845,6 +967,13 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             
             // Refetch target
             const availableTarget = targetForProps;
+
+            const activeIds = new Set(activeObjects.map((obj) => ensureObjectId(obj)));
+            setSelectedIds(activeIds);
+
+            if (activeObjects.length === 1) {
+                lastSelectedIdRef.current = ensureObjectId(activeObjects[0]);
+            }
 
             if (availableTarget && availableTarget.type !== 'activeSelection' && availableTarget.type !== 'group') {
                 const fill = availableTarget.get('fill');
@@ -980,6 +1109,8 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
 
         const handleCleared = () => {
             setSelectedObject(null);
+            setSelectedIds(new Set());
+            lastSelectedIdRef.current = null;
         };
 
         canvas.on('selection:created', handleSelection);
@@ -1001,7 +1132,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             canvas.off('object:removed', updateObjects);
             canvas.off('object:modified', updateObjects);
         };
-    }, [canvas]);
+    }, [canvas, ensureObjectId]);
 
     const updateColor = (newColor: string) => {
         setColor(newColor);
@@ -1598,7 +1729,13 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
 
     const deleteLayer = (obj: fabric.Object) => {
         if (!canvas) return;
-        canvas.remove(obj);
+        const parentGroup = obj.group as fabric.Group | undefined;
+        if (parentGroup) {
+            parentGroup.remove(obj);
+            parentGroup.setCoords();
+        } else {
+            canvas.remove(obj);
+        }
         canvas.requestRenderAll();
         // updates handled by event listener
     };
@@ -1606,7 +1743,11 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     const toggleVisibility = (obj: fabric.Object) => {
         if (!canvas) return;
         // Toggle visible property, defaulting to true if undefined
-        obj.set('visible', !(obj.visible ?? true));
+        const nextVisible = !(obj.visible ?? true);
+        obj.set('visible', nextVisible);
+        if (obj.type === 'group') {
+            (obj as fabric.Group).getObjects().forEach((child) => child.set('visible', nextVisible));
+        }
         // Deselect if hiding current selection
         if (!obj.visible && canvas.getActiveObject() === obj) {
             canvas.discardActiveObject();
@@ -1637,6 +1778,24 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             lockSkewingY: isLocked
         });
 
+        if (obj.type === 'group') {
+            (obj as fabric.Group).getObjects().forEach((child) => {
+                const childExtended = child as ExtendedFabricObject;
+                childExtended.set('locked', isLocked);
+                child.set({
+                    selectable: !isLocked,
+                    evented: !isLocked,
+                    lockMovementX: isLocked,
+                    lockMovementY: isLocked,
+                    lockRotation: isLocked,
+                    lockScalingX: isLocked,
+                    lockScalingY: isLocked,
+                    lockSkewingX: isLocked,
+                    lockSkewingY: isLocked
+                });
+            });
+        }
+
         if (isLocked && canvas.getActiveObject() === obj) {
             canvas.discardActiveObject();
         }
@@ -1645,52 +1804,149 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         setObjects([...canvas.getObjects().reverse()]);
     };
 
-    const selectLayer = (obj: fabric.Object) => {
+    const selectLayer = (obj: fabric.Object, event?: React.MouseEvent) => {
         if (!canvas) return;
-        // If hidden, make visible when selecting via layer panel? 
-        // Or just allow selecting hidden objects? Usually better to keep hidden.
-        // If user wants to see it, they should click eye. 
-        // BUT, Fabric doesn't allow selecting invisible objects by click. 
-        // We can manually set active object though.
-        
+
+        // If hidden, keep hidden unless explicitly toggled
         if (!obj.visible) {
-             // Optional: Auto-unhide on select?
-             // obj.set('visible', true);
+            // Optional: Auto-unhide on select
         }
-        
+
+        const objectId = ensureObjectId(obj);
+        const isShift = Boolean(event?.shiftKey);
+        const isToggle = Boolean(event?.metaKey || event?.ctrlKey);
+
+        const currentSelection = canvas.getActiveObjects() || [];
+
+        if (isShift && lastSelectedIdRef.current) {
+            const ids = layerOrderRef.current;
+            const startIndex = ids.indexOf(lastSelectedIdRef.current);
+            const endIndex = ids.indexOf(objectId);
+
+            if (startIndex !== -1 && endIndex !== -1) {
+                const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+                const rangeIds = ids.slice(from, to + 1);
+                const rangeObjects = rangeIds
+                    .map((id) => layerMap.get(id)?.obj)
+                    .filter((item): item is fabric.Object => Boolean(item));
+
+                canvas.discardActiveObject();
+
+                if (rangeObjects.length > 1) {
+                    const selection = new fabric.ActiveSelection(rangeObjects, { canvas });
+                    canvas.setActiveObject(selection);
+                    canvas.fire('selection:created', { selected: rangeObjects });
+                } else if (rangeObjects[0]) {
+                    canvas.setActiveObject(rangeObjects[0]);
+                    canvas.fire('selection:created', { selected: [rangeObjects[0]] });
+                }
+
+                canvas.requestRenderAll();
+                setSelectedIds(new Set(rangeObjects.map((item) => ensureObjectId(item))));
+                lastSelectedIdRef.current = objectId;
+                return;
+            }
+        }
+
+        if (isToggle) {
+            const selectionMap = new Map(currentSelection.map((item) => [ensureObjectId(item), item]));
+            let nextSelection = currentSelection;
+
+            if (selectionMap.has(objectId)) {
+                nextSelection = currentSelection.filter((item) => ensureObjectId(item) !== objectId);
+            } else {
+                nextSelection = [...currentSelection, obj];
+            }
+
+            canvas.discardActiveObject();
+
+            if (nextSelection.length === 0) {
+                canvas.requestRenderAll();
+                setSelectedIds(new Set());
+                lastSelectedIdRef.current = null;
+                return;
+            }
+
+            if (nextSelection.length === 1) {
+                canvas.setActiveObject(nextSelection[0]);
+                canvas.fire('selection:created', { selected: nextSelection });
+            } else {
+                const selection = new fabric.ActiveSelection(nextSelection, { canvas });
+                canvas.setActiveObject(selection);
+                canvas.fire('selection:created', { selected: nextSelection });
+            }
+
+            canvas.requestRenderAll();
+            setSelectedIds(new Set(nextSelection.map((item) => ensureObjectId(item))));
+            lastSelectedIdRef.current = objectId;
+            return;
+        }
+
+        canvas.discardActiveObject();
         canvas.setActiveObject(obj);
+        canvas.fire('selection:created', { selected: [obj] });
         canvas.requestRenderAll();
+        setSelectedIds(new Set([objectId]));
+        lastSelectedIdRef.current = objectId;
     };
 
     // Layer Management
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
-        if (active.id !== over?.id && canvas) {
-            setObjects((items) => {
-                 const oldIndex = items.findIndex((item) => (item as ExtendedFabricObject).id === active.id);
-                 const newIndex = items.findIndex((item) => (item as ExtendedFabricObject).id === over?.id);
-                 
-                 // UI Array Logic (Reversed)
-                 const newItems = arrayMove(items, oldIndex, newIndex);
+        if (!canvas || !over || active.id === over.id) return;
 
-                 // Fabric Logic (Standard order)
-                 // items = [Top, ..., Bottom]
-                 // oldIndex in Items -> Fabric Index = Length - 1 - oldIndex
-                 
-                 // Wait, simpler way:
-                 // The item currently at oldIndex (Top-based) needs to go to newIndex (Top-based).
-                 // In Fabric, this means moving object FROM (Len - 1 - oldIndex) TO (Len - 1 - newIndex).
-                 
-                 const obj = items[oldIndex];
-                 const targetFabricIndex = items.length - 1 - newIndex;
-                 
-                 canvas.moveObjectTo(obj, targetFabricIndex);
-                 canvas.requestRenderAll();
+        const activeId = String(active.id);
+        const overId = String(over.id);
+        const activeNode = layerMap.get(activeId);
+        const overNode = layerMap.get(overId);
 
-                 return newItems;
-            });
+        if (!activeNode || !overNode) return;
+        if (isDescendant(activeNode.id, overNode.id)) return;
+
+        const activeObj = activeNode.obj;
+        const overObj = overNode.obj;
+        const targetParentId = overObj.type === 'group' ? overNode.id : overNode.parentId;
+
+        const reorderInParent = (parentGroup: fabric.Group | null, targetId: string) => {
+            const siblings = parentGroup ? [...parentGroup.getObjects()].reverse() : [...canvas.getObjects()].reverse();
+            const fromIndex = siblings.findIndex((item) => ensureObjectId(item) === activeNode.id);
+            const toIndex = siblings.findIndex((item) => ensureObjectId(item) === targetId);
+
+            if (fromIndex === -1 || toIndex === -1) return;
+            const targetFabricIndex = siblings.length - 1 - toIndex;
+
+            if (parentGroup && 'moveObjectTo' in parentGroup) {
+                (parentGroup as fabric.Group & { moveObjectTo?: (obj: fabric.Object, index: number) => void }).moveObjectTo?.(activeObj, targetFabricIndex);
+                parentGroup.setCoords();
+            } else {
+                canvas.moveObjectTo(activeObj, targetFabricIndex);
+            }
+        };
+
+        if (overObj.type === 'group') {
+            if (activeNode.parentId !== overNode.id) {
+                moveObjectToGroup(activeObj, overObj as fabric.Group, canvas);
+                setExpandedFolders(prev => new Set(prev).add(overNode.id));
+            }
+        } else if (activeNode.parentId !== targetParentId) {
+            if (targetParentId) {
+                const targetGroupNode = layerMap.get(targetParentId);
+                if (targetGroupNode?.obj.type === 'group') {
+                    moveObjectToGroup(activeObj, targetGroupNode.obj as fabric.Group, canvas);
+                    reorderInParent(targetGroupNode.obj as fabric.Group, overNode.id);
+                }
+            } else if (activeObj.group) {
+                moveObjectToCanvas(activeObj, activeObj.group as fabric.Group, canvas);
+                reorderInParent(null, overNode.id);
+            }
+        } else {
+            const parentGroup = activeObj.group ? (activeObj.group as fabric.Group) : null;
+            reorderInParent(parentGroup, overNode.id);
         }
+
+        canvas.requestRenderAll();
+        setObjects([...canvas.getObjects().reverse()]);
     };
 
     const handlePresetChange = (value: string) => {
@@ -1727,14 +1983,15 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             artboardRect.setCoords();
         }
 
+        const canvasWithSet = extendedCanvas as CanvasWithArtboard & { set: (key: string, value: unknown) => void };
         if (extendedCanvas.artboard) {
-            // eslint-disable-next-line
-            (extendedCanvas.artboard as any).width = width;
-            // eslint-disable-next-line
-            (extendedCanvas.artboard as any).height = height;
+            canvasWithSet.set('artboard', {
+                ...extendedCanvas.artboard,
+                width,
+                height
+            });
         } else {
-            // eslint-disable-next-line
-            (extendedCanvas as any).artboard = { width, height, left: 0, top: 0 };
+            canvasWithSet.set('artboard', { width, height, left: 0, top: 0 });
         }
 
         const hostContainer = extendedCanvas.hostContainer;
@@ -1743,9 +2000,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             const containerWidth = Math.ceil(rect.width);
             const containerHeight = Math.ceil(rect.height);
             if (canvas.width !== containerWidth || canvas.height !== containerHeight) {
-                // eslint-disable-next-line
                 canvas.setDimensions({ width: containerWidth, height: containerHeight });
-                // eslint-disable-next-line
                 canvas.calcOffset();
             }
         }
@@ -1788,8 +2043,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         if (extendedCanvas.setWorkspaceBackground) {
             extendedCanvas.setWorkspaceBackground(nextColor);
         } else if (extendedCanvas.hostContainer) {
-            // eslint-disable-next-line
-            (extendedCanvas.hostContainer as any).style.backgroundColor = nextColor;
+            extendedCanvas.hostContainer.style.setProperty('background-color', nextColor);
             (canvas.fire as (eventName: string, options?: Record<string, unknown>) => fabric.Canvas)('workspace:color', { color: nextColor });
             canvas.requestRenderAll();
         }
@@ -1967,15 +2221,41 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     if (activeTool === 'layers') {
         return (
             <div className="flex flex-col h-full bg-card">
-                 <div className="p-4 border-b border-border/50 bg-secondary/10 flex justify-between items-center">
-                    <h2 className="font-semibold text-sm tracking-tight text-foreground/90 uppercase flex items-center gap-2">
+                 <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex justify-between items-center">
+                    <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase flex items-center gap-2">
                         <Layers size={14} /> Layers
                     </h2>
-                    <span className="text-xs text-muted-foreground">{objects.length} elements</span>
+                    <span className="text-[10px] text-muted-foreground">{objects.length} elements</span>
                 </div>
-                <div className="px-3 py-2 border-b border-border/50 bg-secondary/5">
+                
+                 {/* Layer Management Toolbar */}
+                 <div className="flex items-center gap-1 px-3 py-2 border-b border-border/30 bg-secondary/5">
+                     <button
+                        onClick={createEmptyFolder}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
+                        title="Create Empty Folder"
+                     >
+                         <FolderPlus size={14} />
+                     </button>
+                     <button
+                        onClick={groupSelectedLayers}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
+                        title="Group Selected Layers"
+                     >
+                         <Folder size={14} />
+                     </button>
+                      <button
+                        onClick={ungroupSelectedLayer}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
+                        title="Ungroup Selected Layer"
+                     >
+                         <Layers size={14} />
+                     </button>
+                 </div>
+
+                <div className="px-3 py-2 border-b border-border/50">
                     <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                        Selected Layer
+                        Selection
                     </div>
                     {selectedObject ? (
                         <div className="grid grid-cols-2 gap-2 items-center">
@@ -2025,24 +2305,6 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                         <div className="text-xs text-muted-foreground">Select a layer to edit opacity and blending.</div>
                     )}
                 </div>
-                
-                 {/* Layer Management Toolbar */}
-                 <div className="flex items-center gap-1 px-2 py-1 mb-1 border-b border-border/30">
-                     <button
-                        onClick={groupSelectedLayers}
-                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
-                        title="Group Selected Layers"
-                     >
-                         <Folder size={14} />
-                     </button>
-                      <button
-                        onClick={ungroupSelectedLayer}
-                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
-                        title="Ungroup Selected Layer"
-                     >
-                         <Layers size={14} />
-                     </button>
-                 </div>
 
                 <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     <DndContext 
@@ -2050,27 +2312,30 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                         collisionDetection={closestCenter}
                         onDragEnd={handleDragEnd}
                     >
-                         <SortableContext 
-                            items={objects.map(obj => (obj as ExtendedFabricObject).id || '')}
-                            strategy={verticalListSortingStrategy}
-                         >
-                            {objects.map((obj, index) => (
-                                 <SortableLayerItem 
-                                    key={(obj as ExtendedFabricObject).id || index}
-                                    obj={obj}
-                                    index={index}
-                                    total={objects.length}
-                                    selectedObject={selectedObject}
-                                    selectLayer={selectLayer}
-                                    deleteLayer={deleteLayer}                                    
-                                    toggleVisibility={toggleVisibility}
-                                    toggleLock={toggleLock}                                
-                                    onDblClick={onLayerDblClick}
-                                    expanded={expandedFolders.has((obj as ExtendedFabricObject).id || '')}
-                                    onToggleExpand={toggleFolder}
-                                 />
-                            ))}
-                         </SortableContext>
+                                 <SortableContext 
+                                     items={flatLayers.map((node) => node.id)}
+                                     strategy={verticalListSortingStrategy}
+                                 >
+                                     {layerTree.map((node, index) => (
+                                            <SortableLayerItem 
+                                                key={node.id}
+                                                id={node.id}
+                                                obj={node.obj}
+                                                index={index}
+                                                total={layerTree.length}
+                                                selectedIds={selectedIds}
+                                                selectLayer={selectLayer}
+                                                deleteLayer={deleteLayer}                                    
+                                                toggleVisibility={toggleVisibility}
+                                                toggleLock={toggleLock}                                
+                                                onDblClick={onLayerDblClick}
+                                                expanded={expandedFolders.has(node.id)}
+                                                expandedIds={expandedFolders}
+                                                onToggleExpand={toggleFolder}
+                                                childrenNodes={node.children}
+                                            />
+                                     ))}
+                                 </SortableContext>
                     </DndContext>
                     
                     {objects.length === 0 && (

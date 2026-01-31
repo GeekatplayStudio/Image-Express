@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Slider } from '../ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useToast } from '@/providers/ToastProvider';
+import { BackgroundJob } from '@/types';
 
 /**
  * Props for the Stability Generator Component
@@ -22,12 +23,16 @@ interface StabilityGeneratorProps {
     /** Stability AI API Key */
     apiKey: string | undefined;
     /** Callback when a long-running job (like video/upscale) is started */
-    onJobCreated?: (job: any) => void;
+    onJobCreated?: (job: BackgroundJob) => void;
     /** Whether this is running inside another modal (simplified view) */
     embedded?: boolean;
     /** Callback to save the generated result to the backend asset library */
     onAssetSave?: (url: string) => void;
 }
+
+type CanvasWithArtboard = fabric.Canvas & {
+    artboard?: { width: number; height: number };
+};
 
 /**
  * StabilityGenerator
@@ -368,9 +373,8 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
         }
 
         fabric.Image.fromURL(resultImage, {}).then((img) => {
-             // Use Artboard dimensions if available
-             // @ts-ignore
-             const artboard = canvas.artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+            // Use Artboard dimensions if available
+            const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
              const targetWidth = artboard.width;
              const targetHeight = artboard.height;
              

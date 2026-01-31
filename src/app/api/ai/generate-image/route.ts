@@ -213,6 +213,7 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error('Generation Error:', error);
-    return NextResponse.json({ success: false, message: 'Generation failed: ' + (error as any).message }, { status: 500 });
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ success: false, message: `Generation failed: ${message}` }, { status: 500 });
   }
 }
