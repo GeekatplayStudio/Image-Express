@@ -18,6 +18,7 @@ export interface ThreeDImage extends fabric.Image {
 
 export interface ExtendedFabricObject extends fabric.Object {
     id?: string;
+    locked?: boolean;
     is3DModel?: boolean;
     name?: string;
     layerTagColor?: string;
@@ -44,7 +45,7 @@ export interface CanvasElement {
     properties: Record<string, unknown>;
 }
 
-export type ActiveTool = 'select' | 'text' | 'rect' | 'circle';
+export type ActiveTool = 'select' | 'text' | 'shapes' | 'paint' | 'gradient' | 'assets' | 'ai-zone' | '3d-gen' | 'templates' | 'layers';
 
 export interface CanvasState {
     activeSelection: fabric.Object | null; // Placeholder for Fabric Object

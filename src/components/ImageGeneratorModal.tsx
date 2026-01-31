@@ -532,7 +532,7 @@ export default function ImageGeneratorModal({
                          onChange={handleProviderChange}
                       >
                          {availableProviders.map(p => (
-                             <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                             <option className="bg-zinc-950 text-white" key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
                          ))}
                       </select>
                    </div>

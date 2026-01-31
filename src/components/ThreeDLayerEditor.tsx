@@ -88,6 +88,7 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                 
                 // Resize for high-res capture
                 renderer.setSize(resolution.width, resolution.height, false);
+                // eslint-disable-next-line
                 (camera as THREE.PerspectiveCamera).aspect = resolution.width / resolution.height;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
                 
@@ -99,6 +100,7 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                 
                 // Restore
                 renderer.setSize(originalSize.x, originalSize.y, false);
+                // eslint-disable-next-line
                 (camera as THREE.PerspectiveCamera).aspect = originalAspect;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
                 
@@ -143,7 +145,7 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                         <div className="pointer-events-auto flex flex-col items-end gap-1">
                             <button 
                                 onClick={() => setShowResSettings(!showResSettings)}
-                                className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-black dark:text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
+                                className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
                                 title="Export Resolution Settings"
                             >
                                 <Settings2 size={12} />
@@ -190,7 +192,7 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                             )}
                             <button
                                 onClick={() => setShowLightSettings(!showLightSettings)}
-                                className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-black dark:text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
+                                className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
                                 title="Lighting Settings"
                             >
                                 <Sun size={12} />

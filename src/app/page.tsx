@@ -133,11 +133,15 @@ export default function Home() {
 
     // Init
     resetTimer();
-    events.forEach(evt => window.addEventListener(evt, handleActivity));
+    if (typeof window !== 'undefined') {
+        events.forEach(evt => window.addEventListener(evt, handleActivity));
+    }
 
     return () => {
         if (timeoutId) clearTimeout(timeoutId);
-        events.forEach(evt => window.removeEventListener(evt, handleActivity));
+        if (typeof window !== 'undefined') {
+            events.forEach(evt => window.removeEventListener(evt, handleActivity));
+        }
     };
   }, [isDesktopApp, username, showLoginModal, handleLogout]);
 
@@ -152,8 +156,13 @@ export default function Home() {
       localStorage.getItem('google_api_key') ||
       localStorage.getItem('banana_api_key')
     );
-    setConnectionStatus({ has2D, has3D });
-  }, [showSettings, currentView]);
+    
+    // Only update if changed to avoid unnecessary re-renders
+    if (has2D !== connectionStatus.has2D || has3D !== connectionStatus.has3D) {
+       // eslint-disable-next-line
+       setConnectionStatus({ has2D, has3D });
+    }
+  }, [showSettings, currentView, connectionStatus.has2D, connectionStatus.has3D]);
 
   // Render
     if (currentView === 'editor') {

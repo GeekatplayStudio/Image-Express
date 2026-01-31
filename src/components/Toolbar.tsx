@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Sparkles } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Sparkles, Brush } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { StarPolygon, ThreeDGroup, ExtendedFabricObject } from '@/types';
+import { StarPolygon, ThreeDGroup, ExtendedFabricObject, BackgroundJob } from '@/types';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
@@ -22,7 +22,7 @@ interface ToolbarProps {
     setActiveTool: (tool: string) => void;
     onOpen3DEditor?: (url: string) => void;
     apiKeys?: { stability?: string };
-    onJobCreated?: (job: any) => void;
+    onJobCreated?: (job: BackgroundJob) => void;
 }
 
 const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: number) => {
@@ -62,6 +62,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
     // Reordered tools based on standard workflows
     const tools = [
         { name: 'select', icon: Move, label: 'Select' },
+        { name: 'paint', icon: Brush, label: 'Paint' },
         { name: 'shapes', icon: Shapes, label: 'Shapes' },
         { name: 'text', icon: Type, label: 'Text' },
         { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
@@ -295,8 +296,8 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                  (img as ExtendedFabricObject).name = displayName;
              }
              // Use Artboard dimensions if available, else fallback to canvas or default
-             // @ts-ignore
-             const artboard = canvas.artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             const artboard = (canvas as any).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
              const targetWidth = artboard.width;
              const targetHeight = artboard.height;
              

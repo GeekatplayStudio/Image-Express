@@ -37,31 +37,17 @@ const SelectValue = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLS
 )
 SelectValue.displayName = "SelectValue"
 
-const SelectContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+const SelectContent = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
     ({ className, children, ...props }, ref) => {
-         // In a real one this pops over.
-         // For this simple mock, we will actually just use a real native select on top of everything opacity 0? 
-         // Or just Render the children (SelectItems) which we will transform into a native Select?
-         // Mixing Shadcn API with Native Select is hard.
-         // Let's make a fake UI that ACTUALLY renders a native select visually underneath or something? 
-         
-         // BETTER approach for "No Radix":
-         // Reset internal components to just be a wrapper around a native <select> if possible?
-         // But the usage in StabilityGenerator is:
-         // <Select value={aspectRatio} onValueChange={setAspectRatio}>
-         //    <SelectTrigger><SelectValue /></SelectTrigger>
-         //    <SelectContent>
-         //        <SelectItem value="1:1">Square</SelectItem>
-         // ...
-         
-         // I will rewrite this Select component to just Render a Native Select, destroying the custom UI look slightly but making it work 100%.
          const ctx = React.useContext(SelectContext);
          
          return (
              <select 
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                ref={ref}
+                className={cn("absolute inset-0 w-full h-full opacity-0 cursor-pointer bg-zinc-950 text-white", className)}
                 value={ctx?.value}
                 onChange={(e) => ctx?.onValueChange?.(e.target.value)}
+                {...props}
              >
                  {children}
              </select>
@@ -72,7 +58,7 @@ SelectContent.displayName = "SelectContent"
 
 const SelectItem = React.forwardRef<HTMLOptionElement, React.OptionHTMLAttributes<HTMLOptionElement>>(
     ({ className, children, ...props }, ref) => {
-        return <option ref={ref} className={className} {...props}>{children}</option>
+        return <option ref={ref} className={cn("bg-zinc-950 text-white", className)} {...props}>{children}</option>
     }
 )
 SelectItem.displayName = "SelectItem"

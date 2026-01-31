@@ -274,8 +274,22 @@ export default function EditorView({
        }
        
        const json = canvas.toJSON();
-        const jsonString = JSON.stringify(json);
-       const thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5 });
+       const jsonString = JSON.stringify(json);
+        
+       let thumbnailDataUrl = '';
+       try {
+            // Attempt with multiplier
+            thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5 });
+       } catch (e) {
+            console.warn('Thumbnail generation with multiplier failed, retrying without:', e);
+            try {
+                // Fallback without multiplier (using 1 as default to satisfy types if needed)
+                thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 });
+            } catch (e2) {
+                console.error('Thumbnail generation failed completely:', e2);
+                // Continue without thumbnail
+            }
+       }
 
        try {
            const response = await fetch('/api/designs/save', {
