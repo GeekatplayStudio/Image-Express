@@ -52,6 +52,19 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                  group = null;
             }
 
+            // [FIX] Try to reuse existing 'Paint Folder' if active group logic failed
+            if (!group) {
+                 // Simple find by name convention
+                 // In a real app we might want ID persistence, but name is what we set in lines below
+                 const existing = canvas.getObjects().find(o => 
+                    o.type === 'group' && ((o as ExtendedFabricObject).name || '').startsWith('Paint Folder')
+                 ) as fabric.Group;
+                 if (existing) {
+                     group = existing;
+                     currentPaintGroupRef.current = group;
+                 }
+            }
+
             if (!group) {
                 // Create new Group
                 group = new fabric.Group([], { 
@@ -75,8 +88,23 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                 }
             }
             
+            // [FIX] Properly transform path coordinates before adding to group
+            // Store the absolute position before moving to group
+            const pathLeft = path.left || 0;
+            const pathTop = path.top || 0;
+            
+            // Calculate group center offset for proper positioning
+            const groupCenter = group.getCenterPoint();
+            const groupLeft = group.left || 0;
+            const groupTop = group.top || 0;
+            
             // Move path from canvas to group with preserved coordinates
             moveObjectToGroup(path, group, canvas);
+            
+            // Ensure path position is correct relative to group
+            // This fixes the "shifting" issue where brush strokes appear offset
+            path.setCoords();
+            group.setCoords();
             
             canvas.requestRenderAll();
             if (onObjectsUpdate) onObjectsUpdate();

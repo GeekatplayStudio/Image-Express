@@ -21,16 +21,36 @@ import { CanvasSettingsPanel } from './properties/CanvasSettingsPanel';
 
 // Utils & Libs
 import { 
+    // ensureObjectId, 
+    // applyAlphaToColor, 
+    // parseColorWithAlpha as extractColorFromStyle, // Alias for legacy usage
+} from '@/lib/utils';
+
+// We import fabric utils from where they actually are
+import { 
     ensureObjectId, 
-    applyAlphaToColor, 
+    applyAlphaToColor,
     normalizeColorValue, 
     parseColorWithAlpha,
+    parseColorWithAlpha as extractColorFromStyle,
     getGroupNames,
     getNextIndexedName,
     getAdjustmentLabel,
     getDefaultAdjustmentSettings
 } from '@/lib/fabric-utils';
+
 import { CurvesFilter } from '@/lib/fabric-filters';
+
+interface CustomObjectState {
+    _strokeEnabled?: boolean;
+    _borderEnabled?: boolean;
+    _strokeCachedWidth?: number;
+    _borderCachedWidth?: number;
+    _strokeCachedColor?: string;
+    _borderCachedColor?: string;
+    _strokeCachedOpacity?: number;
+    _borderCachedOpacity?: number;
+}
 
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number; left: number; top: number };
@@ -44,28 +64,53 @@ type CanvasWithArtboard = fabric.Canvas & {
 
 interface PropertiesPanelProps {
     canvas: fabric.Canvas | null;
-    activeTool?: string;
-    onMake3D?: (imageUrl: string) => void;
+    activeTool: string;
     onLayerDblClick?: () => void;
-    onPreviewMedia?: (payload: { type: 'video' | 'audio'; url: string }) => void;
+    onMake3D?: (imageUrl: string) => void;
+    onPreviewMedia?: (media: { type: 'video' | 'audio'; url: string }) => void;
 }
 
-export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerDblClick, onPreviewMedia }: PropertiesPanelProps) {
-    // Global Object State
-    const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
+export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onPreviewMedia }: PropertiesPanelProps) {
+    const [selectedObject, setSelectedObject] = useState<ExtendedFabricObject | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
-    // Canvas Settings State
+    // Canvas Settings
     const [canvasWidth, setCanvasWidth] = useState(1080);
     const [canvasHeight, setCanvasHeight] = useState(1080);
     const [canvasColor, setCanvasColor] = useState('#ffffff');
+
+    // Selection Props
+    const [color, setColor] = useState('#000000');
+    // Note: We use isGradient from types typically, but here we track if fill is gradient object
+    const [isGradient, setIsGradient] = useState(false); 
+    // const [useGradient, setIsGradient] = useState(false); // Removed duplicate
+
+    const [gradientType, setGradientType] = useState<'linear' | 'radial'>('linear');
+    const [gradientStart, setGradientStart] = useState('#000000');
+    const [gradientEnd, setGradientEnd] = useState('#ffffff');
+    const [gradientAngle, setGradientAngle] = useState(0);
+
+    const [opacity, setOpacity] = useState(1);
     
-    // Paint State - Delegated to PaintProperties component
+    // Stroke / Border
+    const [strokeWidth, setStrokeWidth] = useState(0);
+    const [strokeColor, setStrokeColor] = useState('#000000');
+    const [strokeOpacity, setStrokeOpacity] = useState(1);
+    const [strokeInside, setStrokeInside] = useState(true);
+    const [strokeBlend, setStrokeBlend] = useState('normal'); 
 
+    const [borderWidth, setBorderWidth] = useState(0);
+    const [borderColor, setBorderColor] = useState('#000000');
+    const [borderOpacity, setBorderOpacity] = useState(1);
+    const [borderBlend, setBorderBlend] = useState('normal');
 
-    // Filter/Effect State
+    // --- Render Props for ShadowStrokeProperties State ---
+    const [strokeEnabled, setStrokeEnabled] = useState(false);
+    const [borderEnabled, setBorderEnabled] = useState(false);
+
+    // Filters
     const [blurValue, setBlurValue] = useState(0);
     const [brightnessValue, setBrightnessValue] = useState(0);
     const [contrastValue, setContrastValue] = useState(0);
@@ -73,28 +118,15 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
     const [saturationValue, setSaturationValue] = useState(0);
     const [vibranceValue, setVibranceValue] = useState(0);
     const [pixelateValue, setPixelateValue] = useState(0);
-    
-    // Transform/Style State
-    const [opacity, setOpacity] = useState(1);
-    const [color, setColor] = useState('#000000');
-    // Gradient State
-    const [isGradient, setIsGradient] = useState(false);
-    const [gradientType, setGradientType] = useState<'linear' | 'radial'>('linear');
-    const [gradientStart, setGradientStart] = useState('#000000');
-    const [gradientEnd, setGradientEnd] = useState('#ffffff');
-    const [gradientAngle, setGradientAngle] = useState(0);
-    
-    const [strokeColor, setStrokeColor] = useState('#000000');
-    const [strokeWidth, setStrokeWidth] = useState(0);
-    const [strokeOpacity, setStrokeOpacity] = useState(1);
-    const [strokeInside, setStrokeInside] = useState(true);
 
+    // Shadow
     const [shadowEnabled, setShadowEnabled] = useState(false);
     const [shadowColor, setShadowColor] = useState('#000000');
     const [shadowBlur, setShadowBlur] = useState(10);
     const [shadowOffsetX, setShadowOffsetX] = useState(5);
     const [shadowOffsetY, setShadowOffsetY] = useState(5);
     const [shadowOpacity, setShadowOpacity] = useState(1);
+    const [shadowBlend, setShadowBlend] = useState('normal');
     
     const [skewX, setSkewX] = useState(0);
     const [skewY, setSkewY] = useState(0);
@@ -128,6 +160,131 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
         if (typeof canvas.backgroundColor === 'string') {
             setCanvasColor(normalizeColorValue(canvas.backgroundColor) || '#ffffff');
         }
+    }, [canvas]);
+
+    const applyAdjustmentLayers = useCallback(() => {
+        if (!canvas) return;
+        const objs = canvas.getObjects();
+
+        const adjustmentFilterTypes = new Set([
+            'Curves',
+            'Brightness',
+            'Contrast',
+            'HueRotation',
+            'Saturation',
+            'Vibrance',
+            'BlackWhite'
+        ]);
+
+        const filtersRegistry = fabric.filters as unknown as Record<string, new (options?: Record<string, unknown>) => FabricBaseFilter>;
+
+        const buildFiltersForAdjustment = (
+            type: AdjustmentLayerType,
+            settings: AdjustmentLayerSettings,
+            intensity: number
+        ): FabricBaseFilter[] => {
+            const clampedIntensity = Math.min(1, Math.max(0, intensity));
+            if (type === 'curves') {
+                const curves = settings as CurvesAdjustmentSettings;
+                if (!curves.points || curves.points.length < 2) return [];
+                return [
+                    new CurvesFilter({
+                        points: curves.points,
+                        channel: curves.channel || 'rgb',
+                        intensity: clampedIntensity
+                    }) as unknown as FabricBaseFilter
+                ];
+            }
+
+            if (type === 'levels') {
+                const levels = settings as LevelsAdjustmentSettings;
+                const brightness = ((levels.black || 0) * 0.5 - ((1 - (levels.white || 1)) * 0.5)) * clampedIntensity;
+                const contrast = (((levels.mid || 1) - 1) * 0.5) * clampedIntensity;
+                const filters: FabricBaseFilter[] = [];
+                if (Math.abs(brightness) > 0.01) {
+                    filters.push(new fabric.filters.Brightness({ brightness }) as unknown as FabricBaseFilter);
+                }
+                if (Math.abs(contrast) > 0.01) {
+                    filters.push(new fabric.filters.Contrast({ contrast }) as unknown as FabricBaseFilter);
+                }
+                return filters;
+            }
+
+            if (type === 'exposure') {
+                const exposure = settings as ExposureSettings;
+                return [
+                    new fabric.filters.Brightness({ brightness: (exposure.exposure || 0) * clampedIntensity }) as unknown as FabricBaseFilter,
+                    new fabric.filters.Contrast({ contrast: (exposure.contrast || 0) * clampedIntensity }) as unknown as FabricBaseFilter
+                ];
+            }
+
+            if (type === 'hue-saturation') {
+                const hueSat = settings as HueSaturationSettings;
+                const filters: FabricBaseFilter[] = [
+                    new fabric.filters.HueRotation({ rotation: (hueSat.hue || 0) * 2 * clampedIntensity }) as unknown as FabricBaseFilter,
+                    new fabric.filters.Saturation({ saturation: (hueSat.saturation || 0) * clampedIntensity }) as unknown as FabricBaseFilter
+                ];
+                if (typeof hueSat.lightness === 'number' && Math.abs(hueSat.lightness) > 0.001) {
+                    filters.push(new fabric.filters.Brightness({ brightness: hueSat.lightness * clampedIntensity }) as unknown as FabricBaseFilter);
+                }
+                return filters;
+            }
+
+            if (type === 'saturation-vibrance') {
+                const satVib = settings as SaturationVibranceSettings;
+                const filters: FabricBaseFilter[] = [
+                    new fabric.filters.Saturation({ saturation: (satVib.saturation || 0) * clampedIntensity }) as unknown as FabricBaseFilter
+                ];
+                const VibranceFilter = filtersRegistry.Vibrance;
+                if (VibranceFilter) {
+                    filters.push(new VibranceFilter({ vibrance: (satVib.vibrance || 0) * clampedIntensity }) as unknown as FabricBaseFilter);
+                }
+                return filters;
+            }
+
+            if (type === 'black-white') {
+                const bw = new fabric.filters.BlackWhite() as unknown as FabricBaseFilter;
+                // fabric's BlackWhite doesn't support intensity; opacity blending is handled by clampedIntensity
+                // by stacking a desaturation via saturation if not full intensity
+                if (clampedIntensity >= 0.99) return [bw];
+                return [
+                    new fabric.filters.Saturation({ saturation: -clampedIntensity }) as unknown as FabricBaseFilter
+                ];
+            }
+
+            return [];
+        };
+
+        // Apply adjustment layers to each image based on stack order
+        objs.forEach((obj, idx) => {
+            if (obj.type !== 'image') return;
+            const image = obj as fabric.Image;
+            const imageExt = image as ExtendedFabricObject;
+
+            if (!imageExt.baseFilters) {
+                const existing = image.filters || [];
+                imageExt.baseFilters = existing.filter((f) => !adjustmentFilterTypes.has(f.type));
+            }
+
+            const layersAbove = objs
+                .slice(idx + 1)
+                .filter((layer) => (layer as ExtendedFabricObject).isAdjustmentLayer && layer.visible !== false)
+                .map((layer) => layer as ExtendedFabricObject);
+
+            const adjustmentFilters: FabricBaseFilter[] = [];
+            layersAbove.forEach((layer) => {
+                if (!layer.adjustmentType || !layer.adjustmentSettings) return;
+                const layerOpacity = typeof layer.opacity === 'number' ? layer.opacity : 1;
+                adjustmentFilters.push(
+                    ...buildFiltersForAdjustment(layer.adjustmentType, layer.adjustmentSettings, layerOpacity)
+                );
+            });
+
+            image.filters = [...imageExt.baseFilters, ...adjustmentFilters];
+            image.applyFilters();
+        });
+
+        canvas.requestRenderAll();
     }, [canvas]);
 
     useEffect(() => {
@@ -187,11 +344,61 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
 
                 setOpacity(target.opacity || 1);
                 
-                const sColor = parseColorWithAlpha(typeof target.stroke === 'string' ? target.stroke : undefined);
-                setStrokeColor(sColor.color || '#000000');
-                setStrokeOpacity(sColor.alpha ?? 1);
-                setStrokeWidth(target.strokeWidth || 0);
-                setStrokeInside(target.paintFirst !== 'stroke');
+                // --- Hydrate Stroke/Border State from Object + Custom Props ---
+                const sColor = extractColorFromStyle(typeof target.stroke === 'string' ? target.stroke : undefined);
+                const isBorderMode = target.paintFirst === 'stroke'; // If true, it renders as 'Border'
+                const currentWidth = target.strokeWidth || 0;
+                
+                // Read custom props or fallback to standard inference
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const custom = target as any as CustomObjectState;
+                
+                let sEnabled = custom._strokeEnabled;
+                let bEnabled = custom._borderEnabled;
+
+                // Fallback inference if custom props not set (first load)
+                if (sEnabled === undefined) sEnabled = (currentWidth > 0 && !isBorderMode);
+                if (bEnabled === undefined) bEnabled = (currentWidth > 0 && isBorderMode);
+                
+                // If neither is "enabled" but we have a stroke, logic defaults to what paintFirst is
+                if (currentWidth > 0 && sEnabled === undefined && bEnabled === undefined) {
+                     if (isBorderMode) bEnabled = true;
+                     else sEnabled = true;
+                }
+
+                // Hydrate Rendering State
+                if (isBorderMode) {
+                     // Active: Border
+                     setBorderWidth(currentWidth);
+                     setBorderColor(sColor.color || '#000000');
+                     setBorderOpacity(sColor.alpha ?? 1);
+                     
+                     // Inactive: Stroke (Restored from cache or default)
+                     setStrokeWidth(custom._strokeCachedWidth || 0);
+                     setStrokeColor(custom._strokeCachedColor || '#000000');
+                     setStrokeOpacity(custom._strokeCachedOpacity || 1);
+                } else {
+                     // Active: Stroke
+                     setStrokeWidth(currentWidth);
+                     setStrokeColor(sColor.color || '#000000');
+                     setStrokeOpacity(sColor.alpha ?? 1);
+                     
+                     // Inactive: Border (Restored from cache or default)
+                     setBorderWidth(custom._borderCachedWidth || 0);
+                     setBorderColor(custom._borderCachedColor || '#000000');
+                     setBorderOpacity(custom._borderCachedOpacity || 1);
+                }
+
+
+                // Persist if inferred
+                const tCustom = target as unknown as CustomObjectState;
+                if (tCustom._strokeEnabled !== sEnabled) tCustom._strokeEnabled = sEnabled;
+                if (tCustom._borderEnabled !== bEnabled) tCustom._borderEnabled = bEnabled;
+
+                setStrokeEnabled(!!sEnabled);
+                setBorderEnabled(!!bEnabled);
+
+                setStrokeInside(!isBorderMode);
                 
                 const shadow = target.shadow as fabric.Shadow;
                 if (shadow) {
@@ -202,8 +409,11 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                     setShadowOffsetX(shadow.offsetX || 0);
                     setShadowOffsetY(shadow.offsetY || 0);
                     setShadowOpacity(parsedShadow.alpha ?? 1);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    setShadowBlend((target as any).shadowBlend || 'normal');
                 } else {
                     setShadowEnabled(false);
+                    setShadowBlend('normal');
                 }
 
                 setSkewX(target.skewX || 0);
@@ -226,8 +436,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                     const filters = (target as fabric.Image).filters || [];
                     filters.forEach(f => {
                          if (!f) return;
-                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                         const anyF = f as any;
+                         const anyF = f as unknown as Record<string, number>;
                          if (f.type === 'Blur') setBlurValue(anyF.blur || 0);
                          if (f.type === 'Brightness') setBrightnessValue(anyF.brightness || 0);
                          if (f.type === 'Contrast') setContrastValue(anyF.contrast || 0);
@@ -244,178 +453,121 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             setSelectedIds(new Set(active.map(o => ensureObjectId(o))));
         };
 
+           const handleChange = () => {
+               updateObjects();
+               applyAdjustmentLayers();
+           };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handleAdjustmentCreate = (e: any) => {
+             const type = e.type as AdjustmentLayerType;
+             if (!canvas) return;
+             
+             // Create adjustment layer (overlay)
+             // Using current active artboard/canvas bounds
+             const width = canvas.width || 1080;
+             const height = canvas.height || 1080;
+             
+             const rect = new fabric.Rect({
+                 left: 0, top: 0,
+                 width: width, height: height,
+                 fill: 'rgba(255,255,255,0.01)', // Almost transparent
+                 selectable: true,
+                 evented: true,
+             });
+             
+             const ext = rect as ExtendedFabricObject;
+             ext.isAdjustmentLayer = true;
+             ext.adjustmentType = type;
+             ext.adjustmentSettings = getDefaultAdjustmentSettings(type);
+             ext.name = getAdjustmentLabel(type);
+             
+             // Use 50% opacity for overlay indicating presence? Or just settings?
+             // Usually adjustment layer implies affect. 
+             // For now we just add it as a layer that holds settings.
+             
+               canvas.add(rect);
+               canvas.setActiveObject(rect);
+               canvas.requestRenderAll();
+               updateObjects();
+               applyAdjustmentLayers();
+        };
+
         canvas.on('selection:created', handleSelection);
         canvas.on('selection:updated', handleSelection);
         canvas.on('selection:cleared', handleSelection);
+        canvas.on('object:added', handleChange);
+        canvas.on('object:removed', handleChange);
+        canvas.on('object:modified', handleChange);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (canvas as any).on('adjustment:create', handleAdjustmentCreate);
         
         handleSelection();
+        updateObjects(); // Initial sync
 
         return () => {
             canvas.off('selection:created', handleSelection);
             canvas.off('selection:updated', handleSelection);
             canvas.off('selection:cleared', handleSelection);
-        };
-    }, [canvas]);
-
-    // Independent Helper
-    const buildAdjustmentFilters = (type: AdjustmentLayerType, settings: AdjustmentLayerSettings, intensity: number) => {
-        const filters: FabricBaseFilter[] = [];
-        const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
-        const scaled = (v: number) => clamp(v * intensity, -1, 1);
-        
-        if (type === 'curves') {
-            const s = settings as CurvesAdjustmentSettings;
-            const channel = s.channel ?? 'rgb';
-            const points = s.pointsByChannel?.[channel] ?? s.points ?? [{x:0,y:0}, {x:1,y:1}];
-            filters.push(new CurvesFilter({ points: points, channel: channel, intensity }) as unknown as FabricBaseFilter);
-        }
-        if (type === 'levels') {
-            const s = settings as LevelsAdjustmentSettings;
-            const brightness = scaled((s.white - 1) - s.black);
-            const contrast = scaled(s.white - s.black - 1);
-            const gamma = clamp(s.mid, 0.2, 2);
-            filters.push(new fabric.filters.Brightness({ brightness }));
-            filters.push(new fabric.filters.Contrast({ contrast }));
-            filters.push(new fabric.filters.Gamma({ gamma: [gamma, gamma, gamma] }));
-        }
-        if (type === 'hue-saturation') {
-             const s = settings as HueSaturationSettings;
-             if(s.hue !== 0) filters.push(new fabric.filters.HueRotation({ rotation: scaled(s.hue) }));
-             if(s.saturation !== 0) filters.push(new fabric.filters.Saturation({ saturation: scaled(s.saturation) }));
-             if(s.lightness !== 0) filters.push(new fabric.filters.Brightness({ brightness: scaled(s.lightness) }));
-        }
-        if (type === 'exposure') {
-            const s = settings as ExposureSettings;
-             if(s.exposure !== 0) filters.push(new fabric.filters.Brightness({ brightness: scaled(s.exposure) }));
-             if(s.contrast !== 0) filters.push(new fabric.filters.Contrast({ contrast: scaled(s.contrast) }));
-        }
-        if (type === 'saturation-vibrance') {
-            filters.push(new fabric.filters.Saturation({ saturation: scaled((settings as SaturationVibranceSettings).saturation) }));
-            filters.push(new fabric.filters.Vibrance({ vibrance: scaled((settings as SaturationVibranceSettings).vibrance) }));
-        }
-        if (type === 'black-white') {
-            filters.push(new fabric.filters.Grayscale());
-        }
-        return filters;
-    };
-
-
-    const applyAdjustmentLayers = useCallback(() => {
-        if (!canvas) return;
-        const stack = canvas.getObjects();
-        const adjustments = stack.filter(o => (o as ExtendedFabricObject).isAdjustmentLayer);
-        
-        stack.forEach((obj, index) => {
-            if (obj.type !== 'image') return;
-            const img = obj as fabric.Image;
-            const ext = obj as ExtendedFabricObject;
-            if (!ext.baseFilters) ext.baseFilters = (img.filters || []).slice();
-            const applied = [...(ext.baseFilters || [])];
-            
-            adjustments.forEach(adj => {
-                 const adjIndex = stack.indexOf(adj);
-                 if (adjIndex > index && adj.visible) {
-                     const extAdj = adj as ExtendedFabricObject;
-                     if (extAdj.adjustmentType && extAdj.adjustmentSettings) {
-                         const intensity = typeof adj.opacity === 'number' ? adj.opacity : 1;
-                         const newFilters = buildAdjustmentFilters(extAdj.adjustmentType, extAdj.adjustmentSettings, intensity);
-                         applied.push(...newFilters);
-                     }
-                 }
-            });
-            img.filters = applied;
-            img.applyFilters();
-        });
-        canvas.requestRenderAll();
-    }, [canvas]);
-
-    // Track object changes to update UI list AND re-apply adjustments (if z-index changed etc)
-    useEffect(() => {
-        if (!canvas) return;
-        const handleChange = () => {
-             updateObjects();
-             applyAdjustmentLayers();
-        };
-
-        canvas.on('object:added', handleChange);
-        canvas.on('object:removed', handleChange);
-        canvas.on('object:modified', handleChange); // Covers reordering if fired
-        
-        updateObjects();
-        // Initial apply
-        setTimeout(() => applyAdjustmentLayers(), 100);
-
-        return () => {
             canvas.off('object:added', handleChange);
             canvas.off('object:removed', handleChange);
             canvas.off('object:modified', handleChange);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (canvas as any).off('adjustment:create', handleAdjustmentCreate);
         };
     }, [canvas, updateObjects, applyAdjustmentLayers]);
 
-    const updateAdjustment = (newSettings: AdjustmentLayerSettings) => {
+
+    // --- Helper Functions ---
+    const applyTaper = (skewZVal: number, taperVal: number) => {
         if (!selectedObject) return;
-        (selectedObject as ExtendedFabricObject).set('adjustmentSettings', newSettings);
-        setAdjustmentSettings(newSettings);
+        // Simple shim for perspective/taper - fabric.js 6 doesn't have 3D transform natively just yet without extensions
+        // Storing as custom props
+        selectedObject.set('skewZ', skewZVal);
+        selectedObject.set('taperDirection', taperVal);
+        const shear = skewZVal * 0.01;
+        // Just simulating with skewX/Y combination for now as placeholder
+        selectedObject.set('skewX', selectedObject.skewX + (shear * 10)); 
+        selectedObject.set('dirty', true);
+        canvas?.requestRenderAll();
+    };
+
+
+
+    const updateAdjustment = (updates: Partial<AdjustmentLayerSettings>) => {
+        if (!selectedObject || !selectedObject.isAdjustmentLayer) return;
+        const newSettings = { ...selectedObject.adjustmentSettings, ...updates };
+        // eslint-disable-next-line react-hooks/immutability
+        selectedObject.adjustmentSettings = newSettings as AdjustmentLayerSettings;
+        setAdjustmentSettings(newSettings as AdjustmentLayerSettings);
         applyAdjustmentLayers();
     };
 
-    const createAdjustmentLayer = useCallback((type: AdjustmentLayerType) => {
-        if (!canvas) return;
-        const layer = new fabric.Rect({
-            left: 0,
-            top: 0,
-            width: 1,
-            height: 1,
-            fill: 'transparent',
-            opacity: 1,
-            selectable: true,
-            evented: false,
-            excludeFromExport: true
-        });
-        const extLayer = layer as ExtendedFabricObject;
-        extLayer.isAdjustmentLayer = true;
-        extLayer.adjustmentType = type;
-        extLayer.adjustmentSettings = getDefaultAdjustmentSettings(type);
-        extLayer.name = getNextIndexedName(getAdjustmentLabel(type), getGroupNames(canvas));
-        if (!extLayer.id) extLayer.id = `adjust-${Date.now()}`;
-
-        canvas.add(layer);
-        canvas.setActiveObject(layer);
-        canvas.fire('selection:created', { selected: [layer] });
-        canvas.requestRenderAll();
-        applyAdjustmentLayers();
-    }, [applyAdjustmentLayers, canvas]);
-
-    useEffect(() => {
-        if (!canvas) return;
-        const handleCreate = (payload?: { type?: AdjustmentLayerType }) => {
-            if (payload?.type) {
-                createAdjustmentLayer(payload.type);
-            }
-        };
-        // @ts-expect-error Custom event
-        canvas.on('adjustment:create', handleCreate);
-        return () => {
-             // @ts-expect-error Custom event
-            canvas.off('adjustment:create', handleCreate);
-        };
-    }, [canvas, createAdjustmentLayer]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handlePropChange = (prop: string, value: any) => {
         if (!selectedObject || !canvas) return;
 
-        // Standard props
-        if (prop === 'fill' || prop === 'left' || prop === 'top' || prop === 'width' || prop === 'height' || prop === 'angle' || prop === 'scaleX' || prop === 'scaleY' || prop === 'skewX' || prop === 'skewY') {
+        // Standard Props & layout
+        const startProps = ['left', 'top', 'width', 'height', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'visible', 'globalCompositeOperation'];
+        if (startProps.includes(prop)) {
             selectedObject.set(prop, value);
+            selectedObject.set('dirty', true);
+        }
+        
+        if (prop === 'opacity') {
+            setOpacity(value);
+            selectedObject.set('opacity', value);
+            if ((selectedObject as ExtendedFabricObject).isAdjustmentLayer) {
+                applyAdjustmentLayers();
+            }
         }
 
         if (prop === 'fill') {
-             if (value === 'transparent' || typeof value === 'string') {
-                 setIsGradient(false);
-                 setColor(value);
-                 selectedObject.set('fill', value);
-             }
+             setColor(value);
+             setIsGradient(false);
+             selectedObject.set('fill', value);
+             selectedObject.set('dirty', true);
         }
 
         if (prop === 'gradient') {
@@ -468,30 +620,128 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
              const extended = selectedObject as ExtendedFabricObject;
              extended.set({ curveStrength: strength, curveCenter: center });
              setCurveStrength(strength);
-             setCurveCenter(center);
+             setCurveCenter(center ?? 0);
              
              if (strength === 0) {
                  selectedObject.set('path', null);
              } else {
                  const len = selectedObject.width || 200;
-                 const height = (strength / 100) * len * 0.5;
-                 const offset = (center / 100) * len * 0.5;
-                 const pathData = `M 0 0 Q ${len/2 + offset} ${height * -1.5} ${len} 0`;
-                 const path = new fabric.Path(pathData);
-                 path.set({ visible: false, left: -len/2, top: 0 });
-                 selectedObject.set('path', path);
+                 // Improved curve algorithm with better arc control
+                 // Use cubic bezier for smoother curves at extreme values
+                 const normalizedStrength = strength / 100;
+                 const normalizedCenter = (center ?? 0) / 100;
+                 
+                 // Calculate control point height based on strength
+                 // Using quadratic relationship for more natural feel
+                 const curveHeight = normalizedStrength * len * 0.6;
+                 
+                 // Center offset affects the peak position
+                 const peakX = (len / 2) + (normalizedCenter * len * 0.4);
+                 
+                 // For extreme curves (>80%), use circular arc approximation
+                 if (Math.abs(strength) >= 80) {
+                     // Circular arc path for full circle effect
+                     const radius = len / (2 * Math.sin(Math.abs(normalizedStrength) * Math.PI / 2));
+                     const arcHeight = curveHeight * 1.2;
+                     // Use cubic bezier for smoother arc
+                     const cp1x = len * 0.25 + (normalizedCenter * len * 0.2);
+                     const cp2x = len * 0.75 + (normalizedCenter * len * 0.2);
+                     const pathData = `M 0 0 C ${cp1x} ${-arcHeight} ${cp2x} ${-arcHeight} ${len} 0`;
+                     const path = new fabric.Path(pathData);
+                     path.set({ visible: false, left: -len/2, top: 0 });
+                     selectedObject.set('path', path);
+                 } else {
+                     // Standard quadratic bezier for moderate curves
+                     const pathData = `M 0 0 Q ${peakX} ${-curveHeight} ${len} 0`;
+                     const path = new fabric.Path(pathData);
+                     path.set({ visible: false, left: -len/2, top: 0 });
+                     selectedObject.set('path', path);
+                 }
+                 selectedObject.setCoords();
              }
         }
         
         if (prop === 'taperDirection') {
              setTaperDirection(value);
-             (selectedObject as ExtendedFabricObject).set({ taperDirection: value });
+             applyTaper(skewZ, value);
         }
-        if (prop === 'skewZ') setSkewZ(value); 
+        if (prop === 'skewZ') {
+             setSkewZ(value);
+             applyTaper(value, taperDirection);
+        } 
         
         if (prop === 'filter') {
-            if (value.type === 'Blur') setBlurValue(value.value);
-            // ... (sync other states if needed, though they are only used for UI display which is now handled)
+            const { type, value: filterVal } = value;
+            const img = selectedObject as fabric.Image;
+            if (img.type === 'image') {
+                // Ensure filters array
+                // eslint-disable-next-line react-hooks/immutability
+                if (!img.filters) img.filters = [];
+                
+                // Map UI type to Fabric filter class
+                
+                // Remove existing filter of this type to replace/update
+                // Note: This matches based on class type name.
+                // Assuming type map: 'Blur' -> fabric.Image.filters.Blur
+                
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const typeMap: Record<string, any> = {
+                    'Blur': fabric.filters.Blur,
+                    'Brightness': fabric.filters.Brightness,
+                    'Contrast': fabric.filters.Contrast,
+                    'Saturation': fabric.filters.Saturation,
+                    'Vibrance': fabric.filters.Vibrance,
+                    'Noise': fabric.filters.Noise,
+                    'Pixelate': fabric.filters.Pixelate
+                };
+
+                const FilterClass = typeMap[type];
+                if (FilterClass) {
+                     // Find existing index
+                     const idx = img.filters.findIndex(f => f instanceof FilterClass);
+                     if (idx > -1) img.filters.splice(idx, 1);
+
+                     // Create new if value > 0 (or non-neutral)
+                     // Check neutrality conditions
+                     let isNeutral = false;
+                     if (type === 'Blur' && filterVal === 0) isNeutral = true;
+                     if (type === 'Brightness' && filterVal === 0) isNeutral = true;
+                     if (type === 'Contrast' && filterVal === 0) isNeutral = true;
+                     if (type === 'Saturation' && filterVal === 0) isNeutral = true;
+                     if (type === 'Vibrance' && filterVal === 0) isNeutral = true;
+                     if (type === 'Noise' && filterVal === 0) isNeutral = true;
+                     if (type === 'Pixelate' && filterVal === 0) isNeutral = true;
+
+                     if (!isNeutral) {
+                         // Build options
+                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                         const options: any = {};
+                         if (type === 'Blur') options.blur = filterVal;
+                         if (type === 'Brightness') options.brightness = filterVal;
+                         if (type === 'Contrast') options.contrast = filterVal;
+                         if (type === 'Saturation') options.saturation = filterVal;
+                         if (type === 'Vibrance') options.vibrance = filterVal;
+                         if (type === 'Noise') options.noise = filterVal;
+                         if (type === 'Pixelate') options.blocksize = Math.max(2, filterVal); // Pixelate needs > 1 usually
+                         
+                         img.filters.push(new FilterClass(options));
+                     }
+                }
+                
+                img.applyFilters();
+                const imgExt = img as ExtendedFabricObject;
+                imgExt.baseFilters = [...(img.filters || [])];
+                selectedObject.set('dirty', true);
+
+                // Update Local State for UI
+                if (type === 'Blur') setBlurValue(filterVal);
+                if (type === 'Brightness') setBrightnessValue(filterVal);
+                if (type === 'Contrast') setContrastValue(filterVal);
+                if (type === 'Noise') setNoiseValue(filterVal);
+                if (type === 'Saturation') setSaturationValue(filterVal);
+                if (type === 'Vibrance') setVibranceValue(filterVal);
+                if (type === 'Pixelate') setPixelateValue(filterVal);
+            }
         }
         
         if (prop.startsWith('lock')) {
@@ -500,20 +750,264 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
 
         if (prop === 'stroke') {
             const { key, value: sVal } = value;
-            if (key === 'strokeColor') {
-                selectedObject.set('stroke', sVal);
-                setStrokeColor(sVal);
+            if (key === 'color') {
+                setStrokeColor(sVal as string);
+                selectedObject.set('stroke', applyAlphaToColor(sVal as string, strokeOpacity));
             }
-            if (key === 'strokeWidth') {
-                selectedObject.set('strokeWidth', sVal);
-                setStrokeWidth(sVal);
+            if (key === 'width') {
+                setStrokeWidth(sVal as number);
+                selectedObject.set('strokeWidth', sVal as number);
+                if (Number(sVal) > 0 && !selectedObject.stroke) {
+                     selectedObject.set('stroke', applyAlphaToColor(strokeColor, strokeOpacity));
+                }
             }
-            // ... could add opacity etc
+            if (key === 'opacity') {
+                setStrokeOpacity(sVal as number);
+                selectedObject.set('stroke', applyAlphaToColor(strokeColor, sVal as number));
+            }
+            if (key === 'inside') {
+                setStrokeInside(sVal as boolean);
+                selectedObject.set('paintFirst', sVal ? 'fill' : 'stroke');
+                selectedObject.set('dirty', true);
+            }
         }
 
-        canvas.requestRenderAll();
-        if ((selectedObject as ExtendedFabricObject).isAdjustmentLayer) applyAdjustmentLayers();
+        if (prop === 'shadowStrokeUpdate') {
+             // value is Partial<ShadowStrokeValues>
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             const v = value as any;
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             const t = selectedObject as any;
+
+             // --- STROKE STATE UPDATE ---
+             if ('strokeEnabled' in v) {
+                 const isEnabled = !!v.strokeEnabled;
+                 t._strokeEnabled = isEnabled; // Store UI intent
+                 setStrokeEnabled(isEnabled);
+
+                 // If user actively enabled stroke, render stroke
+                 if (isEnabled) {
+                     setStrokeInside(true);
+                     selectedObject.set('paintFirst', 'fill');
+                     
+                     // Restore cached values if needed
+                     const width = v.strokeWidth ?? (t._strokeCachedWidth || strokeWidth || 1);
+                     const color = v.strokeColor ?? (t._strokeCachedColor || strokeColor || '#000000');
+                     const opacity = v.strokeOpacity ?? (t._strokeCachedOpacity ?? strokeOpacity ?? 1);
+
+                     // Update live object
+                     selectedObject.set('stroke', applyAlphaToColor(color, opacity));
+                     selectedObject.set('strokeWidth', width);
+                     
+                     // Sync local state
+                     setStrokeWidth(width);
+                     setStrokeColor(color);
+                     setStrokeOpacity(opacity);
+                 } else {
+                     // Turning OFF Stroke.
+                     // If Border is currently desired (stored state), switch to Border rendering
+                     if (t._borderEnabled) {
+                         // Switch to Border Mode
+                         setStrokeInside(false);
+                         selectedObject.set('paintFirst', 'stroke');
+                         // Restore Border settings
+                         const bWidth = t._borderCachedWidth || borderWidth || 1;
+                         const bColor = t._borderCachedColor || borderColor || '#000000';
+                         const bOpacity = t._borderCachedOpacity ?? borderOpacity ?? 1;
+                         
+                         selectedObject.set('stroke', applyAlphaToColor(bColor, bOpacity));
+                         selectedObject.set('strokeWidth', bWidth);
+                         
+                         setBorderWidth(bWidth);
+                         setBorderColor(bColor);
+                         setBorderOpacity(bOpacity);
+                     } else {
+                         // Both OFF -> Clear stroke
+                         selectedObject.set('strokeWidth', 0);
+                         selectedObject.set('stroke', null);
+                         setStrokeWidth(0); 
+                     }
+                 }
+                 selectedObject.set('dirty', true);
+             }
+
+             // Update Stroke Properties (Live)
+             if (('strokeColor' in v || 'strokeOpacity' in v) && strokeEnabled) { // Check local state or v? Use derived if persisted
+                 const c = v.strokeColor || strokeColor;
+                 const o = v.strokeOpacity !== undefined ? v.strokeOpacity : strokeOpacity;
+                 
+                 // Update cache
+                 // eslint-disable-next-line react-hooks/immutability
+                 t._strokeCachedColor = c;
+                 // eslint-disable-next-line react-hooks/immutability
+                 t._strokeCachedOpacity = o;
+                 setStrokeColor(c);
+                 setStrokeOpacity(o);
+
+                 // Only apply if currently rendering Stroke
+                 if (selectedObject.paintFirst === 'fill') {
+                     selectedObject.set('stroke', applyAlphaToColor(c, o));
+                 }
+             }
+             if ('strokeWidth' in v && strokeEnabled) {
+                 t._strokeCachedWidth = v.strokeWidth;
+                 setStrokeWidth(v.strokeWidth);
+                 
+                 if (selectedObject.paintFirst === 'fill') {
+                     selectedObject.set('strokeWidth', v.strokeWidth);
+                     if (v.strokeWidth > 0 && !selectedObject.stroke) {
+                        selectedObject.set('stroke', applyAlphaToColor(strokeColor, strokeOpacity));
+                     }
+                 }
+             }
+             if ('strokeBlur' in v) { /* removed */ }
+             if ('strokeBlend' in v) setStrokeBlend(v.strokeBlend);
+
+             // --- BORDER STATE UPDATE ---
+             if ('borderEnabled' in v) {
+                 const isEnabled = !!v.borderEnabled;
+                 // eslint-disable-next-line react-hooks/immutability
+                 t._borderEnabled = isEnabled; // Store UI intent
+                 setBorderEnabled(isEnabled);
+
+                 if (isEnabled) {
+                     // User Wants Border.
+                     // "Last interaction wins" -> switch to Border rendering
+                     setStrokeInside(false);
+                     selectedObject.set('paintFirst', 'stroke');
+
+                     // Restore cached
+                     const width = v.borderWidth ?? (t._borderCachedWidth || borderWidth || 1);
+                     const color = v.borderColor ?? (t._borderCachedColor || borderColor || '#000000');
+                     const opacity = v.borderOpacity ?? (t._borderCachedOpacity ?? borderOpacity ?? 1);
+
+                     selectedObject.set('stroke', applyAlphaToColor(color, opacity));
+                     selectedObject.set('strokeWidth', width);
+
+                     setBorderWidth(width);
+                     setBorderColor(color);
+                     setBorderOpacity(opacity);
+                 } else {
+                     // Turning OFF Border.
+                     // If Stroke is ON, switch to it check?
+                     if (t._strokeEnabled) {
+                         setStrokeInside(true);
+                         selectedObject.set('paintFirst', 'fill');
+                         
+                         const sWidth = t._strokeCachedWidth || strokeWidth || 1;
+                         const sColor = t._strokeCachedColor || strokeColor || '#000000';
+                         const sOpacity = t._strokeCachedOpacity ?? strokeOpacity ?? 1;
+
+                         selectedObject.set('stroke', applyAlphaToColor(sColor, sOpacity));
+                         selectedObject.set('strokeWidth', sWidth);
+
+                         setStrokeWidth(sWidth);
+                         setStrokeColor(sColor);
+                         setStrokeOpacity(sOpacity);
+                     } else {
+                         // Both OFF
+                         selectedObject.set('strokeWidth', 0);
+                         selectedObject.set('stroke', null);
+                         setBorderWidth(0);
+                     }
+                 }
+                 selectedObject.set('dirty', true);
+             }
+
+             // Update Border Properties (Live)
+             if (('borderColor' in v || 'borderOpacity' in v) && borderEnabled) {
+                 const c = v.borderColor || borderColor;
+                 const o = v.borderOpacity !== undefined ? v.borderOpacity : borderOpacity;
+                 
+                 // eslint-disable-next-line react-hooks/immutability
+                 t._borderCachedColor = c;
+                 // eslint-disable-next-line react-hooks/immutability
+                 t._borderCachedOpacity = o;
+                 setBorderColor(c);
+                 setBorderOpacity(o);
+
+                 if (selectedObject.paintFirst === 'stroke') {
+                    selectedObject.set('stroke', applyAlphaToColor(c, o));
+                 }
+             }
+             if ('borderWidth' in v && borderEnabled) {
+                 t._borderCachedWidth = v.borderWidth;
+                 setBorderWidth(v.borderWidth);
+                 
+                 if (selectedObject.paintFirst === 'stroke') {
+                     selectedObject.set('strokeWidth', v.borderWidth);
+                     if (v.borderWidth > 0 && !selectedObject.stroke) {
+                        selectedObject.set('stroke', applyAlphaToColor(borderColor, borderOpacity));
+                     }
+                 }
+             }
+             if ('borderBlur' in v) { /* removed */ }
+             if ('borderBlend' in v) setBorderBlend(v.borderBlend);
+
+            // --- SHADOW --- (Unchanged logic mostly, but ensured separate)
+             if ('shadowEnabled' in v) {
+                if (v.shadowEnabled) {
+                    setShadowEnabled(true);
+                    const color = v.shadowColor || shadowColor;
+                    const blur = v.shadowBlur !== undefined ? v.shadowBlur : shadowBlur;
+                    const opacity = v.shadowOpacity !== undefined ? v.shadowOpacity : shadowOpacity;
+                    const offX = v.shadowOffsetX !== undefined ? v.shadowOffsetX : shadowOffsetX;
+                    const offY = v.shadowOffsetY !== undefined ? v.shadowOffsetY : shadowOffsetY;
+                    
+                    const shadow = new fabric.Shadow({
+                        color: applyAlphaToColor(color, opacity),
+                        blur: blur,
+                        offsetX: offX,
+                        offsetY: offY
+                    });
+                    selectedObject.set('shadow', shadow);
+                } else {
+                    setShadowEnabled(false);
+                    selectedObject.set('shadow', null);
+                }
+                selectedObject.set('dirty', true);
+             }
+             
+             if ('shadowColor' in v || 'shadowBlur' in v || 'shadowOpacity' in v || 'shadowOffsetX' in v || 'shadowOffsetY' in v) {
+                    if (selectedObject.shadow) {
+                        const s = selectedObject.shadow as fabric.Shadow;
+                        const c = v.shadowColor || shadowColor;
+                        const o = v.shadowOpacity !== undefined ? v.shadowOpacity : shadowOpacity;
+                        
+                         if ('shadowColor' in v) setShadowColor(c);
+                         if ('shadowOpacity' in v) setShadowOpacity(o);
+                         if ('shadowBlur' in v) { 
+                             // eslint-disable-next-line react-hooks/immutability
+                             s.blur = v.shadowBlur || 0; 
+                             setShadowBlur(v.shadowBlur); 
+                         }
+                         if ('shadowOffsetX' in v) { 
+                             // eslint-disable-next-line react-hooks/immutability
+                             s.offsetX = v.shadowOffsetX || 0; 
+                             setShadowOffsetX(v.shadowOffsetX); 
+                         }
+                         if ('shadowOffsetY' in v) { 
+                             // eslint-disable-next-line react-hooks/immutability
+                             s.offsetY = v.shadowOffsetY || 0; 
+                             setShadowOffsetY(v.shadowOffsetY); 
+                         }
+                         
+                         // eslint-disable-next-line react-hooks/immutability
+                         s.color = applyAlphaToColor(c, o);
+                         selectedObject.set('dirty', true);
+                    }
+             }
+
+             if ('shadowBlend' in v) {
+                setShadowBlend(v.shadowBlend);
+                // Store blend on object for persistence, even if standard render doesn't support it yet
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (selectedObject as any).shadowBlend = v.shadowBlend; 
+                selectedObject.set('dirty', true);
+             }
+        }
         
+        canvas.requestRenderAll();
         // Force re-render for transform props that don't have their own state
         updateObjects();
     };
@@ -571,6 +1065,103 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
          canvas.requestRenderAll();
     };
 
+    const handleGroup = () => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject();
+        if (!active || active.type !== 'activeSelection') return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (active as any).toGroup();
+        canvas.requestRenderAll();
+        updateObjects();
+    };
+
+    const handleUngroup = () => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject();
+        if (!active || active.type !== 'group') return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (active as any).toActiveSelection();
+        canvas.requestRenderAll();
+        updateObjects();
+    };
+
+    const handleCreateFolder = () => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject();
+        // If selection exists, group it as a folder
+        if (active && active.type === 'activeSelection') {
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             const group = (active as any).toGroup();
+             (group as ExtendedFabricObject).name = "Folder";
+             canvas.requestRenderAll();
+        } else {
+             // Create empty folder (visible container)
+             // Using invisible rect inside to give it presence? Fabric empty group is fine but hard to select.
+             const group = new fabric.Group([], { name: 'Folder' } as any);
+             canvas.add(group);
+             canvas.centerObject(group); // Just to put it somewhere
+        }
+        updateObjects();
+    };
+
+    const handleCreateMask = async () => {
+        if (!canvas) return;
+        const active = canvas.getActiveObjects();
+        if (active.length !== 2) return;
+        
+        // Stacking order: Top (higher index) masks Bottom (lower index)
+        const sorted = [...active].sort((a,b) => {
+             const idxA = canvas.getObjects().indexOf(a);
+             const idxB = canvas.getObjects().indexOf(b);
+             return idxA - idxB;
+        });
+        
+        const target = sorted[0]; // Bottom
+        const mask = sorted[1];   // Top
+        
+        // Use clone for clipPath to avoid reference issues when removing object
+        const cloned = await mask.clone();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (cloned as any).absolutePositioned = true;
+        cloned.left = mask.left;
+        cloned.top = mask.top;
+        cloned.angle = mask.angle;
+        cloned.scaleX = mask.scaleX;
+        cloned.scaleY = mask.scaleY;
+        
+        target.clipPath = cloned;
+        canvas.remove(mask);
+        canvas.discardActiveObject();
+        canvas.setActiveObject(target);
+        canvas.requestRenderAll();
+        updateObjects();
+    };
+
+    const handleReleaseMask = () => {
+        if (!selectedObject || !canvas) return;
+        if (selectedObject.clipPath) {
+            // Restore mask object? 
+            // We can try to add the clipPath back as an object
+            selectedObject.clipPath.clone().then((restored: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                if ((selectedObject.clipPath as any).absolutePositioned) {
+                     restored.left = selectedObject.clipPath!.left;
+                     restored.top = selectedObject.clipPath!.top;
+                } else {
+                     // Relative logic would go here, currently we only support absolute
+                     const center = selectedObject.getCenterPoint();
+                     restored.left = center.x + (selectedObject.clipPath!.left || 0);
+                     restored.top = center.y + (selectedObject.clipPath!.top || 0);
+                }
+                canvas.add(restored);
+                selectedObject.clipPath = undefined;
+                selectedObject.set('dirty', true);
+                canvas.requestRenderAll();
+                updateObjects();
+            });
+        }
+    };
+
     if (activeTool === 'paint') {
         return (
             <PaintProperties 
@@ -593,6 +1184,7 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
             <LayersView 
                 objects={objects}
                 selectedIds={selectedIds}
+                selectedObject={selectedObject}
                 onSelect={(obj, e) => {
                      if (e?.shiftKey) { /* multi */ } 
                      else { 
@@ -601,10 +1193,19 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                          canvas?.requestRenderAll(); 
                      }
                 }}
+                onLayerOpacityChange={(value) => {
+                    if (!selectedObject) return;
+                    handlePropChange('opacity', value);
+                }}
+                onLayerBlendChange={(value) => {
+                    if (!selectedObject) return;
+                    handlePropChange('globalCompositeOperation', value);
+                }}
                 onToggleVisibility={(obj) => { 
                     obj.visible = !obj.visible; 
                     canvas?.requestRenderAll(); 
                     if ((obj as ExtendedFabricObject).isAdjustmentLayer) applyAdjustmentLayers();
+                    updateObjects();
                 }}
                 onToggleLock={(obj) => { 
                     const l = !(obj as ExtendedFabricObject).locked;
@@ -615,9 +1216,9 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                 }}
                 onDelete={deleteLayer}
                 onReorder={handleReorder}
-                onGroup={() => {}}
-                onUngroup={() => {}}
-                onCreateFolder={() => {}}
+                onGroup={handleGroup}
+                onUngroup={handleUngroup}
+                onCreateFolder={handleCreateFolder}
                 onDblClick={() => onLayerDblClick && onLayerDblClick()}
                 expandedFolders={expandedFolders}
                 onToggleFolder={(obj) => {
@@ -674,10 +1275,10 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
              }}
              onPropChange={handlePropChange}
              onLayoutAction={handleLayoutAction}
-             onGroup={() => { /* group logic */ }}
-             onUngroup={() => { /* ungroup logic */ }}
-             onCreateMask={() => { /* mask logic */ }}
-             onReleaseMask={() => { /* unmask logic */ }}
+             onGroup={handleGroup}
+             onUngroup={handleUngroup}
+             onCreateMask={handleCreateMask}
+             onReleaseMask={handleReleaseMask}
              updateAdjustment={updateAdjustment}
              textState={{ font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter }}
              effectState={{ 
@@ -685,10 +1286,23 @@ export default function PropertiesPanel({ canvas, activeTool, onMake3D, onLayerD
                      blur: blurValue, brightness: brightnessValue, contrast: contrastValue,
                      noise: noiseValue, saturation: saturationValue, vibrance: vibranceValue, pixelate: pixelateValue 
                  },
-                 stroke: { color: strokeColor, width: strokeWidth, opacity: strokeOpacity, inside: strokeInside },
-                 shadow: { enabled: shadowEnabled, color: shadowColor, blur: shadowBlur, offsetX: shadowOffsetX, offsetY: shadowOffsetY, opacity: shadowOpacity },
+                 stroke: { 
+                    color: strokeColor, width: strokeWidth, opacity: strokeOpacity, inside: strokeInside 
+                 },
+                 shadow: { 
+                    enabled: shadowEnabled, color: shadowColor, blur: shadowBlur, offsetX: shadowOffsetX, offsetY: shadowOffsetY, opacity: shadowOpacity 
+                 },
                  skew: { x: skewX, y: skewY, z: skewZ, dir: taperDirection }
+             }}
+             // Need to pass extended state that SelectionProperties expects for new component
+             shadowStrokeState={{
+                strokeEnabled: strokeEnabled,
+                strokeColor, strokeWidth, strokeOpacity, strokeBlend,
+                borderEnabled: borderEnabled,
+                borderColor, borderWidth, borderOpacity, borderBlend,
+                shadowEnabled, shadowColor, shadowBlur, shadowOpacity, shadowOffsetX, shadowOffsetY, shadowBlend
              }}
         />
     );
 }
+

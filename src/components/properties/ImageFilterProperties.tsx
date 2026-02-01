@@ -28,12 +28,16 @@ export function ImageFilterProperties({ values, onChange }: ImageFilterPropertie
 
     return (
         <div className="p-4 space-y-4 border-b border-border/50">
-            <h3 className="font-medium text-sm">Image Filters</h3>
-            <div className="space-y-4">
-                {filters.map((f) => (
-                     <div key={f.type} className="space-y-2">
+            <h3 className="font-medium text-sm">Filters</h3>
+            <div className="space-y-3">
+                {filters.map(f => (
+                    <div key={f.type} className="space-y-2">
                         <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>{f.label}</span>
+                            <span 
+                                className="cursor-pointer hover:text-foreground"
+                                title="Double-click to reset"
+                                onDoubleClick={() => onChange(f.type, 0)}
+                            >{f.label}</span>
                             <span>{f.value.toFixed(2)}</span>
                         </div>
                         <input
@@ -43,7 +47,6 @@ export function ImageFilterProperties({ values, onChange }: ImageFilterPropertie
                             step={f.step}
                             value={f.value}
                             onChange={(e) => onChange(f.type, parseFloat(e.target.value))}
-                            onDoubleClick={() => onChange(f.type, 0)}
                             className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                         />
                     </div>

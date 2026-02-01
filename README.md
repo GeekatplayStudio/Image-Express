@@ -123,6 +123,33 @@ This project includes a `Dockerfile` optimized for production.
   - `DesignCanvas.tsx`: Core Fabric.js workspace.
   - `ThreeDGenerator.tsx`: AI integration panel.
   - `PropertiesPanel.tsx`: Context-aware editing sidebar.
+  - `properties/`: Modular property editors (Shadow, Stroke, Text, Filters, etc.)
+
+## 🎨 Properties Panel Features
+
+The Properties Panel provides comprehensive editing capabilities:
+
+### Adjustment Layers
+- **Curves**: Spline-based color correction with per-channel control
+- **Levels**: Black/Mid/White point adjustment
+- **Exposure**: Brightness and contrast control
+- **Hue/Saturation**: Color shift and intensity
+- **Black & White**: Grayscale conversion
+
+### Shadow & Stroke
+- **Drop Shadow**: Blur (0-150px), Offset (±200px), Opacity, Blend Modes
+- **Inside Stroke**: Renders over fill
+- **Outside Border**: Renders under fill (paintFirst: stroke)
+
+### Text Tools
+- **Curved Text**: Quadratic/Cubic bezier paths with presets (Flat, Arc↑, Arc↓, Circle)
+- **13 Font Families**: Arial, Times New Roman, Georgia, Impact, and more
+- **Font Weights**: 100-900 plus normal/bold
+
+### Paint Mode
+- **Brush Types**: Pencil, Spray, Oil, Watercolor
+- **Blend Modes**: Normal, Multiply, Screen, Overlay
+- **Smart Grouping**: Strokes auto-grouped in Paint Folders
 
 ## 🛠 Tech Stack
 

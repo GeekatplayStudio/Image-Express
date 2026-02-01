@@ -236,7 +236,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                  <div className="border-l-2 border-border/50 ml-6 pl-2 mt-1 space-y-1">
                      {children.map((child, i) => (
                          <SortableLayerItem 
-                            key={`child-${child.id}`} 
+                            key={`${child.id}-${i}`} 
                             id={child.id}
                             obj={child.obj} 
                             index={i} 

@@ -347,6 +347,39 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
         attachTextDistortControls();
 
+         // Keyboard event listener for Delete/Backspace
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                // Ignore if an input is focused
+                const activeElement = document.activeElement;
+                if (activeElement && (
+                    activeElement.tagName === 'INPUT' || 
+                    activeElement.tagName === 'TEXTAREA' || 
+                    (activeElement as HTMLElement).isContentEditable
+                )) {
+                    return;
+                }
+
+                // Check if we have an active object that is valid to delete
+                const activeObjects = canvas.getActiveObjects();
+                if (activeObjects && activeObjects.length > 0) {
+                     // If it's a text object currently being edited, do NOT delete
+                    const activeObject = canvas.getActiveObject();
+                    if (activeObject && (activeObject as fabric.IText).isEditing) {
+                        return;
+                    }
+                    
+                    e.preventDefault();
+                    canvas.discardActiveObject();
+                    activeObjects.forEach((obj) => {
+                         canvas.remove(obj);
+                    });
+                    canvas.requestRenderAll();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+
         // Attach custom property to canvas for other components to know the "Page" dimensions
         extendedCanvas.artboard = { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
         extendedCanvas.hostContainer = container;
@@ -610,6 +643,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
       canvas.off('object:modified', notifyModified);
       canvas.off('object:added', notifyModified);
       canvas.off('object:removed', notifyModified);
+      window.removeEventListener('keydown', handleKeyDown);
       canvas.dispose();
       resizeObserver.disconnect();
     };

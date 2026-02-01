@@ -1,181 +1,297 @@
 import React, { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
 
-interface ShadowStrokeValues {
+export interface ShadowStrokeValues {
+    // Stroke (Inside)
+    strokeEnabled: boolean;
     strokeColor: string;
     strokeWidth: number;
     strokeOpacity: number;
-    strokeInside: boolean; 
+    strokeBlur?: number;
+    strokeBlend?: string;
+    
+    // Border (Outside) aka PaintFirst=stroke
+    borderEnabled: boolean;
+    borderColor: string;
+    borderWidth: number;
+    borderOpacity: number;
+    borderBlur?: number;
+    borderBlend?: string;
+
+    // Drop Shadow
     shadowEnabled: boolean;
     shadowColor: string;
     shadowBlur: number;
     shadowOpacity: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
+    shadowBlend?: string;
 }
 
 interface ShadowStrokePropertiesProps {
     values: ShadowStrokeValues;
-    onStrokeChange: (key: string, value: string | number | boolean) => void;
-    onShadowChange: (key: string, value: string | number | boolean) => void;
+    onValuesChange: (newValues: Partial<ShadowStrokeValues>) => void;
 }
 
-export function ShadowStrokeProperties({ values, onStrokeChange, onShadowChange }: ShadowStrokePropertiesProps) {
-    const handleStrokeColor = (val: string) => onStrokeChange('color', val);
-    const handleShadowColor = (val: string) => onShadowChange('color', val);
+const BLEND_MODES = [
+    { label: 'Normal', value: 'normal' },
+    { label: 'Multiply', value: 'multiply' },
+    { label: 'Screen', value: 'screen' },
+    { label: 'Overlay', value: 'overlay' },
+    { label: 'Darken', value: 'darken' },
+    { label: 'Lighten', value: 'lighten' },
+    { label: 'Color Dodge', value: 'color-dodge' },
+    { label: 'Color Burn', value: 'color-burn' },
+    { label: 'Hard Light', value: 'hard-light' },
+    { label: 'Soft Light', value: 'soft-light' },
+    { label: 'Difference', value: 'difference' },
+    { label: 'Exclusion', value: 'exclusion' },
+    { label: 'Hue', value: 'hue' },
+    { label: 'Saturation', value: 'saturation' },
+    { label: 'Color', value: 'color' },
+    { label: 'Luminosity', value: 'luminosity' },
+];
+
+const CompactColorPicker = ({ color, onChange, opacity = 1 }: { color: string, onChange: (val: string) => void, opacity?: number }) => (
+    <div className="relative w-8 h-8 rounded-md border border-border/60 shadow-sm overflow-hidden group shrink-0">
+        <div className="absolute inset-0 z-0 bg-image-checkered opacity-20" />
+        <div className="absolute inset-0 z-10" style={{ backgroundColor: color, opacity }} />
+        <input 
+            type="color" 
+            value={color}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+        />
+    </div>
+);
+
+const PropertySlider = ({ label, value, min, max, onChange, step = 1, unit = "" }: { label: string, value: number, min: number, max: number, onChange: (val: number) => void, step?: number, unit?: string }) => (
+    <div 
+        className="flex items-center gap-3 text-xs w-full"
+        onClick={(e) => e.stopPropagation()} // Stop propagation here
+    >
+        <span className="w-12 text-muted-foreground shrink-0 truncate" title={label}>{label}</span>
+        <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(e) => onChange(parseFloat(e.target.value))}
+            onClick={(e) => e.stopPropagation()} // And here, just in case
+            className="flex-1 h-1.5 bg-secondary rounded-full appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <span className="w-8 text-right tabular-nums shrink-0 text-[10px] text-muted-foreground">{Math.round(value)}{unit}</span>
+    </div>
+);
+
+const BlendModeSelect = ({ value, onChange }: { value?: string, onChange: (val: string) => void }) => (
+    <div className="flex items-center gap-3 text-xs w-full">
+        <span className="w-12 text-muted-foreground shrink-0">Blend</span>
+        <select
+            value={value || 'normal'}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1 h-6 bg-secondary rounded-md text-[10px] px-2 border-none focus:ring-1 focus:ring-ring"
+        >
+            {BLEND_MODES.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+        </select>
+    </div>
+);
+
+export function ShadowStrokeProperties({ values, onValuesChange }: ShadowStrokePropertiesProps) {
+    const [strokeOpen, setStrokeOpen] = useState(false);
+    const [borderOpen, setBorderOpen] = useState(false);
+    const [shadowOpen, setShadowOpen] = useState(false);
+
+    // Mutual exclusivity handler
+    // Updated: Now allows both to be enabled simultaneously in UI state (logic determines rendering)
+    const toggleStroke = (enabled: boolean) => {
+        onValuesChange({ strokeEnabled: enabled });
+        if (enabled) {
+            setStrokeOpen(true);
+        }
+    };
+
+    const toggleBorder = (enabled: boolean) => {
+        onValuesChange({ borderEnabled: enabled });
+        if (enabled) {
+            setBorderOpen(true);
+        }
+    };
 
     return (
-        <div className="p-4 space-y-6 border-b border-border/50">
-            {/* Stroke Section */}
-            <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-sm">Stroke (Border)</h3>
-                </div>
-                
-                <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-                     <div className="relative w-full h-8 rounded border border-border shadow-sm overflow-hidden group cursor-pointer">
-                        <div className="absolute inset-0 z-0 bg-image-checkered opacity-20" />
-                        <div className="absolute inset-0 z-10" style={{ backgroundColor: values.strokeColor }} />
-                        <input 
-                            type="color" 
-                            value={values.strokeColor}
-                            onChange={(e) => handleStrokeColor(e.target.value)}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+        <div className="flex flex-col gap-px bg-background text-foreground select-none divide-y divide-border/30">
+            
+            {/* STROKE SECTION (Inside) */}
+            <div className="bg-background">
+                <div className="flex items-center justify-between w-full p-3 hover:bg-secondary/30 transition-colors group">
+                    <button 
+                         onClick={() => setStrokeOpen(!strokeOpen)}
+                         className="flex items-center gap-2 flex-1"
+                    >
+                        {strokeOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stroke</span>
+                    </button>
+                    <div className="pl-4 pb-1">
+                        <Switch
+                            checked={values.strokeEnabled}
+                            onCheckedChange={toggleStroke}
                         />
                     </div>
-                    <div className="flex bg-secondary rounded-lg p-0.5">
-                        <button 
-                             onClick={() => onStrokeChange('inside', false)}
-                             className={`px-2 py-1 text-[10px] rounded-md ${!values.strokeInside ? 'bg-background shadow-sm' : 'hover:bg-background/50 text-muted-foreground'}`}
-                             title="Center / Outside"
-                        >
-                            <div className="w-3 h-3 border border-current rounded-sm" />
-                        </button>
-                        <button 
-                             onClick={() => onStrokeChange('inside', true)}
-                             className={`px-2 py-1 text-[10px] rounded-md ${values.strokeInside ? 'bg-background shadow-sm' : 'hover:bg-background/50 text-muted-foreground'}`}
-                             title="Inside (Fill First)"
-                        >
-                             <div className="w-3 h-3 bg-current rounded-sm border border-current" />
-                        </button>
-                    </div>
                 </div>
 
-                <div className="space-y-2">
-                    <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Width</span>
-                        <span>{values.strokeWidth}px</span>
+                {strokeOpen && values.strokeEnabled && (
+                    <div className="p-3 pt-4 space-y-3 animate-in slide-in-from-top-1 duration-150">
+                        <div className="flex items-start gap-4">
+                            <CompactColorPicker 
+                                color={values.strokeColor} 
+                                onChange={(c) => onValuesChange({ strokeColor: c })} 
+                                opacity={values.strokeOpacity}
+                            />
+                            <div className="flex-1 space-y-2 pt-1">
+                                <PropertySlider 
+                                    label="Width" 
+                                    value={values.strokeWidth} 
+                                    min={0} max={100} 
+                                    onChange={(v) => onValuesChange({ strokeWidth: v })} 
+                                    unit="px"
+                                />
+                                <PropertySlider 
+                                    label="Opacity" 
+                                    value={values.strokeOpacity * 100} 
+                                    min={0} max={100} 
+                                    onChange={(v) => onValuesChange({ strokeOpacity: v / 100 })} 
+                                    unit="%"
+                                />
+                                {/* Stroke Blur Removed as requested */}
+                                {/* Stroke Blend Removed as per engine limitations */}
+                            </div>
+                        </div>
                     </div>
-                    <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={values.strokeWidth}
-                        onChange={(e) => onStrokeChange('width', parseInt(e.target.value))}
-                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
-                    />
-                </div>
-                <div className="space-y-2">
-                    <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Opacity</span>
-                        <span>{Math.round(values.strokeOpacity * 100)}%</span>
-                    </div>
-                    <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={values.strokeOpacity}
-                        onChange={(e) => onStrokeChange('opacity', parseFloat(e.target.value))}
-                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
-                    />
-                </div>
+                )}
             </div>
 
-            {/* Shadow Section */}
-            <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-sm">Drop Shadow</h3>
-                    <input
-                        type="checkbox"
-                        checked={values.shadowEnabled}
-                        onChange={(e) => onShadowChange('enabled', e.target.checked)}
-                        className="rounded border-border"
-                    />
+            {/* BORDER SECTION (Outside) */}
+            <div className="bg-background">
+                <div className="flex items-center justify-between w-full p-3 hover:bg-secondary/30 transition-colors group">
+                    <button 
+                        onClick={() => setBorderOpen(!borderOpen)}
+                        className="flex items-center gap-2 flex-1"
+                    >
+                        {borderOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Border</span>
+                    </button>
+                    <div className="pl-4 pb-1">
+                        <Switch
+                            checked={values.borderEnabled}
+                            onCheckedChange={toggleBorder}
+                        />
+                    </div>
                 </div>
-                
-                {values.shadowEnabled && (
-                    <div className="space-y-3 pl-2 border-l-2 border-border/30">
-                         <div className="relative w-full h-8 rounded border border-border shadow-sm overflow-hidden group cursor-pointer">
-                            <div className="absolute inset-0 z-0 bg-image-checkered opacity-20" />
-                            <div className="absolute inset-0 z-10" style={{ backgroundColor: values.shadowColor, opacity: values.shadowOpacity }} />
-                            <input 
-                                type="color" 
-                                value={values.shadowColor}
-                                onChange={(e) => handleShadowColor(e.target.value)}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                            />
-                        </div>
 
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-[10px] text-muted-foreground">
-                                <span>Blur</span>
-                                <span>{values.shadowBlur}px</span>
+                {borderOpen && values.borderEnabled && (
+                     <div className="p-3 pt-4 space-y-3 animate-in slide-in-from-top-1 duration-150">
+                        <div className="flex items-start gap-4">
+                            <CompactColorPicker 
+                                color={values.borderColor} 
+                                onChange={(c) => onValuesChange({ borderColor: c })} 
+                                opacity={values.borderOpacity}
+                            />
+                            <div className="flex-1 space-y-2 pt-1">
+                                <PropertySlider 
+                                    label="Width" 
+                                    value={values.borderWidth} 
+                                    min={0} max={100} 
+                                    onChange={(v) => onValuesChange({ borderWidth: v })} 
+                                    unit="px"
+                                />
+                                <PropertySlider 
+                                    label="Opacity" 
+                                    value={values.borderOpacity * 100} 
+                                    min={0} max={100} 
+                                    onChange={(v) => onValuesChange({ borderOpacity: v / 100 })} 
+                                    unit="%"
+                                />
+                                {/* Border Blur Removed as requested */}
+                                {/* Border Blend Removed as per engine limitations */}
                             </div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                value={values.shadowBlur}
-                                onChange={(e) => onShadowChange('blur', parseInt(e.target.value))}
-                                className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
-                            />
                         </div>
+                    </div>
+                )}
+            </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                             <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] text-muted-foreground">
-                                    <span>X</span>
-                                    <span>{values.shadowOffsetX}</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="-50"
-                                    max="50"
-                                    value={values.shadowOffsetX}
-                                    onChange={(e) => onShadowChange('offsetX', parseInt(e.target.value))}
-                                    className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+            {/* DROP SHADOW SECTION */}
+            <div className="bg-background">
+                <div className="flex items-center justify-between w-full p-3 hover:bg-secondary/30 transition-colors group">
+                    <button 
+                        onClick={() => setShadowOpen(!shadowOpen)}
+                        className="flex items-center gap-2 flex-1"
+                    >
+                        {shadowOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Drop Shadow</span>
+                    </button>
+                    <div className="pl-4 pb-1">
+                        <Switch
+                            checked={values.shadowEnabled}
+                            onCheckedChange={(c) => onValuesChange({ shadowEnabled: c })} 
+                        />
+                    </div>
+                </div>
+
+                {shadowOpen && values.shadowEnabled && (
+                     <div className="p-3 pt-4 space-y-3 animate-in slide-in-from-top-1 duration-150">
+                        <div className="flex items-start gap-4">
+                            <CompactColorPicker 
+                                color={values.shadowColor} 
+                                onChange={(c) => onValuesChange({ shadowColor: c })} 
+                                opacity={values.shadowOpacity}
+                            />
+                            <div className="flex-1 space-y-2 pt-1">
+                                <PropertySlider 
+                                    label="Blur" 
+                                    value={values.shadowBlur} 
+                                    min={0} max={150} 
+                                    onChange={(v) => onValuesChange({ shadowBlur: v })} 
+                                    unit="px"
+                                />
+                                <PropertySlider 
+                                    label="Opacity" 
+                                    value={values.shadowOpacity * 100} 
+                                    min={0} max={100} 
+                                    onChange={(v) => onValuesChange({ shadowOpacity: v / 100 })} 
+                                    unit="%"
+                                />
+                                <BlendModeSelect 
+                                    value={values.shadowBlend} 
+                                    onChange={(v) => onValuesChange({ shadowBlend: v })} 
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] text-muted-foreground">
-                                    <span>Y</span>
-                                    <span>{values.shadowOffsetY}</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="-50"
-                                    max="50"
-                                    value={values.shadowOffsetY}
-                                    onChange={(e) => onShadowChange('offsetY', parseInt(e.target.value))}
-                                    className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
-                                />
-                            </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-[10px] text-muted-foreground">
-                                <span>Opacity</span>
-                                <span>{Math.round(values.shadowOpacity * 100)}%</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="1"
-                                step="0.01"
-                                value={values.shadowOpacity}
-                                onChange={(e) => onShadowChange('opacity', parseFloat(e.target.value))}
-                                className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
-                            />
+                        <div className="space-y-2 pt-1 border-t border-border/30 mt-3 pt-3">
+                             <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                    <PropertySlider 
+                                        label="Offset X" 
+                                        value={values.shadowOffsetX} 
+                                        min={-200} max={200} 
+                                        onChange={(v) => onValuesChange({ shadowOffsetX: v })} 
+                                    />
+                                </div>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                    <PropertySlider 
+                                        label="Offset Y" 
+                                        value={values.shadowOffsetY} 
+                                        min={-200} max={200} 
+                                        onChange={(v) => onValuesChange({ shadowOffsetY: v })} 
+                                    />
+                                </div>
+                             </div>
                         </div>
                     </div>
                 )}

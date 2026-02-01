@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as fabric from 'fabric';
 import { ExtendedFabricObject, AdjustmentLayerType, AdjustmentLayerSettings } from '@/types';
 import { TransformProperties } from './TransformProperties';
@@ -6,10 +6,10 @@ import { LayoutProperties } from './LayoutProperties';
 import { LayerEffectsProperties } from './LayerEffectsProperties';
 import { TextProperties } from './TextProperties';
 import { ImageFilterProperties, ImageFilterValues } from './ImageFilterProperties';
-import { ShadowStrokeProperties } from './ShadowStrokeProperties';
+import { ShadowStrokeProperties, ShadowStrokeValues } from './ShadowStrokeProperties';
 import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
-import { GripVertical, Folder, FolderPlus, Layers, Blend } from 'lucide-react';
+import { GripVertical, Folder, FolderPlus, Layers, Blend, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface SelectionPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -43,11 +43,13 @@ interface SelectionPropertiesProps {
     // Specific state overrides that might not be on object directly or need React state
     textState?: { font: string; weight: string; curve: number; center: number };
     effectState: { 
-        stroke: { color: string; width: number; opacity: number; inside: boolean };
+        stroke: { color: string; width: number; opacity: number; inside: boolean; blur?: number };
         shadow: { enabled: boolean; color: string; blur: number; offsetX: number; offsetY: number; opacity: number };
         skew: { x: number; y: number; z: number; dir: number };
         filters: ImageFilterValues;
     };
+    shadowStrokeState?: ShadowStrokeValues; // Start loose for rapid refactor binding
+
 }
 
 export function SelectionProperties({
@@ -65,22 +67,22 @@ export function SelectionProperties({
     onReleaseMask,
     updateAdjustment,
     textState,
-    effectState
+    effectState,
+    shadowStrokeState
 }: SelectionPropertiesProps) {
+
+    const [isTransformOpen, setIsTransformOpen] = useState(false); // Collapsed by default
 
     const isMultiple = selectedObjects.length > 1;
     const isGroup = selectedObject?.type === 'group';
-    const isText = selectedObject?.type === 'text' || selectedObject?.type === 'i-text';
+    const isAdjustment = (selectedObject as ExtendedFabricObject)?.isAdjustmentLayer;
+    const extended = selectedObject as ExtendedFabricObject;
     const isImage = selectedObject?.type === 'image';
-    const isRect = selectedObject?.type === 'rect'; // Could be adjustment layer
-    
-    const extended = selectedObject as ExtendedFabricObject | null;
-    const isAdjustment = extended?.isAdjustmentLayer;
+    const isText = selectedObject?.type === 'text' || selectedObject?.type === 'i-text';
 
-    // Helper wrapper
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handleTransform = (vals: any) => {
-        Object.entries(vals).forEach(([k, v]) => onPropChange(k, v));
+    const handleTransform = (values: Record<string, any>) => {
+        Object.entries(values).forEach(([k, v]) => onPropChange(k, v));
     };
 
     if (isMultiple) {
@@ -129,55 +131,81 @@ export function SelectionProperties({
                     </span>
                 </div>
             </div>
-            
-            {/* Quick Actions */}
-            <div className="p-2 border-b border-border/50 flex gap-1 justify-around">
-                 {isGroup && (
-                     <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-xs flex items-center gap-1">
-                         <Layers size={14} /> Ungroup
-                     </button>
-                 )}
-                 {selectedObject.clipPath && (
-                      <button onClick={onReleaseMask} className="p-1.5 hover:bg-secondary rounded text-xs flex items-center gap-1">
-                         <Blend size={14} /> Release Mask
-                     </button>
-                 )}
-            </div>
 
-            {/* Layout (Align) */}
+            {/* Global Properties: Appearance & Layout (Top Priority) */}
+            <LayerEffectsProperties 
+                opacity={selectedObject.opacity || 1}
+                blendMode={selectedObject.globalCompositeOperation || 'source-over'}
+                visible={selectedObject.visible !== false}
+                onChange={(vals) => handleTransform(vals)}
+            />
+
             <LayoutProperties 
                 onAlign={(align) => onLayoutAction('align', align)}
-                onDistribute={() => {}} // Single obj cannot distribute
+                onDistribute={() => {}} 
                 canDistribute={false}
             />
-
-            {/* Transform */}
-            <TransformProperties 
-                x={selectedObject.left || 0}
-                y={selectedObject.top || 0}
-                width={selectedObject.width || 0}
-                height={selectedObject.height || 0}
-                rotation={selectedObject.angle || 0}
-                scaleX={selectedObject.scaleX || 1}
-                scaleY={selectedObject.scaleY || 1}
-                isLocked={!!selectedObject.lockMovementX}
-                onChange={handleTransform}
-            />
-
-            {/* Skew & Taper */}
-            <SkewTaperProperties 
-                 values={{
-                     skewX: selectedObject.skewX || 0,
-                     skewY: selectedObject.skewY || 0,
-                     skewZ: effectState.skew.z || 0,
-                     taperDirection: effectState.skew.dir || 0
-                 }}
-                 onChange={(k, v) => onPropChange(k, v)}
-            />
-
-            {/* Specific Editors */}
             
-            {/* COLOR / FILL (Not for Images/Groups usually, unless SVG) */}
+            {/* Quick Actions (Contextual) */}
+            {(isGroup || selectedObject.clipPath) && (
+                <div className="p-2 border-b border-border/50 flex gap-1 justify-around">
+                    {isGroup && (
+                        <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-xs flex items-center gap-1">
+                            <Layers size={14} /> Ungroup
+                        </button>
+                    )}
+                    {selectedObject.clipPath && (
+                        <button onClick={onReleaseMask} className="p-1.5 hover:bg-secondary rounded text-xs flex items-center gap-1">
+                            <Blend size={14} /> Release Mask
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* Transform Group (Collapsible) */}
+            <div className="bg-background border-b border-border/30">
+                <div className="flex items-center justify-between w-full p-3 hover:bg-secondary/30 transition-colors group">
+                     <button 
+                         onClick={() => setIsTransformOpen(!isTransformOpen)}
+                         className="flex items-center gap-2 flex-1"
+                    >
+                        {isTransformOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Transform</span>
+                    </button>
+                    <div className="flex gap-2 text-[10px] text-muted-foreground">
+                        {Math.round(selectedObject.left || 0)}, {Math.round(selectedObject.top || 0)}
+                    </div>
+                </div>
+
+                {isTransformOpen && (
+                     <div className="p-3 bg-secondary/5 animate-in slide-in-from-top-1 duration-150 space-y-3">
+                         <TransformProperties 
+                            x={selectedObject.left || 0}
+                            y={selectedObject.top || 0}
+                            width={selectedObject.width || 0}
+                            height={selectedObject.height || 0}
+                            rotation={selectedObject.angle || 0}
+                            scaleX={selectedObject.scaleX || 1}
+                            scaleY={selectedObject.scaleY || 1}
+                            isLocked={!!selectedObject.lockMovementX}
+                            onChange={handleTransform}
+                        />
+                         <SkewTaperProperties 
+                            values={{
+                                skewX: selectedObject.skewX || 0,
+                                skewY: selectedObject.skewY || 0,
+                                skewZ: effectState.skew.z || 0,
+                                taperDirection: effectState.skew.dir || 0
+                            }}
+                            onChange={(k, v) => onPropChange(k, v)}
+                        />
+                     </div>
+                )}
+            </div>
+
+            {/* Specific Editors (Styles) */}
+            
+            {/* COLOR / FILL */}
             {!isImage && !isGroup && !isAdjustment && (
                  <div className="p-4 border-b border-border/50 space-y-3">
                     <div className="flex items-center justify-between">
@@ -215,7 +243,6 @@ export function SelectionProperties({
                         </div>
                     ) : (
                         <div className="space-y-3 bg-secondary/20 p-2 rounded-md">
-                             {/* Type Selector */}
                              <div className="flex items-center justify-between text-xs">
                                  <label className="text-muted-foreground">Type</label>
                                  <select 
@@ -228,10 +255,9 @@ export function SelectionProperties({
                                  </select>
                              </div>
 
-                             {/* Stops */}
                              <div className="flex items-center gap-2">
                                  <div className="space-y-1 flex-1">
-                                     <span className="text-[10px] text-muted-foreground">Start Color</span>
+                                     <span className="text-[10px] text-muted-foreground">Start</span>
                                         <div className="relative h-6 rounded border border-border overflow-hidden">
                                             <div className="absolute inset-0" style={{ backgroundColor: gradientState?.start }}></div>
                                             <input 
@@ -243,7 +269,7 @@ export function SelectionProperties({
                                         </div>
                                  </div>
                                  <div className="space-y-1 flex-1">
-                                     <span className="text-[10px] text-muted-foreground">End Color</span>
+                                     <span className="text-[10px] text-muted-foreground">End</span>
                                         <div className="relative h-6 rounded border border-border overflow-hidden">
                                             <div className="absolute inset-0" style={{ backgroundColor: gradientState?.end }}></div>
                                             <input 
@@ -256,7 +282,6 @@ export function SelectionProperties({
                                  </div>
                              </div>
                              
-                             {/* Angle (Linear Only) */}
                              {gradientState?.type === 'linear' && (
                                  <div className="space-y-1 pt-1">
                                      <div className="flex justify-between text-[10px] text-muted-foreground">
@@ -275,6 +300,33 @@ export function SelectionProperties({
                     )}
                  </div>
             )}
+            
+            {/* Strokes & Shadows - Rendered lower in hierarchy now */}
+            {!isGroup && !isAdjustment && (
+                <ShadowStrokeProperties 
+                    values={shadowStrokeState || {
+                        strokeEnabled: effectState.stroke.width > 0 && effectState.stroke.inside,
+                        strokeColor: effectState.stroke.color,
+                        strokeWidth: effectState.stroke.width,
+                        strokeOpacity: effectState.stroke.opacity,
+                        strokeBlur: effectState.stroke.blur,
+                        
+                        borderEnabled: effectState.stroke.width > 0 && !effectState.stroke.inside,
+                        borderColor: effectState.stroke.color,
+                        borderWidth: effectState.stroke.width,
+                        borderOpacity: effectState.stroke.opacity,
+                        
+                        shadowEnabled: effectState.shadow.enabled,
+                        shadowColor: effectState.shadow.color,
+                        shadowBlur: effectState.shadow.blur,
+                        shadowOpacity: effectState.shadow.opacity,
+                        shadowOffsetX: effectState.shadow.offsetX,
+                        shadowOffsetY: effectState.shadow.offsetY
+                    }}
+                    onValuesChange={(vals) => onPropChange('shadowStrokeUpdate', vals)}
+                />
+            )}
+
 
             {isText && textState && (
                 <TextProperties 
@@ -307,34 +359,7 @@ export function SelectionProperties({
                  </div>
             )}
 
-            {/* Appearance (Opacity, Blend) */}
-            <LayerEffectsProperties 
-                opacity={selectedObject.opacity || 1}
-                blendMode={selectedObject.globalCompositeOperation || 'source-over'}
-                visible={selectedObject.visible !== false}
-                onChange={(vals) => handleTransform(vals)}
-            />
-            
-            {/* Strokes & Shadows */}
-            {!isGroup && !isAdjustment && (
-                <ShadowStrokeProperties 
-                    values={{
-                        strokeColor: effectState.stroke.color,
-                        strokeWidth: effectState.stroke.width,
-                        strokeOpacity: effectState.stroke.opacity,
-                        strokeInside: effectState.stroke.inside,
-                        shadowEnabled: effectState.shadow.enabled,
-                        shadowColor: effectState.shadow.color,
-                        shadowBlur: effectState.shadow.blur,
-                        shadowOpacity: effectState.shadow.opacity,
-                        shadowOffsetX: effectState.shadow.offsetX,
-                        shadowOffsetY: effectState.shadow.offsetY
-                    }}
-                    onStrokeChange={(k, v) => onPropChange('stroke', { key: k, value: v })}
-                    onShadowChange={(k, v) => onPropChange('shadow', { key: k, value: v })}
-                />
-            )}
-
         </div>
     );
 }
+

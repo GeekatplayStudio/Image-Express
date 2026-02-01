@@ -53,7 +53,7 @@ export function LayerEffectsProperties({ opacity, blendMode, visible, onChange }
                     <select
                         value={blendMode}
                         onChange={(e) => onChange({ globalCompositeOperation: e.target.value })}
-                        className="w-full text-xs bg-transparent border border-border rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full text-xs bg-background text-foreground border border-border rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
                     >
                         {BLEND_MODES.map((mode) => (
                             <option key={mode.value} value={mode.value}>

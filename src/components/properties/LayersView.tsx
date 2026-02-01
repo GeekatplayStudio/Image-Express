@@ -10,6 +10,7 @@ import { SortableLayerItem } from './SortableLayerItem'; // Fix Import Path if n
 interface LayersViewProps {
     objects: fabric.Object[];
     selectedIds: Set<string>;
+    selectedObject: fabric.Object | null;
     onSelect: (obj: fabric.Object, event?: React.MouseEvent) => void;
     onToggleVisibility: (obj: fabric.Object) => void;
     onToggleLock: (obj: fabric.Object) => void;
@@ -18,6 +19,8 @@ interface LayersViewProps {
     onGroup: () => void;
     onUngroup: () => void;
     onCreateFolder: () => void;
+    onLayerOpacityChange: (value: number) => void;
+    onLayerBlendChange: (value: string) => void;
     onDblClick?: (obj: fabric.Object) => void;
     
     // Optional props for expanded state if managed by parent, otherwise local
@@ -28,6 +31,7 @@ interface LayersViewProps {
 export function LayersView({
     objects,
     selectedIds,
+    selectedObject,
     onSelect,
     onToggleVisibility,
     onToggleLock,
@@ -36,6 +40,8 @@ export function LayersView({
     onGroup,
     onUngroup,
     onCreateFolder,
+    onLayerOpacityChange,
+    onLayerBlendChange,
     onDblClick,
     expandedFolders: externalExpanded,
     onToggleFolder: externalToggleFolder
@@ -132,6 +138,52 @@ export function LayersView({
                  <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Ungroup">
                      <Layers size={14} />
                  </button>
+             </div>
+
+             {/* Layer Controls */}
+             <div className="px-3 py-2 border-b border-border/30 bg-secondary/5 space-y-2">
+                 <div className="flex items-center gap-2">
+                     <span className="text-[10px] text-muted-foreground w-14">Opacity</span>
+                     <input
+                         type="range"
+                         min={0}
+                         max={1}
+                         step={0.01}
+                         value={selectedObject?.opacity ?? 1}
+                         onChange={(e) => onLayerOpacityChange(parseFloat(e.target.value))}
+                         disabled={!selectedObject}
+                         className="flex-1 h-1.5 bg-secondary rounded-full appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                     />
+                     <span className="text-[10px] text-muted-foreground w-8 text-right">
+                         {Math.round((selectedObject?.opacity ?? 1) * 100)}%
+                     </span>
+                 </div>
+                 <div className="flex items-center gap-2">
+                     <span className="text-[10px] text-muted-foreground w-14">Blend</span>
+                     <select
+                         value={selectedObject?.globalCompositeOperation || 'source-over'}
+                         onChange={(e) => onLayerBlendChange(e.target.value)}
+                         disabled={!selectedObject}
+                         className="flex-1 h-7 bg-secondary rounded-md text-[10px] px-2 border border-border/50 focus:ring-1 focus:ring-ring disabled:opacity-50"
+                     >
+                         <option value="source-over">Normal</option>
+                         <option value="multiply">Multiply</option>
+                         <option value="screen">Screen</option>
+                         <option value="overlay">Overlay</option>
+                         <option value="darken">Darken</option>
+                         <option value="lighten">Lighten</option>
+                         <option value="color-dodge">Color Dodge</option>
+                         <option value="color-burn">Color Burn</option>
+                         <option value="hard-light">Hard Light</option>
+                         <option value="soft-light">Soft Light</option>
+                         <option value="difference">Difference</option>
+                         <option value="exclusion">Exclusion</option>
+                         <option value="hue">Hue</option>
+                         <option value="saturation">Saturation</option>
+                         <option value="color">Color</option>
+                         <option value="luminosity">Luminosity</option>
+                     </select>
+                 </div>
              </div>
 
              {/* List */}
