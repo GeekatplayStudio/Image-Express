@@ -1824,7 +1824,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                    modelUrl={editingModelUrl}
                                    existingObject={editingModelObject ?? undefined}
                                  onClose={() => { setEditingModelUrl(null); setEditingModelObject(null); }}
-                                 onSave={(dataUrl, currentModelUrl) => {
+                                 onSave={(dataUrl, currentModelUrl, settings) => {
                                      if (canvas) {
                                         fabric.FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' }).then(img => {
                                             if (editingModelObject) {
@@ -1832,6 +1832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 canvas.remove(editingModelObject);
                                             } else { img.scaleToWidth(300); img.set({ left: 300, top: 300, originX: 'center', originY: 'center' }); }
                                             const threeDImg = img as ThreeDImage; threeDImg.is3DModel = true; threeDImg.modelUrl = currentModelUrl;
+                                            (threeDImg as ExtendedFabricObject).threeDSettings = settings;
                                             const modelName = getDisplayName(currentModelUrl);
                                             if (modelName) (threeDImg as ExtendedFabricObject).name = modelName;
                                             canvas.add(threeDImg); canvas.setActiveObject(threeDImg); canvas.requestRenderAll();

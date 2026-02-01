@@ -1,16 +1,18 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
+import { OrbitControls as DreiOrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
 import { Check, X, RotateCw, Loader2, ZoomIn, ZoomOut, Settings2, Sun } from 'lucide-react';
 import * as THREE from 'three';
 import * as fabric from 'fabric';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+import { ExtendedFabricObject, ThreeDSettings } from '@/types';
 
 interface ThreeDLayerEditorProps {
     modelUrl: string;
     existingObject?: fabric.Object; // The fabric object if editing an existing one
-    onSave: (dataUrl: string, modelUrl: string) => void;
+    onSave: (dataUrl: string, modelUrl: string, settings: ThreeDSettings) => void;
     onClose: () => void;
 }
 
@@ -64,8 +66,25 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
     const [groundY, setGroundY] = useState(-1);
 
 
+    const controlsRef = useRef<OrbitControlsImpl | null>(null);
+
     useEffect(() => {
-        if (existingObject) {
+        if (!existingObject) return;
+        const extended = existingObject as ExtendedFabricObject;
+        const settings = extended.threeDSettings;
+
+        if (settings) {
+            setLightPosition(settings.lightPosition);
+            setLightIntensity(settings.lightIntensity);
+            setLightColor(settings.lightColor);
+            setCastShadowEnabled(settings.castShadowEnabled);
+            setCastShadowBlur(settings.castShadowBlur);
+            setCastShadowIntensity(settings.castShadowIntensity);
+            setContactShadowEnabled(settings.contactShadowEnabled);
+            setContactShadowBlur(settings.contactShadowBlur);
+            setContactShadowIntensity(settings.contactShadowIntensity);
+            setResolution(settings.resolution);
+        } else {
             // Try to infer desired resolution from the object on canvas
             // Use 2x scale factor for Retina/HighDPI quality by default
             const scaleX = existingObject.scaleX || 1;
@@ -79,6 +98,22 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
             setResolution({ width: targetW, height: targetH });
         }
     }, [existingObject]);
+
+    useEffect(() => {
+        if (!existingObject) return;
+        const extended = existingObject as ExtendedFabricObject;
+        const settings = extended.threeDSettings;
+        if (!settings || !gl || !controlsRef.current) return;
+
+        const { cameraPosition, cameraTarget } = settings;
+        if (cameraPosition) {
+            gl.camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+        }
+        if (cameraTarget) {
+            controlsRef.current.target.set(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+        }
+        controlsRef.current.update();
+    }, [existingObject, gl]);
 
     // Preload
     useEffect(() => {
@@ -116,13 +151,51 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                 // Force sync render to restore view
                 renderer.render(scene, camera);
 
-                onSave(dataUrl, modelUrl);
+                const controls = controlsRef.current;
+                const settings: ThreeDSettings = {
+                    lightPosition,
+                    lightIntensity,
+                    lightColor,
+                    castShadowEnabled,
+                    castShadowBlur,
+                    castShadowIntensity,
+                    contactShadowEnabled,
+                    contactShadowBlur,
+                    contactShadowIntensity,
+                    resolution,
+                    cameraPosition: controls
+                        ? { x: controls.object.position.x, y: controls.object.position.y, z: controls.object.position.z }
+                        : undefined,
+                    cameraTarget: controls
+                        ? { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+                        : undefined
+                };
+                onSave(dataUrl, modelUrl, settings);
              } catch (e) {
                  console.error("High-res capture failed", e);
                  // Fallback
                  gl.render();
                  const dataUrl = gl.domElement.toDataURL('image/png', 1.0);
-                 onSave(dataUrl, modelUrl);
+                 const controls = controlsRef.current;
+                 const settings: ThreeDSettings = {
+                    lightPosition,
+                    lightIntensity,
+                    lightColor,
+                    castShadowEnabled,
+                    castShadowBlur,
+                    castShadowIntensity,
+                    contactShadowEnabled,
+                    contactShadowBlur,
+                    contactShadowIntensity,
+                    resolution,
+                    cameraPosition: controls
+                        ? { x: controls.object.position.x, y: controls.object.position.y, z: controls.object.position.z }
+                        : undefined,
+                    cameraTarget: controls
+                        ? { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+                        : undefined
+                 };
+                 onSave(dataUrl, modelUrl, settings);
              }
         }
     };
@@ -419,7 +492,7 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                         <Stage environment="city" intensity={0.6} adjustCamera={true} shadows={false}>
                             <ModelViewer url={modelUrl} onGroundY={setGroundY} />
                         </Stage>
-                        <OrbitControls makeDefault autoRotate={false} />
+                        <DreiOrbitControls ref={controlsRef} makeDefault autoRotate={false} />
                     </Canvas>
                     
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted-foreground bg-background/80 px-3 py-1 rounded-full backdrop-blur">
