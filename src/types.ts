@@ -16,6 +16,57 @@ export interface ThreeDImage extends fabric.Image {
     modelUrl?: string;
 }
 
+export type ThreeDSettings = {
+    lightPosition: { x: number; y: number; z: number };
+    lightIntensity: number;
+    lightColor: string;
+    castShadowEnabled: boolean;
+    castShadowBlur: number;
+    castShadowIntensity: number;
+    contactShadowEnabled: boolean;
+    contactShadowBlur: number;
+    contactShadowIntensity: number;
+    resolution: { width: number; height: number };
+    cameraPosition?: { x: number; y: number; z: number };
+    cameraTarget?: { x: number; y: number; z: number };
+};
+
+export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white';
+
+export type CurvesChannel = 'rgb' | 'r' | 'g' | 'b' | 'luminosity';
+
+export type CurvesAdjustmentSettings = {
+    points: Array<{ x: number; y: number }>; // 0..1 normalized points
+    channel?: CurvesChannel;
+    pointsByChannel?: Partial<Record<CurvesChannel, Array<{ x: number; y: number }>>>;
+};
+
+export type LevelsAdjustmentSettings = {
+    black: number; // 0 - 1
+    mid: number; // 0.5 - 2
+    white: number; // 0 - 1
+};
+
+export type SaturationVibranceSettings = {
+    saturation: number; // -1 to 1
+    vibrance: number; // -1 to 1
+};
+
+export type HueSaturationSettings = {
+    hue: number; // -1 to 1
+    saturation: number; // -1 to 1
+    lightness: number; // -1 to 1
+};
+
+export type ExposureSettings = {
+    exposure: number; // -1 to 1
+    contrast: number; // -1 to 1
+};
+
+export type AdjustmentLayerSettings = CurvesAdjustmentSettings | LevelsAdjustmentSettings | SaturationVibranceSettings | HueSaturationSettings | ExposureSettings;
+
+export type FabricBaseFilter = fabric.filters.BaseFilter<string, Record<string, unknown>, Record<string, unknown>>;
+
 export interface ExtendedFabricObject extends fabric.Object {
     id?: string;
     locked?: boolean;
@@ -37,6 +88,11 @@ export interface ExtendedFabricObject extends fabric.Object {
     cacheKey?: string;
     mediaType?: 'video' | 'audio';
     mediaSource?: string;
+    threeDSettings?: ThreeDSettings;
+    isAdjustmentLayer?: boolean;
+    adjustmentType?: AdjustmentLayerType;
+    adjustmentSettings?: AdjustmentLayerSettings;
+    baseFilters?: FabricBaseFilter[];
 }
 
 export interface CanvasElement {
@@ -90,6 +146,16 @@ export interface AssetDescriptor {
     type: AssetType;
     category: AssetCategory;
 }
+
+export type CurvePoint = { x: number; y: number };
+
+export type LayerNode = {
+    id: string;
+    obj: fabric.Object;
+    parentId: string | null;
+    depth: number;
+    children: LayerNode[];
+};
 
 declare global {
     interface DesktopBridge {

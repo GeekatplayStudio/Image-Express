@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { StarPolygon, ThreeDGroup, ExtendedFabricObject } from '@/types';
+import { StarPolygon, ThreeDGroup, ExtendedFabricObject, AdjustmentLayerType } from '@/types';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
@@ -56,8 +56,10 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
 export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys }: ToolbarProps) {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
+    const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
     const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
     const shapesMenuRef = useRef<HTMLDivElement>(null);
+    const adjustmentMenuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
@@ -72,6 +74,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         { name: 'ai-zone', icon: Wand2, label: 'AI Zone' }, 
         { name: '3d-gen', icon: Box, label: 'AI 3D' },
         { name: 'templates', icon: LayoutTemplate, label: 'Library' },
+        { name: 'adjustments', icon: Blend, label: 'Adjustments' },
         { name: 'layers', icon: Layers, label: 'Layers' },
     ];
 
@@ -81,17 +84,27 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
             if (shapesMenuRef.current && !shapesMenuRef.current.contains(event.target as Node)) {
                 setShowShapesMenu(false);
             }
+            if (adjustmentMenuRef.current && !adjustmentMenuRef.current.contains(event.target as Node)) {
+                setShowAdjustmentMenu(false);
+            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     const handleToolClick = (toolName: string) => {
-        if (toolName === 'shapes') {
+           if (toolName === 'shapes') {
              setShowShapesMenu(!showShapesMenu);
+               setShowAdjustmentMenu(false);
              setActiveTool('shapes');
              return;
         }
+           if (toolName === 'adjustments') {
+              setShowAdjustmentMenu(!showAdjustmentMenu);
+              setShowShapesMenu(false);
+              setActiveTool('layers');
+              return;
+           }
 
         // Toggle behavior: Close tool if clicking standard panel icons again
         if (activeTool === toolName) {
@@ -105,6 +118,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
 
         setActiveTool(toolName);
         setShowShapesMenu(false);
+        setShowAdjustmentMenu(false);
         
         // Handle single-action tools
         switch(toolName) {
@@ -194,6 +208,13 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
 
         canvas.add(star);
         canvas.setActiveObject(star);
+    };
+
+    const createAdjustmentLayer = (type: AdjustmentLayerType) => {
+        if (!canvas) return;
+        (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('adjustment:create', { type });
+        setShowAdjustmentMenu(false);
+        setActiveTool('layers');
     };
 
     const addText = () => {
@@ -417,7 +438,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
 
         try {
             // Include custom properties in serialization
-            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor']); 
+            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings']); 
             const dataUrl = canvas.toDataURL({
                 format: 'png',
                 multiplier: 0.5,
@@ -483,8 +504,8 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                     onClick={() => handleToolClick(tool.name)}
                     className={cn(
                         "flex flex-col items-center justify-center gap-1 group relative w-10 h-10 rounded-xl transition-all duration-200 z-20",
-                        activeTool === tool.name 
-                            ? "bg-primary/20 text-primary shadow-sm" 
+                        activeTool === tool.name || (tool.name === 'adjustments' && showAdjustmentMenu)
+                            ? "bg-primary/20 text-primary shadow-sm"
                             : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                     )}
                     title={tool.label}
@@ -573,6 +594,32 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                     <button onClick={addStar} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Star size={20} />
                         <span className="text-[10px]">Star</span>
+                    </button>
+                </div>
+            )}
+
+            {showAdjustmentMenu && (
+                <div
+                    ref={adjustmentMenuRef}
+                    className="absolute left-[80px] top-[130px] bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-50 w-40 animate-in fade-in slide-in-from-left-2 duration-200"
+                >
+                    <button onClick={() => createAdjustmentLayer('curves')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        Curves
+                    </button>
+                    <button onClick={() => createAdjustmentLayer('levels')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        Levels
+                    </button>
+                    <button onClick={() => createAdjustmentLayer('saturation-vibrance')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        Saturation / Vibrance
+                    </button>
+                    <button onClick={() => createAdjustmentLayer('hue-saturation')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        Hue / Saturation
+                    </button>
+                    <button onClick={() => createAdjustmentLayer('exposure')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        Exposure
+                    </button>
+                    <button onClick={() => createAdjustmentLayer('black-white')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        Black & White
                     </button>
                 </div>
             )}

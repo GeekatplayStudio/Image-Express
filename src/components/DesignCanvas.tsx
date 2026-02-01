@@ -178,7 +178,13 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
       preserveObjectStacking: true,
       controlsAboveOverlay: true, 
     });
-        const extendedCanvas = canvas as CanvasWithArtboard;
+    
+    // Initializing filter backend if needed - blocked by readonly fabric namespace in strict mode
+    // if ((fabric as unknown as { Canvas2dFilterBackend?: new () => unknown }).Canvas2dFilterBackend) {
+    //  // (fabric as unknown as { filterBackend?: unknown; Canvas2dFilterBackend?: new () => unknown }).filterBackend = new (fabric as unknown as { Canvas2dFilterBackend: new () => unknown }).Canvas2dFilterBackend();
+    // }
+    
+    const extendedCanvas = canvas as CanvasWithArtboard;
 
         const attachTextDistortControls = () => {
             const renderDistortControl: fabric.Control['render'] = (ctx, left, top, styleOverride, fabricObject) => {
