@@ -152,6 +152,17 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     const syncCanvasMetrics = useCallback(() => {
         if (!canvas) return;
         const extendedCanvas = canvas as CanvasWithArtboard;
+
+        // Prioritize actual Artboard Rect (Object)
+        if (extendedCanvas.artboardRect) {
+             const rect = extendedCanvas.artboardRect;
+             setCanvasWidth(Math.round((rect.width || 0) * (rect.scaleX || 1)));
+             setCanvasHeight(Math.round((rect.height || 0) * (rect.scaleY || 1)));
+             const fill = rect.fill;
+             if (typeof fill === 'string') setCanvasColor(fill);
+             return;
+        }
+
         if (extendedCanvas.artboard) {
             setCanvasWidth(Math.round(extendedCanvas.artboard.width));
             setCanvasHeight(Math.round(extendedCanvas.artboard.height));
@@ -161,7 +172,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
             setCanvasHeight(Math.round((canvas.height || 1080) / zoom));
         }
         
-        if (typeof canvas.backgroundColor === 'string') {
+        if (typeof canvas.backgroundColor === 'string' && canvas.backgroundColor !== 'transparent') {
             setCanvasColor(normalizeColorValue(canvas.backgroundColor) || '#ffffff');
         }
     }, [canvas]);
@@ -1219,7 +1230,29 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         applyAdjustmentLayers();
     };
 
+    const handleRemoveFromFolder = (itemId: string) => {
+        if (!canvas) return;
 
+        const findObj = (id: string, searchSpace: fabric.Object[], parent: fabric.Group | null = null): { obj: fabric.Object, parent: fabric.Group | null } | null => {
+            for (const o of searchSpace) {
+                if ((o as ExtendedFabricObject).id === id) return { obj: o, parent };
+                if (o.type === 'group' && !(o as ExtendedFabricObject).isAdjustmentLayer) {
+                     const res = findObj(id, (o as fabric.Group).getObjects(), o as fabric.Group);
+                     if (res) return res;
+                }
+            }
+            return null;
+        };
+        
+        const canvasObjs = canvas.getObjects();
+        const res = findObj(itemId, canvasObjs);
+        
+        if (res && res.parent) {
+             moveObjectToCanvas(res.obj, res.parent, canvas);
+             canvas.requestRenderAll();
+             updateObjects();
+        }
+    };
 
     const handleLayoutAction = (type: 'align' | 'distribute', value: string) => {
         if (!selectedObject || !canvas) return;
@@ -1507,6 +1540,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 }}
                 onDelete={deleteLayer}
                 onReorder={handleReorder}
+                onRemoveFromFolder={handleRemoveFromFolder}
                 onAddToFolder={handleAddToFolder}
                 onGroup={handleGroup}
                 onUngroup={handleUngroup}
@@ -1535,15 +1569,25 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                      onResize={(w, h) => {
                           if (!canvas) return;
                           const ext = canvas as CanvasWithArtboard;
-                          if (ext.artboardRect) { ext.artboardRect.set({ width: w, height: h }); }
-                          canvas.requestRenderAll();
+                          if (ext.artboardRect) { 
+                              ext.artboardRect.set({ width: w, height: h });
+                              ext.artboardRect.setCoords();
+                              // Update local state immediately to reflect in inputs
+                              setCanvasWidth(w);
+                              setCanvasHeight(h);
+                              // Trigger canvas updates
+                              canvas.requestRenderAll();
+                              canvas.fire('object:modified', { target: ext.artboardRect });
+                          }
                      }}
                      onColorChange={(c) => {
                           if (!canvas) return;
-                          const cvs = canvas;
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any, react-hooks/immutability
-                          (cvs as any).backgroundColor = c;
-                          cvs.requestRenderAll();
+                          const ext = canvas as CanvasWithArtboard;
+                          if (ext.artboardRect) {
+                              ext.artboardRect.set('fill', c);
+                              canvas.requestRenderAll();
+                              setCanvasColor(c);
+                          }
                      }}
                  />
              </div>

@@ -277,6 +277,44 @@ export default function EditorView({
         window.addEventListener('mouseup', upHandler);
     };
 
+    const startPanelResize = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const startX = e.clientX;
+        const startWidth = panelState.width;
+        
+        const moveHandler = (moveEvent: MouseEvent) => {
+            const dx = moveEvent.clientX - startX;
+            setPanelState(prev => {
+                let newWidth = startWidth;
+                
+                if (prev.mode === 'docked-right') {
+                    newWidth = startWidth - dx;
+                } else {
+                    // docked-left or floating (assuming resize right edge)
+                    newWidth = startWidth + dx;
+                }
+                
+                // Constraints
+                if (newWidth < 280) newWidth = 280;
+                if (newWidth > 600) newWidth = 600;
+                
+                return { ...prev, width: newWidth };
+            });
+        };
+
+        const upHandler = () => {
+            document.body.style.cursor = '';
+            window.removeEventListener('mousemove', moveHandler);
+            window.removeEventListener('mouseup', upHandler);
+        };
+        
+        document.body.style.cursor = 'ew-resize';
+        window.addEventListener('mousemove', moveHandler);
+        window.addEventListener('mouseup', upHandler);
+    };
+
     const toggleCollapse = () => {
         setPanelState(prev => {
             if (prev.mode === 'docked-left') return { ...prev, mode: 'collapsed-left' };
@@ -1778,6 +1816,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.progress !== undefined) progress = data.progress;
                     resultUrl = data.model_urls?.glb;
                     thumbnailUrl = data.thumbnail_url;
+
+                    // Handle Meshy V2 Multi-step Refinement (Preview -> Refine)
+                    if (status === 'SUCCEEDED' && job.type === 'text-to-3d' && job.provider === 'meshy' && (!job.stage || job.stage === 'preview')) {
+                        console.log("Preview finished. Starting refinement for textures...");
+                        try {
+                             const refineBody = {
+                                mode: 'refine',
+                                preview_task_id: job.id,
+                                enable_pbr: true,
+                                ai_model: 'meshy-4' 
+                             };
+                             const refineRes = await fetch(`/api/ai/meshy?endpoint=text-to-3d`, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${job.apiKey}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify(refineBody)
+                             });
+                             const refineJson = await refineRes.json();
+                             const refineId = refineJson.result; 
+
+                             if (refineId) {
+                                 // Transition job to Refining state
+                                 const updatedJob: BackgroundJob = {
+                                     ...job,
+                                     id: refineId,
+                                     stage: 'refining',
+                                     status: 'IN_PROGRESS',
+                                     progress: 0
+                                 };
+                                 setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
+                                 return; // Exit to avoid marking as SUCCEEDED
+                             } else {
+                                 console.error("Refine failed to start:", refineJson);
+                                 // Fallback: Just let it succeed as untextured? Or Fail? 
+                                 // Let's log and let it finish as untextured (better than nothing)
+                             }
+                        } catch (e) {
+                            console.error("Refine launch error", e);
+                        }
+                    }
                 }
     
                 if (status === 'SUCCEEDED' || status === 'FAILED') {
@@ -2124,7 +2201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 {/* Left Docked Panel */}
                 {panelState.mode === 'docked-left' && (
-                    <aside style={{ width: panelState.width }} className="bg-card border-r flex flex-col z-10 shadow-xl overflow-hidden shrink-0">
+                    <aside style={{ width: panelState.width }} className="bg-card border-r flex flex-col z-10 shadow-xl overflow-hidden shrink-0 relative">
                         <div className="h-8 bg-muted border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground"><GripHorizontal size={14}/> Properties</div>
                              <div className="flex gap-1">
@@ -2141,6 +2218,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                             />
                         </div>
+                        <div 
+                            className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-primary/50 transition-colors z-50 translation-all delay-75"
+                            onMouseDown={startPanelResize}
+                        />
                     </aside>
                 )}
                  {panelState.mode === 'collapsed-left' && (
@@ -2247,7 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 {/* Right Docked Panel */}
                 {panelState.mode === 'docked-right' && (
-                    <aside style={{ width: panelState.width }} className="bg-card border-l flex flex-col z-10 shadow-xl overflow-hidden shrink-0">
+                    <aside style={{ width: panelState.width }} className="bg-card border-l flex flex-col z-10 shadow-xl overflow-hidden shrink-0 relative">
                          <div className="h-8 bg-muted border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground"><GripHorizontal size={14}/> Properties</div>
                              <div className="flex gap-1">
@@ -2264,6 +2345,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                             />
                         </div>
+                        <div 
+                            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-primary/50 transition-colors z-50"
+                            onMouseDown={startPanelResize}
+                        />
                     </aside>
                 )}
                  {panelState.mode === 'collapsed-right' && (

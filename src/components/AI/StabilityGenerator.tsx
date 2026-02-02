@@ -32,6 +32,7 @@ interface StabilityGeneratorProps {
 
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number };
+    artboardRect?: fabric.Rect;
 };
 
 /**
@@ -59,6 +60,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     // --- Image Data State ---
     const [resultImage, setResultImage] = useState<string | null>(null);         // The final output
     const [selectedCanvasImage, setSelectedCanvasImage] = useState<string | null>(null); // Source image from canvas
+    const [sourceType, setSourceType] = useState<'selection' | 'canvas'>('selection'); 
     
     // --- Inpainting State ---
     const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);         // Generated mask blob URL
@@ -88,19 +90,24 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                      multiplier: 1
                  });
                  setSelectedCanvasImage(dataURL);
+                 setSourceType('selection'); // Auto-switch to selection when user selects
             } else {
                  setSelectedCanvasImage(null);
+                 // Don't auto-switch to canvas here, let user choose, 
+                 // OR we can default to canvas? 
+                 // Let's keep it manual or default to canvas if nothing selected?
+                 // If nothing selected, selectedCanvasImage is null, so UI naturally falls back to "Select something or use canvas" logic.
             }
         };
 
         canvas.on('selection:created', handleSelection);
         canvas.on('selection:updated', handleSelection);
-        canvas.on('selection:cleared', () => setSelectedCanvasImage(null));
+        canvas.on('selection:cleared', handleSelection); // Consolidated clearing
 
         return () => {
-            canvas.off('selection:created', handleSelection);
-            canvas.off('selection:updated', handleSelection);
-            canvas.off('selection:cleared');
+             canvas.off('selection:created', handleSelection);
+             canvas.off('selection:updated', handleSelection);
+             canvas.off('selection:cleared', handleSelection);
         };
     }, [canvas]);
 
@@ -281,14 +288,38 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
              toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
              return;
          }
-         if (!selectedCanvasImage) {
-             toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+         
+         let sourceImage = selectedCanvasImage;
+         if (sourceType === 'canvas' && canvas) {
+             const extCanvas = canvas as CanvasWithArtboard;
+             if (extCanvas.artboardRect) {
+                 const rect = extCanvas.artboardRect;
+                 const left = rect.left ?? 0;
+                 const top = rect.top ?? 0;
+                 const width = (rect.width ?? 0) * (rect.scaleX ?? 1);
+                 const height = (rect.height ?? 0) * (rect.scaleY ?? 1);
+                 
+                 sourceImage = canvas.toDataURL({
+                     format: 'png',
+                     multiplier: 1,
+                     left,
+                     top,
+                     width,
+                     height
+                 });
+             } else {
+                 sourceImage = canvas.toDataURL({ format: 'png', multiplier: 1 });
+             }
+         }
+
+         if (!sourceImage) {
+             toast({ title: 'No image source', description: 'Select an image or use full canvas.', variant: 'warning' });
              return;
          }
          
          setIsProcessing(true);
          try {
-            const blobInfo = await fetch(selectedCanvasImage).then(r => r.blob());
+            const blobInfo = await fetch(sourceImage).then(r => r.blob());
             const formData = new FormData();
             formData.append('image', blobInfo);
             formData.append('prompt', prompt);
@@ -498,41 +529,61 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
 
                     {/* --- TAB: IMAGE TO IMAGE (REIMAGINE) --- */}
                     <TabsContent value="img2img" className="space-y-4">
-                         {!selectedCanvasImage ? (
+                         
+                         <div className="flex items-center space-x-2 bg-muted/30 p-2 rounded-lg">
+                             <Button 
+                                variant={sourceType === 'selection' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                className="flex-1 text-xs"
+                                onClick={() => setSourceType('selection')}
+                                disabled={!selectedCanvasImage}
+                             >
+                                 Selection
+                             </Button>
+                             <Button 
+                                variant={sourceType === 'canvas' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                className="flex-1 text-xs"
+                                onClick={() => setSourceType('canvas')}
+                             >
+                                 Full Canvas
+                             </Button>
+                         </div>
+
+                         {sourceType === 'selection' && !selectedCanvasImage ? (
                              <div className="p-4 border border-dashed rounded text-center text-muted-foreground flex flex-col items-center gap-2">
-                                 <p>Select an object on the canvas first.</p>
-                                 <span className="text-xs font-semibold uppercase opacity-50">- or -</span>
-                                 <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={() => {
-                                        if (canvas) {
-                                            const dataURL = canvas.toDataURL({
-                                                format: 'png',
-                                                multiplier: 1
-                                            });
-                                            setSelectedCanvasImage(dataURL);
-                                        }
-                                    }}
-                                 >
-                                     Use Full Canvas
-                                 </Button>
+                                 <p>Select an object to edit.</p>
+                                 <span className="text-xs opacity-50">- or -</span>
+                                 <Button variant="ghost" size="sm" onClick={() => setSourceType('canvas')} className="underline">Use Full Canvas</Button>
                              </div>
                          ) : (
                              <div className="space-y-4">
-                                 <img src={selectedCanvasImage} alt="Source" className="w-full h-32 object-contain bg-muted" />
+                                 {/* Construct preview manually if canvas mode */}
+                                 {sourceType === 'selection' && selectedCanvasImage && (
+                                     <img src={selectedCanvasImage} alt="Source" className="w-full h-32 object-contain bg-muted/50 rounded border border-border/50" />
+                                 )}
+                                 {sourceType === 'canvas' && (
+                                     <div className="w-full h-24 bg-muted/50 rounded flex items-center justify-center text-xs text-muted-foreground border border-border/50">
+                                         Full Canvas Preview (All Layers)
+                                     </div>
+                                 )}
+
                                  <div className="space-y-2">
                                      <Label>Prompt</Label>
                                      <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Make it look like a sketch..." />
                                  </div>
                                  <div className="space-y-2">
                                      <Label>Strength ({strength[0]})</Label>
-                                     <Slider value={strength} onValueChange={(val) => setStrength(val)} min={0} max={1} step={0.05} data-default="0.7" />
-                                     <p className="text-xs text-muted-foreground">0 = No change, 1 = Full change</p>
+                                     <Slider value={strength} onValueChange={(val) => setStrength(val)} min={0} max={1} step={0.05} />
+                                     <p className="text-[10px] text-muted-foreground flex justify-between">
+                                         <span>Creative (0.0)</span>
+                                         <span>Balanced</span>
+                                         <span>Faithful (1.0)</span>
+                                     </p>
                                  </div>
                                  <Button className="w-full" onClick={handleImg2Img} disabled={isProcessing}>
                                     {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Layers className="mr-2" />}
-                                    Reimagine
+                                    Reimagine {sourceType === 'canvas' ? 'Canvas' : 'Selection'}
                                  </Button>
                              </div>
                          )}

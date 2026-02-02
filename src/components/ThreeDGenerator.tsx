@@ -191,8 +191,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 body = {
                     mode: "preview",
                     prompt: prompt,
-                    // Deprecated parameters removed for Meshy-6
-                    ai_model: "meshy-6", 
+                    art_style: "realistic",
+                    ai_model: "meshy-4", 
                     topology: "quad",
                     should_remesh: true
                 };
@@ -206,7 +206,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                     enable_pbr: true, 
                     should_texture: true, // Always texture
                     should_remesh: true,
-                    ai_model: "meshy-6" 
                 };
             }
 

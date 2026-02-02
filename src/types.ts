@@ -115,6 +115,7 @@ export interface BackgroundJob {
     id: string; // Task ID
     type: 'text-to-3d' | 'image-to-3d' | 'stability-generate' | 'stability-inpaint' | 'stability-upscale' | 'stability-remove-bg';
     provider?: 'meshy' | 'tripo' | 'hitems' | 'stability'; // Added provider field
+    stage?: 'preview' | 'refining'; // For multi-step jobs like Meshy V2
     status: 'PENDING' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED';
     progress?: number;
     prompt?: string;

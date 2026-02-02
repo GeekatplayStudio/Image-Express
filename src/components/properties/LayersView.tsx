@@ -16,6 +16,7 @@ interface LayersViewProps {
     onToggleLock: (obj: fabric.Object) => void;
     onDelete: (obj: fabric.Object) => void;
     onReorder: (activeId: string, overId: string) => void; // Parent handles logic
+    onRemoveFromFolder?: (itemId: string) => void;
     onAddToFolder?: (activeId: string, folderId: string) => void;
     onGroup: () => void;
     onUngroup: () => void;
@@ -38,6 +39,7 @@ export function LayersView({
     onToggleLock,
     onDelete,
     onReorder,
+    onRemoveFromFolder,
     onAddToFolder,
     onGroup,
     onUngroup,
@@ -226,6 +228,7 @@ export function LayersView({
                                  toggleVisibility={onToggleVisibility}
                                  toggleLock={onToggleLock}
                                  deleteLayer={onDelete}
+                                 removeFromFolder={onRemoveFromFolder}
                                  expanded={expanded.has(node.id)}
                                  expandedIds={expanded}
                                  onToggleExpand={handleToggleExpand}

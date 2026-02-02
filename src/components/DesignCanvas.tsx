@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric'; // Import all to be safe with versioning, or named imports
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
+import { ensureObjectId } from '@/lib/fabric-utils';
+import { ExtendedFabricObject } from '@/types';
 
 type ArtboardInfo = {
     width: number;
@@ -277,7 +279,12 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                 warped.warpTR = undefined;
                 warped.warpBR = undefined;
                 warped.warpBL = undefined;
+// Ensure ID and Name to prevent Layer Tree issues
+                ensureObjectId(warped);
+                const extendedWarped = warped as unknown as ExtendedFabricObject;
+                if (!extendedWarped.name) extendedWarped.name = `Warped ${textObj.text?.substring(0, 10) || 'Text'}`;
 
+                
                 targetCanvas.remove(textObj);
                 targetCanvas.add(warped);
                 applyControlsToWarped(warped);

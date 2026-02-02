@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon } from 'lucide-react';
+import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 import { ExtendedFabricObject, LayerNode } from '@/types';
 
 interface SortableLayerItemProps {
@@ -21,9 +21,10 @@ interface SortableLayerItemProps {
     expanded?: boolean;
     expandedIds: Set<string>;
     childrenNodes?: LayerNode[];
+    removeFromFolder?: (id: string) => void;
 }
 
-export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [] }: SortableLayerItemProps) {
+export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [], removeFromFolder }: SortableLayerItemProps) {
     const extendedObj = obj as ExtendedFabricObject;
     const {
         attributes,
@@ -214,6 +215,15 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                 >
                     {isLocked ? <Lock size={14} /> : <Unlock size={14} />}
                 </button>
+                {depth > 0 && removeFromFolder && (
+                     <button
+                        onClick={(e) => { e.stopPropagation(); removeFromFolder(id); }}
+                        className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-primary"
+                        title="Move out of folder"
+                    >
+                        <ArrowLeft size={14} />
+                    </button>
+                )}
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleVisibility(obj); }}
                     className={`p-1.5 hover:bg-secondary rounded-md ${isVisible ? 'text-emerald-500 hover:text-emerald-600' : 'text-rose-500 hover:text-rose-600'}`}
@@ -246,6 +256,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             toggleVisibility={toggleVisibility}
                             toggleLock={toggleLock}
                             deleteLayer={deleteLayer}
+                            removeFromFolder={removeFromFolder}
                             depth={depth + 1}
                             // Recursive props
                             onDblClick={onDblClick}
