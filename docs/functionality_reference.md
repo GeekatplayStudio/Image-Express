@@ -25,6 +25,8 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
 | Feb 1 2026 | `DesignCanvas.tsx` | Locked artboard to bottom and non-selectable | ✅ Done |
 | Feb 1 2026 | `PropertiesPanel.tsx` | Added Curves and Levels filter support to adjustment layers | ✅ Done |
 | Feb 1 2026 | `PaintProperties.tsx` | Added `setCoords()` calls to fix brush stroke positioning | ✅ Done |
+| Feb 2 2026 | `PropertiesPanel.tsx` | Implemented `textEffectConfigUpdate` for parametric text effects | ✅ Done |
+| Feb 2 2026 | `TextEffectsProperties.tsx` | Created UI for Text Effects with per-preset settings | ✅ Done |
 | Feb 1 2026 | Build | `npm run build` passes | ✅ Verified |
 | Feb 1 2026 | Lint | `npm run lint` - warnings only, no errors | ✅ Verified |
 
@@ -103,6 +105,11 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
     - [x] Center slider for curve offset.
     - [x] Quick presets: Flat, Arc↑, Arc↓, Circle.
     - [x] Cubic bezier algorithm for smooth extreme curves.
+- [x] **Text Effects**:
+    - [x] **Vertical Stack**: UI matches Shadow/Stroke properties with expandable sections.
+    - [x] **Individual Toggles**: Each effect (Neon, Glow, etc) has its own enable/disable switch.
+    - [x] **Inline Config**: Sliders and pickers appear inline when an effect is enabled/expanded.
+    - [x] **Mutual Exclusivity**: Turning one effect on automatically disables conflicting ones (clean state).
 
 ## 10. Adjustment Layers
 - [x] **Creation**: Toolbar button creates adjustment layer overlay.

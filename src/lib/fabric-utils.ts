@@ -117,6 +117,7 @@ export const parseColorWithAlpha = (value?: string) => {
 };
 
 export const applyAlphaToColor = (color: string, alpha: number) => {
+    if (!color) return 'rgba(0,0,0,0)';
     const normalized = normalizeColorValue(color) ?? color;
     if (!normalized.startsWith('#')) return normalized;
     const hex = normalized.replace('#', '');

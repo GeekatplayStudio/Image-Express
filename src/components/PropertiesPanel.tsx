@@ -19,6 +19,7 @@ import { LayersView } from './properties/LayersView';
 import { SelectionProperties } from './properties/SelectionProperties';
 import { PaintProperties } from './properties/PaintProperties';
 import { CanvasSettingsPanel } from './properties/CanvasSettingsPanel';
+import { ShadowStrokeValues } from './properties/ShadowStrokeProperties';
 
 // Utils & Libs
 import { 
@@ -117,6 +118,11 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
     // Filters
     const [blurValue, setBlurValue] = useState(0);
+
+    // Text Effects
+    const [activeTextEffects, setActiveTextEffects] = useState<string[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [textEffectConfigs, setTextEffectConfigs] = useState<Record<string, any>>({});
     const [brightnessValue, setBrightnessValue] = useState(0);
     const [contrastValue, setContrastValue] = useState(0);
     const [noiseValue, setNoiseValue] = useState(0);
@@ -427,10 +433,13 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 
                 let sEnabled = custom._strokeEnabled;
                 let bEnabled = custom._borderEnabled;
+                
+                // Check actual stroke visual presence (Fabric defaults strokeWidth=1 even if stroke is null)
+                const hasVisibleStroke = !!target.stroke && target.stroke !== 'transparent';
 
                 // Fallback inference if custom props not set (first load)
-                if (sEnabled === undefined) sEnabled = (currentWidth > 0 && !isBorderMode);
-                if (bEnabled === undefined) bEnabled = (currentWidth > 0 && isBorderMode);
+                if (sEnabled === undefined) sEnabled = (currentWidth > 0 && !isBorderMode && hasVisibleStroke);
+                if (bEnabled === undefined) bEnabled = (currentWidth > 0 && isBorderMode && hasVisibleStroke);
 
                 // Default to OFF if width is 0 or undefined
                 if (currentWidth === 0) {
@@ -505,6 +514,24 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                     setFontWeight((t.fontWeight as string) || 'normal');
                     setCurveStrength(target.curveStrength || 0);
                     setCurveCenter(target.curveCenter || 0);
+                    
+                    // Restore Text Effect State
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const d = (target as any).data || {};
+                    if (d.textEffects) {
+                        setActiveTextEffects(d.textEffects);
+                        setTextEffectConfigs(d.effectConfigs || {});
+                    } else if (d.textEffect) {
+                        setActiveTextEffects([d.textEffect]);
+                        const configs = d.effectConfig ? { [d.textEffect]: d.effectConfig } : {};
+                        setTextEffectConfigs(configs);
+                    } else {
+                        setActiveTextEffects([]);
+                        setTextEffectConfigs({});
+                    }
+                } else {
+                    setActiveTextEffects([]);
+                    setTextEffectConfigs({});
                 }
                 
                 if (target.type === 'image') {
@@ -1086,6 +1113,222 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 selectedObject.set('dirty', true);
              }
         }
+
+        if (prop === 'toggleTextEffect' || prop === 'updateTextEffectConfig') {
+             if (selectedObject.type !== 'text' && selectedObject.type !== 'i-text') return;
+             
+             let newActive = [...activeTextEffects];
+             let newConfigs = { ...textEffectConfigs };
+
+             if (prop === 'toggleTextEffect') {
+                const { preset, enabled } = value as { preset: string, enabled: boolean };
+                if (enabled) {
+                    if (!newActive.includes(preset)) newActive.push(preset);
+                    
+                    // Initialize default config if not present
+                    if (!newConfigs[preset]) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        let defaultConfig: any = {};
+                        switch (preset) {
+                            case 'drop-shadow':
+                                defaultConfig = { color: '#000000', blur: 10, opacity: 0.5, offsetX: 6, offsetY: 6 }; break;
+                            case 'double-outline':
+                                defaultConfig = { strokeColor: '#111827', strokeWidth: 3, shadowColor: '#ffffff', shadowOpacity: 1, shadowOffsetX: 4, shadowOffsetY: 4 }; break;
+                            case 'glow':
+                                defaultConfig = { color: '#00f5ff', blur: 22, opacity: 0.85 }; break;
+                            case 'neon':
+                                defaultConfig = { color: '#ff2bd6', intensity: 30, width: 2 }; break;
+                            case 'highlight':
+                                defaultConfig = { color: '#fde047', opacity: 0.7 }; break;
+                            case 'gradient-fill':
+                                defaultConfig = { start: '#ff5bd5', end: '#48c6ff', angle: 90 }; break;
+                            case 'extrude':
+                                defaultConfig = { color: '#0f172a', depth: 8, opacity: 0.8 }; break;
+                            case 'bevel':
+                                defaultConfig = { highlightColor: '#f8fafc', shadowColor: '#0f172a', width: 2, blur: 6 }; break;
+                            case 'sticker':
+                                defaultConfig = { borderColor: '#ffffff', borderWidth: 8, shadowBlur: 12 }; break;
+                            case 'readability':
+                                defaultConfig = { color: '#000000', opacity: 0.5 }; break;
+                            case 'texture':
+                                defaultConfig = { scale: 1 }; break;
+                        }
+                        newConfigs[preset] = defaultConfig;
+                        setTextEffectConfigs(newConfigs);
+                    }
+                } else {
+                    newActive = newActive.filter(p => p !== preset);
+                }
+                setActiveTextEffects(newActive);
+             } 
+             else if (prop === 'updateTextEffectConfig') {
+                const castValue = value as Record<string, unknown>;
+                const preset = castValue.preset as string;
+                const config = castValue.config;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                newConfigs = { ...newConfigs, [preset]: config as any };
+                setTextEffectConfigs(newConfigs);
+             }
+
+             // Update Object Data
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             const target = selectedObject as unknown as { data: Record<string, any> };
+             target.data = { 
+                 ...(target.data || {}),
+                 textEffects: newActive, 
+                 effectConfigs: newConfigs 
+             };
+
+             
+             const applyTextEffects = () => {
+                 // 1. Reset base effect properties
+                 handlePropChange('shadowStrokeUpdate', {
+                     shadowEnabled: false,
+                     strokeEnabled: false,
+                     borderEnabled: false
+                 });
+                 selectedObject.set('backgroundColor', '');
+                 selectedObject.set('globalCompositeOperation', 'source-over');
+                 
+                 // 2. Apply each active effect
+                 newActive.forEach(preset => {
+                     const config = newConfigs[preset] || {};
+                     switch (preset) {
+                         case 'drop-shadow':
+                             handlePropChange('shadowStrokeUpdate', {
+                                 shadowEnabled: true,
+                                 shadowColor: config.color,
+                                 shadowBlur: config.blur,
+                                 shadowOpacity: config.opacity,
+                                 shadowOffsetX: config.offsetX,
+                                 shadowOffsetY: config.offsetY
+                             });
+                             break;
+                         // Outline case removed
+                         case 'double-outline':
+                             handlePropChange('shadowStrokeUpdate', {
+                                 strokeEnabled: true,
+                                 strokeColor: config.strokeColor,
+                                 strokeWidth: config.strokeWidth,
+                                 strokeOpacity: 1,
+                                 shadowEnabled: true,
+                                 shadowColor: config.shadowColor,
+                                 shadowBlur: 0.001,
+                                 shadowOpacity: config.shadowOpacity,
+                                 shadowOffsetX: config.shadowOffsetX !== undefined ? config.shadowOffsetX : 4,
+                                 shadowOffsetY: config.shadowOffsetY !== undefined ? config.shadowOffsetY : 4
+                             });
+                             break;
+                         case 'glow':
+                             handlePropChange('shadowStrokeUpdate', {
+                                 shadowEnabled: true,
+                                 shadowColor: config.color,
+                                 shadowBlur: config.blur,
+                                 shadowOpacity: config.opacity,
+                                 shadowOffsetX: 0,
+                                 shadowOffsetY: 0
+                             });
+                             break;
+                         case 'neon':
+                             handlePropChange('shadowStrokeUpdate', {
+                                 strokeEnabled: true,
+                                 strokeColor: config.color,
+                                 strokeWidth: config.width,
+                                 strokeOpacity: 1,
+                                 shadowEnabled: true,
+                                 shadowColor: config.color,
+                                 shadowBlur: config.intensity,
+                                 shadowOpacity: 1,
+                                 shadowOffsetX: 0,
+                                 shadowOffsetY: 0
+                             });
+                             break;
+                         case 'highlight':
+                         case 'readability':
+                             selectedObject.set('backgroundColor', applyAlphaToColor(config.color, config.opacity));
+                             if (config.blendMode) selectedObject.set('globalCompositeOperation', config.blendMode);
+                             break;
+                 case 'gradient-fill':
+                     handlePropChange('gradient', {
+                        type: 'linear',
+                        start: config.start,
+                        end: config.end,
+                        angle: config.angle
+                    });
+                     break;
+                         case 'extrude':
+                             handlePropChange('shadowStrokeUpdate', {
+                         shadowEnabled: true,
+                         shadowColor: config.color,
+                         shadowBlur: 0,
+                         shadowOpacity: config.opacity,
+                         shadowOffsetX: config.depth,
+                         shadowOffsetY: config.depth
+                     });
+                     break;
+                         case 'bevel':
+                             handlePropChange('shadowStrokeUpdate', {
+                         strokeEnabled: true,
+                         strokeColor: config.highlightColor, // Using as highlight
+                         strokeWidth: config.width/2,
+                         strokeOpacity: 0.8,
+                         shadowEnabled: true,
+                         shadowColor: config.shadowColor,
+                         shadowBlur: config.blur,
+                         shadowOpacity: 0.5,
+                         shadowOffsetX: config.width,
+                         shadowOffsetY: config.width
+                     });
+                     break;
+                         case 'sticker':
+                             handlePropChange('shadowStrokeUpdate', {
+                         borderEnabled: true,
+                         borderColor: config.borderColor,
+                         borderWidth: config.borderWidth,
+                         borderOpacity: 1,
+                         shadowEnabled: true,
+                         shadowColor: '#000000',
+                         shadowBlur: config.shadowBlur,
+                         shadowOpacity: 0.35,
+                         shadowOffsetX: 4,
+                         shadowOffsetY: 4
+                     });
+                     break;
+                 case 'texture':
+                     // Texture usually static but could have scale
+                     // For now, keep texture static or re-generate if we add controls
+                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                     if (!selectedObject.fill || (selectedObject.fill as any).type !== 'pattern') {
+                        // Re-generate texture
+                        const patternCanvas = document.createElement('canvas');
+                        patternCanvas.width = 64; patternCanvas.height = 64;
+                        const ctx = patternCanvas.getContext('2d');
+                        if (ctx) {
+                            const imageData = ctx.createImageData(64, 64);
+                            for (let i = 0; i < imageData.data.length; i += 4) {
+                                // eslint-disable-next-line react-hooks/purity
+                                const v = Math.floor(Math.random() * 255);
+                                imageData.data[i] = v;
+                                imageData.data[i + 1] = v;
+                                imageData.data[i + 2] = v;
+                                imageData.data[i + 3] = 50;
+                            }
+                            ctx.putImageData(imageData, 0, 0);
+                        }
+                        const pattern = new fabric.Pattern({ source: patternCanvas, repeat: 'repeat' });
+                        selectedObject.set('fill', pattern);
+                        setIsGradient(false);
+                        selectedObject.set('dirty', true);
+                     }
+                     break;
+             }
+            });
+         };
+         applyTextEffects();
+         canvas.requestRenderAll();
+        }
+
+
         
         canvas.requestRenderAll();
         // Force re-render for transform props that don't have their own state
@@ -1621,6 +1864,8 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              onToggleMaskLock={toggleMaskLock}
              updateAdjustment={updateAdjustment}
              textState={{ font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter }}
+             activeTextEffects={activeTextEffects}
+             textEffectConfigs={textEffectConfigs}
              effectState={{ 
                  filters: { 
                      blur: blurValue, brightness: brightnessValue, contrast: contrastValue,

@@ -5,6 +5,7 @@ import { TransformProperties } from './TransformProperties';
 import { LayoutProperties } from './LayoutProperties';
 import { LayerEffectsProperties } from './LayerEffectsProperties';
 import { TextProperties } from './TextProperties';
+import { TextEffectsProperties } from './TextEffectsProperties';
 import { ImageFilterProperties, ImageFilterValues } from './ImageFilterProperties';
 import { ShadowStrokeProperties, ShadowStrokeValues } from './ShadowStrokeProperties';
 import { SkewTaperProperties } from './SkewTaperProperties';
@@ -45,6 +46,9 @@ interface SelectionPropertiesProps {
     
     // Specific state overrides that might not be on object directly or need React state
     textState?: { font: string; weight: string; curve: number; center: number };
+    activeTextEffects?: string[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    textEffectConfigs?: Record<string, any>;
     effectState: { 
         stroke: { color: string; width: number; opacity: number; inside: boolean; blur?: number };
         shadow: { enabled: boolean; color: string; blur: number; offsetX: number; offsetY: number; opacity: number };
@@ -73,6 +77,8 @@ export function SelectionProperties({
     updateAdjustment,
     onMake3D,
     textState,
+    activeTextEffects,
+    textEffectConfigs,
     effectState,
     shadowStrokeState
 }: SelectionPropertiesProps) {
@@ -332,6 +338,7 @@ export function SelectionProperties({
             {/* Strokes & Shadows - Rendered lower in hierarchy now */}
             {!isGroup && !isAdjustment && (
                 <ShadowStrokeProperties 
+                    hideShadows={isText}
                     values={shadowStrokeState || {
                         strokeEnabled: effectState.stroke.width > 0 && effectState.stroke.inside,
                         strokeColor: effectState.stroke.color,
@@ -355,6 +362,15 @@ export function SelectionProperties({
                 />
             )}
 
+
+            {isText && textState && (
+                <TextEffectsProperties
+                    activePresets={activeTextEffects || []}
+                    effectConfigs={textEffectConfigs || {}}
+                    onToggleEffect={(preset, enabled) => onPropChange('toggleTextEffect', { preset, enabled })}
+                    onConfigChange={(preset, config) => onPropChange('updateTextEffectConfig', { preset, config })}
+                />
+            )}
 
             {isText && textState && (
                 <TextProperties 

@@ -32,6 +32,7 @@ export interface ShadowStrokeValues {
 interface ShadowStrokePropertiesProps {
     values: ShadowStrokeValues;
     onValuesChange: (newValues: Partial<ShadowStrokeValues>) => void;
+    hideShadows?: boolean;
 }
 
 const BLEND_MODES = [
@@ -101,7 +102,7 @@ const BlendModeSelect = ({ value, onChange }: { value?: string, onChange: (val: 
     </div>
 );
 
-export function ShadowStrokeProperties({ values, onValuesChange }: ShadowStrokePropertiesProps) {
+export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = false }: ShadowStrokePropertiesProps) {
     const [strokeOpen, setStrokeOpen] = useState(false);
     const [borderOpen, setBorderOpen] = useState(false);
     const [shadowOpen, setShadowOpen] = useState(false);
@@ -224,6 +225,7 @@ export function ShadowStrokeProperties({ values, onValuesChange }: ShadowStrokeP
             </div>
 
             {/* DROP SHADOW SECTION */}
+            {!hideShadows && (
             <div className="bg-background">
                 <div className="flex items-center justify-between w-full p-3 hover:bg-secondary/30 transition-colors group">
                     <button 
@@ -296,6 +298,7 @@ export function ShadowStrokeProperties({ values, onValuesChange }: ShadowStrokeP
                     </div>
                 )}
             </div>
+            )}
         </div>
     );
 }
