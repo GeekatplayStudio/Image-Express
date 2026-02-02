@@ -98,14 +98,16 @@ export class CurvesFilter extends fabric.filters.BaseFilter<'Curves', { points: 
                 const mapped = lut[b];
                 data[i + 2] = Math.round(b + (mapped - b) * intensity);
             } else if (channel === 'luminosity') {
-                 // Master RGB
-                 const mappedR = lut[r];
-                 const mappedG = lut[g];
-                 const mappedB = lut[b];
+                 // Luminosity - changes brightness while attempting to preserve color/saturation
+                 // using simple Y add/sub approach
+                 const val = 0.299 * r + 0.587 * g + 0.114 * b;
+                 const idx = Math.max(0, Math.min(255, Math.round(val)));
+                 const mappedVal = lut[idx];
+                 const diff = (mappedVal - val) * intensity;
                  
-                 data[i] = Math.round(r + (mappedR - r) * intensity);
-                 data[i + 1] = Math.round(g + (mappedG - g) * intensity);
-                 data[i + 2] = Math.round(b + (mappedB - b) * intensity);
+                 data[i] = Math.max(0, Math.min(255, Math.round(r + diff)));
+                 data[i + 1] = Math.max(0, Math.min(255, Math.round(g + diff)));
+                 data[i + 2] = Math.max(0, Math.min(255, Math.round(b + diff)));
 
             } else {
                  // Master RGB

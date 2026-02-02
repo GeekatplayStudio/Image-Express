@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Wand2, Loader2, RotateCw, GripHorizontal } from 'lucide-react';
 import * as fabric from 'fabric';
+import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
 
 /**
@@ -336,6 +337,9 @@ export default function ImageGeneratorModal({
     saveToAssets(generatedImage);
 
     fabric.Image.fromURL(generatedImage, { crossOrigin: 'anonymous' }).then((img) => {
+        const ext = img as ExtendedFabricObject;
+        ext.aiGenerated = true;
+        ext.aiProvider = selectedProvider;
         if (!zoneObjectRef.current) {
              // Use Artboard dimensions if available
              const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };

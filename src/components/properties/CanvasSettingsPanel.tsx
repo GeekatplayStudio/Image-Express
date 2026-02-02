@@ -41,11 +41,15 @@ export function CanvasSettingsPanel({
                         />
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                     {[
-                        { w: 1080, h: 1080, label: 'Square' },
-                        { w: 1920, h: 1080, label: 'Landscape' },
-                        { w: 1080, h: 1920, label: 'Portrait' }
+                        { w: 1080, h: 1080, label: '1:1 (Square)' },
+                        { w: 1920, h: 1080, label: '16:9 (Landscape)' },
+                        { w: 1080, h: 1920, label: '9:16 (Portrait)' },
+                        { w: 1200, h: 1800, label: '2:3 (Poster)' },
+                        { w: 1800, h: 1200, label: '3:2 (Photo)' },
+                        { w: 1440, h: 1080, label: '4:3 (Monitor)' },
+                        { w: 1080, h: 1440, label: '3:4 (Tablet)' },
                     ].map((preset) => (
                         <button
                             key={preset.label}

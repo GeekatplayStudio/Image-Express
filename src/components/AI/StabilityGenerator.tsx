@@ -81,11 +81,13 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
 
         const handleSelection = () => {
             const active = canvas.getActiveObject();
-            if (active && (active.type === 'image' || active instanceof fabric.Image)) {
-                 const img = active as fabric.Image;
-                 // Get the source URL
-                 const src = img.getSrc();
-                 setSelectedCanvasImage(src);
+            if (active) {
+                 // Convert selection (Image or Group) to Data URL
+                 const dataURL = active.toDataURL({
+                     format: 'png',
+                     multiplier: 1
+                 });
+                 setSelectedCanvasImage(dataURL);
             } else {
                  setSelectedCanvasImage(null);
             }
@@ -497,8 +499,24 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                     {/* --- TAB: IMAGE TO IMAGE (REIMAGINE) --- */}
                     <TabsContent value="img2img" className="space-y-4">
                          {!selectedCanvasImage ? (
-                             <div className="p-4 border border-dashed rounded text-center text-muted-foreground">
-                                 Select an image on the canvas first.
+                             <div className="p-4 border border-dashed rounded text-center text-muted-foreground flex flex-col items-center gap-2">
+                                 <p>Select an object on the canvas first.</p>
+                                 <span className="text-xs font-semibold uppercase opacity-50">- or -</span>
+                                 <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => {
+                                        if (canvas) {
+                                            const dataURL = canvas.toDataURL({
+                                                format: 'png',
+                                                multiplier: 1
+                                            });
+                                            setSelectedCanvasImage(dataURL);
+                                        }
+                                    }}
+                                 >
+                                     Use Full Canvas
+                                 </Button>
                              </div>
                          ) : (
                              <div className="space-y-4">

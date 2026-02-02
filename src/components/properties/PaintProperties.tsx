@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import * as fabric from 'fabric';
 import { Wand2 } from 'lucide-react';
 import { ExtendedFabricObject } from '@/types';
-import { getNextIndexedName, getGroupNames, moveObjectToGroup, applyAlphaToColor } from '@/lib/fabric-utils';
+import { moveObjectToGroup, moveObjectToCanvas, applyAlphaToColor } from '@/lib/fabric-utils';
 
 interface PaintPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -22,14 +22,118 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
     const [sprayDensity, setSprayDensity] = useState(20);
     const [paintBlendMode, setPaintBlendMode] = useState('source-over');
     
-    // Check if we have an active "Folder" (Group) for current session
+    // Single "Paint Layer" shared across sessions
     const currentPaintGroupRef = useRef<fabric.Group | null>(null);
+
+    const findPaintGroups = useCallback((objects: fabric.Object[]) => {
+        const results: fabric.Group[] = [];
+        const walk = (list: fabric.Object[]) => {
+            list.forEach((obj) => {
+                if (obj.type === 'group') {
+                    const group = obj as fabric.Group;
+                    const name = (group as ExtendedFabricObject).name || '';
+                    if (name.startsWith('Paint Layer')) results.push(group);
+                    const children = group.getObjects();
+                    if (children.length > 0) walk(children);
+                }
+            });
+        };
+        walk(objects);
+        return results;
+    }, []);
+
+    const ensureSinglePaintLayer = useCallback(() => {
+        if (!canvas) return null;
+
+        const paintGroups = findPaintGroups(canvas.getObjects());
+        let primary = paintGroups[0] || null;
+
+        if (primary && primary.group) {
+            moveObjectToCanvas(primary, primary.group, canvas);
+        }
+
+        const artboard = (canvas as unknown as { artboard?: { width: number; height: number; left: number; top: number } }).artboard;
+        const centerX = (artboard?.left ?? 0) + (artboard?.width ?? canvas.getWidth()) / 2;
+        const centerY = (artboard?.top ?? 0) + (artboard?.height ?? canvas.getHeight()) / 2;
+
+        if (!primary) {
+            const group = new fabric.Group([], {
+                selectable: true,
+                evented: true,
+                originX: 'left',
+                originY: 'top',
+                left: artboard?.left ?? 0,
+                top: artboard?.top ?? 0,
+                width: artboard?.width ?? canvas.getWidth(),
+                height: artboard?.height ?? canvas.getHeight(),
+                layoutManager: new fabric.LayoutManager(new fabric.FixedLayout())
+            });
+            group.set('name', 'Paint Layer');
+
+            const extGroup = group as ExtendedFabricObject;
+            if (!extGroup.id) extGroup.id = `group-${Date.now()}`;
+
+            canvas.add(group);
+            primary = group;
+            if (extGroup.id && onExpandFolder) onExpandFolder(extGroup.id);
+        }
+
+        if (primary) {
+            // Force reset to Artboard Top-Left if it was previously centered
+            const targetLeft = artboard?.left ?? 0;
+            const targetTop = artboard?.top ?? 0;
+            const targetWidth = artboard?.width ?? canvas.getWidth();
+            const targetHeight = artboard?.height ?? canvas.getHeight();
+
+            primary.set({
+                originX: 'left',
+                originY: 'top',
+                left: targetLeft,
+                top: targetTop,
+                width: targetWidth,
+                height: targetHeight
+            });
+
+            if (typeof (primary as unknown as { layoutManager?: unknown }).layoutManager === 'undefined') {
+                (primary as unknown as { layoutManager?: unknown }).layoutManager = new fabric.LayoutManager(new fabric.FixedLayout());
+            }
+            primary.setCoords();
+        }
+
+        if (paintGroups.length > 1 && primary) {
+            paintGroups.slice(1).forEach((group) => {
+                if (group === primary) return;
+                if (group.group) {
+                    moveObjectToCanvas(group, group.group, canvas);
+                }
+                const children = [...group.getObjects()];
+                children.forEach((child) => {
+                    moveObjectToGroup(child, primary!, canvas);
+                });
+                if (group.group) group.group.remove(group);
+                else canvas.remove(group);
+            });
+            canvas.requestRenderAll();
+        }
+
+        currentPaintGroupRef.current = primary;
+        if (primary) canvas.setActiveObject(primary);
+        return primary;
+    }, [canvas, onExpandFolder, findPaintGroups]);
 
     // Reset Paint Group when activeTool changes or unmounts is handled by effect cleanup implicitly if component unmounts
     // But since this component is likely conditionally rendered, we should use mount effect.
     useEffect(() => {
         currentPaintGroupRef.current = null;
     }, []);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        if (activeTool === 'paint') {
+            ensureSinglePaintLayer();
+        }
+    }, [canvas, activeTool, onExpandFolder]);
 
     useEffect(() => {
         if (!canvas) return;
@@ -48,61 +152,45 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
             let group = currentPaintGroupRef.current;
             
             // Check if group is still valid (on canvas)
-            if (group && !canvas.getObjects().includes(group)) {
+              if (group && group.canvas !== canvas) {
                  group = null;
             }
 
-            // [FIX] Try to reuse existing 'Paint Folder' if active group logic failed
-            if (!group) {
-                 // Simple find by name convention
-                 // In a real app we might want ID persistence, but name is what we set in lines below
-                 const existing = canvas.getObjects().find(o => 
-                    o.type === 'group' && ((o as ExtendedFabricObject).name || '').startsWith('Paint Folder')
-                 ) as fabric.Group;
-                 if (existing) {
-                     group = existing;
-                     currentPaintGroupRef.current = group;
-                 }
-            }
+              // If still missing, create a paint layer
+              if (!group) {
+                  group = ensureSinglePaintLayer();
+              }
 
-            if (!group) {
-                // Create new Group
-                group = new fabric.Group([], { 
-                    selectable: true,
-                    evented: true,
-                });
-                const paintFolderName = getNextIndexedName('Paint Folder', getGroupNames(canvas));
-                group.set('name', paintFolderName);
-                
-                // Ensure ID
-                const extGroup = group as ExtendedFabricObject;
-                if (!extGroup.id) extGroup.id = `group-${Date.now()}`;
+              if (!group) return; // Safety check for TypeScript
 
-                // Add group to canvas
-                canvas.add(group);
-                currentPaintGroupRef.current = group;
-                
-                // Auto Expand
-                if (extGroup.id && onExpandFolder) {
-                    onExpandFolder(extGroup.id);
-                }
-            }
+            // group is ensured above
             
-            // [FIX] Properly transform path coordinates before adding to group
-            // Store the absolute position before moving to group
-            const pathLeft = path.left || 0;
-            const pathTop = path.top || 0;
+            // [FIX] New coordinate system: Group origin is Top/Left (matches Canvas/Artboard origin).
             
-            // Calculate group center offset for proper positioning
-            const groupCenter = group.getCenterPoint();
-            const groupLeft = group.left || 0;
-            const groupTop = group.top || 0;
+            // 1. Get path absolute position (Top Left of the bounding box)
+            const pathLeft = path.left;
+            const pathTop = path.top;
             
-            // Move path from canvas to group with preserved coordinates
-            moveObjectToGroup(path, group, canvas);
+            // 2. Remove from canvas
+            canvas.remove(path);
             
-            // Ensure path position is correct relative to group
-            // This fixes the "shifting" issue where brush strokes appear offset
+            // 3. Calculate local coordinates relative to group Top-Left
+            // Since group origin is left/top, (0,0) is group.left/group.top (which matches artboard.left/top)
+            const localX = pathLeft - group.left;
+            const localY = pathTop - group.top;
+            
+            // 4. Update path to use default origin (assumed left/top from freeDrawing) but set correct local pos
+            // We usually want paths to keep their own origin, but standardizing avoids confusion.
+            // FREE DRAWING BRUSH usually creates paths with originX/Y: 'left', 'top' by default in v6.
+             path.set({
+                 left: localX,
+                 top: localY
+             });
+            
+            // 5. Add to group
+            group.add(path);
+            
+            // 6. Update coordinates
             path.setCoords();
             group.setCoords();
             
@@ -113,6 +201,25 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
         canvas.on('path:created', handlePathCreated);
         return () => { canvas.off('path:created', handlePathCreated); };
     }, [canvas, paintBlendMode, onExpandFolder, onObjectsUpdate]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        const syncSelection = () => {
+            const active = canvas.getActiveObject();
+            if (active && active.type === 'group') {
+                const name = (active as ExtendedFabricObject).name || '';
+                if (name.startsWith('Paint Layer')) {
+                    currentPaintGroupRef.current = active as fabric.Group;
+                }
+            }
+        };
+        canvas.on('selection:created', syncSelection);
+        canvas.on('selection:updated', syncSelection);
+        return () => {
+            canvas.off('selection:created', syncSelection);
+            canvas.off('selection:updated', syncSelection);
+        };
+    }, [canvas]);
 
     useEffect(() => {
         if (!canvas) return;

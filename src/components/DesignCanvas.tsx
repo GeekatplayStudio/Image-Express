@@ -420,6 +420,14 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     canvas.sendObjectToBack(artboard);
         extendedCanvas.artboardRect = artboard;
 
+    const keepArtboardAtBack = () => {
+        if (!extendedCanvas.artboardRect) return;
+        canvas.sendObjectToBack(extendedCanvas.artboardRect);
+    };
+    canvas.on('object:added', keepArtboardAtBack);
+    canvas.on('object:modified', keepArtboardAtBack);
+    canvas.on('object:removed', keepArtboardAtBack);
+
     // Center the view on the artboard (Fit within view)
     const centerArtboard = () => {
             const vW = canvas.width!;
@@ -640,9 +648,12 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
             extendedCanvas.getWorkspaceBackground = undefined;
             extendedCanvas.setWorkspaceBackground = undefined;
       if (upperCanvas) upperCanvas.removeEventListener('contextmenu', handleContextMenu);
-      canvas.off('object:modified', notifyModified);
-      canvas.off('object:added', notifyModified);
-      canvas.off('object:removed', notifyModified);
+    canvas.off('object:modified', notifyModified);
+    canvas.off('object:added', notifyModified);
+    canvas.off('object:removed', notifyModified);
+    canvas.off('object:added', keepArtboardAtBack);
+    canvas.off('object:modified', keepArtboardAtBack);
+    canvas.off('object:removed', keepArtboardAtBack);
       window.removeEventListener('keydown', handleKeyDown);
       canvas.dispose();
       resizeObserver.disconnect();
