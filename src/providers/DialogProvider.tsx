@@ -45,26 +45,26 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     type DialogResult = boolean | string | null | undefined;
     const resolveRef = useRef<(value: DialogResult) => void>(() => {});
 
-    const openDialog = (type: DialogType, message: string, options: DialogOptions = {}) => {
+    const openDialog = useCallback((type: DialogType, message: string, options: DialogOptions = {}) => {
         return new Promise<DialogResult>((resolve) => {
             setConfig({ type, message, options });
             setInputValue(options.defaultValue || '');
             setIsOpen(true);
             resolveRef.current = resolve;
         });
-    };
+    }, []);
 
     const alert = useCallback((message: string, options?: DialogOptions) => {
         return openDialog('alert', message, { title: 'Alert', confirmText: 'OK', ...options }).then(() => undefined);
-    }, []);
+    }, [openDialog]);
 
     const confirm = useCallback((message: string, options?: DialogOptions) => {
         return openDialog('confirm', message, { title: 'Confirm', confirmText: 'Confirm', cancelText: 'Cancel', ...options }).then((result) => result === true);
-    }, []);
+    }, [openDialog]);
 
     const prompt = useCallback((message: string, options?: DialogOptions) => {
         return openDialog('prompt', message, { title: 'Input', confirmText: 'OK', cancelText: 'Cancel', ...options }).then((result) => (typeof result === 'string' ? result : null));
-    }, []);
+    }, [openDialog]);
 
     const handleConfirm = () => {
         setIsOpen(false);

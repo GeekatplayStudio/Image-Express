@@ -42,7 +42,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
             const groundedY = bounds.min.y - center.y;
             onGroundY(groundedY);
         }
-    }, [clone]);
+    }, [clone, onGroundY]);
     return <primitive object={clone} />;
 };
 

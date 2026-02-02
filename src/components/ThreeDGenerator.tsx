@@ -11,6 +11,8 @@ import { BackgroundJob } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 
+const SUPPORTED_PROVIDERS = ['meshy', 'tripo', 'hitems'];
+
 interface ThreeDGeneratorProps {
     onAddToCanvas: (dataUrl: string, modelUrl?: string) => void;
     onClose: () => void;
@@ -51,7 +53,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
             const groundedY = bounds.min.y - center.y;
             onGroundY(groundedY);
         }
-    }, [scene]);
+    }, [scene, onGroundY]);
     return <primitive object={scene} />;
 };
 
@@ -102,7 +104,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     // Load API Key
     const [selectedProvider, setSelectedProvider] = useState<string>('meshy');
     // const [availableProviders, setAvailableProviders] = useState<string[]>([]); // Deprecated: Always show all
-    const SUPPORTED_PROVIDERS = ['meshy', 'tripo', 'hitems'];
+    
     const [hasSavedKey, setHasSavedKey] = useState(true); // Assume true initially to prevent flicker
 
     useEffect(() => {

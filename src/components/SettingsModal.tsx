@@ -29,6 +29,8 @@ export const STORAGE_KEYS = {
     COMFY_UI_URL: 'image-express-comfy-url',
 };
 
+const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
+
 export default function SettingsModal({ isOpen, onClose, userId }: SettingsModalProps) {
     // 3D Keys
     const [meshyKey, setMeshyKey] = useState('');
@@ -54,7 +56,6 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
     const [driveConfig, setDriveConfig] = useState<GoogleDriveConfig>(() => loadDriveConfig());
     const [isDriveBusy, setIsDriveBusy] = useState(false);
     const [driveError, setDriveError] = useState<string | null>(null);
-    const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
     const [clientIdInput, setClientIdInput] = useState(envDriveClientId);
     const [showDriveHelp, setShowDriveHelp] = useState(false);
 

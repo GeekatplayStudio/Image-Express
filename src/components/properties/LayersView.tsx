@@ -107,11 +107,13 @@ export function LayersView({
         return build(objects, null, 0);
     }, [objects]);
 
-    const flatten = (nodes: LayerNode[]): LayerNode[] => {
-        return nodes.flatMap(node => [node, ...flatten(node.children)]);
-    };
-    
-    const flatItems = useMemo(() => flatten(layerTree), [layerTree]);
+    const flatItems = useMemo(() => {
+        const flatten = (nodes: LayerNode[]): LayerNode[] => {
+            return nodes.flatMap(node => [node, ...flatten(node.children)]);
+        };
+        return flatten(layerTree);
+    }, [layerTree]);
+
     const itemIds = useMemo(() => flatItems.map(i => i.id), [flatItems]);
 
     const handleDragEnd = (event: DragEndEvent) => {

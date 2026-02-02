@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
@@ -148,7 +148,7 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
     /**
      * Fetches the list of assets from the server based on the active tab.
      */
-    const fetchAssets = async () => {
+    const fetchAssets = useCallback(async () => {
         setIsLoading(true);
         try {
             const config = TAB_CONFIG[activeTab];
@@ -167,12 +167,12 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeTab]);
 
     // Re-fetch when tab changes
     useEffect(() => {
         fetchAssets();
-    }, [activeTab]);
+    }, [fetchAssets]);
 
     /**
      * Handles file selection from system dialog.

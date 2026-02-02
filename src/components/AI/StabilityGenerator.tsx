@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Wand2, Loader2, Image as ImageIcon, Eraser, Move, Layers, Maximize, Check, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Scan } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Wand2, Loader2, Image as ImageIcon, Eraser, Move, Layers, Maximize, Check, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Scan } from 'lucide-react';
 import * as fabric from 'fabric';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -26,7 +26,7 @@ interface StabilityGeneratorProps {
     /** Callback when a long-running job (like video/upscale) is started */
     onJobCreated?: (job: BackgroundJob) => void;
     /** Whether this is running inside another modal (simplified view) */
-    embedded?: boolean;
+    // embedded?: boolean;
     /** Callback to save the generated result to the backend asset library */
     onAssetSave?: (url: string) => void;
 }
@@ -46,7 +46,7 @@ type CanvasWithArtboard = fabric.Canvas & {
  * - Upscaling (Conservative/Creative)
  * - Background Removal
  */
-export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, onJobCreated, embedded, onAssetSave }: StabilityGeneratorProps) {
+export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, onJobCreated, onAssetSave }: StabilityGeneratorProps) {
     const { toast } = useToast();
     // --- UI State ---
     const [activeTab, setActiveTab] = useState('generate');
@@ -54,7 +54,6 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     
     // --- Generation Parameters ---
     const [prompt, setPrompt] = useState('');
-    const [negativePrompt, setNegativePrompt] = useState(''); // Note: Not widely supported in newer Stability Core models
     const [aspectRatio, setAspectRatio] = useState('1:1');
     const [strength, setStrength] = useState([0.35]); // Impact strength for Img2Img (0-1). Lower = closer to original.
     
@@ -72,11 +71,6 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
 
     // --- Outpainting State ---
     const [outpaintDirs, setOutpaintDirs] = useState({ left: false, right: false, up: false, down: false });
-
-    // --- Window Positioning (if not embedded) ---
-    const [position, setPosition] = useState({ x: 100, y: 100 });
-    const [isDragging, setIsDragging] = useState(false);
-    const dragStartRef = useRef({ x: 0, y: 0 });
 
     /**
      * Helper: Handle successful generation (Update UI + Auto-save)
@@ -101,7 +95,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
      * Helper: Extract image data from canvas.
      * Can extract specific object (isolated) OR crop region (all layers).
      */
-    const captureSourceImage = () => {
+    const captureSourceImage = useCallback(() => {
         if (!canvas) return null;
 
         const active = canvas.getActiveObject();
@@ -175,7 +169,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
         }
         
         return null;
-    };
+    }, [canvas, sourceType, flattenSelection]);
 
     /**
      * Effect: Monitor Canvas Selection
@@ -204,7 +198,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
              canvas.off('selection:updated', handleSelection);
              canvas.off('selection:cleared', handleSelection);
         };
-    }, [canvas, sourceType, flattenSelection]); // Re-run if flatten mode changes
+    }, [canvas, captureSourceImage, sourceType, flattenSelection]); // Re-run if flatten mode changes
 
     // Update preview when flatten mode changes
     useEffect(() => {
@@ -212,37 +206,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             const img = captureSourceImage();
             setSelectedCanvasImage(img);
         }
-    }, [flattenSelection]);
-
-    /**
-     * Draggable Logic (Window Movement)
-     * Only active if `embedded` is false/undefined.
-     */
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if ((e.target as HTMLElement).closest('.no-drag')) return;
-        setIsDragging(true);
-        dragStartRef.current = { x: e.clientX - position.x, y: e.clientY - position.y };
-    };
-
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isDragging) return;
-            setPosition({
-                x: e.clientX - dragStartRef.current.x,
-                y: e.clientY - dragStartRef.current.y
-            });
-        };
-        const handleMouseUp = () => setIsDragging(false);
-
-        if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        }
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging]);
+    }, [flattenSelection, captureSourceImage, sourceType, canvas]);
 
     // --- API Handlers ---
 

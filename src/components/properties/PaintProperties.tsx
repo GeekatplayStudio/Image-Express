@@ -133,7 +133,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
         if (activeTool === 'paint') {
             ensureSinglePaintLayer();
         }
-    }, [canvas, activeTool, onExpandFolder]);
+    }, [canvas, activeTool, ensureSinglePaintLayer]);
 
     useEffect(() => {
         if (!canvas) return;
@@ -200,7 +200,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
 
         canvas.on('path:created', handlePathCreated);
         return () => { canvas.off('path:created', handlePathCreated); };
-    }, [canvas, paintBlendMode, onExpandFolder, onObjectsUpdate]);
+    }, [canvas, paintBlendMode, onObjectsUpdate, ensureSinglePaintLayer]);
 
     useEffect(() => {
         if (!canvas) return;
