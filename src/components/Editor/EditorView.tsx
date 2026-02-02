@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import DesignCanvas from '@/components/DesignCanvas';
 import Toolbar from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
@@ -8,11 +8,12 @@ import ThreeDGenerator from '@/components/ThreeDGenerator';
 import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import UserProfileModal from '@/components/UserProfileModal';
+import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
 import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
 import { GridOverlay, GridType } from '@/components/GridOverlay';
-import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive } from 'lucide-react';
+import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject } from '@/types';
 import JSZip from 'jszip';
@@ -106,11 +107,117 @@ export default function EditorView({
     
     // Core Logic States
     const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
+    const canvasRef = useRef<fabric.Canvas | null>(null);
     const [activeTool, setActiveTool] = useState<string>('select');
     const [zoom, setZoom] = useState(1);
     const [isDirty, setIsDirty] = useState(false);
 
-    const handleCanvasModified = useCallback(() => setIsDirty(true), []);
+    const customHistoryProps = useMemo(() => [
+        'id',
+        'gradient',
+        'pattern',
+        'is3DModel',
+        'modelUrl',
+        'isStar',
+        'starPoints',
+        'starInnerRadius',
+        'mediaType',
+        'mediaSource',
+        'layerTagColor',
+        'name',
+        'locked',
+        'curveStrength',
+        'curveCenter',
+        'skewZ',
+        'skewZBaseScale',
+        'skewZBaseScaleX',
+        'skewZBaseScaleY',
+        'skewZBaseSkewX',
+        'skewZBaseSkewY',
+        'taperDirection',
+        'taperBaseLeft',
+        'taperBaseTop',
+        'threeDSettings',
+        'isAdjustmentLayer',
+        'adjustmentType',
+        'adjustmentSettings',
+        'baseFilters',
+        'aiGenerated',
+        'aiProvider'
+    ], []);
+
+    const getHistorySnapshot = useCallback(() => {
+        const activeCanvas = canvasRef.current;
+        if (!activeCanvas) return null;
+        const json = (activeCanvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps);
+        return JSON.stringify(json);
+    }, [customHistoryProps]);
+
+    const refreshHistoryState = useCallback(() => {
+        setHistoryState({ undo: undoStackRef.current.length, redo: redoStackRef.current.length });
+    }, []);
+
+    const resetHistory = useCallback(() => {
+        if (!canvasRef.current) return;
+        const snapshot = getHistorySnapshot();
+        if (!snapshot) return;
+        undoStackRef.current = [snapshot];
+        redoStackRef.current = [];
+        historyReadyRef.current = true;
+        refreshHistoryState();
+    }, [getHistorySnapshot, refreshHistoryState]);
+
+    const pushHistory = useCallback(() => {
+        if (!canvasRef.current || isRestoringRef.current || !historyReadyRef.current) return;
+        const snapshot = getHistorySnapshot();
+        if (!snapshot) return;
+        const undoStack = undoStackRef.current;
+        if (undoStack.length > 0 && undoStack[undoStack.length - 1] === snapshot) return;
+        undoStack.push(snapshot);
+        if (undoStack.length > 50) undoStack.shift();
+        redoStackRef.current = [];
+        refreshHistoryState();
+    }, [getHistorySnapshot, refreshHistoryState]);
+
+    const restoreFromSnapshot = useCallback((snapshot: string) => {
+        const activeCanvas = canvasRef.current;
+        if (!activeCanvas) return;
+        isRestoringRef.current = true;
+        const json = JSON.parse(snapshot);
+        activeCanvas.loadFromJSON(json, () => {
+            activeCanvas.requestRenderAll();
+            isRestoringRef.current = false;
+            setIsDirty(true);
+        });
+    }, []);
+
+    const handleUndo = useCallback(() => {
+        if (!canvasRef.current) return;
+        const undoStack = undoStackRef.current;
+        if (undoStack.length < 2) return;
+        const current = undoStack.pop();
+        if (current) redoStackRef.current.push(current);
+        const previous = undoStack[undoStack.length - 1];
+        if (previous) restoreFromSnapshot(previous);
+        refreshHistoryState();
+    }, [restoreFromSnapshot, refreshHistoryState]);
+
+    const handleRedo = useCallback(() => {
+        if (!canvasRef.current) return;
+        const redoStack = redoStackRef.current;
+        if (redoStack.length === 0) return;
+        const next = redoStack.pop();
+        if (next) {
+            undoStackRef.current.push(next);
+            restoreFromSnapshot(next);
+        }
+        refreshHistoryState();
+    }, [restoreFromSnapshot, refreshHistoryState]);
+
+    const handleCanvasModified = useCallback(() => {
+        setIsDirty(true);
+        pushHistory();
+    }, [pushHistory]);
 
     // Panel State
     const [panelState, setPanelState] = useState<{
@@ -193,6 +300,12 @@ export default function EditorView({
     const [showGridMenu, setShowGridMenu] = useState(false);
     const [gridType, setGridType] = useState<GridType>('none');
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
+    const undoStackRef = useRef<string[]>([]);
+    const redoStackRef = useRef<string[]>([]);
+    const isRestoringRef = useRef(false);
+    const historyReadyRef = useRef(false);
+    const [historyState, setHistoryState] = useState({ undo: 0, redo: 0 });
     
     // Assets & Missing Items
     const [showMissingAssetsModal, setShowMissingAssetsModal] = useState(false);
@@ -210,6 +323,7 @@ export default function EditorView({
     const [editingModelObject, setEditingModelObject] = useState<fabric.Object | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ type: 'video' | 'audio'; url: string } | null>(null);
     const exportRef = useRef<HTMLDivElement>(null);
+    const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
     
     // API Keys State
     const [apiKeys, setApiKeys] = useState<{
@@ -220,6 +334,10 @@ export default function EditorView({
         google?: string,
         banana?: string
     }>({});
+
+    useEffect(() => {
+        canvasRef.current = canvas;
+    }, [canvas]);
 
     // Handle Open Design (Local helpers)
     const handleOpenDesign = useCallback(async (design: { data?: unknown }) => {
@@ -239,12 +357,14 @@ export default function EditorView({
             }
         }
   
+        historyReadyRef.current = false;
         canvas.loadFromJSON(designData as Record<string, unknown>, () => {
             canvas.requestRenderAll();
             // Don't set isDirty, we just opened it
             setIsDirty(false);
+            resetHistory();
         });
-    }, [canvas, toast]);
+    }, [canvas, toast, resetHistory]);
 
 
     // --- Navigation Guard ---
@@ -270,6 +390,29 @@ export default function EditorView({
             onBack();
         }
     };
+
+    useEffect(() => {
+        if (!canvas) return;
+        const handler = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null;
+            const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || (target as HTMLElement).isContentEditable);
+            if (isInput) return;
+
+            const key = e.key.toLowerCase();
+            const meta = e.metaKey || e.ctrlKey;
+            if (!meta) return;
+
+            if (!e.shiftKey && key === 'z') {
+                e.preventDefault();
+                handleUndo();
+            } else if (key === 'y' || (e.shiftKey && key === 'z')) {
+                e.preventDefault();
+                handleRedo();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [canvas, handleUndo, handleRedo]);
 
     // --- Save Logic ---
     const handleSave = async () => {
@@ -379,6 +522,100 @@ export default function EditorView({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    useEffect(() => {
+        const stored = loadProfileSettings();
+        if (stored) setProfileSettings(stored);
+    }, []);
+
+    const buildProfileOverlayText = (profile: UserProfileSettings, fallbackUser: string) => {
+        const lines: string[] = [];
+        if (profile.displayName) lines.push(profile.displayName);
+        if (profile.username && profile.username !== fallbackUser) lines.push(`@${profile.username}`);
+        if (profile.email) lines.push(profile.email);
+        if (profile.info) lines.push(profile.info);
+        return lines.join('\n');
+    };
+
+    const isAIGeneratedUsed = () => {
+        if (!canvas) return false;
+        return canvas.getObjects().some((obj) => (obj as ExtendedFabricObject).aiGenerated);
+    };
+
+    const withExportOverlays = async (action: () => void | Promise<void>) => {
+        if (!canvas) return;
+        const profile = profileSettings;
+        const overlays: fabric.Object[] = [];
+        const aiUsed = isAIGeneratedUsed();
+
+        const profileText = profile?.embedInfo ? buildProfileOverlayText(profile, user) : '';
+        const active = canvas.getActiveObject();
+        const padding = 12;
+        const canvasStack = canvas as fabric.Canvas & {
+            bringToFront?: (obj: fabric.Object) => void;
+            moveTo?: (obj: fabric.Object, index: number) => void;
+        };
+
+        if (profileText) {
+            const width = Math.min(320, Math.max(160, (canvas.width || 0) * 0.35));
+            const overlay = new fabric.Textbox(profileText, {
+                width,
+                fontSize: 12,
+                lineHeight: 1.2,
+                fill: 'rgba(0,0,0,0.85)',
+                backgroundColor: 'rgba(255,255,255,0.6)',
+                selectable: false,
+                evented: false,
+                opacity: 0.9
+            });
+
+            overlay.set({
+                left: (canvas.width || 0) - width - padding,
+                top: (canvas.height || 0) - (overlay.height || 0) - padding
+            });
+            canvas.add(overlay);
+            overlays.push(overlay);
+        }
+
+        if (aiUsed) {
+            const aiOverlay = new fabric.Textbox('AI-generated content used', {
+                width: 240,
+                fontSize: 11,
+                lineHeight: 1.1,
+                fill: 'rgba(0,0,0,0.8)',
+                backgroundColor: 'rgba(255,255,255,0.6)',
+                selectable: false,
+                evented: false,
+                opacity: 0.9
+            });
+            aiOverlay.set({
+                left: padding,
+                top: (canvas.height || 0) - (aiOverlay.height || 0) - padding
+            });
+            canvas.add(aiOverlay);
+            overlays.push(aiOverlay);
+        }
+
+        overlays.forEach((o) => {
+            if (canvasStack.bringToFront) {
+                canvasStack.bringToFront(o);
+            } else if (canvasStack.moveTo) {
+                canvasStack.moveTo(o, canvas.getObjects().length - 1);
+            }
+        });
+
+        if (overlays.length > 0) {
+            canvas.requestRenderAll();
+        }
+
+        await action();
+
+        overlays.forEach((o) => canvas.remove(o));
+        if (active) {
+            canvas.setActiveObject(active);
+        }
+        canvas.requestRenderAll();
+    };
+
     const handleExport = async (format: 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html') => {
         if (!canvas) return;
         try {
@@ -388,26 +625,30 @@ export default function EditorView({
     
             switch (format) {
                 case 'png':
-                    dataUrl = canvas.toDataURL({
-                        format: 'png',
-                        quality: 1,
-                        multiplier: 1,
-                        enableRetinaScaling: true
+                    await withExportOverlays(async () => {
+                        dataUrl = canvas.toDataURL({
+                            format: 'png',
+                            quality: 1,
+                            multiplier: 1,
+                            enableRetinaScaling: true
+                        });
+                        downloadFile(dataUrl, filename);
                     });
-                    downloadFile(dataUrl, filename);
                     break;
                 case 'jpg':
-                    const originalBg = canvas.backgroundColor;
-                    canvas.set('backgroundColor', '#ffffff');
-                    dataUrl = canvas.toDataURL({
-                        format: 'jpeg',
-                        quality: 0.9,
-                        multiplier: 1,
-                        enableRetinaScaling: true
+                    await withExportOverlays(async () => {
+                        const originalBg = canvas.backgroundColor;
+                        canvas.set('backgroundColor', '#ffffff');
+                        dataUrl = canvas.toDataURL({
+                            format: 'jpeg',
+                            quality: 0.9,
+                            multiplier: 1,
+                            enableRetinaScaling: true
+                        });
+                        downloadFile(dataUrl, filename);
+                        canvas.set('backgroundColor', originalBg);
+                        canvas.requestRenderAll();
                     });
-                    downloadFile(dataUrl, filename);
-                    canvas.set('backgroundColor', originalBg); 
-                    canvas.requestRenderAll();
                     break;
                 case 'svg':
                     const svgContent = canvas.toSVG();
@@ -415,22 +656,24 @@ export default function EditorView({
                     const url = URL.createObjectURL(blob);
                     downloadFile(url, filename);
                     break;
-                 case 'pdf':
-                    const pdfWidth = canvas.width!;
-                    const pdfHeight = canvas.height!;
-                    const pdf = new jsPDF({
-                        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
-                        unit: 'px',
-                        format: [pdfWidth, pdfHeight]
+                      case 'pdf':
+                          await withExportOverlays(async () => {
+                        const pdfWidth = canvas.width!;
+                        const pdfHeight = canvas.height!;
+                        const pdf = new jsPDF({
+                            orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+                            unit: 'px',
+                            format: [pdfWidth, pdfHeight]
+                        });
+                        const imgData = canvas.toDataURL({
+                            format: 'png',
+                            quality: 1,
+                            multiplier: 1,
+                            enableRetinaScaling: true
+                        });
+                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                        pdf.save(filename);
                     });
-                    const imgData = canvas.toDataURL({
-                        format: 'png',
-                        quality: 1,
-                        multiplier: 1,
-                        enableRetinaScaling: true
-                    });
-                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                    pdf.save(filename);
                     break;
                 case 'json':
                     const json = JSON.stringify(canvas.toJSON());
@@ -1177,16 +1420,18 @@ document.addEventListener('DOMContentLoaded', () => {
                setPendingTemplateJson(json);
                setShowMissingAssetsModal(true);
            } else {
-               canvas.loadFromJSON(json, () => {
+                historyReadyRef.current = false;
+                canvas.loadFromJSON(json, () => {
                    canvas.requestRenderAll();
                    setIsDirty(false);
+                    resetHistory();
                });
            }
         } catch (e) {
             console.error("Failed to load template", e);
             toast({ title: 'Load failed', description: 'Error loading template file.', variant: 'destructive' });
         }
-    }, [canvas, toast]);
+    }, [canvas, toast, resetHistory]);
 
     // --- Loading Logic ---
     useEffect(() => {
@@ -1202,6 +1447,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
     }, [canvas, initialDesign, initialTemplateJsonUrl, handleLoadTemplate, handleOpenDesign]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        if (!initialTemplateJsonUrl && !initialDesign) {
+            resetHistory();
+        }
+    }, [canvas, initialDesign, initialTemplateJsonUrl, resetHistory]);
     
     // --- Resolving Missing Assets ---
     const handleResolveMissing = (replaceMap: Record<string, string> | null) => {
@@ -1222,12 +1474,14 @@ document.addEventListener('DOMContentLoaded', () => {
                  json.objects.splice(idx, 1);
             });
         }
+        historyReadyRef.current = false;
         canvas.loadFromJSON(json, () => {
             canvas.requestRenderAll();
             setIsDirty(false);
             setPendingTemplateJson(null);
             setMissingItems([]);
             setShowMissingAssetsModal(false);
+            resetHistory();
         });
     };
 
@@ -1264,6 +1518,42 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.requestRenderAll();
         setZoom(newZoom);
     };
+
+    const handleCaptureVideoFrame = useCallback(() => {
+        if (!canvas || !mediaPreview || mediaPreview.type !== 'video') return;
+        const video = videoPreviewRef.current;
+        if (!video) return;
+
+        const width = video.videoWidth || 1280;
+        const height = video.videoHeight || 720;
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const ctx = tempCanvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.drawImage(video, 0, 0, width, height);
+        const dataUrl = tempCanvas.toDataURL('image/png');
+
+        fabric.FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' }).then((img) => {
+            if (!img || !canvas) return;
+            const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+            const viewW = artboard.width;
+            const viewH = artboard.height;
+
+            if (img.width! > viewW * 0.8 || img.height! > viewH * 0.8) {
+                const scale = Math.min((viewW * 0.8) / img.width!, (viewH * 0.8) / img.height!);
+                img.scale(scale);
+            }
+
+            canvas.centerObject(img);
+            canvas.add(img);
+            canvas.setActiveObject(img);
+            canvas.requestRenderAll();
+            setMediaPreview(null);
+            setActiveTool('select');
+        });
+    }, [canvas, mediaPreview, setActiveTool]);
 
     // Sync UI zoom state with Canvas events (e.g. Mouse Wheel)
     useEffect(() => {
@@ -1574,6 +1864,22 @@ document.addEventListener('DOMContentLoaded', () => {
                      >
                         <Save size={20} />
                      </button>
+                                         <button
+                                                onClick={handleUndo}
+                                                disabled={historyState.undo < 2}
+                                                className={`p-2 rounded-full transition-colors ${historyState.undo < 2 ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+                                                title="Undo"
+                                            >
+                                                <Undo2 size={18} />
+                                            </button>
+                                         <button
+                                                onClick={handleRedo}
+                                                disabled={historyState.redo < 1}
+                                                className={`p-2 rounded-full transition-colors ${historyState.redo < 1 ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+                                                title="Redo"
+                                            >
+                                                <Redo2 size={18} />
+                                            </button>
         
                             <button 
                                 onClick={onOpenSettings}
@@ -1677,7 +1983,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         )}
                      </div>
-                     <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 ring-2 ring-background ml-2"></div>
+                     <button
+                        onClick={() => setShowProfileModal(true)}
+                        className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"
+                        title="User Profile"
+                     >
+                        {profileSettings?.image ? (
+                            <img
+                                src={profileSettings.image}
+                                alt="Profile"
+                                className="w-full h-full object-cover"
+                                style={{ transform: `scale(${profileSettings.imageScale || 1})`, transformOrigin: 'center' }}
+                            />
+                        ) : (
+                            <User size={16} className="text-white/90" />
+                        )}
+                     </button>
                  </div>
             </header>
 
@@ -1690,7 +2011,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 onLogout={() => {
                     setShowProfileModal(false);
                     onLogout();
-                }} 
+                }}
+                onProfileUpdate={(profile) => setProfileSettings(profile)}
             />
             
             {showAssetBrowserForMissing && (
@@ -1734,13 +2056,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                     {mediaPreview.url}
                                 </span>
                             </div>
-                            <button
-                                onClick={() => setMediaPreview(null)}
-                                className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                                aria-label="Close media player"
-                            >
-                                <X size={16} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                {mediaPreview.type === 'video' && (
+                                    <button
+                                        onClick={handleCaptureVideoFrame}
+                                        className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors"
+                                    >
+                                        Capture Frame
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setMediaPreview(null)}
+                                    className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label="Close media player"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
                         </div>
                         <div className="p-4 bg-background">
                             {mediaPreview.type === 'video' ? (
@@ -1748,6 +2080,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     key={mediaPreview.url}
                                     src={mediaPreview.url}
                                     controls
+                                    ref={videoPreviewRef}
                                     className="w-full max-h-[70vh] rounded-lg bg-black"
                                 />
                             ) : (
@@ -1769,7 +2102,21 @@ document.addEventListener('DOMContentLoaded', () => {
                      <Toolbar 
                         canvas={canvas} 
                         activeTool={activeTool} 
-                        setActiveTool={setActiveTool} 
+                        setActiveTool={(tool) => {
+                             if (tool === '3d-gen' && canvas) {
+                                 const active = canvas.getActiveObject();
+                                 if (active) {
+                                     // Snapshot the active object to use as 3D source
+                                     const dataUrl = active.toDataURL({ format: 'png', multiplier: 2 });
+                                     setInitialImageFor3D(dataUrl);
+                                     setSourceObjectFor3D(active);
+                                 } else {
+                                     setInitialImageFor3D(undefined);
+                                     setSourceObjectFor3D(null);
+                                 }
+                             }
+                             setActiveTool(tool);
+                        }} 
                         onOpen3DEditor={(url) => setEditingModelUrl(url)} 
                         apiKeys={apiKeys} 
                      />

@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { StarPolygon, ThreeDGroup, ExtendedFabricObject, AdjustmentLayerType } from '@/types';
 import AssetLibrary from './AssetLibrary';
@@ -9,6 +9,7 @@ import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
 import ImageGeneratorModal from './ImageGeneratorModal';
 import { useToast } from '@/providers/ToastProvider';
+import { loadProfileSettings } from '@/lib/profile-utils';
 
 /**
  * Toolbar
@@ -66,7 +67,8 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
     // Reordered tools based on standard workflows
     const tools = [
         { name: 'select', icon: Move, label: 'Select' },
-        { name: 'paint', icon: Brush, label: 'Paint' },
+        { name: 'paint', icon: Brush, label: 'Brush' },
+        { name: 'pen', icon: PenTool, label: 'Pen' },
         { name: 'shapes', icon: Shapes, label: 'Shapes' },
         { name: 'text', icon: Type, label: 'Text' },
         { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
@@ -77,6 +79,117 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         { name: 'adjustments', icon: Blend, label: 'Adjustments' },
         { name: 'layers', icon: Layers, label: 'Layers' },
     ];
+
+    const [penPoints, setPenPoints] = useState<{ x: number; y: number }[]>([]);
+    const [penActiveLine, setPenActiveLine] = useState<fabric.Polyline | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [penTempLine, setPenTempLine] = useState<fabric.Line | null>(null);
+
+    const finishPenPath = useCallback(() => {
+        if (!canvas || !penActiveLine || penPoints.length < 3) {
+            // If less than 3 points, just clear
+            if (penActiveLine) canvas?.remove(penActiveLine);
+            setPenPoints([]);
+            setPenActiveLine(null);
+            return;
+        }
+
+        // Create final Polygon
+        const finalPoints = [...penPoints];
+        canvas.remove(penActiveLine);
+
+        const polygon = new fabric.Polygon(finalPoints, {
+            fill: '#cccccc',
+            stroke: '#3b82f6',
+            strokeWidth: 2,
+            objectCaching: false,
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (polygon as any).name = 'Vector Shape';
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (polygon as any).id = `shape-${Date.now()}`;
+
+        canvas.add(polygon);
+        canvas.setActiveObject(polygon);
+        canvas.requestRenderAll();
+
+        setPenPoints([]);
+        setPenActiveLine(null);
+        setActiveTool('select'); // Switch back to select
+    }, [canvas, penActiveLine, penPoints, setActiveTool]);
+
+    // Pen Tool Logic (Interactive Polyline)
+    useEffect(() => {
+        if (!canvas) return;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handleMouseDown = (opt: any) => {
+            if (activeTool !== 'pen') return;
+            if (!opt.scenePoint) return;
+            const pointer = opt.scenePoint;
+
+            // Check validity of closing loop
+            if (penPoints.length > 2) {
+                const first = penPoints[0];
+                const dist = Math.sqrt(Math.pow(pointer.x - first.x, 2) + Math.pow(pointer.y - first.y, 2));
+                if (dist < 20) {
+                    finishPenPath();
+                    return;
+                }
+            }
+
+            // START or CONTINUE
+            const points = [...penPoints, { x: pointer.x, y: pointer.y }];
+            setPenPoints(points);
+
+            if (points.length === 1) {
+                // First dot
+                const poly = new fabric.Polyline([{ x: pointer.x, y: pointer.y }, { x: pointer.x, y: pointer.y }], {
+                    fill: 'transparent',
+                    stroke: '#3b82f6',
+                    strokeWidth: 2,
+                    objectCaching: false,
+                    selectable: false,
+                    evented: false,
+                    originX: 'left',
+                    originY: 'top'
+                });
+                canvas.add(poly);
+                setPenActiveLine(poly);
+            } else {
+                if (penActiveLine) {
+                    // Update existing polyline with new point
+                    // Note: fabric.Polyline expects points array. We need to reset it.
+                    // IMPORTANT: V6 might need specific set handling
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (penActiveLine as any).points = points;
+                    penActiveLine.set('dirty', true);
+                    canvas.requestRenderAll();
+                }
+            }
+        };
+
+        const handleMouseMove = () => {
+            if (activeTool !== 'pen' || penPoints.length === 0) return;
+            // Draw temp line from last point to cursor? 
+            // Currently simplified: just click click
+        };
+
+        const handleDblClick = () => {
+             if (activeTool !== 'pen') return;
+             finishPenPath();
+        };
+
+        canvas.on('mouse:down', handleMouseDown);
+        canvas.on('mouse:move', handleMouseMove);
+        canvas.on('mouse:dblclick', handleDblClick);
+
+        return () => {
+             canvas.off('mouse:down', handleMouseDown);
+             canvas.off('mouse:move', handleMouseMove);
+             canvas.off('mouse:dblclick', handleDblClick);
+        };
+    }, [canvas, activeTool, penPoints, penActiveLine, finishPenPath]);
 
     // Close shapes menu when clicking outside
     useEffect(() => {
@@ -210,6 +323,40 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         canvas.setActiveObject(star);
     };
 
+    const addArrow = () => {
+        if (!canvas) return;
+        const points = [
+            { x: 0, y: 20 },
+            { x: 60, y: 20 },
+            { x: 60, y: 0 },
+            { x: 110, y: 40 },
+            { x: 60, y: 80 },
+            { x: 60, y: 60 },
+            { x: 0, y: 60 }
+        ];
+        const arrow = new fabric.Polygon(points, {
+            left: 120,
+            top: 120,
+            fill: '#22c55e',
+            objectCaching: false
+        });
+        canvas.add(arrow);
+        canvas.setActiveObject(arrow);
+    };
+
+    const addSpeechBubble = () => {
+        if (!canvas) return;
+        const pathData = 'M 20 0 H 140 A 20 20 0 0 1 160 20 V 80 A 20 20 0 0 1 140 100 H 70 L 50 120 L 50 100 H 20 A 20 20 0 0 1 0 80 V 20 A 20 20 0 0 1 20 0 Z';
+        const bubble = new fabric.Path(pathData, {
+            left: 140,
+            top: 140,
+            fill: '#f97316',
+            objectCaching: false
+        });
+        canvas.add(bubble);
+        canvas.setActiveObject(bubble);
+    };
+
     const createAdjustmentLayer = (type: AdjustmentLayerType) => {
         if (!canvas) return;
         (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('adjustment:create', { type });
@@ -315,8 +462,12 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         }).then((img) => {
              const isDataUrl = data.startsWith('data:');
              const displayName = nameOverride || (!isDataUrl ? getFileDisplayName(data) : undefined);
+             const ext = img as ExtendedFabricObject;
              if (displayName) {
-                 (img as ExtendedFabricObject).name = displayName;
+                 ext.name = displayName;
+             }
+             if (!isDataUrl && data.includes('/assets/generated/')) {
+                 ext.aiGenerated = true;
              }
              // Use Artboard dimensions if available, else fallback to canvas or default
              const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
@@ -439,11 +590,53 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         try {
             // Include custom properties in serialization
             const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings']); 
+            const profile = loadProfileSettings();
+            if (profile?.embedInfo) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (json as any).meta = { ...(json as any).meta, profileInfo: profile };
+            }
+
+            let overlay: fabric.Textbox | null = null;
+            if (profile?.embedInfo) {
+                const lines: string[] = [];
+                if (profile.displayName) lines.push(profile.displayName);
+                if (profile.username) lines.push(`@${profile.username}`);
+                if (profile.email) lines.push(profile.email);
+                if (profile.info) lines.push(profile.info);
+                const text = lines.join('\n');
+
+                if (text) {
+                    const padding = 12;
+                    const width = Math.min(320, Math.max(160, (canvas.width || 0) * 0.35));
+                    overlay = new fabric.Textbox(text, {
+                        width,
+                        fontSize: 12,
+                        lineHeight: 1.2,
+                        fill: 'rgba(0,0,0,0.85)',
+                        backgroundColor: 'rgba(255,255,255,0.6)',
+                        selectable: false,
+                        evented: false,
+                        opacity: 0.9
+                    });
+                    overlay.set({
+                        left: (canvas.width || 0) - width - padding,
+                        top: (canvas.height || 0) - (overlay.height || 0) - padding
+                    });
+                    canvas.add(overlay);
+                    canvas.requestRenderAll();
+                }
+            }
+
             const dataUrl = canvas.toDataURL({
                 format: 'png',
                 multiplier: 0.5,
                 quality: 0.8
             });
+
+            if (overlay) {
+                canvas.remove(overlay);
+                canvas.requestRenderAll();
+            }
 
             const res = await fetch('/api/templates/save', {
                 method: 'POST',
@@ -577,7 +770,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
             {showShapesMenu && (
                 <div 
                     ref={shapesMenuRef}
-                    className="absolute left-[80px] top-[70px] bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-50 w-32 animate-in fade-in slide-in-from-left-2 duration-200"
+                    className="absolute left-[80px] top-[70px] bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-50 w-40 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
                     <button onClick={addRectangle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Square size={20} />
@@ -594,6 +787,14 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                     <button onClick={addStar} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Star size={20} />
                         <span className="text-[10px]">Star</span>
+                    </button>
+                    <button onClick={addArrow} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <ArrowRight size={20} />
+                        <span className="text-[10px]">Arrow</span>
+                    </button>
+                    <button onClick={addSpeechBubble} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <MessageSquare size={20} />
+                        <span className="text-[10px]">Bubble</span>
                     </button>
                 </div>
             )}

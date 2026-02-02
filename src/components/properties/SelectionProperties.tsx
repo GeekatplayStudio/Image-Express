@@ -9,7 +9,7 @@ import { ImageFilterProperties, ImageFilterValues } from './ImageFilterPropertie
 import { ShadowStrokeProperties, ShadowStrokeValues } from './ShadowStrokeProperties';
 import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
-import { GripVertical, Folder, FolderPlus, Layers, Blend, ChevronDown, ChevronRight } from 'lucide-react';
+import { GripVertical, Folder, FolderPlus, Layers, Blend, ChevronDown, ChevronRight, Scissors, Lock, Unlock, Box } from 'lucide-react';
 
 interface SelectionPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -31,7 +31,9 @@ interface SelectionPropertiesProps {
     onGroup: () => void;
     onUngroup: () => void;
     onCreateMask: () => void;
+    onCreateClip: () => void;
     onReleaseMask: () => void;
+    onToggleMaskLock?: () => void;
     
     // Sub-component specific handlers (pass-through helpers from parent would be ideal, 
     // but for now we might need to assume parent handles the heavy lifting via onPropChange or specific props)
@@ -39,6 +41,7 @@ interface SelectionPropertiesProps {
     
     // We'll define specific ones for clarity where complex
     updateAdjustment: (settings: AdjustmentLayerSettings) => void;
+    onMake3D?: (imageUrl: string) => void;
     
     // Specific state overrides that might not be on object directly or need React state
     textState?: { font: string; weight: string; curve: number; center: number };
@@ -64,8 +67,11 @@ export function SelectionProperties({
     onGroup,
     onUngroup,
     onCreateMask,
+    onCreateClip,
     onReleaseMask,
+    onToggleMaskLock,
     updateAdjustment,
+    onMake3D,
     textState,
     effectState,
     shadowStrokeState
@@ -75,6 +81,10 @@ export function SelectionProperties({
 
     const isMultiple = selectedObjects.length > 1;
     const isGroup = selectedObject?.type === 'group';
+    const isMasked = !!selectedObject?.clipPath;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isMaskAbsolute = isMasked ? (selectedObject?.clipPath as any).absolutePositioned : false;
+    
     const isAdjustment = (selectedObject as ExtendedFabricObject)?.isAdjustmentLayer;
     const extended = selectedObject as ExtendedFabricObject;
     const isImage = selectedObject?.type === 'image';
@@ -95,13 +105,19 @@ export function SelectionProperties({
                 </div>
                 
                 <div className="p-4 flex gap-2 justify-center border-b border-border/50">
-                    <button onClick={onGroup} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs">
+                    <button onClick={onGroup} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]">
                         <Folder size={20} /> Group
                     </button>
                     {selectedObjects.length === 2 && (
-                         <button onClick={onCreateMask} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs">
-                            <Blend size={20} /> Mask
-                        </button>
+                        <>
+                            <div className="w-px bg-border mx-2" />
+                            <button onClick={onCreateMask} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Top object masks bottom object">
+                                <Blend size={20} /> Mask
+                            </button>
+                            <button onClick={onCreateClip} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Bottom object clips top object">
+                                <Scissors size={20} /> Clip
+                            </button>
+                        </>
                     )}
                 </div>
 
@@ -147,17 +163,29 @@ export function SelectionProperties({
             />
             
             {/* Quick Actions (Contextual) */}
-            {(isGroup || selectedObject.clipPath) && (
-                <div className="p-2 border-b border-border/50 flex gap-1 justify-around">
+            {(isGroup || isMasked) && (
+                <div className="p-2 border-b border-border/50 flex gap-2 justify-center bg-secondary/10">
                     {isGroup && (
-                        <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-xs flex items-center gap-1">
+                        <button onClick={onUngroup} className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded text-xs flex items-center gap-2 border border-border/50 transition-colors">
                             <Layers size={14} /> Ungroup
                         </button>
                     )}
-                    {selectedObject.clipPath && (
-                        <button onClick={onReleaseMask} className="p-1.5 hover:bg-secondary rounded text-xs flex items-center gap-1">
-                            <Blend size={14} /> Release Mask
-                        </button>
+                    {isMasked && (
+                         <>
+                            {onToggleMaskLock && (
+                                <button 
+                                    onClick={onToggleMaskLock} 
+                                    className={`px-3 py-1.5 rounded text-xs flex items-center gap-2 border transition-colors ${!isMaskAbsolute ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/50 hover:bg-secondary border-border/50'}`}
+                                    title={!isMaskAbsolute ? "Mask is locked to layer (Attached)" : "Mask is fixed on canvas (Detached/Window)"}
+                                >
+                                    {!isMaskAbsolute ? <Lock size={14} /> : <Unlock size={14} />}
+                                    {!isMaskAbsolute ? 'Attached' : 'Detached'}
+                                </button>
+                            )}
+                            <button onClick={onReleaseMask} className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded text-xs flex items-center gap-2 border border-border/50 transition-colors">
+                                <Blend size={14} /> Release
+                            </button>
+                        </>
                     )}
                 </div>
             )}
@@ -356,6 +384,28 @@ export function SelectionProperties({
                         settings={extended.adjustmentSettings || ({} as any)}
                         onChange={updateAdjustment}
                     />
+                 </div>
+            )}
+
+            {/* AI Action for Text/Image */}
+            {(isText || isImage) && onMake3D && !isAdjustment && (
+                 <div className="p-4 border-b border-border/50">
+                     <h3 className="font-medium text-xs text-muted-foreground uppercase mb-3 flex items-center gap-2">
+                         AI Features
+                     </h3>
+                     <button 
+                        onClick={() => {
+                            if (selectedObject) {
+                                // Create temp canvas to capture clean image without controls
+                                const dataUrl = selectedObject.toDataURL({ format: 'png', multiplier: 2 });
+                                onMake3D(dataUrl);
+                            }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs py-2 rounded shadow-sm transition-all"
+                     >
+                        <Box size={14} />
+                        Convert to 3D
+                     </button>
                  </div>
             )}
 

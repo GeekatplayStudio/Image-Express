@@ -941,6 +941,8 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                      // "Last interaction wins" -> switch to Border rendering
                      setStrokeInside(false);
                      selectedObject.set('paintFirst', 'stroke');
+                     // Fix for clipping: Ensure stroke doesn't get clipped by object cache
+                     selectedObject.set('objectCaching', false); 
 
                      // Restore cached
                      const width = v.borderWidth ?? (t._borderCachedWidth || borderWidth || 1);
@@ -1594,6 +1596,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 borderColor, borderWidth, borderOpacity, borderBlend,
                 shadowEnabled, shadowColor, shadowBlur, shadowOpacity, shadowOffsetX, shadowOffsetY, shadowBlend
              }}
+             onMake3D={onMake3D}
         />
     );
 }

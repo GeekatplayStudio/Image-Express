@@ -93,6 +93,9 @@ export interface ExtendedFabricObject extends fabric.Object {
     adjustmentType?: AdjustmentLayerType;
     adjustmentSettings?: AdjustmentLayerSettings;
     baseFilters?: FabricBaseFilter[];
+    clipped?: boolean;
+    aiGenerated?: boolean;
+    aiProvider?: string;
 }
 
 export interface CanvasElement {
