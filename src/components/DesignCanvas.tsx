@@ -32,11 +32,11 @@ class WarpedImage extends fabric.Image {
     warpBL?: WarpPoint;
 
     override _render(ctx: CanvasRenderingContext2D) {
-        const img = (this as unknown as { _element?: HTMLImageElement })._element;
+        const img = this.getElement() as HTMLImageElement;
         if (!img) return;
 
-        const w = this.width ?? 0;
-        const h = this.height ?? 0;
+        const w = this.width || 0;
+        const h = this.height || 0;
         if (!w || !h) return;
 
         const base = {
@@ -106,8 +106,8 @@ class WarpedImage extends fabric.Image {
                     ctx.lineTo(dst01.x, dst01.y);
                     ctx.closePath();
                     ctx.clip();
-                    ctx.transform(t1.a, t1.b, t1.c, t1.d, t1.e - w / 2, t1.f - h / 2);
-                    ctx.drawImage(img, 0, 0);
+                    ctx.transform(t1.a, t1.b, t1.c, t1.d, t1.e, t1.f);
+                    ctx.drawImage(img, 0, 0, w, h);
                     ctx.restore();
                 }
 
@@ -120,8 +120,8 @@ class WarpedImage extends fabric.Image {
                     ctx.lineTo(dst10.x, dst10.y);
                     ctx.closePath();
                     ctx.clip();
-                    ctx.transform(t2.a, t2.b, t2.c, t2.d, t2.e - w / 2, t2.f - h / 2);
-                    ctx.drawImage(img, 0, 0);
+                    ctx.transform(t2.a, t2.b, t2.c, t2.d, t2.e, t2.f);
+                    ctx.drawImage(img, 0, 0, w, h);
                     ctx.restore();
                 }
             }
