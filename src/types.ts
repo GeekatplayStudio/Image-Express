@@ -33,7 +33,7 @@ export type ThreeDSettings = {
     cameraTarget?: { x: number; y: number; z: number };
 };
 
-export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white';
+export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white' | 'brightness-contrast' | 'color-balance';
 
 export type CurvesChannel = 'rgb' | 'r' | 'g' | 'b' | 'luminosity';
 

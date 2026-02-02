@@ -189,6 +189,8 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     const extendedCanvas = canvas as CanvasWithArtboard;
 
         const attachTextDistortControls = () => {
+            // Disabled: text-to-warp conversion is currently unstable.
+            return;
             const renderDistortControl: fabric.Control['render'] = (ctx, left, top, styleOverride, fabricObject) => {
                 const size = styleOverride?.cornerSize ?? fabricObject.cornerSize ?? 12;
                 ctx.save();
@@ -256,21 +258,45 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                 const targetCanvas = canvas;
                 if (!targetCanvas) return null;
                 const textObj = obj as fabric.IText;
+                const parentGroup = (textObj as unknown as { group?: fabric.Group }).group;
                 const center = textObj.getCenterPoint();
                 const multiplier = 2;
-                const dataUrl = textObj.toDataURL({ format: 'png', withoutTransform: true, multiplier });
+                const originalTransform = targetCanvas.viewportTransform ? ([...targetCanvas.viewportTransform] as fabric.TMat2D) : undefined;
+                let dataUrl = '';
+                try {
+                    if (originalTransform) {
+                        targetCanvas.setViewportTransform([1, 0, 0, 1, 0, 0] as fabric.TMat2D);
+                        targetCanvas.requestRenderAll();
+                    }
+                    dataUrl = textObj.toDataURL({ format: 'png', withoutTransform: true, multiplier });
+                } catch (error) {
+                    console.error('Warp conversion failed while rasterizing text:', error);
+                    return null;
+                } finally {
+                    if (originalTransform) {
+                        targetCanvas.setViewportTransform(originalTransform);
+                        targetCanvas.requestRenderAll();
+                    }
+                }
+
                 const img = await fabric.FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' });
                 const element = img.getElement();
                 if (!element) return null;
 
+                const isGrouped = Boolean(parentGroup);
+                const originX = isGrouped ? (textObj.originX ?? 'left') : 'center';
+                const originY = isGrouped ? (textObj.originY ?? 'top') : 'center';
+                const left = isGrouped ? (textObj.left ?? 0) : center.x;
+                const top = isGrouped ? (textObj.top ?? 0) : center.y;
+
                 const warped = new WarpedImage(element, {
-                    left: center.x,
-                    top: center.y,
+                    left,
+                    top,
                     angle: textObj.angle,
                     scaleX: (textObj.scaleX ?? 1) / multiplier,
                     scaleY: (textObj.scaleY ?? 1) / multiplier,
-                    originX: 'center',
-                    originY: 'center',
+                    originX,
+                    originY,
                     opacity: textObj.opacity,
                     shadow: textObj.shadow,
                     objectCaching: false
@@ -284,11 +310,33 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                 const extendedWarped = warped as unknown as ExtendedFabricObject;
                 if (!extendedWarped.name) extendedWarped.name = `Warped ${textObj.text?.substring(0, 10) || 'Text'}`;
 
-                
-                targetCanvas.remove(textObj);
-                targetCanvas.add(warped);
+                if (parentGroup) {
+                    const group = parentGroup as fabric.Group & { addWithUpdate?: (obj: fabric.Object) => void };
+                    if (group.addWithUpdate) {
+                        group.addWithUpdate(warped);
+                    } else {
+                        group.add(warped);
+                    }
+                    group.setCoords();
+                } else {
+                    targetCanvas.add(warped);
+                }
+
+                textObj.set({
+                    visible: false,
+                    evented: false,
+                    selectable: false,
+                    opacity: 0,
+                    excludeFromExport: true
+                });
+                textObj.setCoords();
+
                 applyControlsToWarped(warped);
-                targetCanvas.setActiveObject(warped);
+                if (parentGroup) {
+                    targetCanvas.setActiveObject(parentGroup);
+                } else {
+                    targetCanvas.setActiveObject(warped);
+                }
                 targetCanvas.requestRenderAll();
                 return warped;
             };

@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
 import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,10 @@ interface ToolbarProps {
     onOpen3DEditor?: (url: string) => void;
     apiKeys?: { stability?: string };
 }
+
+export type ToolbarHandle = {
+    triggerTool: (toolName: string) => void;
+};
 
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number };
@@ -52,15 +57,17 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
         canvas.selection = false;
     }
 };
-
-// Start of component
-export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys }: ToolbarProps) {
+const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys }, ref) => {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
     const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
     const shapesMenuRef = useRef<HTMLDivElement>(null);
     const adjustmentMenuRef = useRef<HTMLDivElement>(null);
+    const shapesButtonRef = useRef<HTMLButtonElement>(null);
+    const adjustmentsButtonRef = useRef<HTMLButtonElement>(null);
+    const [shapesMenuPos, setShapesMenuPos] = useState<{ left: number; top: number } | null>(null);
+    const [adjustmentMenuPos, setAdjustmentMenuPos] = useState<{ left: number; top: number } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
@@ -73,7 +80,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         { name: 'text', icon: Type, label: 'Text' },
         { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
         { name: 'assets', icon: ImageIcon, label: 'Gallery' },
-        { name: 'ai-zone', icon: Wand2, label: 'AI Zone' }, 
+        { name: 'ai-zone', icon: Wand2, label: 'AI Zone' },
         { name: '3d-gen', icon: Box, label: 'AI 3D' },
         { name: 'templates', icon: LayoutTemplate, label: 'Library' },
         { name: 'adjustments', icon: Blend, label: 'Adjustments' },
@@ -205,18 +212,51 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    const positionMenu = (buttonRef: React.RefObject<HTMLButtonElement | null>) => {
+        const el = buttonRef.current;
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        return { left: rect.right + 12, top: rect.top + 10 };
+    };
+
+    const addText = () => {
+        if (!canvas) return;
+        const text = new fabric.IText('Tap to edit', {
+            left: 100,
+            top: 250,
+            fontFamily: 'Arial',
+            fill: '#1f2937',
+            fontSize: 40,
+            fontWeight: 'bold'
+        });
+        canvas.add(text);
+        canvas.setActiveObject(text);
+    };
+
     const handleToolClick = (toolName: string) => {
            if (toolName === 'shapes') {
-             setShowShapesMenu(!showShapesMenu);
-               setShowAdjustmentMenu(false);
-             setActiveTool('shapes');
-             return;
+                setShowShapesMenu((prev) => {
+                    const next = !prev;
+                    if (next) {
+                        setShapesMenuPos(positionMenu(shapesButtonRef));
+                    }
+                    return next;
+                });
+                setShowAdjustmentMenu(false);
+                setActiveTool('shapes');
+                return;
         }
            if (toolName === 'adjustments') {
-              setShowAdjustmentMenu(!showAdjustmentMenu);
-              setShowShapesMenu(false);
-              setActiveTool('layers');
-              return;
+                setShowAdjustmentMenu((prev) => {
+                    const next = !prev;
+                    if (next) {
+                        setAdjustmentMenuPos(positionMenu(adjustmentsButtonRef));
+                    }
+                    return next;
+                });
+                setShowShapesMenu(false);
+                setActiveTool('layers');
+                return;
            }
 
         // Toggle behavior: Close tool if clicking standard panel icons again
@@ -262,6 +302,10 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                 break;
         }
     };
+
+    useImperativeHandle(ref, () => ({
+        triggerTool: (toolName: string) => handleToolClick(toolName)
+    }));
 
     const addRectangle = () => {
         if (!canvas) return;
@@ -362,20 +406,6 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
         (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('adjustment:create', { type });
         setShowAdjustmentMenu(false);
         setActiveTool('layers');
-    };
-
-    const addText = () => {
-        if (!canvas) return;
-        const text = new fabric.IText('Tap to edit', {
-            left: 100,
-            top: 250,
-            fontFamily: 'Arial',
-            fill: '#1f2937',
-            fontSize: 40,
-            fontWeight: 'bold'
-        });
-        canvas.add(text);
-        canvas.setActiveObject(text);
     };
 
     const add3DPlaceholder = (url: string, nameOverride?: string) => {
@@ -695,6 +725,7 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                 <button 
                     key={tool.name}
                     onClick={() => handleToolClick(tool.name)}
+                    ref={tool.name === 'shapes' ? shapesButtonRef : tool.name === 'adjustments' ? adjustmentsButtonRef : undefined}
                     className={cn(
                         "flex flex-col items-center justify-center gap-1 group relative w-10 h-10 rounded-xl transition-all duration-200 z-20",
                         activeTool === tool.name || (tool.name === 'adjustments' && showAdjustmentMenu)
@@ -766,11 +797,11 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                 />
             )}
 
-            {/* Shapes Popover */}
-            {showShapesMenu && (
+            {showShapesMenu && shapesMenuPos && typeof document !== 'undefined' && createPortal(
                 <div 
                     ref={shapesMenuRef}
-                    className="absolute left-[80px] top-[70px] bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-50 w-40 animate-in fade-in slide-in-from-left-2 duration-200"
+                    style={{ left: shapesMenuPos.left, top: shapesMenuPos.top }}
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-[100] w-40 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
                     <button onClick={addRectangle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Square size={20} />
@@ -796,13 +827,15 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                         <MessageSquare size={20} />
                         <span className="text-[10px]">Bubble</span>
                     </button>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {showAdjustmentMenu && (
+            {showAdjustmentMenu && adjustmentMenuPos && typeof document !== 'undefined' && createPortal(
                 <div
                     ref={adjustmentMenuRef}
-                    className="absolute left-[80px] top-[130px] bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-50 w-40 animate-in fade-in slide-in-from-left-2 duration-200"
+                    style={{ left: adjustmentMenuPos.left, top: adjustmentMenuPos.top }}
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[100] w-40 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
                     <button onClick={() => createAdjustmentLayer('curves')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         Curves
@@ -819,11 +852,22 @@ export default function Toolbar({ canvas, activeTool, setActiveTool, onOpen3DEdi
                     <button onClick={() => createAdjustmentLayer('exposure')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         Exposure
                     </button>
+                    <button onClick={() => createAdjustmentLayer('brightness-contrast')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        Brightness / Contrast
+                    </button>
+                    <button onClick={() => createAdjustmentLayer('color-balance')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        Color Balance
+                    </button>
                     <button onClick={() => createAdjustmentLayer('black-white')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         Black & White
                     </button>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
-}
+});
+
+Toolbar.displayName = 'Toolbar';
+
+export default Toolbar;

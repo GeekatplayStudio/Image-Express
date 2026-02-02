@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import DesignCanvas from '@/components/DesignCanvas';
-import Toolbar from '@/components/Toolbar';
+import Toolbar, { type ToolbarHandle } from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
 import ThreeDGenerator from '@/components/ThreeDGenerator';
 import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
@@ -449,6 +449,7 @@ export default function EditorView({
     // UI States
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [showGridMenu, setShowGridMenu] = useState(false);
+    const [showToolsMenu, setShowToolsMenu] = useState(false);
     const [gridType, setGridType] = useState<GridType>('none');
     const [isExporting, setIsExporting] = useState(false);
     const [showExportQualityModal, setShowExportQualityModal] = useState(false);
@@ -483,6 +484,7 @@ export default function EditorView({
     const [mediaPreview, setMediaPreview] = useState<{ type: 'video' | 'audio'; url: string } | null>(null);
     const exportRef = useRef<HTMLDivElement>(null);
     const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+    const toolbarRef = useRef<ToolbarHandle | null>(null);
     
     // API Keys State
     const [apiKeys, setApiKeys] = useState<{
@@ -668,17 +670,20 @@ export default function EditorView({
        let thumbnailDataUrl = '';
        
        if (canvas.width && canvas.height && canvas.width > 0 && canvas.height > 0) {
+            setIsExporting(true);
             try {
                 // Attempt with multiplier
-                thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5, enableRetinaScaling: true, quality: 1 });
+                thumbnailDataUrl = await withViewportReset(() => canvas.toDataURL({ format: 'png', multiplier: 0.5, enableRetinaScaling: true, quality: 1 }));
             } catch (e) {
                 console.warn('Thumbnail generation with multiplier failed, retrying without:', e);
                 try {
                      // Fallback without multiplier
-                    thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 1, enableRetinaScaling: true, quality: 1 });
+                    thumbnailDataUrl = await withViewportReset(() => canvas.toDataURL({ format: 'png', multiplier: 1, enableRetinaScaling: true, quality: 1 }));
                 } catch (e2) {
                     console.error('Thumbnail generation failed completely:', e2);
                 }
+            } finally {
+                setIsExporting(false);
             }
        } else {
            console.warn('Canvas has invalid dimensions, skipping thumbnail generation.');
@@ -2169,6 +2174,59 @@ document.addEventListener('DOMContentLoaded', () => {
                          <span>Home</span>
                        </button>
                     </nav>
+                    <div className="relative">
+                        <button
+                            onClick={() => {
+                                setShowExportMenu(false);
+                                setShowGridMenu(false);
+                                setShowToolsMenu((prev) => !prev);
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                        >
+                            <span>Tools</span>
+                            <ChevronDown size={14} />
+                        </button>
+                        {showToolsMenu && (
+                            <div className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                <button onClick={() => { toolbarRef.current?.triggerTool('select'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Select</span><span className="text-xs text-muted-foreground">V</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('paint'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Brush</span><span className="text-xs text-muted-foreground">B</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('pen'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Pen</span><span className="text-xs text-muted-foreground">P</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('shapes'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Shapes</span><span className="text-xs text-muted-foreground">U</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('text'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Text</span><span className="text-xs text-muted-foreground">T</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('gradient'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Fill / Gradient</span><span className="text-xs text-muted-foreground">G</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('assets'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Gallery</span><span className="text-xs text-muted-foreground">—</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('ai-zone'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>AI Zone</span><span className="text-xs text-muted-foreground">—</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('3d-gen'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>AI 3D</span><span className="text-xs text-muted-foreground">—</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('templates'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Library</span><span className="text-xs text-muted-foreground">—</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('adjustments'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Adjustments</span><span className="text-xs text-muted-foreground">—</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('layers'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
+                                    <span>Layers</span><span className="text-xs text-muted-foreground">L</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                  </div>
 
                  {/* Actions */}
@@ -2494,7 +2552,8 @@ document.addEventListener('DOMContentLoaded', () => {
             {/* Main Editor Layout */}
             <div className="flex flex-1 overflow-hidden relative">
                 <aside className="w-[60px] bg-card border-r flex flex-col items-center py-4 z-20 shadow-xl gap-4 relative overflow-y-auto">
-                     <Toolbar 
+                            <Toolbar 
+                                ref={toolbarRef}
                         canvas={canvas} 
                         activeTool={activeTool} 
                         setActiveTool={(tool) => {
