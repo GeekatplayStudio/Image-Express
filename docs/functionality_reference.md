@@ -17,6 +17,12 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
 | Feb 1 2026 | `PropertiesPanel.tsx` | Implemented `applyAdjustmentLayers()` function | ✅ Done |
 | Feb 1 2026 | `PropertiesPanel.tsx` | Apply adjustment layers to all images below in stack | ✅ Done |
 | Feb 1 2026 | `LayersView.tsx` | Moved layer opacity + blend controls to Layers view header | ✅ Done |
+| Feb 1 2026 | `UserProfileModal.tsx` | Added profile image scaling + embed info toggle | ✅ Done |
+| Feb 1 2026 | `AdjustmentControls.tsx` | Added numerical inputs for Curves UI | ✅ Done |
+| Feb 1 2026 | `PropertiesPanel.tsx` | Implemented drag-into-folder logic | ✅ Done |
+| Feb 1 2026 | `LayersView.tsx` | Added folder drop detection in `handleDragEnd` | ✅ Done |
+| Feb 1 2026 | `EditorView.tsx` | Added AI usage label overlay in exports | ✅ Done |
+| Feb 1 2026 | `DesignCanvas.tsx` | Locked artboard to bottom and non-selectable | ✅ Done |
 | Feb 1 2026 | `PropertiesPanel.tsx` | Added Curves and Levels filter support to adjustment layers | ✅ Done |
 | Feb 1 2026 | `PaintProperties.tsx` | Added `setCoords()` calls to fix brush stroke positioning | ✅ Done |
 | Feb 1 2026 | Build | `npm run build` passes | ✅ Verified |
@@ -114,9 +120,22 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
     - [x] Visibility/Lock toggles in list.
     - [x] Auto-updates when objects change.
 
-## 12. Paint Mode
+## 12. User Profile
+- [x] **Profile Modal**: Opens from avatar button in editor header.
+- [x] **Profile Image**: Upload + scale slider for avatar cropping.
+- [x] **Fields**: Display name, username, email, personal info.
+- [x] **Embed Toggle**: Option to embed profile info in exports/templates.
+
+## 13. Export Compliance
+- [x] **AI Usage Label**: Exports include AI usage notice if AI-generated assets exist.
+
+## 14. Canvas Integrity
+- [x] **Artboard Lock**: Canvas artboard always stays at bottom layer.
+- [x] **Non-selectable**: Artboard cannot be selected or deleted from Layers.
+
+## 15. Paint Mode
 - [x] **Brush Types**: Pencil, Spray, Oil, Watercolor.
 - [x] **Brush Settings**: Color, Size, Opacity, Softness, Density.
 - [x] **Blend Modes**: Normal, Multiply, Screen, Overlay, Darken, Lighten.
-- [x] **Paint Folder**: Strokes grouped in reusable folder.
+- [x] **Paint Layer**: New layer per paint session; selecting a paint layer reuses it.
 - [x] **Coordinate Fix**: Proper transform when adding strokes to group.

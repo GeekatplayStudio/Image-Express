@@ -5,7 +5,8 @@ import {
     ExtendedFabricObject, 
     AdjustmentLayerType, 
     AdjustmentLayerSettings, 
-    CurvesAdjustmentSettings, 
+    CurvesAdjustmentSettings,
+    CurvesChannel, 
     LevelsAdjustmentSettings, 
     SaturationVibranceSettings, 
     HueSaturationSettings, 
@@ -36,7 +37,10 @@ import {
     getGroupNames,
     getNextIndexedName,
     getAdjustmentLabel,
-    getDefaultAdjustmentSettings
+    getDefaultAdjustmentSettings,
+    moveObjectToGroup,
+    moveObjectToCanvas,
+    addToGroup
 } from '@/lib/fabric-utils';
 
 import { CurvesFilter } from '@/lib/fabric-filters';
@@ -186,14 +190,34 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
             const clampedIntensity = Math.min(1, Math.max(0, intensity));
             if (type === 'curves') {
                 const curves = settings as CurvesAdjustmentSettings;
-                if (!curves.points || curves.points.length < 2) return [];
-                return [
-                    new CurvesFilter({
-                        points: curves.points,
-                        channel: curves.channel || 'rgb',
-                        intensity: clampedIntensity
-                    }) as unknown as FabricBaseFilter
-                ];
+                const filters: FabricBaseFilter[] = [];
+
+                // 1. Process explicit channels from pointsByChannel
+                if (curves.pointsByChannel) {
+                    Object.entries(curves.pointsByChannel).forEach(([ch, pts]) => {
+                         if (pts && pts.length >= 2) {
+                             filters.push(
+                                 new CurvesFilter({
+                                     points: pts,
+                                     channel: ch as CurvesChannel,
+                                     intensity: clampedIntensity
+                                 }) as unknown as FabricBaseFilter
+                             );
+                         }
+                    });
+                } 
+                // 2. Fallback to legacy single-channel if no map exists
+                else if (curves.points && curves.points.length >= 2) {
+                    filters.push(
+                        new CurvesFilter({
+                            points: curves.points,
+                            channel: curves.channel || 'rgb',
+                            intensity: clampedIntensity
+                        }) as unknown as FabricBaseFilter
+                    );
+                }
+
+                return filters;
             }
 
             if (type === 'levels') {
@@ -257,31 +281,65 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
         // Apply adjustment layers to each image based on stack order
         objs.forEach((obj, idx) => {
-            if (obj.type !== 'image') return;
+            if (obj.type !== 'image' && obj.type !== 'group') return; // Apply to images and groups (if supported)
             const image = obj as fabric.Image;
             const imageExt = image as ExtendedFabricObject;
 
             if (!imageExt.baseFilters) {
                 const existing = image.filters || [];
+                // Save original filters that are NOT adjustment filters
                 imageExt.baseFilters = existing.filter((f) => !adjustmentFilterTypes.has(f.type));
             }
 
-            const layersAbove = objs
-                .slice(idx + 1)
-                .filter((layer) => (layer as ExtendedFabricObject).isAdjustmentLayer && layer.visible !== false)
-                .map((layer) => layer as ExtendedFabricObject);
-
+            // Find adjustment layers above this object
+            const layersAbove = objs.slice(idx + 1);
+            
             const adjustmentFilters: FabricBaseFilter[] = [];
-            layersAbove.forEach((layer) => {
-                if (!layer.adjustmentType || !layer.adjustmentSettings) return;
-                const layerOpacity = typeof layer.opacity === 'number' ? layer.opacity : 1;
-                adjustmentFilters.push(
-                    ...buildFiltersForAdjustment(layer.adjustmentType, layer.adjustmentSettings, layerOpacity)
-                );
-            });
+            
+            // Track if we hit a "blocking" visual layer (like another Image) 
+            // that prevents Clipped adjustments from reaching us
+            let blockedForClipped = false;
+
+            for (const layerObj of layersAbove) {
+                const layer = layerObj as ExtendedFabricObject;
+                
+                // If it is an adjustment layer
+                if (layer.isAdjustmentLayer && layer.adjustmentType && layer.adjustmentSettings && layer.visible !== false) {
+                     // Determine if it should apply to 'obj'
+                     
+                     // If it is CLIPPED:
+                     // It only applies if 'obj' is part of the immediate stack below it.
+                     // i.e., NO blocking visual layers in between.
+                     if (layer.clipped) {
+                         if (!blockedForClipped) {
+                            const layerOpacity = typeof layer.opacity === 'number' ? layer.opacity : 1;
+                            adjustmentFilters.push(
+                                ...buildFiltersForAdjustment(layer.adjustmentType, layer.adjustmentSettings, layerOpacity)
+                            );
+                         } 
+                         // If blocked, this clipped layer belongs to the blocker, not us.
+                     } 
+                     // If it is GLOBAL (Unclipped):
+                     // It applies to everything below it, regardless of blockers.
+                     else {
+                        const layerOpacity = typeof layer.opacity === 'number' ? layer.opacity : 1;
+                        adjustmentFilters.push(
+                            ...buildFiltersForAdjustment(layer.adjustmentType, layer.adjustmentSettings, layerOpacity)
+                        );
+                     }
+                } 
+                // If it is a potential "Blocker" (Visual content layer)
+                // e.g., Image, Group, Text, Path... but NOT an adjustment layer
+                else if (!layer.isAdjustmentLayer && layer.type !== 'selection') {
+                    // It blocks future CLIPPED layers
+                    blockedForClipped = true;
+                }
+            }
 
             image.filters = [...imageExt.baseFilters, ...adjustmentFilters];
-            image.applyFilters();
+            if (typeof image.applyFilters === 'function') {
+                image.applyFilters();
+            }
         });
 
         canvas.requestRenderAll();
@@ -306,7 +364,9 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     // --- Layer & Selection Sync ---
     const updateObjects = useCallback(() => {
         if (!canvas) return;
-        const objs = canvas.getObjects();
+        const extendedCanvas = canvas as CanvasWithArtboard;
+        const artboardRect = extendedCanvas.artboardRect;
+        const objs = canvas.getObjects().filter((obj) => obj !== artboardRect);
         objs.forEach(o => {
             ensureObjectId(o);
             if (o.type === 'group') (o as fabric.Group).getObjects().forEach(ensureObjectId);
@@ -359,8 +419,14 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 // Fallback inference if custom props not set (first load)
                 if (sEnabled === undefined) sEnabled = (currentWidth > 0 && !isBorderMode);
                 if (bEnabled === undefined) bEnabled = (currentWidth > 0 && isBorderMode);
+
+                // Default to OFF if width is 0 or undefined
+                if (currentWidth === 0) {
+                    sEnabled = false;
+                    bEnabled = false;
+                }
                 
-                // If neither is "enabled" but we have a stroke, logic defaults to what paintFirst is
+                // If neither is "enabled" but we have a stroke width > 0, logic defaults to what paintFirst is
                 if (currentWidth > 0 && sEnabled === undefined && bEnabled === undefined) {
                      if (isBorderMode) bEnabled = true;
                      else sEnabled = true;
@@ -471,7 +537,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              const rect = new fabric.Rect({
                  left: 0, top: 0,
                  width: width, height: height,
-                 fill: 'rgba(255,255,255,0.01)', // Almost transparent
+                 fill: 'transparent',
                  selectable: true,
                  evented: true,
              });
@@ -1011,7 +1077,148 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         // Force re-render for transform props that don't have their own state
         updateObjects();
     };
+
+    const handleReorder = (activeId: string, overId: string) => {
+        if (!canvas) return;
+
+        // Recursive Finder
+        const findObj = (id: string, searchSpace: fabric.Object[], parent: fabric.Group | null = null): { obj: fabric.Object, parent: fabric.Group | null, index: number } | null => {
+            for (let i = 0; i < searchSpace.length; i++) {
+                const o = searchSpace[i];
+                if ((o as ExtendedFabricObject).id === id) {
+                    return { obj: o, parent, index: i };
+                }
+                if (o.type === 'group' && !(o as ExtendedFabricObject).isAdjustmentLayer) {
+                     const res = findObj(id, (o as fabric.Group).getObjects(), o as fabric.Group);
+                     if (res) return res;
+                }
+            }
+            return null;
+        };
+
+        const canvasObjs = canvas.getObjects(); 
+        const activeRes = findObj(activeId, canvasObjs);
+        const overRes = findObj(overId, canvasObjs);
+        
+        if (!activeRes || !overRes) return;
+        
+        const { obj: active, parent: activeParent } = activeRes;
+        const { obj: over, parent: overParent, index: overIndex } = overRes;
+
+        // Same Parent
+        if (activeParent === overParent) {
+             if (activeParent) {
+                 // Group Reposition
+                 activeParent.remove(active);
+                 // fabric Group objects stack: 0 (bottom) -> N (top)
+                 // Layers View: 0 (top) -> N (bottom) or we map index?
+                 // LayersView sends us IDs. 
+                 // If we drop Active 'over' Over in the List.
+                 // We want Active to be at Over's index (shifting Over down/up).
+                 // List Index 0 = Top = Fabric Index N.
+                 // This mirroring is confusing.
+                 // HOWEVER, SortableContext usually moves based on List Index.
+                 // If we assume LayersView displays [N, N-1, ... 0].
+                 // If dragging, we get 'over' id.
+                 
+                 // Simpler: Just move Active to Over's index.
+                 // But wait, if we use insertAt(index), previously removed object shifts indices?
+                 // Yes. 
+                 
+                 // Re-find overIndex after removal?
+                 const updatedOverIndex = activeParent.getObjects().indexOf(over);
+                 activeParent.insertAt(updatedOverIndex >= 0 ? updatedOverIndex : overIndex, active);
+                 activeParent.setCoords();
+                 activeParent.set('dirty', true);
+             } else {
+                 // Canvas Reposition
+                 const idx = canvasObjs.indexOf(over);
+                 canvas.moveObjectTo(active, idx);
+             }
+        } 
+        // Different Parent (Reparenting)
+        else {
+            // Case 1: Active in Group -> Over in Root (Drag Out)
+            if (activeParent && !overParent) {
+                 moveObjectToCanvas(active, activeParent, canvas);
+                 // Now move to correct index in canvas
+                 // canvas.moveObjectTo(active, overIndex); // overIndex is from before insertion?
+                 // moveObjectToCanvas adds to end usually (canvas.add).
+                 const idx = canvas.getObjects().indexOf(over);
+                 canvas.moveObjectTo(active, idx);
+            }
+            // Case 2: Active in Root -> Over in Group (Drag In - via List Sort)
+            else if (!activeParent && overParent) {
+                 moveObjectToGroup(active, overParent, canvas);
+                 // Move to index inside group
+                 const idx = overParent.getObjects().indexOf(over);
+                 overParent.remove(active); // Temporarily remove from end
+                 overParent.insertAt(idx, active);
+                 overParent.setCoords();
+                 overParent.set('dirty', true);
+            }
+            // Case 3: Group A -> Group B
+            else if (activeParent && overParent) {
+                 moveObjectToCanvas(active, activeParent, canvas); // Intermediate step to Root
+                 moveObjectToGroup(active, overParent, canvas);    // Then to new Group
+                 
+                 const idx = overParent.getObjects().indexOf(over);
+                 overParent.remove(active);
+                 overParent.insertAt(idx, active);
+                 overParent.setCoords();
+                 overParent.set('dirty', true);
+            }
+        }
+        
+        canvas.requestRenderAll();
+        updateObjects();
+        applyAdjustmentLayers();
+    };
     
+    // New: Handle dropping ON a folder
+    const handleAddToFolder = (activeId: string, folderId: string) => {
+        if (!canvas) return;
+        
+        // Find objects
+        const findObj = (id: string, searchSpace: fabric.Object[], parent: fabric.Group | null = null): { obj: fabric.Object, parent: fabric.Group | null } | null => {
+            for (const o of searchSpace) {
+                if ((o as ExtendedFabricObject).id === id) return { obj: o, parent };
+                if (o.type === 'group' && !(o as ExtendedFabricObject).isAdjustmentLayer) {
+                     const res = findObj(id, (o as fabric.Group).getObjects(), o as fabric.Group);
+                     if (res) return res;
+                }
+            }
+            return null;
+        };
+
+        const canvasObjs = canvas.getObjects();
+        const activeRes = findObj(activeId, canvasObjs);
+        const folderRes = findObj(folderId, canvasObjs);
+        
+        if (!activeRes || !folderRes) return;
+        if (folderRes.obj.type !== 'group') return;
+        
+        const active = activeRes.obj;
+        const oldParent = activeRes.parent;
+        const folder = folderRes.obj as fabric.Group;
+        
+        if (active === folder) return; // Can't add to self
+        
+        // Logic similar to reparenting
+        if (oldParent) {
+             moveObjectToCanvas(active, oldParent, canvas);
+        }
+        
+        moveObjectToGroup(active, folder, canvas);
+        // Default: Add to end (top) of folder, which moveObjectToGroup does via addToGroup
+        
+        canvas.requestRenderAll();
+        updateObjects();
+        applyAdjustmentLayers();
+    };
+
+
+
     const handleLayoutAction = (type: 'align' | 'distribute', value: string) => {
         if (!selectedObject || !canvas) return;
         
@@ -1045,25 +1252,16 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         }
     };
 
-    const handleReorder = (activeId: string, overId: string) => {
-        if (!canvas) return;
-        const active = canvas.getObjects().find(o => (o as ExtendedFabricObject).id === activeId);
-        const over = canvas.getObjects().find(o => (o as ExtendedFabricObject).id === overId);
-        if (!active || !over) return;
-        
-        const overIdx = canvas.getObjects().indexOf(over);
-        canvas.moveObjectTo(active, overIdx);
-        canvas.requestRenderAll();
-        updateObjects();
-        applyAdjustmentLayers();
-    };
 
-    const deleteLayer = (obj: fabric.Object) => {
-         if(!canvas) return;
-         if(obj.group) obj.group.remove(obj);
-         else canvas.remove(obj);
-         canvas.requestRenderAll();
-    };
+
+        const deleteLayer = (obj: fabric.Object) => {
+            if(!canvas) return;
+            const artboardRect = (canvas as CanvasWithArtboard).artboardRect;
+            if (obj === artboardRect) return;
+            if(obj.group) obj.group.remove(obj);
+            else canvas.remove(obj);
+            canvas.requestRenderAll();
+        };
 
     const handleGroup = () => {
         if (!canvas) return;
@@ -1094,13 +1292,14 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              const group = (active as any).toGroup();
              (group as ExtendedFabricObject).name = "Folder";
              canvas.requestRenderAll();
-        } else {
-             // Create empty folder (visible container)
-             // Using invisible rect inside to give it presence? Fabric empty group is fine but hard to select.
-             const group = new fabric.Group([], { name: 'Folder' } as any);
-             canvas.add(group);
-             canvas.centerObject(group); // Just to put it somewhere
-        }
+           } else {
+               // Create empty folder (visible container)
+               // Using invisible rect inside to give it presence? Fabric empty group is fine but hard to select.
+               const group = new fabric.Group([]);
+               (group as ExtendedFabricObject).name = 'Folder';
+               canvas.add(group);
+               canvas.centerObject(group); // Just to put it somewhere
+           }
         updateObjects();
     };
 
@@ -1109,7 +1308,6 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         const active = canvas.getActiveObjects();
         if (active.length !== 2) return;
         
-        // Stacking order: Top (higher index) masks Bottom (lower index)
         const sorted = [...active].sort((a,b) => {
              const idxA = canvas.getObjects().indexOf(a);
              const idxB = canvas.getObjects().indexOf(b);
@@ -1119,7 +1317,50 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         const target = sorted[0]; // Bottom
         const mask = sorted[1];   // Top
         
-        // Use clone for clipPath to avoid reference issues when removing object
+        // 1. Clone mask
+        const cloned = await mask.clone();
+        
+        // 2. Calculate transform to move Mask into Target's local space (Relative)
+        // This ensures the mask stays visually in place but attaches to the target.
+        const targetMatrix = target.calcTransformMatrix();
+        const maskMatrix = mask.calcTransformMatrix();
+        const targetInverse = fabric.util.invertTransform(targetMatrix);
+        const localMatrix = fabric.util.multiplyTransformMatrices(targetInverse, maskMatrix);
+
+        // Apply local transform to cloned mask
+        fabric.util.applyTransformToObject(cloned, localMatrix);
+
+        // 3. Configure as relative mask
+        cloned.set({
+             absolutePositioned: false 
+        });
+        
+        // 4. Update Target
+        target.clipPath = cloned;
+
+        // 5. Cleanup
+        canvas.remove(mask);
+        canvas.discardActiveObject();
+        canvas.setActiveObject(target);
+        canvas.requestRenderAll();
+        updateObjects();
+    };
+
+    const handleCreateClip = async () => {
+        if (!canvas) return;
+        const active = canvas.getActiveObjects();
+        if (active.length !== 2) return;
+
+        // Stacking order: Bottom (lower index) clips Top (higher index)
+        const sorted = [...active].sort((a, b) => {
+            const idxA = canvas.getObjects().indexOf(a);
+            const idxB = canvas.getObjects().indexOf(b);
+            return idxA - idxB;
+        });
+
+        const mask = sorted[0];   // Bottom acts as mask
+        const target = sorted[1]; // Top is clipped
+
         const cloned = await mask.clone();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (cloned as any).absolutePositioned = true;
@@ -1128,9 +1369,8 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         cloned.angle = mask.angle;
         cloned.scaleX = mask.scaleX;
         cloned.scaleY = mask.scaleY;
-        
+
         target.clipPath = cloned;
-        canvas.remove(mask);
         canvas.discardActiveObject();
         canvas.setActiveObject(target);
         canvas.requestRenderAll();
@@ -1140,26 +1380,75 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     const handleReleaseMask = () => {
         if (!selectedObject || !canvas) return;
         if (selectedObject.clipPath) {
-            // Restore mask object? 
-            // We can try to add the clipPath back as an object
-            selectedObject.clipPath.clone().then((restored: any) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                if ((selectedObject.clipPath as any).absolutePositioned) {
-                     restored.left = selectedObject.clipPath!.left;
-                     restored.top = selectedObject.clipPath!.top;
+            selectedObject.clipPath.clone().then((restored) => {
+                 const restoredObj = restored as unknown as fabric.Object;
+                 const clipWithPosition = selectedObject.clipPath as unknown as { absolutePositioned?: boolean };
+                 
+                 if (clipWithPosition.absolutePositioned) {
+                     // Absolute: restore directly
+                     restoredObj.left = selectedObject.clipPath!.left;
+                     restoredObj.top = selectedObject.clipPath!.top;
                 } else {
-                     // Relative logic would go here, currently we only support absolute
-                     const center = selectedObject.getCenterPoint();
-                     restored.left = center.x + (selectedObject.clipPath!.left || 0);
-                     restored.top = center.y + (selectedObject.clipPath!.top || 0);
+                     // Relative: Convert Local -> World
+                     const targetMatrix = selectedObject.calcTransformMatrix();
+                     const maskMatrix = selectedObject.clipPath!.calcTransformMatrix(); // This is local transform? 
+                     // Wait, calcTransformMatrix on a child object might behave differently?
+                     // Actually, if it's not on canvas, its matrix is just local properties.
+                     // The correct World Matrix for a relative child is: ParentMatrix * ChildLocalMatrix
+                     
+                     // We need to construct ChildLocalMatrix manually from properties because calcTransformMatrix usually does recursive calculation up to canvas
+                     // But clipPath isn't in header hierarchy in the same way.
+                     
+                     // Safer way:
+                     const localMatrix = selectedObject.clipPath!.calcTransformMatrix(); 
+                     const worldMatrix = fabric.util.multiplyTransformMatrices(targetMatrix, localMatrix);
+                     
+                     fabric.util.applyTransformToObject(restoredObj, worldMatrix);
                 }
-                canvas.add(restored);
+                 
+                 canvas.add(restoredObj);
                 selectedObject.clipPath = undefined;
                 selectedObject.set('dirty', true);
                 canvas.requestRenderAll();
                 updateObjects();
             });
         }
+    };
+
+    const toggleMaskLock = async () => {
+        if (!selectedObject || !canvas || !selectedObject.clipPath) return;
+        const mask = selectedObject.clipPath;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isAbsolute = !!(mask as any).absolutePositioned;
+        
+        // We are switching modes. We need to recalculate coordinates to keep visual position constant.
+        const targetMatrix = selectedObject.calcTransformMatrix();
+        
+        if (isAbsolute) {
+             // Switching Absolute -> Relative (Locking)
+             // Current Mask Matrix (World) need to be converted to Local
+             const maskMatrix = mask.calcTransformMatrix(); 
+             const targetInverse = fabric.util.invertTransform(targetMatrix);
+             const localMatrix = fabric.util.multiplyTransformMatrices(targetInverse, maskMatrix);
+             
+             fabric.util.applyTransformToObject(mask, localMatrix);
+             // eslint-disable-next-line 
+             (mask as any).absolutePositioned = false;
+        } else {
+             // Switching Relative -> Absolute (Unlocking)
+             // Current Mask "Matrix" is Local properties.
+             const localMatrix = mask.calcTransformMatrix();
+             const worldMatrix = fabric.util.multiplyTransformMatrices(targetMatrix, localMatrix);
+             
+             fabric.util.applyTransformToObject(mask, worldMatrix);
+             // eslint-disable-next-line 
+             (mask as any).absolutePositioned = true;
+        }
+        
+        selectedObject.set('dirty', true);
+        canvas.requestRenderAll();
+        // Force update to refresh UI
+        updateObjects();
     };
 
     if (activeTool === 'paint') {
@@ -1216,6 +1505,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 }}
                 onDelete={deleteLayer}
                 onReorder={handleReorder}
+                onAddToFolder={handleAddToFolder}
                 onGroup={handleGroup}
                 onUngroup={handleUngroup}
                 onCreateFolder={handleCreateFolder}
@@ -1233,7 +1523,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         );
     }
 
-    if (!selectedObject) {
+    if (!selectedObject && selectedIds.size === 0) {
          return (
              <div className="h-full bg-card overflow-y-auto">
                  <CanvasSettingsPanel 
@@ -1278,7 +1568,9 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              onGroup={handleGroup}
              onUngroup={handleUngroup}
              onCreateMask={handleCreateMask}
+                onCreateClip={handleCreateClip}
              onReleaseMask={handleReleaseMask}
+             onToggleMaskLock={toggleMaskLock}
              updateAdjustment={updateAdjustment}
              textState={{ font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter }}
              effectState={{ 

@@ -16,6 +16,229 @@ interface AdjustmentControlsProps {
     onChange: (settings: AdjustmentLayerSettings) => void;
 }
 
+function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjustmentSettings, onChange: (s: CurvesAdjustmentSettings) => void }) {
+    const channel = curves.channel ?? 'rgb';
+    const points = curves.pointsByChannel?.[channel] ?? curves.points ?? [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+    const sorted = [...points].sort((a, b) => a.x - b.x);
+    
+    const [activePointIndex, setActivePointIndex] = React.useState<number | null>(null);
+
+    const updateCurves = (newCurves: CurvesAdjustmentSettings) => {
+        onChange(newCurves);
+    }
+
+    const toSvgX = (value: number) => value * 160;
+    const toSvgY = (value: number) => 160 - value * 160;
+    
+    const curveStroke = channel === 'r'
+        ? '#ef4444'
+        : channel === 'g'
+            ? '#22c55e'
+            : channel === 'b'
+                ? '#3b82f6'
+                : channel === 'luminosity'
+                    ? '#e5e7eb'
+                    : '#a855f7';
+    
+    const smoothPath = () => {
+        if (sorted.length < 2) return '';
+        const pts = sorted.map((p) => ({ x: toSvgX(p.x), y: toSvgY(p.y) }));
+        const get = (idx: number) => {
+            if (idx < 0) return pts[0];
+            if (idx >= pts.length) return pts[pts.length - 1];
+            return pts[idx];
+        };
+        const segments: string[] = [];
+        for (let i = 0; i < pts.length - 1; i += 1) {
+            const p0 = get(i - 1);
+            const p1 = get(i);
+            const p2 = get(i + 1);
+            const p3 = get(i + 2);
+            const cp1x = p1.x + (p2.x - p0.x) / 6;
+            const cp1y = p1.y + (p2.y - p0.y) / 6;
+            const cp2x = p2.x - (p3.x - p1.x) / 6;
+            const cp2y = p2.y - (p3.y - p1.y) / 6;
+            if (i === 0) {
+                segments.push(`M ${p1.x} ${p1.y}`);
+            }
+            segments.push(`C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`);
+        }
+        return segments.join(' ');
+    };
+    const path = smoothPath();
+
+    const handleAddPoint = (event: { currentTarget: SVGSVGElement; clientX: number; clientY: number; button?: number; target: EventTarget | null }) => {
+        if ((event.target as Element | null)?.tagName?.toLowerCase() === 'circle') return;
+        if (typeof event.button === 'number' && event.button !== 0) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+        const y = Math.min(1, Math.max(0, 1 - (event.clientY - rect.top) / rect.height));
+        const next = [...sorted, { x, y }].sort((a, b) => a.x - b.x);
+        const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: next };
+        // Update logic specific to Curves structure
+        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel, points: sorted /* legacy prop sync */ } as unknown as CurvesAdjustmentSettings);
+        
+        // Optimize active point selection for new point
+        const newIndex = next.findIndex(p => p.x === x && p.y === y);
+        setActivePointIndex(newIndex !== -1 ? newIndex : null);
+    };
+
+    const handleAddPointPointer = (event: React.PointerEvent<SVGSVGElement>) => {
+        event.preventDefault();
+        handleAddPoint(event);
+    };
+
+    const handleAddPointMouse = (event: React.MouseEvent<SVGSVGElement>) => {
+        event.preventDefault();
+        handleAddPoint(event);
+    };
+
+    const resetCurve = () => {
+        const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: [{ x: 0, y: 0 }, { x: 1, y: 1 }] };
+        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
+        setActivePointIndex(null);
+    };
+
+    const handlePointChange = (index: number, x: number, y: number) => {
+        const next = sorted.map((point, i) => (i === index ? { x, y } : point));
+        const normalized = next.sort((a, b) => a.x - b.x);
+        // Re-find our point to keep it active
+        const newIndex = normalized.findIndex(p => p.x === x && p.y === y);
+        setActivePointIndex(newIndex);
+        
+        const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: normalized };
+         updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
+    };
+
+    const startDrag = (index: number) => (event: React.PointerEvent<SVGCircleElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setActivePointIndex(index);
+        const rect = (event.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
+        const move = (moveEvent: PointerEvent) => {
+            const x = Math.min(1, Math.max(0, (moveEvent.clientX - rect.left) / rect.width));
+            const y = Math.min(1, Math.max(0, 1 - (moveEvent.clientY - rect.top) / rect.height));
+            handlePointChange(index, x, y);
+        };
+        const stop = () => {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', stop);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', stop);
+    };
+
+    const removePoint = (index: number) => (event: React.MouseEvent<SVGCircleElement>) => {
+        event.stopPropagation();
+        if (!event.shiftKey || index === 0 || index === sorted.length - 1) return;
+        event.preventDefault();
+        const next = sorted.filter((_, i) => i !== index);
+        const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: next };
+        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
+        setActivePointIndex(null);
+    };
+
+    const activePoint = activePointIndex !== null ? sorted[activePointIndex] : null;
+
+    return (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] text-muted-foreground">Click adds point. Shift-click removes.</div>
+                <select
+                    value={channel}
+                    onChange={(e) => {
+                        const nextChannel = e.target.value as CurvesChannel;
+                        const existing = curves.pointsByChannel ?? { [channel]: sorted }; // Save current points if switching
+                        updateCurves({ ...curves, channel: nextChannel, pointsByChannel: existing });
+                        setActivePointIndex(null);
+                    }}
+                    className="bg-secondary/50 border border-border rounded-md px-2 py-1 text-[10px] text-foreground outline-none focus:ring-1 focus:ring-primary"
+                >
+                    <option value="rgb">RGB</option>
+                    <option value="luminosity">Luminosity</option>
+                    <option value="r">Red</option>
+                    <option value="g">Green</option>
+                    <option value="b">Blue</option>
+                </select>
+            </div>
+            {/* Scalable Container */}
+            <div className="relative w-full aspect-square bg-background border border-border/50 rounded-md overflow-hidden group">
+                <svg
+                    width="100%"
+                    height="100%"
+                    viewBox="0 0 160 160"
+                    preserveAspectRatio="none"
+                    className="absolute inset-0 w-full h-full"
+                    onPointerDown={handleAddPointPointer}
+                    onMouseDown={handleAddPointMouse}
+                    onDoubleClick={resetCurve}
+                    style={{ touchAction: 'none', pointerEvents: 'all', cursor: 'crosshair', userSelect: 'none' }}
+                >
+                    {/* Grid lines for reference */}
+                    <line x1="40" y1="0" x2="40" y2="160" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="80" y1="0" x2="80" y2="160" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="120" y1="0" x2="120" y2="160" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="0" y1="120" x2="160" y2="120" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="0" y1="80" x2="160" y2="80" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="0" y1="40" x2="160" y2="40" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
+
+                    <path d="M 0 160 L 160 0" stroke="#27272a" strokeWidth={1} fill="none" />
+                    <path d={path} stroke={curveStroke} strokeWidth={2} fill="none" vectorEffect="non-scaling-stroke" />
+                    {sorted.map((point, index) => (
+                        <circle
+                            key={`${point.x}-${point.y}-${index}`}
+                            cx={toSvgX(point.x)}
+                            cy={toSvgY(point.y)}
+                            r={activePointIndex === index ? 8 : 6} 
+                            fill={activePointIndex === index ? '#fff' : '#a855f7'}
+                            stroke={activePointIndex === index ? '#a855f7' : '#fff'}
+                            strokeWidth={2}
+                            onPointerDown={startDrag(index)}
+                            onClick={removePoint(index)}
+                            className="transition-all"
+                            style={{ cursor: 'pointer' }}
+                        />
+                    ))}
+                </svg>
+            </div>
+            
+            {/* Point Info Display */}
+            {activePoint && activePointIndex !== null && (
+                <div className="flex gap-4 text-xs font-mono bg-secondary/30 p-2 rounded justify-center">
+                     <div className="flex gap-2 items-center">
+                         <span className="text-muted-foreground uppercase text-[10px]">Input</span>
+                         <input 
+                            type="number" 
+                            min="0" 
+                            max="255"
+                            className="w-12 h-6 bg-background border border-border rounded px-1 text-right"
+                            value={Math.round(activePoint.x * 255)}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                handlePointChange(activePointIndex, Math.max(0, Math.min(255, val)) / 255, activePoint.y);
+                            }}
+                         />
+                     </div>
+                     <div className="flex gap-2 items-center">
+                         <span className="text-muted-foreground uppercase text-[10px]">Output</span>
+                         <input 
+                            type="number" 
+                            min="0" 
+                            max="255"
+                            className="w-12 h-6 bg-background border border-border rounded px-1 text-right"
+                            value={Math.round(activePoint.y * 255)}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                handlePointChange(activePointIndex, activePoint.x, Math.max(0, Math.min(255, val)) / 255);
+                            }}
+                         />
+                     </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function AdjustmentControls({ type, settings, onChange }: AdjustmentControlsProps) {
 
     const updateSettings = (partial: Partial<AdjustmentLayerSettings>) => {
@@ -23,163 +246,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
     };
 
     if (type === 'curves') {
-        const curves = settings as CurvesAdjustmentSettings;
-        const channel = curves.channel ?? 'rgb';
-        const points = curves.pointsByChannel?.[channel] ?? curves.points ?? [{ x: 0, y: 0 }, { x: 1, y: 1 }];
-        const sorted = [...points].sort((a, b) => a.x - b.x);
-        
-        const toSvgX = (value: number) => value * 160;
-        const toSvgY = (value: number) => 160 - value * 160;
-        const curveStroke = channel === 'r'
-            ? '#ef4444'
-            : channel === 'g'
-                ? '#22c55e'
-                : channel === 'b'
-                    ? '#3b82f6'
-                    : channel === 'luminosity'
-                        ? '#e5e7eb'
-                        : '#a855f7';
-        
-        const smoothPath = () => {
-            if (sorted.length < 2) return '';
-            const pts = sorted.map((p) => ({ x: toSvgX(p.x), y: toSvgY(p.y) }));
-            const get = (idx: number) => {
-                if (idx < 0) return pts[0];
-                if (idx >= pts.length) return pts[pts.length - 1];
-                return pts[idx];
-            };
-            const segments: string[] = [];
-            for (let i = 0; i < pts.length - 1; i += 1) {
-                const p0 = get(i - 1);
-                const p1 = get(i);
-                const p2 = get(i + 1);
-                const p3 = get(i + 2);
-                const cp1x = p1.x + (p2.x - p0.x) / 6;
-                const cp1y = p1.y + (p2.y - p0.y) / 6;
-                const cp2x = p2.x - (p3.x - p1.x) / 6;
-                const cp2y = p2.y - (p3.y - p1.y) / 6;
-                if (i === 0) {
-                    segments.push(`M ${p1.x} ${p1.y}`);
-                }
-                segments.push(`C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`);
-            }
-            return segments.join(' ');
-        };
-        const path = smoothPath();
-
-        const handleAddPoint = (event: { currentTarget: SVGSVGElement; clientX: number; clientY: number; button?: number; target: EventTarget | null }) => {
-            if ((event.target as Element | null)?.tagName?.toLowerCase() === 'circle') return;
-            if (typeof event.button === 'number' && event.button !== 0) return;
-            const rect = event.currentTarget.getBoundingClientRect();
-            const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-            const y = Math.min(1, Math.max(0, 1 - (event.clientY - rect.top) / rect.height));
-            const next = [...sorted, { x, y }].sort((a, b) => a.x - b.x);
-            const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: next };
-            // Update logic specific to Curves structure
-            updateSettings({ channel, pointsByChannel: nextByChannel, points: sorted /* legacy prop sync */ } as unknown as Partial<AdjustmentLayerSettings>);
-        };
-        
-        // Helper to update specific curves props
-        const updateCurves = (newCurves: CurvesAdjustmentSettings) => {
-            onChange(newCurves);
-        }
-
-        const handleAddPointPointer = (event: React.PointerEvent<SVGSVGElement>) => {
-            event.preventDefault();
-            handleAddPoint(event);
-        };
-
-        const handleAddPointMouse = (event: React.MouseEvent<SVGSVGElement>) => {
-            event.preventDefault();
-            handleAddPoint(event);
-        };
-
-        const resetCurve = () => {
-            const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: [{ x: 0, y: 0 }, { x: 1, y: 1 }] };
-            updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
-        };
-
-        const handlePointChange = (index: number, x: number, y: number) => {
-            const next = sorted.map((point, i) => (i === index ? { x, y } : point));
-            const normalized = next.sort((a, b) => a.x - b.x);
-            const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: normalized };
-             updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
-        };
-
-        const startDrag = (index: number) => (event: React.PointerEvent<SVGCircleElement>) => {
-            event.preventDefault();
-            event.stopPropagation();
-            const rect = (event.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
-            const move = (moveEvent: PointerEvent) => {
-                const x = Math.min(1, Math.max(0, (moveEvent.clientX - rect.left) / rect.width));
-                const y = Math.min(1, Math.max(0, 1 - (moveEvent.clientY - rect.top) / rect.height));
-                handlePointChange(index, x, y);
-            };
-            const stop = () => {
-                window.removeEventListener('pointermove', move);
-                window.removeEventListener('pointerup', stop);
-            };
-            window.addEventListener('pointermove', move);
-            window.addEventListener('pointerup', stop);
-        };
-
-        const removePoint = (index: number) => (event: React.MouseEvent<SVGCircleElement>) => {
-            event.stopPropagation();
-            if (!event.shiftKey || index === 0 || index === sorted.length - 1) return;
-            event.preventDefault();
-            const next = sorted.filter((_, i) => i !== index);
-            const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: next };
-            updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
-        };
-
-        return (
-            <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                    <div className="text-[10px] text-muted-foreground">Click to add points, Shift-click to remove.</div>
-                    <select
-                        value={channel}
-                        onChange={(e) => {
-                            const nextChannel = e.target.value as CurvesChannel;
-                            const existing = curves.pointsByChannel ?? { [channel]: sorted }; // Save current points if switching
-                            updateCurves({ ...curves, channel: nextChannel, pointsByChannel: existing });
-                        }}
-                        className="bg-secondary/50 border border-border rounded-md px-2 py-1 text-[10px] text-foreground outline-none focus:ring-1 focus:ring-primary"
-                    >
-                        <option value="rgb">RGB</option>
-                        <option value="luminosity">Luminosity</option>
-                        <option value="r">Red</option>
-                        <option value="g">Green</option>
-                        <option value="b">Blue</option>
-                    </select>
-                </div>
-                <svg
-                    width={160}
-                    height={160}
-                    viewBox="0 0 160 160"
-                    className="border border-border/50 rounded-md bg-background"
-                    onPointerDown={handleAddPointPointer}
-                    onMouseDown={handleAddPointMouse}
-                    onDoubleClick={resetCurve}
-                    style={{ touchAction: 'none', pointerEvents: 'all', cursor: 'crosshair' }}
-                >
-                    <path d="M 0 160 L 160 0" stroke="#27272a" strokeWidth={1} fill="none" />
-                    <path d={path} stroke={curveStroke} strokeWidth={2} fill="none" />
-                    {sorted.map((point, index) => (
-                        <circle
-                            key={`${point.x}-${point.y}-${index}`}
-                            cx={toSvgX(point.x)}
-                            cy={toSvgY(point.y)}
-                            r={4}
-                            fill="#a855f7"
-                            stroke="#fff"
-                            strokeWidth={1}
-                            onPointerDown={startDrag(index)}
-                            onClick={removePoint(index)}
-                        />
-                    ))}
-                </svg>
-            </div>
-        );
+        return <CurvesControls settings={settings as CurvesAdjustmentSettings} onChange={onChange} />;
     }
 
     if (type === 'levels') {

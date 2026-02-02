@@ -16,6 +16,7 @@ interface LayersViewProps {
     onToggleLock: (obj: fabric.Object) => void;
     onDelete: (obj: fabric.Object) => void;
     onReorder: (activeId: string, overId: string) => void; // Parent handles logic
+    onAddToFolder?: (activeId: string, folderId: string) => void;
     onGroup: () => void;
     onUngroup: () => void;
     onCreateFolder: () => void;
@@ -37,6 +38,7 @@ export function LayersView({
     onToggleLock,
     onDelete,
     onReorder,
+    onAddToFolder,
     onGroup,
     onUngroup,
     onCreateFolder,
@@ -112,7 +114,25 @@ export function LayersView({
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        if (over && active.id !== over.id) {
+        if (!over) return;
+
+        // Check for dropping ON a group (Folder)
+        // If sorting strategy shifts items, 'over' might be the item passing by.
+        // However, if we drop, we check intent.
+        // If 'over' is a group, and separate from active, allow dropping into.
+        // Note: This relies on the 'over' ID reported by dnd-kit.
+        const overNode = flatItems.find(n => n.id === over.id);
+        const isGroup = overNode?.obj.type === 'group';
+        
+        // Basic heuristic: If we drop on a group, we prefer Adding to Folder over Reordering next to it
+        // UNLESS we implement detailed drop zones.
+        // Given the request "drag over folder layer and drop", we prioritize this if supported.
+        if (isGroup && onAddToFolder && active.id !== over.id) {
+             onAddToFolder(String(active.id), String(over.id));
+             return; 
+        }
+
+        if (active.id !== over.id) {
             onReorder(String(active.id), String(over.id));
         }
     };
