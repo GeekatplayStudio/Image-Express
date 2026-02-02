@@ -144,7 +144,7 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                 
                 // Restore
                 renderer.setSize(originalSize.x, originalSize.y, false);
-                // eslint-disable-next-line
+                 
                 (camera as THREE.PerspectiveCamera).aspect = originalAspect;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
                 

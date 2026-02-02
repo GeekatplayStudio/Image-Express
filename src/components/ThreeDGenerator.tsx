@@ -92,7 +92,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
              // eslint-disable-next-line
              if (isLoading !== loading) setIsLoading(loading);
         } else {
-            // eslint-disable-next-line
+             
             if (isLoading) setIsLoading(false);
         }
     }, [activeJob, isLoading]);

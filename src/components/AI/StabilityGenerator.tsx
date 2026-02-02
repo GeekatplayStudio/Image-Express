@@ -109,6 +109,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
         // 1. Full Canvas Mode
         if (sourceType === 'canvas') {
             const extCanvas = canvas as CanvasWithArtboard;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let cropOptions: any = { format: 'png', multiplier: 1 };
              
              if (extCanvas.artboard) {

@@ -916,7 +916,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                  // Update cache
                  // eslint-disable-next-line react-hooks/immutability
                  t._strokeCachedColor = c;
-                 // eslint-disable-next-line react-hooks/immutability
+                  
                  t._strokeCachedOpacity = o;
                  setStrokeColor(c);
                  setStrokeOpacity(o);
@@ -1000,7 +1000,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                  
                  // eslint-disable-next-line react-hooks/immutability
                  t._borderCachedColor = c;
-                 // eslint-disable-next-line react-hooks/immutability
+                  
                  t._borderCachedOpacity = o;
                  setBorderColor(c);
                  setBorderOpacity(o);
@@ -1061,12 +1061,12 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                              setShadowBlur(v.shadowBlur); 
                          }
                          if ('shadowOffsetX' in v) { 
-                             // eslint-disable-next-line react-hooks/immutability
+                              
                              s.offsetX = v.shadowOffsetX || 0; 
                              setShadowOffsetX(v.shadowOffsetX); 
                          }
                          if ('shadowOffsetY' in v) { 
-                             // eslint-disable-next-line react-hooks/immutability
+                              
                              s.offsetY = v.shadowOffsetY || 0; 
                              setShadowOffsetY(v.shadowOffsetY); 
                          }
