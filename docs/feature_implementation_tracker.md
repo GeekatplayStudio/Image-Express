@@ -31,7 +31,7 @@
 | 9 | Vector masks (draw shape, use as mask/clip, fill/gradient) | Done | src/components/Toolbar.tsx, src/components/PropertiesPanel.tsx | Pass | Pass | Pen Tool creates layers; Auto-close on start point click; Masking uses any shape |
 | 10 | Gradient masks per layer | Not started | src/components/PropertiesPanel.tsx, src/components/properties/LayerEffectsProperties.tsx | - | - | |
 | 11 | More text effects | Not started | src/components/properties/TextProperties.tsx | - | - | |
-| 12 | Send canvas to AI for processing | Done | src/components/AI/StabilityGenerator.tsx | Warnings | Pass | Added "Use Full Canvas" option in Img2Img tab |
+| 12 | Send canvas to AI for processing | Done | src/components/AI/StabilityGenerator.tsx | Warnings | Pass | Added "Use Full Canvas" option in Img2Img tab (Also supports resize property window) |
 | 13 | Local AI support (Ollama) | Not started | src/app/api/ai/*, src/components/SettingsModal.tsx | - | - | |
 | 14 | AI critique of image/canvas | Not started | src/app/api/ai/*, src/components/Toolbar.tsx | - | - | |
 | 15 | Social media posting | Not started | src/components/SettingsModal.tsx, src/app/api/* | - | - | |
