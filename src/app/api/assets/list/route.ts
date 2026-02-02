@@ -36,7 +36,8 @@ export async function GET(request: Request) {
         .filter(file => !file.startsWith('.'))
         .map(file => ({
           name: file,
-          path: `/assets/${category}/${type}/${file}`,
+          // Use dynamic route
+          path: `/api/assets/serve/${category}/${type}/${file}`,
           type,
           category
         }));

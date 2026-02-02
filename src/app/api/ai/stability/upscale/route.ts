@@ -5,16 +5,13 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const apiKey = request.headers.get('Authorization')?.replace('Bearer ', '');
     
-    // Upscale type: conservative or creative (comes in formData usually, or we default)
-    // Actually URL endpoint differs: 
-    // v2beta/stable-image/upscale/conservative
-    // v2beta/stable-image/upscale/creative
-    // Let's check a query param or a body field 'type' that we intercept?
-    // FormData is harder to inspect without parsing.
-    // Let's pass 'upscale_type' in query param for routing simplicity.
-    
     const url = new URL(request.url);
     const type = url.searchParams.get('type') || 'conservative'; // 'conservative' | 'creative'
+    
+    console.log(`Upscale Request Received (${type})`);
+    console.log("Prompt:", formData.get('prompt'));
+    const img = formData.get('image');
+    console.log("Image present:", !!img, "Size:", img instanceof Blob ? img.size : 'N/A');
 
     if (!apiKey) {
       return NextResponse.json({ success: false, message: 'Missing API Key' }, { status: 401 });
@@ -32,22 +29,38 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-        // Creative upscale is async! returns id. Conservative is sync.
-        if (response.status === 202) {
-             const data = await response.json();
-             return NextResponse.json({ success: true, id: data.id, status: 'IN_PROGRESS' });
-        }
-        
+        // Handle explicit errors
         const errorText = await response.text();
         console.error("Stability Upscale Error:", response.status, errorText);
-        return NextResponse.json({ success: false, message: `Stability API Error: ${errorText}` }, { status: response.status });
+        let msg = `Stability API Error: ${response.status}`;
+        try {
+            const errJson = JSON.parse(errorText);
+            if(errJson.errors?.[0]?.message) msg = errJson.errors[0].message;
+        } catch {}
+        return NextResponse.json({ success: false, message: msg }, { status: response.status });
     }
 
     const data = await response.json();
-    return NextResponse.json({ 
-        success: true, 
-        image: data.image 
-    });
+    
+    // Handle Creative Mode result (Async -> returns ID)
+    if (type === 'creative') {
+        if (data.id) {
+            return NextResponse.json({ success: true, id: data.id, status: 'IN_PROGRESS' });
+        } else {
+             // Should not happen for 200 OK on creative
+             return NextResponse.json({ success: false, message: 'No generation ID received from Stability AI' }, { status: 500 });
+        }
+    }
+    
+    // Handle Conservative Mode result (Sync -> returns Image Base64)
+    if (data.image) {
+        return NextResponse.json({ 
+            success: true, 
+            image: data.image 
+        });
+    }
+
+    return NextResponse.json({ success: false, message: 'Unexpected response format from Stability AI' });
 
   } catch (error) {
     console.error('Stability Upscale Route Error:', error);

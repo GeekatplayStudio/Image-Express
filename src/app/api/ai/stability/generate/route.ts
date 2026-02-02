@@ -5,9 +5,26 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const apiKey = request.headers.get('Authorization')?.replace('Bearer ', '');
 
+    const prompt = formData.get('prompt');
+    const aspectRatio = formData.get('aspect_ratio');
+    
+    console.log("Generate Request Received");
+    console.log("Prompt:", prompt);
+    console.log("AspectRatio:", aspectRatio);
+
     if (!apiKey) {
       return NextResponse.json({ success: false, message: 'Missing API Key' }, { status: 401 });
     }
+
+    if (!prompt) {
+        return NextResponse.json({ success: false, message: 'Prompt is required' }, { status: 400 });
+    }
+
+    // Reconstruct FormData to ensure clean boundary and data
+    const outgoingFormData = new FormData();
+    outgoingFormData.append('prompt', prompt.toString());
+    outgoingFormData.append('aspect_ratio', (aspectRatio || '1:1').toString());
+    outgoingFormData.append('output_format', 'png');
 
     // Default to Core if not specified, but usually we use Core or SD3
     // v2beta/stable-image/generate/core
@@ -17,7 +34,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${apiKey}`, 
         Accept: 'application/json' 
       },
-      body: formData,
+      body: outgoingFormData,
     });
 
     if (!response.ok) {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Wand2, Loader2, Image as ImageIcon, Eraser, Move, Layers, Maximize, Check, Sparkles } from 'lucide-react';
+import { X, Wand2, Loader2, Image as ImageIcon, Eraser, Move, Layers, Maximize, Check, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Scan } from 'lucide-react';
 import * as fabric from 'fabric';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,6 +7,7 @@ import { Label } from '../ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Slider } from '../ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Switch } from '../ui/switch';
 import { useToast } from '@/providers/ToastProvider';
 import { BackgroundJob } from '@/types';
 
@@ -55,12 +56,13 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     const [prompt, setPrompt] = useState('');
     const [negativePrompt, setNegativePrompt] = useState(''); // Note: Not widely supported in newer Stability Core models
     const [aspectRatio, setAspectRatio] = useState('1:1');
-    const [strength, setStrength] = useState([0.7]); // Impact strength for Img2Img (0-1)
+    const [strength, setStrength] = useState([0.35]); // Impact strength for Img2Img (0-1). Lower = closer to original.
     
     // --- Image Data State ---
     const [resultImage, setResultImage] = useState<string | null>(null);         // The final output
     const [selectedCanvasImage, setSelectedCanvasImage] = useState<string | null>(null); // Source image from canvas
     const [sourceType, setSourceType] = useState<'selection' | 'canvas'>('selection'); 
+    const [flattenSelection, setFlattenSelection] = useState(true); // If true, selection includes all visible layers (crop) 
     
     // --- Inpainting State ---
     const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);         // Generated mask blob URL
@@ -68,15 +70,115 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     const [isDrawingMask, setIsDrawingMask] = useState(false);
     const [brushSize, setBrushSize] = useState([20]);
 
+    // --- Outpainting State ---
+    const [outpaintDirs, setOutpaintDirs] = useState({ left: false, right: false, up: false, down: false });
+
     // --- Window Positioning (if not embedded) ---
     const [position, setPosition] = useState({ x: 100, y: 100 });
     const [isDragging, setIsDragging] = useState(false);
     const dragStartRef = useRef({ x: 0, y: 0 });
 
     /**
+     * Helper: Handle successful generation (Update UI + Auto-save)
+     */
+    const handleSuccess = (base64Raw: string) => {
+        // Construct full Data URI
+        const fullUrl = `data:image/png;base64,${base64Raw}`;
+        setResultImage(fullUrl);
+        
+        // Auto-save to 'Generated' assets
+        if (onAssetSave) {
+            // Slight delay to ensure UI updates first? No need.
+            onAssetSave(fullUrl); 
+            // Optional: Don't toast here if the save itself toasts, but usually save is silent?
+            // ImageGeneratorModal's saveToAssets logs error but doesn't toast success. 
+            // We can toast here.
+            toast({ title: 'Asset Saved', description: 'Image added to Generated library.', variant: 'success' });
+        }
+    };
+
+    /**
+     * Helper: Extract image data from canvas.
+     * Can extract specific object (isolated) OR crop region (all layers).
+     */
+    const captureSourceImage = () => {
+        if (!canvas) return null;
+
+        const active = canvas.getActiveObject();
+        
+        // 1. Full Canvas Mode
+        if (sourceType === 'canvas') {
+            const extCanvas = canvas as CanvasWithArtboard;
+            let cropOptions: any = { format: 'png', multiplier: 1 };
+             
+             if (extCanvas.artboard) {
+                 cropOptions = { ...cropOptions, ...extCanvas.artboard };
+             } else if (extCanvas.artboardRect) {
+                 const rect = extCanvas.artboardRect;
+                 cropOptions = {
+                     ...cropOptions,
+                     left: rect.left ?? 0,
+                     top: rect.top ?? 0,
+                     width: (rect.width ?? 0) * (rect.scaleX ?? 1),
+                     height: (rect.height ?? 0) * (rect.scaleY ?? 1)
+                 };
+             }
+
+             const originalVpt = canvas.viewportTransform;
+             canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+             canvas.requestRenderAll();
+             
+             try {
+                return canvas.toDataURL(cropOptions);
+             } finally {
+                if (originalVpt) {
+                    canvas.setViewportTransform(originalVpt);
+                    canvas.requestRenderAll();
+                }
+             }
+        }
+        
+        // 2. Selection Mode
+        if (active) {
+            // Option A: Flattened (All layers visible in selection box)
+            if (flattenSelection) {
+                 const originalVpt = canvas.viewportTransform;
+                 const rect = active.getBoundingRect();
+                 
+                 canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+                 canvas.requestRenderAll();
+
+                 try {
+                     return canvas.toDataURL({
+                         format: 'png',
+                         multiplier: 1,
+                         left: rect.left,
+                         top: rect.top,
+                         width: rect.width,
+                         height: rect.height
+                     });
+                 } finally {
+                     if (originalVpt) {
+                        canvas.setViewportTransform(originalVpt);
+                        canvas.requestRenderAll();
+                    }
+                 }
+            }
+            // Option B: Isolated (Just the selected object)
+            else {
+                return active.toDataURL({
+                     format: 'png',
+                     multiplier: 1
+                });
+            }
+        }
+        
+        return null;
+    };
+
+    /**
      * Effect: Monitor Canvas Selection
      * Automatically updates `selectedCanvasImage` when user selects an image on the board.
-     * This allows Img2Img and Inpainting to know what to operate on.
      */
     useEffect(() => {
         if (!canvas) return;
@@ -84,32 +186,32 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
         const handleSelection = () => {
             const active = canvas.getActiveObject();
             if (active) {
-                 // Convert selection (Image or Group) to Data URL
-                 const dataURL = active.toDataURL({
-                     format: 'png',
-                     multiplier: 1
-                 });
-                 setSelectedCanvasImage(dataURL);
-                 setSourceType('selection'); // Auto-switch to selection when user selects
+                 setSourceType('selection'); 
+                 const img = captureSourceImage();
+                 setSelectedCanvasImage(img);
             } else {
                  setSelectedCanvasImage(null);
-                 // Don't auto-switch to canvas here, let user choose, 
-                 // OR we can default to canvas? 
-                 // Let's keep it manual or default to canvas if nothing selected?
-                 // If nothing selected, selectedCanvasImage is null, so UI naturally falls back to "Select something or use canvas" logic.
             }
         };
 
         canvas.on('selection:created', handleSelection);
         canvas.on('selection:updated', handleSelection);
-        canvas.on('selection:cleared', handleSelection); // Consolidated clearing
+        canvas.on('selection:cleared', handleSelection);
 
         return () => {
              canvas.off('selection:created', handleSelection);
              canvas.off('selection:updated', handleSelection);
              canvas.off('selection:cleared', handleSelection);
         };
-    }, [canvas]);
+    }, [canvas, sourceType, flattenSelection]); // Re-run if flatten mode changes
+
+    // Update preview when flatten mode changes
+    useEffect(() => {
+        if (sourceType === 'selection' && canvas?.getActiveObject()) {
+            const img = captureSourceImage();
+            setSelectedCanvasImage(img);
+        }
+    }, [flattenSelection]);
 
     /**
      * Draggable Logic (Window Movement)
@@ -152,6 +254,11 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             toast({ title: 'Missing API key', description: 'Please set Stability API Key in settings.', variant: 'warning' });
             return;
         }
+        if (!prompt || prompt.trim() === '') {
+            toast({ title: 'Missing Prompt', description: 'Please describe the image you want to generate.', variant: 'warning' });
+            return;
+        }
+
         setIsProcessing(true);
         setResultImage(null);
 
@@ -161,6 +268,8 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             formData.append('aspect_ratio', aspectRatio);
             formData.append('output_format', 'png');
             
+            console.log('[Stability] Generating Image:', { prompt, aspectRatio });
+
             const res = await fetch('/api/ai/stability/generate', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${apiKey}` },
@@ -169,7 +278,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             
             const data = await res.json();
             if (data.success) {
-                setResultImage(`data:image/png;base64,${data.image}`);
+                handleSuccess(data.image);
             } else {
                 toast({ title: 'Generation failed', description: data.message || 'Error generating image.', variant: 'destructive' });
             }
@@ -212,7 +321,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
 
             const data = await res.json();
             if (data.success) {
-                setResultImage(`data:image/png;base64,${data.image}`);
+                handleSuccess(data.image);
             } else {
                 toast({ title: 'Remove BG failed', description: data.message || 'Error removing background.', variant: 'destructive' });
             }
@@ -246,6 +355,8 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             formData.append('prompt', prompt); // Only used for creative upscale
             formData.append('output_format', 'png');
 
+            console.log(`[Stability] Sending Upscale (${type}):`, { prompt, blobSize: blobInfo.size });
+
             const res = await fetch(`/api/ai/stability/upscale?type=${type}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${apiKey}` },
@@ -267,7 +378,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                     toast({ title: 'Upscale started', description: 'Creative upscale running in background.', variant: 'success' });
                     onClose(); 
                 } else {
-                    setResultImage(`data:image/png;base64,${data.image}`);
+                    handleSuccess(data.image);
                 }
             } else {
                 toast({ title: 'Upscale failed', description: data.message || 'Error starting upscale.', variant: 'destructive' });
@@ -289,55 +400,17 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
              return;
          }
          
-         let sourceImage = selectedCanvasImage;
-         if (sourceType === 'canvas' && canvas) {
-             const extCanvas = canvas as CanvasWithArtboard;
-             
-             // Prioritize explicit artboard dimensions if available
-             let cropOptions: { left: number; top: number; width: number; height: number } | null = null;
-             
-             if (extCanvas.artboard) {
-                 cropOptions = {
-                     left: extCanvas.artboard.left ?? 0,
-                     top: extCanvas.artboard.top ?? 0,
-                     width: extCanvas.artboard.width,
-                     height: extCanvas.artboard.height
-                 };
-             } else if (extCanvas.artboardRect) {
-                 const rect = extCanvas.artboardRect;
-                 cropOptions = {
-                     left: rect.left ?? 0,
-                     top: rect.top ?? 0,
-                     width: (rect.width ?? 0) * (rect.scaleX ?? 1),
-                     height: (rect.height ?? 0) * (rect.scaleY ?? 1)
-                 };
-             }
-
-             // Temporarily reset viewport to ensure correct cropping without zoom/pan offsets
-             const originalVpt = canvas.viewportTransform;
-             canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
-             canvas.requestRenderAll();
-
-            try {
-                 if (cropOptions) {
-                     sourceImage = canvas.toDataURL({
-                         format: 'png',
-                         multiplier: 1,
-                         ...cropOptions
-                     });
-                 } else {
-                     sourceImage = canvas.toDataURL({ format: 'png', multiplier: 1 });
-                 }
-            } finally {
-                 // Restore viewport
-                 if (originalVpt) {
-                     canvas.setViewportTransform(originalVpt);
-                     canvas.requestRenderAll();
-                 }
-            }
-         }
+         // Use our robust capture helper (handles cropping, visible layers, etc.)
+         const sourceImage = captureSourceImage();
+         
+         console.log('[Stability] Img2Img Capture:', { 
+            length: sourceImage?.length, 
+            sourceType, 
+            flattenSelection 
+         });
 
          if (!sourceImage) {
+             console.warn('[Stability] No source image captured');
              toast({ title: 'No image source', description: 'Select an image or use full canvas.', variant: 'warning' });
              return;
          }
@@ -352,6 +425,8 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             formData.append('mode', 'image-to-image');
             formData.append('output_format', 'png');
 
+            console.log('[Stability] Sending Img2Img:', { prompt, strength: strength[0], blobSize: blobInfo.size });
+
             const res = await fetch('/api/ai/stability/img2img', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${apiKey}` },
@@ -360,7 +435,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             
             const data = await res.json();
             if (data.success) {
-                setResultImage(`data:image/png;base64,${data.image}`);
+                handleSuccess(data.image);
             } else {
                 toast({ title: 'Img2Img failed', description: data.message || 'Error generating image.', variant: 'destructive' });
             }
@@ -371,6 +446,63 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
              setIsProcessing(false);
          }
     };
+
+    /**
+     * Performs Outpainting (extending the image).
+     */
+    const handleOutpaint = async () => {
+        if (!apiKey) {
+            toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+            return;
+        }
+
+        const sourceImage = captureSourceImage();
+        if (!sourceImage) {
+             toast({ title: 'No image source', description: 'Select an image/area to outpaint from.', variant: 'warning' });
+             return;
+        }
+
+        // Validate directions - Stability requires at least one direction
+        if (!outpaintDirs.left && !outpaintDirs.right && !outpaintDirs.up && !outpaintDirs.down) {
+             toast({ title: 'No direction', description: 'Select at least one direction to expand.', variant: 'warning' });
+             return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const blobInfo = await fetch(sourceImage).then(r => r.blob());
+            const formData = new FormData();
+            formData.append('image', blobInfo);
+            formData.append('prompt', prompt);
+            formData.append('output_format', 'png');
+            
+            if(outpaintDirs.left) formData.append('left', 'true');
+            if(outpaintDirs.right) formData.append('right', 'true');
+            if(outpaintDirs.up) formData.append('up', 'true');
+            if(outpaintDirs.down) formData.append('down', 'true');
+
+            // Pass creativity/strength if supported, for now just prompt and directions
+            
+            const res = await fetch('/api/ai/stability/outpaint', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}` },
+                body: formData
+            });
+
+            const data = await res.json();
+             if (data.success) {
+                handleSuccess(data.image);
+            } else {
+                toast({ title: 'Outpaint failed', description: data.message || 'Error outpainting.', variant: 'destructive' });
+            }
+        } catch (e) {
+            console.error(e);
+             toast({ title: 'Outpaint failed', description: 'Something went wrong.', variant: 'destructive' });
+        } finally {
+             setIsProcessing(false);
+        }
+    };
+
 
     /**
      * Performs Inpainting (replacing masked area) based on canvas selection + mask.
@@ -409,7 +541,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
            
            const data = await res.json();
            if (data.success) {
-               setResultImage(`data:image/png;base64,${data.image}`);
+               handleSuccess(data.image);
            } else {
                toast({ title: 'Inpaint failed', description: data.message || 'Error running inpaint.', variant: 'destructive' });
            }
@@ -516,10 +648,11 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             <div className="flex-1 space-y-4">
                 {/* --- Tool Selector Tabs --- */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-muted/50 mb-4">
+                    <TabsList className="grid w-full grid-cols-6 h-auto p-1 bg-muted/50 mb-4">
                         <TabsTrigger value="generate" title="Text to Image"><ImageIcon size={16} /></TabsTrigger>
                         <TabsTrigger value="inpaint" title="Inpaint"><Eraser size={16} /></TabsTrigger>
                         <TabsTrigger value="img2img" title="Img2Img"><Layers size={16} /></TabsTrigger>
+                        <TabsTrigger value="outpaint" title="Outpaint"><Scan size={16} /></TabsTrigger>
                         <TabsTrigger value="upscale" title="Upscale"><Maximize size={16} /></TabsTrigger>
                         <TabsTrigger value="removebox" title="Remove BG"><Move size={16} /></TabsTrigger>
                     </TabsList>
@@ -575,6 +708,16 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                              </Button>
                          </div>
 
+                         {/* Flatten Selection Option */}
+                         {sourceType === 'selection' && (
+                             <div className="flex items-center space-x-2 py-2">
+                                <Switch id="flatten-mode" checked={flattenSelection} onCheckedChange={setFlattenSelection} />
+                                <Label htmlFor="flatten-mode" className="text-xs">
+                                    Include overlapping objects (Flatten)
+                                </Label>
+                             </div>
+                         )}
+
                          {sourceType === 'selection' && !selectedCanvasImage ? (
                              <div className="p-4 border border-dashed rounded text-center text-muted-foreground flex flex-col items-center gap-2">
                                  <p>Select an object to edit.</p>
@@ -601,9 +744,9 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                      <Label>Creativity Strength ({Math.round(strength[0] * 100)}%)</Label>
                                      <Slider value={strength} onValueChange={(val) => setStrength(val)} min={0} max={1} step={0.05} />
                                      <p className="text-[10px] text-muted-foreground flex justify-between">
-                                         <span>Faithful (0.0)</span>
-                                         <span>Balanced</span>
-                                         <span>Creative (1.0)</span>
+                                         <span>0% (No Change)</span>
+                                         <span>35% (Balanced)</span>
+                                         <span>100% (New Image)</span>
                                      </p>
                                  </div>
                                  <Button className="w-full" onClick={handleImg2Img} disabled={isProcessing}>
@@ -612,6 +755,44 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                  </Button>
                              </div>
                          )}
+                    </TabsContent>
+
+                    {/* --- TAB: OUTPAINTING --- */}
+                    <TabsContent value="outpaint" className="space-y-4">
+                        {!selectedCanvasImage ? (
+                             <div className="p-4 border border-dashed rounded text-center text-muted-foreground">
+                                 Select an image on the canvas first to extend.
+                             </div>
+                        ) : (
+                             <div className="space-y-4">
+                                 <img src={selectedCanvasImage} className="w-full h-32 object-contain bg-muted p-2" />
+                                 
+                                 <div className="space-y-2">
+                                     <Label>Expansion Directions</Label>
+                                     <div className="grid grid-cols-3 gap-2 w-32 mx-auto">
+                                         <div />
+                                         <Button variant={outpaintDirs.up ? "default" : "outline"} size="icon" onClick={() => setOutpaintDirs(d => ({...d, up: !d.up}))}><ArrowUp size={16}/></Button>
+                                         <div />
+                                         <Button variant={outpaintDirs.left ? "default" : "outline"} size="icon" onClick={() => setOutpaintDirs(d => ({...d, left: !d.left}))}><ArrowLeft size={16}/></Button>
+                                         <div className="flex items-center justify-center text-xs text-muted-foreground">Src</div>
+                                         <Button variant={outpaintDirs.right ? "default" : "outline"} size="icon" onClick={() => setOutpaintDirs(d => ({...d, right: !d.right}))}><ArrowRight size={16}/></Button>
+                                         <div />
+                                         <Button variant={outpaintDirs.down ? "default" : "outline"} size="icon" onClick={() => setOutpaintDirs(d => ({...d, down: !d.down}))}><ArrowDown size={16}/></Button>
+                                         <div />
+                                     </div>
+                                 </div>
+
+                                 <div className="space-y-2">
+                                     <Label>Prompt</Label>
+                                     <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="What to fill the space with..." />
+                                 </div>
+
+                                 <Button className="w-full" onClick={handleOutpaint} disabled={isProcessing}>
+                                    {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Scan className="mr-2" />}
+                                    Outpaint (Expand)
+                                 </Button>
+                             </div>
+                        )}
                     </TabsContent>
 
                     {/* --- TAB: INPAINTING --- */}

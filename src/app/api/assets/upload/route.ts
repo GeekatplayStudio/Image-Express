@@ -66,7 +66,10 @@ export async function POST(request: Request) {
 
     await writeFile(filepath, buffer);
 
-    const publicPath = `/assets/${category}/${type}/${filename}`;
+    // Use our dynamic serve route instead of static public path to bypass dev server lag
+    // Original: /assets/${category}/${type}/${filename}
+    // New: /api/assets/serve/${category}/${type}/${filename}
+    const publicPath = `/api/assets/serve/${category}/${type}/${filename}`;
 
     return NextResponse.json({ success: true, path: publicPath, filename, type, category });
   } catch (error) {
