@@ -451,6 +451,13 @@ export default function EditorView({
     const [showGridMenu, setShowGridMenu] = useState(false);
     const [gridType, setGridType] = useState<GridType>('none');
     const [isExporting, setIsExporting] = useState(false);
+    const [showExportQualityModal, setShowExportQualityModal] = useState(false);
+    const [exportQualityValue, setExportQualityValue] = useState(100);
+    const [exportQualitySize, setExportQualitySize] = useState<string>('');
+    const [pendingExportFormat, setPendingExportFormat] = useState<'png' | 'jpg' | null>(null);
+    const [pendingExportFilename, setPendingExportFilename] = useState('');
+    const pendingExportCropRef = useRef<{ left: number; top: number; width: number; height: number } | undefined>(undefined);
+    const exportSizeTimerRef = useRef<number | null>(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
@@ -487,9 +494,72 @@ export default function EditorView({
         banana?: string
     }>({});
 
+    const formatBytes = (bytes: number) => {
+        if (bytes < 1024) return `${bytes} B`;
+        const kb = bytes / 1024;
+        if (kb < 1024) return `${kb.toFixed(1)} KB`;
+        return `${(kb / 1024).toFixed(2)} MB`;
+    };
+
+    const withViewportReset = useCallback(async <T,>(action: () => T | Promise<T>) => {
+        if (!canvas) {
+            return action();
+        }
+        const originalTransform = canvas.viewportTransform ? ([...canvas.viewportTransform] as fabric.TMat2D) : undefined;
+        if (originalTransform) {
+            canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as fabric.TMat2D);
+            canvas.requestRenderAll();
+        }
+        try {
+            return await action();
+        } finally {
+            if (originalTransform) {
+                canvas.setViewportTransform(originalTransform);
+                canvas.requestRenderAll();
+            }
+        }
+    }, [canvas]);
+
+    const estimateExportSize = useCallback(async (format: 'png' | 'jpg', quality: number) => {
+        if (!canvas) return;
+        const cropOptions = pendingExportCropRef.current;
+        const options: fabric.TDataUrlOptions = {
+            format: format === 'jpg' ? 'jpeg' : 'png',
+            quality: Math.max(0.1, Math.min(1, quality / 100)),
+            multiplier: 1,
+            enableRetinaScaling: true
+        };
+        if (cropOptions) {
+            options.left = cropOptions.left;
+            options.top = cropOptions.top;
+            options.width = cropOptions.width;
+            options.height = cropOptions.height;
+        }
+
+        try {
+            const dataUrl = await withViewportReset(() => canvas.toDataURL(options));
+            const base64Index = dataUrl.indexOf(',');
+            const base64Length = base64Index >= 0 ? dataUrl.length - base64Index - 1 : dataUrl.length;
+            const bytes = Math.floor((base64Length * 3) / 4);
+            setExportQualitySize(formatBytes(bytes));
+        } catch {
+            setExportQualitySize('Unavailable');
+        }
+    }, [canvas, withViewportReset]);
+
     useEffect(() => {
         canvasRef.current = canvas;
     }, [canvas]);
+
+    useEffect(() => {
+        if (!showExportQualityModal || !pendingExportFormat) return;
+        if (exportSizeTimerRef.current) {
+            window.clearTimeout(exportSizeTimerRef.current);
+        }
+        exportSizeTimerRef.current = window.setTimeout(() => {
+            estimateExportSize(pendingExportFormat, exportQualityValue);
+        }, 150);
+    }, [showExportQualityModal, pendingExportFormat, exportQualityValue, estimateExportSize]);
 
     // Handle Open Design (Local helpers)
     const handleOpenDesign = useCallback(async (design: { data?: unknown }) => {
@@ -787,7 +857,6 @@ export default function EditorView({
     const handleExport = async (format: 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html') => {
         if (!canvas) return;
         try {
-            let dataUrl = '';
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const filename = `design-${timestamp}.${format}`;
     
@@ -799,11 +868,13 @@ export default function EditorView({
             let cropOptions: { left: number; top: number; width: number; height: number; } | undefined;
 
              if (rect) {
+                 const rectWidth = rect.getScaledWidth?.() ?? ((rect.width || 0) * (rect.scaleX || 1));
+                 const rectHeight = rect.getScaledHeight?.() ?? ((rect.height || 0) * (rect.scaleY || 1));
                  cropOptions = {
                      left: rect.left || 0,
                      top: rect.top || 0,
-                     width: (rect.width || 0) * (rect.scaleX || 1),
-                     height: (rect.height || 0) * (rect.scaleY || 1)
+                     width: rectWidth,
+                     height: rectHeight
                  };
              } else if (artboard) {
                 cropOptions = {
@@ -826,43 +897,11 @@ export default function EditorView({
 
                 switch (format) {
                     case 'png': {
-                        await withExportOverlays(async () => {
-                            const options: fabric.TDataUrlOptions = {
-                                format: 'png',
-                                quality: 1,
-                                multiplier: 1,
-                                enableRetinaScaling: true
-                            };
-                            if (cropOptions && cropOptions.width > 0 && cropOptions.height > 0) {
-                                options.left = cropOptions.left;
-                                options.top = cropOptions.top;
-                                options.width = cropOptions.width;
-                                options.height = cropOptions.height;
-                            }
-
-                            dataUrl = canvas.toDataURL(options);
-                            downloadFile(dataUrl, filename);
-                        });
+                        openExportQualityModal('png', filename, cropOptions);
                         break;
                     }
                     case 'jpg': {
-                        await withExportOverlays(async () => {
-                            const options: fabric.TDataUrlOptions = {
-                                format: 'jpeg',
-                                quality: 1,
-                                multiplier: 1,
-                                enableRetinaScaling: true
-                            };
-                            if (cropOptions && cropOptions.width > 0 && cropOptions.height > 0) {
-                                options.left = cropOptions.left;
-                                options.top = cropOptions.top;
-                                options.width = cropOptions.width;
-                                options.height = cropOptions.height;
-                            }
-
-                            dataUrl = canvas.toDataURL(options);
-                            downloadFile(dataUrl, filename);
-                        });
+                        openExportQualityModal('jpg', filename, cropOptions);
                         break;
                     }
                     case 'svg':
@@ -932,6 +971,23 @@ export default function EditorView({
         const url = URL.createObjectURL(blob);
         downloadFile(url, filename);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+
+    const openExportQualityModal = (format: 'png' | 'jpg', filename: string, cropOptions?: { left: number; top: number; width: number; height: number }) => {
+        setPendingExportFormat(format);
+        setPendingExportFilename(filename);
+        pendingExportCropRef.current = cropOptions;
+        const defaultQuality = format === 'jpg' ? 90 : 100;
+        setExportQualityValue(defaultQuality);
+        setExportQualitySize('Calculating...');
+        setShowExportQualityModal(true);
+
+        if (exportSizeTimerRef.current) {
+            window.clearTimeout(exportSizeTimerRef.current);
+        }
+        exportSizeTimerRef.current = window.setTimeout(() => {
+            estimateExportSize(format, defaultQuality);
+        }, 100);
     };
 
     const exportHtmlBundle = async (baseName: string, timestamp: string) => {
@@ -2361,6 +2417,75 @@ document.addEventListener('DOMContentLoaded', () => {
                                     className="w-full"
                                 />
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showExportQualityModal && pendingExportFormat && (
+                <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl p-6 flex flex-col gap-4 mx-4">
+                        <div className="flex items-start gap-4">
+                            <div className="p-2 rounded-full shrink-0 bg-primary/10 text-primary">
+                                <Settings size={24} />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                                <h3 className="font-semibold text-lg leading-none">Export Quality</h3>
+                                <p className="text-muted-foreground text-sm">Adjust quality and review estimated size.</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                <span>Quality: {exportQualityValue}</span>
+                                <span>Est. size: {exportQualitySize || '—'}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min={1}
+                                max={100}
+                                step={1}
+                                value={exportQualityValue}
+                                onChange={(e) => setExportQualityValue(parseInt(e.target.value))}
+                                className="w-full accent-primary"
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-4">
+                            <button
+                                onClick={() => setShowExportQualityModal(false)}
+                                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!canvas || !pendingExportFormat) return;
+                                    const cropOptions = pendingExportCropRef.current;
+                                    const options: fabric.TDataUrlOptions = {
+                                        format: pendingExportFormat === 'jpg' ? 'jpeg' : 'png',
+                                        quality: Math.max(0.1, Math.min(1, exportQualityValue / 100)),
+                                        multiplier: 1,
+                                        enableRetinaScaling: true
+                                    };
+                                    if (cropOptions) {
+                                        options.left = cropOptions.left;
+                                        options.top = cropOptions.top;
+                                        options.width = cropOptions.width;
+                                        options.height = cropOptions.height;
+                                    }
+
+                                    await withExportOverlays(async () => {
+                                        const dataUrl = await withViewportReset(() => canvas.toDataURL(options));
+                                        downloadFile(dataUrl, pendingExportFilename);
+                                    });
+
+                                    setShowExportQualityModal(false);
+                                }}
+                                className="px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all text-white bg-primary hover:bg-primary/90"
+                            >
+                                Save
+                            </button>
                         </div>
                     </div>
                 </div>
