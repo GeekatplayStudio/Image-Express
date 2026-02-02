@@ -26,7 +26,7 @@ interface StabilityGeneratorProps {
     /** Callback when a long-running job (like video/upscale) is started */
     onJobCreated?: (job: BackgroundJob) => void;
     /** Whether this is running inside another modal (simplified view) */
-    // embedded?: boolean;
+    embedded?: boolean;
     /** Callback to save the generated result to the backend asset library */
     onAssetSave?: (url: string) => void;
 }
