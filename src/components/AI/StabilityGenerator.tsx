@@ -31,7 +31,7 @@ interface StabilityGeneratorProps {
 }
 
 type CanvasWithArtboard = fabric.Canvas & {
-    artboard?: { width: number; height: number };
+    artboard?: { width: number; height: number; left?: number; top?: number };
     artboardRect?: fabric.Rect;
 };
 
@@ -292,24 +292,49 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
          let sourceImage = selectedCanvasImage;
          if (sourceType === 'canvas' && canvas) {
              const extCanvas = canvas as CanvasWithArtboard;
-             if (extCanvas.artboardRect) {
+             
+             // Prioritize explicit artboard dimensions if available
+             let cropOptions: { left: number; top: number; width: number; height: number } | null = null;
+             
+             if (extCanvas.artboard) {
+                 cropOptions = {
+                     left: extCanvas.artboard.left ?? 0,
+                     top: extCanvas.artboard.top ?? 0,
+                     width: extCanvas.artboard.width,
+                     height: extCanvas.artboard.height
+                 };
+             } else if (extCanvas.artboardRect) {
                  const rect = extCanvas.artboardRect;
-                 const left = rect.left ?? 0;
-                 const top = rect.top ?? 0;
-                 const width = (rect.width ?? 0) * (rect.scaleX ?? 1);
-                 const height = (rect.height ?? 0) * (rect.scaleY ?? 1);
-                 
-                 sourceImage = canvas.toDataURL({
-                     format: 'png',
-                     multiplier: 1,
-                     left,
-                     top,
-                     width,
-                     height
-                 });
-             } else {
-                 sourceImage = canvas.toDataURL({ format: 'png', multiplier: 1 });
+                 cropOptions = {
+                     left: rect.left ?? 0,
+                     top: rect.top ?? 0,
+                     width: (rect.width ?? 0) * (rect.scaleX ?? 1),
+                     height: (rect.height ?? 0) * (rect.scaleY ?? 1)
+                 };
              }
+
+             // Temporarily reset viewport to ensure correct cropping without zoom/pan offsets
+             const originalVpt = canvas.viewportTransform;
+             canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+             canvas.requestRenderAll();
+
+            try {
+                 if (cropOptions) {
+                     sourceImage = canvas.toDataURL({
+                         format: 'png',
+                         multiplier: 1,
+                         ...cropOptions
+                     });
+                 } else {
+                     sourceImage = canvas.toDataURL({ format: 'png', multiplier: 1 });
+                 }
+            } finally {
+                 // Restore viewport
+                 if (originalVpt) {
+                     canvas.setViewportTransform(originalVpt);
+                     canvas.requestRenderAll();
+                 }
+            }
          }
 
          if (!sourceImage) {
@@ -323,7 +348,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             const formData = new FormData();
             formData.append('image', blobInfo);
             formData.append('prompt', prompt);
-            formData.append('strength', String(strength[0])); // Control how much to respect original image
+            formData.append('strength', String(strength[0])); // 0.0 = Identical to Original, 1.0 = Completely New
             formData.append('mode', 'image-to-image');
             formData.append('output_format', 'png');
 
@@ -573,12 +598,12 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                      <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Make it look like a sketch..." />
                                  </div>
                                  <div className="space-y-2">
-                                     <Label>Strength ({strength[0]})</Label>
+                                     <Label>Creativity Strength ({Math.round(strength[0] * 100)}%)</Label>
                                      <Slider value={strength} onValueChange={(val) => setStrength(val)} min={0} max={1} step={0.05} />
                                      <p className="text-[10px] text-muted-foreground flex justify-between">
-                                         <span>Creative (0.0)</span>
+                                         <span>Faithful (0.0)</span>
                                          <span>Balanced</span>
-                                         <span>Faithful (1.0)</span>
+                                         <span>Creative (1.0)</span>
                                      </p>
                                  </div>
                                  <Button className="w-full" onClick={handleImg2Img} disabled={isProcessing}>

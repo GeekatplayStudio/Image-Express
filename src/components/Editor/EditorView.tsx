@@ -45,7 +45,8 @@ interface EditorViewProps {
 type PanelMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' | 'collapsed-right';
 
 type CanvasWithArtboard = fabric.Canvas & {
-    artboard?: { width: number; height: number };
+    artboard?: { width: number; height: number; left: number; top: number };
+    artboardRect?: fabric.Rect;
 };
 
 type SerializedFill = {
@@ -661,68 +662,128 @@ export default function EditorView({
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const filename = `design-${timestamp}.${format}`;
     
-            switch (format) {
-                case 'png':
-                    await withExportOverlays(async () => {
-                        dataUrl = canvas.toDataURL({
-                            format: 'png',
-                            quality: 1,
-                            multiplier: 1,
-                            enableRetinaScaling: true
+            // Get artboard dimensions for cropping
+            const extCanvas = canvas as CanvasWithArtboard;
+            const artboard = extCanvas.artboard; // Data object
+            const rect = extCanvas.artboardRect; // Visual object
+
+            let cropOptions: { left: number; top: number; width: number; height: number; } | undefined;
+
+             if (rect) {
+                 cropOptions = {
+                     left: rect.left ?? 0,
+                     top: rect.top ?? 0,
+                     width: (rect.width ?? 0) * (rect.scaleX ?? 1),
+                     height: (rect.height ?? 0) * (rect.scaleY ?? 1)
+                 };
+             } else if (artboard) {
+                cropOptions = {
+                    left: artboard.left || 0,
+                    top: artboard.top || 0,
+                    width: artboard.width,
+                    height: artboard.height
+                };
+             }
+
+             // Viewport Isolation Strategy:
+             // To ensure we capture exactly the coordinates (0,0, W,H) without any panning/zooming offsets,
+             // we temporarily reset the viewport transform to identity.
+             const originalVpt = canvas.viewportTransform;
+             canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+             
+             // Ensure we render fully for the export state
+             canvas.requestRenderAll();
+             
+             // Wrap in try/finally to ALWAYS restore viewport
+             try {
+                switch (format) {
+                    case 'png':
+                        await withExportOverlays(async () => {
+                            dataUrl = canvas.toDataURL({
+                                format: 'png',
+                                quality: 1,
+                                multiplier: 1,
+                                enableRetinaScaling: true,
+                                ...cropOptions
+                            });
+                            downloadFile(dataUrl, filename);
                         });
-                        downloadFile(dataUrl, filename);
-                    });
-                    break;
-                case 'jpg':
-                    await withExportOverlays(async () => {
-                        const originalBg = canvas.backgroundColor;
-                        canvas.set('backgroundColor', '#ffffff');
-                        dataUrl = canvas.toDataURL({
-                            format: 'jpeg',
-                            quality: 0.9,
-                            multiplier: 1,
-                            enableRetinaScaling: true
+                        break;
+                    case 'jpg':
+                        await withExportOverlays(async () => {
+                            const originalBg = canvas.backgroundColor;
+                            canvas.set('backgroundColor', '#ffffff');
+                            
+                            // Ensure background is updated visually before capture? 
+                            // toDataURL should handle it, but with viewport hack we safe.
+                            
+                            dataUrl = canvas.toDataURL({
+                                format: 'jpeg',
+                                quality: 0.9,
+                                multiplier: 1,
+                                enableRetinaScaling: true,
+                                ...cropOptions
+                            });
+                            downloadFile(dataUrl, filename);
+                            
+                            canvas.set('backgroundColor', originalBg);
+                            // We don't render here, we render in finally
                         });
-                        downloadFile(dataUrl, filename);
-                        canvas.set('backgroundColor', originalBg);
-                        canvas.requestRenderAll();
-                    });
-                    break;
-                case 'svg':
-                    const svgContent = canvas.toSVG();
-                    const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    downloadFile(url, filename);
-                    break;
+                        break;
+                    case 'svg':
+                        // Convert width/height to strings as required by Fabric toSVG types in some versions
+                        const svgContent = canvas.toSVG({
+                            width: cropOptions ? `${cropOptions.width}px` : undefined,
+                            height: cropOptions ? `${cropOptions.height}px` : undefined,
+                            viewBox: cropOptions ? {
+                                x: cropOptions.left,
+                                y: cropOptions.top,
+                                width: cropOptions.width,
+                                height: cropOptions.height
+                            } : undefined
+                        });
+                        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        downloadFile(url, filename);
+                        break;
                       case 'pdf':
                           await withExportOverlays(async () => {
-                        const pdfWidth = canvas.width!;
-                        const pdfHeight = canvas.height!;
-                        const pdf = new jsPDF({
-                            orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
-                            unit: 'px',
-                            format: [pdfWidth, pdfHeight]
+                            const pdfWidth = cropOptions?.width || canvas.width!;
+                            const pdfHeight = cropOptions?.height || canvas.height!;
+                            const pdf = new jsPDF({
+                                orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+                                unit: 'px',
+                                format: [pdfWidth, pdfHeight]
+                            });
+                            const imgData = canvas.toDataURL({
+                                format: 'png',
+                                quality: 1,
+                                multiplier: 1,
+                                enableRetinaScaling: true,
+                                ...cropOptions
+                            });
+                            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                            pdf.save(filename);
                         });
-                        const imgData = canvas.toDataURL({
-                            format: 'png',
-                            quality: 1,
-                            multiplier: 1,
-                            enableRetinaScaling: true
-                        });
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                        pdf.save(filename);
-                    });
-                    break;
-                case 'json':
-                    const json = JSON.stringify(canvas.toJSON());
-                    const jsonBlob = new Blob([json], { type: 'application/json' });
-                    const jsonUrl = URL.createObjectURL(jsonBlob);
-                    downloadFile(jsonUrl, `design-${timestamp}.json`);
-                    break;
-                case 'html':
-                    await exportHtmlBundle(filename.replace(/\.html$/, ''), timestamp);
-                    break;
-            }
+                        break;
+                    case 'json':
+                        const json = JSON.stringify(canvas.toJSON());
+                        const jsonBlob = new Blob([json], { type: 'application/json' });
+                        const jsonUrl = URL.createObjectURL(jsonBlob);
+                        downloadFile(jsonUrl, `design-${timestamp}.json`);
+                        break;
+                    case 'html':
+                        await exportHtmlBundle(filename.replace(/\.html$/, ''), timestamp);
+                        break;
+                }
+             } finally {
+                 // Restore Viewport
+                 if (originalVpt) {
+                     canvas.setViewportTransform(originalVpt);
+                     canvas.requestRenderAll();
+                 }
+             }
+
         } catch (error) {
             console.error("Export failed:", error);
         }
