@@ -168,3 +168,34 @@ canvas.requestRenderAll();
    - Draw with brush tool - strokes should appear at cursor position
    - Add drop shadow to object - try offset values beyond ±50
    - Add text, apply curve at 100% - should be smooth arc
+
+---
+
+## 5. Export Crash Fix - Fabric.js GridOverlay Conflict (REVISED)
+
+### Problem
+Exporting images crashed with `TypeError: Cannot set properties of undefined (setting 'ctx')` only when the **Grid** was enabled. The initial attempt to fix this by adding a guard clause inside the grid renderer failed, suggesting that the event listener's presence during the synchronous `toDataURL` export generation in Fabric.js caused an internal state conflict regardless of the callback's logic.
+
+### Solution
+- **Strategy:** "Unmount" strategy. We now explicitly detach the `GridOverlay` component (and thus its `after:render` listener) from the canvas during the export process.
+- **File:** `src/components/Editor/EditorView.tsx`
+  - Introduced `isExporting` state.
+  - Updated `withExportOverlays` to toggle `setIsExporting(true)`, wait 100ms for the React render cycle to remove the component, perform the export, and then restore it.
+  - Passed `canvas={isExporting ? null : canvas}` to `GridOverlay`.
+- **File:** `src/components/GridOverlay.tsx`
+  - Reverted complex checks. The component now simply mounts/unmounts its listener based on whether the `canvas` prop is present.
+
+### Code Pattern
+```typescript
+// EditorView.tsx
+setIsExporting(true);
+await new Promise(r => setTimeout(r, 100)); // Allow unmount
+try {
+    await action(); // Export safely
+} finally {
+    setIsExporting(false);
+}
+
+// Usage
+<GridOverlay canvas={isExporting ? null : canvas} ... />
+```

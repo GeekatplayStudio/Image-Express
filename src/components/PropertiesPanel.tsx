@@ -72,9 +72,10 @@ interface PropertiesPanelProps {
     onLayerDblClick?: () => void;
     onMake3D?: (imageUrl: string) => void;
     onPreviewMedia?: (media: { type: 'video' | 'audio'; url: string }) => void;
+    onDuplicate?: () => void;
 }
 
-export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onPreviewMedia }: PropertiesPanelProps) {
+export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onPreviewMedia, onDuplicate }: PropertiesPanelProps) {
     const [selectedObject, setSelectedObject] = useState<ExtendedFabricObject | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1509,6 +1510,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 objects={objects}
                 selectedIds={selectedIds}
                 selectedObject={selectedObject}
+                onDuplicate={onDuplicate}
                 onSelect={(obj, e) => {
                      if (e?.shiftKey) { /* multi */ } 
                      else { 

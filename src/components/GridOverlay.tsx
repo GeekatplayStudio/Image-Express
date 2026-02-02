@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import * as fabric from 'fabric';
 
-export type GridType = 'none' | 'rule-of-thirds' | 'golden-ratio' | 'cross' | 'grid-4x4';
+export type GridType = 'none' | 'rule-of-thirds' | 'golden-ratio' | 'cross' | 'grid-4x4' | 'canvas-border';
 
 type ArtboardInfo = {
   width: number;
@@ -25,8 +25,20 @@ export const GridOverlay = ({ canvas, gridType, color = 'rgba(0, 163, 255, 0.4)'
     // Drawing function
     const drawGrid = (opt: { ctx: CanvasRenderingContext2D }) => {
        if (gridType === 'none') return;
-
+       // Safety check
+       if (!opt || !opt.ctx) return;
+       
        const ctx = opt.ctx;
+       
+       // Skip grid rendering during export (when ctx is not the main canvas context)
+       // This prevents "setting 'ctx'" errors or artifacts during toDataURL
+       // Note: Fabric's toDataURL creates a temporary canvas and context, which calls renderCanvas
+       // firing 'after:render' on the main canvas instance but with the temp context.
+       // We only want to draw the grid on the interactive canvas.
+       // (Check if we can access contextContainer, for StaticCanvas it corresponds to the element)
+       if (canvas.contextContainer && canvas.contextContainer !== ctx) {
+            return;
+       }
 
        const artboard = (canvas as CanvasWithArtboard).artboard;
        
@@ -113,6 +125,8 @@ export const GridOverlay = ({ canvas, gridType, color = 'rgba(0, 163, 255, 0.4)'
                ctx.moveTo(left, top + h4 * i);
                ctx.lineTo(left + width, top + h4 * i);
            }
+       } else if (gridType === 'canvas-border') {
+           ctx.rect(left, top, width, height);
        }
 
        ctx.stroke();

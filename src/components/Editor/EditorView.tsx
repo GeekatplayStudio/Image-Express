@@ -13,7 +13,7 @@ import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
 import { GridOverlay, GridType } from '@/components/GridOverlay';
-import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2 } from 'lucide-react';
+import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject } from '@/types';
 import JSZip from 'jszip';
@@ -215,6 +215,49 @@ export default function EditorView({
         refreshHistoryState();
     }, [restoreFromSnapshot, refreshHistoryState]);
 
+    const handleDuplicate = useCallback(async () => {
+        if (!canvas) return;
+        const activeObjects = canvas.getActiveObjects();
+        if (!activeObjects || activeObjects.length === 0) return;
+
+        canvas.discardActiveObject();
+
+        const clones: fabric.Object[] = [];
+        for (const obj of activeObjects) {
+            const cloned = await obj.clone();
+            cloned.set({
+                left: (cloned.left || 0) + 20,
+                top: (cloned.top || 0) + 20,
+                evented: true,
+            });
+
+            // Ensure unique ID
+            (cloned as ExtendedFabricObject).id = crypto.randomUUID();
+            
+            // "Name" copy
+            if ((obj as ExtendedFabricObject).name) {
+                 (cloned as ExtendedFabricObject).name = (obj as ExtendedFabricObject).name + ' (Copy)';
+            }
+
+            canvas.add(cloned);
+            clones.push(cloned);
+        }
+
+        if (clones.length > 0) {
+            if (clones.length === 1) {
+                canvas.setActiveObject(clones[0]);
+            } else {
+                const selection = new fabric.ActiveSelection(clones, {
+                    canvas: canvas,
+                });
+                canvas.setActiveObject(selection);
+            }
+            canvas.requestRenderAll();
+            pushHistory();
+            setIsDirty(true);
+        }
+    }, [canvas, pushHistory]);
+
     const handleCanvasModified = useCallback(() => {
         setIsDirty(true);
         pushHistory();
@@ -278,6 +321,75 @@ export default function EditorView({
         window.addEventListener('mouseup', upHandler);
     };
 
+    const handleFileDrop = useCallback(async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length === 0) return;
+
+        toast({ title: "Uploading assets..." });
+
+        for (const file of files) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('category', 'uploads');
+
+            try {
+                const res = await fetch('/api/assets/upload', { method: 'POST', body: formData });
+                const json = await res.json();
+
+                if (json.success && json.url) {
+                     const type = json.type || 'images'; // API endpoint returns plural usually 'images', 'models'
+                     if (!canvas) continue;
+
+                     if (type === 'images' || type === 'image') {
+                         fabric.FabricImage.fromURL(json.url, { crossOrigin: 'anonymous' }).then(img => {
+                             if (!img) return; // Error handling
+                             img.scaleToWidth(Math.min(300, (canvas.width || 800) / 3));
+                             canvas.centerObject(img);
+                             const ext = img as ExtendedFabricObject;
+                             ext.id = crypto.randomUUID();
+                             ext.name = file.name;
+                             canvas.add(img);
+                             canvas.setActiveObject(img);
+                             canvas.requestRenderAll();
+                             pushHistory();
+                         });
+                     } else if (type === 'models' || type === 'model') {
+                         // Placeholder for 3D model
+                         const group = new fabric.Group([], { left: 100, top: 100, subTargetCheck: true, interactive: true });
+                         const box = new fabric.Rect({ width: 100, height: 100, fill: '#3b82f6', rx: 10, ry: 10 });
+                         const text = new fabric.IText('3D', { fontSize: 30, fill: 'white', left: 30, top: 35, fontFamily: 'sans-serif', fontWeight: 'bold' });
+                         group.add(box); group.add(text);
+                         const threeDGroup = group as ThreeDGroup;
+                         threeDGroup.is3DModel = true;
+                         threeDGroup.modelUrl = json.url;
+                         threeDGroup.id = crypto.randomUUID();
+                         threeDGroup.name = file.name;
+                         
+                         canvas.centerObject(threeDGroup);
+                         canvas.add(threeDGroup);
+                         canvas.setActiveObject(threeDGroup);
+                         canvas.requestRenderAll();
+                         pushHistory();
+                     } else if (type === 'videos' || type === 'video') {
+                          // Basic Video Support (Screenshot placeholder typically required, or Video element)
+                          // For now, let's treat as unsupported or add generic video icon?
+                          // The project seems to have generic media handling or video frame capture.
+                          // EditorView has mediaPreview but adding to canvas is different.
+                          // Let's rely on Image logic for 'video' frames usually, but if we want component we need implementation.
+                          // Skip for now or add generic placeholder.
+                          toast({ title: "Video uploaded to library. Please add from library.", variant: "success" });
+                     }
+                }
+            } catch (err) {
+                console.error("Upload failed", err);
+                toast({ title: "Upload failed for " + file.name, variant: "destructive" });
+            }
+        }
+    }, [canvas, pushHistory, toast]);
+
     const startPanelResize = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -338,6 +450,7 @@ export default function EditorView({
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [showGridMenu, setShowGridMenu] = useState(false);
     const [gridType, setGridType] = useState<GridType>('none');
+    const [isExporting, setIsExporting] = useState(false);
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
@@ -447,11 +560,14 @@ export default function EditorView({
             } else if (key === 'y' || (e.shiftKey && key === 'z')) {
                 e.preventDefault();
                 handleRedo();
+            } else if (key === 'd') {
+                e.preventDefault();
+                handleDuplicate();
             }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [canvas, handleUndo, handleRedo]);
+    }, [canvas, handleUndo, handleRedo, handleDuplicate]);
 
     // --- Save Logic ---
     const handleSave = async () => {
@@ -484,12 +600,12 @@ export default function EditorView({
        if (canvas.width && canvas.height && canvas.width > 0 && canvas.height > 0) {
             try {
                 // Attempt with multiplier
-                thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5 });
+                thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 0.5, enableRetinaScaling: true, quality: 1 });
             } catch (e) {
                 console.warn('Thumbnail generation with multiplier failed, retrying without:', e);
                 try {
                      // Fallback without multiplier
-                    thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 });
+                    thumbnailDataUrl = canvas.toDataURL({ format: 'png', multiplier: 1, enableRetinaScaling: true, quality: 1 });
                 } catch (e2) {
                     console.error('Thumbnail generation failed completely:', e2);
                 }
@@ -582,78 +698,91 @@ export default function EditorView({
 
     const withExportOverlays = async (action: () => void | Promise<void>) => {
         if (!canvas) return;
-        const profile = profileSettings;
-        const overlays: fabric.Object[] = [];
-        const aiUsed = isAIGeneratedUsed();
+        
+        // Prevent grid rendering during export by unmounting it (via state)
+        setIsExporting(true);
+        // Allow React render cycle to process unmount of GridOverlay
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        try {
+            const profile = profileSettings;
+            const overlays: fabric.Object[] = [];
+            const aiUsed = isAIGeneratedUsed();
 
-        const profileText = profile?.embedInfo ? buildProfileOverlayText(profile, user) : '';
-        const active = canvas.getActiveObject();
-        const padding = 12;
-        const canvasStack = canvas as fabric.Canvas & {
-            bringToFront?: (obj: fabric.Object) => void;
-            moveTo?: (obj: fabric.Object, index: number) => void;
-        };
+            const profileText = profile?.embedInfo ? buildProfileOverlayText(profile, user) : '';
+            const active = canvas.getActiveObject();
+            const padding = 12;
+            const canvasStack = canvas as fabric.Canvas & {
+                bringToFront?: (obj: fabric.Object) => void;
+                moveTo?: (obj: fabric.Object, index: number) => void;
+            };
 
-        if (profileText) {
-            const width = Math.min(320, Math.max(160, (canvas.width || 0) * 0.35));
-            const overlay = new fabric.Textbox(profileText, {
-                width,
-                fontSize: 12,
-                lineHeight: 1.2,
-                fill: 'rgba(0,0,0,0.85)',
-                backgroundColor: 'rgba(255,255,255,0.6)',
-                selectable: false,
-                evented: false,
-                opacity: 0.9
-            });
+            if (profileText) {
+                const width = Math.min(320, Math.max(160, (canvas.width || 0) * 0.35));
+                const overlay = new fabric.Textbox(profileText, {
+                    width,
+                    fontSize: 12,
+                    lineHeight: 1.2,
+                    fill: 'rgba(0,0,0,0.85)',
+                    backgroundColor: 'rgba(255,255,255,0.6)',
+                    selectable: false,
+                    evented: false,
+                    opacity: 0.9
+                });
 
-            overlay.set({
-                left: (canvas.width || 0) - width - padding,
-                top: (canvas.height || 0) - (overlay.height || 0) - padding
-            });
-            canvas.add(overlay);
-            overlays.push(overlay);
-        }
-
-        if (aiUsed) {
-            const aiOverlay = new fabric.Textbox('AI-generated content used', {
-                width: 240,
-                fontSize: 11,
-                lineHeight: 1.1,
-                fill: 'rgba(0,0,0,0.8)',
-                backgroundColor: 'rgba(255,255,255,0.6)',
-                selectable: false,
-                evented: false,
-                opacity: 0.9
-            });
-            aiOverlay.set({
-                left: padding,
-                top: (canvas.height || 0) - (aiOverlay.height || 0) - padding
-            });
-            canvas.add(aiOverlay);
-            overlays.push(aiOverlay);
-        }
-
-        overlays.forEach((o) => {
-            if (canvasStack.bringToFront) {
-                canvasStack.bringToFront(o);
-            } else if (canvasStack.moveTo) {
-                canvasStack.moveTo(o, canvas.getObjects().length - 1);
+                overlay.set({
+                    left: (canvas.width || 0) - width - padding,
+                    top: (canvas.height || 0) - (overlay.height || 0) - padding
+                });
+                canvas.add(overlay);
+                overlays.push(overlay);
             }
-        });
 
-        if (overlays.length > 0) {
+            if (aiUsed) {
+                const aiOverlay = new fabric.Textbox('AI-generated content used', {
+                    width: 240,
+                    fontSize: 11,
+                    lineHeight: 1.1,
+                    fill: 'rgba(0,0,0,0.8)',
+                    backgroundColor: 'rgba(255,255,255,0.6)',
+                    selectable: false,
+                    evented: false,
+                    opacity: 0.9
+                });
+                aiOverlay.set({
+                    left: padding,
+                    top: (canvas.height || 0) - (aiOverlay.height || 0) - padding
+                });
+                canvas.add(aiOverlay);
+                overlays.push(aiOverlay);
+            }
+
+            overlays.forEach((o) => {
+                if (canvasStack.bringToFront) {
+                    canvasStack.bringToFront(o);
+                } else if (canvasStack.moveTo) {
+                    canvasStack.moveTo(o, canvas.getObjects().length - 1);
+                }
+            });
+
+            if (overlays.length > 0) {
+                canvas.requestRenderAll();
+            }
+
+            // Execute the export action
+            await action();
+
+            overlays.forEach((o) => canvas.remove(o));
+            if (active) {
+                canvas.setActiveObject(active);
+            }
             canvas.requestRenderAll();
+        } finally {
+            // Restore grid rendering state
+            setIsExporting(false);
         }
-
-        await action();
-
-        overlays.forEach((o) => canvas.remove(o));
-        if (active) {
-            canvas.setActiveObject(active);
-        }
-        canvas.requestRenderAll();
     };
+
 
     const handleExport = async (format: 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html') => {
         if (!canvas) return;
@@ -671,10 +800,10 @@ export default function EditorView({
 
              if (rect) {
                  cropOptions = {
-                     left: rect.left ?? 0,
-                     top: rect.top ?? 0,
-                     width: (rect.width ?? 0) * (rect.scaleX ?? 1),
-                     height: (rect.height ?? 0) * (rect.scaleY ?? 1)
+                     left: rect.left || 0,
+                     top: rect.top || 0,
+                     width: (rect.width || 0) * (rect.scaleX || 1),
+                     height: (rect.height || 0) * (rect.scaleY || 1)
                  };
              } else if (artboard) {
                 cropOptions = {
@@ -684,52 +813,58 @@ export default function EditorView({
                     height: artboard.height
                 };
              }
+             
+             // Validate and Fallback
+             if (!cropOptions || cropOptions.width <= 0 || cropOptions.height <= 0) {
+                 cropOptions = {
+                    left: 0,
+                    top: 0,
+                    width: canvas.width || 800,
+                    height: canvas.height || 600
+                 };
+             }
 
-             // Viewport Isolation Strategy:
-             // To ensure we capture exactly the coordinates (0,0, W,H) without any panning/zooming offsets,
-             // we temporarily reset the viewport transform to identity.
-             const originalVpt = canvas.viewportTransform;
-             canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
-             
-             // Ensure we render fully for the export state
-             canvas.requestRenderAll();
-             
-             // Wrap in try/finally to ALWAYS restore viewport
-             try {
                 switch (format) {
-                    case 'png':
+                    case 'png': {
                         await withExportOverlays(async () => {
-                            dataUrl = canvas.toDataURL({
+                            const options: fabric.TDataUrlOptions = {
                                 format: 'png',
                                 quality: 1,
                                 multiplier: 1,
-                                enableRetinaScaling: true,
-                                ...cropOptions
-                            });
+                                enableRetinaScaling: true
+                            };
+                            if (cropOptions && cropOptions.width > 0 && cropOptions.height > 0) {
+                                options.left = cropOptions.left;
+                                options.top = cropOptions.top;
+                                options.width = cropOptions.width;
+                                options.height = cropOptions.height;
+                            }
+
+                            dataUrl = canvas.toDataURL(options);
                             downloadFile(dataUrl, filename);
                         });
                         break;
-                    case 'jpg':
+                    }
+                    case 'jpg': {
                         await withExportOverlays(async () => {
-                            const originalBg = canvas.backgroundColor;
-                            canvas.set('backgroundColor', '#ffffff');
-                            
-                            // Ensure background is updated visually before capture? 
-                            // toDataURL should handle it, but with viewport hack we safe.
-                            
-                            dataUrl = canvas.toDataURL({
+                            const options: fabric.TDataUrlOptions = {
                                 format: 'jpeg',
-                                quality: 0.9,
+                                quality: 1,
                                 multiplier: 1,
-                                enableRetinaScaling: true,
-                                ...cropOptions
-                            });
+                                enableRetinaScaling: true
+                            };
+                            if (cropOptions && cropOptions.width > 0 && cropOptions.height > 0) {
+                                options.left = cropOptions.left;
+                                options.top = cropOptions.top;
+                                options.width = cropOptions.width;
+                                options.height = cropOptions.height;
+                            }
+
+                            dataUrl = canvas.toDataURL(options);
                             downloadFile(dataUrl, filename);
-                            
-                            canvas.set('backgroundColor', originalBg);
-                            // We don't render here, we render in finally
                         });
                         break;
+                    }
                     case 'svg':
                         // Convert width/height to strings as required by Fabric toSVG types in some versions
                         const svgContent = canvas.toSVG({
@@ -746,26 +881,27 @@ export default function EditorView({
                         const url = URL.createObjectURL(blob);
                         downloadFile(url, filename);
                         break;
-                      case 'pdf':
-                          await withExportOverlays(async () => {
-                            const pdfWidth = cropOptions?.width || canvas.width!;
-                            const pdfHeight = cropOptions?.height || canvas.height!;
-                            const pdf = new jsPDF({
-                                orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
-                                unit: 'px',
-                                format: [pdfWidth, pdfHeight]
-                            });
-                            const imgData = canvas.toDataURL({
-                                format: 'png',
-                                quality: 1,
-                                multiplier: 1,
-                                enableRetinaScaling: true,
-                                ...cropOptions
-                            });
-                            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                            pdf.save(filename);
-                        });
+                                        case 'pdf': {
+                                            await withExportOverlays(async () => {
+                                                const pdfWidth = cropOptions?.width || canvas.width!;
+                                                const pdfHeight = cropOptions?.height || canvas.height!;
+                                                const pdf = new jsPDF({
+                                                    orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+                                                    unit: 'px',
+                                                    format: [pdfWidth, pdfHeight]
+                                                });
+                                                const imgData = canvas.toDataURL({
+                                                    format: 'png',
+                                                    quality: 1,
+                                                    multiplier: 1,
+                                                    enableRetinaScaling: true,
+                                                    ...cropOptions
+                                                });
+                                                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                                                pdf.save(filename);
+                                            });
                         break;
+                    }
                     case 'json':
                         const json = JSON.stringify(canvas.toJSON());
                         const jsonBlob = new Blob([json], { type: 'application/json' });
@@ -776,13 +912,6 @@ export default function EditorView({
                         await exportHtmlBundle(filename.replace(/\.html$/, ''), timestamp);
                         break;
                 }
-             } finally {
-                 // Restore Viewport
-                 if (originalVpt) {
-                     canvas.setViewportTransform(originalVpt);
-                     canvas.requestRenderAll();
-                 }
-             }
 
         } catch (error) {
             console.error("Export failed:", error);
@@ -2093,6 +2222,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                  <button onClick={() => { setGridType('grid-4x4'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'grid-4x4' ? 'bg-secondary/30' : ''}`}>
                                     <LayoutGrid size={16} className="text-green-500"/> <span className="font-medium">4x4 Grid</span>
                                 </button>
+                                <button onClick={() => { setGridType('canvas-border'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'canvas-border' ? 'bg-secondary/30' : ''}`}>
+                                    <Square size={16} className="text-yellow-500"/> <span className="font-medium">Canvas Border</span>
+                                </button>
                             </div>
                         )}
                      </div>
@@ -2141,7 +2273,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </header>
 
             {/* Overlays */}
-            <GridOverlay canvas={canvas} gridType={gridType} />
+            <GridOverlay canvas={isExporting ? null : canvas} gridType={gridType} />
             <UserProfileModal 
                 isOpen={showProfileModal} 
                 onClose={() => setShowProfileModal(false)}
@@ -2236,7 +2368,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             {/* Main Editor Layout */}
             <div className="flex flex-1 overflow-hidden relative">
-                <aside className="w-[60px] bg-card border-r flex flex-col items-center py-4 z-20 shadow-xl gap-4 relative">
+                <aside className="w-[60px] bg-card border-r flex flex-col items-center py-4 z-20 shadow-xl gap-4 relative overflow-y-auto">
                      <Toolbar 
                         canvas={canvas} 
                         activeTool={activeTool} 
@@ -2277,6 +2409,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
+                                onDuplicate={handleDuplicate}
                             />
                         </div>
                         <div 
@@ -2291,7 +2424,11 @@ document.addEventListener('DOMContentLoaded', () => {
                      </div>
                  )}
 
-                <main className="flex-1 bg-secondary/30 relative flex items-center justify-center overflow-hidden">
+                <main 
+                    className="flex-1 bg-secondary/30 relative flex items-center justify-center overflow-hidden"
+                    onDrop={handleFileDrop}
+                    onDragOver={(e) => { e.preventDefault(); /* Allow drop */ }}
+                >
                    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#888 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
                    
                    {/* DOCK ZONES (Visible when Dragging) */}
@@ -2404,6 +2541,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
+                                onDuplicate={handleDuplicate}
                             />
                         </div>
                         <div 
@@ -2443,6 +2581,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
+                                onDuplicate={handleDuplicate}
                             />
                         </div>
                     </div>

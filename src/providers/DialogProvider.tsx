@@ -13,6 +13,10 @@ interface DialogOptions {
     defaultValue?: string;
     placeholder?: string;
     variant?: 'default' | 'destructive' | 'success'; 
+    inputType?: 'text' | 'range';
+    min?: number;
+    max?: number;
+    step?: number;
 }
 
 interface DialogContextType {
@@ -48,7 +52,9 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     const openDialog = useCallback((type: DialogType, message: string, options: DialogOptions = {}) => {
         return new Promise<DialogResult>((resolve) => {
             setConfig({ type, message, options });
-            setInputValue(options.defaultValue || '');
+            setInputValue(
+                options.defaultValue ?? (options.inputType === 'range' ? String(options.min ?? 0) : '')
+            );
             setIsOpen(true);
             resolveRef.current = resolve;
         });
@@ -125,18 +131,36 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                         {/* Input for Prompt */}
                         {config.type === 'prompt' && (
                             <div className="mt-2 pl-12 pr-1">
-                                <input
-                                    autoFocus
-                                    type="text"
-                                    value={inputValue}
-                                    onChange={(e) => setInputValue(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleConfirm();
-                                        if (e.key === 'Escape') handleCancel();
-                                    }}
-                                    placeholder={config.options.placeholder}
-                                    className="w-full px-3 py-2 rounded-md bg-secondary/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                                />
+                                {config.options.inputType === 'range' ? (
+                                    <div className="space-y-2">
+                                        <input
+                                            autoFocus
+                                            type="range"
+                                            min={config.options.min ?? 1}
+                                            max={config.options.max ?? 100}
+                                            step={config.options.step ?? 1}
+                                            value={inputValue}
+                                            onChange={(e) => setInputValue(e.target.value)}
+                                            className="w-full accent-primary"
+                                        />
+                                        <div className="text-sm text-muted-foreground">
+                                            {inputValue || String(config.options.min ?? 1)}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleConfirm();
+                                            if (e.key === 'Escape') handleCancel();
+                                        }}
+                                        placeholder={config.options.placeholder}
+                                        className="w-full px-3 py-2 rounded-md bg-secondary/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                    />
+                                )}
                             </div>
                         )}
 

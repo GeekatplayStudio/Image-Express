@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import * as fabric from 'fabric';
-import { Layers, Folder, FolderPlus, GripVertical } from 'lucide-react';
+import { Layers, Folder, FolderPlus, GripVertical, Copy } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ExtendedFabricObject, LayerNode } from '@/types';
@@ -24,6 +24,7 @@ interface LayersViewProps {
     onLayerOpacityChange: (value: number) => void;
     onLayerBlendChange: (value: string) => void;
     onDblClick?: (obj: fabric.Object) => void;
+    onDuplicate?: () => void;
     
     // Optional props for expanded state if managed by parent, otherwise local
     expandedFolders?: Set<string>;
@@ -47,6 +48,7 @@ export function LayersView({
     onLayerOpacityChange,
     onLayerBlendChange,
     onDblClick,
+    onDuplicate,
     expandedFolders: externalExpanded,
     onToggleFolder: externalToggleFolder
 }: LayersViewProps) {
@@ -161,6 +163,9 @@ export function LayersView({
                  </button>
                  <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Ungroup">
                      <Layers size={14} />
+                 </button>
+                 <button onClick={onDuplicate} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Duplicate">
+                     <Copy size={14} />
                  </button>
              </div>
 

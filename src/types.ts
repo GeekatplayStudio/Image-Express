@@ -9,6 +9,8 @@ export interface StarPolygon extends fabric.Polygon {
 export interface ThreeDGroup extends fabric.Group {
     is3DModel?: boolean;
     modelUrl?: string;
+    id?: string;
+    name?: string;
 }
 
 export interface ThreeDImage extends fabric.Image {
