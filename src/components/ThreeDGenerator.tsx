@@ -27,6 +27,80 @@ type CaptureContext = {
     camera: THREE.Camera;
 };
 
+const renderSceneToDataUrl = (
+    gl: THREE.WebGLRenderer,
+    scene: THREE.Scene,
+    camera: THREE.Camera,
+    width: number,
+    height: number
+) => {
+    const target = new THREE.WebGLRenderTarget(width, height);
+    const originalTarget = gl.getRenderTarget();
+    const originalSize = new THREE.Vector2();
+    gl.getSize(originalSize);
+    const originalPixelRatio = gl.getPixelRatio();
+    const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
+    const originalViewport = new THREE.Vector4();
+    const originalScissor = new THREE.Vector4();
+    gl.getViewport(originalViewport);
+    gl.getScissor(originalScissor);
+    const originalScissorTest = gl.getScissorTest();
+
+    gl.setPixelRatio(1);
+    gl.setSize(width, height, false);
+    (camera as THREE.PerspectiveCamera).aspect = width / height;
+    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+    gl.setRenderTarget(target);
+    gl.clear();
+    gl.render(scene, camera);
+
+    const buffer = new Uint8Array(width * height * 4);
+    gl.readRenderTargetPixels(target, 0, 0, width, height, buffer);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        gl.setRenderTarget(originalTarget);
+        gl.setSize(originalSize.x, originalSize.y, false);
+        gl.setPixelRatio(originalPixelRatio);
+        (camera as THREE.PerspectiveCamera).aspect = originalAspect;
+        (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+        gl.setViewport(originalViewport);
+        gl.setScissor(originalScissor);
+        gl.setScissorTest(originalScissorTest);
+        target.dispose();
+        return '';
+    }
+
+    const imageData = ctx.createImageData(width, height);
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const src = ((height - y - 1) * width + x) * 4;
+            const dst = (y * width + x) * 4;
+            imageData.data[dst] = buffer[src];
+            imageData.data[dst + 1] = buffer[src + 1];
+            imageData.data[dst + 2] = buffer[src + 2];
+            imageData.data[dst + 3] = buffer[src + 3];
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const dataUrl = canvas.toDataURL('image/png');
+
+    gl.setRenderTarget(originalTarget);
+    gl.setSize(originalSize.x, originalSize.y, false);
+    gl.setPixelRatio(originalPixelRatio);
+    (camera as THREE.PerspectiveCamera).aspect = originalAspect;
+    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+    gl.setViewport(originalViewport);
+    gl.setScissor(originalScissor);
+    gl.setScissorTest(originalScissorTest);
+    target.dispose();
+
+    return dataUrl;
+};
+
 // Helper to capture Threejs context
 const CaptureHelper = ({ controlRef }: { controlRef: React.MutableRefObject<CaptureContext | null> }) => {
     const { gl, scene, camera } = useThree();
@@ -156,7 +230,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
         key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
         
         console.log(`[ThreeDGenerator] Generating with provider: ${selectedProvider}`);
-        console.log(`[ThreeDGenerator] Key prefix: ${key.substring(0, 5)}... (${key.length} chars)`);
 
         setIsLoading(true);
 
@@ -375,29 +448,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
         if (state && state.gl && state.scene && state.camera) {
              const { gl, scene, camera } = state;
              try {
-                // Save original state
-                const originalSize = new THREE.Vector2();
-                gl.getSize(originalSize);
-                const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
+                const data = renderSceneToDataUrl(gl, scene, camera, resolution.width, resolution.height);
+                if (data) {
+                    onAddToCanvas(data, modelUrl || undefined);
+                    return;
+                }
                 
-                // Resize for high-res capture
-                gl.setSize(resolution.width, resolution.height, false);
-                (camera as THREE.PerspectiveCamera).aspect = resolution.width / resolution.height;
-                (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-                
-                // Render
-                gl.render(scene, camera);
-                
-                // Capture
-                const data = gl.domElement.toDataURL('image/png');
-                
-                // Restore
-                gl.setSize(originalSize.x, originalSize.y, false);
-                (camera as THREE.PerspectiveCamera).aspect = originalAspect;
-                (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-                
-                onAddToCanvas(data, modelUrl || undefined);
-                return;
              } catch (e) {
                  console.error("High-res capture failed, falling back", e);
              }
@@ -418,7 +474,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                      <Box size={16} className="text-purple-500" />
                     {initialImage ? 'Image to 3D' : 'AI 3D Generator'}
                 </h3>
-                <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+                <button onClick={onClose} className="text-muted-foreground hover:text-foreground">X</button>
             </div>
 
             {/* Service Selection */}
@@ -707,7 +763,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
 
                             <Canvas
                                 shadows
-                                gl={{ preserveDrawingBuffer: true }}
                                 camera={{ position: [0, 0, 4], fov: 50 }}
                                 onCreated={({ gl }) => {
                                     gl.shadowMap.enabled = true;

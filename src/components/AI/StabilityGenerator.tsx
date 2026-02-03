@@ -68,6 +68,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     const maskCanvasRef = useRef<HTMLCanvasElement>(null);                       // Canvas ref for drawing mask
     const [isDrawingMask, setIsDrawingMask] = useState(false);
     const [brushSize, setBrushSize] = useState([20]);
+    const selectionCaptureTimerRef = useRef<number | null>(null);
 
     // --- Outpainting State ---
     const [outpaintDirs, setOutpaintDirs] = useState({ left: false, right: false, up: false, down: false });
@@ -95,11 +96,49 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
      * Helper: Extract image data from canvas.
      * Can extract specific object (isolated) OR crop region (all layers).
      */
+    const captureSelectionImage = useCallback(() => {
+        if (!canvas) return null;
+
+        const active = canvas.getActiveObject();
+        if (!active) return null;
+
+        // Option A: Flattened (All layers visible in selection box)
+        if (flattenSelection) {
+            const originalVpt = canvas.viewportTransform;
+            const rect = active.getBoundingRect();
+            
+            canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+            canvas.requestRenderAll();
+
+            try {
+                return canvas.toDataURL({
+                    format: 'png',
+                    multiplier: 1,
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height
+                });
+            } finally {
+                if (originalVpt) {
+                    canvas.setViewportTransform(originalVpt);
+                    canvas.requestRenderAll();
+                }
+            }
+        }
+
+        // Option B: Isolated (Just the selected object)
+        return active.toDataURL({
+            format: 'png',
+            multiplier: 1
+        });
+    }, [canvas, flattenSelection]);
+
     const captureSourceImage = useCallback(() => {
         if (!canvas) return null;
 
         const active = canvas.getActiveObject();
-        
+
         // 1. Full Canvas Mode
         if (sourceType === 'canvas') {
             const extCanvas = canvas as CanvasWithArtboard;
@@ -135,56 +174,40 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
         
         // 2. Selection Mode
         if (active) {
-            // Option A: Flattened (All layers visible in selection box)
-            if (flattenSelection) {
-                 const originalVpt = canvas.viewportTransform;
-                 const rect = active.getBoundingRect();
-                 
-                 canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
-                 canvas.requestRenderAll();
-
-                 try {
-                     return canvas.toDataURL({
-                         format: 'png',
-                         multiplier: 1,
-                         left: rect.left,
-                         top: rect.top,
-                         width: rect.width,
-                         height: rect.height
-                     });
-                 } finally {
-                     if (originalVpt) {
-                        canvas.setViewportTransform(originalVpt);
-                        canvas.requestRenderAll();
-                    }
-                 }
-            }
-            // Option B: Isolated (Just the selected object)
-            else {
-                return active.toDataURL({
-                     format: 'png',
-                     multiplier: 1
-                });
-            }
+            return captureSelectionImage();
         }
         
         return null;
-    }, [canvas, sourceType, flattenSelection]);
+    }, [canvas, sourceType, captureSelectionImage]);
 
     /**
      * Effect: Monitor Canvas Selection
      * Automatically updates `selectedCanvasImage` when user selects an image on the board.
      */
+    const scheduleSelectionCapture = useCallback(() => {
+        if (!canvas) return;
+        if (selectionCaptureTimerRef.current) {
+            window.clearTimeout(selectionCaptureTimerRef.current);
+        }
+        selectionCaptureTimerRef.current = window.setTimeout(() => {
+            const img = captureSelectionImage();
+            setSelectedCanvasImage(img);
+        }, 150);
+    }, [captureSelectionImage, canvas]);
+
     useEffect(() => {
         if (!canvas) return;
 
         const handleSelection = () => {
             const active = canvas.getActiveObject();
             if (active) {
-                 setSourceType('selection'); 
-                 const img = captureSourceImage();
-                 setSelectedCanvasImage(img);
+                 if (sourceType === 'selection') setSourceType('selection'); 
+                 scheduleSelectionCapture();
             } else {
+                 if (selectionCaptureTimerRef.current) {
+                     window.clearTimeout(selectionCaptureTimerRef.current);
+                     selectionCaptureTimerRef.current = null;
+                 }
                  setSelectedCanvasImage(null);
             }
         };
@@ -197,16 +220,19 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
              canvas.off('selection:created', handleSelection);
              canvas.off('selection:updated', handleSelection);
              canvas.off('selection:cleared', handleSelection);
+             if (selectionCaptureTimerRef.current) {
+                 window.clearTimeout(selectionCaptureTimerRef.current);
+                 selectionCaptureTimerRef.current = null;
+             }
         };
-    }, [canvas, captureSourceImage, sourceType, flattenSelection]); // Re-run if flatten mode changes
+    }, [canvas, scheduleSelectionCapture, sourceType, flattenSelection]); // Re-run if flatten mode changes
 
     // Update preview when flatten mode changes
     useEffect(() => {
         if (sourceType === 'selection' && canvas?.getActiveObject()) {
-            const img = captureSourceImage();
-            setSelectedCanvasImage(img);
+            scheduleSelectionCapture();
         }
-    }, [flattenSelection, captureSourceImage, sourceType, canvas]);
+    }, [flattenSelection, scheduleSelectionCapture, sourceType, canvas]);
 
     // --- API Handlers ---
 
@@ -523,10 +549,6 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     const addToCanvas = () => {
         if (!canvas || !resultImage) return;
 
-        if (onAssetSave) {
-            onAssetSave(resultImage);
-        }
-
         fabric.Image.fromURL(resultImage, {}).then((img) => {
             // Use Artboard dimensions if available
             const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
@@ -565,8 +587,8 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                 // Set canvas match the display ratio (width fixed to 300px for CSS layout reasons usually)
                 // But generally we want high res. For now, we match logical pixel size.
                 // NOTE: Here we hardcode width to 300 to match the UI container, but a real app should be responsive.
-                maskCanvasRef.current!.width = 300; 
-                maskCanvasRef.current!.height = 300 * (img.height / img.width);
+                maskCanvasRef.current!.width = img.width; 
+                maskCanvasRef.current!.height = img.height;
                 
                 // Draw the underlying image for reference (although we usually only need the mask on this canvas)
                 // Actually, this canvas overlays the <img> tag in the UI so we really only need to draw the mask.
@@ -588,8 +610,10 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     const drawMask = (e: React.MouseEvent) => {
         if (!isDrawingMask || !maskCanvasRef.current) return;
         const rect = maskCanvasRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const scaleX = maskCanvasRef.current.width / rect.width;
+        const scaleY = maskCanvasRef.current.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
         
         const ctx = maskCanvasRef.current.getContext('2d');
         if (!ctx) return;
@@ -599,7 +623,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
         ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; // Slightly transparent for user feedback, but backend needs solid mask
         ctx.beginPath();
-        ctx.arc(x, y, brushSize[0]/2, 0, Math.PI * 2);
+        ctx.arc(x, y, (brushSize[0] / 2) * Math.max(scaleX, scaleY), 0, Math.PI * 2);
         ctx.fill();
         
         // Note: When sending to API, we might need to process this canvas to be purely Black/White

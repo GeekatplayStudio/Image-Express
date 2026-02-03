@@ -479,6 +479,9 @@ export default function EditorView({
     const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
     const [sourceObjectFor3D, setSourceObjectFor3D] = useState<fabric.Object | null>(null);
     const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJob[]>([]);
+    const backgroundJobsRef = useRef<BackgroundJob[]>([]);
+    const pollTimersRef = useRef<Map<string, number>>(new Map());
+    const pollIntervalsRef = useRef<Map<string, number>>(new Map());
     const [editingModelUrl, setEditingModelUrl] = useState<string | null>(null);
     const [editingModelObject, setEditingModelObject] = useState<fabric.Object | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ type: 'video' | 'audio'; url: string } | null>(null);
@@ -1999,6 +2002,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const isConnected = is3DMode ? has3DKey : has2DKey;
 
     useEffect(() => {
+        backgroundJobsRef.current = backgroundJobs;
+    }, [backgroundJobs]);
+
+    useEffect(() => {
         const activeJobs = backgroundJobs.filter(j => j.status === 'PENDING' || j.status === 'IN_PROGRESS');
         if (activeJobs.length === 0) return;
     
@@ -2028,6 +2035,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let data: ApiResponse | null = null;
                 let status: BackgroundJob['status'] = job.status;
                 let progress = job.progress || 0;
+                const previousProgress = job.progress || 0;
                 let resultUrl = job.resultUrl;
                 let thumbnailUrl = job.thumbnailUrl;
     
@@ -2146,11 +2154,75 @@ document.addEventListener('DOMContentLoaded', () => {
                          setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { ...p, progress: progress, status: status } : p));
                      }
                 }
+                return { status, progress, progressed: progress > previousProgress };
             } catch { }
         };
-        const interval = setInterval(() => { activeJobs.forEach(job => checkJobStatus(job)); }, 2000);
-        return () => clearInterval(interval);
+
+        const getJobById = (id: string) => backgroundJobsRef.current.find(j => j.id === id);
+
+        const schedulePoll = (jobId: string) => {
+            const currentJob = getJobById(jobId);
+            if (!currentJob) return;
+            if (currentJob.status !== 'PENDING' && currentJob.status !== 'IN_PROGRESS') return;
+
+            const interval = pollIntervalsRef.current.get(jobId) ?? 2000;
+            const timerId = window.setTimeout(async () => {
+                const latest = getJobById(jobId);
+                if (!latest || (latest.status !== 'PENDING' && latest.status !== 'IN_PROGRESS')) {
+                    const existing = pollTimersRef.current.get(jobId);
+                    if (existing) window.clearTimeout(existing);
+                    pollTimersRef.current.delete(jobId);
+                    pollIntervalsRef.current.delete(jobId);
+                    return;
+                }
+
+                const result = await checkJobStatus(latest);
+                if (result?.progressed) {
+                    pollIntervalsRef.current.set(jobId, 2000);
+                } else {
+                    pollIntervalsRef.current.set(jobId, Math.min(interval * 1.5, 10000));
+                }
+
+                const after = getJobById(jobId);
+                if (after && (after.status === 'PENDING' || after.status === 'IN_PROGRESS')) {
+                    schedulePoll(jobId);
+                } else {
+                    const existing = pollTimersRef.current.get(jobId);
+                    if (existing) window.clearTimeout(existing);
+                    pollTimersRef.current.delete(jobId);
+                    pollIntervalsRef.current.delete(jobId);
+                }
+            }, interval);
+
+            pollTimersRef.current.set(jobId, timerId);
+        };
+
+        activeJobs.forEach(job => {
+            if (!pollTimersRef.current.has(job.id)) {
+                pollIntervalsRef.current.set(job.id, pollIntervalsRef.current.get(job.id) ?? 2000);
+                schedulePoll(job.id);
+            }
+        });
+
+        for (const [id, timer] of pollTimersRef.current) {
+            const job = getJobById(id);
+            if (!job || (job.status !== 'PENDING' && job.status !== 'IN_PROGRESS')) {
+                window.clearTimeout(timer);
+                pollTimersRef.current.delete(id);
+                pollIntervalsRef.current.delete(id);
+            }
+        }
     }, [backgroundJobs, canvas]);
+
+    useEffect(() => {
+        return () => {
+            for (const timer of pollTimersRef.current.values()) {
+                window.clearTimeout(timer);
+            }
+            pollTimersRef.current.clear();
+            pollIntervalsRef.current.clear();
+        };
+    }, []);
 
     return (
         <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
