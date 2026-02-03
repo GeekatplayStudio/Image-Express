@@ -297,6 +297,9 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
             return [];
         };
 
+        const defaultFilterBackend = fabric.getFilterBackend();
+        const canvas2dFilterBackend = new fabric.Canvas2dFilterBackend();
+
         // Apply adjustment layers to each image based on stack order
         objs.forEach((obj, idx) => {
             if (obj.type !== 'image' && obj.type !== 'group') return; // Apply to images and groups (if supported)
@@ -356,7 +359,15 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
             image.filters = [...imageExt.baseFilters, ...adjustmentFilters];
             if (typeof image.applyFilters === 'function') {
+                const needsCanvas2d = adjustmentFilters.some((filter) => filter.type === 'Curves');
+                const shouldSwapBackend = needsCanvas2d && !(defaultFilterBackend instanceof fabric.Canvas2dFilterBackend);
+                if (shouldSwapBackend) {
+                    fabric.setFilterBackend(canvas2dFilterBackend);
+                }
                 image.applyFilters();
+                if (shouldSwapBackend) {
+                    fabric.setFilterBackend(defaultFilterBackend);
+                }
             }
         });
 
