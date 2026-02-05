@@ -1,54 +1,60 @@
-# Hy3D / Hitems3D / Hunyuan3D Documentation Summary
+# Hitem3D API Notes (hitems)
 
-Based on the codebase aliases ("Hy3D", "hitems") and current 3D AI landscape, the service matches **Tencent Hunyuan3D (v2.0)**. 
+The `hitems` provider in this project maps to **Hitem3D** (Hitem3D.ai), not Hunyuan3D. The API is a hosted service that accepts image-to-3D requests and returns downloadable 3D model URLs once the task completes.
 
-## 1. Service Identity
-- **Official Name:** Tencent Hunyuan3D
-- **Common Abbreviation:** Hy3D
-- **Aliases in Project:** `hitems`, `hiitems3d`
-- **Latest Version:** 2.0 (Released Jan 2025)
-- **Architecture:** Unified framework for Text-to-3D and Image-to-3D generation.
+## Base URL
+- **API Base:** `https://api.hitem3d.ai/open-api/v1`
 
-## 2. Official Resources
-- **Code Repository:** [https://github.com/Tencent/Hunyuan3D](https://github.com/Tencent/Hunyuan3D)
-- **Project Page:** [https://3d.hunyuan.tencent.com](https://3d.hunyuan.tencent.com)
-- **HuggingFace:** [https://huggingface.co/tencent/Hunyuan3D-2](https://huggingface.co/tencent/Hunyuan3D-2)
+## Create Task (Image-to-3D)
+- **Endpoint:** `POST /submit-task`
+- **Auth:** `Authorization: Bearer <api-key>`
+- **Content-Type:** `multipart/form-data`
+- **Required Fields:**
+  - `images`: One or more image files
+- **Common Fields:**
+  - `request_type`: `3` (image-to-3D render)
+  - `model`: `hitem3dv1.5` or `hitem3dv2.0`
+  - `resolution`: `512` | `1024` | `1536` | `1536pro` (model-dependent)
+  - `face`: `no` | `need` (face optimization)
+  - `format`: `glb` | `fbx` | `obj` | `stl` | `ply`
+  - `mesh_url`: `true` | `false`
 
-## 3. Connection & API
-"Hy3D" is primarily an open-weights model, not a SaaS with a single global API URL like Meshy. To use it, you generally use a **Self-Hosted API** or **Inference Provider**.
+**Response (success):**
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": { "task_id": "task_XXXX" }
+}
+```
 
-### Option A: Self-Hosted (Recommended for "Hy3D" implementations)
-If you run the official Gradio app or Docker container:
-- **Base URL:** `http://localhost:8080` (or your GPU server IP)
-- **Authentication:** None (default) or Basic Auth / Bearer Token (if configured via Nginx/Proxy).
-- **Format:** JSON payload to Gradio endpoints.
+## Query Task
+- **Endpoint:** `POST /query-task?task_id=<task_id>`
+- **Auth:** `Authorization: Bearer <api-key>`
 
-### Option B: Tencent Cloud API
-- **Base URL:** `https://hunyuan.tencentcloudapi.com`
-- **Authentication:** Tencent Cloud Auth v3 (Requires `SecretId`, `SecretKey`, `SessionToken`).
-- **Complexity:** High (requires complex request signing).
+**Response (success):**
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "task_status": 4,
+    "process_pct": 100,
+    "task_result": {
+      "model_url": "https://...",
+      "render_url": "https://..."
+    }
+  }
+}
+```
 
-### Option C: Third-Party Wrappers (Replicate/Fal.ai)
-- **Base URL (Replicate example):** `https://api.replicate.com/v1/predictions`
-- **Authentication:** `Authorization: Bearer <your-api-key>` (Matches your `hitems_api_key` pattern).
+### Task Status Mapping
+- `1` = created
+- `2` = queueing
+- `3` = processing
+- `4` = success
+- `-1` = failed
 
-## 4. Endpoints (Standard Model Implementation)
-
-### Text-to-3D
-- **Input:** Prompt (string)
-- **Output:** GLB/OBJ file URL
-- **Typical Endpoint:** `/v1/generation/text-to-3d` (if using standard wrappers) or `/predict` (Gradio).
-
-### Image-to-3D (Strongest Feature)
-- **Input:** Image URL or Base64
-- **Output:** GLB/OBJ file URL
-- **Parameters:**
-  - `image`: Source image
-  - `steps`: Generation steps (default ~50)
-  - `guidance_scale`: (default ~5.0)
-
-## 5. Implementation Strategy for `Adobe-Express-Remake`
-Since `ThreeDGenerator.tsx` is missing the `hitems` implementation:
-1.  **Determine Backend:** Are you self-hosting Hunyuan3D 2.0 or using a provider?
-2.  **API Route:** Create `src/app/api/ai/hitems/route.ts` to proxy requests to your backend.
-3.  **Auth:** Use the `hitems_api_key` from Settings to authenticate against your chosen backend (or pass it as the Replicate/Provider key).
+## Project Integration Notes
+- Client sends a single image to `/api/ai/hitems` (proxy) and polls `/api/ai/hitems/<taskId>`.
+- The proxy enforces defaults (`request_type=3`, `model=hitem3dv1.5`, `resolution=1024`, `format=glb`) unless overridden.

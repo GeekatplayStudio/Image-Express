@@ -493,6 +493,7 @@ export default function EditorView({
     const [apiKeys, setApiKeys] = useState<{
         meshy?: string, 
         tripo?: string, 
+        hitems?: string,
         stability?: string, 
         openai?: string, 
         google?: string,
@@ -1989,6 +1990,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setApiKeys({
             meshy: localStorage.getItem('meshy_api_key') || undefined,
             tripo: localStorage.getItem('tripo_api_key') || undefined,
+            hitems: localStorage.getItem('hitems_api_key') || undefined,
             stability: localStorage.getItem('stability_api_key') || undefined,
             openai: localStorage.getItem('openai_api_key') || undefined,
             google: localStorage.getItem('google_api_key') || undefined,
@@ -1998,7 +2000,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const is3DMode = activeTool === '3d-gen';
     const has2DKey = !!(apiKeys.stability || apiKeys.openai || apiKeys.google || apiKeys.banana);
-    const has3DKey = !!(apiKeys.meshy || apiKeys.tripo);
+    const has3DKey = !!(apiKeys.meshy || apiKeys.tripo || apiKeys.hitems);
     const isConnected = is3DMode ? has3DKey : has2DKey;
 
     useEffect(() => {
@@ -2064,6 +2066,30 @@ document.addEventListener('DOMContentLoaded', () => {
                          resultUrl = tData.output?.model || tData.output?.pbr_model || tData.output?.base_model;
                          thumbnailUrl = tData.output?.rendered_image || tData.output?.render_image;
                      } else if (json.code !== undefined && json.code !== 0) { status = 'FAILED'; }
+                } else if (job.provider === 'hitems') {
+                    const res = await fetch(`/api/ai/hitems/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
+                    if (!res.ok) return;
+                    const json = (await res.json()) as {
+                        code?: number;
+                        message?: string;
+                        data?: {
+                            task_status?: number;
+                            process_pct?: number;
+                            task_result?: {
+                                model_url?: string;
+                                render_url?: string;
+                            };
+                        };
+                    };
+                    const statusCode = json.data?.task_status;
+                    if (statusCode === 4) status = 'SUCCEEDED';
+                    else if (statusCode === -1) status = 'FAILED';
+                    else status = 'IN_PROGRESS';
+                    if (json.data?.process_pct !== undefined) {
+                        progress = json.data.process_pct;
+                    }
+                    resultUrl = json.data?.task_result?.model_url;
+                    thumbnailUrl = json.data?.task_result?.render_url;
                 } else {
                     const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
                     const res = await fetch(`/api/ai/meshy?endpoint=${endpoint}/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });

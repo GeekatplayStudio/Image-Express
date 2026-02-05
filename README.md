@@ -27,7 +27,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 
 ### AI Capabilities
 - **Advanced 3D Generation**: 
-  - Integrated **Meshy** and **Tripo** AI for high-quality 3D models.
+  - Integrated **Meshy**, **Tripo**, and **Hitem3D** AI for high-quality 3D models.
   - **Textured Models**: Enforced PBR texture generation for realistic results.
   - **Background Processing**: Robust polling system for long-running AI tasks.
 - **Image Generation**: (Coming Soon) Text-to-Image support.

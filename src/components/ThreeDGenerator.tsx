@@ -240,6 +240,17 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             } else if (selectedProvider === 'tripo') {
                  // Tripo Integration
                  await generateTripo(key);
+            } else if (selectedProvider === 'hitems') {
+                if (mode === 'text' || !initialImage) {
+                    toast({
+                        title: 'Image required',
+                        description: 'Hitem3D currently supports image-to-3D only. Select an image first.',
+                        variant: 'warning'
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+                await generateHitems(key);
             } else {
                   toast({ title: 'Coming soon', description: 'Service integration in progress.', variant: 'warning' });
                  setIsLoading(false);
@@ -443,6 +454,66 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
         }
     };
 
+    const generateHitems = async (key: string) => {
+        if (!initialImage) {
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const imageRes = await fetch(initialImage);
+            const blob = await imageRes.blob();
+            const mimeType = blob.type || 'image/png';
+            let fileExt = 'png';
+            if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') fileExt = 'jpg';
+            else if (mimeType === 'image/webp') fileExt = 'webp';
+
+            const formData = new FormData();
+            formData.append('image', blob, `image.${fileExt}`);
+
+            const res = await fetch('/api/ai/hitems', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${key}`
+                },
+                body: formData
+            });
+
+            const data = await res.json();
+            const taskId = data?.data?.task_id || data?.task_id;
+
+            if (res.ok && taskId) {
+                if (onStartBackgroundJob) {
+                    onStartBackgroundJob({
+                        id: taskId,
+                        type: 'image-to-3d',
+                        provider: 'hitems',
+                        status: 'IN_PROGRESS',
+                        prompt: 'Image to 3D',
+                        createdAt: Date.now(),
+                        apiKey: key
+                    });
+                }
+            } else {
+                console.error('Hitem3D Start Error Response:', data);
+                toast({
+                    title: 'Generation failed',
+                    description: data?.message || 'Error starting Hitem3D generation.',
+                    variant: 'destructive'
+                });
+                setIsLoading(false);
+            }
+        } catch (e) {
+            console.error('Hitem3D request failed', e);
+            toast({
+                title: 'Generation failed',
+                description: 'Failed to send image to Hitem3D.',
+                variant: 'destructive'
+            });
+            setIsLoading(false);
+        }
+    };
+
     const handleCapture = () => {
         const state = captureRef.current;
         if (state && state.gl && state.scene && state.camera) {
@@ -515,12 +586,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                         </div>
                         
                         <p className="text-[10px] text-muted-foreground text-center">
-                            Note: Meshy automatically isolates the subject. For best results, use images with clear contrast or transparent backgrounds.
+                            {selectedProvider === 'meshy' && 'Note: Meshy automatically isolates the subject. For best results, use images with clear contrast or transparent backgrounds.'}
+                            {selectedProvider === 'tripo' && 'Note: Tripo performs best with a centered subject and minimal background noise.'}
+                            {selectedProvider === 'hitems' && 'Note: Hitem3D prefers a single clear subject with a clean silhouette.'}
                         </p>
                     </div>
                 )}
 
-                {!initialImage && (
+                {!initialImage && selectedProvider !== 'hitems' && (
                     <div className="space-y-1">
                         <label className="text-xs font-medium text-muted-foreground">Prompt</label>
                         <textarea 
@@ -529,6 +602,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                             placeholder="A cute ceramic cat..."
                             className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm min-h-[80px]"
                         />
+                    </div>
+                )}
+
+                {selectedProvider === 'hitems' && !initialImage && (
+                    <div className="rounded-md border border-border/60 bg-secondary/40 p-2 text-[11px] text-muted-foreground">
+                        Hitem3D currently supports image-to-3D only. Select an image first, then reopen the 3D panel.
                     </div>
                 )}
 

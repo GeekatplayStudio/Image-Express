@@ -149,7 +149,11 @@ export default function Home() {
     if (typeof window === 'undefined') {
       return;
     }
-    const has3D = Boolean(localStorage.getItem('meshy_api_key') || localStorage.getItem('tripo_api_key'));
+    const has3D = Boolean(
+      localStorage.getItem('meshy_api_key') ||
+      localStorage.getItem('tripo_api_key') ||
+      localStorage.getItem('hitems_api_key')
+    );
     const has2D = Boolean(
       localStorage.getItem('stability_api_key') ||
       localStorage.getItem('openai_api_key') ||
