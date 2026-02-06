@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import Image from 'next/image';
 import DesignCanvas from '@/components/DesignCanvas';
 import Toolbar, { type ToolbarHandle } from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
@@ -2241,12 +2242,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }, [backgroundJobs, canvas]);
 
     useEffect(() => {
+        const pollTimers = pollTimersRef.current;
+        const pollIntervals = pollIntervalsRef.current;
+
         return () => {
-            for (const timer of pollTimersRef.current.values()) {
+            for (const timer of pollTimers.values()) {
                 window.clearTimeout(timer);
             }
-            pollTimersRef.current.clear();
-            pollIntervalsRef.current.clear();
+            pollTimers.clear();
+            pollIntervals.clear();
         };
     }, []);
 
@@ -2467,15 +2471,18 @@ document.addEventListener('DOMContentLoaded', () => {
                      </div>
                      <button
                         onClick={() => setShowProfileModal(true)}
-                        className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"
+                        className="relative w-9 h-9 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"
                         title="User Profile"
                      >
                         {profileSettings?.image ? (
-                            <img
+                            <Image
                                 src={profileSettings.image}
                                 alt="Profile"
-                                className="w-full h-full object-cover"
+                                fill
+                                sizes="36px"
+                                className="object-cover"
                                 style={{ transform: `scale(${profileSettings.imageScale || 1})`, transformOrigin: 'center' }}
+                                unoptimized
                             />
                         ) : (
                             <User size={16} className="text-white/90" />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { OrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
@@ -582,7 +583,16 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 {initialImage && (
                     <div className="space-y-2">
                          <div className="flex justify-center bg-black/10 p-2 rounded">
-                            <img src={initialImage} className="max-h-24 rounded object-contain" alt="Source" />
+                            <div className="relative w-full h-24">
+                                <Image
+                                    src={initialImage}
+                                    alt="Source"
+                                    fill
+                                    sizes="256px"
+                                    className="object-contain rounded"
+                                    unoptimized
+                                />
+                            </div>
                         </div>
                         
                         <p className="text-[10px] text-muted-foreground text-center">

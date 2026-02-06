@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { X, Wand2, Loader2, RotateCw, GripHorizontal } from 'lucide-react';
 import * as fabric from 'fabric';
 import { ExtendedFabricObject } from '@/types';
@@ -571,7 +572,14 @@ export default function ImageGeneratorModal({
                {/* Result Preview Area */}
                {generatedImage && (
                    <div className="relative group rounded-lg overflow-hidden border bg-checkerboard aspect-square animate-in zoom-in-95">
-                       <img src={generatedImage} className="w-full h-full object-contain" alt="Generated" />
+                       <Image
+                           src={generatedImage}
+                           alt="Generated"
+                           fill
+                           sizes="256px"
+                           className="object-contain"
+                           unoptimized
+                       />
                        
                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
                            <button 

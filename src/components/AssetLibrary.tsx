@@ -470,6 +470,7 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                                         >
                                             {asset.type === 'images' && (
                                                 <div className="w-full h-full relative">
+                                                    {/* eslint-disable-next-line @next/next/no-img-element -- User-uploaded assets can be arbitrary formats (including SVG/data URLs). */}
                                                     <img 
                                                         src={asset.path} 
                                                         alt={asset.name} 

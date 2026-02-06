@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Wand2, Loader2, Image as ImageIcon, Eraser, Move, Layers, Maximize, Check, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Scan } from 'lucide-react';
 import * as fabric from 'fabric';
 import { Button } from '../ui/button';
@@ -716,9 +717,18 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                          ) : (
                              <div className="space-y-4">
                                  {/* Construct preview manually if canvas mode */}
-                                 {sourceType === 'selection' && selectedCanvasImage && (
-                                     <img src={selectedCanvasImage} alt="Source" className="w-full h-32 object-contain bg-muted/50 rounded border border-border/50" />
-                                 )}
+                                {sourceType === 'selection' && selectedCanvasImage && (
+                                    <div className="relative w-full h-32 bg-muted/50 rounded border border-border/50 overflow-hidden">
+                                        <Image
+                                            src={selectedCanvasImage}
+                                            alt="Source"
+                                            fill
+                                            sizes="100vw"
+                                            className="object-contain"
+                                            unoptimized
+                                        />
+                                    </div>
+                                )}
                                  {sourceType === 'canvas' && (
                                      <div className="w-full h-24 bg-muted/50 rounded flex items-center justify-center text-xs text-muted-foreground border border-border/50">
                                          Full Canvas Preview (All Layers)
@@ -754,7 +764,18 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                              </div>
                         ) : (
                              <div className="space-y-4">
-                                 <img src={selectedCanvasImage} className="w-full h-32 object-contain bg-muted p-2" />
+                                 <div className="w-full h-32 bg-muted p-2">
+                                     <div className="relative w-full h-full">
+                                         <Image
+                                             src={selectedCanvasImage}
+                                             alt="Selected canvas preview"
+                                             fill
+                                             sizes="100vw"
+                                             className="object-contain"
+                                             unoptimized
+                                         />
+                                     </div>
+                                 </div>
                                  
                                  <div className="space-y-2">
                                      <Label>Expansion Directions</Label>
@@ -802,7 +823,8 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                      onMouseMove={drawMask}
                                 >
                                     {/* Underlay Image */}
-                                    <img src={selectedCanvasImage} className="w-full h-auto opacity-50 pointer-events-none select-none" />
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- Preserve natural sizing for canvas overlay alignment. */}
+                                    <img src={selectedCanvasImage} alt="Inpaint source preview" className="w-full h-auto opacity-50 pointer-events-none select-none" />
                                     {/* Overlay Canvas for Masking */}
                                     <canvas ref={maskCanvasRef} className="absolute inset-0 w-full h-full mix-blend-screen" />
                                 </div>
@@ -832,7 +854,16 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                              </div>
                          ) : (
                              <div className="space-y-4">
-                                 <img src={selectedCanvasImage} className="w-full h-32 object-contain bg-muted" />
+                                 <div className="relative w-full h-32 bg-muted overflow-hidden">
+                                     <Image
+                                         src={selectedCanvasImage}
+                                         alt="Selected canvas preview"
+                                         fill
+                                         sizes="100vw"
+                                         className="object-contain"
+                                         unoptimized
+                                     />
+                                 </div>
                                  <Button className="w-full" variant="secondary" onClick={() => handleUpscale('conservative')} disabled={isProcessing}>
                                      Conservative (Fast, Faithful)
                                  </Button>
@@ -855,7 +886,16 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                              </div>
                          ) : (
                              <div className="space-y-4">
-                                 <img src={selectedCanvasImage} className="w-full h-32 object-contain bg-muted" />
+                                 <div className="relative w-full h-32 bg-muted overflow-hidden">
+                                     <Image
+                                         src={selectedCanvasImage}
+                                         alt="Selected canvas preview"
+                                         fill
+                                         sizes="100vw"
+                                         className="object-contain"
+                                         unoptimized
+                                     />
+                                 </div>
                                  <p className="text-sm text-muted-foreground">
                                      Remove background from the selected image. This consumes credits.
                                  </p>
@@ -874,7 +914,8 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                     <div className="mt-4 border-t pt-4 animate-in fade-in slide-in-from-bottom-2">
                         <Label>Result</Label>
                         <div className="relative group rounded-md overflow-hidden border mt-2">
-                            <img src={resultImage} className="w-full h-auto bg-[url('/checker.png')] bg-repeat" />
+                            {/* eslint-disable-next-line @next/next/no-img-element -- Preserve natural sizing for generated output preview. */}
+                            <img src={resultImage} alt="Generated result" className="w-full h-auto bg-[url('/checker.png')] bg-repeat" />
                             <div className="absolute inset-x-0 bottom-0 bg-black/70 p-2 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Button size="sm" onClick={addToCanvas}>
                                     <Check className="mr-2 h-4 w-4" /> Add to Canvas

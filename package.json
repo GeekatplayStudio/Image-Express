@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.js",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "overrides": {
     "tar": "^7.5.6"
   },
