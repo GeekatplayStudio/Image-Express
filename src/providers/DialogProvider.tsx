@@ -1,7 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { X, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useId } from 'react';
+import { AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 
 type DialogType = 'alert' | 'confirm' | 'prompt';
 
@@ -47,18 +47,59 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     
     // Resolvers to handle Promise-based flow
     type DialogResult = boolean | string | null | undefined;
-    const resolveRef = useRef<(value: DialogResult) => void>(() => {});
+    type DialogRequest = {
+        type: DialogType;
+        message: string;
+        options: DialogOptions;
+        resolve: (value: DialogResult) => void;
+    };
+
+    const queueRef = useRef<DialogRequest[]>([]);
+    const activeRef = useRef<DialogRequest | null>(null);
+    const dialogRef = useRef<HTMLDivElement | null>(null);
+    const lastActiveElementRef = useRef<HTMLElement | null>(null);
+    const titleId = useId();
+    const messageId = useId();
+    const descriptionId = useId();
+
+    const getInitialInputValue = (options: DialogOptions) => {
+        if (options.defaultValue !== undefined) return options.defaultValue;
+        if (options.inputType === 'range') return String(options.min ?? 1);
+        return '';
+    };
+
+    const showNext = useCallback(() => {
+        const next = queueRef.current.shift() ?? null;
+        activeRef.current = next;
+        if (!next) {
+            setIsOpen(false);
+            return;
+        }
+        setConfig({ type: next.type, message: next.message, options: next.options });
+        setInputValue(getInitialInputValue(next.options));
+        setIsOpen(true);
+    }, []);
+
+    const resolveActive = useCallback((value: DialogResult) => {
+        const active = activeRef.current;
+        if (active) {
+            active.resolve(value);
+        }
+        activeRef.current = null;
+        showNext();
+    }, [showNext]);
 
     const openDialog = useCallback((type: DialogType, message: string, options: DialogOptions = {}) => {
         return new Promise<DialogResult>((resolve) => {
-            setConfig({ type, message, options });
-            setInputValue(
-                options.defaultValue ?? (options.inputType === 'range' ? String(options.min ?? 0) : '')
-            );
-            setIsOpen(true);
-            resolveRef.current = resolve;
+            if (!activeRef.current && queueRef.current.length === 0) {
+                lastActiveElementRef.current = document.activeElement as HTMLElement | null;
+            }
+            queueRef.current.push({ type, message, options, resolve });
+            if (!activeRef.current) {
+                showNext();
+            }
         });
-    }, []);
+    }, [showNext]);
 
     const alert = useCallback((message: string, options?: DialogOptions) => {
         return openDialog('alert', message, { title: 'Alert', confirmText: 'OK', ...options }).then(() => undefined);
@@ -72,25 +113,92 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         return openDialog('prompt', message, { title: 'Input', confirmText: 'OK', cancelText: 'Cancel', ...options }).then((result) => (typeof result === 'string' ? result : null));
     }, [openDialog]);
 
-    const handleConfirm = () => {
-        setIsOpen(false);
+    const handleConfirm = useCallback(() => {
         if (config.type === 'confirm') {
-            resolveRef.current(true);
+            resolveActive(true);
         } else if (config.type === 'prompt') {
-            resolveRef.current(inputValue);
+            resolveActive(inputValue);
         } else {
-            resolveRef.current(undefined);
+            resolveActive(undefined);
         }
-    };
+    }, [config.type, inputValue, resolveActive]);
 
-    const handleCancel = () => {
-        setIsOpen(false);
+    const handleCancel = useCallback(() => {
         if (config.type === 'confirm') {
-            resolveRef.current(false);
+            resolveActive(false);
         } else if (config.type === 'prompt') {
-            resolveRef.current(null);
+            resolveActive(null);
         } else {
-            resolveRef.current(undefined); // Alert treated as closed/OK usually
+            resolveActive(undefined); // Alert treated as closed/OK usually
+        }
+    }, [config.type, resolveActive]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const dialog = dialogRef.current;
+        if (dialog) {
+            requestAnimationFrame(() => {
+                const focusable = Array.from(
+                    dialog.querySelectorAll<HTMLElement>(
+                        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                    )
+                ).filter((el) => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true');
+
+                (focusable[0] ?? dialog).focus();
+            });
+        }
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (!dialogRef.current) return;
+
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                handleCancel();
+                return;
+            }
+
+            if (event.key !== 'Tab') return;
+
+            const focusable = Array.from(
+                dialogRef.current.querySelectorAll<HTMLElement>(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                )
+            ).filter((el) => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true');
+
+            if (focusable.length === 0) {
+                event.preventDefault();
+                dialogRef.current.focus();
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            const active = document.activeElement as HTMLElement | null;
+
+            if (event.shiftKey && active === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && active === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+
+        return () => {
+            document.removeEventListener('keydown', onKeyDown);
+            if (!activeRef.current) {
+                lastActiveElementRef.current?.focus();
+            }
+        };
+    }, [handleCancel, isOpen]);
+
+    const handleBackdropMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.target === event.currentTarget) {
+            handleCancel();
         }
     };
 
@@ -99,11 +207,20 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         <DialogContext.Provider value={{ alert, confirm, prompt }}>
             {children}
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+                    onMouseDown={handleBackdropMouseDown}
+                    data-testid="dialog-backdrop"
+                >
                     <div 
                         className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl p-6 flex flex-col gap-4 mx-4 animate-in zoom-in-95 duration-200"
                         role="dialog"
                         aria-modal="true"
+                        aria-labelledby={titleId}
+                        aria-describedby={config.options.description ? `${messageId} ${descriptionId}` : messageId}
+                        tabIndex={-1}
+                        ref={dialogRef}
+                        onMouseDown={(event) => event.stopPropagation()}
                     >
                         {/* Header */}
                         <div className="flex items-start gap-4">
@@ -120,10 +237,10 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                             </div>
                             
                             <div className="flex-1 space-y-1">
-                                <h3 className="font-semibold text-lg leading-none">{config.options.title}</h3>
-                                <p className="text-muted-foreground text-sm">{config.message}</p>
+                                <h3 id={titleId} className="font-semibold text-lg leading-none">{config.options.title}</h3>
+                                <p id={messageId} className="text-muted-foreground text-sm">{config.message}</p>
                                 {config.options.description && (
-                                    <p className="text-xs text-muted-foreground/80 mt-1">{config.options.description}</p>
+                                    <p id={descriptionId} className="text-xs text-muted-foreground/80 mt-1">{config.options.description}</p>
                                 )}
                             </div>
                         </div>
