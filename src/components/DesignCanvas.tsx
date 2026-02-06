@@ -572,6 +572,45 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     let isDragging = false;
     let lastPosX = 0;
     let lastPosY = 0;
+    let isSpacePressed = false;
+
+    const isTypingTarget = (target: EventTarget | null) => {
+        if (!(target instanceof HTMLElement)) return false;
+        if (target.isContentEditable) return true;
+        const tag = target.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    };
+
+    const stopPanning = () => {
+        if (!isDragging) return;
+        canvas.setViewportTransform(canvas.viewportTransform!);
+        isDragging = false;
+        canvas.selection = true;
+        canvas.defaultCursor = 'default';
+        canvas.setCursor('default');
+    };
+
+    const handlePanKeyDown = (event: KeyboardEvent) => {
+        if (event.code !== 'Space') return;
+        if (isTypingTarget(event.target)) return;
+        isSpacePressed = true;
+        event.preventDefault();
+    };
+
+    const handlePanKeyUp = (event: KeyboardEvent) => {
+        if (event.code !== 'Space') return;
+        isSpacePressed = false;
+        stopPanning();
+    };
+
+    const handlePanWindowBlur = () => {
+        isSpacePressed = false;
+        stopPanning();
+    };
+
+    window.addEventListener('keydown', handlePanKeyDown);
+    window.addEventListener('keyup', handlePanKeyUp);
+    window.addEventListener('blur', handlePanWindowBlur);
 
     canvas.on('mouse:wheel', (opt) => {
         hasUserInteracted = true; // User took control
@@ -610,8 +649,8 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
     canvas.on('mouse:down', (opt) => {
         const evt = opt.e as MouseEvent;
-        // Pan with Alt + Left Click
-        if (evt.altKey && evt.button === 0) {
+        // Pan with Space + Left Click on empty canvas so object/pen controls stay usable.
+        if (isSpacePressed && evt.button === 0 && !opt.target) {
             hasUserInteracted = true; // User took control
             isDragging = true;
             canvas.selection = false; // Disable selection while panning
@@ -636,11 +675,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
     canvas.on('mouse:up', () => {
         if (isDragging) {
-            canvas.setViewportTransform(canvas.viewportTransform!); // commit
-            isDragging = false;
-            canvas.selection = true; // Re-enable selection
-            canvas.defaultCursor = 'default';
-            canvas.setCursor('default');
+            stopPanning();
         }
     });
     
@@ -732,6 +767,9 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     canvas.off('object:removed', keepArtboardAtBack);
     canvas.off('object:modified', handleArtboardModified);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handlePanKeyDown);
+      window.removeEventListener('keyup', handlePanKeyUp);
+      window.removeEventListener('blur', handlePanWindowBlur);
       canvas.dispose();
       resizeObserver.disconnect();
     };
@@ -768,7 +806,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
                     {selectionDims.width}px × {selectionDims.height}px
                  </span>
             ) : (
-                <span>Alt + Click & Drag to Pan • Scroll to Zoom</span>
+                <span>Space + Click & Drag to Pan • Scroll to Zoom</span>
             )}
         </div>
     </div>

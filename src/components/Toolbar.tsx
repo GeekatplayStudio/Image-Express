@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
 import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { StarPolygon, ThreeDGroup, ExtendedFabricObject, AdjustmentLayerType } from '@/types';
+import { StarPolygon, ThreeDGroup, ExtendedFabricObject, AdjustmentLayerType, PenNode } from '@/types';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
@@ -55,8 +55,343 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
         canvas.defaultCursor = 'crosshair';
         canvas.hoverCursor = 'crosshair';
         canvas.selection = false;
+    } else if (tool === 'pen') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
     }
 };
+
+type PenPoint = { x: number; y: number };
+type PenMode = 'straight' | 'smooth' | 'bezier';
+type PenClosure = 'open' | 'closed';
+type BezierPathObject = fabric.Path & ExtendedFabricObject;
+type PenDraftLineObject = fabric.Object;
+type PenAnchorObject = fabric.Circle & { isPenDraftAnchor?: boolean; penAnchorIndex?: number };
+
+const PEN_STROKE = '#3b82f6';
+const PEN_FILL = '#cccccc';
+const PEN_ANCHOR_COLOR = '#2563eb';
+const PEN_HANDLE_COLOR = '#ffffff';
+let isPenSpacePressed = false;
+
+const isPenDraftAnchor = (obj?: fabric.Object | null): obj is PenAnchorObject => !!obj && (obj as PenAnchorObject).isPenDraftAnchor === true;
+
+const clonePenNodes = (nodes: PenNode[]) => nodes.map((node) => ({
+    x: node.x,
+    y: node.y,
+    handleIn: { ...node.handleIn },
+    handleOut: { ...node.handleOut }
+}));
+
+const distanceBetween = (a: PenPoint, b: PenPoint) => Math.hypot(a.x - b.x, a.y - b.y);
+
+const buildOpenTwoPointCurveNodes = (points: PenPoint[]): PenNode[] => {
+    const [start, end] = points;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.hypot(dx, dy);
+
+    if (length < 0.001) {
+        return [
+            { x: start.x, y: start.y, handleIn: { x: start.x, y: start.y }, handleOut: { x: start.x, y: start.y } },
+            { x: end.x, y: end.y, handleIn: { x: end.x, y: end.y }, handleOut: { x: end.x, y: end.y } }
+        ];
+    }
+
+    // Give open 2-point paths a real curve so smooth/bezier modes are visually distinct from straight.
+    const normalX = -dy / length;
+    const normalY = dx / length;
+    const bend = Math.min(120, Math.max(24, length * 0.28));
+    const controlX = (start.x + end.x) / 2 + (normalX * bend);
+    const controlY = (start.y + end.y) / 2 + (normalY * bend);
+
+    return [
+        {
+            x: start.x,
+            y: start.y,
+            handleIn: { x: start.x, y: start.y },
+            handleOut: {
+                x: ((2 * start.x) + controlX) / 3,
+                y: ((2 * start.y) + controlY) / 3
+            }
+        },
+        {
+            x: end.x,
+            y: end.y,
+            handleIn: {
+                x: ((2 * end.x) + controlX) / 3,
+                y: ((2 * end.y) + controlY) / 3
+            },
+            handleOut: { x: end.x, y: end.y }
+        }
+    ];
+};
+
+const buildAutoBezierNodes = (points: PenPoint[], closed: boolean): PenNode[] => {
+    const len = points.length;
+    if (len === 0) return [];
+    if (!closed && len === 2) {
+        return buildOpenTwoPointCurveNodes(points);
+    }
+
+    return points.map((point, index) => {
+        const prev = closed ? points[(index - 1 + len) % len] : points[Math.max(index - 1, 0)];
+        const next = closed ? points[(index + 1) % len] : points[Math.min(index + 1, len - 1)];
+        const tangentX = (next.x - prev.x) / 6;
+        const tangentY = (next.y - prev.y) / 6;
+
+        const handleIn = { x: point.x - tangentX, y: point.y - tangentY };
+        const handleOut = { x: point.x + tangentX, y: point.y + tangentY };
+
+        if (!closed && index === 0) {
+            handleIn.x = point.x;
+            handleIn.y = point.y;
+        }
+        if (!closed && index === len - 1) {
+            handleOut.x = point.x;
+            handleOut.y = point.y;
+        }
+
+        return {
+            x: point.x,
+            y: point.y,
+            handleIn,
+            handleOut
+        };
+    });
+};
+
+const buildBezierPathData = (nodes: PenNode[], closed: boolean): string => {
+    if (nodes.length === 0) return '';
+    if (nodes.length === 1) return `M ${nodes[0].x} ${nodes[0].y}`;
+
+    let pathData = `M ${nodes[0].x} ${nodes[0].y}`;
+    const segmentCount = closed ? nodes.length : (nodes.length - 1);
+
+    for (let i = 0; i < segmentCount; i++) {
+        const current = nodes[i];
+        const next = nodes[(i + 1) % nodes.length];
+        pathData += ` C ${current.handleOut.x} ${current.handleOut.y} ${next.handleIn.x} ${next.handleIn.y} ${next.x} ${next.y}`;
+    }
+
+    if (closed) pathData += ' Z';
+    return pathData;
+};
+
+const buildSmoothPathData = (points: PenPoint[], closed: boolean): string => {
+    if (points.length === 0) return '';
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    if (points.length === 2) {
+        if (!closed) {
+            return buildBezierPathData(buildAutoBezierNodes(points, false), false);
+        }
+        const base = `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+        return `${base} Z`;
+    }
+    return buildBezierPathData(buildAutoBezierNodes(points, closed), closed);
+};
+
+const createPenDraftLine = (points: PenPoint[], mode: PenMode, closure: PenClosure): PenDraftLineObject | null => {
+    if (points.length === 0) return null;
+    const isClosed = closure === 'closed' && points.length > 2;
+    const baseProps = {
+        stroke: PEN_STROKE,
+        strokeWidth: 2,
+        fill: isClosed ? 'rgba(59,130,246,0.08)' : 'transparent',
+        objectCaching: false,
+        selectable: false,
+        evented: false,
+        originX: 'left' as const,
+        originY: 'top' as const
+    };
+
+    if (mode === 'straight') {
+        if (isClosed) {
+            return new fabric.Polygon(points, baseProps);
+        }
+        const polyPoints = points.length === 1 ? [points[0], points[0]] : points;
+        return new fabric.Polyline(polyPoints, baseProps);
+    }
+
+    if (points.length === 1) {
+        return new fabric.Polyline([points[0], points[0]], baseProps);
+    }
+
+    if (mode === 'smooth') {
+        return new fabric.Path(buildSmoothPathData(points, isClosed), baseProps);
+    }
+
+    const nodes = buildAutoBezierNodes(points, isClosed);
+    return new fabric.Path(buildBezierPathData(nodes, isClosed), baseProps);
+};
+
+const getScenePointFromPathPoint = (pathObj: fabric.Path, point: PenPoint): fabric.Point => {
+    const transformPoint = (fabric.util as unknown as { transformPoint: (point: fabric.Point, transform: number[]) => fabric.Point }).transformPoint;
+    const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
+    const localPoint = new fabric.Point(point.x - pathOffset.x, point.y - pathOffset.y);
+    return transformPoint(localPoint, pathObj.calcTransformMatrix());
+};
+
+const getPathPointFromScenePoint = (pathObj: fabric.Path, point: PenPoint): PenPoint => {
+    const transformPoint = (fabric.util as unknown as { transformPoint: (point: fabric.Point, transform: number[]) => fabric.Point }).transformPoint;
+    const invertTransform = (fabric.util as unknown as { invertTransform: (transform: number[]) => number[] }).invertTransform;
+    const inverse = invertTransform(pathObj.calcTransformMatrix());
+    const localPoint = transformPoint(new fabric.Point(point.x, point.y), inverse);
+    const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
+    return {
+        x: localPoint.x + pathOffset.x,
+        y: localPoint.y + pathOffset.y
+    };
+};
+
+const applyBezierNodesToPath = (pathObj: BezierPathObject, nodes: PenNode[], closed: boolean) => {
+    const pathData = buildBezierPathData(nodes, closed);
+    const nextPath = new fabric.Path(pathData);
+    const center = pathObj.getCenterPoint();
+
+    pathObj.set({
+        path: nextPath.path,
+        width: nextPath.width,
+        height: nextPath.height,
+        pathOffset: nextPath.pathOffset,
+        dirty: true,
+        penNodes: nodes,
+        penSourcePoints: nodes.map((node) => ({ x: node.x, y: node.y })),
+        penClosed: closed,
+        penMode: 'bezier',
+        isPenPath: true
+    });
+    pathObj.setPositionByOrigin(center, 'center', 'center');
+    pathObj.setCoords();
+    pathObj.canvas?.requestRenderAll();
+};
+
+const attachBezierControls = (pathObj: BezierPathObject) => {
+    const nodes = pathObj.penNodes;
+    if (!nodes || nodes.length < 2) return;
+
+    const renderAnchor: fabric.Control['render'] = (ctx, left, top, styleOverride, fabricObject) => {
+        const size = styleOverride?.cornerSize ?? fabricObject.cornerSize ?? 10;
+        ctx.save();
+        ctx.fillStyle = PEN_ANCHOR_COLOR;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(left, top, size / 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    };
+
+    const renderHandle = (nodeIndex: number): fabric.Control['render'] => {
+        return (ctx, left, top, styleOverride, fabricObject) => {
+            const target = fabricObject as BezierPathObject;
+            const currentNodes = target.penNodes || [];
+            const node = currentNodes[nodeIndex];
+            if (!node) return;
+            const anchorPoint = getScenePointFromPathPoint(target, { x: node.x, y: node.y });
+            const size = styleOverride?.cornerSize ?? fabricObject.cornerSize ?? 10;
+
+            ctx.save();
+            ctx.strokeStyle = 'rgba(37,99,235,0.7)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(anchorPoint.x, anchorPoint.y);
+            ctx.lineTo(left, top);
+            ctx.stroke();
+
+            ctx.fillStyle = PEN_HANDLE_COLOR;
+            ctx.strokeStyle = PEN_ANCHOR_COLOR;
+            ctx.beginPath();
+            ctx.arc(left, top, size / 2.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        };
+    };
+
+    const controls: Record<string, fabric.Control> = {};
+
+    nodes.forEach((_, index) => {
+        controls[`anchor_${index}`] = new fabric.Control({
+            cursorStyle: 'move',
+            positionHandler: (_dim, _finalMatrix, fabricObject) => {
+                const target = fabricObject as BezierPathObject;
+                const currentNodes = target.penNodes || [];
+                const node = currentNodes[index];
+                if (!node) return new fabric.Point(0, 0);
+                return getScenePointFromPathPoint(target, { x: node.x, y: node.y });
+            },
+            actionHandler: (_eventData, transform, x, y) => {
+                const target = transform.target as BezierPathObject;
+                const currentNodes = target.penNodes || [];
+                const nextNodes = clonePenNodes(currentNodes);
+                const node = nextNodes[index];
+                if (!node) return false;
+
+                const nextPoint = getPathPointFromScenePoint(target, { x, y });
+                const dx = nextPoint.x - node.x;
+                const dy = nextPoint.y - node.y;
+
+                node.x = nextPoint.x;
+                node.y = nextPoint.y;
+                node.handleIn.x += dx;
+                node.handleIn.y += dy;
+                node.handleOut.x += dx;
+                node.handleOut.y += dy;
+
+                applyBezierNodesToPath(target, nextNodes, !!target.penClosed);
+                return true;
+            },
+            render: renderAnchor
+        });
+
+        (['handleIn', 'handleOut'] as const).forEach((handleKey) => {
+            controls[`${handleKey}_${index}`] = new fabric.Control({
+                cursorStyle: 'crosshair',
+                positionHandler: (_dim, _finalMatrix, fabricObject) => {
+                    const target = fabricObject as BezierPathObject;
+                    const currentNodes = target.penNodes || [];
+                    const node = currentNodes[index];
+                    if (!node) return new fabric.Point(0, 0);
+                    return getScenePointFromPathPoint(target, node[handleKey]);
+                },
+                actionHandler: (eventData, transform, x, y) => {
+                    const target = transform.target as BezierPathObject;
+                    const currentNodes = target.penNodes || [];
+                    const nextNodes = clonePenNodes(currentNodes);
+                    const node = nextNodes[index];
+                    if (!node) return false;
+
+                    const nextPoint = getPathPointFromScenePoint(target, { x, y });
+                    node[handleKey] = nextPoint;
+
+                    const oppositeKey = handleKey === 'handleIn' ? 'handleOut' : 'handleIn';
+                    void eventData;
+                    if (!isPenSpacePressed) {
+                        const dx = nextPoint.x - node.x;
+                        const dy = nextPoint.y - node.y;
+                        node[oppositeKey] = { x: node.x - dx, y: node.y - dy };
+                    }
+
+                    applyBezierNodesToPath(target, nextNodes, !!target.penClosed);
+                    return true;
+                },
+                render: renderHandle(index)
+            });
+        });
+    });
+
+    pathObj.set({
+        controls,
+        hasBorders: false,
+        cornerColor: PEN_ANCHOR_COLOR,
+        transparentCorners: false
+    });
+    pathObj.setCoords();
+};
+
 const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys }, ref) => {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
@@ -68,6 +403,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     const adjustmentsButtonRef = useRef<HTMLButtonElement>(null);
     const [shapesMenuPos, setShapesMenuPos] = useState<{ left: number; top: number } | null>(null);
     const [adjustmentMenuPos, setAdjustmentMenuPos] = useState<{ left: number; top: number } | null>(null);
+    const [draggingMenu, setDraggingMenu] = useState<'shapes' | 'adjustments' | null>(null);
+    const dragOffsetRef = useRef({ x: 0, y: 0 });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
@@ -87,58 +424,226 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         { name: 'layers', icon: Layers, label: 'Layers' },
     ];
 
-    const [penPoints, setPenPoints] = useState<{ x: number; y: number }[]>([]);
-    const [penActiveLine, setPenActiveLine] = useState<fabric.Polyline | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [penTempLine, setPenTempLine] = useState<fabric.Line | null>(null);
+    const [penPoints, setPenPoints] = useState<PenPoint[]>([]);
+    const [penAnchors, setPenAnchors] = useState<PenAnchorObject[]>([]);
+    const penActiveLineRef = useRef<PenDraftLineObject | null>(null);
+    const penAnchorsRef = useRef<PenAnchorObject[]>([]);
+    const [penMode, setPenMode] = useState<PenMode>('straight');
+    const [penClosure, setPenClosure] = useState<PenClosure>('open');
 
-    const finishPenPath = useCallback(() => {
-        if (!canvas || !penActiveLine || penPoints.length < 3) {
-            // If less than 3 points, just clear
-            if (penActiveLine) canvas?.remove(penActiveLine);
-            setPenPoints([]);
-            setPenActiveLine(null);
+    useEffect(() => {
+        penAnchorsRef.current = penAnchors;
+    }, [penAnchors]);
+
+    useEffect(() => {
+        if (!canvas || activeTool !== 'pen') return;
+
+        const currentLine = penActiveLineRef.current;
+        if (currentLine) {
+            canvas.remove(currentLine);
+            penActiveLineRef.current = null;
+        }
+
+        const nextLine = createPenDraftLine(penPoints, penMode, penClosure);
+        if (!nextLine) {
+            canvas.requestRenderAll();
             return;
         }
 
-        // Create final Polygon
+        canvas.add(nextLine);
+        penActiveLineRef.current = nextLine;
+        penAnchorsRef.current.forEach((anchor) => canvas.bringObjectToFront(anchor));
+        canvas.requestRenderAll();
+    }, [activeTool, canvas, penClosure, penMode, penPoints]);
+
+    useEffect(() => {
+        const isTypingTarget = (target: EventTarget | null) => {
+            if (!(target instanceof HTMLElement)) return false;
+            if (target.isContentEditable) return true;
+            const tag = target.tagName;
+            return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+        };
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.code !== 'Space') return;
+            if (isTypingTarget(event.target)) return;
+            isPenSpacePressed = true;
+            if (activeTool === 'pen') {
+                event.preventDefault();
+            }
+        };
+
+        const handleKeyUp = (event: KeyboardEvent) => {
+            if (event.code !== 'Space') return;
+            isPenSpacePressed = false;
+        };
+
+        const handleBlur = () => {
+            isPenSpacePressed = false;
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('blur', handleBlur);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('blur', handleBlur);
+        };
+    }, [activeTool]);
+
+    const clearPenDraft = useCallback(() => {
+        if (canvas) {
+            if (penActiveLineRef.current) {
+                canvas.remove(penActiveLineRef.current);
+            }
+            penAnchorsRef.current.forEach((anchor) => canvas.remove(anchor));
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
+        }
+        penActiveLineRef.current = null;
+        penAnchorsRef.current = [];
+        setPenPoints((prev) => (prev.length > 0 ? [] : prev));
+        setPenAnchors((prev) => (prev.length > 0 ? [] : prev));
+    }, [canvas]);
+
+    const finishPenPath = useCallback(() => {
+        if (!canvas) {
+            clearPenDraft();
+            return;
+        }
+        const isClosed = penClosure === 'closed';
+        const minPoints = isClosed ? 3 : 2;
+        if (penPoints.length < minPoints) {
+            clearPenDraft();
+            return;
+        }
+
         const finalPoints = [...penPoints];
-        canvas.remove(penActiveLine);
+        if (penActiveLineRef.current) {
+            canvas.remove(penActiveLineRef.current);
+        }
+        penActiveLineRef.current = null;
+        penAnchors.forEach((anchor) => canvas.remove(anchor));
+        penAnchorsRef.current = [];
+        setPenAnchors([]);
 
-        const polygon = new fabric.Polygon(finalPoints, {
-            fill: '#cccccc',
-            stroke: '#3b82f6',
+        const objectBaseProps = {
+            fill: isClosed ? PEN_FILL : 'transparent',
+            stroke: PEN_STROKE,
             strokeWidth: 2,
-            objectCaching: false,
-        });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (polygon as any).name = 'Vector Shape';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (polygon as any).id = `shape-${Date.now()}`;
+            objectCaching: false
+        };
 
-        canvas.add(polygon);
-        canvas.setActiveObject(polygon);
+        let createdObject: fabric.Object | null = null;
+        if (penMode === 'straight') {
+            if (isClosed) {
+                createdObject = new fabric.Polygon(finalPoints, objectBaseProps);
+            } else {
+                createdObject = new fabric.Polyline(finalPoints, {
+                    ...objectBaseProps,
+                    fill: 'transparent'
+                });
+            }
+        } else if (penMode === 'smooth') {
+            const pathData = buildSmoothPathData(finalPoints, isClosed);
+            createdObject = new fabric.Path(pathData, objectBaseProps);
+        } else {
+            const nodes = buildAutoBezierNodes(finalPoints, isClosed);
+            const pathData = buildBezierPathData(nodes, isClosed);
+            const bezierPath = new fabric.Path(pathData, objectBaseProps) as BezierPathObject;
+            bezierPath.set({
+                isPenPath: true,
+                penMode: 'bezier',
+                penClosed: isClosed,
+                penNodes: nodes
+            });
+            attachBezierControls(bezierPath);
+            createdObject = bezierPath;
+        }
+
+        if (!createdObject) {
+            clearPenDraft();
+            return;
+        }
+
+        const namedObject = createdObject as ExtendedFabricObject;
+        namedObject.name = isClosed ? 'Vector Shape' : 'Vector Path';
+        namedObject.id = `shape-${Date.now()}`;
+        namedObject.penClosed = isClosed;
+        namedObject.penMode = penMode;
+        namedObject.isPenPath = penMode === 'bezier';
+        namedObject.penSourcePoints = finalPoints.map((point) => ({ ...point }));
+
+        canvas.add(createdObject);
+        canvas.setActiveObject(createdObject);
+        configureCanvasForTool(canvas, 'select');
         canvas.requestRenderAll();
 
         setPenPoints([]);
-        setPenActiveLine(null);
+        penActiveLineRef.current = null;
         setActiveTool('select'); // Switch back to select
-    }, [canvas, penActiveLine, penPoints, setActiveTool]);
+    }, [canvas, clearPenDraft, penAnchors, penClosure, penMode, penPoints, setActiveTool]);
+
+    useEffect(() => {
+        if (activeTool === 'pen') return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        clearPenDraft();
+    }, [activeTool, clearPenDraft]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('pen:draft:update', {
+            mode: penMode,
+            closure: penClosure,
+            points: penPoints.length
+        });
+    }, [canvas, penClosure, penMode, penPoints.length]);
 
     // Pen Tool Logic (Interactive Polyline)
     useEffect(() => {
         if (!canvas) return;
 
+        const createAnchor = (point: PenPoint, index: number) => {
+            const anchor = new fabric.Circle({
+                left: point.x,
+                top: point.y,
+                radius: 5,
+                fill: PEN_HANDLE_COLOR,
+                stroke: PEN_ANCHOR_COLOR,
+                strokeWidth: 2,
+                originX: 'center',
+                originY: 'center',
+                hasControls: false,
+                hasBorders: false,
+                selectable: true,
+                evented: true,
+                objectCaching: false,
+                hoverCursor: 'move'
+            }) as PenAnchorObject;
+            anchor.isPenDraftAnchor = true;
+            anchor.penAnchorIndex = index;
+            return anchor;
+        };
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleMouseDown = (opt: any) => {
             if (activeTool !== 'pen') return;
             if (!opt.scenePoint) return;
+            const target = opt.target as fabric.Object | null | undefined;
+            if (isPenDraftAnchor(target)) {
+                if (penClosure === 'closed' && target.penAnchorIndex === 0 && penPoints.length > 2) {
+                    finishPenPath();
+                }
+                return;
+            }
             const pointer = opt.scenePoint;
+            const pointerPoint = { x: pointer.x, y: pointer.y };
 
             // Check validity of closing loop
-            if (penPoints.length > 2) {
+            if (penClosure === 'closed' && penPoints.length > 2) {
                 const first = penPoints[0];
-                const dist = Math.sqrt(Math.pow(pointer.x - first.x, 2) + Math.pow(pointer.y - first.y, 2));
+                const dist = distanceBetween(pointerPoint, first);
                 if (dist < 20) {
                     finishPenPath();
                     return;
@@ -146,34 +651,19 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             }
 
             // START or CONTINUE
-            const points = [...penPoints, { x: pointer.x, y: pointer.y }];
+            const points = [...penPoints, pointerPoint];
             setPenPoints(points);
+            const newAnchor = createAnchor(pointerPoint, points.length - 1);
+            canvas.add(newAnchor);
+            canvas.bringObjectToFront(newAnchor);
+            setPenAnchors((prev) => {
+                const next = [...prev, newAnchor];
+                penAnchorsRef.current = next;
+                return next;
+            });
 
-            if (points.length === 1) {
-                // First dot
-                const poly = new fabric.Polyline([{ x: pointer.x, y: pointer.y }, { x: pointer.x, y: pointer.y }], {
-                    fill: 'transparent',
-                    stroke: '#3b82f6',
-                    strokeWidth: 2,
-                    objectCaching: false,
-                    selectable: false,
-                    evented: false,
-                    originX: 'left',
-                    originY: 'top'
-                });
-                canvas.add(poly);
-                setPenActiveLine(poly);
-            } else {
-                if (penActiveLine) {
-                    // Update existing polyline with new point
-                    // Note: fabric.Polyline expects points array. We need to reset it.
-                    // IMPORTANT: V6 might need specific set handling
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    (penActiveLine as any).points = points;
-                    penActiveLine.set('dirty', true);
-                    canvas.requestRenderAll();
-                }
-            }
+            canvas.bringObjectToFront(newAnchor);
+            canvas.requestRenderAll();
         };
 
         const handleMouseMove = () => {
@@ -187,16 +677,112 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
              finishPenPath();
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handleObjectMoving = (opt: any) => {
+            if (activeTool !== 'pen') return;
+            const target = opt.target as fabric.Object | undefined;
+            if (!isPenDraftAnchor(target)) return;
+            const index = target.penAnchorIndex;
+            if (index === undefined || index < 0) return;
+
+            const x = target.left ?? 0;
+            const y = target.top ?? 0;
+            setPenPoints((prev) => {
+                if (index >= prev.length) return prev;
+                const next = [...prev];
+                next[index] = { x, y };
+                return next;
+            });
+            canvas.requestRenderAll();
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handleSelection = (opt: any) => {
+            const selected = ((opt as unknown as { selected?: fabric.Object[] }).selected || []) as fabric.Object[];
+            selected.forEach((object) => {
+                const pathObject = object as BezierPathObject;
+                if (pathObject.type !== 'path') return;
+                if (!pathObject.isPenPath || pathObject.penMode !== 'bezier' || !Array.isArray(pathObject.penNodes)) return;
+                attachBezierControls(pathObject);
+            });
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handleObjectAdded = (opt: any) => {
+            const object = (opt as unknown as { target?: fabric.Object }).target;
+            if (!object) return;
+            const pathObject = object as BezierPathObject;
+            if (pathObject.type !== 'path') return;
+            if (!pathObject.isPenPath || pathObject.penMode !== 'bezier' || !Array.isArray(pathObject.penNodes)) return;
+            attachBezierControls(pathObject);
+        };
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (activeTool !== 'pen') return;
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                finishPenPath();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                clearPenDraft();
+            }
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handlePenConfigSet = (opt: any) => {
+            const mode = opt?.mode as PenMode | undefined;
+            const closure = opt?.closure as PenClosure | undefined;
+            if (mode && (mode === 'straight' || mode === 'smooth' || mode === 'bezier')) {
+                setPenMode(mode);
+            }
+            if (closure && (closure === 'open' || closure === 'closed')) {
+                setPenClosure(closure);
+            }
+        };
+
+        const handlePenFinishRequest = () => {
+            if (activeTool !== 'pen') return;
+            finishPenPath();
+        };
+
+        const handlePenClearRequest = () => {
+            if (activeTool !== 'pen') return;
+            clearPenDraft();
+        };
+
         canvas.on('mouse:down', handleMouseDown);
         canvas.on('mouse:move', handleMouseMove);
         canvas.on('mouse:dblclick', handleDblClick);
+        canvas.on('object:moving', handleObjectMoving);
+        canvas.on('selection:created', handleSelection);
+        canvas.on('selection:updated', handleSelection);
+        canvas.on('object:added', handleObjectAdded);
+        (canvas as unknown as { on: (eventName: string, cb: (...args: unknown[]) => void) => void }).on('pen:config:set', handlePenConfigSet);
+        (canvas as unknown as { on: (eventName: string, cb: (...args: unknown[]) => void) => void }).on('pen:finish-request', handlePenFinishRequest);
+        (canvas as unknown as { on: (eventName: string, cb: (...args: unknown[]) => void) => void }).on('pen:clear-request', handlePenClearRequest);
+        window.addEventListener('keydown', handleKeyDown);
+
+        canvas.getObjects().forEach((object) => {
+            const pathObject = object as BezierPathObject;
+            if (pathObject.type !== 'path') return;
+            if (!pathObject.isPenPath || pathObject.penMode !== 'bezier' || !Array.isArray(pathObject.penNodes)) return;
+            attachBezierControls(pathObject);
+        });
 
         return () => {
              canvas.off('mouse:down', handleMouseDown);
              canvas.off('mouse:move', handleMouseMove);
              canvas.off('mouse:dblclick', handleDblClick);
+             canvas.off('object:moving', handleObjectMoving);
+             canvas.off('selection:created', handleSelection);
+             canvas.off('selection:updated', handleSelection);
+             canvas.off('object:added', handleObjectAdded);
+             (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:config:set', handlePenConfigSet);
+             (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:finish-request', handlePenFinishRequest);
+             (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:clear-request', handlePenClearRequest);
+             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [canvas, activeTool, penPoints, penActiveLine, finishPenPath]);
+    }, [activeTool, canvas, clearPenDraft, finishPenPath, penClosure, penPoints]);
 
     // Close shapes menu when clicking outside
     useEffect(() => {
@@ -212,12 +798,113 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const positionMenu = (buttonRef: React.RefObject<HTMLButtonElement | null>) => {
+    const clampMenuPosition = useCallback((left: number, top: number, width: number, height: number) => {
+        if (typeof window === 'undefined') return { left, top };
+        const padding = 8;
+        const maxLeft = Math.max(padding, window.innerWidth - width - padding);
+        const maxTop = Math.max(padding, window.innerHeight - height - padding);
+        return {
+            left: Math.min(Math.max(padding, left), maxLeft),
+            top: Math.min(Math.max(padding, top), maxTop)
+        };
+    }, []);
+
+    const positionMenu = (
+        buttonRef: React.RefObject<HTMLButtonElement | null>,
+        estimatedWidth = 176,
+        estimatedHeight = 260
+    ) => {
         const el = buttonRef.current;
         if (!el) return null;
         const rect = el.getBoundingClientRect();
-        return { left: rect.right + 12, top: rect.top + 10 };
+        let left = rect.right + 12;
+        const top = rect.top + 10;
+        if (typeof window !== 'undefined' && left + estimatedWidth > window.innerWidth - 8) {
+            left = rect.left - estimatedWidth - 12;
+        }
+        return clampMenuPosition(left, top, estimatedWidth, estimatedHeight);
     };
+
+    const beginMenuDrag = (menu: 'shapes' | 'adjustments') => (event: React.MouseEvent) => {
+        event.preventDefault();
+        const pos = menu === 'shapes' ? shapesMenuPos : adjustmentMenuPos;
+        if (!pos) return;
+        dragOffsetRef.current = {
+            x: event.clientX - pos.left,
+            y: event.clientY - pos.top
+        };
+        setDraggingMenu(menu);
+    };
+
+    useEffect(() => {
+        if (!draggingMenu) return;
+
+        const handleMouseMove = (event: MouseEvent) => {
+            const menuEl = draggingMenu === 'shapes' ? shapesMenuRef.current : adjustmentMenuRef.current;
+            const width = menuEl?.offsetWidth ?? 176;
+            const height = menuEl?.offsetHeight ?? 240;
+            const next = clampMenuPosition(
+                event.clientX - dragOffsetRef.current.x,
+                event.clientY - dragOffsetRef.current.y,
+                width,
+                height
+            );
+
+            if (draggingMenu === 'shapes') setShapesMenuPos(next);
+            else setAdjustmentMenuPos(next);
+        };
+
+        const handleMouseUp = () => {
+            setDraggingMenu(null);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [clampMenuPosition, draggingMenu]);
+
+    useEffect(() => {
+        if (!showShapesMenu || !shapesMenuPos || !shapesMenuRef.current) return;
+        const rect = shapesMenuRef.current.getBoundingClientRect();
+        const clamped = clampMenuPosition(shapesMenuPos.left, shapesMenuPos.top, rect.width, rect.height);
+        if (clamped.left !== shapesMenuPos.left || clamped.top !== shapesMenuPos.top) {
+            setShapesMenuPos(clamped);
+        }
+    }, [clampMenuPosition, shapesMenuPos, showShapesMenu]);
+
+    useEffect(() => {
+        if (!showAdjustmentMenu || !adjustmentMenuPos || !adjustmentMenuRef.current) return;
+        const rect = adjustmentMenuRef.current.getBoundingClientRect();
+        const clamped = clampMenuPosition(adjustmentMenuPos.left, adjustmentMenuPos.top, rect.width, rect.height);
+        if (clamped.left !== adjustmentMenuPos.left || clamped.top !== adjustmentMenuPos.top) {
+            setAdjustmentMenuPos(clamped);
+        }
+    }, [adjustmentMenuPos, clampMenuPosition, showAdjustmentMenu]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (showShapesMenu && shapesMenuPos && shapesMenuRef.current) {
+                const rect = shapesMenuRef.current.getBoundingClientRect();
+                setShapesMenuPos((prev) => {
+                    if (!prev) return prev;
+                    return clampMenuPosition(prev.left, prev.top, rect.width, rect.height);
+                });
+            }
+            if (showAdjustmentMenu && adjustmentMenuPos && adjustmentMenuRef.current) {
+                const rect = adjustmentMenuRef.current.getBoundingClientRect();
+                setAdjustmentMenuPos((prev) => {
+                    if (!prev) return prev;
+                    return clampMenuPosition(prev.left, prev.top, rect.width, rect.height);
+                });
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [adjustmentMenuPos, clampMenuPosition, shapesMenuPos, showAdjustmentMenu, showShapesMenu]);
 
     const addText = () => {
         if (!canvas) return;
@@ -238,7 +925,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 setShowShapesMenu((prev) => {
                     const next = !prev;
                     if (next) {
-                        setShapesMenuPos(positionMenu(shapesButtonRef));
+                        setShapesMenuPos(positionMenu(shapesButtonRef, 176, 240));
                     }
                     return next;
                 });
@@ -250,7 +937,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 setShowAdjustmentMenu((prev) => {
                     const next = !prev;
                     if (next) {
-                        setAdjustmentMenuPos(positionMenu(adjustmentsButtonRef));
+                        setAdjustmentMenuPos(positionMenu(adjustmentsButtonRef, 176, 320));
                     }
                     return next;
                 });
@@ -286,6 +973,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                     // Disable normal selection for canvas (but allow object selection? No, usually tool takes over)
                     // We'll handle this in a useEffect in parent or separate interactive component
                     configureCanvasForTool(canvas, 'gradient');
+                }
+                break;
+            case 'pen':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'pen');
                 }
                 break;
             case 'text':
@@ -619,7 +1311,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
 
         try {
             // Include custom properties in serialization
-            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings']); 
+            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints']); 
             const profile = loadProfileSettings();
             if (profile?.embedInfo) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -741,6 +1433,75 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 </button>
             ))}
 
+            {activeTool === 'pen' && (
+                <div className="w-44 p-2 rounded-xl border border-border/60 bg-card/95 shadow-sm space-y-2">
+                    <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Mode</div>
+                        <div className="grid grid-cols-3 gap-1">
+                            {(['straight', 'smooth', 'bezier'] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => {
+                                        if (penPoints.length > 0) clearPenDraft();
+                                        setPenMode(mode);
+                                    }}
+                                    className={cn(
+                                        "text-[10px] px-1.5 py-1 rounded border transition-colors capitalize",
+                                        penMode === mode
+                                            ? "bg-primary/20 text-primary border-primary/30"
+                                            : "bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50"
+                                    )}
+                                >
+                                    {mode === 'bezier' ? 'Bezier' : mode}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Path</div>
+                        <div className="grid grid-cols-2 gap-1">
+                            {(['open', 'closed'] as const).map((pathMode) => (
+                                <button
+                                    key={pathMode}
+                                    onClick={() => {
+                                        if (penPoints.length > 0) clearPenDraft();
+                                        setPenClosure(pathMode);
+                                    }}
+                                    className={cn(
+                                        "text-[10px] px-1.5 py-1 rounded border transition-colors capitalize",
+                                        penClosure === pathMode
+                                            ? "bg-primary/20 text-primary border-primary/30"
+                                            : "bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50"
+                                    )}
+                                >
+                                    {pathMode}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1">
+                        <button
+                            onClick={finishPenPath}
+                            className="text-[10px] px-2 py-1 rounded border bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 transition-colors"
+                        >
+                            Finish
+                        </button>
+                        <button
+                            onClick={clearPenDraft}
+                            className="text-[10px] px-2 py-1 rounded border bg-secondary/20 border-border/50 text-muted-foreground hover:bg-secondary/50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+
+                    <div className="text-[10px] text-muted-foreground/90 leading-tight">
+                        Click to add points. Double-click or press Enter to finish. Hold Space while dragging a handle to break mirror.
+                    </div>
+                </div>
+            )}
+
             {/* Template Library */}
             {activeTool === 'templates' && (
                 <TemplateLibrary 
@@ -801,8 +1562,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 <div 
                     ref={shapesMenuRef}
                     style={{ left: shapesMenuPos.left, top: shapesMenuPos.top }}
-                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-[100] w-40 animate-in fade-in slide-in-from-left-2 duration-200"
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-[2000] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
+                    <div
+                        className="col-span-2 -mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
+                        onMouseDown={beginMenuDrag('shapes')}
+                    >
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Shapes</span>
+                        <span className="text-[10px] text-muted-foreground/80">Drag</span>
+                    </div>
                     <button onClick={addRectangle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Square size={20} />
                         <span className="text-[10px]">Rect</span>
@@ -835,8 +1603,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 <div
                     ref={adjustmentMenuRef}
                     style={{ left: adjustmentMenuPos.left, top: adjustmentMenuPos.top }}
-                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[100] w-40 animate-in fade-in slide-in-from-left-2 duration-200"
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[2000] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
+                    <div
+                        className="-mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
+                        onMouseDown={beginMenuDrag('adjustments')}
+                    >
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Adjustments</span>
+                        <span className="text-[10px] text-muted-foreground/80">Drag</span>
+                    </div>
                     <button onClick={() => createAdjustmentLayer('curves')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         Curves
                     </button>

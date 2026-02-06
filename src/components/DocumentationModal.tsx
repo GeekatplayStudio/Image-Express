@@ -90,7 +90,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="canvas" title="Canvas Navigation">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Use the mouse scroll wheel to zoom; zoom targets the cursor location.</li>
-                                <li>Hold Alt and drag with the left mouse button to pan around the workspace.</li>
+                                <li>Hold Space and drag with the left mouse button to pan around the workspace.</li>
                                 <li>Double-click empty space to recentre the artboard under the pointer.</li>
                                 <li>The floating hint in the top-left reminds of pan and zoom gestures for new users.</li>
                             </ul>
@@ -177,7 +177,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
 
                         <Section id="shortcuts" title="Productivity Shortcuts">
                             <ul className="list-disc list-inside space-y-2">
-                                <li>Alt + Drag to pan, Scroll to zoom, Double-click empty canvas to recenter.</li>
+                                <li>Space + Drag to pan, Scroll to zoom, Double-click empty canvas to recenter.</li>
                                 <li>Drag layer grips to reorder, or double-click names to rename elements quickly.</li>
                                 <li>Use Shift while resizing Fabric objects to maintain aspect ratio.</li>
                             </ul>

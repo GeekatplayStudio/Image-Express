@@ -98,6 +98,11 @@ export interface ExtendedFabricObject extends fabric.Object {
     clipped?: boolean;
     aiGenerated?: boolean;
     aiProvider?: string;
+    isPenPath?: boolean;
+    penMode?: 'straight' | 'smooth' | 'bezier';
+    penClosed?: boolean;
+    penNodes?: PenNode[];
+    penSourcePoints?: Array<{ x: number; y: number }>;
 }
 
 export interface CanvasElement {
@@ -106,7 +111,14 @@ export interface CanvasElement {
     properties: Record<string, unknown>;
 }
 
-export type ActiveTool = 'select' | 'text' | 'shapes' | 'paint' | 'gradient' | 'assets' | 'ai-zone' | '3d-gen' | 'templates' | 'layers';
+export type ActiveTool = 'select' | 'text' | 'shapes' | 'paint' | 'pen' | 'gradient' | 'assets' | 'ai-zone' | '3d-gen' | 'templates' | 'adjustments' | 'layers';
+
+export type PenNode = {
+    x: number;
+    y: number;
+    handleIn: { x: number; y: number };
+    handleOut: { x: number; y: number };
+};
 
 export interface CanvasState {
     activeSelection: fabric.Object | null; // Placeholder for Fabric Object

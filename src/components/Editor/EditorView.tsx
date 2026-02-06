@@ -145,7 +145,12 @@ export default function EditorView({
         'adjustmentSettings',
         'baseFilters',
         'aiGenerated',
-        'aiProvider'
+        'aiProvider',
+        'isPenPath',
+        'penMode',
+        'penClosed',
+        'penNodes',
+        'penSourcePoints'
     ], []);
 
     const getHistorySnapshot = useCallback(() => {
@@ -669,7 +674,7 @@ export default function EditorView({
             if (inputName) name = inputName;
        }
        
-       const json = canvas.toJSON();
+       const json = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps);
        const jsonString = JSON.stringify(json);
         
        let thumbnailDataUrl = '';
@@ -952,7 +957,7 @@ export default function EditorView({
                         break;
                     }
                     case 'json':
-                        const json = JSON.stringify(canvas.toJSON());
+                        const json = JSON.stringify((canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps));
                         const jsonBlob = new Blob([json], { type: 'application/json' });
                         const jsonUrl = URL.createObjectURL(jsonBlob);
                         downloadFile(jsonUrl, `design-${timestamp}.json`);
@@ -1008,7 +1013,7 @@ export default function EditorView({
         const libsFolder = zip.folder('libs');
         const scriptsFolder = zip.folder('scripts');
 
-        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor'];
+        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints'];
         const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customProps);
 
         const metadata = {

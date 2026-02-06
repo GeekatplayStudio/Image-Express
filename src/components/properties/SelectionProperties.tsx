@@ -94,6 +94,11 @@ export function SelectionProperties({
     const extended = selectedObject as ExtendedFabricObject;
     const isImage = selectedObject?.type === 'image';
     const isText = selectedObject?.type === 'text' || selectedObject?.type === 'i-text';
+    const isPenGeometry = selectedObject?.type === 'path' || selectedObject?.type === 'polygon' || selectedObject?.type === 'polyline';
+    const looksLikePenLayer = typeof extended.name === 'string' && extended.name.toLowerCase().includes('vector');
+    const isPenObject = !!isPenGeometry && (!!extended.penMode || !!extended.isPenPath || looksLikePenLayer);
+    const penMode = extended.penMode || (selectedObject?.type === 'path' ? 'smooth' : 'straight');
+    const penClosed = typeof extended.penClosed === 'boolean' ? extended.penClosed : selectedObject?.type !== 'polyline';
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleTransform = (values: Record<string, any>) => {
@@ -237,6 +242,46 @@ export function SelectionProperties({
             </div>
 
             {/* Specific Editors (Styles) */}
+
+            {isPenObject && (
+                 <div className="p-4 border-b border-border/50 space-y-3">
+                    <h3 className="font-medium text-sm">Pen Path</h3>
+                    <div className="space-y-2">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                        <div className="grid grid-cols-3 gap-1">
+                            {(['straight', 'smooth', 'bezier'] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => onPropChange('penPathUpdate', { mode })}
+                                    className={`text-[10px] px-1.5 py-1 rounded border transition-colors capitalize ${penMode === mode ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                                >
+                                    {mode === 'bezier' ? 'Bezier' : mode}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Path</div>
+                        <div className="grid grid-cols-2 gap-1">
+                            <button
+                                onClick={() => onPropChange('penPathUpdate', { closed: false })}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${!penClosed ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                            >
+                                Open
+                            </button>
+                            <button
+                                onClick={() => onPropChange('penPathUpdate', { closed: true })}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${penClosed ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                            >
+                                Closed
+                            </button>
+                        </div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                        Bezier mode supports point and handle editing directly on canvas.
+                    </div>
+                 </div>
+            )}
             
             {/* COLOR / FILL */}
             {!isImage && !isGroup && !isAdjustment && (
