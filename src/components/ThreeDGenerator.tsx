@@ -2,12 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { Loader2, Plus, RotateCw, Box, Settings2, Sun } from 'lucide-react';
-import * as fabric from 'fabric';
-import { getApiKey } from './SettingsModal';
 import { BackgroundJob } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
@@ -139,11 +137,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     const [prompt, setPrompt] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [apiKey, setApiKey] = useState('');
-    const canvasRef = useRef<HTMLCanvasElement>(null);
     const captureRef = useRef<CaptureContext | null>(null);
     const [resolution, setResolution] = useState<{width: number, height: number}>({ width: 2048, height: 2048 });
     const [showResSettings, setShowResSettings] = useState(false);
-    const [mode, setMode] = useState<'text' | 'image'>(initialImage ? 'image' : 'text');
+    const [mode] = useState<'text' | 'image'>(initialImage ? 'image' : 'text');
     const [showLightSettings, setShowLightSettings] = useState(false);
     const [lightPosition, setLightPosition] = useState<{ x: number; y: number; z: number }>({ x: 5, y: 5, z: 5 });
     const [lightIntensity, setLightIntensity] = useState(1.2);

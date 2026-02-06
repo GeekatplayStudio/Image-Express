@@ -19,7 +19,6 @@ import { LayersView } from './properties/LayersView';
 import { SelectionProperties } from './properties/SelectionProperties';
 import { PaintProperties } from './properties/PaintProperties';
 import { CanvasSettingsPanel } from './properties/CanvasSettingsPanel';
-import { ShadowStrokeValues } from './properties/ShadowStrokeProperties';
 
 // Utils & Libs
 import { 
@@ -35,13 +34,10 @@ import {
     normalizeColorValue, 
     parseColorWithAlpha,
     parseColorWithAlpha as extractColorFromStyle,
-    getGroupNames,
-    getNextIndexedName,
     getAdjustmentLabel,
     getDefaultAdjustmentSettings,
     moveObjectToGroup,
-    moveObjectToCanvas,
-    addToGroup
+    moveObjectToCanvas
 } from '@/lib/fabric-utils';
 
 import { CurvesFilter } from '@/lib/fabric-filters';
@@ -72,11 +68,10 @@ interface PropertiesPanelProps {
     activeTool: string;
     onLayerDblClick?: () => void;
     onMake3D?: (imageUrl: string) => void;
-    onPreviewMedia?: (media: { type: 'video' | 'audio'; url: string }) => void;
     onDuplicate?: () => void;
 }
 
-export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onPreviewMedia, onDuplicate }: PropertiesPanelProps) {
+export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onDuplicate }: PropertiesPanelProps) {
     const [selectedObject, setSelectedObject] = useState<ExtendedFabricObject | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -757,7 +752,6 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                  // For extreme curves (>80%), use circular arc approximation
                  if (Math.abs(strength) >= 80) {
                      // Circular arc path for full circle effect
-                     const radius = len / (2 * Math.sin(Math.abs(normalizedStrength) * Math.PI / 2));
                      const arcHeight = curveHeight * 1.2;
                      // Use cubic bezier for smoother arc
                      const cp1x = len * 0.25 + (normalizedCenter * len * 0.2);
@@ -1317,7 +1311,6 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                         if (ctx) {
                             const imageData = ctx.createImageData(64, 64);
                             for (let i = 0; i < imageData.data.length; i += 4) {
-                                // eslint-disable-next-line react-hooks/purity
                                 const v = Math.floor(Math.random() * 255);
                                 imageData.data[i] = v;
                                 imageData.data[i + 1] = v;
@@ -1681,7 +1674,6 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 } else {
                      // Relative: Convert Local -> World
                      const targetMatrix = selectedObject.calcTransformMatrix();
-                     const maskMatrix = selectedObject.clipPath!.calcTransformMatrix(); // This is local transform? 
                      // Wait, calcTransformMatrix on a child object might behave differently?
                      // Actually, if it's not on canvas, its matrix is just local properties.
                      // The correct World Matrix for a relative child is: ParentMatrix * ChildLocalMatrix
@@ -1854,7 +1846,6 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
     return (
         <SelectionProperties 
-             canvas={canvas}
              selectedObject={selectedObject}
              selectedObjects={canvas?.getActiveObjects() || []}
              color={color}
@@ -1902,4 +1893,3 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         />
     );
 }
-

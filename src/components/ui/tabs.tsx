@@ -2,11 +2,14 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const Tabs = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { value: string, onValueChange: (v: string) => void }>(
-  ({ className, value, onValueChange, children, ...props }, ref) => (
-    <div ref={ref} className={cn("", className)} {...props} data-state={value}>
-        {children}
-    </div>
-  )
+  ({ className, value, onValueChange, children, ...props }, ref) => {
+    void onValueChange;
+    return (
+      <div ref={ref} className={cn("", className)} {...props} data-state={value}>
+          {children}
+      </div>
+    );
+  }
 )
 Tabs.displayName = "Tabs"
 

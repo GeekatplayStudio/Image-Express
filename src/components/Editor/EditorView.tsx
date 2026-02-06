@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import Image from 'next/image';
+import NextImage from 'next/image';
 import DesignCanvas from '@/components/DesignCanvas';
 import Toolbar, { type ToolbarHandle } from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
@@ -1677,7 +1677,7 @@ document.addEventListener('DOMContentLoaded', () => {
    
            const checkUrl = (url: string): Promise<boolean> => {
                return new Promise((resolve) => {
-                   const img = new Image();
+                   const img = new window.Image();
                    img.onload = () => resolve(true);
                    img.onerror = () => resolve(false);
                    img.src = url; 
@@ -2475,7 +2475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         title="User Profile"
                      >
                         {profileSettings?.image ? (
-                            <Image
+                            <NextImage
                                 src={profileSettings.image}
                                 alt="Profile"
                                 fill
@@ -2697,7 +2697,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 activeTool={activeTool} 
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
-                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                                 onDuplicate={handleDuplicate}
                             />
                         </div>
@@ -2829,7 +2828,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 activeTool={activeTool} 
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
-                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                                 onDuplicate={handleDuplicate}
                             />
                         </div>
@@ -2869,7 +2867,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 activeTool={activeTool} 
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
-                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                                 onDuplicate={handleDuplicate}
                             />
                         </div>

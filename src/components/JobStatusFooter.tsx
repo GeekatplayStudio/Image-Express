@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { BackgroundJob } from '@/types';
 
 interface JobStatusFooterProps {

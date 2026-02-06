@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls as DreiOrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
-import { Check, X, RotateCw, Loader2, ZoomIn, ZoomOut, Settings2, Sun } from 'lucide-react';
+import { Check, X, RotateCw, Settings2, Sun } from 'lucide-react';
 import * as THREE from 'three';
 import * as fabric from 'fabric';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
@@ -48,8 +48,6 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 
 
 export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, onClose }: ThreeDLayerEditorProps) {
-    const [isLoading, setIsLoading] = useState(true);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
     const [gl, setGl] = useState<CaptureGL | null>(null);
     const [resolution, setResolution] = useState<{width: number, height: number}>({ width: 2048, height: 2048 });
     const [showResSettings, setShowResSettings] = useState(false);
@@ -118,7 +116,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
     // Preload
     useEffect(() => {
         useGLTF.preload(modelUrl);
-        setIsLoading(false);
     }, [modelUrl]);
 
     const handleCapture = () => {

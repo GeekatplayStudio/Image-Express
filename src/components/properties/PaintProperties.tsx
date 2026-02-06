@@ -53,8 +53,6 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
         }
 
         const artboard = (canvas as unknown as { artboard?: { width: number; height: number; left: number; top: number } }).artboard;
-        const centerX = (artboard?.left ?? 0) + (artboard?.width ?? canvas.getWidth()) / 2;
-        const centerY = (artboard?.top ?? 0) + (artboard?.height ?? canvas.getHeight()) / 2;
 
         if (!primary) {
             const group = new fabric.Group([], {

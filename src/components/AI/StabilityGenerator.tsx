@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Image from 'next/image';
+import NextImage from 'next/image';
 import { Wand2, Loader2, Image as ImageIcon, Eraser, Move, Layers, Maximize, Check, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Scan } from 'lucide-react';
 import * as fabric from 'fabric';
 import { Button } from '../ui/button';
@@ -582,7 +582,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             const ctx = maskCanvasRef.current.getContext('2d');
             if (!ctx) return;
             
-            const img = new Image();
+            const img = new window.Image();
             img.src = selectedCanvasImage;
             img.onload = () => {
                 // Set canvas match the display ratio (width fixed to 300px for CSS layout reasons usually)
@@ -719,7 +719,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                  {/* Construct preview manually if canvas mode */}
                                 {sourceType === 'selection' && selectedCanvasImage && (
                                     <div className="relative w-full h-32 bg-muted/50 rounded border border-border/50 overflow-hidden">
-                                        <Image
+                                        <NextImage
                                             src={selectedCanvasImage}
                                             alt="Source"
                                             fill
@@ -766,7 +766,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                              <div className="space-y-4">
                                  <div className="w-full h-32 bg-muted p-2">
                                      <div className="relative w-full h-full">
-                                         <Image
+                                         <NextImage
                                              src={selectedCanvasImage}
                                              alt="Selected canvas preview"
                                              fill
@@ -855,7 +855,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                          ) : (
                              <div className="space-y-4">
                                  <div className="relative w-full h-32 bg-muted overflow-hidden">
-                                     <Image
+                                     <NextImage
                                          src={selectedCanvasImage}
                                          alt="Selected canvas preview"
                                          fill
@@ -887,7 +887,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                          ) : (
                              <div className="space-y-4">
                                  <div className="relative w-full h-32 bg-muted overflow-hidden">
-                                     <Image
+                                     <NextImage
                                          src={selectedCanvasImage}
                                          alt="Selected canvas preview"
                                          fill

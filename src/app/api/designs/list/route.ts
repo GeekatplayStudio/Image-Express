@@ -3,7 +3,7 @@ import { readdir, stat } from 'fs/promises';
 import path from 'path';
 import fs from 'fs';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const designsDir = path.join(process.cwd(), 'public', 'assets', 'designs');
 
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         const id = file.replace('.json', '');
         // Try to derive a readable name from the filename structure "name-timestamp"
         const parts = id.split('-');
-        const timestamp = parts.pop();
+        parts.pop();
         const readableName = parts.join(' ') || id;
         
         const filePath = path.join(designsDir, file);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { X, Wand2, Loader2, RotateCw, GripHorizontal } from 'lucide-react';
+import { X, Wand2, Loader2 } from 'lucide-react';
 import * as fabric from 'fabric';
 import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
@@ -278,7 +278,7 @@ export default function ImageGeneratorModal({
                   setStatusMessage('Timeout waiting for ComfyUI.');
                   setIsGenerating(false);
               }
-          } catch (e) {
+          } catch {
               // ignore errors during polling
           }
       }, 1000);

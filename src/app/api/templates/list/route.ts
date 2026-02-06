@@ -3,7 +3,7 @@ import { readdir } from 'fs/promises';
 import path from 'path';
 import fs from 'fs';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const templatesDir = path.join(process.cwd(), 'public', 'assets', 'templates');
 

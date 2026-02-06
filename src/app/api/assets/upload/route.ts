@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
-const VALID_TYPES = ['images', 'models', 'videos', 'audio'] as const;
 const VALID_CATEGORIES = ['uploads', 'generated'] as const;
 
-type AssetType = (typeof VALID_TYPES)[number];
+type AssetType = 'images' | 'models' | 'videos' | 'audio';
 type AssetCategory = (typeof VALID_CATEGORIES)[number];
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.tif', '.tiff', '.heic']);
@@ -58,7 +57,7 @@ export async function POST(request: Request) {
     // Ensure directory exists
     try {
         await mkdir(uploadDir, { recursive: true });
-    } catch (e) {
+    } catch {
         // ignore if exists
     }
 

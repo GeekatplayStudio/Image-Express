@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Plus, File, Image as ImageIcon, MoreVertical, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box, Wand2 } from 'lucide-react';
+import { Plus, Image as ImageIcon, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 
@@ -29,7 +29,6 @@ interface DashboardProps {
   onNewDesign: () => void;
     onSelectTemplate: (template: TemplateDescriptor) => void;
     onOpenDesign: (design: DesignSummary) => void;
-  user: string;
 }
 
 const START_ACTIONS = [
@@ -113,7 +112,7 @@ const MORE_TEMPLATES: TemplateDescriptor[] = [
     ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_3', name: t.name + ' III'})),
 ];
 
-export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign, user }: DashboardProps) {
+export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign }: DashboardProps) {
     const dialog = useDialog();
     const { toast } = useToast();
     const [recentDesigns, setRecentDesigns] = useState<DesignSummary[]>([]);

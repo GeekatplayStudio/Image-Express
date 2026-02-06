@@ -1,6 +1,6 @@
 // src/lib/fabric-utils.ts
 import * as fabric from 'fabric';
-import { ExtendedFabricObject, LayerNode, AdjustmentLayerType, AdjustmentLayerSettings, CurvesAdjustmentSettings, LevelsAdjustmentSettings, SaturationVibranceSettings, HueSaturationSettings, ExposureSettings } from '@/types';
+import { ExtendedFabricObject, AdjustmentLayerType, AdjustmentLayerSettings, CurvesAdjustmentSettings, LevelsAdjustmentSettings, SaturationVibranceSettings, HueSaturationSettings, ExposureSettings } from '@/types';
 
 export const ensureObjectId = (obj: fabric.Object) => {
     const extendedObj = obj as ExtendedFabricObject;
@@ -144,4 +144,3 @@ export const getDefaultAdjustmentSettings = (type: AdjustmentLayerType): Adjustm
     if (type === 'exposure') return { exposure: 0, contrast: 0 } as ExposureSettings;
     return { saturation: 0, vibrance: 0 } as SaturationVibranceSettings;
 };
-

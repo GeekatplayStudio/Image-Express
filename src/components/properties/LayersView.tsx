@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import * as fabric from 'fabric';
-import { Layers, Folder, FolderPlus, GripVertical, Copy } from 'lucide-react';
+import { Layers, Folder, FolderPlus, Copy } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { ExtendedFabricObject, LayerNode } from '@/types';
+import { LayerNode } from '@/types';
 import { ensureObjectId } from '@/lib/fabric-utils';
 import { SortableLayerItem } from './SortableLayerItem'; // Fix Import Path if needed
 

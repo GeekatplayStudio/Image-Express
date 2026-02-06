@@ -8,7 +8,7 @@ const LOG_FILE = path.join(LOG_DIR, 'login.log');
 async function ensureLogDir() {
     try {
         await fs.mkdir(LOG_DIR, { recursive: true });
-    } catch (error) {
+    } catch {
         // Directory creation errors will be surfaced when writing; swallow here for idempotency.
     }
 }

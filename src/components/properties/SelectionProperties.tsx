@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import * as fabric from 'fabric';
-import { ExtendedFabricObject, AdjustmentLayerType, AdjustmentLayerSettings } from '@/types';
+import { ExtendedFabricObject, AdjustmentLayerSettings } from '@/types';
 import { TransformProperties } from './TransformProperties';
 import { LayoutProperties } from './LayoutProperties';
 import { LayerEffectsProperties } from './LayerEffectsProperties';
@@ -10,10 +10,9 @@ import { ImageFilterProperties, ImageFilterValues } from './ImageFilterPropertie
 import { ShadowStrokeProperties, ShadowStrokeValues } from './ShadowStrokeProperties';
 import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
-import { GripVertical, Folder, FolderPlus, Layers, Blend, ChevronDown, ChevronRight, Scissors, Lock, Unlock, Box } from 'lucide-react';
+import { Folder, Layers, Blend, ChevronDown, ChevronRight, Scissors, Lock, Unlock, Box } from 'lucide-react';
 
 interface SelectionPropertiesProps {
-    canvas: fabric.Canvas | null;
     selectedObject: fabric.Object | null;
     selectedObjects: fabric.Object[]; // For multiple selection
     isGradient: boolean; // Just pass these down
@@ -60,7 +59,6 @@ interface SelectionPropertiesProps {
 }
 
 export function SelectionProperties({
-    canvas,
     selectedObject,
     selectedObjects,
     isGradient,
@@ -428,4 +426,3 @@ export function SelectionProperties({
         </div>
     );
 }
-

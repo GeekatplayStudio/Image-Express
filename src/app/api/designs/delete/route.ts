@@ -23,7 +23,7 @@ export async function POST(request: Request) {
         try {
             await access(fullPath, constants.F_OK);
             await unlink(fullPath);
-        } catch (e) {
+        } catch {
             // File doesn't exist or ignore
         }
     }
