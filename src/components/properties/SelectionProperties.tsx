@@ -22,6 +22,7 @@ interface SelectionPropertiesProps {
         start: string;
         end: string;
         angle: number;
+        coords?: { x1: number; y1: number; x2: number; y2: number };
     };
     
     // Callbacks
@@ -326,6 +327,82 @@ export function SelectionProperties({
                                          onChange={(e) => onPropChange('gradient', { ...gradientState, angle: parseInt(e.target.value) })}
                                          className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                      />
+                                 </div>
+                             )}
+
+                             {gradientState?.type === 'linear' && gradientState.coords && (
+                                 <div className="space-y-2 pt-2">
+                                     <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Gradient Points</div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                         <div className="space-y-1">
+                                             <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                 <span>Start X</span>
+                                                 <span>{Math.round(gradientState.coords.x1 * 100)}%</span>
+                                             </div>
+                                             <input
+                                                 type="range"
+                                                 min="0"
+                                                 max="100"
+                                                 value={Math.round(gradientState.coords.x1 * 100)}
+                                                 onChange={(e) => onPropChange('gradient', {
+                                                     ...gradientState,
+                                                     coords: { ...gradientState.coords, x1: parseInt(e.target.value) / 100 }
+                                                 })}
+                                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                             />
+                                         </div>
+                                         <div className="space-y-1">
+                                             <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                 <span>Start Y</span>
+                                                 <span>{Math.round(gradientState.coords.y1 * 100)}%</span>
+                                             </div>
+                                             <input
+                                                 type="range"
+                                                 min="0"
+                                                 max="100"
+                                                 value={Math.round(gradientState.coords.y1 * 100)}
+                                                 onChange={(e) => onPropChange('gradient', {
+                                                     ...gradientState,
+                                                     coords: { ...gradientState.coords, y1: parseInt(e.target.value) / 100 }
+                                                 })}
+                                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                             />
+                                         </div>
+                                         <div className="space-y-1">
+                                             <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                 <span>End X</span>
+                                                 <span>{Math.round(gradientState.coords.x2 * 100)}%</span>
+                                             </div>
+                                             <input
+                                                 type="range"
+                                                 min="0"
+                                                 max="100"
+                                                 value={Math.round(gradientState.coords.x2 * 100)}
+                                                 onChange={(e) => onPropChange('gradient', {
+                                                     ...gradientState,
+                                                     coords: { ...gradientState.coords, x2: parseInt(e.target.value) / 100 }
+                                                 })}
+                                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                             />
+                                         </div>
+                                         <div className="space-y-1">
+                                             <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                 <span>End Y</span>
+                                                 <span>{Math.round(gradientState.coords.y2 * 100)}%</span>
+                                             </div>
+                                             <input
+                                                 type="range"
+                                                 min="0"
+                                                 max="100"
+                                                 value={Math.round(gradientState.coords.y2 * 100)}
+                                                 onChange={(e) => onPropChange('gradient', {
+                                                     ...gradientState,
+                                                     coords: { ...gradientState.coords, y2: parseInt(e.target.value) / 100 }
+                                                 })}
+                                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                             />
+                                         </div>
+                                     </div>
                                  </div>
                              )}
                         </div>

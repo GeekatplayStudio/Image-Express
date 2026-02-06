@@ -474,6 +474,22 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     // We can use insertAt(0) when adding? Or canvas.sendObjectToBack(artboard).
     canvas.sendObjectToBack(artboard);
         extendedCanvas.artboardRect = artboard;
+        const syncArtboardFromRect = (target?: fabric.Object) => {
+            if (!extendedCanvas.artboardRect) return;
+            if (target && target !== extendedCanvas.artboardRect) return;
+            const rect = extendedCanvas.artboardRect;
+            const width = rect.width ?? rect.getScaledWidth?.() ?? DESIGN_WIDTH;
+            const height = rect.height ?? rect.getScaledHeight?.() ?? DESIGN_HEIGHT;
+            const left = rect.left ?? 0;
+            const top = rect.top ?? 0;
+            const previous = extendedCanvas.artboard;
+            if (previous && previous.width === width && previous.height === height && previous.left === left && previous.top === top) {
+                return;
+            }
+            extendedCanvas.artboard = { width, height, left, top };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (canvas as any).fire('artboard:resize', { width, height, left, top });
+        };
 
     const keepArtboardAtBack = () => {
         if (!extendedCanvas.artboardRect) return;
@@ -482,6 +498,11 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     canvas.on('object:added', keepArtboardAtBack);
     canvas.on('object:modified', keepArtboardAtBack);
     canvas.on('object:removed', keepArtboardAtBack);
+    const handleArtboardModified = (evt?: fabric.ModifiedEvent) => {
+        syncArtboardFromRect(evt?.target as fabric.Object | undefined);
+    };
+    canvas.on('object:modified', handleArtboardModified);
+    syncArtboardFromRect();
 
     // Center the view on the artboard (Fit within view)
     const centerArtboard = () => {
@@ -709,6 +730,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     canvas.off('object:added', keepArtboardAtBack);
     canvas.off('object:modified', keepArtboardAtBack);
     canvas.off('object:removed', keepArtboardAtBack);
+    canvas.off('object:modified', handleArtboardModified);
       window.removeEventListener('keydown', handleKeyDown);
       canvas.dispose();
       resizeObserver.disconnect();

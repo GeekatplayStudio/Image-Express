@@ -19,6 +19,15 @@ const config: Config = {
   testPathIgnorePatterns: ['<rootDir>/.next/'],
   // Add more setup options before each test is run
   // setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx,ts,tsx}',
+    '!src/**/*.d.ts',
+    '!src/**/types.ts',
+    '!src/app/layout.tsx',
+    '!src/app/page.tsx',
+    '!src/app/api/**',
+    '!**/node_modules/**',
+  ],
   testMatch: [
       "<rootDir>/src/**/*.{spec,test}.{js,jsx,ts,tsx}",
       "<rootDir>/__tests__/**/*.{spec,test}.{js,jsx,ts,tsx}"

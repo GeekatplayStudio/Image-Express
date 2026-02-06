@@ -92,6 +92,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     const [gradientStart, setGradientStart] = useState('#000000');
     const [gradientEnd, setGradientEnd] = useState('#ffffff');
     const [gradientAngle, setGradientAngle] = useState(0);
+    const [gradientCoords, setGradientCoords] = useState({ x1: 0, y1: 0.5, x2: 1, y2: 0.5 });
 
     const [opacity, setOpacity] = useState(1);
     
@@ -419,8 +420,22 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                         setGradientStart(stops[0].color);
                         setGradientEnd(stops[stops.length - 1].color);
                     }
-                    // TODO: Angle inference is complex, default to 0 for now or stored prop
-                    setGradientAngle(0); 
+                    if (grad.type === 'linear' && grad.coords) {
+                        const coords = {
+                            x1: grad.coords.x1 ?? 0,
+                            y1: grad.coords.y1 ?? 0.5,
+                            x2: grad.coords.x2 ?? 1,
+                            y2: grad.coords.y2 ?? 0.5
+                        };
+                        setGradientCoords(coords);
+                        const dx = coords.x2 - coords.x1;
+                        const dy = coords.y2 - coords.y1;
+                        const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+                        setGradientAngle(Math.round(angle));
+                    } else {
+                        setGradientCoords({ x1: 0, y1: 0.5, x2: 1, y2: 0.5 });
+                        setGradientAngle(0);
+                    }
                 } else {
                     setColor(typeof target.fill === 'string' ? target.fill : '#000000');
                     setIsGradient(false);
@@ -632,13 +647,69 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     // --- Helper Functions ---
     const applyTaper = (skewZVal: number, taperVal: number) => {
         if (!selectedObject) return;
-        // Simple shim for perspective/taper - fabric.js 6 doesn't have 3D transform natively just yet without extensions
-        // Storing as custom props
-        selectedObject.set('skewZ', skewZVal);
-        selectedObject.set('taperDirection', taperVal);
-        const shear = skewZVal * 0.01;
-        // Just simulating with skewX/Y combination for now as placeholder
-        selectedObject.set('skewX', selectedObject.skewX + (shear * 10)); 
+        const ext = selectedObject as ExtendedFabricObject;
+        const intensity = Math.min(Math.abs(skewZVal), 100) / 100;
+        const dirRaw = Math.max(-100, Math.min(100, taperVal)) / 100;
+        const dirSign = dirRaw === 0 ? (skewZVal >= 0 ? 1 : -1) : Math.sign(dirRaw);
+        const dirMagnitude = dirRaw === 0 ? 1 : Math.abs(dirRaw);
+        const currentCenter = selectedObject.getCenterPoint();
+
+        const hasBase =
+            ext.skewZBaseScaleX !== undefined ||
+            ext.skewZBaseScaleY !== undefined ||
+            ext.skewZBaseSkewX !== undefined ||
+            ext.skewZBaseSkewY !== undefined;
+
+        if (!hasBase) {
+            selectedObject.set({
+                skewZBaseScaleX: selectedObject.scaleX ?? 1,
+                skewZBaseScaleY: selectedObject.scaleY ?? 1,
+                skewZBaseSkewX: selectedObject.skewX ?? 0,
+                skewZBaseSkewY: selectedObject.skewY ?? 0
+            });
+        }
+
+        if (intensity === 0) {
+            selectedObject.set({
+                scaleX: ext.skewZBaseScaleX ?? selectedObject.scaleX ?? 1,
+                scaleY: ext.skewZBaseScaleY ?? selectedObject.scaleY ?? 1,
+                skewX: ext.skewZBaseSkewX ?? selectedObject.skewX ?? 0,
+                skewY: ext.skewZBaseSkewY ?? selectedObject.skewY ?? 0
+            });
+            selectedObject.set({
+                skewZBaseScaleX: undefined,
+                skewZBaseScaleY: undefined,
+                skewZBaseSkewX: undefined,
+                skewZBaseSkewY: undefined,
+                skewZ: skewZVal,
+                taperDirection: taperVal
+            });
+            selectedObject.setPositionByOrigin(currentCenter, 'center', 'center');
+            selectedObject.setCoords();
+            selectedObject.set('dirty', true);
+            canvas?.requestRenderAll();
+            return;
+        }
+
+        const baseScaleX = ext.skewZBaseScaleX ?? selectedObject.scaleX ?? 1;
+        const baseScaleY = ext.skewZBaseScaleY ?? selectedObject.scaleY ?? 1;
+        const baseSkewX = ext.skewZBaseSkewX ?? selectedObject.skewX ?? 0;
+        const baseSkewY = ext.skewZBaseSkewY ?? selectedObject.skewY ?? 0;
+        const maxSkew = 35;
+        const skewX = baseSkewX + (dirSign * dirMagnitude * intensity * maxSkew);
+        const skewY = baseSkewY + (dirSign * intensity * 6);
+        const scaleX = baseScaleX * (1 - (intensity * 0.2));
+
+        selectedObject.set({
+            skewX,
+            skewY,
+            scaleX,
+            scaleY: baseScaleY,
+            skewZ: skewZVal,
+            taperDirection: taperVal
+        });
+        selectedObject.setPositionByOrigin(currentCenter, 'center', 'center');
+        selectedObject.setCoords();
         selectedObject.set('dirty', true);
         canvas?.requestRenderAll();
     };
@@ -682,23 +753,39 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         }
 
         if (prop === 'gradient') {
-             const { start, end, angle, type } = value;
+             const { start, end, angle, type, coords: incomingCoords } = value as {
+                 start: string;
+                 end: string;
+                 angle: number;
+                 type: 'linear' | 'radial';
+                 coords?: { x1: number; y1: number; x2: number; y2: number };
+             };
              setIsGradient(true);
              setGradientStart(start);
              setGradientEnd(end);
-             setGradientAngle(angle);
              setGradientType(type);
 
              let coords: Record<string, number> = {};
              
              if (type === 'linear') {
-                const rad = (angle || 0) * (Math.PI / 180);
-                coords = {
-                    x1: 0.5 - (Math.cos(rad) * 0.5),
-                    y1: 0.5 - (Math.sin(rad) * 0.5),
-                    x2: 0.5 + (Math.cos(rad) * 0.5),
-                    y2: 0.5 + (Math.sin(rad) * 0.5)
-                };
+                if (incomingCoords) {
+                    coords = { ...incomingCoords };
+                    setGradientCoords(incomingCoords);
+                    const dx = (incomingCoords.x2 ?? 1) - (incomingCoords.x1 ?? 0);
+                    const dy = (incomingCoords.y2 ?? 0.5) - (incomingCoords.y1 ?? 0.5);
+                    const computedAngle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+                    setGradientAngle(Math.round(computedAngle));
+                } else {
+                    const rad = (angle || 0) * (Math.PI / 180);
+                    coords = {
+                        x1: 0.5 - (Math.cos(rad) * 0.5),
+                        y1: 0.5 - (Math.sin(rad) * 0.5),
+                        x2: 0.5 + (Math.cos(rad) * 0.5),
+                        y2: 0.5 + (Math.sin(rad) * 0.5)
+                    };
+                    setGradientCoords({ x1: coords.x1, y1: coords.y1, x2: coords.x2, y2: coords.y2 });
+                    setGradientAngle(angle);
+                }
              } else {
                  coords = { x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, r1: 0, r2: 0.5 };
              }
@@ -722,6 +809,13 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
          if (prop === 'skewX') setSkewX(value);
          if (prop === 'skewY') setSkewY(value);
+         if ((prop === 'skewX' || prop === 'skewY' || prop === 'scaleX' || prop === 'scaleY') && (skewZ !== 0 || taperDirection !== 0)) {
+             if (prop === 'skewX') selectedObject.set('skewZBaseSkewX', value);
+             if (prop === 'skewY') selectedObject.set('skewZBaseSkewY', value);
+             if (prop === 'scaleX') selectedObject.set('skewZBaseScaleX', value);
+             if (prop === 'scaleY') selectedObject.set('skewZBaseScaleY', value);
+             applyTaper(skewZ, taperDirection);
+         }
         
         if (prop === 'fontFamily') (selectedObject as fabric.IText).set('fontFamily', value);
         if (prop === 'fontWeight') (selectedObject as fabric.IText).set('fontWeight', value);
@@ -735,38 +829,44 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              
              if (strength === 0) {
                  selectedObject.set('path', null);
+                 (selectedObject as fabric.IText).set('pathStartOffset', 0);
              } else {
-                 const len = selectedObject.width || 200;
-                 // Improved curve algorithm with better arc control
-                 // Use cubic bezier for smoother curves at extreme values
-                 const normalizedStrength = strength / 100;
-                 const normalizedCenter = (center ?? 0) / 100;
+                 const textObj = selectedObject as fabric.IText;
+                 const baseWidth = typeof textObj.calcTextWidth === 'function'
+                     ? textObj.calcTextWidth()
+                     : (textObj.width ?? 0);
+                 const textWidth = Math.max(baseWidth || 0, 1);
+                 const strengthAbs = Math.min(Math.abs(strength), 100);
+                 const t = strengthAbs / 100;
+                 const minAngle = Math.PI / 180; // 1 degree
+                 // Avoid a fully closed path to prevent glyph overlap at max.
+                 const maxAngle = (Math.PI * 2) - 0.001;
+                 const angle = minAngle + (maxAngle - minAngle) * t;
+                 // Add a small length buffer at stronger curves to keep text from wrapping on itself.
+                 const padding = Math.max(2, textObj.fontSize * 0.1, textWidth * 0.01);
+                 const arcLength = textWidth + (padding * t);
+                 const radius = arcLength / angle;
+                 const chord = 2 * radius * Math.sin(angle / 2);
+                 const startX = -chord / 2;
+                 const endX = chord / 2;
+                 const largeArcFlag = angle > Math.PI ? 1 : 0;
+                 const sweepFlag = strength >= 0 ? 0 : 1;
+                 const currentCenter = selectedObject.getCenterPoint();
                  
-                 // Calculate control point height based on strength
-                 // Using quadratic relationship for more natural feel
-                 const curveHeight = normalizedStrength * len * 0.6;
-                 
-                 // Center offset affects the peak position
-                 const peakX = (len / 2) + (normalizedCenter * len * 0.4);
-                 
-                 // For extreme curves (>80%), use circular arc approximation
-                 if (Math.abs(strength) >= 80) {
-                     // Circular arc path for full circle effect
-                     const arcHeight = curveHeight * 1.2;
-                     // Use cubic bezier for smoother arc
-                     const cp1x = len * 0.25 + (normalizedCenter * len * 0.2);
-                     const cp2x = len * 0.75 + (normalizedCenter * len * 0.2);
-                     const pathData = `M 0 0 C ${cp1x} ${-arcHeight} ${cp2x} ${-arcHeight} ${len} 0`;
-                     const path = new fabric.Path(pathData);
-                     path.set({ visible: false, left: -len/2, top: 0 });
-                     selectedObject.set('path', path);
-                 } else {
-                     // Standard quadratic bezier for moderate curves
-                     const pathData = `M 0 0 Q ${peakX} ${-curveHeight} ${len} 0`;
-                     const path = new fabric.Path(pathData);
-                     path.set({ visible: false, left: -len/2, top: 0 });
-                     selectedObject.set('path', path);
-                 }
+                 const pathData = `M ${startX} 0 A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${endX} 0`;
+
+                 const path = new fabric.Path(pathData);
+                 path.set({ visible: false });
+                 selectedObject.set('path', path);
+                 const pathLength = Math.max(1, arcLength);
+                 const slack = Math.max(0, pathLength - textWidth);
+                 const align = (textObj.textAlign || 'left').toLowerCase();
+                 let baseOffset = 0;
+                 if (align.includes('left')) baseOffset = slack / 2;
+                 else if (align.includes('right')) baseOffset = -(slack / 2);
+                 const centerShift = ((center ?? 0) / 100) * (pathLength * 0.5);
+                 textObj.set('pathStartOffset', baseOffset + centerShift);
+                 selectedObject.setPositionByOrigin(currentCenter, 'center', 'center');
                  selectedObject.setCoords();
              }
         }
@@ -1758,12 +1858,31 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 selectedObject={selectedObject}
                 onDuplicate={onDuplicate}
                 onSelect={(obj, e) => {
-                     if (e?.shiftKey) { /* multi */ } 
-                     else { 
-                         canvas?.discardActiveObject();
-                         canvas?.setActiveObject(obj);
-                         canvas?.requestRenderAll(); 
+                     if (!canvas) return;
+                     const isMulti = !!(e?.shiftKey || e?.metaKey || e?.ctrlKey);
+                     if (!isMulti) { 
+                         canvas.discardActiveObject();
+                         canvas.setActiveObject(obj);
+                         canvas.requestRenderAll(); 
+                         return;
                      }
+                     const active = canvas.getActiveObjects() || [];
+                     const alreadySelected = active.includes(obj);
+                     const next = alreadySelected ? active.filter(o => o !== obj) : [...active, obj];
+                     if (next.length === 0) {
+                         canvas.discardActiveObject();
+                         canvas.requestRenderAll();
+                         return;
+                     }
+                     if (next.length === 1) {
+                         canvas.discardActiveObject();
+                         canvas.setActiveObject(next[0]);
+                         canvas.requestRenderAll();
+                         return;
+                     }
+                     const selection = new fabric.ActiveSelection(next, { canvas });
+                     canvas.setActiveObject(selection);
+                     canvas.requestRenderAll();
                 }}
                 onLayerOpacityChange={(value) => {
                     if (!selectedObject) return;
@@ -1854,7 +1973,8 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                  type: gradientType,
                  start: gradientStart,
                  end: gradientEnd,
-                 angle: gradientAngle
+                 angle: gradientAngle,
+                 coords: gradientCoords
              }}
              onPropChange={handlePropChange}
              onLayoutAction={handleLayoutAction}
