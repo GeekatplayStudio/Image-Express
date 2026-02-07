@@ -17,6 +17,7 @@ export const STORAGE_KEYS = {
     MESHY_API_KEY: 'meshy_api_key',
     TRIPO_API_KEY: 'tripo_api_key',
     HITEMS_API_KEY: 'hitems_api_key',
+    HITEMS_APP_ID: 'hitems_appid',
     
     // Image Services
     STABILITY_API_KEY: 'stability_api_key',
@@ -36,6 +37,7 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
     const [meshyKey, setMeshyKey] = useState('');
     const [tripoKey, setTripoKey] = useState('');
     const [hitemsKey, setHitemsKey] = useState('');
+    const [hitemsAppId, setHitemsAppId] = useState('');
 
     // Image Keys
     const [stabilityKey, setStabilityKey] = useState('');
@@ -93,6 +95,7 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
         setMeshyKey(localStorage.getItem(STORAGE_KEYS.MESHY_API_KEY) || '');
         setTripoKey(localStorage.getItem(STORAGE_KEYS.TRIPO_API_KEY) || '');
         setHitemsKey(localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '');
+        setHitemsAppId(localStorage.getItem(STORAGE_KEYS.HITEMS_APP_ID) || '');
         
         setStabilityKey(localStorage.getItem(STORAGE_KEYS.STABILITY_API_KEY) || '');
         setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
@@ -140,6 +143,7 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
         localStorage.setItem(STORAGE_KEYS.MESHY_API_KEY, meshyKey);
         localStorage.setItem(STORAGE_KEYS.TRIPO_API_KEY, tripoKey);
         localStorage.setItem(STORAGE_KEYS.HITEMS_API_KEY, hitemsKey);
+        localStorage.setItem(STORAGE_KEYS.HITEMS_APP_ID, hitemsAppId);
         
         localStorage.setItem(STORAGE_KEYS.STABILITY_API_KEY, stabilityKey);
         localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiKey);
@@ -339,15 +343,22 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                                 />
                             </div>
 
-                            {/* Hitems3D (Generic/Placeholder) */}
+                            {/* Hitems3D */}
                              <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
-                                <label className="text-xs font-semibold mb-1.5 block">Hitems3D / Hy3D</label>
+                                <label className="text-xs font-semibold mb-1.5 block">Hitem3D</label>
                                 <input 
                                     type="password"
                                     value={hitemsKey}
                                     onChange={(e) => setHitemsKey(e.target.value)}
-                                    placeholder="Enter API Key"
+                                    placeholder="Access token or client_id:client_secret"
                                     className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                />
+                                <input 
+                                    type="text"
+                                    value={hitemsAppId}
+                                    onChange={(e) => setHitemsAppId(e.target.value)}
+                                    placeholder="Optional Appid (if required)"
+                                    className="mt-2 w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
                         </div>

@@ -5,56 +5,58 @@ The `hitems` provider in this project maps to **Hitem3D** (Hitem3D.ai), not Huny
 ## Base URL
 - **API Base:** `https://api.hitem3d.ai/open-api/v1`
 
+## Authentication
+- Use an **access token** in the `Authorization: Bearer <accessToken>` header.
+- Obtain the access token via `POST /auth/token` with **Basic Auth** (`client_id:client_secret`).
+- Tokens expire; refresh by calling `/auth/token` again.
+- Some accounts require an `Appid` header; if you receive empty/unauthorized responses, set `Appid` in Settings.
+
 ## Create Task (Image-to-3D)
 - **Endpoint:** `POST /submit-task`
-- **Auth:** `Authorization: Bearer <api-key>`
+- **Auth:** `Authorization: Bearer <accessToken>`
 - **Content-Type:** `multipart/form-data`
 - **Required Fields:**
   - `images`: One or more image files
-- **Common Fields:**
-  - `request_type`: `3` (image-to-3D render)
-  - `model`: `hitem3dv1.5` or `hitem3dv2.0`
-  - `resolution`: `512` | `1024` | `1536` | `1536pro` (model-dependent)
-  - `face`: `no` | `need` (face optimization)
-  - `format`: `glb` | `fbx` | `obj` | `stl` | `ply`
-  - `mesh_url`: `true` | `false`
+**Common Fields:**
+- `request_type`: `1` (geometry only) | `2` (texture-only) | `3` (geometry + texture, default)
+  - Note: v2.0 models do not support request_type = 2.
+- `model`: `hitem3dv1.5` | `hitem3dv2.0` (model-dependent)
+- `resolution`: `512` | `1024` | `1536` | `1536pro` (model-dependent)
+- `face`: optional face count (100000–2000000). Recommended:
+  - 512³: 500000
+  - 1024³: 1000000
+  - 1536³ / 1536³ Pro: 2000000
+- `format`: `1` (obj) | `2` (glb) | `3` (stl) | `4` (fbx) | `5` (usdz)
+- `mesh_url`: optional boolean (vendor-specific)
 
 **Response (success):**
 ```json
-{
-  "code": 0,
-  "message": "success",
-  "data": { "task_id": "task_XXXX" }
-}
+{ "code": 200, "msg": "success", "data": { "task_id": "task_XXXX" } }
 ```
 
 ## Query Task
-- **Endpoint:** `POST /query-task?task_id=<task_id>`
-- **Auth:** `Authorization: Bearer <api-key>`
+- **Endpoint:** `GET /query-task?task_id=<task_id>`
+- **Auth:** `Authorization: Bearer <accessToken>`
 
 **Response (success):**
 ```json
 {
-  "code": 0,
-  "message": "success",
+  "code": 200,
+  "msg": "success",
   "data": {
-    "task_status": 4,
-    "process_pct": 100,
-    "task_result": {
-      "model_url": "https://...",
-      "render_url": "https://..."
-    }
+    "url": "https://.../model.glb",
+    "cover_url": "https://.../preview.png"
   }
 }
 ```
 
-### Task Status Mapping
-- `1` = created
-- `2` = queueing
-- `3` = processing
-- `4` = success
-- `-1` = failed
-
 ## Project Integration Notes
 - Client sends a single image to `/api/ai/hitems` (proxy) and polls `/api/ai/hitems/<taskId>`.
-- The proxy enforces defaults (`request_type=3`, `model=hitem3dv1.5`, `resolution=1024`, `format=glb`) unless overridden.
+- The proxy enforces defaults (`request_type=3`, `model=hitem3dv1.5`, `resolution=1024`, `format=2`) unless overridden.
+- In Settings, `hitems_api_key` can be either a raw access token or `client_id:client_secret` (the proxy will fetch and refresh tokens automatically).
+
+## Quality Presets (UI)
+- 512: Eco / fastest
+- 1024: Balanced (default)
+- 1536: High
+- 1536pro: Max fidelity

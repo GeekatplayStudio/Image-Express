@@ -1,6 +1,7 @@
 'use client';
 
 import { X, User, Mail, Camera, Save } from 'lucide-react';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { loadProfileSettings, saveProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
 
@@ -77,14 +78,17 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                 <div className="h-32 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
                      <div className="absolute -bottom-12 left-8">
                                  <div className="w-24 h-24 rounded-full border-4 border-card bg-secondary flex items-center justify-center relative group overflow-hidden">
-                             {image ? (
-                                          <img
-                                                src={image}
-                                                className="w-full h-full object-cover"
-                                                alt="Profile"
-                                                style={{ transform: `scale(${imageScale})`, transformOrigin: 'center' }}
-                                          />
-                             ) : (
+                                 {image ? (
+                                        <Image
+                                            src={image}
+                                            alt="Profile"
+                                            fill
+                                            className="object-cover"
+                                            style={{ transform: `scale(${imageScale})`, transformOrigin: 'center' }}
+                                            sizes="96px"
+                                            unoptimized
+                                        />
+                                 ) : (
                                 <User size={40} className="text-muted-foreground" />
                              )}
                              

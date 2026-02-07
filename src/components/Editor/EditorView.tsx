@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import Image from 'next/image';
 import DesignCanvas from '@/components/DesignCanvas';
 import Toolbar, { type ToolbarHandle } from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
@@ -499,6 +500,22 @@ export default function EditorView({
         google?: string,
         banana?: string
     }>({});
+
+    const resolveSelectedImageFor3D = useCallback(() => {
+        if (!canvas) return undefined;
+        const active = canvas.getActiveObject();
+        if (!active) {
+            toast({ title: 'No selection', description: 'Select an image on the canvas first.', variant: 'warning' });
+            return undefined;
+        }
+        if (active.type !== 'image') {
+            toast({ title: 'Image required', description: 'Hitem3D requires an image selection.', variant: 'warning' });
+            return undefined;
+        }
+        const dataUrl = active.toDataURL({ format: 'png', multiplier: 2 });
+        setInitialImageFor3D(dataUrl);
+        return dataUrl;
+    }, [canvas, toast]);
 
     const formatBytes = (bytes: number) => {
         if (bytes < 1024) return `${bytes} B`;
@@ -1676,7 +1693,7 @@ document.addEventListener('DOMContentLoaded', () => {
    
            const checkUrl = (url: string): Promise<boolean> => {
                return new Promise((resolve) => {
-                   const img = new Image();
+                   const img = new window.Image();
                    img.onload = () => resolve(true);
                    img.onerror = () => resolve(false);
                    img.src = url; 
@@ -2067,29 +2084,40 @@ document.addEventListener('DOMContentLoaded', () => {
                          thumbnailUrl = tData.output?.rendered_image || tData.output?.render_image;
                      } else if (json.code !== undefined && json.code !== 0) { status = 'FAILED'; }
                 } else if (job.provider === 'hitems') {
-                    const res = await fetch(`/api/ai/hitems/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
+                    const appId = typeof window !== 'undefined' ? localStorage.getItem('hitems_appid') || '' : '';
+                    const res = await fetch(`/api/ai/hitems/${job.id}`, { headers: { 'Authorization': job.apiKey, ...(process.env.NODE_ENV !== 'production' ? { 'X-Hitem-Debug': '1' } : {}), ...(appId ? { Appid: appId } : {}) } });
                     if (!res.ok) return;
                     const json = (await res.json()) as {
                         code?: number;
-                        message?: string;
+                        msg?: string;
                         data?: {
+                            state?: string;
+                            status?: string;
                             task_status?: number;
+                            url?: string;
+                            cover_url?: string;
+                            model_url?: string;
+                            render_url?: string;
                             process_pct?: number;
+                            progress?: number;
                             task_result?: {
                                 model_url?: string;
                                 render_url?: string;
                             };
                         };
                     };
-                    const statusCode = json.data?.task_status;
-                    if (statusCode === 4) status = 'SUCCEEDED';
-                    else if (statusCode === -1) status = 'FAILED';
+                    const payload = json.data ?? {};
+                    const state = payload.state ?? payload.status ?? payload.task_status;
+                    if (state === 'success' || state === 'SUCCEEDED' || state === 4) status = 'SUCCEEDED';
+                    else if (state === 'failed' || state === 'FAILED' || state === -1) status = 'FAILED';
                     else status = 'IN_PROGRESS';
-                    if (json.data?.process_pct !== undefined) {
-                        progress = json.data.process_pct;
+                    if (payload.process_pct !== undefined) {
+                        progress = payload.process_pct;
+                    } else if (payload.progress !== undefined) {
+                        progress = payload.progress;
                     }
-                    resultUrl = json.data?.task_result?.model_url;
-                    thumbnailUrl = json.data?.task_result?.render_url;
+                    resultUrl = payload.url || payload.model_url || payload.task_result?.model_url;
+                    thumbnailUrl = payload.cover_url || payload.render_url || payload.task_result?.render_url;
                 } else {
                     const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
                     const res = await fetch(`/api/ai/meshy?endpoint=${endpoint}/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
@@ -2241,12 +2269,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }, [backgroundJobs, canvas]);
 
     useEffect(() => {
+        const timersRef = pollTimersRef.current;
+        const intervalsRef = pollIntervalsRef.current;
+
         return () => {
-            for (const timer of pollTimersRef.current.values()) {
+            for (const timer of timersRef.values()) {
                 window.clearTimeout(timer);
             }
-            pollTimersRef.current.clear();
-            pollIntervalsRef.current.clear();
+            timersRef.clear();
+            intervalsRef.clear();
         };
     }, []);
 
@@ -2471,11 +2502,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         title="User Profile"
                      >
                         {profileSettings?.image ? (
-                            <img
+                            <Image
                                 src={profileSettings.image}
                                 alt="Profile"
-                                className="w-full h-full object-cover"
+                                fill
+                                className="object-cover"
                                 style={{ transform: `scale(${profileSettings.imageScale || 1})`, transformOrigin: 'center' }}
+                                sizes="36px"
+                                unoptimized
                             />
                         ) : (
                             <User size={16} className="text-white/90" />
@@ -2690,7 +2724,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 activeTool={activeTool} 
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
-                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                                 onDuplicate={handleDuplicate}
                             />
                         </div>
@@ -2754,6 +2787,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <ThreeDGenerator 
                                 initialImage={initialImageFor3D}
                                 activeJob={backgroundJobs.find(j => j.status === 'IN_PROGRESS' || j.status === 'PENDING')}
+                                onResolveImage={resolveSelectedImageFor3D}
+                                onSetInitialImage={setInitialImageFor3D}
                                 onStartBackgroundJob={(jobData) => {
                                     setBackgroundJobs(prev => [...prev, jobData as BackgroundJob]);
                                     if (sourceObjectFor3D && canvas) { sourceObjectFor3D.set('visible', false); canvas.requestRenderAll(); }
@@ -2822,7 +2857,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 activeTool={activeTool} 
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
-                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                                 onDuplicate={handleDuplicate}
                             />
                         </div>
@@ -2862,7 +2896,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 activeTool={activeTool} 
                                 onLayerDblClick={() => setActiveTool('select')}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
-                                onPreviewMedia={({ type, url }) => setMediaPreview({ type, url })}
                                 onDuplicate={handleDuplicate}
                             />
                         </div>

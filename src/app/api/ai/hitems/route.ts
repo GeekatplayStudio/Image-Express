@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isExpiredTokenResponse, resolveHitem3dAuth } from '@/lib/hitem3dAuth';
 
 const BASE_URL = 'https://api.hitem3d.ai/open-api/v1';
 
@@ -6,8 +7,7 @@ const DEFAULTS = {
   request_type: '3',
   model: 'hitem3dv1.5',
   resolution: '1024',
-  face: 'no',
-  format: 'glb',
+  format: '2', // glb
 };
 
 const getString = (value: FormDataEntryValue | null) => {
@@ -27,25 +27,28 @@ const imageExtFromType = (mimeType: string) => {
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
+    const rawAuthHeader = req.headers.get('authorization');
+    if (!rawAuthHeader) {
       return NextResponse.json({ message: 'Missing Authorization header' }, { status: 401 });
     }
+    const appIdHeader = req.headers.get('appid') || req.headers.get('x-hitems-appid');
+    const debugEnabled = req.headers.get('x-hitem-debug') === '1';
 
     const contentType = req.headers.get('content-type') ?? '';
-    const incomingForm = new FormData();
+    const images: File[] = [];
+    const fields: Record<string, string> = {};
 
     if (contentType.includes('multipart/form-data')) {
       const form = await req.formData();
-      const images = [
+      const incomingImages = [
         ...form.getAll('images'),
         ...form.getAll('image'),
       ];
 
       let hasImage = false;
-      for (const entry of images) {
+      for (const entry of incomingImages) {
         if (entry instanceof File) {
-          incomingForm.append('images', entry);
+          images.push(entry);
           hasImage = true;
         }
       }
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
         }
         const blob = await imageRes.blob();
         const fileExt = imageExtFromType(blob.type || 'image/png');
-        incomingForm.append('images', blobToFile(blob, `image.${fileExt}`));
+        images.push(blobToFile(blob, `image.${fileExt}`));
         hasImage = true;
       }
 
@@ -66,19 +69,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'Missing image payload' }, { status: 400 });
       }
 
-      const requestType = getString(form.get('request_type')) ?? DEFAULTS.request_type;
-      const model = getString(form.get('model')) ?? DEFAULTS.model;
-      const resolution = getString(form.get('resolution')) ?? DEFAULTS.resolution;
-      const face = getString(form.get('face')) ?? DEFAULTS.face;
-      const format = getString(form.get('format')) ?? DEFAULTS.format;
+      fields.request_type = getString(form.get('request_type')) ?? DEFAULTS.request_type;
+      fields.model = getString(form.get('model')) ?? DEFAULTS.model;
+      fields.resolution = getString(form.get('resolution')) ?? DEFAULTS.resolution;
+      fields.format = getString(form.get('format')) ?? DEFAULTS.format;
+      const face = getString(form.get('face'));
       const meshUrl = getString(form.get('mesh_url'));
-
-      incomingForm.append('request_type', requestType);
-      incomingForm.append('model', model);
-      incomingForm.append('resolution', resolution);
-      incomingForm.append('face', face);
-      incomingForm.append('format', format);
-      if (meshUrl) incomingForm.append('mesh_url', meshUrl);
+      const callbackUrl = getString(form.get('callback_url'));
+      if (face) fields.face = face;
+      if (meshUrl) fields.mesh_url = meshUrl;
+      if (callbackUrl) fields.callback_url = callbackUrl;
     } else {
       const body = await req.json().catch(() => null);
       const imageUrl = body?.imageUrl || body?.image_url;
@@ -91,36 +91,87 @@ export async function POST(req: NextRequest) {
       }
       const blob = await imageRes.blob();
       const fileExt = imageExtFromType(blob.type || 'image/png');
-      incomingForm.append('images', blobToFile(blob, `image.${fileExt}`));
-      incomingForm.append('request_type', body?.request_type ?? DEFAULTS.request_type);
-      incomingForm.append('model', body?.model ?? DEFAULTS.model);
-      incomingForm.append('resolution', body?.resolution ?? DEFAULTS.resolution);
-      incomingForm.append('face', body?.face ?? DEFAULTS.face);
-      incomingForm.append('format', body?.format ?? DEFAULTS.format);
-      if (body?.mesh_url) incomingForm.append('mesh_url', body.mesh_url);
+      images.push(blobToFile(blob, `image.${fileExt}`));
+      fields.request_type = body?.request_type ?? DEFAULTS.request_type;
+      fields.model = body?.model ?? DEFAULTS.model;
+      fields.resolution = body?.resolution ?? DEFAULTS.resolution;
+      fields.format = body?.format ?? DEFAULTS.format;
+      if (body?.face) fields.face = body.face;
+      if (body?.mesh_url) fields.mesh_url = body.mesh_url;
+      if (body?.callback_url) fields.callback_url = body.callback_url;
     }
 
-    const res = await fetch(`${BASE_URL}/submit-task`, {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-        'Accept': 'application/json',
-      },
-      body: incomingForm,
-    });
+    const buildForm = () => {
+      const formData = new FormData();
+      images.forEach((file) => formData.append('images', file));
+      Object.entries(fields).forEach(([key, value]) => formData.append(key, value));
+      return formData;
+    };
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`Hitem3D API failed [${res.status}]:`, errorText);
+    const sendRequest = async (authorization: string) =>
+      fetch(`${BASE_URL}/submit-task`, {
+        method: 'POST',
+        headers: {
+          Authorization: authorization,
+          Accept: 'application/json',
+          ...(appIdHeader ? { Appid: appIdHeader } : {}),
+        },
+        body: buildForm(),
+      });
+
+    let auth = await resolveHitem3dAuth(rawAuthHeader);
+    let res = await sendRequest(auth.authorization);
+    let responseText = await res.text();
+    let jsonPayload: unknown = null;
+    try {
+      jsonPayload = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      jsonPayload = null;
+    }
+
+    if (auth.source === 'basic' && isExpiredTokenResponse(res.status, jsonPayload, responseText)) {
+      auth = await resolveHitem3dAuth(rawAuthHeader, true);
+      res = await sendRequest(auth.authorization);
+      responseText = await res.text();
       try {
-        return NextResponse.json(JSON.parse(errorText), { status: res.status });
+        jsonPayload = responseText ? JSON.parse(responseText) : null;
       } catch {
-        return NextResponse.json({ message: `Hitem3D API Error: ${res.statusText}`, detail: errorText }, { status: res.status });
+        jsonPayload = null;
       }
     }
 
-    const data = await res.json();
-    return NextResponse.json(data);
+    const debugInfo = debugEnabled
+      ? {
+          endpoint: `${BASE_URL}/submit-task`,
+          authType: auth.source,
+          appId: Boolean(appIdHeader),
+          imageCount: images.length,
+          fields,
+          status: res.status,
+        }
+      : null;
+    if (debugInfo) {
+      console.info('[Hitem3D] submit-task', debugInfo);
+      if (!res.ok) {
+        console.info('[Hitem3D] submit-task response', responseText);
+      }
+    }
+
+    const spreadPayload = (jsonPayload && typeof jsonPayload === 'object') ? (jsonPayload as Record<string, unknown>) : {};
+
+    if (!res.ok) {
+      console.error(`Hitem3D API failed [${res.status}]:`, responseText);
+      const basePayload =
+        (jsonPayload && typeof jsonPayload === 'object')
+          ? jsonPayload
+          : { message: `Hitem3D API Error: ${res.statusText}`, detail: responseText };
+      return NextResponse.json(
+        debugInfo ? { ...basePayload, _debug: debugInfo } : basePayload,
+        { status: res.status }
+      );
+    }
+
+    return NextResponse.json(debugInfo ? { ...spreadPayload, _debug: debugInfo } : spreadPayload);
   } catch (error) {
     console.error('Hitem3D Proxy Error:', error);
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });

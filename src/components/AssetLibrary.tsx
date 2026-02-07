@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
@@ -470,11 +471,13 @@ export default function AssetLibrary({ onSelect, onClose }: AssetLibraryProps) {
                                         >
                                             {asset.type === 'images' && (
                                                 <div className="w-full h-full relative">
-                                                    <img 
-                                                        src={asset.path} 
-                                                        alt={asset.name} 
-                                                        className="w-full h-full object-cover"
-                                                        loading="lazy"
+                                                    <Image
+                                                        src={asset.path}
+                                                        alt={asset.name}
+                                                        fill
+                                                        className="object-cover"
+                                                        sizes="100%"
+                                                        unoptimized
                                                     />
                                                     <div className="absolute bottom-0 w-full bg-black/60 text-white text-[9px] truncate px-1 py-0.5 text-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                                         {asset.name}

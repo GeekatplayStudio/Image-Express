@@ -1,6 +1,6 @@
 // src/lib/fabric-utils.ts
 import * as fabric from 'fabric';
-import { ExtendedFabricObject, LayerNode, AdjustmentLayerType, AdjustmentLayerSettings, CurvesAdjustmentSettings, LevelsAdjustmentSettings, SaturationVibranceSettings, HueSaturationSettings, ExposureSettings } from '@/types';
+import { ExtendedFabricObject, AdjustmentLayerType, AdjustmentLayerSettings, CurvesAdjustmentSettings, LevelsAdjustmentSettings, SaturationVibranceSettings, HueSaturationSettings, ExposureSettings } from '@/types';
 
 export const ensureObjectId = (obj: fabric.Object) => {
     const extendedObj = obj as ExtendedFabricObject;

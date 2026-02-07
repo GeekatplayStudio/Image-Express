@@ -1,5 +1,4 @@
-import React from 'react';
-import { AlertTriangle, Image as ImageIcon, Replace, X } from 'lucide-react';
+import { AlertTriangle, Image as ImageIcon, Replace } from 'lucide-react';
 
 interface MissingItem {
     id: string; // Object ID or index

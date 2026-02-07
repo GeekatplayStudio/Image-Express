@@ -23,7 +23,7 @@ async function waitForServer(url, attempts = 40, delay = 250) {
       if (response.ok) {
         return;
       }
-    } catch (error) {
+    } catch {
       // swallow and retry
     }
     await new Promise((resolve) => setTimeout(resolve, delay));

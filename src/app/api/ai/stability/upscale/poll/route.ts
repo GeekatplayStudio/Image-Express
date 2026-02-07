@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
     const apiKey = request.headers.get('Authorization')?.replace('Bearer ', '');
 
     if (!apiKey) {

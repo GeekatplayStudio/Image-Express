@@ -1,7 +1,6 @@
 'use client';
 
-import { X, HelpCircle, AlertTriangle } from 'lucide-react';
-import { useState } from 'react';
+import { X, HelpCircle } from 'lucide-react';
 
 interface HelpPopupProps {
     isOpen: boolean;

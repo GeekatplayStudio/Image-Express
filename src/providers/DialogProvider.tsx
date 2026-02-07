@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { X, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 
 type DialogType = 'alert' | 'confirm' | 'prompt';
 

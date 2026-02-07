@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, File, Image as ImageIcon, MoreVertical, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box, Wand2 } from 'lucide-react';
+import Image from 'next/image';
+import { Plus, Image as ImageIcon, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 
@@ -112,7 +113,7 @@ const MORE_TEMPLATES: TemplateDescriptor[] = [
     ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_3', name: t.name + ' III'})),
 ];
 
-export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign, user }: DashboardProps) {
+export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign }: DashboardProps) {
     const dialog = useDialog();
     const { toast } = useToast();
     const [recentDesigns, setRecentDesigns] = useState<DesignSummary[]>([]);
@@ -355,7 +356,13 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign,
                      >
                         <div className="aspect-video bg-secondary/50 flex items-center justify-center relative bg-checkerboard overflow-hidden">
                             {design.thumbnail ? (
-                                <img src={design.thumbnail} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={design.name}/>
+                                <Image
+                                    src={design.thumbnail}
+                                    alt={design.name}
+                                    fill
+                                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                    sizes="(min-width: 1024px) 25vw, (min-width: 768px) 50vw, 100vw"
+                                />
                             ) : (
                                 <ImageIcon className="text-muted-foreground/30 w-12 h-12" />
                             )}
@@ -413,13 +420,16 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign,
         <section className="border-t border-border pt-8 mt-12 mb-8">
             <div className="flex flex-col md:flex-row items-center gap-8 bg-card/30 p-8 rounded-2xl border border-border/50">
               <div className="relative shrink-0">
-                <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden ring-4 ring-background shadow-lg">
-                   <img 
-                     src="https://github.com/GeekatplayStudio.png" 
-                     alt="GeekatplayStudio" 
-                     className="w-full h-full object-cover"
-                   />
-                </div>
+                                <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden ring-4 ring-background shadow-lg">
+                                     <Image
+                                         src="https://github.com/GeekatplayStudio.png"
+                                         alt="GeekatplayStudio"
+                                         fill
+                                         className="object-cover"
+                                         sizes="96px"
+                                         unoptimized
+                                     />
+                                </div>
                 <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-background rounded-full"></div>
               </div>
 
