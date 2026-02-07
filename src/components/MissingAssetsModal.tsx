@@ -1,3 +1,4 @@
+import React from 'react';
 import { AlertTriangle, Image as ImageIcon, Replace } from 'lucide-react';
 
 interface MissingItem {

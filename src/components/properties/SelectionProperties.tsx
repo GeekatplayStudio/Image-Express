@@ -13,7 +13,6 @@ import { AdjustmentControls } from './AdjustmentControls';
 import { Folder, Layers, Blend, ChevronDown, ChevronRight, Scissors, Lock, Unlock, Box } from 'lucide-react';
 
 interface SelectionPropertiesProps {
-    canvas: fabric.Canvas | null;
     selectedObject: fabric.Object | null;
     selectedObjects: fabric.Object[]; // For multiple selection
     isGradient: boolean; // Just pass these down
@@ -23,6 +22,7 @@ interface SelectionPropertiesProps {
         start: string;
         end: string;
         angle: number;
+        coords?: { x1: number; y1: number; x2: number; y2: number };
     };
     
     // Callbacks
@@ -94,6 +94,11 @@ export function SelectionProperties({
     const extended = selectedObject as ExtendedFabricObject;
     const isImage = selectedObject?.type === 'image';
     const isText = selectedObject?.type === 'text' || selectedObject?.type === 'i-text';
+    const isPenGeometry = selectedObject?.type === 'path' || selectedObject?.type === 'polygon' || selectedObject?.type === 'polyline';
+    const looksLikePenLayer = typeof extended.name === 'string' && extended.name.toLowerCase().includes('vector');
+    const isPenObject = !!isPenGeometry && (!!extended.penMode || !!extended.isPenPath || looksLikePenLayer);
+    const penMode = extended.penMode || (selectedObject?.type === 'path' ? 'smooth' : 'straight');
+    const penClosed = typeof extended.penClosed === 'boolean' ? extended.penClosed : selectedObject?.type !== 'polyline';
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleTransform = (values: Record<string, any>) => {
@@ -237,6 +242,46 @@ export function SelectionProperties({
             </div>
 
             {/* Specific Editors (Styles) */}
+
+            {isPenObject && (
+                 <div className="p-4 border-b border-border/50 space-y-3">
+                    <h3 className="font-medium text-sm">Pen Path</h3>
+                    <div className="space-y-2">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                        <div className="grid grid-cols-3 gap-1">
+                            {(['straight', 'smooth', 'bezier'] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => onPropChange('penPathUpdate', { mode })}
+                                    className={`text-[10px] px-1.5 py-1 rounded border transition-colors capitalize ${penMode === mode ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                                >
+                                    {mode === 'bezier' ? 'Bezier' : mode}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Path</div>
+                        <div className="grid grid-cols-2 gap-1">
+                            <button
+                                onClick={() => onPropChange('penPathUpdate', { closed: false })}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${!penClosed ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                            >
+                                Open
+                            </button>
+                            <button
+                                onClick={() => onPropChange('penPathUpdate', { closed: true })}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${penClosed ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                            >
+                                Closed
+                            </button>
+                        </div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                        Bezier mode supports point and handle editing directly on canvas.
+                    </div>
+                 </div>
+            )}
             
             {/* COLOR / FILL */}
             {!isImage && !isGroup && !isAdjustment && (
@@ -327,6 +372,82 @@ export function SelectionProperties({
                                          onChange={(e) => onPropChange('gradient', { ...gradientState, angle: parseInt(e.target.value) })}
                                          className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                      />
+                                 </div>
+                             )}
+
+                             {gradientState?.type === 'linear' && gradientState.coords && (
+                                 <div className="space-y-2 pt-2">
+                                     <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Gradient Points</div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                         <div className="space-y-1">
+                                             <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                 <span>Start X</span>
+                                                 <span>{Math.round(gradientState.coords.x1 * 100)}%</span>
+                                             </div>
+                                             <input
+                                                 type="range"
+                                                 min="0"
+                                                 max="100"
+                                                 value={Math.round(gradientState.coords.x1 * 100)}
+                                                 onChange={(e) => onPropChange('gradient', {
+                                                     ...gradientState,
+                                                     coords: { ...gradientState.coords, x1: parseInt(e.target.value) / 100 }
+                                                 })}
+                                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                             />
+                                         </div>
+                                         <div className="space-y-1">
+                                             <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                 <span>Start Y</span>
+                                                 <span>{Math.round(gradientState.coords.y1 * 100)}%</span>
+                                             </div>
+                                             <input
+                                                 type="range"
+                                                 min="0"
+                                                 max="100"
+                                                 value={Math.round(gradientState.coords.y1 * 100)}
+                                                 onChange={(e) => onPropChange('gradient', {
+                                                     ...gradientState,
+                                                     coords: { ...gradientState.coords, y1: parseInt(e.target.value) / 100 }
+                                                 })}
+                                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                             />
+                                         </div>
+                                         <div className="space-y-1">
+                                             <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                 <span>End X</span>
+                                                 <span>{Math.round(gradientState.coords.x2 * 100)}%</span>
+                                             </div>
+                                             <input
+                                                 type="range"
+                                                 min="0"
+                                                 max="100"
+                                                 value={Math.round(gradientState.coords.x2 * 100)}
+                                                 onChange={(e) => onPropChange('gradient', {
+                                                     ...gradientState,
+                                                     coords: { ...gradientState.coords, x2: parseInt(e.target.value) / 100 }
+                                                 })}
+                                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                             />
+                                         </div>
+                                         <div className="space-y-1">
+                                             <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                 <span>End Y</span>
+                                                 <span>{Math.round(gradientState.coords.y2 * 100)}%</span>
+                                             </div>
+                                             <input
+                                                 type="range"
+                                                 min="0"
+                                                 max="100"
+                                                 value={Math.round(gradientState.coords.y2 * 100)}
+                                                 onChange={(e) => onPropChange('gradient', {
+                                                     ...gradientState,
+                                                     coords: { ...gradientState.coords, y2: parseInt(e.target.value) / 100 }
+                                                 })}
+                                                 className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                                             />
+                                         </div>
+                                     </div>
                                  </div>
                              )}
                         </div>
@@ -427,4 +548,3 @@ export function SelectionProperties({
         </div>
     );
 }
-

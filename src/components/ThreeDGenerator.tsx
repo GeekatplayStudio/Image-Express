@@ -18,8 +18,6 @@ interface ThreeDGeneratorProps {
     initialImage?: string; 
     onStartBackgroundJob?: (job: Partial<BackgroundJob>) => void; // Parent handles logic
     activeJob?: BackgroundJob | null; // Pass active job if it exists
-    onResolveImage?: () => string | undefined;
-    onSetInitialImage?: (imageUrl: string | undefined) => void;
 }
 
 type CaptureContext = {
@@ -133,7 +131,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 };
 
 
-export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, onStartBackgroundJob, activeJob, onResolveImage, onSetInitialImage }: ThreeDGeneratorProps) {
+export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, onStartBackgroundJob, activeJob }: ThreeDGeneratorProps) {
     const dialog = useDialog();
     const { toast } = useToast();
     const [prompt, setPrompt] = useState('');
@@ -142,8 +140,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     const captureRef = useRef<CaptureContext | null>(null);
     const [resolution, setResolution] = useState<{width: number, height: number}>({ width: 2048, height: 2048 });
     const [showResSettings, setShowResSettings] = useState(false);
-    const [mode, setMode] = useState<'text' | 'image'>(initialImage ? 'image' : 'text');
-    const [localImage, setLocalImage] = useState<string | undefined>(initialImage);
+    const [mode] = useState<'text' | 'image'>(initialImage ? 'image' : 'text');
     const [showLightSettings, setShowLightSettings] = useState(false);
     const [lightPosition, setLightPosition] = useState<{ x: number; y: number; z: number }>({ x: 5, y: 5, z: 5 });
     const [lightIntensity, setLightIntensity] = useState(1.2);
@@ -155,9 +152,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     const [contactShadowBlur, setContactShadowBlur] = useState(8);
     const [contactShadowIntensity, setContactShadowIntensity] = useState(0.6);
     const [groundY, setGroundY] = useState(-1);
-    const [hitemsQuality, setHitemsQuality] = useState<'512' | '1024' | '1536' | '1536pro'>('1024');
-    const [hitemsStatus, setHitemsStatus] = useState('');
-    const [hitemsError, setHitemsError] = useState('');
 
     
     // Use internal state OR prop state
@@ -176,12 +170,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             if (isLoading) setIsLoading(false);
         }
     }, [activeJob, isLoading]);
-
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setLocalImage(initialImage);
-        setMode(initialImage ? 'image' : 'text');
-    }, [initialImage]);
     
     // Load API Key
 
@@ -210,8 +198,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
         // eslint-disable-next-line
         setHasSavedKey(prev => prev !== hasKey ? hasKey : prev);
         setApiKey(''); // Clear manual input on switch
-        setHitemsStatus('');
-        setHitemsError('');
     }, [selectedProvider]);
 
     const getSelectedKey = () => {
@@ -227,17 +213,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
         localStorage.setItem('image-express-3d-provider', e.target.value);
     };
 
-    const buildHitemsAuthHeader = (value: string) => {
-        const trimmed = value.trim();
-        if (/^Bearer\s+/i.test(trimmed) || /^Basic\s+/i.test(trimmed)) {
-            return trimmed;
-        }
-        if (trimmed.includes(':')) {
-            return trimmed;
-        }
-        return `Bearer ${trimmed}`;
-    };
-
     const handleGenerate = async () => {
         let key = getSelectedKey();
         if (!key) {
@@ -249,11 +224,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             return;
         }
 
-        // Sanitize: remove quotes + surrounding whitespace
-        const cleanedKey = key.replace(/["']/g, '').trim();
-        key = selectedProvider === 'hitems'
-            ? cleanedKey
-            : cleanedKey.replace(/^Bearer\s+/i, '').trim();
+        // Sanitize Globally: Remove 'Bearer', quotes, and surrounding whitespace
+        key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
         
         console.log(`[ThreeDGenerator] Generating with provider: ${selectedProvider}`);
 
@@ -267,8 +239,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                  // Tripo Integration
                  await generateTripo(key);
             } else if (selectedProvider === 'hitems') {
-                const resolved = localImage || (onResolveImage ? onResolveImage() : undefined);
-                if (!resolved && !onResolveImage) {
+                if (mode === 'text' || !initialImage) {
                     toast({
                         title: 'Image required',
                         description: 'Hitem3D currently supports image-to-3D only. Select an image first.',
@@ -277,24 +248,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                     setIsLoading(false);
                     return;
                 }
-                if (!resolved) {
-                    toast({
-                        title: 'Image required',
-                        description: 'Select an image on the canvas, then try again.',
-                        variant: 'warning'
-                    });
-                    setIsLoading(false);
-                    return;
-                }
-                if (resolved !== localImage) {
-                    setLocalImage(resolved);
-                    setMode('image');
-                    onSetInitialImage?.(resolved);
-                }
-                setHitemsError('');
-                setHitemsStatus('Uploading image to Hitem3D...');
-                const authHeader = buildHitemsAuthHeader(key);
-                await generateHitems(authHeader, resolved);
+                await generateHitems(key);
             } else {
                   toast({ title: 'Coming soon', description: 'Service integration in progress.', variant: 'warning' });
                  setIsLoading(false);
@@ -328,11 +282,11 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 };
             } else {
                 // Image to 3D
-                if (!localImage) return;
+                if (!initialImage) return;
                 endpoint = 'image-to-3d';
                 // Using Meshy V1 API
                 body = {
-                    image_url: localImage, 
+                    image_url: initialImage, 
                     enable_pbr: true, 
                     should_texture: true, // Always texture
                     should_remesh: true,
@@ -391,13 +345,13 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             };
         } else {
             // Image to 3D
-            if (!localImage) return;
+            if (!initialImage) return;
 
             // Handle Base64 Data URL (Upload first)
-            if (localImage.startsWith('data:')) {
+            if (initialImage.startsWith('data:')) {
                 // Convert Base64 to Blob
                 try {
-                    const fetchRes = await fetch(localImage);
+                    const fetchRes = await fetch(initialImage);
                     const blob = await fetchRes.blob();
                     
                     // Detect file extension from mime type
@@ -449,19 +403,19 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 // Public URL
                 let fileExt = 'png';
                 // Basic extension check, defaulting to png if unknown
-                    if (localImage.toLowerCase().endsWith('.jpg') || localImage.toLowerCase().endsWith('.jpeg')) {
-                        fileExt = 'jpg';
-                    } else if (localImage.toLowerCase().endsWith('.webp')) {
-                        fileExt = 'webp';
-                    }
+                if (initialImage.toLowerCase().endsWith('.jpg') || initialImage.toLowerCase().endsWith('.jpeg')) {
+                    fileExt = 'jpg';
+                } else if (initialImage.toLowerCase().endsWith('.webp')) {
+                    fileExt = 'webp';
+                }
                 
-                    body = {
-                        type: "image_to_model",
-                        file: {
-                            type: fileExt,
-                            url: localImage
-                        }
-                    };
+                body = {
+                    type: "image_to_model",
+                    file: {
+                        type: fileExt,
+                        url: initialImage
+                    }
+                };
             }
         }
 
@@ -498,15 +452,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
         }
     };
 
-    const generateHitems = async (authHeader: string, imageOverride?: string) => {
-        const imageToUse = imageOverride || localImage;
-        if (!imageToUse) {
+    const generateHitems = async (key: string) => {
+        if (!initialImage) {
             setIsLoading(false);
             return;
         }
 
         try {
-            const imageRes = await fetch(imageToUse);
+            const imageRes = await fetch(initialImage);
             const blob = await imageRes.blob();
             const mimeType = blob.type || 'image/png';
             let fileExt = 'png';
@@ -514,33 +467,20 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             else if (mimeType === 'image/webp') fileExt = 'webp';
 
             const formData = new FormData();
-            formData.append('images', blob, `image.${fileExt}`);
-            formData.append('resolution', hitemsQuality);
+            formData.append('image', blob, `image.${fileExt}`);
 
-            const appId = typeof window !== 'undefined' ? localStorage.getItem('hitems_appid') || '' : '';
-            const appIdHeader = appId.trim();
             const res = await fetch('/api/ai/hitems', {
                 method: 'POST',
                 headers: {
-                    'Authorization': authHeader,
-                    ...(process.env.NODE_ENV !== 'production' ? { 'X-Hitem-Debug': '1' } : {}),
-                    ...(appIdHeader ? { Appid: appIdHeader } : {})
+                    'Authorization': `Bearer ${key}`
                 },
                 body: formData
             });
 
-            const responseText = await res.text();
-            let data: Record<string, unknown> | null = null;
-            try {
-                data = responseText ? JSON.parse(responseText) : null;
-            } catch {
-                data = null;
-            }
-            const taskId = (data as { data?: { task_id?: string }; task_id?: string })?.data?.task_id || (data as { task_id?: string })?.task_id;
-            const debugInfo = (data as { _debug?: { endpoint?: string; status?: number; authType?: string; appId?: boolean } })?._debug;
+            const data = await res.json();
+            const taskId = data?.data?.task_id || data?.task_id;
 
             if (res.ok && taskId) {
-                setHitemsStatus(`Task created: ${taskId}`);
                 if (onStartBackgroundJob) {
                     onStartBackgroundJob({
                         id: taskId,
@@ -549,39 +489,23 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                         status: 'IN_PROGRESS',
                         prompt: 'Image to 3D',
                         createdAt: Date.now(),
-                        apiKey: authHeader
+                        apiKey: key
                     });
                 }
             } else {
-                const normalizedText = responseText?.trim();
-                const baseMessage =
-                    (data as { msg?: string; message?: string })?.msg ||
-                    (data as { message?: string })?.message ||
-                    (normalizedText && normalizedText !== '{}' ? normalizedText : '') ||
-                    `Request failed (${res.status})`;
-                const errorCode = (data as { code?: number | string })?.code;
-                const message = errorCode ? `${baseMessage} (code ${errorCode})` : baseMessage;
-                const debugLine = debugInfo?.endpoint
-                    ? ` Debug: ${debugInfo.endpoint} (status ${debugInfo.status ?? res.status}, auth ${debugInfo.authType ?? 'n/a'}, appid ${debugInfo.appId ? 'yes' : 'no'})`
-                    : '';
-                console.error('Hitem3D Start Error Response:', data ?? responseText);
-                setHitemsError(`${message}${debugLine}`);
-                setHitemsStatus('');
+                console.error('Hitem3D Start Error Response:', data);
                 toast({
                     title: 'Generation failed',
-                    description: `${message}${debugLine}`,
+                    description: data?.message || 'Error starting Hitem3D generation.',
                     variant: 'destructive'
                 });
                 setIsLoading(false);
             }
         } catch (e) {
             console.error('Hitem3D request failed', e);
-            const message = e instanceof Error ? e.message : 'Failed to send image to Hitem3D.';
-            setHitemsError(message);
-            setHitemsStatus('');
             toast({
                 title: 'Generation failed',
-                description: message,
+                description: 'Failed to send image to Hitem3D.',
                 variant: 'destructive'
             });
             setIsLoading(false);
@@ -640,9 +564,9 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
 
             <div className="p-4 space-y-4">
 
-                {!hasSavedKey && (
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">{selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} API Key (Quick Input)</label>
+                    {!hasSavedKey && (
+                        <div className="space-y-1">
+                            <label className="text-xs font-medium text-muted-foreground">{selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} API Key (Quick Input)</label>
                              <input 
                                 type="password" 
                                 value={apiKey}
@@ -653,17 +577,19 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                         </div>
                     )}
 
-                {localImage && (
+                {initialImage && (
                     <div className="space-y-2">
-                         <div className="relative w-full h-24 bg-black/10 p-2 rounded">
-                            <Image
-                                src={localImage}
-                                alt="Source"
-                                fill
-                                className="object-contain"
-                                sizes="100%"
-                                unoptimized
-                            />
+                         <div className="flex justify-center bg-black/10 p-2 rounded">
+                            <div className="relative w-full h-24">
+                                <Image
+                                    src={initialImage}
+                                    alt="Source"
+                                    fill
+                                    sizes="256px"
+                                    className="object-contain rounded"
+                                    unoptimized
+                                />
+                            </div>
                         </div>
                         
                         <p className="text-[10px] text-muted-foreground text-center">
@@ -674,7 +600,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                     </div>
                 )}
 
-                {!localImage && selectedProvider !== 'hitems' && (
+                {!initialImage && selectedProvider !== 'hitems' && (
                     <div className="space-y-1">
                         <label className="text-xs font-medium text-muted-foreground">Prompt</label>
                         <textarea 
@@ -686,46 +612,9 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                     </div>
                 )}
 
-                {selectedProvider === 'hitems' && !localImage && (
-                    <div className="rounded-md border border-border/60 bg-secondary/40 p-2 text-[11px] text-muted-foreground space-y-2">
-                        <div>Hitem3D currently supports image-to-3D only. Select an image on the canvas.</div>
-                        {onResolveImage && (
-                            <button
-                                onClick={() => {
-                                    const resolved = onResolveImage();
-                                    if (resolved) {
-                                        setLocalImage(resolved);
-                                        setMode('image');
-                                        onSetInitialImage?.(resolved);
-                                    }
-                                }}
-                                className="w-full text-xs font-semibold bg-secondary hover:bg-secondary/80 border border-border rounded px-3 py-1.5"
-                            >
-                                Use selected image
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {selectedProvider === 'hitems' && (
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Quality</label>
-                        <select
-                            value={hitemsQuality}
-                            onChange={(e) => setHitemsQuality(e.target.value as '512' | '1024' | '1536' | '1536pro')}
-                            className="w-full text-xs p-2 rounded bg-secondary/50 border border-border focus:border-indigo-500 outline-none text-foreground dark:bg-zinc-950 bg-zinc-950"
-                        >
-                            <option value="512">512³ (Eco)</option>
-                            <option value="1024">1024³ (Balanced)</option>
-                            <option value="1536">1536³ (High)</option>
-                            <option value="1536pro">1536³ Pro (Max)</option>
-                        </select>
-                    </div>
-                )}
-
-                {selectedProvider === 'hitems' && (hitemsStatus || hitemsError) && (
-                    <div className={`rounded-md border px-3 py-2 text-[11px] ${hitemsError ? 'border-red-500/40 bg-red-500/10 text-red-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
-                        {hitemsError ? `Error: ${hitemsError}` : hitemsStatus}
+                {selectedProvider === 'hitems' && !initialImage && (
+                    <div className="rounded-md border border-border/60 bg-secondary/40 p-2 text-[11px] text-muted-foreground">
+                        Hitem3D currently supports image-to-3D only. Select an image first, then reopen the 3D panel.
                     </div>
                 )}
 

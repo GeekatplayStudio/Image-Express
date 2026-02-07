@@ -29,7 +29,6 @@ interface DashboardProps {
   onNewDesign: () => void;
     onSelectTemplate: (template: TemplateDescriptor) => void;
     onOpenDesign: (design: DesignSummary) => void;
-  user: string;
 }
 
 const START_ACTIONS = [
@@ -354,14 +353,15 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         onClick={() => onOpenDesign(design)}
                         className="group bg-card rounded-2xl border border-border overflow-hidden hover:shadow-xl hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer relative flex flex-col"
                      >
-                        <div className="aspect-video bg-secondary/50 flex items-center justify-center relative bg-checkerboard overflow-hidden">
+                            <div className="aspect-video bg-secondary/50 flex items-center justify-center relative bg-checkerboard overflow-hidden">
                             {design.thumbnail ? (
                                 <Image
                                     src={design.thumbnail}
                                     alt={design.name}
                                     fill
+                                    sizes="(max-width: 1024px) 100vw, 25vw"
                                     className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                    sizes="(min-width: 1024px) 25vw, (min-width: 768px) 50vw, 100vw"
+                                    unoptimized
                                 />
                             ) : (
                                 <ImageIcon className="text-muted-foreground/30 w-12 h-12" />
@@ -420,16 +420,15 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         <section className="border-t border-border pt-8 mt-12 mb-8">
             <div className="flex flex-col md:flex-row items-center gap-8 bg-card/30 p-8 rounded-2xl border border-border/50">
               <div className="relative shrink-0">
-                                <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden ring-4 ring-background shadow-lg">
-                                     <Image
-                                         src="https://github.com/GeekatplayStudio.png"
-                                         alt="GeekatplayStudio"
-                                         fill
-                                         className="object-cover"
-                                         sizes="96px"
-                                         unoptimized
-                                     />
-                                </div>
+                <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden ring-4 ring-background shadow-lg">
+                   <Image
+                     src="https://github.com/GeekatplayStudio.png"
+                     alt="GeekatplayStudio"
+                     fill
+                     sizes="96px"
+                     className="object-cover"
+                   />
+                </div>
                 <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-background rounded-full"></div>
               </div>
 

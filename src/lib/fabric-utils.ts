@@ -144,4 +144,3 @@ export const getDefaultAdjustmentSettings = (type: AdjustmentLayerType): Adjustm
     if (type === 'exposure') return { exposure: 0, contrast: 0 } as ExposureSettings;
     return { saturation: 0, vibrance: 0 } as SaturationVibranceSettings;
 };
-

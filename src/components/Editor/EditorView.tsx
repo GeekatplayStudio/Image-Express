@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import Image from 'next/image';
+import NextImage from 'next/image';
 import DesignCanvas from '@/components/DesignCanvas';
 import Toolbar, { type ToolbarHandle } from '@/components/Toolbar';
 import PropertiesPanel from '@/components/PropertiesPanel';
@@ -145,7 +145,12 @@ export default function EditorView({
         'adjustmentSettings',
         'baseFilters',
         'aiGenerated',
-        'aiProvider'
+        'aiProvider',
+        'isPenPath',
+        'penMode',
+        'penClosed',
+        'penNodes',
+        'penSourcePoints'
     ], []);
 
     const getHistorySnapshot = useCallback(() => {
@@ -501,22 +506,6 @@ export default function EditorView({
         banana?: string
     }>({});
 
-    const resolveSelectedImageFor3D = useCallback(() => {
-        if (!canvas) return undefined;
-        const active = canvas.getActiveObject();
-        if (!active) {
-            toast({ title: 'No selection', description: 'Select an image on the canvas first.', variant: 'warning' });
-            return undefined;
-        }
-        if (active.type !== 'image') {
-            toast({ title: 'Image required', description: 'Hitem3D requires an image selection.', variant: 'warning' });
-            return undefined;
-        }
-        const dataUrl = active.toDataURL({ format: 'png', multiplier: 2 });
-        setInitialImageFor3D(dataUrl);
-        return dataUrl;
-    }, [canvas, toast]);
-
     const formatBytes = (bytes: number) => {
         if (bytes < 1024) return `${bytes} B`;
         const kb = bytes / 1024;
@@ -685,7 +674,7 @@ export default function EditorView({
             if (inputName) name = inputName;
        }
        
-       const json = canvas.toJSON();
+       const json = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps);
        const jsonString = JSON.stringify(json);
         
        let thumbnailDataUrl = '';
@@ -968,7 +957,7 @@ export default function EditorView({
                         break;
                     }
                     case 'json':
-                        const json = JSON.stringify(canvas.toJSON());
+                        const json = JSON.stringify((canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps));
                         const jsonBlob = new Blob([json], { type: 'application/json' });
                         const jsonUrl = URL.createObjectURL(jsonBlob);
                         downloadFile(jsonUrl, `design-${timestamp}.json`);
@@ -1024,7 +1013,7 @@ export default function EditorView({
         const libsFolder = zip.folder('libs');
         const scriptsFolder = zip.folder('scripts');
 
-        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor'];
+        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints'];
         const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customProps);
 
         const metadata = {
@@ -2084,40 +2073,29 @@ document.addEventListener('DOMContentLoaded', () => {
                          thumbnailUrl = tData.output?.rendered_image || tData.output?.render_image;
                      } else if (json.code !== undefined && json.code !== 0) { status = 'FAILED'; }
                 } else if (job.provider === 'hitems') {
-                    const appId = typeof window !== 'undefined' ? localStorage.getItem('hitems_appid') || '' : '';
-                    const res = await fetch(`/api/ai/hitems/${job.id}`, { headers: { 'Authorization': job.apiKey, ...(process.env.NODE_ENV !== 'production' ? { 'X-Hitem-Debug': '1' } : {}), ...(appId ? { Appid: appId } : {}) } });
+                    const res = await fetch(`/api/ai/hitems/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
                     if (!res.ok) return;
                     const json = (await res.json()) as {
                         code?: number;
-                        msg?: string;
+                        message?: string;
                         data?: {
-                            state?: string;
-                            status?: string;
                             task_status?: number;
-                            url?: string;
-                            cover_url?: string;
-                            model_url?: string;
-                            render_url?: string;
                             process_pct?: number;
-                            progress?: number;
                             task_result?: {
                                 model_url?: string;
                                 render_url?: string;
                             };
                         };
                     };
-                    const payload = json.data ?? {};
-                    const state = payload.state ?? payload.status ?? payload.task_status;
-                    if (state === 'success' || state === 'SUCCEEDED' || state === 4) status = 'SUCCEEDED';
-                    else if (state === 'failed' || state === 'FAILED' || state === -1) status = 'FAILED';
+                    const statusCode = json.data?.task_status;
+                    if (statusCode === 4) status = 'SUCCEEDED';
+                    else if (statusCode === -1) status = 'FAILED';
                     else status = 'IN_PROGRESS';
-                    if (payload.process_pct !== undefined) {
-                        progress = payload.process_pct;
-                    } else if (payload.progress !== undefined) {
-                        progress = payload.progress;
+                    if (json.data?.process_pct !== undefined) {
+                        progress = json.data.process_pct;
                     }
-                    resultUrl = payload.url || payload.model_url || payload.task_result?.model_url;
-                    thumbnailUrl = payload.cover_url || payload.render_url || payload.task_result?.render_url;
+                    resultUrl = json.data?.task_result?.model_url;
+                    thumbnailUrl = json.data?.task_result?.render_url;
                 } else {
                     const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
                     const res = await fetch(`/api/ai/meshy?endpoint=${endpoint}/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
@@ -2269,15 +2247,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }, [backgroundJobs, canvas]);
 
     useEffect(() => {
-        const timersRef = pollTimersRef.current;
-        const intervalsRef = pollIntervalsRef.current;
+        const pollTimers = pollTimersRef.current;
+        const pollIntervals = pollIntervalsRef.current;
 
         return () => {
-            for (const timer of timersRef.values()) {
+            for (const timer of pollTimers.values()) {
                 window.clearTimeout(timer);
             }
-            timersRef.clear();
-            intervalsRef.clear();
+            pollTimers.clear();
+            pollIntervals.clear();
         };
     }, []);
 
@@ -2498,17 +2476,17 @@ document.addEventListener('DOMContentLoaded', () => {
                      </div>
                      <button
                         onClick={() => setShowProfileModal(true)}
-                        className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"
+                        className="relative w-9 h-9 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"
                         title="User Profile"
                      >
                         {profileSettings?.image ? (
-                            <Image
+                            <NextImage
                                 src={profileSettings.image}
                                 alt="Profile"
                                 fill
+                                sizes="36px"
                                 className="object-cover"
                                 style={{ transform: `scale(${profileSettings.imageScale || 1})`, transformOrigin: 'center' }}
-                                sizes="36px"
                                 unoptimized
                             />
                         ) : (
@@ -2787,8 +2765,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             <ThreeDGenerator 
                                 initialImage={initialImageFor3D}
                                 activeJob={backgroundJobs.find(j => j.status === 'IN_PROGRESS' || j.status === 'PENDING')}
-                                onResolveImage={resolveSelectedImageFor3D}
-                                onSetInitialImage={setInitialImageFor3D}
                                 onStartBackgroundJob={(jobData) => {
                                     setBackgroundJobs(prev => [...prev, jobData as BackgroundJob]);
                                     if (sourceObjectFor3D && canvas) { sourceObjectFor3D.set('visible', false); canvas.requestRenderAll(); }

@@ -576,8 +576,8 @@ export default function ImageGeneratorModal({
                            src={generatedImage}
                            alt="Generated"
                            fill
+                           sizes="256px"
                            className="object-contain"
-                           sizes="100%"
                            unoptimized
                        />
                        

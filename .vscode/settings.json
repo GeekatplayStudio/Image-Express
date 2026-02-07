@@ -3,14 +3,6 @@
         "git stash": true,
         "git add": true,
         "type": true,
-        "npm.cmd": true,
-        "/^cmd /c \"npm test -- --coverage\"$/": {
-            "approve": true,
-            "matchCommandLine": true
-        },
-        "/^cmd /c \"npm test StabilityGenerator -- --coverage\"$/": {
-            "approve": true,
-            "matchCommandLine": true
-        }
+        "npm install": true
     }
 }

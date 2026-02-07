@@ -282,7 +282,6 @@ export default function Home() {
 
         <div className="flex flex-1 overflow-hidden">
            <Dashboard 
-              user={username}
               onNewDesign={() => {
                   setCurrentDesignId(null);
                   setCurrentDesignName('Untitled Design');

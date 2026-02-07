@@ -12,6 +12,7 @@ import {
     HueSaturationSettings, 
     ExposureSettings, 
     FabricBaseFilter, 
+    PenNode,
 } from '@/types';
 
 // Extracted Components
@@ -37,7 +38,7 @@ import {
     getAdjustmentLabel,
     getDefaultAdjustmentSettings,
     moveObjectToGroup,
-    moveObjectToCanvas,
+    moveObjectToCanvas
 } from '@/lib/fabric-utils';
 
 import { CurvesFilter } from '@/lib/fabric-filters';
@@ -61,6 +62,241 @@ type CanvasWithArtboard = fabric.Canvas & {
     workspaceBackground?: string;
     setWorkspaceBackground?: (color: string) => void;
     getWorkspaceBackground?: () => string;
+};
+
+type CanvasWithPenDraft = fabric.Canvas & {
+    penDraftState?: { mode: PenModeSetting; closure: 'open' | 'closed'; points: number };
+};
+
+type PenModeSetting = 'straight' | 'smooth' | 'bezier';
+type PenPoint = { x: number; y: number };
+
+const PEN_DEFAULT_FILL = '#cccccc';
+const PEN_DEFAULT_STROKE = '#3b82f6';
+
+const nearlyEqual = (a: number, b: number, epsilon = 0.001) => Math.abs(a - b) < epsilon;
+
+const toScenePoint = (obj: fabric.Object, point: PenPoint, pathOffset?: fabric.Point): PenPoint => {
+    const transformPoint = (fabric.util as unknown as { transformPoint: (p: fabric.Point, m: number[]) => fabric.Point }).transformPoint;
+    const offset = pathOffset || new fabric.Point(0, 0);
+    const localPoint = new fabric.Point(point.x - offset.x, point.y - offset.y);
+    const scenePoint = transformPoint(localPoint, obj.calcTransformMatrix());
+    return { x: scenePoint.x, y: scenePoint.y };
+};
+
+const buildOpenTwoPointCurveNodes = (points: PenPoint[]): PenNode[] => {
+    const [start, end] = points;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.hypot(dx, dy);
+
+    if (length < 0.001) {
+        return [
+            { x: start.x, y: start.y, handleIn: { x: start.x, y: start.y }, handleOut: { x: start.x, y: start.y } },
+            { x: end.x, y: end.y, handleIn: { x: end.x, y: end.y }, handleOut: { x: end.x, y: end.y } }
+        ];
+    }
+
+    // Make open 2-point smooth/bezier visibly curved instead of identical to straight mode.
+    const normalX = -dy / length;
+    const normalY = dx / length;
+    const bend = Math.min(120, Math.max(24, length * 0.28));
+    const controlX = (start.x + end.x) / 2 + (normalX * bend);
+    const controlY = (start.y + end.y) / 2 + (normalY * bend);
+
+    return [
+        {
+            x: start.x,
+            y: start.y,
+            handleIn: { x: start.x, y: start.y },
+            handleOut: {
+                x: ((2 * start.x) + controlX) / 3,
+                y: ((2 * start.y) + controlY) / 3
+            }
+        },
+        {
+            x: end.x,
+            y: end.y,
+            handleIn: {
+                x: ((2 * end.x) + controlX) / 3,
+                y: ((2 * end.y) + controlY) / 3
+            },
+            handleOut: { x: end.x, y: end.y }
+        }
+    ];
+};
+
+const buildAutoBezierNodes = (points: PenPoint[], closed: boolean): PenNode[] => {
+    const len = points.length;
+    if (len === 0) return [];
+    if (!closed && len === 2) {
+        return buildOpenTwoPointCurveNodes(points);
+    }
+
+    return points.map((point, index) => {
+        const prev = closed ? points[(index - 1 + len) % len] : points[Math.max(index - 1, 0)];
+        const next = closed ? points[(index + 1) % len] : points[Math.min(index + 1, len - 1)];
+        const tangentX = (next.x - prev.x) / 6;
+        const tangentY = (next.y - prev.y) / 6;
+
+        const handleIn = { x: point.x - tangentX, y: point.y - tangentY };
+        const handleOut = { x: point.x + tangentX, y: point.y + tangentY };
+
+        if (!closed && index === 0) {
+            handleIn.x = point.x;
+            handleIn.y = point.y;
+        }
+        if (!closed && index === len - 1) {
+            handleOut.x = point.x;
+            handleOut.y = point.y;
+        }
+
+        return {
+            x: point.x,
+            y: point.y,
+            handleIn,
+            handleOut
+        };
+    });
+};
+
+const buildBezierPathData = (nodes: PenNode[], closed: boolean): string => {
+    if (nodes.length === 0) return '';
+    if (nodes.length === 1) return `M ${nodes[0].x} ${nodes[0].y}`;
+
+    let pathData = `M ${nodes[0].x} ${nodes[0].y}`;
+    const segmentCount = closed ? nodes.length : (nodes.length - 1);
+
+    for (let i = 0; i < segmentCount; i++) {
+        const current = nodes[i];
+        const next = nodes[(i + 1) % nodes.length];
+        pathData += ` C ${current.handleOut.x} ${current.handleOut.y} ${next.handleIn.x} ${next.handleIn.y} ${next.x} ${next.y}`;
+    }
+
+    if (closed) pathData += ' Z';
+    return pathData;
+};
+
+const buildSmoothPathData = (points: PenPoint[], closed: boolean): string => {
+    if (points.length === 0) return '';
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    if (points.length === 2) {
+        if (!closed) {
+            return buildBezierPathData(buildAutoBezierNodes(points, false), false);
+        }
+        const base = `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+        return `${base} Z`;
+    }
+    return buildBezierPathData(buildAutoBezierNodes(points, closed), closed);
+};
+
+const extractSceneBezierNodesFromPath = (pathObj: fabric.Path): PenNode[] => {
+    const pathData = pathObj.path as unknown[][];
+    if (!Array.isArray(pathData) || pathData.length === 0) return [];
+
+    const localNodes: PenNode[] = [];
+    for (const rawCommand of pathData) {
+        if (!Array.isArray(rawCommand) || rawCommand.length === 0) continue;
+        const command = String(rawCommand[0]).toUpperCase();
+
+        if (command === 'M' && rawCommand.length >= 3) {
+            const x = Number(rawCommand[1]);
+            const y = Number(rawCommand[2]);
+            localNodes.length = 0;
+            localNodes.push({
+                x,
+                y,
+                handleIn: { x, y },
+                handleOut: { x, y }
+            });
+            continue;
+        }
+
+        if (command === 'C' && rawCommand.length >= 7 && localNodes.length > 0) {
+            const prev = localNodes[localNodes.length - 1];
+            const c1 = { x: Number(rawCommand[1]), y: Number(rawCommand[2]) };
+            const c2 = { x: Number(rawCommand[3]), y: Number(rawCommand[4]) };
+            const end = { x: Number(rawCommand[5]), y: Number(rawCommand[6]) };
+            prev.handleOut = c1;
+
+            const first = localNodes[0];
+            if (localNodes.length > 1 && nearlyEqual(end.x, first.x) && nearlyEqual(end.y, first.y)) {
+                first.handleIn = c2;
+                continue;
+            }
+
+            localNodes.push({
+                x: end.x,
+                y: end.y,
+                handleIn: c2,
+                handleOut: { x: end.x, y: end.y }
+            });
+            continue;
+        }
+
+        if (command === 'L' && rawCommand.length >= 3 && localNodes.length > 0) {
+            const prev = localNodes[localNodes.length - 1];
+            prev.handleOut = { x: prev.x, y: prev.y };
+            const x = Number(rawCommand[1]);
+            const y = Number(rawCommand[2]);
+            localNodes.push({
+                x,
+                y,
+                handleIn: { x, y },
+                handleOut: { x, y }
+            });
+        }
+    }
+
+    const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
+    return localNodes.map((node) => ({
+        x: toScenePoint(pathObj, { x: node.x, y: node.y }, pathOffset).x,
+        y: toScenePoint(pathObj, { x: node.x, y: node.y }, pathOffset).y,
+        handleIn: toScenePoint(pathObj, node.handleIn, pathOffset),
+        handleOut: toScenePoint(pathObj, node.handleOut, pathOffset)
+    }));
+};
+
+const extractScenePenPoints = (obj: ExtendedFabricObject): PenPoint[] => {
+    if (obj.type === 'path') {
+        if (Array.isArray(obj.penNodes) && obj.penNodes.length > 0) {
+            const pathObj = obj as fabric.Path;
+            const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
+            return obj.penNodes.map((node) => toScenePoint(pathObj, { x: node.x, y: node.y }, pathOffset));
+        }
+        const parsed = extractSceneBezierNodesFromPath(obj as fabric.Path);
+        if (parsed.length > 0) return parsed.map((node) => ({ x: node.x, y: node.y }));
+    }
+
+    if (obj.type === 'polygon' || obj.type === 'polyline') {
+        const polyObj = obj as unknown as { points?: PenPoint[]; pathOffset?: fabric.Point };
+        const points = Array.isArray(polyObj.points) ? polyObj.points : [];
+        const pathOffset = polyObj.pathOffset || new fabric.Point(0, 0);
+        return points.map((point) => toScenePoint(obj, point, pathOffset));
+    }
+
+    if (Array.isArray(obj.penSourcePoints)) return obj.penSourcePoints.map((point) => ({ ...point }));
+    return [];
+};
+
+const extractSceneBezierNodes = (obj: ExtendedFabricObject, closed: boolean): PenNode[] => {
+    if (obj.type === 'path') {
+        if (Array.isArray(obj.penNodes) && obj.penNodes.length > 0) {
+            const pathObj = obj as fabric.Path;
+            const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
+            return obj.penNodes.map((node) => ({
+                x: toScenePoint(pathObj, { x: node.x, y: node.y }, pathOffset).x,
+                y: toScenePoint(pathObj, { x: node.x, y: node.y }, pathOffset).y,
+                handleIn: toScenePoint(pathObj, node.handleIn, pathOffset),
+                handleOut: toScenePoint(pathObj, node.handleOut, pathOffset)
+            }));
+        }
+        const parsed = extractSceneBezierNodesFromPath(obj as fabric.Path);
+        if (parsed.length > 0) return parsed;
+    }
+
+    const points = extractScenePenPoints(obj);
+    return buildAutoBezierNodes(points, closed);
 };
 
 interface PropertiesPanelProps {
@@ -92,6 +328,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     const [gradientStart, setGradientStart] = useState('#000000');
     const [gradientEnd, setGradientEnd] = useState('#ffffff');
     const [gradientAngle, setGradientAngle] = useState(0);
+    const [gradientCoords, setGradientCoords] = useState({ x1: 0, y1: 0.5, x2: 1, y2: 0.5 });
 
     const [opacity, setOpacity] = useState(1);
     
@@ -141,6 +378,11 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
     const [curveStrength, setCurveStrength] = useState(0);
     const [curveCenter, setCurveCenter] = useState(0);
+
+    // Pen Draft State (synced from Toolbar via canvas events)
+    const [penDraftMode, setPenDraftMode] = useState<PenModeSetting>('straight');
+    const [penDraftClosure, setPenDraftClosure] = useState<'open' | 'closed'>('open');
+    const [penDraftPoints, setPenDraftPoints] = useState(0);
     const [fontFamily, setFontFamily] = useState('Arial');
     const [fontWeight, setFontWeight] = useState('normal');
 
@@ -384,6 +626,38 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         };
     }, [canvas, syncCanvasMetrics]);
 
+    useEffect(() => {
+        if (!canvas) return;
+
+        const applyPenDraftState = (draft?: { mode?: PenModeSetting; closure?: 'open' | 'closed'; points?: number }) => {
+            if (!draft) return;
+            if (draft.mode && (draft.mode === 'straight' || draft.mode === 'smooth' || draft.mode === 'bezier')) {
+                setPenDraftMode(draft.mode);
+            }
+            if (draft.closure && (draft.closure === 'open' || draft.closure === 'closed')) {
+                setPenDraftClosure(draft.closure);
+            }
+            if (typeof draft.points === 'number') {
+                setPenDraftPoints(draft.points);
+            }
+        };
+
+        const initialDraft = (canvas as CanvasWithPenDraft).penDraftState;
+        applyPenDraftState(initialDraft);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handlePenDraftUpdate = (opt: any) => {
+            applyPenDraftState(opt);
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (canvas as any).on('pen:draft:update', handlePenDraftUpdate);
+        return () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (canvas as any).off('pen:draft:update', handlePenDraftUpdate);
+        };
+    }, [canvas]);
+
 
     // --- Layer & Selection Sync ---
     const updateObjects = useCallback(() => {
@@ -419,8 +693,22 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                         setGradientStart(stops[0].color);
                         setGradientEnd(stops[stops.length - 1].color);
                     }
-                    // TODO: Angle inference is complex, default to 0 for now or stored prop
-                    setGradientAngle(0); 
+                    if (grad.type === 'linear' && grad.coords) {
+                        const coords = {
+                            x1: grad.coords.x1 ?? 0,
+                            y1: grad.coords.y1 ?? 0.5,
+                            x2: grad.coords.x2 ?? 1,
+                            y2: grad.coords.y2 ?? 0.5
+                        };
+                        setGradientCoords(coords);
+                        const dx = coords.x2 - coords.x1;
+                        const dy = coords.y2 - coords.y1;
+                        const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+                        setGradientAngle(Math.round(angle));
+                    } else {
+                        setGradientCoords({ x1: 0, y1: 0.5, x2: 1, y2: 0.5 });
+                        setGradientAngle(0);
+                    }
                 } else {
                     setColor(typeof target.fill === 'string' ? target.fill : '#000000');
                     setIsGradient(false);
@@ -632,13 +920,69 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     // --- Helper Functions ---
     const applyTaper = (skewZVal: number, taperVal: number) => {
         if (!selectedObject) return;
-        // Simple shim for perspective/taper - fabric.js 6 doesn't have 3D transform natively just yet without extensions
-        // Storing as custom props
-        selectedObject.set('skewZ', skewZVal);
-        selectedObject.set('taperDirection', taperVal);
-        const shear = skewZVal * 0.01;
-        // Just simulating with skewX/Y combination for now as placeholder
-        selectedObject.set('skewX', selectedObject.skewX + (shear * 10)); 
+        const ext = selectedObject as ExtendedFabricObject;
+        const intensity = Math.min(Math.abs(skewZVal), 100) / 100;
+        const dirRaw = Math.max(-100, Math.min(100, taperVal)) / 100;
+        const dirSign = dirRaw === 0 ? (skewZVal >= 0 ? 1 : -1) : Math.sign(dirRaw);
+        const dirMagnitude = dirRaw === 0 ? 1 : Math.abs(dirRaw);
+        const currentCenter = selectedObject.getCenterPoint();
+
+        const hasBase =
+            ext.skewZBaseScaleX !== undefined ||
+            ext.skewZBaseScaleY !== undefined ||
+            ext.skewZBaseSkewX !== undefined ||
+            ext.skewZBaseSkewY !== undefined;
+
+        if (!hasBase) {
+            selectedObject.set({
+                skewZBaseScaleX: selectedObject.scaleX ?? 1,
+                skewZBaseScaleY: selectedObject.scaleY ?? 1,
+                skewZBaseSkewX: selectedObject.skewX ?? 0,
+                skewZBaseSkewY: selectedObject.skewY ?? 0
+            });
+        }
+
+        if (intensity === 0) {
+            selectedObject.set({
+                scaleX: ext.skewZBaseScaleX ?? selectedObject.scaleX ?? 1,
+                scaleY: ext.skewZBaseScaleY ?? selectedObject.scaleY ?? 1,
+                skewX: ext.skewZBaseSkewX ?? selectedObject.skewX ?? 0,
+                skewY: ext.skewZBaseSkewY ?? selectedObject.skewY ?? 0
+            });
+            selectedObject.set({
+                skewZBaseScaleX: undefined,
+                skewZBaseScaleY: undefined,
+                skewZBaseSkewX: undefined,
+                skewZBaseSkewY: undefined,
+                skewZ: skewZVal,
+                taperDirection: taperVal
+            });
+            selectedObject.setPositionByOrigin(currentCenter, 'center', 'center');
+            selectedObject.setCoords();
+            selectedObject.set('dirty', true);
+            canvas?.requestRenderAll();
+            return;
+        }
+
+        const baseScaleX = ext.skewZBaseScaleX ?? selectedObject.scaleX ?? 1;
+        const baseScaleY = ext.skewZBaseScaleY ?? selectedObject.scaleY ?? 1;
+        const baseSkewX = ext.skewZBaseSkewX ?? selectedObject.skewX ?? 0;
+        const baseSkewY = ext.skewZBaseSkewY ?? selectedObject.skewY ?? 0;
+        const maxSkew = 35;
+        const skewX = baseSkewX + (dirSign * dirMagnitude * intensity * maxSkew);
+        const skewY = baseSkewY + (dirSign * intensity * 6);
+        const scaleX = baseScaleX * (1 - (intensity * 0.2));
+
+        selectedObject.set({
+            skewX,
+            skewY,
+            scaleX,
+            scaleY: baseScaleY,
+            skewZ: skewZVal,
+            taperDirection: taperVal
+        });
+        selectedObject.setPositionByOrigin(currentCenter, 'center', 'center');
+        selectedObject.setCoords();
         selectedObject.set('dirty', true);
         canvas?.requestRenderAll();
     };
@@ -658,6 +1002,97 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handlePropChange = (prop: string, value: any) => {
         if (!selectedObject || !canvas) return;
+
+        if (prop === 'penPathUpdate') {
+            const updates = value as { mode?: PenModeSetting; closed?: boolean };
+            const oldObject = selectedObject as ExtendedFabricObject;
+            const currentMode = (oldObject.penMode || 'straight') as PenModeSetting;
+            const nextMode = updates.mode || currentMode;
+            const nextClosed = typeof updates.closed === 'boolean' ? updates.closed : !!oldObject.penClosed;
+
+            const scenePoints = extractScenePenPoints(oldObject);
+            const minPoints = nextClosed ? 3 : 2;
+            if (scenePoints.length < minPoints) return;
+
+            const styleProps: Partial<fabric.FabricObjectProps> = {
+                fill: nextClosed ? (oldObject.fill || PEN_DEFAULT_FILL) : 'transparent',
+                stroke: oldObject.stroke || PEN_DEFAULT_STROKE,
+                strokeWidth: oldObject.strokeWidth ?? 2,
+                objectCaching: false,
+                opacity: oldObject.opacity,
+                globalCompositeOperation: oldObject.globalCompositeOperation,
+                shadow: oldObject.shadow || null,
+                strokeDashArray: oldObject.strokeDashArray,
+                strokeLineCap: oldObject.strokeLineCap,
+                strokeLineJoin: oldObject.strokeLineJoin,
+                strokeMiterLimit: oldObject.strokeMiterLimit,
+                paintFirst: oldObject.paintFirst
+            };
+
+            let replacement: fabric.Object;
+            let replacementNodes: PenNode[] | undefined;
+
+            if (nextMode === 'straight') {
+                if (nextClosed) {
+                    replacement = new fabric.Polygon(scenePoints, styleProps);
+                } else {
+                    replacement = new fabric.Polyline(scenePoints, {
+                        ...styleProps,
+                        fill: 'transparent'
+                    });
+                }
+            } else if (nextMode === 'smooth') {
+                const pathData = buildSmoothPathData(scenePoints, nextClosed);
+                replacement = new fabric.Path(pathData, styleProps);
+            } else {
+                replacementNodes = extractSceneBezierNodes(oldObject, nextClosed);
+                if (replacementNodes.length < 2) {
+                    replacementNodes = buildAutoBezierNodes(scenePoints, nextClosed);
+                }
+                const pathData = buildBezierPathData(replacementNodes, nextClosed);
+                replacement = new fabric.Path(pathData, styleProps);
+            }
+
+            const replacementExt = replacement as ExtendedFabricObject;
+            if (oldObject.id) replacementExt.id = oldObject.id;
+            ensureObjectId(replacement);
+            replacementExt.name = oldObject.name || (nextClosed ? 'Vector Shape' : 'Vector Path');
+            replacementExt.layerTagColor = oldObject.layerTagColor;
+            replacementExt.locked = oldObject.locked;
+            replacementExt.penMode = nextMode;
+            replacementExt.penClosed = nextClosed;
+            replacementExt.isPenPath = nextMode === 'bezier';
+            replacementExt.penSourcePoints = scenePoints.map((point) => ({ ...point }));
+            replacementExt.penNodes = nextMode === 'bezier' ? replacementNodes : undefined;
+
+            if (oldObject.clipPath) {
+                replacement.clipPath = oldObject.clipPath;
+            }
+
+            const oldIndex = canvas.getObjects().indexOf(oldObject);
+            canvas.remove(oldObject);
+            canvas.add(replacement);
+            if (oldIndex >= 0) {
+                canvas.moveObjectTo(replacement, oldIndex);
+            }
+
+            if (replacementExt.locked) {
+                replacement.set({ lockMovementX: true, lockMovementY: true, selectable: false, evented: false });
+            }
+
+            canvas.setActiveObject(replacement);
+            if (nextMode === 'bezier') {
+                // Ensure custom bezier controls are attached by listeners that hook selection events.
+                (canvas as unknown as { fire: (name: string, data?: unknown) => void }).fire('selection:updated', {
+                    selected: [replacement]
+                });
+            }
+            canvas.requestRenderAll();
+            setSelectedObject(replacementExt);
+            updateObjects();
+            applyAdjustmentLayers();
+            return;
+        }
 
         // Standard Props & layout
         const startProps = ['left', 'top', 'width', 'height', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'visible', 'globalCompositeOperation'];
@@ -682,23 +1117,39 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         }
 
         if (prop === 'gradient') {
-             const { start, end, angle, type } = value;
+             const { start, end, angle, type, coords: incomingCoords } = value as {
+                 start: string;
+                 end: string;
+                 angle: number;
+                 type: 'linear' | 'radial';
+                 coords?: { x1: number; y1: number; x2: number; y2: number };
+             };
              setIsGradient(true);
              setGradientStart(start);
              setGradientEnd(end);
-             setGradientAngle(angle);
              setGradientType(type);
 
              let coords: Record<string, number> = {};
              
              if (type === 'linear') {
-                const rad = (angle || 0) * (Math.PI / 180);
-                coords = {
-                    x1: 0.5 - (Math.cos(rad) * 0.5),
-                    y1: 0.5 - (Math.sin(rad) * 0.5),
-                    x2: 0.5 + (Math.cos(rad) * 0.5),
-                    y2: 0.5 + (Math.sin(rad) * 0.5)
-                };
+                if (incomingCoords) {
+                    coords = { ...incomingCoords };
+                    setGradientCoords(incomingCoords);
+                    const dx = (incomingCoords.x2 ?? 1) - (incomingCoords.x1 ?? 0);
+                    const dy = (incomingCoords.y2 ?? 0.5) - (incomingCoords.y1 ?? 0.5);
+                    const computedAngle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+                    setGradientAngle(Math.round(computedAngle));
+                } else {
+                    const rad = (angle || 0) * (Math.PI / 180);
+                    coords = {
+                        x1: 0.5 - (Math.cos(rad) * 0.5),
+                        y1: 0.5 - (Math.sin(rad) * 0.5),
+                        x2: 0.5 + (Math.cos(rad) * 0.5),
+                        y2: 0.5 + (Math.sin(rad) * 0.5)
+                    };
+                    setGradientCoords({ x1: coords.x1, y1: coords.y1, x2: coords.x2, y2: coords.y2 });
+                    setGradientAngle(angle);
+                }
              } else {
                  coords = { x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, r1: 0, r2: 0.5 };
              }
@@ -722,6 +1173,13 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
          if (prop === 'skewX') setSkewX(value);
          if (prop === 'skewY') setSkewY(value);
+         if ((prop === 'skewX' || prop === 'skewY' || prop === 'scaleX' || prop === 'scaleY') && (skewZ !== 0 || taperDirection !== 0)) {
+             if (prop === 'skewX') selectedObject.set('skewZBaseSkewX', value);
+             if (prop === 'skewY') selectedObject.set('skewZBaseSkewY', value);
+             if (prop === 'scaleX') selectedObject.set('skewZBaseScaleX', value);
+             if (prop === 'scaleY') selectedObject.set('skewZBaseScaleY', value);
+             applyTaper(skewZ, taperDirection);
+         }
         
         if (prop === 'fontFamily') (selectedObject as fabric.IText).set('fontFamily', value);
         if (prop === 'fontWeight') (selectedObject as fabric.IText).set('fontWeight', value);
@@ -735,38 +1193,44 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              
              if (strength === 0) {
                  selectedObject.set('path', null);
+                 (selectedObject as fabric.IText).set('pathStartOffset', 0);
              } else {
-                 const len = selectedObject.width || 200;
-                 // Improved curve algorithm with better arc control
-                 // Use cubic bezier for smoother curves at extreme values
-                 const normalizedStrength = strength / 100;
-                 const normalizedCenter = (center ?? 0) / 100;
+                 const textObj = selectedObject as fabric.IText;
+                 const baseWidth = typeof textObj.calcTextWidth === 'function'
+                     ? textObj.calcTextWidth()
+                     : (textObj.width ?? 0);
+                 const textWidth = Math.max(baseWidth || 0, 1);
+                 const strengthAbs = Math.min(Math.abs(strength), 100);
+                 const t = strengthAbs / 100;
+                 const minAngle = Math.PI / 180; // 1 degree
+                 // Avoid a fully closed path to prevent glyph overlap at max.
+                 const maxAngle = (Math.PI * 2) - 0.001;
+                 const angle = minAngle + (maxAngle - minAngle) * t;
+                 // Add a small length buffer at stronger curves to keep text from wrapping on itself.
+                 const padding = Math.max(2, textObj.fontSize * 0.1, textWidth * 0.01);
+                 const arcLength = textWidth + (padding * t);
+                 const radius = arcLength / angle;
+                 const chord = 2 * radius * Math.sin(angle / 2);
+                 const startX = -chord / 2;
+                 const endX = chord / 2;
+                 const largeArcFlag = angle > Math.PI ? 1 : 0;
+                 const sweepFlag = strength >= 0 ? 0 : 1;
+                 const currentCenter = selectedObject.getCenterPoint();
                  
-                 // Calculate control point height based on strength
-                 // Using quadratic relationship for more natural feel
-                 const curveHeight = normalizedStrength * len * 0.6;
-                 
-                 // Center offset affects the peak position
-                 const peakX = (len / 2) + (normalizedCenter * len * 0.4);
-                 
-                 // For extreme curves (>80%), use circular arc approximation
-                 if (Math.abs(strength) >= 80) {
-                     // Circular arc path for full circle effect
-                     const arcHeight = curveHeight * 1.2;
-                     // Use cubic bezier for smoother arc
-                     const cp1x = len * 0.25 + (normalizedCenter * len * 0.2);
-                     const cp2x = len * 0.75 + (normalizedCenter * len * 0.2);
-                     const pathData = `M 0 0 C ${cp1x} ${-arcHeight} ${cp2x} ${-arcHeight} ${len} 0`;
-                     const path = new fabric.Path(pathData);
-                     path.set({ visible: false, left: -len/2, top: 0 });
-                     selectedObject.set('path', path);
-                 } else {
-                     // Standard quadratic bezier for moderate curves
-                     const pathData = `M 0 0 Q ${peakX} ${-curveHeight} ${len} 0`;
-                     const path = new fabric.Path(pathData);
-                     path.set({ visible: false, left: -len/2, top: 0 });
-                     selectedObject.set('path', path);
-                 }
+                 const pathData = `M ${startX} 0 A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${endX} 0`;
+
+                 const path = new fabric.Path(pathData);
+                 path.set({ visible: false });
+                 selectedObject.set('path', path);
+                 const pathLength = Math.max(1, arcLength);
+                 const slack = Math.max(0, pathLength - textWidth);
+                 const align = (textObj.textAlign || 'left').toLowerCase();
+                 let baseOffset = 0;
+                 if (align.includes('left')) baseOffset = slack / 2;
+                 else if (align.includes('right')) baseOffset = -(slack / 2);
+                 const centerShift = ((center ?? 0) / 100) * (pathLength * 0.5);
+                 textObj.set('pathStartOffset', baseOffset + centerShift);
+                 selectedObject.setPositionByOrigin(currentCenter, 'center', 'center');
                  selectedObject.setCoords();
              }
         }
@@ -1758,12 +2222,31 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 selectedObject={selectedObject}
                 onDuplicate={onDuplicate}
                 onSelect={(obj, e) => {
-                     if (e?.shiftKey) { /* multi */ } 
-                     else { 
-                         canvas?.discardActiveObject();
-                         canvas?.setActiveObject(obj);
-                         canvas?.requestRenderAll(); 
+                     if (!canvas) return;
+                     const isMulti = !!(e?.shiftKey || e?.metaKey || e?.ctrlKey);
+                     if (!isMulti) { 
+                         canvas.discardActiveObject();
+                         canvas.setActiveObject(obj);
+                         canvas.requestRenderAll(); 
+                         return;
                      }
+                     const active = canvas.getActiveObjects() || [];
+                     const alreadySelected = active.includes(obj);
+                     const next = alreadySelected ? active.filter(o => o !== obj) : [...active, obj];
+                     if (next.length === 0) {
+                         canvas.discardActiveObject();
+                         canvas.requestRenderAll();
+                         return;
+                     }
+                     if (next.length === 1) {
+                         canvas.discardActiveObject();
+                         canvas.setActiveObject(next[0]);
+                         canvas.requestRenderAll();
+                         return;
+                     }
+                     const selection = new fabric.ActiveSelection(next, { canvas });
+                     canvas.setActiveObject(selection);
+                     canvas.requestRenderAll();
                 }}
                 onLayerOpacityChange={(value) => {
                     if (!selectedObject) return;
@@ -1807,6 +2290,78 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         );
     }
 
+    if (activeTool === 'pen') {
+        const firePenEvent = (eventName: string, payload?: unknown) => {
+            if (!canvas) return;
+            (canvas as unknown as { fire: (name: string, data?: unknown) => void }).fire(eventName, payload);
+        };
+
+        return (
+            <div className="h-full bg-card overflow-y-auto">
+                <div className="px-4 py-3 border-b border-border/50 bg-secondary/10">
+                    <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Pen Tool</h2>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                        Add points, drag dots to readjust, then finish path.
+                    </p>
+                </div>
+
+                <div className="p-4 border-b border-border/50 space-y-4">
+                    <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Mode</div>
+                        <div className="grid grid-cols-3 gap-1">
+                            {(['straight', 'smooth', 'bezier'] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => firePenEvent('pen:config:set', { mode })}
+                                    className={`text-[10px] px-1.5 py-1 rounded border transition-colors capitalize ${penDraftMode === mode ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                                >
+                                    {mode === 'bezier' ? 'Bezier' : mode}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Path</div>
+                        <div className="grid grid-cols-2 gap-1">
+                            <button
+                                onClick={() => firePenEvent('pen:config:set', { closure: 'open' })}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${penDraftClosure === 'open' ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                            >
+                                Open
+                            </button>
+                            <button
+                                onClick={() => firePenEvent('pen:config:set', { closure: 'closed' })}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${penDraftClosure === 'closed' ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                            >
+                                Closed
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                        Points placed: <span className="font-semibold text-foreground">{penDraftPoints}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            onClick={() => firePenEvent('pen:finish-request')}
+                            className="text-xs px-2 py-1.5 rounded border bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 transition-colors"
+                        >
+                            Finish Path
+                        </button>
+                        <button
+                            onClick={() => firePenEvent('pen:clear-request')}
+                            className="text-xs px-2 py-1.5 rounded border bg-secondary/20 border-border/50 text-muted-foreground hover:bg-secondary/50 transition-colors"
+                        >
+                            Clear Draft
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (!selectedObject && selectedIds.size === 0) {
          return (
              <div className="h-full bg-card overflow-y-auto">
@@ -1846,7 +2401,6 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
     return (
         <SelectionProperties 
-             canvas={canvas}
              selectedObject={selectedObject}
              selectedObjects={canvas?.getActiveObjects() || []}
              color={color}
@@ -1855,7 +2409,8 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                  type: gradientType,
                  start: gradientStart,
                  end: gradientEnd,
-                 angle: gradientAngle
+                 angle: gradientAngle,
+                 coords: gradientCoords
              }}
              onPropChange={handlePropChange}
              onLayoutAction={handleLayoutAction}
@@ -1894,4 +2449,3 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         />
     );
 }
-

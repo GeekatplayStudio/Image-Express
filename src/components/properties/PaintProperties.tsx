@@ -53,6 +53,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
         }
 
         const artboard = (canvas as unknown as { artboard?: { width: number; height: number; left: number; top: number } }).artboard;
+
         if (!primary) {
             const group = new fabric.Group([], {
                 selectable: true,
