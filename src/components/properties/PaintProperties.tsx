@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 import { Wand2 } from 'lucide-react';
 import { ExtendedFabricObject } from '@/types';
 import { moveObjectToGroup, moveObjectToCanvas, applyAlphaToColor } from '@/lib/fabric-utils';
+import { ColorPicker } from './ColorPicker';
 
 interface PaintPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -325,34 +326,22 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                 </div>
 
                 <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Color</label>
-                        <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{paintColor.toUpperCase()}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                            <div className="relative w-10 h-10 rounded-full border border-border shadow-sm overflow-hidden shrink-0 group cursor-pointer transition-transform active:scale-95">
-                            <div className="absolute inset-0 z-0 bg-image-checkered opacity-20" />
-                            <div className="absolute inset-0 z-10" style={{ backgroundColor: paintColor }} />
-                            <input 
-                                type="color" 
-                                value={paintColor}
-                                onChange={(e) => setPaintColor(e.target.value)}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                            />
-                        </div>
-                        <div className="flex-1 space-y-2">
-                                <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
-                                    {['#000000', '#ffffff', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'].map(c => (
-                                    <button 
-                                        key={c}
-                                        onClick={() => setPaintColor(c)}
-                                        className="w-6 h-6 rounded-full border border-border/50 shrink-0 hover:scale-110 transition-transform"
-                                        style={{ backgroundColor: c }}
-                                        title={c}
-                                    />
-                                    ))}
-                                </div>
-                        </div>
+                    <ColorPicker 
+                        color={paintColor} 
+                        onChange={setPaintColor} 
+                        label="Paint Color" 
+                    />
+                    
+                    <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide pt-1">
+                        {['#000000', '#ffffff', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'].map(c => (
+                        <button 
+                            key={c}
+                            onClick={() => setPaintColor(c)}
+                            className="w-6 h-6 rounded-md border border-border/50 shrink-0 hover:scale-110 transition-transform"
+                            style={{ backgroundColor: c }}
+                            title={c}
+                        />
+                        ))}
                     </div>
                 </div>
 

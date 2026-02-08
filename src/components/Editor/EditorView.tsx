@@ -14,13 +14,15 @@ import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
 import { GridOverlay, GridType } from '@/components/GridOverlay';
-import { Download, Share2, Sparkles, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, Cloud, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square } from 'lucide-react';
+import { GradientControls } from '@/components/GradientControls';
+import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Move, Brush, PenTool, Shapes, Type, PaintBucket, Wand2, LayoutTemplate, Blend, Layers, Facebook, Instagram } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject } from '@/types';
 import JSZip from 'jszip';
 import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
+import CircularContextMenu from '@/components/CircularContextMenu';
 
 interface MissingItem {
     id: string; 
@@ -41,6 +43,7 @@ interface EditorViewProps {
     onOpenDocumentation?: () => void;
     onOpenSettings: () => void;
     settingsOpen: boolean;
+    initialActiveTool?: string;
 }
 
 type PanelMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' | 'collapsed-right';
@@ -95,7 +98,8 @@ export default function EditorView({
     onUpdateDesignInfo,
     onOpenDocumentation,
     onOpenSettings,
-    settingsOpen
+    settingsOpen,
+    initialActiveTool
 }: EditorViewProps) {
     const dialog = useDialog();
     const { toast } = useToast();
@@ -113,6 +117,9 @@ export default function EditorView({
     const [activeTool, setActiveTool] = useState<string>('select');
     const [zoom, setZoom] = useState(1);
     const [isDirty, setIsDirty] = useState(false);
+    
+    // Context Menu
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; isOpen: boolean }>({ x: 0, y: 0, isOpen: false });
 
     const customHistoryProps = useMemo(() => [
         'id',
@@ -264,10 +271,56 @@ export default function EditorView({
         }
     }, [canvas, pushHistory]);
 
+    const handleAssetSelect = useCallback((url: string, type: string, name?: string) => {
+        if (!canvas) return;
+
+        if (type === 'models' || type === 'model' || url.endsWith('.glb') || url.endsWith('.gltf')) {
+             fabric.FabricImage.fromURL(url).then(img => {
+                img.scaleToWidth(300);
+                canvas.centerObject(img);
+                const threeDImg = img as ThreeDImage;
+                threeDImg.is3DModel = true;
+                threeDImg.modelUrl = url;
+                if (name) (threeDImg as ExtendedFabricObject).name = name;
+                canvas.add(img); 
+                canvas.setActiveObject(img);
+                canvas.requestRenderAll();
+                pushHistory();
+            });
+        } else if (type === 'videos' || type === 'video') {
+             toast({ title: "Video support", description: "Video placement is experimental." });
+        } else {
+             fabric.FabricImage.fromURL(url, { crossOrigin: 'anonymous' }).then(img => {
+                 const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+                 const viewW = artboard.width;
+                 if (img.width! > viewW * 0.5) {
+                     img.scaleToWidth(viewW * 0.5);
+                 }
+                 canvas.centerObject(img);
+                 if (name) (img as ExtendedFabricObject).name = name;
+                 canvas.add(img);
+                 canvas.setActiveObject(img);
+                 canvas.requestRenderAll();
+                 pushHistory();
+             }).catch(() => {
+                toast({ title: "Error", description: "Failed to load image", variant: "destructive" });
+             });
+        }
+    }, [canvas, pushHistory, toast]);
+
     const handleCanvasModified = useCallback(() => {
         setIsDirty(true);
         pushHistory();
     }, [pushHistory]);
+
+    const handleRightClick = useCallback((e: MouseEvent) => {
+        e.preventDefault();
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            isOpen: true
+        });
+    }, []);
 
     // Panel State
     const [panelState, setPanelState] = useState<{
@@ -454,6 +507,8 @@ export default function EditorView({
     
     // UI States
     const [showExportMenu, setShowExportMenu] = useState(false);
+    const [showShareMenu, setShowShareMenu] = useState(false);
+    const shareRef = useRef<HTMLDivElement>(null);
     const [showGridMenu, setShowGridMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
     const [gridType, setGridType] = useState<GridType>('none');
@@ -480,6 +535,24 @@ export default function EditorView({
     const [showAssetBrowserForMissing, setShowAssetBrowserForMissing] = useState(false);
     const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
     const [replacementMap, setReplacementMap] = useState<Record<string, string>>({});
+    
+    // Auto-switch to properties when clicking canvas objects
+    useEffect(() => {
+        if (!canvas) return;
+        const handleSelection = (e: { e?: Event }) => {
+            // If user explicitly clicks on canvas (event exists) and we are not in a creation tool, ensure we show properties
+            const creationTools = ['pen', 'paint', 'text', 'shapes', '3d-gen', 'ai-zone'];
+            if (e.e && !creationTools.includes(activeTool) && activeTool !== 'select') {
+                setActiveTool('select');
+            }
+        };
+        canvas.on('selection:created', handleSelection);
+        canvas.on('selection:updated', handleSelection);
+        return () => {
+            canvas.off('selection:created', handleSelection);
+            canvas.off('selection:updated', handleSelection);
+        };
+    }, [canvas, activeTool, setActiveTool]);
 
     // 3D & AI States
     const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
@@ -491,6 +564,21 @@ export default function EditorView({
     const [editingModelUrl, setEditingModelUrl] = useState<string | null>(null);
     const [editingModelObject, setEditingModelObject] = useState<fabric.Object | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ type: 'video' | 'audio'; url: string } | null>(null);
+
+    // Initial Tool Effect
+    useEffect(() => {
+        if (initialActiveTool) {
+             const toolMap: Record<string, string> = {
+                 'upload': 'assets',
+                 '3d': '3d-gen',
+                 'ai': 'ai-zone'
+             };
+             // Defer slightly to ensure canvas init doesn't override
+             setTimeout(() => {
+                 setActiveTool(toolMap[initialActiveTool] || initialActiveTool);
+             }, 100);
+        }
+    }, [initialActiveTool]);
     const exportRef = useRef<HTMLDivElement>(null);
     const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
     const toolbarRef = useRef<ToolbarHandle | null>(null);
@@ -986,6 +1074,22 @@ export default function EditorView({
         const url = URL.createObjectURL(blob);
         downloadFile(url, filename);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+
+    const handleShare = async (platform: 'facebook' | 'instagram') => {
+        // Trigger generic export first (PNG)
+        await handleExport('png');
+        
+        const url = platform === 'facebook' ? 'https://www.facebook.com' : 'https://www.instagram.com';
+        window.open(url, '_blank');
+
+        toast({
+            title: "Ready to Share",
+            description: `Design exported. Please upload the file to ${platform === 'facebook' ? 'Facebook' : 'Instagram'}.`,
+            duration: 5000,
+        });
+        
+        setShowShareMenu(false);
     };
 
     const openExportQualityModal = (format: 'png' | 'jpg', filename: string, cropOptions?: { left: number; top: number; width: number; height: number }) => {
@@ -2276,9 +2380,10 @@ document.addEventListener('DOMContentLoaded', () => {
                        <button 
                           onClick={handleBack}
                           className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                          title="Back to Hub"
                        >
                          <HomeIcon size={16} />
-                         <span>Home</span>
+                         <span>Hub</span>
                        </button>
                     </nav>
                     <div className="relative">
@@ -2294,42 +2399,62 @@ document.addEventListener('DOMContentLoaded', () => {
                             <ChevronDown size={14} />
                         </button>
                         {showToolsMenu && (
-                            <div className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
-                                <button onClick={() => { toolbarRef.current?.triggerTool('select'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Select</span><span className="text-xs text-muted-foreground">V</span>
+                            <div className="absolute left-0 top-full mt-2 w-64 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 z-50">
+                                
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Essentials</div>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('select'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Move size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
+                                    <span className="flex-1">Select</span>
+                                    <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">V</span>
                                 </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('paint'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Brush</span><span className="text-xs text-muted-foreground">B</span>
+
+                                <div className="my-1 border-t border-border/50" />
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Creation</div>
+                                <div className="grid grid-cols-2 gap-1 px-2">
+                                    <button onClick={() => { toolbarRef.current?.triggerTool('text'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
+                                        <Type size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Text</span>
+                                    </button>
+                                    <button onClick={() => { toolbarRef.current?.triggerTool('shapes'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
+                                        <Shapes size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Shapes</span>
+                                    </button>
+                                    <button onClick={() => { toolbarRef.current?.triggerTool('paint'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
+                                        <Brush size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Brush</span>
+                                    </button>
+                                    <button onClick={() => { toolbarRef.current?.triggerTool('pen'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
+                                        <PenTool size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Pen</span>
+                                    </button>
+                                   <button onClick={() => { toolbarRef.current?.triggerTool('gradient'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group col-span-2">
+                                        <PaintBucket size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Fill / Gradient</span>
+                                    </button>
+                                </div>
+
+                                <div className="my-1 border-t border-border/50" />
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Assets</div>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('assets'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <ImageIcon size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Gallery</span>
                                 </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('pen'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Pen</span><span className="text-xs text-muted-foreground">P</span>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('templates'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <LayoutTemplate size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Library</span>
                                 </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('shapes'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Shapes</span><span className="text-xs text-muted-foreground">U</span>
+
+                                <div className="my-1 border-t border-border/50" />
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">AI & 3D</div>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('ai-zone'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Wand2 size={16} className="text-purple-500 group-hover:text-purple-600 transition-colors"/> <span>AI Zone</span>
                                 </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('text'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Text</span><span className="text-xs text-muted-foreground">T</span>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('3d-gen'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Box size={16} className="text-indigo-500 group-hover:text-indigo-600 transition-colors"/> <span>AI 3D</span>
                                 </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('gradient'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Fill / Gradient</span><span className="text-xs text-muted-foreground">G</span>
+
+                                <div className="my-1 border-t border-border/50" />
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Edit</div>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('adjustments'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Blend size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Adjustments</span>
                                 </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('assets'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Gallery</span><span className="text-xs text-muted-foreground">—</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('ai-zone'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>AI Zone</span><span className="text-xs text-muted-foreground">—</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('3d-gen'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>AI 3D</span><span className="text-xs text-muted-foreground">—</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('templates'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Library</span><span className="text-xs text-muted-foreground">—</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('adjustments'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Adjustments</span><span className="text-xs text-muted-foreground">—</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('layers'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between">
-                                    <span>Layers</span><span className="text-xs text-muted-foreground">L</span>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('layers'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Layers size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
+                                    <span className="flex-1">Layers</span>
+                                    <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">L</span>
                                 </button>
                             </div>
                         )}
@@ -2384,37 +2509,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      >
                         <User size={20} />
                      </button>
-                     
-                     <div className="flex items-center gap-2 mr-2">
-                         <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border transition-all ${
-                                has3DKey ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-600' : 'bg-secondary/30 border-transparent text-muted-foreground/30 opacity-50'
-                            }`} title={has3DKey ? "3D Services Connected" : "No 3D Services Connected"}
-                         >
-                            <Box size={14} strokeWidth={has3DKey ? 2 : 1.5} />
-                            {has3DKey && <span className="text-[10px] font-bold">3D</span>}
-                         </div>
-                         <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border transition-all ${
-                                has2DKey ? 'bg-purple-500/10 border-purple-500/20 text-purple-600' : 'bg-secondary/30 border-transparent text-muted-foreground/30 opacity-50'
-                            }`} title={has2DKey ? "Generative AI Connected" : "No Generative AI Connected"}
-                         >
-                            <Cloud size={14} strokeWidth={has2DKey ? 2 : 1.5} />
-                             {has2DKey && <span className="text-[10px] font-bold">AI</span>}
-                         </div>
-                     </div>
         
-                     <button
-                        onClick={() => {
-                            if (!isConnected) { onOpenSettings(); return; }
-                            if (!is3DMode) { setActiveTool(activeTool === 'ai-zone' ? 'select' : 'ai-zone'); }
-                        }}
-                        className={`p-2.5 rounded-full border flex items-center justify-center transition-all duration-200 ${
-                            isConnected ? 'bg-gradient-to-tr from-yellow-400/20 to-orange-500/20 border-orange-500/30 text-orange-600 hover:bg-orange-500/30 hover:shadow-md cursor-pointer'
-                            : 'bg-secondary/30 border-transparent text-muted-foreground/40 cursor-not-allowed group'
-                        }`}
-                        title={isConnected ? "Open Generator" : "Connect AI Services in Settings"}
-                     >
-                        <Sparkles size={18} className={`transition-all ${isConnected ? "text-orange-500 fill-orange-500/20" : "text-muted-foreground/40"}`} />
-                     </button>
                      <div className="h-6 w-px bg-border mx-1"></div>
                      
                      {/* Grid Menu */}
@@ -2450,9 +2545,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         )}
                      </div>
 
-                     <button className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground">
-                        <Share2 size={20} />
-                     </button>
+                     <div className="relative" ref={shareRef}>
+                        <button 
+                          onClick={() => setShowShareMenu(!showShareMenu)}
+                          className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                          title="Share"
+                        >
+                            <Share2 size={20} />
+                        </button>
+                         {showShareMenu && (
+                              <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                  <button onClick={() => handleShare('facebook')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Facebook size={16} className="text-blue-600"/> <span className="font-medium">Facebook</span></button>
+                                  <button onClick={() => handleShare('instagram')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Instagram size={16} className="text-pink-600"/> <span className="font-medium">Instagram</span></button>
+                            </div>
+                        )}
+                     </div>
                      
                      <div className="relative" ref={exportRef}>
                         <button 
@@ -2498,8 +2605,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             {/* Overlays */}
             <GridOverlay canvas={isExporting ? null : canvas} gridType={gridType} />
+            <GradientControls canvas={canvas} activeTool={activeTool} />
             <UserProfileModal 
-                isOpen={showProfileModal} 
+                isOpen={showProfileModal}  
                 onClose={() => setShowProfileModal(false)}
                 username={user} 
                 onLogout={() => {
@@ -2700,9 +2808,16 @@ document.addEventListener('DOMContentLoaded', () => {
                              <PropertiesPanel 
                                 canvas={canvas} 
                                 activeTool={activeTool} 
-                                onLayerDblClick={() => setActiveTool('select')}
+                                onLayerDblClick={(obj) => { 
+                                    if(obj && canvas) {
+                                        canvas.setActiveObject(obj);
+                                        canvas.requestRenderAll();
+                                    }
+                                    setActiveTool('select');
+                                }}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}
+                                onAssetSelect={handleAssetSelect}
                             />
                         </div>
                         <div 
@@ -2737,7 +2852,13 @@ document.addEventListener('DOMContentLoaded', () => {
                    )}
 
                    {/* Main Canvas Area - Full Width/Height */}
-                   <div className="absolute inset-0 z-0 overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
+                   <div 
+                        className="absolute inset-0 z-0 overflow-hidden" 
+                        onContextMenu={(e) => { 
+                            e.preventDefault(); 
+                            setContextMenu({ x: e.clientX, y: e.clientY, isOpen: true });
+                        }}
+                   >
                         {editingModelUrl && (
                                <ThreeDLayerEditor 
                                    modelUrl={editingModelUrl}
@@ -2807,6 +2928,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             onModified={handleCanvasModified}
                             initialWidth={initialSize?.width}
                             initialHeight={initialSize?.height}
+                            onRightClick={handleRightClick}
                         />
                    </div>
                    
@@ -2831,9 +2953,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             <PropertiesPanel 
                                 canvas={canvas} 
                                 activeTool={activeTool} 
-                                onLayerDblClick={() => setActiveTool('select')}
+                                onLayerDblClick={(obj) => { 
+                                    if(obj && canvas) {
+                                        canvas.setActiveObject(obj);
+                                        canvas.requestRenderAll();
+                                    }
+                                    setActiveTool('select');
+                                }}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}
+                                onAssetSelect={handleAssetSelect}
                             />
                         </div>
                         <div 
@@ -2870,15 +2999,31 @@ document.addEventListener('DOMContentLoaded', () => {
                              <PropertiesPanel 
                                 canvas={canvas} 
                                 activeTool={activeTool} 
-                                onLayerDblClick={() => setActiveTool('select')}
+                                onLayerDblClick={(obj) => { 
+                                    if(obj && canvas) {
+                                        canvas.setActiveObject(obj);
+                                        canvas.requestRenderAll();
+                                    }
+                                    setActiveTool('select');
+                                }}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}
+                                onAssetSelect={handleAssetSelect}
                             />
                         </div>
                     </div>
                 )}
                 <JobStatusFooter jobs={backgroundJobs} onClear={(id) => setBackgroundJobs(prev => prev.filter(j => j.id !== id))} />
             </div>
+            <CircularContextMenu 
+                x={contextMenu.x} 
+                y={contextMenu.y} 
+                isOpen={contextMenu.isOpen} 
+                onClose={() => setContextMenu({ ...contextMenu, isOpen: false })}
+                onSelectTool={(tool) => { 
+                    toolbarRef.current?.triggerTool(tool);
+                }}
+            />
         </div>
     );
 }

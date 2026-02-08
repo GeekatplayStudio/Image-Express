@@ -1,0 +1,222 @@
+
+> creative-flow@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.6.165:3000
+
+✓ Starting...
+✓ Ready in 2.8s
+○ Compiling / ...
+ GET / 200 in 3.5s (compile: 3.1s, render: 383ms)
+ GET /api/user/keys?userId=vovka 200 in 92ms (compile: 85ms, render: 7ms)
+ GET /api/designs/list 200 in 140ms (compile: 83ms, render: 57ms)
+ GET /api/user/keys?userId=vovka 200 in 6ms (compile: 2ms, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1884µs, render: 3ms)
+✓ Compiled in 98ms
+✓ Compiled in 118ms
+ GET / 200 in 275ms (compile: 47ms, render: 229ms)
+ GET /api/designs/list 200 in 9ms (compile: 3ms, render: 6ms)
+ GET /api/user/keys?userId=vovka 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 7ms (compile: 3ms, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1513µs, render: 3ms)
+ GET / 200 in 44ms (compile: 3ms, render: 41ms)
+ GET /api/designs/list 200 in 8ms (compile: 2ms, render: 5ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1776µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 6ms (compile: 1896µs, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1303µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 6ms (compile: 2ms, render: 3ms)
+ GET /api/designs/list 200 in 11ms (compile: 7ms, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1874µs, render: 3ms)
+ GET /api/designs/list 200 in 4ms (compile: 1242µs, render: 3ms)
+✓ Compiled in 95ms
+✓ Compiled in 215ms
+ GET / 200 in 185ms (compile: 32ms, render: 152ms)
+ GET /api/designs/list 200 in 5ms (compile: 1745µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1475µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 6ms (compile: 3ms, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 6ms (compile: 1846µs, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 2ms, render: 3ms)
+ GET /api/designs/list 200 in 11ms (compile: 7ms, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1863µs, render: 3ms)
+ GET /api/designs/list 200 in 5ms (compile: 1418µs, render: 3ms)
+✓ Compiled in 105ms
+✓ Compiled in 107ms
+✓ Compiled in 89ms
+✓ Compiled in 77ms
+✓ Compiled in 100ms
+✓ Compiled in 191ms
+✓ Compiled in 76ms
+✓ Compiled in 97ms
+✓ Compiled in 99ms
+ GET /api/designs/list 200 in 5ms (compile: 1893µs, render: 3ms)
+✓ Compiled in 83ms
+ GET /api/designs/list 200 in 5ms (compile: 1716µs, render: 3ms)
+✓ Compiled in 88ms
+✓ Compiled in 103ms
+✓ Compiled in 90ms
+✓ Compiled in 81ms
+✓ Compiled in 102ms
+✓ Compiled in 92ms
+✓ Compiled in 90ms
+ GET / 200 in 238ms (compile: 37ms, render: 201ms)
+ GET /api/designs/list 200 in 5ms (compile: 1779µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1319µs, render: 2ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1588µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1826µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/designs/list 200 in 12ms (compile: 8ms, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 3ms (compile: 1412µs, render: 1951µs)
+ GET /api/designs/list 200 in 5ms (compile: 1947µs, render: 3ms)
+✓ Compiled in 79ms
+✓ Compiled in 90ms
+✓ Compiled in 89ms
+✓ Compiled in 88ms
+✓ Compiled in 86ms
+✓ Compiled in 86ms
+✓ Compiled in 96ms
+✓ Compiled in 85ms
+✓ Compiled in 115ms
+✓ Compiled in 92ms
+ GET / 200 in 228ms (compile: 42ms, render: 186ms)
+ GET /api/designs/list 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1853µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1853µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 2ms, render: 2ms)
+✓ Compiled in 99ms
+✓ Compiled in 108ms
+✓ Compiled in 115ms
+✓ Compiled in 116ms
+✓ Compiled in 92ms
+ GET / 200 in 217ms (compile: 34ms, render: 183ms)
+ GET /api/designs/list 200 in 9ms (compile: 1977µs, render: 7ms)
+ GET /api/user/keys?userId=vovka 200 in 3ms (compile: 1401µs, render: 2ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1702µs, render: 2ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1421µs, render: 2ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 129ms (compile: 125ms, render: 4ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1786µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1212µs, render: 2ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 10ms (compile: 4ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_33_46%20AM-1770051106381-178868920.png 200 in 524ms (compile: 502ms, render: 22ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_43%20AM-1770051140042-889111889.png 200 in 527ms (compile: 504ms, render: 23ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_28%20AM-1770051149992-54158408.png 200 in 528ms (compile: 504ms, render: 23ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2010_02_03%20AM-1770051843498-930641710.png 200 in 525ms (compile: 502ms, render: 24ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_5rcb25rcb25rcb25-1770051345115-978587713.png 200 in 525ms (compile: 501ms, render: 24ms)
+ GET /api/assets/serve/uploads/images/guard.png 200 in 482ms (compile: 458ms, render: 25ms)
+ GET /api/assets/serve/uploads/images/spaceman.png 200 in 14ms (compile: 9ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/vovka-c-1770051889634-169660285.png 200 in 11ms (compile: 3ms, render: 8ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_foxeexfoxeexfoxe-1770051127774-285159866.png 200 in 21ms (compile: 13ms, render: 8ms)
+ GET /api/assets/serve/uploads/images/vovka.png 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/srq.png 200 in 9ms (compile: 4ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769136118241-1769136118315-196159909.png 200 in 16ms (compile: 10ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/generated-1769113486847-1769113487025-113613047.png 200 in 6ms (compile: 1761µs, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769182763198-1769182763244-719311517.png 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2010_02_03%20AM-1770051843498-930641710.png 200 in 10ms (compile: 6ms, render: 4ms)
+✓ Compiled in 96ms
+✓ Compiled in 104ms
+✓ Compiled in 81ms
+✓ Compiled in 196ms
+✓ Compiled in 257ms
+✓ Compiled in 95ms
+✓ Compiled in 94ms
+✓ Compiled in 88ms
+✓ Compiled in 107ms
+ GET /api/assets/list?type=images&category=uploads 200 in 6ms (compile: 1929µs, render: 4ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 5ms (compile: 1386µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 5ms (compile: 1457µs, render: 4ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1456µs, render: 3ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_28%20AM-1770051149992-54158408.png 200 in 14ms (compile: 10ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_43%20AM-1770051140042-889111889.png 200 in 20ms (compile: 16ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_5rcb25rcb25rcb25-1770051345115-978587713.png 200 in 63ms (compile: 58ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_33_46%20AM-1770051106381-178868920.png 200 in 10ms (compile: 3ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2010_02_03%20AM-1770051843498-930641710.png 200 in 16ms (compile: 11ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_foxeexfoxeexfoxe-1770051127774-285159866.png 200 in 26ms (compile: 19ms, render: 7ms)
+ GET /api/assets/serve/uploads/images/generated-1769113486847-1769113487025-113613047.png 200 in 8ms (compile: 4ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769136118241-1769136118315-196159909.png 200 in 13ms (compile: 9ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/spaceman.png 200 in 20ms (compile: 16ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/vovka-c-1770051889634-169660285.png 200 in 30ms (compile: 22ms, render: 8ms)
+ GET /api/assets/serve/uploads/images/srq.png 200 in 24ms (compile: 20ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/guard.png 200 in 7ms (compile: 2ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/vovka.png 200 in 6ms (compile: 3ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769182763198-1769182763244-719311517.png 200 in 5ms (compile: 1645µs, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2010_02_03%20AM-1770051843498-930641710.png 200 in 11ms (compile: 7ms, render: 4ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 6ms (compile: 1846µs, render: 4ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 3ms (compile: 1189µs, render: 2ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1083µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 2ms, render: 2ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_28%20AM-1770051149992-54158408.png 200 in 13ms (compile: 9ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_43%20AM-1770051140042-889111889.png 200 in 19ms (compile: 15ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_33_46%20AM-1770051106381-178868920.png 200 in 25ms (compile: 20ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2010_02_03%20AM-1770051843498-930641710.png 200 in 31ms (compile: 27ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_5rcb25rcb25rcb25-1770051345115-978587713.png 200 in 36ms (compile: 32ms, render: 3ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_foxeexfoxeexfoxe-1770051127774-285159866.png 200 in 47ms (compile: 38ms, render: 8ms)
+ GET /api/assets/serve/uploads/images/generated-1769113486847-1769113487025-113613047.png 200 in 9ms (compile: 4ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/vovka-c-1770051889634-169660285.png 200 in 20ms (compile: 11ms, render: 9ms)
+ GET /api/assets/serve/uploads/images/guard.png 200 in 33ms (compile: 27ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/vovka.png 200 in 39ms (compile: 35ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/srq.png 200 in 45ms (compile: 41ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/spaceman.png 200 in 7ms (compile: 1999µs, render: 5ms)
+ GET /api/assets/serve/uploads/images/generated-1769136118241-1769136118315-196159909.png 200 in 13ms (compile: 10ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769182763198-1769182763244-719311517.png 200 in 18ms (compile: 14ms, render: 4ms)
+✓ Compiled in 100ms
+ GET /api/assets/list?type=images&category=uploads 200 in 5ms (compile: 1629µs, render: 4ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1676µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 5ms (compile: 1268µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1585µs, render: 3ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_33_46%20AM-1770051106381-178868920.png 200 in 13ms (compile: 9ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_28%20AM-1770051149992-54158408.png 200 in 19ms (compile: 15ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_43%20AM-1770051140042-889111889.png 200 in 25ms (compile: 21ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2010_02_03%20AM-1770051843498-930641710.png 200 in 32ms (compile: 28ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_5rcb25rcb25rcb25-1770051345115-978587713.png 200 in 38ms (compile: 34ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_foxeexfoxeexfoxe-1770051127774-285159866.png 200 in 47ms (compile: 40ms, render: 7ms)
+ GET /api/assets/serve/uploads/images/generated-1769113486847-1769113487025-113613047.png 200 in 9ms (compile: 4ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769182763198-1769182763244-719311517.png 200 in 15ms (compile: 10ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/guard.png 200 in 23ms (compile: 17ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/spaceman.png 200 in 31ms (compile: 25ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/srq.png 200 in 46ms (compile: 42ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769136118241-1769136118315-196159909.png 200 in 6ms (compile: 1685µs, render: 4ms)
+ GET /api/assets/serve/uploads/images/vovka.png 200 in 6ms (compile: 3ms, render: 3ms)
+ GET /api/assets/serve/uploads/images/vovka-c-1770051889634-169660285.png 200 in 14ms (compile: 7ms, render: 7ms)
+ GET /api/assets/list?type=models&category=uploads 200 in 4ms (compile: 1496µs, render: 2ms)
+ GET /api/assets/serve/uploads/models/1769286705135-image_to_3d.glb 200 in 17ms (compile: 7ms, render: 10ms)
+ GET /api/assets/serve/uploads/models/1770001514075-tree_goblin__sc.glb 200 in 10ms (compile: 6ms, render: 4ms)
+ GET /api/assets/serve/uploads/models/1770001786820-swamp_goblin__s.glb 200 in 12ms (compile: 7ms, render: 5ms)
+ GET /api/assets/serve/uploads/models/1770253852782-image_to_3d.glb 200 in 14ms (compile: 6ms, render: 8ms)
+ GET /api/assets/serve/uploads/models/1770002750964-old_abended__wo.glb 200 in 6ms (compile: 1689µs, render: 5ms)
+ GET /api/assets/serve/uploads/models/1770256676791-image_to_3d.glb 200 in 15ms (compile: 6ms, render: 9ms)
+ GET /api/assets/serve/uploads/models/cowboy2.glb 200 in 20ms (compile: 7ms, render: 13ms)
+ GET /api/assets/serve/uploads/models/cowboy.glb 200 in 19ms (compile: 1988µs, render: 17ms)
+ GET /api/assets/serve/uploads/models/tree%20goblinc.glb 200 in 11ms (compile: 7ms, render: 4ms)
+ GET /api/assets/serve/uploads/models/robot.glb 200 in 11ms (compile: 6ms, render: 4ms)
+ GET /api/assets/serve/uploads/models/space.glb 200 in 13ms (compile: 6ms, render: 7ms)
+ GET /api/assets/serve/uploads/models/spaceman2.glb 200 in 10ms (compile: 1654µs, render: 8ms)
+ GET /api/assets/serve/uploads/models/robot-retro.glb 200 in 17ms (compile: 8ms, render: 9ms)
+ GET /api/assets/serve/uploads/models/dino.glb 200 in 33ms (compile: 7ms, render: 26ms)
+ GET /api/assets/serve/uploads/models/cybercat.glb 200 in 13ms (compile: 6ms, render: 7ms)
+ GET /api/assets/serve/uploads/models/cowboy3.glb 200 in 20ms (compile: 6ms, render: 14ms)
+ GET /api/assets/list?type=images&category=generated 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1769190624588-1769190624674-480728589.png 200 in 12ms (compile: 8ms, render: 5ms)
+ GET /api/assets/serve/generated/images/generated-1769190795786-1769190795797-671971590.png 200 in 19ms (compile: 15ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1769206474308-1769206474377-176824166.png 200 in 25ms (compile: 21ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1769225267024-1769225267322-93633326.png 200 in 7ms (compile: 3ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1769232498928-1769232498937-923189917.png 200 in 13ms (compile: 9ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1769285922888-1769285922970-879174783.png 200 in 19ms (compile: 14ms, render: 5ms)
+ GET /api/assets/serve/generated/images/generated-1769285968704-1769285968715-694858423.png 200 in 7ms (compile: 2ms, render: 5ms)
+ GET /api/assets/serve/generated/images/generated-1769838627900-1769838628084-375976335.png 200 in 9ms (compile: 4ms, render: 5ms)
+ GET /api/assets/serve/generated/images/generated-1769360421879-1769360421933-949204048.png 200 in 14ms (compile: 10ms, render: 3ms)
+ GET /api/assets/serve/generated/images/generated-1769360448112-1769360448120-385943853.png 200 in 19ms (compile: 15ms, render: 3ms)
+ GET /api/assets/serve/generated/images/generated-1770007406046-1770007406079-430439644.png 200 in 25ms (compile: 21ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1770009558255-1770009558282-110620256.png 200 in 9ms (compile: 3ms, render: 6ms)
+ GET /api/assets/serve/generated/images/generated-1770009755818-1770009755825-135726448.png 200 in 15ms (compile: 11ms, render: 3ms)
+ GET /api/assets/serve/generated/images/generated-1770082872194-1770082872202-611360047.png 200 in 12ms (compile: 8ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1770009671785-1770009671793-776473012.png 200 in 17ms (compile: 14ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1769893760445-1769893760458-723475593.png 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/assets/serve/generated/images/generated-1770564792006-1770564792556-789837766.png 200 in 5ms (compile: 1613µs, render: 3ms)
+ GET /api/assets/serve/generated/images/generated-1770252715296-1770252715446-923338718.png 200 in 10ms (compile: 6ms, render: 4ms)
+ GET /api/assets/list?type=videos&category=uploads 200 in 4ms (compile: 1367µs, render: 2ms)
+ GET /api/assets/serve/uploads/videos/CowboySaga-1769458325961-108283332.mp4 200 in 28ms (compile: 6ms, render: 22ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 6ms (compile: 3ms, render: 3ms)
+✓ Compiled in 81ms
+ GET /api/designs/list 200 in 7ms (compile: 1820µs, render: 5ms)
+ GET /api/designs/list 200 in 4ms (compile: 1149µs, render: 3ms)

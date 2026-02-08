@@ -10,7 +10,7 @@ import { Slider } from '../ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Switch } from '../ui/switch';
 import { useToast } from '@/providers/ToastProvider';
-import { BackgroundJob } from '@/types';
+import { BackgroundJob, ExtendedFabricObject } from '@/types';
 
 /**
  * Props for the Stability Generator Component
@@ -68,8 +68,9 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);         // Generated mask blob URL
     const maskCanvasRef = useRef<HTMLCanvasElement>(null);                       // Canvas ref for drawing mask
     const [isDrawingMask, setIsDrawingMask] = useState(false);
-    const [brushSize, setBrushSize] = useState([20]);
+    const [brushSize, setBrushSize] = useState([40]);
     const selectionCaptureTimerRef = useRef<number | null>(null);
+    const [isCanvasMasking, setIsCanvasMasking] = useState(false); // Controls main canvas painting mode
 
     // --- Outpainting State ---
     const [outpaintDirs, setOutpaintDirs] = useState({ left: false, right: false, up: false, down: false });
@@ -234,6 +235,149 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             scheduleSelectionCapture();
         }
     }, [flattenSelection, scheduleSelectionCapture, sourceType, canvas]);
+
+    // Cleanup masking if tab changes or component unmounts
+    useEffect(() => {
+        return () => {
+            if (isCanvasMasking && canvas) {
+                canvas.isDrawingMode = false;
+                // We don't auto-clear mask to allow toggling back and forth, 
+                // but we should ensure drawing mode is off.
+            }
+        };
+    }, [isCanvasMasking, canvas]);
+
+    /**
+     * Toggles the main canvas into "Mask Painting" mode.
+     */
+    const toggleCanvasMasking = () => {
+        if (!canvas) return;
+        
+        if (isCanvasMasking) {
+            // Stop Masking
+            canvas.isDrawingMode = false;
+            setIsCanvasMasking(false);
+        } else {
+            // Start Masking
+            // Deselect active object to prevent accidentally editing it, but keep it in view
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
+
+            canvas.isDrawingMode = true;
+            const brush = new fabric.PencilBrush(canvas);
+            brush.color = 'rgba(255, 200, 200, 0.7)'; // Semitransparent reddish/white
+            brush.width = brushSize[0];
+            canvas.freeDrawingBrush = brush;
+            setIsCanvasMasking(true);
+
+            // Tag new paths as masks
+            // We rely on the global listener in useEffect to tag paths
+        }
+    };
+
+    // Listener for path creation to tag masks
+    useEffect(() => {
+        if (!canvas || !isCanvasMasking) return;
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handlePathCreated = (e: any) => {
+             const path = e.path;
+             if (path) {
+                 path.set({ isMask: true, excludeFromExport: true, selectable: false });
+             }
+        };
+        
+        canvas.on('path:created', handlePathCreated);
+        
+        // Sync brush size changes live
+        if (canvas.freeDrawingBrush) {
+            canvas.freeDrawingBrush.width = brushSize[0];
+        }
+
+        return () => {
+            canvas.off('path:created', handlePathCreated);
+        };
+    }, [canvas, isCanvasMasking, brushSize]);
+
+
+    /**
+     * Clears all mask paths from the canvas.
+     */
+    const clearCanvasMask = () => {
+        if (!canvas) return;
+        const objects = canvas.getObjects();
+        const masks = objects.filter(obj => (obj as ExtendedFabricObject).isMask);
+        masks.forEach(m => canvas.remove(m));
+        canvas.requestRenderAll();
+    };
+
+    /**
+     * Snapshot the canvas and the mask layer separately for the API.
+     */
+    const captureCanvasAndMask = async (): Promise<{ imageBlob: Blob, maskBlob: Blob } | null> => {
+        if (!canvas) return null;
+        
+        // 1. Get dimensions (Artboard or Canvas)
+        const artboard = (canvas as CanvasWithArtboard).artboardRect;
+        const width = artboard ? artboard.width : canvas.width || 1024;
+        const height = artboard ? artboard.height : canvas.height || 1024;
+        const left = artboard ? artboard.left : 0;
+        const top = artboard ? artboard.top : 0;
+        
+        // 2. Hide Mask objects to capture "Clean Image"
+        const objects = canvas.getObjects();
+        const masks = objects.filter(obj => (obj as ExtendedFabricObject).isMask);
+        
+        masks.forEach(m => m.visible = false);
+        // Also hide overlay/grid if needed (handled by EditorView usually, but here manual)
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const imageParams: any = {
+            format: 'png',
+            multiplier: 1,
+            left, top, width, height
+        };
+        
+        const imageDataUrl = canvas.toDataURL(imageParams);
+        const imageBlob = await fetch(imageDataUrl).then(r => r.blob());
+        
+        // 3. Capture Mask (Black background, White shapes)
+        // Hide non-mask objects
+        const nonMasks = objects.filter(obj => !(obj as ExtendedFabricObject).isMask);
+        nonMasks.forEach(o => o.visible = false);
+        // Show masks, make them White
+        masks.forEach(m => {
+            m.visible = true;
+            const originalStroke = m.stroke;
+            m.set({ stroke: '#ffffff', fill: null }); // Ensure stroke is white
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (m as any)._originalStroke = originalStroke;
+        });
+        
+        // Set background black
+        const originalBg = canvas.backgroundColor;
+        canvas.backgroundColor = '#000000';
+        // Artboard might be white
+        if (artboard) artboard.visible = false;
+        
+        canvas.renderAll();
+        
+        const maskOutputUrl = canvas.toDataURL(imageParams);
+        const maskBlob = await fetch(maskOutputUrl).then(r => r.blob());
+        
+        // 4. Restore State
+        masks.forEach(m => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            m.set({ stroke: (m as any)._originalStroke || 'rgba(255, 200, 200, 0.7)' });
+            m.visible = true;
+        });
+        nonMasks.forEach(o => o.visible = true);
+        canvas.backgroundColor = originalBg;
+        if (artboard) artboard.visible = true;
+        canvas.renderAll();
+        
+        return { imageBlob, maskBlob };
+    };
 
     // --- API Handlers ---
 
@@ -504,20 +648,39 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
             return;
         }
-        if (!selectedCanvasImage) {
-            toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
-            return;
-        }
-        if (!maskDataUrl) {
-            toast({ title: 'No mask', description: 'Please draw a mask on the image.', variant: 'warning' });
-            return;
+
+        // New Logic: Main Canvas Masking
+        let imageBlob: Blob | null = null;
+        let maskBlob: Blob | null = null;
+
+        if (sourceType === 'canvas' || isCanvasMasking || canvas?.getObjects().some(o => (o as ExtendedFabricObject).isMask)) {
+             // Use Canvas Capture
+             const caps = await captureCanvasAndMask();
+             if (!caps) {
+                 toast({ title: 'Capture failed', description: 'Could not capture canvas.', variant: 'destructive' });
+                 return;
+             }
+             imageBlob = caps.imageBlob;
+             maskBlob = caps.maskBlob;
+        } else {
+            // Legacy/Selection Logic
+            if (!selectedCanvasImage) {
+                toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+                return;
+            }
+            if (!maskDataUrl) {
+                toast({ title: 'No mask', description: 'Please draw a mask on the image.', variant: 'warning' });
+                return;
+            }
+            imageBlob = await fetch(selectedCanvasImage).then(r => r.blob());
+            maskBlob = await fetch(maskDataUrl).then(r => r.blob());
         }
 
         setIsProcessing(true);
         try {
-           const imageBlob = await fetch(selectedCanvasImage).then(r => r.blob());
-           // Convert mask data URL to blob
-           const maskBlob = await fetch(maskDataUrl).then(r => r.blob());
+           if (!imageBlob || !maskBlob) {
+               throw new Error("Image or mask data is missing.");
+           }
 
            const formData = new FormData();
            formData.append('image', imageBlob);
@@ -534,6 +697,9 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
            const data = await res.json();
            if (data.success) {
                handleSuccess(data.image);
+               // Optional: Clear mask after success
+               // clearCanvasMask();
+               if (isCanvasMasking) toggleCanvasMasking(); // Exit mode
            } else {
                toast({ title: 'Inpaint failed', description: data.message || 'Error running inpaint.', variant: 'destructive' });
            }
@@ -807,43 +973,71 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
 
                     {/* --- TAB: INPAINTING --- */}
                     <TabsContent value="inpaint" className="space-y-4">
-                        {!selectedCanvasImage ? (
-                             <div className="p-4 border border-dashed rounded text-center text-muted-foreground">
-                                 Select an image on the canvas first.
-                             </div>
-                        ) : (
-                            <div className="space-y-2">
-                                <Label>Draw Mask (White = Edit Area)</Label>
-                                <div className="relative border rounded overflow-hidden cursor-crosshair bg-black"
-                                     onMouseDown={() => setIsDrawingMask(true)}
-                                     onMouseUp={() => {
-                                         setIsDrawingMask(false);
-                                         if(maskCanvasRef.current) setMaskDataUrl(maskCanvasRef.current.toDataURL());
-                                     }}
-                                     onMouseMove={drawMask}
-                                >
-                                    {/* Underlay Image */}
-                                    {/* eslint-disable-next-line @next/next/no-img-element -- Preserve natural sizing for canvas overlay alignment. */}
-                                    <img src={selectedCanvasImage} alt="Inpaint source preview" className="w-full h-auto opacity-50 pointer-events-none select-none" />
-                                    {/* Overlay Canvas for Masking */}
-                                    <canvas ref={maskCanvasRef} className="absolute inset-0 w-full h-full mix-blend-screen" />
+                        <div className="space-y-4">
+                            {!isCanvasMasking ? (
+                                <div className="space-y-4">
+                                     <div className="p-4 bg-secondary/10 rounded-lg space-y-2 border border-border/50">
+                                         <p className="text-sm font-medium">Use Main Canvas</p>
+                                         <p className="text-xs text-muted-foreground">Paint directly on your design to create a mask for inpainting.</p>
+                                         <Button 
+                                            variant="outline" 
+                                            className="w-full justify-start gap-2"
+                                            onClick={toggleCanvasMasking}
+                                         >
+                                             <Wand2 size={16} /> Start Canvas Masking
+                                         </Button>
+                                     </div>
+                                     
+                                     {/* Legacy Selection Fallback (Hidden if nothing selected or confusing) */}
+                                     {selectedCanvasImage && (
+                                         <div className="pt-2 border-t mt-2">
+                                             <Label className="text-xs text-muted-foreground mb-2 block">Or use selection preview (Legacy):</Label>
+                                             <div className="relative border rounded overflow-hidden cursor-crosshair bg-black"
+                                                 onMouseDown={() => setIsDrawingMask(true)}
+                                                 onMouseUp={() => {
+                                                     setIsDrawingMask(false);
+                                                     if(maskCanvasRef.current) setMaskDataUrl(maskCanvasRef.current.toDataURL());
+                                                 }}
+                                                 onMouseMove={drawMask}
+                                            >
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={selectedCanvasImage} alt="Inpaint source preview" className="w-full h-auto opacity-50 pointer-events-none select-none" />
+                                                <canvas ref={maskCanvasRef} className="absolute inset-0 w-full h-full mix-blend-screen" />
+                                            </div>
+                                         </div>
+                                     )}
                                 </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span>Brush Size: {brushSize}px</span>
-                                    <Slider className="w-32" value={brushSize} onValueChange={(val) => setBrushSize(val)} min={5} max={50} data-default="20" />
-                                </div>
-                                
-                                <div className="space-y-2 mt-2">
-                                     <Label>Prompt</Label>
-                                     <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="What to put in the masked area..." />
-                                </div>
+                            ) : (
+                                <div className="space-y-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg animate-in fade-in">
+                                    <h3 className="font-semibold text-sm flex items-center gap-2 text-red-500">
+                                        <Wand2 size={16} /> Masking Active
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">Draw on the canvas to highlight areas to replace.</p>
+                                    
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span>Brush Size: {brushSize[0]}px</span>
+                                            <Slider className="w-32" value={brushSize} onValueChange={(val) => setBrushSize(val)} min={5} max={100} step={5} />
+                                        </div>
+                                    </div>
 
-                                <Button className="w-full" onClick={handleInpaint} disabled={isProcessing}>
-                                    {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Eraser className="mr-2" />}
-                                    Inpaint
-                                </Button>
+                                    <div className="flex gap-2">
+                                         <Button size="sm" variant="destructive" className="flex-1" onClick={clearCanvasMask}>Clear Mask</Button>
+                                         <Button size="sm" variant="outline" className="flex-1" onClick={toggleCanvasMasking}>Stop</Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-2 mt-2">
+                                 <Label>Prompt</Label>
+                                 <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="What to put in the masked area..." />
                             </div>
-                        )}
+
+                            <Button className="w-full" onClick={handleInpaint} disabled={isProcessing}>
+                                {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Eraser className="mr-2" />}
+                                Generate (Inpaint)
+                            </Button>
+                        </div>
                     </TabsContent>
 
                      {/* --- TAB: UPSCALE --- */}

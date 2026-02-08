@@ -4,5 +4,6 @@
         "git add": true,
         "type": true,
         "npm install": true
-    }
+    },
+    "chat.agent.maxRequests": 50
 }

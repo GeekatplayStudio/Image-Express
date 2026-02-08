@@ -85,6 +85,25 @@ Run Image Express as a standalone desktop application without manual login on lo
 
 Inside the packaged app the Settings modal exposes “Desktop Updates” so users can manually check for new releases. Automatic checks run shortly after startup and every six hours; when an update finishes downloading the modal offers a restart button to install it.
 
+### 🔑 API Key Configuration
+
+To unlock full AI capabilities, you need to configure your API keys in the **Settings** menu. Keys are stored locally in your browser for security.
+
+1. **Open Settings**: Click the gear icon in the top-right corner of the Hub or Editor.
+2. **Navigate to API Keys**: Select the relevant tab (3D Services or Image Services).
+3. **Enter Keys**: Paste your keys and click Save.
+
+#### Supported Services:
+
+**3D Generation (Text-to-3D):**
+- **[Meshy AI](https://www.meshy.ai/)**: Get your key from the Meshy Dashboard.
+- **[Tripo AI](https://www.tripo3d.ai/)**: Sign up and generate an API key.
+- **[Hy3D / Hitems](https://www.hitems.com/)**: Professional text-to-3D service. Requires App ID + Key.
+
+**2D Generation (Text-to-Image):**
+- **[Stability AI](https://platform.stability.ai/)**: For Stable Diffusion generation.
+- **[OpenAI](https://platform.openai.com/)**: For DALL-E 3 integration.
+
 ### Optional: Google Drive Backups
 
 Keep a personal copy of every saved design in your Google Drive without exposing your credentials to the server.

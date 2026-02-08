@@ -29,6 +29,7 @@ export default function Home() {
   const [pendingDesignToLoad, setPendingDesignToLoad] = useState<{ data?: unknown } | null>(null);
   const [pendingTemplateJsonUrl, setPendingTemplateJsonUrl] = useState<string | null>(null);
   const [pendingDesignSize, setPendingDesignSize] = useState<{width: number, height: number} | null>(null);
+  const [pendingTool, setPendingTool] = useState<string | null>(null);
   const [showDocumentation, setShowDocumentation] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState({ has2D: false, has3D: false });
@@ -176,6 +177,7 @@ export default function Home() {
           initialDesign={pendingDesignToLoad}
           initialTemplateJsonUrl={pendingTemplateJsonUrl}
           initialSize={pendingDesignSize}
+          initialActiveTool={pendingTool ?? undefined}
           user={username}
           onBack={() => {
             setCurrentView('dashboard');
@@ -183,6 +185,7 @@ export default function Home() {
             setCurrentDesignName('Untitled Design');
             setPendingDesignToLoad(null);
             setPendingTemplateJsonUrl(null);
+            setPendingTool(null);
           }}
           onLogout={handleLogout}
           currentDesignId={currentDesignId}
@@ -282,12 +285,13 @@ export default function Home() {
 
         <div className="flex flex-1 overflow-hidden">
            <Dashboard 
-              onNewDesign={() => {
+              onNewDesign={(tool, size) => {
                   setCurrentDesignId(null);
                   setCurrentDesignName('Untitled Design');
                   setPendingDesignToLoad(null);
                   setPendingTemplateJsonUrl(null);
-                  setPendingDesignSize(null);
+                  setPendingDesignSize(size || null);
+                  if (tool) setPendingTool(tool);
                   setCurrentView('editor');
               }}
               onSelectTemplate={(t) => {

@@ -1,0 +1,48 @@
+landing page:
+ [Done] search templates not functional.
+ [Done] upload media not functional
+ [Done] create 3d, need take to generate 3d window popup
+ [Done] generate image need take to generate images popup
+ [Done] Filters for the templates not working
+ [Done] Add more templates, make them smaller in size, about 8 templates in row size.
+ [Done] Your projects tumbnails need have preview images, they need to be smaller, same templates.
+ [Done] Instead : What will you create today? we need random quotes from artists, inspiring quats, create jason with collection. need look nice as well with same effects on some words simular as right now on create
+
+Workspace
+    [Done] If click on custom size, it is need ask for size .
+    [Done] Top menu - Home button need change to the Hub.
+    [Done] Verify that drop down tools linket to correct places.
+    [Done] Drop down tools need have icons on left side same as in the toolbar. 
+    [Done] drop down links need to be more granylary, and go in subcategory, they also need work correctly.
+    [Done] Update documentation, special attention on how to get and set API key.
+    [Done] Remove icons for 3d and ai 
+    [Done] Share icon need open Facebook or instagram and submit canvas as image, make it like export of png.
+    Not implemented: Remove icon with person, we have duplicate with image
+
+    [Done] Add right click on mouse, should open tools in circle and allow fast selection, they should act same way as if you click on the toolbar, only next to cursor.
+    [Done] Implement color selector, wheel, with option display 2-3-4-5-6 complementary colors.
+    [Done] Implement custom pallets library. user can add palets and remove them. Picker tool can pick colors from palet and set as primary and secondery.
+    [Done] clicking on the lyers in canvas does not open their porperties sometimes.
+    [Done] double clicking on the layer in the layers view, should also open properties of selected layer.
+    [Done] lock on layers sometimes not working, very incosistant behavor.
+    [Done] incosistan behavor on watch eye icon, visible invisible.
+    [Done] Text arching clipping text. 
+    [Done] Gradient fill should have start and end and can be adjusted. 
+    [Done] Gtadient on the text sometimes not cover all text.
+
+[Done] AI inpainting need to be on main canvas, bigger size, easy to use.
+Clipping mask still confusing, need rework on workflow, make it more intuitive.
+[Done] Top layer can clip to the lower layer, to aply effect.
+[Done] Cureve and adjustment layers properties does not open by double time clicking. (Fixed selection logic)
+
+[Done] Pen path need to be saved on one layer (Reverted auto-grouping: each path is now a separate, re-editable layer)
+[Done] Pen options als oshowing on left toolbar, they squeeshed, need show in extendet window.
+[Done] Option to make text follow path we draw. (Select Text + Path -> Click Path icon)
+[Done] Hydration failed because the server rendered text didn't match the client. (Fixed random quote generation logic)
+[Done] Clicking on the lyers in canvas does not open their porperties sometimes. (Fixed EditorView selection logic)
+[Done] double clicking on the layer in the layers view, should also open properties of selected layer. (Verified and strengthened)
+
+with gradinet and repositioning, we need see the points of orgin of the colors
+Need have color wheel and way to save palets and retrive them.
+Doulbe click on layers in leayer view open properties for short time and then switching to back to canvas view.
+Landing page(hub) instead 8 thimbnails in row, show 6. and display last used templates first, and let people use filters to select and show other

@@ -98,7 +98,9 @@ export interface ExtendedFabricObject extends fabric.Object {
     clipped?: boolean;
     aiGenerated?: boolean;
     aiProvider?: string;
+    isPenGroup?: boolean;
     isPenPath?: boolean;
+    isMask?: boolean; // For Inpainting
     penMode?: 'straight' | 'smooth' | 'bezier';
     penClosed?: boolean;
     penNodes?: PenNode[];

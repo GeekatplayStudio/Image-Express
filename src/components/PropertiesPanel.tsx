@@ -20,6 +20,7 @@ import { LayersView } from './properties/LayersView';
 import { SelectionProperties } from './properties/SelectionProperties';
 import { PaintProperties } from './properties/PaintProperties';
 import { CanvasSettingsPanel } from './properties/CanvasSettingsPanel';
+import AssetLibrary from './AssetLibrary';
 
 // Utils & Libs
 import { 
@@ -302,12 +303,22 @@ const extractSceneBezierNodes = (obj: ExtendedFabricObject, closed: boolean): Pe
 interface PropertiesPanelProps {
     canvas: fabric.Canvas | null;
     activeTool: string;
-    onLayerDblClick?: () => void;
+    onLayerDblClick?: (obj?: fabric.Object) => void;
     onMake3D?: (imageUrl: string) => void;
     onDuplicate?: () => void;
+    onAssetSelect?: (url: string, type: string, name?: string) => void;
 }
 
-export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onDuplicate }: PropertiesPanelProps) {
+const removeGradientControls = (obj: fabric.Object) => {
+    if (obj && obj.controls) {
+        // Cast controls to allow dynamic property deletion
+        const controls = obj.controls as Record<string, fabric.Control>;
+        delete controls.gradientStart;
+        delete controls.gradientEnd;
+    }
+};
+
+export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onDuplicate, onAssetSelect }: PropertiesPanelProps) {
     const [selectedObject, setSelectedObject] = useState<ExtendedFabricObject | null>(null);
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -356,6 +367,185 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [textEffectConfigs, setTextEffectConfigs] = useState<Record<string, any>>({});
     const [brightnessValue, setBrightnessValue] = useState(0);
+
+    // Gradient Handles
+
+    // Helper to calculate canvas position from gradient percentage
+    const getCanvasPointFromGradient = (obj: fabric.Object, x: number, y: number) => {
+         const width = obj.width || 0;
+         const height = obj.height || 0;
+         // Gradient coords are 0..1 relative to top-left of object?
+         // In Fabric, coords map to the object bounding box.
+         // (0,0) is Top-Left, (1,1) is Bottom-Right.
+         // Object origin is typically center/center in this app?
+         // If origin is center, then top-left is (-width/2, -height/2).
+         
+         // Let's assume standard origin center.
+         const localX = (x - 0.5) * width;
+         const localY = (y - 0.5) * height;
+         
+         const matrix = obj.calcTransformMatrix();
+         const point = new fabric.Point(localX, localY);
+         return fabric.util.transformPoint(point, matrix);
+    };
+
+    // Helper to calculate gradient percentage from canvas position
+    const getGradientPointFromCanvas = (obj: fabric.Object, canvasX: number, canvasY: number) => {
+         const matrix = obj.calcTransformMatrix();
+         const inverted = fabric.util.invertTransform(matrix);
+         const point = new fabric.Point(canvasX, canvasY);
+         const local = fabric.util.transformPoint(point, inverted);
+         
+         const width = obj.width || 0;
+         const height = obj.height || 0;
+         
+         // Local is relative to center
+         // Convert to 0..1
+         const x = (local.x / width) + 0.5;
+         const y = (local.y / height) + 0.5;
+         return { x, y };
+    };
+
+    // --- Gradient Controls (Active Fabric Controls) ---
+    useEffect(() => {
+        if (!canvas || !selectedObject) return;
+
+        const isLinearGradient =
+            selectedObject.fill &&
+            typeof selectedObject.fill !== 'string' &&
+            (selectedObject.fill as fabric.Gradient<'linear'>).type === 'linear' &&
+            // Check if it has coords
+            (selectedObject.fill as fabric.Gradient<'linear'>).coords;
+
+        if (isLinearGradient && isGradient) {
+            // Retrieve object from canvas to avoid modifying state directly
+            const object = canvas.getActiveObject() as ExtendedFabricObject;
+            
+            // Safety check
+            if (!object || object !== selectedObject) return;
+
+            // 1. Define Position Handler (Local Gradient Coords -> Canvas Point)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const getControlPosition = (xProp: 'x1'|'x2', yProp: 'y1'|'y2', fabricObject: any) => {
+                 const fill = fabricObject.fill as fabric.Gradient<'linear'>;
+                 if (!fill || !fill.coords) return new fabric.Point(0, 0);
+                 const cX = fill.coords[xProp] ?? (xProp === 'x1' ? 0 : 1);
+                 const cY = fill.coords[yProp] ?? 0.5;
+                 
+                 // Reuse existing helper (returns {x,y} in canvas space)
+                 const p = getCanvasPointFromGradient(fabricObject as ExtendedFabricObject, cX, cY);
+                 return new fabric.Point(p.x, p.y);
+            };
+
+            // 2. Define Action Handler (Canvas Drag -> Update Gradient Coords)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const onControlDrag = (eventData: any, transform: fabric.Transform, x: number, y: number, isStart: boolean) => {
+                 const fabricObject = transform.target as ExtendedFabricObject;
+                 const p = getGradientPointFromCanvas(fabricObject, x, y);
+                 
+                 const fill = fabricObject.fill as fabric.Gradient<'linear'>;
+                 if (!fill.coords) return false;
+                 
+                 // Update fill.coords directly
+                 // We create a new coords object to be safe or mutate? Fabric gradients are mutable.
+                 if (isStart) {
+                     fill.coords.x1 = p.x;
+                     fill.coords.y1 = p.y;
+                 } else {
+                     fill.coords.x2 = p.x;
+                     fill.coords.y2 = p.y;
+                 }
+                 
+                 // Update React State throttled or just let 'selection:updated' handle end?
+                 // We want live update of the input fields?
+                 // Updating state triggers re-renders which might be expensive. 
+                 // We'll update the angle calculation for UI consistency if simple.
+                 
+                 // Since we are inside the effect, using 'setGradientCoords' here captures the closure.
+                 // We can call it.
+                 setGradientCoords({ ...fill.coords });
+                 
+                 const dx = (fill.coords.x2 ?? 1) - (fill.coords.x1 ?? 0);
+                 const dy = (fill.coords.y2 ?? 0) - (fill.coords.y1 ?? 0);
+                 const angleDeg = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+                 setGradientAngle(Math.round(angleDeg));
+
+                 return true; // modified
+            };
+
+            // 3. Add Controls
+            object.controls.gradientStart = new fabric.Control({
+                x: 0, y: 0, // ignored by positionHandler
+                cursorStyle: 'crosshair',
+                positionHandler: (dim, finalMatrix, fabricObject) => getControlPosition('x1', 'y1', fabricObject),
+                actionHandler: (eventData, transform, x, y) => onControlDrag(eventData, transform, x, y, true),
+                render: (ctx, left, top) => {
+                    ctx.save();
+                    ctx.translate(left, top);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = '#333333';
+                    ctx.lineWidth = 1;
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            });
+
+            object.controls.gradientEnd = new fabric.Control({
+                x: 0, y: 0, 
+                cursorStyle: 'crosshair',
+                positionHandler: (dim, finalMatrix, fabricObject) => getControlPosition('x2', 'y2', fabricObject),
+                actionHandler: (eventData, transform, x, y) => onControlDrag(eventData, transform, x, y, false),
+                render: (ctx, left, top, _styleOverride, fabricObject) => {
+                    // Draw Line from Start to End
+                    const fill = fabricObject.fill as fabric.Gradient<'linear'>;
+                    if (fill && fill.coords) {
+                         // Recalculate Start position for drawing line
+                         const startP = getCanvasPointFromGradient(fabricObject as ExtendedFabricObject, fill.coords.x1??0, fill.coords.y1??0.5);
+                         ctx.save();
+                         ctx.beginPath();
+                         ctx.moveTo(startP.x, startP.y);
+                         ctx.lineTo(left, top);
+                         ctx.strokeStyle = '#888';
+                         ctx.setLineDash([4, 4]);
+                         ctx.stroke();
+                         ctx.restore();
+                    }
+
+                    // Draw End Handle
+                    ctx.save();
+                    ctx.translate(left, top);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = '#000000';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            });
+
+            canvas.requestRenderAll();
+
+        } else {
+            // Cleanup controls if they exist
+            if (selectedObject.controls.gradientStart) {
+                removeGradientControls(selectedObject);
+                canvas.requestRenderAll();
+            }
+        }
+
+        // Cleanup on unmount or when object changes
+        return () => {
+             removeGradientControls(selectedObject);
+        }
+    }, [selectedObject, isGradient, canvas]);
+
+
+
     const [contrastValue, setContrastValue] = useState(0);
     const [noiseValue, setNoiseValue] = useState(0);
     const [saturationValue, setSaturationValue] = useState(0);
@@ -611,7 +801,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         canvas.requestRenderAll();
     }, [canvas]);
 
-    useEffect(() => {
+    useEffect(() => { 
         if (!canvas) return;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (canvas as any).on('artboard:resize', syncCanvasMetrics);
@@ -1206,8 +1396,9 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                  // Avoid a fully closed path to prevent glyph overlap at max.
                  const maxAngle = (Math.PI * 2) - 0.001;
                  const angle = minAngle + (maxAngle - minAngle) * t;
-                 // Add a small length buffer at stronger curves to keep text from wrapping on itself.
-                 const padding = Math.max(2, textObj.fontSize * 0.1, textWidth * 0.01);
+                 // Add a generous length buffer at stronger curves to keep text from wrapping on itself or clipping end characters.
+                 // Glyphs on curve edges often need more room.
+                 const padding = Math.max(10, textObj.fontSize * 0.5, textWidth * 0.1); 
                  const arcLength = textWidth + (padding * t);
                  const radius = arcLength / angle;
                  const chord = 2 * radius * Math.sin(angle / 2);
@@ -1673,7 +1864,6 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                                  shadowOffsetY: config.offsetY
                              });
                              break;
-                         // Outline case removed
                          case 'double-outline':
                              handlePropChange('shadowStrokeUpdate', {
                                  strokeEnabled: true,
@@ -1717,81 +1907,89 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                              selectedObject.set('backgroundColor', applyAlphaToColor(config.color, config.opacity));
                              if (config.blendMode) selectedObject.set('globalCompositeOperation', config.blendMode);
                              break;
-                 case 'gradient-fill':
-                     handlePropChange('gradient', {
-                        type: 'linear',
-                        start: config.start,
-                        end: config.end,
-                        angle: config.angle
-                    });
-                     break;
+                         case 'gradient-fill':
+                             handlePropChange('gradient', {
+                                type: 'linear',
+                                start: config.start,
+                                end: config.end,
+                                angle: config.angle
+                            });
+                             break;
                          case 'extrude':
                              handlePropChange('shadowStrokeUpdate', {
-                         shadowEnabled: true,
-                         shadowColor: config.color,
-                         shadowBlur: 0,
-                         shadowOpacity: config.opacity,
-                         shadowOffsetX: config.depth,
-                         shadowOffsetY: config.depth
-                     });
-                     break;
+                                 shadowEnabled: true,
+                                 shadowColor: config.color,
+                                 shadowBlur: 0,
+                                 shadowOpacity: config.opacity,
+                                 shadowOffsetX: config.depth,
+                                 shadowOffsetY: config.depth
+                             });
+                             break;
                          case 'bevel':
                              handlePropChange('shadowStrokeUpdate', {
-                         strokeEnabled: true,
-                         strokeColor: config.highlightColor, // Using as highlight
-                         strokeWidth: config.width/2,
-                         strokeOpacity: 0.8,
-                         shadowEnabled: true,
-                         shadowColor: config.shadowColor,
-                         shadowBlur: config.blur,
-                         shadowOpacity: 0.5,
-                         shadowOffsetX: config.width,
-                         shadowOffsetY: config.width
-                     });
-                     break;
+                                 strokeEnabled: true,
+                                 strokeColor: config.highlightColor, 
+                                 strokeWidth: config.width/2,
+                                 strokeOpacity: 0.8,
+                                 shadowEnabled: true,
+                                 shadowColor: config.shadowColor,
+                                 shadowBlur: config.blur,
+                                 shadowOpacity: 0.5,
+                                 shadowOffsetX: config.width,
+                                 shadowOffsetY: config.width
+                             });
+                             break;
                          case 'sticker':
                              handlePropChange('shadowStrokeUpdate', {
-                         borderEnabled: true,
-                         borderColor: config.borderColor,
-                         borderWidth: config.borderWidth,
-                         borderOpacity: 1,
-                         shadowEnabled: true,
-                         shadowColor: '#000000',
-                         shadowBlur: config.shadowBlur,
-                         shadowOpacity: 0.35,
-                         shadowOffsetX: 4,
-                         shadowOffsetY: 4
-                     });
-                     break;
-                 case 'texture':
-                     // Texture usually static but could have scale
-                     // For now, keep texture static or re-generate if we add controls
-                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                     if (!selectedObject.fill || (selectedObject.fill as any).type !== 'pattern') {
-                        // Re-generate texture
-                        const patternCanvas = document.createElement('canvas');
-                        patternCanvas.width = 64; patternCanvas.height = 64;
-                        const ctx = patternCanvas.getContext('2d');
-                        if (ctx) {
-                            const imageData = ctx.createImageData(64, 64);
-                            for (let i = 0; i < imageData.data.length; i += 4) {
-                                const v = Math.floor(Math.random() * 255);
-                                imageData.data[i] = v;
-                                imageData.data[i + 1] = v;
-                                imageData.data[i + 2] = v;
-                                imageData.data[i + 3] = 50;
-                            }
-                            ctx.putImageData(imageData, 0, 0);
-                        }
-                        const pattern = new fabric.Pattern({ source: patternCanvas, repeat: 'repeat' });
-                        selectedObject.set('fill', pattern);
-                        setIsGradient(false);
-                        selectedObject.set('dirty', true);
+                                 borderEnabled: true,
+                                 borderColor: config.borderColor,
+                                 borderWidth: config.borderWidth,
+                                 borderOpacity: 1,
+                                 shadowEnabled: true,
+                                 shadowColor: '#000000',
+                                 shadowBlur: config.shadowBlur,
+                                 shadowOpacity: 0.35,
+                                 shadowOffsetX: 4,
+                                 shadowOffsetY: 4
+                             });
+                             break;
+                         case 'texture':
+                             if (!selectedObject.fill || (selectedObject.fill as fabric.Pattern).type !== 'pattern') {
+                                const patternCanvas = document.createElement('canvas');
+                                patternCanvas.width = 64; patternCanvas.height = 64;
+                                const ctx = patternCanvas.getContext('2d');
+                                if (ctx) {
+                                    const imageData = ctx.createImageData(64, 64);
+                                    for (let i = 0; i < imageData.data.length; i += 4) {
+                                        const v = Math.floor(Math.random() * 255);
+                                        imageData.data[i] = v;
+                                        imageData.data[i + 1] = v;
+                                        imageData.data[i + 2] = v;
+                                        imageData.data[i + 3] = 50;
+                                    }
+                                    ctx.putImageData(imageData, 0, 0);
+                                }
+                                const pattern = new fabric.Pattern({ source: patternCanvas, repeat: 'repeat' });
+                                selectedObject.set('fill', pattern);
+                                setIsGradient(false);
+                                selectedObject.set('dirty', true);
+                             }
+                             break;
                      }
-                     break;
-             }
-            });
-         };
+                 });
+
+                 // Fix clipping for text with effects or paths by adding padding
+                 if (newActive.length > 0 || (selectedObject as fabric.Path).path) {
+                    if ((selectedObject.padding || 0) < 20) {
+                        selectedObject.set('padding', 20);
+                        // Also adjust dirty flag to ensure bounding box redraw
+                        selectedObject.set('dirty', true); 
+                    }
+                 } else {
+                     // Reset padding if no effects/path
+                     selectedObject.set('padding', 0);
+                 }
+            };
          applyTextEffects();
          canvas.requestRenderAll();
         }
@@ -2055,20 +2253,44 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         const active = canvas.getActiveObjects();
         if (active.length !== 2) return;
         
-        const sorted = [...active].sort((a,b) => {
-             const idxA = canvas.getObjects().indexOf(a);
-             const idxB = canvas.getObjects().indexOf(b);
-             return idxA - idxB;
-        });
+        // Smart Masking Logic
+        // Heuristic: Shape usually masks Image.
+        const isShape = (o: fabric.Object) => 
+            ['rect', 'circle', 'triangle', 'polygon', 'path', 'ellipse'].includes(o.type);
+        const isImage = (o: fabric.Object) => 
+            ['image', 'group'].includes(o.type);
+
+        const objA = active[0];
+        const objB = active[1];
         
-        const target = sorted[0]; // Bottom
-        const mask = sorted[1];   // Top
+        let mask: fabric.Object | null = null;
+        let target: fabric.Object | null = null;
+
+        // 1. Identify Mask vs Target
+        if (isShape(objA) && isImage(objB)) {
+            mask = objA; target = objB;
+        } else if (isShape(objB) && isImage(objA)) {
+            mask = objB; target = objA;
+        } else {
+             // 2. Fallback: Top masks Bottom (Standard)
+             // We need Z-index order
+             const idxA = canvas.getObjects().indexOf(objA);
+             const idxB = canvas.getObjects().indexOf(objB);
+             
+             if (idxA > idxB) {
+                 mask = objA; target = objB; // Top is Mask
+             } else {
+                 mask = objB; target = objA;
+             }
+        }
         
-        // 1. Clone mask
+        if (!mask || !target) return;
+
+        // Clone mask
         const cloned = await mask.clone();
         
-        // 2. Calculate transform to move Mask into Target's local space (Relative)
-        // This ensures the mask stays visually in place but attaches to the target.
+        // Convert Mask World Transform -> Target Local Transform
+        // This ensures the mask stays visually in place relative to the target, and moves with it.
         const targetMatrix = target.calcTransformMatrix();
         const maskMatrix = mask.calcTransformMatrix();
         const targetInverse = fabric.util.invertTransform(targetMatrix);
@@ -2077,15 +2299,21 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         // Apply local transform to cloned mask
         fabric.util.applyTransformToObject(cloned, localMatrix);
 
-        // 3. Configure as relative mask
+        // Configure as relative mask
         cloned.set({
              absolutePositioned: false 
         });
         
-        // 4. Update Target
+        // Apply
         target.clipPath = cloned;
 
-        // 5. Cleanup
+        // Handle Adjustment Layers special case
+        if ((target as ExtendedFabricObject).isAdjustmentLayer) {
+            (target as ExtendedFabricObject).clipped = true;
+            applyAdjustmentLayers();
+        }
+
+        // Cleanup
         canvas.remove(mask);
         canvas.discardActiveObject();
         canvas.setActiveObject(target);
@@ -2093,33 +2321,62 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         updateObjects();
     };
 
-    const handleCreateClip = async () => {
+    const handleTextOnPath = async () => {
         if (!canvas) return;
         const active = canvas.getActiveObjects();
         if (active.length !== 2) return;
-
-        // Stacking order: Bottom (lower index) clips Top (higher index)
-        const sorted = [...active].sort((a, b) => {
-            const idxA = canvas.getObjects().indexOf(a);
-            const idxB = canvas.getObjects().indexOf(b);
-            return idxA - idxB;
-        });
-
-        const mask = sorted[0];   // Bottom acts as mask
-        const target = sorted[1]; // Top is clipped
-
-        const cloned = await mask.clone();
+        
+        const textObj = active.find(o => o.type === 'i-text' || o.type === 'text') as fabric.IText | undefined;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (cloned as any).absolutePositioned = true;
-        cloned.left = mask.left;
-        cloned.top = mask.top;
-        cloned.angle = mask.angle;
-        cloned.scaleX = mask.scaleX;
-        cloned.scaleY = mask.scaleY;
+        const pathObj = active.find(o => o.type === 'path' || o.type === 'polyline') as any;
+        
+        if (!textObj || !pathObj) return;
 
-        target.clipPath = cloned;
+        // Create a path instance for the text
+        let pathForText: fabric.Path;
+
+        if (pathObj.type === 'polyline') {
+            // Convert points to path data
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const points = (pathObj as any).points as {x:number, y:number}[];
+            if (!points || points.length < 2) return;
+            
+            const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+            pathForText = new fabric.Path(d);
+            // Copy transforms
+            pathForText.left = pathObj.left;
+            pathForText.top = pathObj.top;
+            pathForText.scaleX = pathObj.scaleX;
+            pathForText.scaleY = pathObj.scaleY;
+            pathForText.angle = pathObj.angle;
+            pathForText.width = pathObj.width;
+            pathForText.height = pathObj.height;
+        } else {
+             // It's a Path
+             pathForText = await pathObj.clone();
+        }
+
+        // Align coordinates - Fabric Text Path uses the path relative to text center if not absolute?
+        // Actually, documentation says: "The path is relative to object center."
+        // So we need to position the path effectively.
+        // For simplicity v1: Just assign it.
+        // We might need to adjust (pathForText.absolutePositioned = true) if supported or manual offset.
+        
+        // Use the path absolute position
+        // const absolutePositioned = true; 
+        
+        // Fabric 6 way?
+        // textObj.path = pathForText;
+        // pathForText.absolutePositioned = true; // If supported.
+        
+        // We set it and hide the original
+        textObj.set({ path: pathForText });
+        
+        // Hide original
+        pathObj.visible = false;
+        
         canvas.discardActiveObject();
-        canvas.setActiveObject(target);
+        canvas.setActiveObject(textObj);
         canvas.requestRenderAll();
         updateObjects();
     };
@@ -2154,6 +2411,12 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                  
                  canvas.add(restoredObj);
                 selectedObject.clipPath = undefined;
+                
+                if ((selectedObject as ExtendedFabricObject).isAdjustmentLayer) {
+                    (selectedObject as ExtendedFabricObject).clipped = false;
+                    applyAdjustmentLayers();
+                }
+
                 selectedObject.set('dirty', true);
                 canvas.requestRenderAll();
                 updateObjects();
@@ -2197,6 +2460,17 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         updateObjects();
     };
 
+    if (activeTool === 'assets') {
+        return (
+            <div className="h-full flex flex-col bg-card overflow-hidden">
+                <AssetLibrary 
+                    onSelect={(url, type, name) => onAssetSelect?.(url, type, name)}
+                    onClose={() => {}} 
+                />
+            </div>
+        );
+    }
+
     if (activeTool === 'paint') {
         return (
             <PaintProperties 
@@ -2225,6 +2499,9 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                      if (!canvas) return;
                      const isMulti = !!(e?.shiftKey || e?.metaKey || e?.ctrlKey);
                      if (!isMulti) { 
+                         const currentActive = canvas.getActiveObject();
+                         if (currentActive === obj) return;
+
                          canvas.discardActiveObject();
                          canvas.setActiveObject(obj);
                          canvas.requestRenderAll(); 
@@ -2257,7 +2534,8 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                     handlePropChange('globalCompositeOperation', value);
                 }}
                 onToggleVisibility={(obj) => { 
-                    obj.visible = !obj.visible; 
+                    obj.visible = !obj.visible;
+                    if (obj.group) obj.group.set('dirty', true); // Ensure group redraws if child visibility changes 
                     canvas?.requestRenderAll(); 
                     if ((obj as ExtendedFabricObject).isAdjustmentLayer) applyAdjustmentLayers();
                     updateObjects();
@@ -2266,8 +2544,10 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                     const l = !(obj as ExtendedFabricObject).locked;
                     (obj as ExtendedFabricObject).locked = l;
                     obj.set({ lockMovementX: l, lockMovementY: l, selectable: !l, evented: !l });
+                    if (obj.group) obj.group.set('dirty', true);
                     canvas?.discardActiveObject();
                     canvas?.requestRenderAll();
+                    updateObjects();
                 }}
                 onDelete={deleteLayer}
                 onReorder={handleReorder}
@@ -2417,7 +2697,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              onGroup={handleGroup}
              onUngroup={handleUngroup}
              onCreateMask={handleCreateMask}
-                onCreateClip={handleCreateClip}
+             onTextOnPath={handleTextOnPath}
              onReleaseMask={handleReleaseMask}
              onToggleMaskLock={toggleMaskLock}
              updateAdjustment={updateAdjustment}

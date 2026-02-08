@@ -27,6 +27,11 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
 | Feb 1 2026 | `PaintProperties.tsx` | Added `setCoords()` calls to fix brush stroke positioning | ✅ Done |
 | Feb 2 2026 | `PropertiesPanel.tsx` | Implemented `textEffectConfigUpdate` for parametric text effects | ✅ Done |
 | Feb 2 2026 | `TextEffectsProperties.tsx` | Created UI for Text Effects with per-preset settings | ✅ Done |
+| Feb 8 2026 | `Toolbar.tsx` | Fixed Pen Tool path drift by normalizing coordinates | ✅ Done |
+| Feb 8 2026 | `GradientControls.tsx` | Fixed type safety (removed `any`) | ✅ Done |
+| Feb 8 2026 | `Dashboard.test.tsx` | Updated tests for Custom Size modal flow | ✅ Done |
+| Feb 8 2026 | Build | `npm run build` passes | ✅ Verified |
+| Feb 8 2026 | Lint | `npm run lint` - warnings only, no errors | ✅ Verified |
 | Feb 1 2026 | Build | `npm run build` passes | ✅ Verified |
 | Feb 1 2026 | Lint | `npm run lint` - warnings only, no errors | ✅ Verified |
 
@@ -56,6 +61,7 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
 - [x] **Shadow Offsets**: Extended range to ±200px for more flexibility.
 - [x] **Shadow Blur**: Extended max to 150px.
 - [x] **Text Curves**: Improved algorithm with cubic bezier for smooth arcs.
+- [x] **Pen Tool Path**: Fixed - Paths now save with relative coordinates.
 
 ## 5. Shadow & Stroke System
 - [x] **Stroke**: Inside/Outside rendering toggle.

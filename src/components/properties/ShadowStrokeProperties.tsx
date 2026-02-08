@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
+import { ColorPicker } from './ColorPicker';
 
 export interface ShadowStrokeValues {
     // Stroke (Inside)
@@ -55,15 +56,8 @@ const BLEND_MODES = [
 ];
 
 const CompactColorPicker = ({ color, onChange, opacity = 1 }: { color: string, onChange: (val: string) => void, opacity?: number }) => (
-    <div className="relative w-8 h-8 rounded-md border border-border/60 shadow-sm overflow-hidden group shrink-0">
-        <div className="absolute inset-0 z-0 bg-image-checkered opacity-20" />
-        <div className="absolute inset-0 z-10" style={{ backgroundColor: color, opacity }} />
-        <input 
-            type="color" 
-            value={color}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-        />
+    <div className="w-8 shrink-0">
+        <ColorPicker color={color} onChange={onChange} label="" />
     </div>
 );
 

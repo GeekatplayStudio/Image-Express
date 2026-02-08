@@ -40,14 +40,16 @@
 | 17 | Reset password + change password in profile | Not started | src/components/LoginModal.tsx, src/components/UserProfileModal.tsx, src/app/api/user/* | - | - | |
 | 18 | Import/export asset library | Not started | src/components/AssetLibrary.tsx, src/app/api/assets/* | - | - | |
 | 19 | Online storage integration | Not started | src/components/SettingsModal.tsx, src/app/api/* | - | - | |
-| 20 | Curves window scalable; must affect layers below or clipped | Done | src/components/properties/AdjustmentControls.tsx, src/components/PropertiesPanel.tsx | Pass | Pass | Scalable UI; Clipped/Global application logic |
+| 20 | Curves window scalable; must affect layers below or clipped | Done | src/components/properties/AdjustmentControls.tsx, src/components/PropertiesPanel.tsx | Pass | Pass | Scalable UI; Clipped/Global application logic. Added `clipped` metadata in `handleCreateClip`. |
 | 21 | Warning on unsaved changes | Done | src/components/Editor/EditorView.tsx | Warnings | Pass | Restored native "BeforeUnload" + Custom In-App dialog |
 | 22 | Canvas sizes presets (2:3, 3:2, etc) | Done | src/components/properties/CanvasSettingsPanel.tsx | Warnings | Pass | Added requested presets + manual entry |
-|23| Curves in adjustment layer does not make any effect on the layers below, need more review on the code, be sure we are using correct techniques for that.
+| 23 | Fix Inconsistent Layer Locking/Visibility (Eye/Lock icons) | Done | src/components/PropertiesPanel.tsx | - | - | Fixed `obj.group.dirty` flag to ensure UI updates during visibility toggles. |
 | 24 | ability to duplicate layers on the canvas | Done | src/components/Editor/EditorView.tsx, src/components/properties/LayersView.tsx, src/components/PropertiesPanel.tsx | Warnings | Pass | Added Ctrl+D shortcut and Duplicate button in Layers panel |
 | 25 | add new guide to the guide list, that size of the canvas, like border, that overlay on top | Done | src/components/GridOverlay.tsx, src/components/Editor/EditorView.tsx | Warnings | Pass | Added 'Canvas Border' grid option |
 | 26 | when exporting image give options on what compression quality it should be, as jpg , png. | Done | src/components/Editor/EditorView.tsx | Warnings | Pass | Prompt for quality (1-100) before export for PNG/JPG |
 | 27 | allow drag and drop assets from computer desktop to the canvas and auto upload them and use | Done | src/components/Editor/EditorView.tsx, src/types.ts | Warnings | Pass | Drag & Drop files (img/model) to canvas triggers upload & add |
+| 28 | Pen Options Squeeshed on Toolbar | Done | src/components/Toolbar.tsx | - | - | Removed embedded Pen options from Left Toolbar (Already present in Right Sidebar) |
+
 
 ---
 

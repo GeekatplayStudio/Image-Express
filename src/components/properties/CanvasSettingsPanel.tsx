@@ -1,4 +1,5 @@
 import React from 'react';
+import { ColorPicker } from './ColorPicker';
 
 interface CanvasSettingsPanelProps {
     width: number;
@@ -67,20 +68,11 @@ export function CanvasSettingsPanel({
                     <h3 className="font-medium text-sm">Background</h3>
                 </div>
                 <div className="space-y-2">
-                    <div className="flex gap-2 items-center">
-                        <input
-                            type="color"
-                            value={backgroundColor.startsWith('#') ? backgroundColor : '#ffffff'}
-                            onChange={(e) => onColorChange(e.target.value)}
-                            className="h-8 w-8 rounded overflow-hidden border border-border cursor-pointer p-0 bg-transparent"
-                        />
-                        <input
-                            type="text"
-                            value={backgroundColor}
-                            onChange={(e) => onColorChange(e.target.value)}
-                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        />
-                    </div>
+                    <ColorPicker
+                         color={backgroundColor.startsWith('#') ? backgroundColor : '#ffffff'}
+                         onChange={onColorChange}
+                         label="Color"
+                    />
                     <div className="flex gap-2 flex-wrap">
                         {['#ffffff', '#000000', '#f3f4f6', '#fee2e2', '#dbeafe', '#d1fae5'].map((c) => (
                             <button

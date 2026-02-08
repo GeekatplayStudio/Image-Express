@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
 import { Plus, Image as ImageIcon, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
+import quotes from '@/data/quotes.json';
 
 type IconType = React.ComponentType<{ size?: number; className?: string }>;
 
@@ -26,7 +27,7 @@ type DesignSummary = {
 };
 
 interface DashboardProps {
-  onNewDesign: () => void;
+    onNewDesign: (initialTool?: string, size?: { width: number; height: number }) => void;
     onSelectTemplate: (template: TemplateDescriptor) => void;
     onOpenDesign: (design: DesignSummary) => void;
 }
@@ -107,20 +108,65 @@ const POPULAR_TEMPLATES: TemplateDescriptor[] = [
 ];
 
 // Expanded mock data for when user clicks "Show More"
-const MORE_TEMPLATES: TemplateDescriptor[] = [
-    ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_2', name: t.name + ' II'})),
-    ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_3', name: t.name + ' III'})),
-];
+// const MORE_TEMPLATES: TemplateDescriptor[] = [
+//     ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_2', name: t.name + ' II'})),
+//     ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_3', name: t.name + ' III'})),
+// ];
 
 export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign }: DashboardProps) {
     const dialog = useDialog();
     const { toast } = useToast();
     const [recentDesigns, setRecentDesigns] = useState<DesignSummary[]>([]);
-  const [showAllTemplates, setShowAllTemplates] = useState(false);
-  const [showAllDesigns, setShowAllDesigns] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('All');
+    const [showAllDesigns, setShowAllDesigns] = useState(false);
+    const [activeCategory, setActiveCategory] = useState('All');
+    const [searchQuery, setSearchQuery] = useState('');
+    
+    // Fix Hydration Error: Start with index 0, randomize in useEffect
+    const [quoteIndex, setQuoteIndex] = useState(0);
 
-  useEffect(() => {
+    useEffect(() => {
+        // eslint-disable-next-line
+        setQuoteIndex(Math.floor(Math.random() * quotes.length));
+    }, []);
+
+    const quote = quotes[quoteIndex];
+    const [showCustomSizeModal, setShowCustomSizeModal] = useState(false);
+    const [customWidth, setCustomWidth] = useState(1080);
+    const [customHeight, setCustomHeight] = useState(1080);
+
+    const allTemplates = useMemo(() => {
+        const base = [...POPULAR_TEMPLATES];
+        // Generate more variations to fill the grid (target 8 per row)
+        const more: TemplateDescriptor[] = [];
+        const variants = [
+            { suffix: 'Minimal', color: 'from-slate-500 to-slate-700' },
+            { suffix: 'Bold', color: 'from-rose-500 to-red-600' },
+            { suffix: 'Dark', color: 'from-gray-800 to-black' },
+            { suffix: 'Light', color: 'from-blue-200 to-cyan-300' },
+            { suffix: 'Modern', color: 'from-emerald-400 to-teal-600' }
+        ];
+
+        variants.forEach((v) => {
+            more.push(...POPULAR_TEMPLATES.map(t => ({
+                ...t,
+                id: `${t.id}_${v.suffix}`,
+                name: `${t.name} ${v.suffix}`,
+                color: v.color
+            })));
+        });
+        return [...base, ...more];
+    }, []);
+
+    const filteredTemplates = useMemo(() => {
+        return allTemplates.filter(t => {
+            const matchesCategory = activeCategory === 'All' || t.type === activeCategory;
+            const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                  t.type.toLowerCase().includes(searchQuery.toLowerCase());
+            return matchesCategory && matchesSearch;
+        });
+    }, [allTemplates, activeCategory, searchQuery]);
+
+    useEffect(() => {
       // Load designs from server
       const loadDesigns = async () => {
           try {
@@ -165,7 +211,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
       }
   };
 
-  const visibleDesigns = showAllDesigns ? recentDesigns : recentDesigns.slice(0, 4);
+  const visibleDesigns = showAllDesigns ? recentDesigns : recentDesigns.slice(0, 6);
 
   return (
     <div className="flex-1 bg-background p-8 overflow-y-auto">
@@ -173,26 +219,29 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         
         {/* Modern Hero & Search */}
         <div className="relative py-12 text-center space-y-6">
-            <h1 className="text-4xl md:text-6xl font-black tracking-tight text-foreground">
-                What will you <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">create</span> today?
-            </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                Select a template below to get started, or create a custom size.
-            </p>
+            <div className="animation-fade-in space-y-2">
+                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground px-4">
+                    &quot;{quote.text}&quot;
+                </h1>
+                <p className="text-lg text-muted-foreground font-medium">
+                    — {quote.author}
+                </p>
+            </div>
             
-            <div className="max-w-xl mx-auto relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <div className="max-w-xl mx-auto relative group px-4">
+                <div className="absolute inset-y-0 left-0 pl-8 flex items-center pointer-events-none">
                     <Search className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <input 
                     type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search templates (Instagram, Resume, Poster...)"
-                    className="w-full h-12 pl-12 pr-4 rounded-full border border-border bg-card shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
-                    disabled
+                    className="w-full h-12 pl-12 pr-36 rounded-full border border-border bg-card shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
                 />
                 <div className="absolute right-2 top-2 bottom-2">
                     <button 
-                        onClick={onNewDesign}
+                        onClick={() => setShowCustomSizeModal(true)}
                         className="h-full px-4 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
                         Custom Size
@@ -210,12 +259,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                  {START_ACTIONS.map((action) => (
                      <button
                         key={action.id}
-                        onClick={() => {
-                            if (action.action === 'new') onNewDesign();
-                            else if (action.action === 'ai') onNewDesign(); // Temporary map to new
-                            else if (action.action === '3d') onNewDesign(); // Temporary
-                            else toast({ title: 'Coming soon', description: 'Upload feature coming to dashboard soon!', variant: 'warning' });
-                        }}
+                        onClick={() => action.action === 'new' ? setShowCustomSizeModal(true) : onNewDesign(action.action)}
                         className={`group relative h-32 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left p-0 ${action.color}`}
                      >
                         <div className="absolute inset-0 bg-white/10 group-hover:bg-transparent transition-colors" />
@@ -253,75 +297,6 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
             ))}
         </div>
 
-        {/* Popular Templates Row */}
-        <section className="space-y-4">
-             <div className="flex items-center justify-between px-2">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Layout size={20} className="text-indigo-500" />
-                    Popular Templates
-                </h2>
-             </div>
-             
-             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
-                {POPULAR_TEMPLATES.map((template) => (
-                    <div 
-                        key={template.id}
-                        onClick={() => onSelectTemplate(template)}
-                        className="group relative aspect-[3/4] md:aspect-square bg-card rounded-2xl border border-border/50 overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-                    >
-                        {/* Abstract Background */}
-                        <div className={`absolute inset-0 bg-gradient-to-br ${template.color} opacity-10 group-hover:opacity-20 transition-opacity`} />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center">
-                            <div className={`p-4 rounded-full bg-gradient-to-br ${template.color} text-white shadow-lg group-hover:scale-110 transition-transform`}>
-                                <template.icon size={32} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">{template.name}</h3>
-                                <p className="text-xs text-muted-foreground mt-1">{template.width} x {template.height} px</p>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-                
-                {/* Expanded Content */}
-                {showAllTemplates && MORE_TEMPLATES.map((template) => (
-                     <div 
-                        key={template.id}
-                        onClick={() => onSelectTemplate(template)}
-                        className="group relative aspect-[3/4] md:aspect-square bg-card rounded-2xl border border-border/50 overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 animate-in fade-in slide-in-from-top-4"
-                    >
-                        <div className={`absolute inset-0 bg-gradient-to-br ${template.color} opacity-10 group-hover:opacity-20 transition-opacity`} />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center">
-                             <div className={`p-3 rounded-full bg-secondary text-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors`}>
-                                <template.icon size={24} />
-                            </div>
-                            <div>
-                                <h3 className="font-medium text-sm">{template.name}</h3>
-                                <p className="text-[10px] text-muted-foreground">{template.width} x {template.height}</p>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-             </div>
-
-             {/* Divider / Expander */}
-             <div className="relative py-4 flex items-center justify-center">
-                 <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-border"></div>
-                 </div>
-                 <button 
-                    onClick={() => setShowAllTemplates(!showAllTemplates)}
-                    className="relative bg-background border border-border rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex items-center gap-2 shadow-sm"
-                 >
-                    {showAllTemplates ? (
-                        <>Show Less <ChevronUp size={14} /></>
-                    ) : (
-                        <>View All Templates <ChevronDown size={14} /></>
-                    )}
-                 </button>
-             </div>
-        </section>
-
         {/* Recent Designs Row */}
         <section className="space-y-4">
            <div className="flex items-center justify-between px-2">
@@ -344,51 +319,49 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                </div>
            ) : (
            <>
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {/* Create New Card (Always First in List? Or separate?) - Let's keep it separate in hero */}
-                  
+               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-6 gap-3">
                   {visibleDesigns.map(design => (
                      <div 
                         key={design.id} 
                         onClick={() => onOpenDesign(design)}
-                        className="group bg-card rounded-2xl border border-border overflow-hidden hover:shadow-xl hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer relative flex flex-col"
+                        className="group bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-all cursor-pointer relative flex flex-col aspect-[3/4]"
                      >
-                            <div className="aspect-video bg-secondary/50 flex items-center justify-center relative bg-checkerboard overflow-hidden">
+                            <div className="flex-1 bg-secondary/50 flex items-center justify-center relative bg-checkerboard overflow-hidden">
                             {design.thumbnail ? (
                                 <Image
                                     src={design.thumbnail}
                                     alt={design.name}
                                     fill
-                                    sizes="(max-width: 1024px) 100vw, 25vw"
+                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 12vw"
                                     className="object-cover group-hover:scale-105 transition-transform duration-500"
                                     unoptimized
                                 />
                             ) : (
-                                <ImageIcon className="text-muted-foreground/30 w-12 h-12" />
+                                <ImageIcon className="text-muted-foreground/30 w-8 h-8" />
                             )}
                             
                             {/* Overlay */}
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <span className="bg-white text-black px-4 py-2 rounded-full font-semibold text-sm transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                                    Edit Project
+                                <span className="bg-white text-black px-3 py-1 rounded-full font-semibold text-xs transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                                    Edit
                                 </span>
                             </div>
                         </div>
                         
-                        <div className="p-4 flex items-center justify-between bg-card flex-1">
-                           <div className="min-w-0">
-                              <h3 className="font-semibold text-sm text-foreground truncate" title={design.name}>{design.name}</h3>
-                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                  edited {new Date(design.lastModified).toLocaleDateString()}
-                              </p>
+                        <div className="p-2.5 flex items-center justify-between bg-card shrink-0">
+                           <div className="min-w-0 w-full">
+                              <h3 className="font-medium text-xs text-foreground truncate" title={design.name}>{design.name}</h3>
+                              <div className="flex items-center justify-between mt-0.5">
+                                  <span className="text-[10px] text-muted-foreground">{new Date(design.lastModified).toLocaleDateString()}</span>
+                                  <button 
+                                        onClick={(e) => handleDelete(design.id, e)}
+                                        className="text-muted-foreground hover:text-destructive p-1 rounded-full hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Delete Project"
+                                    >
+                                      <Trash2 size={12} />
+                                   </button>
+                              </div>
                            </div>
-                           <button 
-                                onClick={(e) => handleDelete(design.id, e)}
-                                className="text-muted-foreground hover:text-destructive p-2 rounded-full hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
-                                title="Delete Project"
-                            >
-                              <Trash2 size={16} />
-                           </button>
                         </div>
                      </div>
                   ))}
@@ -414,6 +387,50 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                 )}
            </>
            )}
+        </section>
+
+        {/* Popular Templates Row */}
+        <section className="space-y-4">
+             <div className="flex items-center justify-between px-2">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Layout size={20} className="text-indigo-500" />
+                    Popular Templates
+                </h2>
+             </div>
+             
+             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-6 gap-3">
+                {filteredTemplates.map((template) => (
+                    <div 
+                        key={template.id}
+                        onClick={() => onSelectTemplate(template)}
+                        className="group relative aspect-[3/4] bg-card rounded-xl border border-border/50 overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
+                    >
+                        {/* Abstract Background */}
+                        <div className={`absolute inset-0 bg-gradient-to-br ${template.color} opacity-10 group-hover:opacity-20 transition-opacity`} />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-3 text-center">
+                            <div className={`p-2.5 rounded-full bg-gradient-to-br ${template.color} text-white shadow-md group-hover:scale-110 transition-transform`}>
+                                <template.icon size={18} />
+                            </div>
+                            <div className="w-full">
+                                <h3 className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate px-1" title={template.name}>
+                                    {template.name}
+                                </h3>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">{template.width} x {template.height}</p>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+                
+                {filteredTemplates.length === 0 && (
+                    <div className="col-span-full py-12 text-center text-muted-foreground">
+                        <p>No templates found matching &quot;{searchQuery}&quot; in {activeCategory}.</p>
+                    </div>
+                )}
+             </div>
+
+             {/* Divider / Expander - Removed as we show filtered list now */}
+             {/* <div className="relative py-4 flex items-center justify-center">...</div> */}
+
         </section>
 
         {/* Footer Info Section */}
@@ -469,6 +486,51 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         </section>
 
       </div>
+
+      {showCustomSizeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-card w-full max-w-md p-6 rounded-2xl shadow-2xl border border-border scale-100 animate-in zoom-in-95 duration-200">
+                <h3 className="text-xl font-bold mb-4">Custom Size</h3>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-muted-foreground">Width (px)</label>
+                        <input 
+                            type="number" 
+                            value={customWidth}
+                            onChange={(e) => setCustomWidth(Number(e.target.value))}
+                            className="w-full h-10 px-3 rounded-md border border-input bg-background focus:ring-2 focus:ring-primary outline-none"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-muted-foreground">Height (px)</label>
+                        <input 
+                            type="number" 
+                            value={customHeight}
+                            onChange={(e) => setCustomHeight(Number(e.target.value))}
+                            className="w-full h-10 px-3 rounded-md border border-input bg-background focus:ring-2 focus:ring-primary outline-none"
+                        />
+                    </div>
+                </div>
+                <div className="flex justify-end gap-3">
+                    <button 
+                        onClick={() => setShowCustomSizeModal(false)}
+                        className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={() => {
+                            onNewDesign(undefined, { width: customWidth, height: customHeight });
+                            setShowCustomSizeModal(false);
+                        }}
+                        className="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-colors"
+                    >
+                        Create Design
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 }

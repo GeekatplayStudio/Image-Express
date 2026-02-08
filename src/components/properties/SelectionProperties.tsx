@@ -10,7 +10,8 @@ import { ImageFilterProperties, ImageFilterValues } from './ImageFilterPropertie
 import { ShadowStrokeProperties, ShadowStrokeValues } from './ShadowStrokeProperties';
 import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
-import { Folder, Layers, Blend, ChevronDown, ChevronRight, Scissors, Lock, Unlock, Box } from 'lucide-react';
+import { Folder, Layers, Blend, ChevronDown, ChevronRight, Scissors, Lock, Unlock, Box, Type } from 'lucide-react';
+import { ColorPicker } from './ColorPicker';
 
 interface SelectionPropertiesProps {
     selectedObject: fabric.Object | null;
@@ -32,7 +33,7 @@ interface SelectionPropertiesProps {
     onGroup: () => void;
     onUngroup: () => void;
     onCreateMask: () => void;
-    onCreateClip: () => void;
+    onTextOnPath?: () => void;
     onReleaseMask: () => void;
     onToggleMaskLock?: () => void;
     
@@ -70,7 +71,7 @@ export function SelectionProperties({
     onGroup,
     onUngroup,
     onCreateMask,
-    onCreateClip,
+    onTextOnPath,
     onReleaseMask,
     onToggleMaskLock,
     updateAdjustment,
@@ -86,6 +87,12 @@ export function SelectionProperties({
 
     const isMultiple = selectedObjects.length > 1;
     const isGroup = selectedObject?.type === 'group';
+    
+    // Check for Text + Path combination
+    const hasTextAndPath = selectedObjects.length === 2 && 
+        selectedObjects.some(o => o.type === 'i-text' || o.type === 'text') &&
+        selectedObjects.some(o => o.type === 'path' || o.type === 'polyline');
+
     const isMasked = !!selectedObject?.clipPath;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isMaskAbsolute = isMasked ? (selectedObject?.clipPath as any).absolutePositioned : false;
@@ -121,12 +128,17 @@ export function SelectionProperties({
                     {selectedObjects.length === 2 && (
                         <>
                             <div className="w-px bg-border mx-2" />
-                            <button onClick={onCreateMask} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Top object masks bottom object">
+                            <button onClick={onCreateMask} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Mask Image with Shape">
                                 <Blend size={20} /> Mask
                             </button>
-                            <button onClick={onCreateClip} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Bottom object clips top object">
-                                <Scissors size={20} /> Clip
-                            </button>
+                            {hasTextAndPath && onTextOnPath && (
+                                <>
+                                    <div className="w-px bg-border mx-2" />
+                                    <button onClick={onTextOnPath} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Put Text on Path">
+                                         <Type size={20} /> Path
+                                    </button>
+                                </>
+                            )}
                         </>
                     )}
                 </div>
@@ -306,19 +318,11 @@ export function SelectionProperties({
                     </div>
                     
                     {!isGradient ? (
-                        <div className="flex items-center gap-2">
-                            <div className="relative flex-1 h-8 rounded border border-border shadow-sm overflow-hidden group cursor-pointer">
-                                <div className="absolute inset-0 z-0 bg-image-checkered opacity-20" />
-                                <div className="absolute inset-0 z-10" style={{ backgroundColor: color }} />
-                                <input 
-                                    type="color" 
-                                    value={color}
-                                    onChange={(e) => onPropChange('fill', e.target.value)}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                />
-                            </div>
-                            <div className="text-xs text-muted-foreground font-mono">{color.toUpperCase()}</div>
-                        </div>
+                        <ColorPicker 
+                            color={color} 
+                            onChange={(val) => onPropChange('fill', val)} 
+                            label=""
+                        />
                     ) : (
                         <div className="space-y-3 bg-secondary/20 p-2 rounded-md">
                              <div className="flex items-center justify-between text-xs">
@@ -336,27 +340,17 @@ export function SelectionProperties({
                              <div className="flex items-center gap-2">
                                  <div className="space-y-1 flex-1">
                                      <span className="text-[10px] text-muted-foreground">Start</span>
-                                        <div className="relative h-6 rounded border border-border overflow-hidden">
-                                            <div className="absolute inset-0" style={{ backgroundColor: gradientState?.start }}></div>
-                                            <input 
-                                                type="color" 
-                                                value={gradientState?.start}
-                                                onChange={(e) => onPropChange('gradient', { ...gradientState, start: e.target.value })}
-                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                            />
-                                        </div>
+                                     <ColorPicker 
+                                         color={gradientState?.start || '#000000'} 
+                                         onChange={(val) => onPropChange('gradient', { ...gradientState, start: val })} 
+                                     />
                                  </div>
                                  <div className="space-y-1 flex-1">
                                      <span className="text-[10px] text-muted-foreground">End</span>
-                                        <div className="relative h-6 rounded border border-border overflow-hidden">
-                                            <div className="absolute inset-0" style={{ backgroundColor: gradientState?.end }}></div>
-                                            <input 
-                                                type="color" 
-                                                value={gradientState?.end}
-                                                onChange={(e) => onPropChange('gradient', { ...gradientState, end: e.target.value })}
-                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                            />
-                                        </div>
+                                     <ColorPicker 
+                                         color={gradientState?.end || '#ffffff'} 
+                                         onChange={(val) => onPropChange('gradient', { ...gradientState, end: val })} 
+                                     />
                                  </div>
                              </div>
                              
@@ -369,16 +363,34 @@ export function SelectionProperties({
                                      <input 
                                          type="range" min="0" max="360" 
                                          value={gradientState.angle}
-                                         onChange={(e) => onPropChange('gradient', { ...gradientState, angle: parseInt(e.target.value) })}
+                                         onChange={(e) => {
+                                             if (gradientState) {
+                                                 const { coords, ...rest } = gradientState;
+                                                 onPropChange('gradient', { ...rest, angle: parseInt(e.target.value) });
+                                             }
+                                         }}
                                          className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                                      />
                                  </div>
                              )}
 
                              {gradientState?.type === 'linear' && gradientState.coords && (
-                                 <div className="space-y-2 pt-2">
-                                     <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Gradient Points</div>
-                                     <div className="grid grid-cols-2 gap-2">
+                                 <div className="space-y-2 pt-2 border-t border-border/30 mt-2">
+                                     <div className="flex items-center justify-between">
+                                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Control Points</div>
+                                          <button 
+                                            className="text-[10px] text-indigo-400 hover:text-indigo-300"
+                                            onClick={() => {
+                                                 const { coords, ...rest } = gradientState;
+                                                 // Reset to angle-based by removing coords
+                                                 onPropChange('gradient', { ...rest }); 
+                                            }}
+                                            title="Reset points to follow Angle"
+                                          >
+                                            Reset to Angle
+                                          </button>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-x-2 gap-y-3">
                                          <div className="space-y-1">
                                              <div className="flex justify-between text-[10px] text-muted-foreground">
                                                  <span>Start X</span>

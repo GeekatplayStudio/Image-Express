@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { StarPolygon, ThreeDGroup, ExtendedFabricObject, AdjustmentLayerType, PenNode } from '@/types';
 import AssetLibrary from './AssetLibrary';
@@ -46,7 +46,7 @@ const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: numb
 
 const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
     if (tool === 'select') {
-        canvas.discardActiveObject();
+        // canvas.discardActiveObject(); // Don't clear selection when switching to select tool
         canvas.requestRenderAll();
         canvas.defaultCursor = 'default';
         canvas.hoverCursor = 'move';
@@ -160,6 +160,15 @@ const buildAutoBezierNodes = (points: PenPoint[], closed: boolean): PenNode[] =>
             handleOut
         };
     });
+};
+
+const buildStraightNodes = (points: PenPoint[]): PenNode[] => {
+    return points.map(p => ({
+        x: p.x,
+        y: p.y,
+        handleIn: { x: p.x, y: p.y },
+        handleOut: { x: p.x, y: p.y }
+    }));
 };
 
 const buildBezierPathData = (nodes: PenNode[], closed: boolean): string => {
@@ -396,14 +405,18 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
+    const [showExtraMenu, setShowExtraMenu] = useState(false);
     const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
     const shapesMenuRef = useRef<HTMLDivElement>(null);
     const adjustmentMenuRef = useRef<HTMLDivElement>(null);
+    const extraMenuRef = useRef<HTMLDivElement>(null);
     const shapesButtonRef = useRef<HTMLButtonElement>(null);
     const adjustmentsButtonRef = useRef<HTMLButtonElement>(null);
+    const extraButtonRef = useRef<HTMLButtonElement>(null);
     const [shapesMenuPos, setShapesMenuPos] = useState<{ left: number; top: number } | null>(null);
     const [adjustmentMenuPos, setAdjustmentMenuPos] = useState<{ left: number; top: number } | null>(null);
-    const [draggingMenu, setDraggingMenu] = useState<'shapes' | 'adjustments' | null>(null);
+    const [extraMenuPos, setExtraMenuPos] = useState<{ left: number; top: number } | null>(null);
+    const [draggingMenu, setDraggingMenu] = useState<'shapes' | 'adjustments' | 'extra' | null>(null);
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
@@ -417,11 +430,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         { name: 'text', icon: Type, label: 'Text' },
         { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
         { name: 'assets', icon: ImageIcon, label: 'Gallery' },
-        { name: 'ai-zone', icon: Wand2, label: 'AI Zone' },
-        { name: '3d-gen', icon: Box, label: 'AI 3D' },
         { name: 'templates', icon: LayoutTemplate, label: 'Library' },
         { name: 'adjustments', icon: Blend, label: 'Adjustments' },
         { name: 'layers', icon: Layers, label: 'Layers' },
+        { name: 'extra', icon: Plus, label: 'Add' },
     ];
 
     const [penPoints, setPenPoints] = useState<PenPoint[]>([]);
@@ -535,32 +547,42 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             objectCaching: false
         };
 
-        let createdObject: fabric.Object | null = null;
+        // Normalize points to be relative to bounding box top-left
+        // This ensures controls stay valid even if object is moved/transformed
+        const minX = Math.min(...finalPoints.map(p => p.x));
+        const minY = Math.min(...finalPoints.map(p => p.y));
+        const normalizedPoints = finalPoints.map(p => ({ x: p.x - minX, y: p.y - minY }));
+
+        // Always create a BezierPathObject to ensure it's editable
+        let nodes: PenNode[] = [];
         if (penMode === 'straight') {
-            if (isClosed) {
-                createdObject = new fabric.Polygon(finalPoints, objectBaseProps);
-            } else {
-                createdObject = new fabric.Polyline(finalPoints, {
-                    ...objectBaseProps,
-                    fill: 'transparent'
-                });
-            }
-        } else if (penMode === 'smooth') {
-            const pathData = buildSmoothPathData(finalPoints, isClosed);
-            createdObject = new fabric.Path(pathData, objectBaseProps);
+             nodes = buildStraightNodes(normalizedPoints);
         } else {
-            const nodes = buildAutoBezierNodes(finalPoints, isClosed);
-            const pathData = buildBezierPathData(nodes, isClosed);
-            const bezierPath = new fabric.Path(pathData, objectBaseProps) as BezierPathObject;
-            bezierPath.set({
-                isPenPath: true,
-                penMode: 'bezier',
-                penClosed: isClosed,
-                penNodes: nodes
-            });
-            attachBezierControls(bezierPath);
-            createdObject = bezierPath;
+             nodes = buildAutoBezierNodes(normalizedPoints, isClosed);
         }
+
+        const pathData = buildBezierPathData(nodes, isClosed);
+        const bezierPath = new fabric.Path(pathData, {
+            ...objectBaseProps,
+            left: minX,
+            top: minY
+        }) as BezierPathObject;
+
+        bezierPath.set({
+            isPenPath: true,
+            penMode: 'bezier',
+            penClosed: isClosed,
+            penNodes: nodes, // Stored as relative
+            penSourcePoints: finalPoints.map((point) => ({ ...point })) // Keep original source if needed, or update? Better to keep source as relative too if we reload?
+            // Actually, penSourcePoints (raw clicks) are less critical than penNodes (bezier state).
+            // Let's store relative source points too to be consistent.
+            // penSourcePoints: normalizedPoints
+        });
+        // We actually want penSourcePoints to be relative so we can rebuild from them if needed.
+        bezierPath.penSourcePoints = normalizedPoints;
+        
+        attachBezierControls(bezierPath);
+        const createdObject = bezierPath;
 
         if (!createdObject) {
             clearPenDraft();
@@ -570,20 +592,21 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         const namedObject = createdObject as ExtendedFabricObject;
         namedObject.name = isClosed ? 'Vector Shape' : 'Vector Path';
         namedObject.id = `shape-${Date.now()}`;
+        // Set properties redundant with bezierPath set call but ensuring extended object compliance
         namedObject.penClosed = isClosed;
-        namedObject.penMode = penMode;
-        namedObject.isPenPath = penMode === 'bezier';
-        namedObject.penSourcePoints = finalPoints.map((point) => ({ ...point }));
-
+        namedObject.penMode = 'bezier'; // Converted
+        namedObject.isPenPath = true; 
+        
         canvas.add(createdObject);
         canvas.setActiveObject(createdObject);
-        configureCanvasForTool(canvas, 'select');
+        
+        // Ensure new layer is clearly visible and editable
         canvas.requestRenderAll();
 
         setPenPoints([]);
         penActiveLineRef.current = null;
-        setActiveTool('select'); // Switch back to select
-    }, [canvas, clearPenDraft, penAnchors, penClosure, penMode, penPoints, setActiveTool]);
+        // Stay in Pen Tool for continuous drawing
+    }, [canvas, clearPenDraft, penAnchors, penClosure, penMode, penPoints]);
 
     useEffect(() => {
         if (activeTool === 'pen') return;
@@ -825,7 +848,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         return clampMenuPosition(left, top, estimatedWidth, estimatedHeight);
     };
 
-    const beginMenuDrag = (menu: 'shapes' | 'adjustments') => (event: React.MouseEvent) => {
+    const beginMenuDrag = (menu: 'shapes' | 'adjustments' | 'extra') => (event: React.MouseEvent) => {
         event.preventDefault();
         const pos = menu === 'shapes' ? shapesMenuPos : adjustmentMenuPos;
         if (!pos) return;
@@ -921,6 +944,19 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     };
 
     const handleToolClick = (toolName: string) => {
+           if (toolName === 'extra') {
+                setShowExtraMenu((prev) => {
+                    const next = !prev;
+                    if (next) {
+                        setExtraMenuPos(positionMenu(extraButtonRef, 176, 120));
+                    }
+                    return next;
+                });
+                setShowShapesMenu(false);
+                setShowAdjustmentMenu(false);
+                setActiveTool('extra');
+                return;
+           }
            if (toolName === 'shapes') {
                 setShowShapesMenu((prev) => {
                     const next = !prev;
@@ -1417,7 +1453,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 <button 
                     key={tool.name}
                     onClick={() => handleToolClick(tool.name)}
-                    ref={tool.name === 'shapes' ? shapesButtonRef : tool.name === 'adjustments' ? adjustmentsButtonRef : undefined}
+                    ref={tool.name === 'shapes' ? shapesButtonRef : tool.name === 'adjustments' ? adjustmentsButtonRef : tool.name === 'extra' ? extraButtonRef : undefined}
                     className={cn(
                         "flex flex-col items-center justify-center gap-1 group relative w-10 h-10 rounded-xl transition-all duration-200 z-20",
                         activeTool === tool.name || (tool.name === 'adjustments' && showAdjustmentMenu)
@@ -1433,74 +1469,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 </button>
             ))}
 
-            {activeTool === 'pen' && (
-                <div className="w-44 p-2 rounded-xl border border-border/60 bg-card/95 shadow-sm space-y-2">
-                    <div>
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Mode</div>
-                        <div className="grid grid-cols-3 gap-1">
-                            {(['straight', 'smooth', 'bezier'] as const).map((mode) => (
-                                <button
-                                    key={mode}
-                                    onClick={() => {
-                                        if (penPoints.length > 0) clearPenDraft();
-                                        setPenMode(mode);
-                                    }}
-                                    className={cn(
-                                        "text-[10px] px-1.5 py-1 rounded border transition-colors capitalize",
-                                        penMode === mode
-                                            ? "bg-primary/20 text-primary border-primary/30"
-                                            : "bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50"
-                                    )}
-                                >
-                                    {mode === 'bezier' ? 'Bezier' : mode}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div>
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Path</div>
-                        <div className="grid grid-cols-2 gap-1">
-                            {(['open', 'closed'] as const).map((pathMode) => (
-                                <button
-                                    key={pathMode}
-                                    onClick={() => {
-                                        if (penPoints.length > 0) clearPenDraft();
-                                        setPenClosure(pathMode);
-                                    }}
-                                    className={cn(
-                                        "text-[10px] px-1.5 py-1 rounded border transition-colors capitalize",
-                                        penClosure === pathMode
-                                            ? "bg-primary/20 text-primary border-primary/30"
-                                            : "bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50"
-                                    )}
-                                >
-                                    {pathMode}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-1">
-                        <button
-                            onClick={finishPenPath}
-                            className="text-[10px] px-2 py-1 rounded border bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 transition-colors"
-                        >
-                            Finish
-                        </button>
-                        <button
-                            onClick={clearPenDraft}
-                            className="text-[10px] px-2 py-1 rounded border bg-secondary/20 border-border/50 text-muted-foreground hover:bg-secondary/50 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-
-                    <div className="text-[10px] text-muted-foreground/90 leading-tight">
-                        Click to add points. Double-click or press Enter to finish. Hold Space while dragging a handle to break mirror.
-                    </div>
-                </div>
-            )}
+            {/* Pen Options now moved to PropertiesPanel (Right Sidebar) to avoid squishing */}
 
             {/* Template Library */}
             {activeTool === 'templates' && (
@@ -1635,6 +1604,31 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                     </button>
                     <button onClick={() => createAdjustmentLayer('black-white')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         Black & White
+                    </button>
+                </div>,
+                document.body
+            )}
+
+            {showExtraMenu && extraMenuPos && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={extraMenuRef}
+                    style={{ left: extraMenuPos.left, top: extraMenuPos.top }}
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[2000] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
+                >
+                    <div
+                        className="-mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
+                        onMouseDown={beginMenuDrag('extra')}
+                    >
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Add</span>
+                        <span className="text-[10px] text-muted-foreground/80">Drag</span>
+                    </div>
+                    <button onClick={() => { setActiveTool('ai-zone'); setShowExtraMenu(false); }} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                        <Wand2 size={16} />
+                        AI Zone
+                    </button>
+                    <button onClick={() => { setActiveTool('3d-gen'); setShowExtraMenu(false); }} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                         <Box size={16} />
+                         AI 3D
                     </button>
                 </div>,
                 document.body
