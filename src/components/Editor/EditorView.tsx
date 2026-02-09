@@ -2985,6 +2985,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     if(obj && canvas) {
                                         canvas.setActiveObject(obj);
                                         canvas.requestRenderAll();
+                                        if (activeTool === 'layers') setActiveTool('select');
                                     }
                                 }}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
@@ -3030,6 +3031,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     if(obj && canvas) {
                                         canvas.setActiveObject(obj);
                                         canvas.requestRenderAll();
+                                        if (activeTool === 'layers') setActiveTool('select');
                                     }
                                 }}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}

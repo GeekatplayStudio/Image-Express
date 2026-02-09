@@ -35,7 +35,6 @@ import {
     ensureObjectId, 
     applyAlphaToColor,
     normalizeColorValue, 
-    parseColorWithAlpha,
     parseColorWithAlpha as extractColorFromStyle,
     getAdjustmentLabel,
     getDefaultAdjustmentSettings,
@@ -81,7 +80,22 @@ interface PropertiesPanelProps {
 
 
 export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onDuplicate, onAssetSelect }: PropertiesPanelProps) {
-    const [selectedObject, setSelectedObject] = useState<ExtendedFabricObject | null>(null);
+    const [selectedObject, setSelectedObject] = useState<ExtendedFabricObject | null>(() => {
+        if (!canvas) return null;
+        const active = canvas.getActiveObjects();
+        return (active.length === 1 ? active[0] as ExtendedFabricObject : null);
+    });
+
+    useEffect(() => {
+        if (canvas) {
+            const active = canvas.getActiveObjects();
+            if (active.length === 1) {
+                // If we mount with a selection already, sync it
+                setSelectedObject(active[0] as ExtendedFabricObject);
+            }
+        }
+    }, [canvas, activeTool]);
+
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -421,15 +435,16 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
     useEffect(() => {
         if (!canvas) return;
-        
+
         const handleSelection = () => {
             const active = canvas.getActiveObjects() || [];
             if (active.length === 1) {
+                // Single object selected
                 const target = active[0] as ExtendedFabricObject;
                 setSelectedObject(target);
                 setAdjustmentSettings(target.adjustmentSettings || null);
                 
-                // Content Fill Check (Solid vs Gradient)
+                // Content Fill Sync
                 const fill = target.fill;
                 if (fill && typeof fill !== 'string' && (fill as fabric.Gradient<'linear'>).colorStops) {
                     setIsGradient(true);
@@ -441,12 +456,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                         setGradientEnd(stops[stops.length - 1].color);
                     }
                     if (grad.type === 'linear' && grad.coords) {
-                        const coords = {
-                            x1: grad.coords.x1 ?? 0,
-                            y1: grad.coords.y1 ?? 0.5,
-                            x2: grad.coords.x2 ?? 1,
-                            y2: grad.coords.y2 ?? 0.5
-                        };
+                        const coords = { x1: grad.coords.x1 ?? 0, y1: grad.coords.y1 ?? 0.5, x2: grad.coords.x2 ?? 1, y2: grad.coords.y2 ?? 0.5 };
                         setGradientCoords(coords);
                         const dx = coords.x2 - coords.x1;
                         const dy = coords.y2 - coords.y1;
@@ -460,95 +470,55 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                     setColor(typeof target.fill === 'string' ? target.fill : '#000000');
                     setIsGradient(false);
                 }
-
                 setOpacity(target.opacity || 1);
                 
-                // --- Hydrate Stroke/Border State from Object + Custom Props ---
+                // Stroke/Border Sync
                 const sColor = extractColorFromStyle(typeof target.stroke === 'string' ? target.stroke : undefined);
-                const isBorderMode = target.paintFirst === 'stroke'; // If true, it renders as 'Border'
+                const isBorderMode = target.paintFirst === 'stroke'; 
                 const currentWidth = target.strokeWidth || 0;
                 
-                // Read custom props or fallback to standard inference
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const custom = target as any as CustomObjectState;
-                
                 let sEnabled = custom._strokeEnabled;
                 let bEnabled = custom._borderEnabled;
-                
-                // Check actual stroke visual presence (Fabric defaults strokeWidth=1 even if stroke is null)
                 const hasVisibleStroke = !!target.stroke && target.stroke !== 'transparent';
-
-                // Fallback inference if custom props not set (first load)
                 if (sEnabled === undefined) sEnabled = (currentWidth > 0 && !isBorderMode && hasVisibleStroke);
                 if (bEnabled === undefined) bEnabled = (currentWidth > 0 && isBorderMode && hasVisibleStroke);
 
-                // Default to OFF if width is 0 or undefined
-                if (currentWidth === 0) {
-                    sEnabled = false;
-                    bEnabled = false;
-                }
-                
-                // If neither is "enabled" but we have a stroke width > 0, logic defaults to what paintFirst is
-                if (currentWidth > 0 && sEnabled === undefined && bEnabled === undefined) {
-                     if (isBorderMode) bEnabled = true;
-                     else sEnabled = true;
-                }
-
-                // Hydrate Rendering State
-                if (isBorderMode) {
-                     // Active: Border
-                     setBorderWidth(currentWidth);
-                     setBorderColor(sColor.color || '#000000');
-                     setBorderOpacity(sColor.alpha ?? 1);
-                     
-                     // Inactive: Stroke (Restored from cache or default)
-                     setStrokeWidth(custom._strokeCachedWidth || 0);
-                     setStrokeColor(custom._strokeCachedColor || '#000000');
-                     setStrokeOpacity(custom._strokeCachedOpacity || 1);
-                } else {
-                     // Active: Stroke
-                     setStrokeWidth(currentWidth);
-                     setStrokeColor(sColor.color || '#000000');
-                     setStrokeOpacity(sColor.alpha ?? 1);
-                     
-                     // Inactive: Border (Restored from cache or default)
-                     setBorderWidth(custom._borderCachedWidth || 0);
-                     setBorderColor(custom._borderCachedColor || '#000000');
-                     setBorderOpacity(custom._borderCachedOpacity || 1);
-                }
-
-
-                // Persist if inferred
-                const tCustom = target as unknown as CustomObjectState;
-                if (tCustom._strokeEnabled !== sEnabled) tCustom._strokeEnabled = sEnabled;
-                if (tCustom._borderEnabled !== bEnabled) tCustom._borderEnabled = bEnabled;
-
                 setStrokeEnabled(!!sEnabled);
                 setBorderEnabled(!!bEnabled);
-
-                setStrokeInside(!isBorderMode);
                 
-                const shadow = target.shadow as fabric.Shadow;
+                if (isBorderMode) {
+                     setBorderWidth(currentWidth);
+                     setBorderColor(sColor.color || '#000000');
+                     setBorderOpacity(sColor.alpha ?? 1); 
+                     setStrokeWidth(custom._strokeCachedWidth || 0); 
+                } else {
+                     setStrokeWidth(currentWidth);
+                     setStrokeColor(sColor.color || '#000000');
+                     setStrokeOpacity(sColor.alpha ?? 1); 
+                     setBorderWidth(custom._borderCachedWidth || 0);
+                }
+
+                // Shadow
+                const shadow = target.shadow as fabric.Shadow; 
                 if (shadow) {
                     setShadowEnabled(true);
-                    const parsedShadow = parseColorWithAlpha(shadow.color);
-                    setShadowColor(parsedShadow.color || '#000000');
+                    setShadowColor(shadow.color || '#000000');
                     setShadowBlur(shadow.blur || 0);
                     setShadowOffsetX(shadow.offsetX || 0);
                     setShadowOffsetY(shadow.offsetY || 0);
-                    setShadowOpacity(parsedShadow.alpha ?? 1);
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    setShadowBlend((target as any).shadowBlend || 'normal');
                 } else {
                     setShadowEnabled(false);
-                    setShadowBlend('normal');
                 }
 
+                // Transform
                 setSkewX(target.skewX || 0);
                 setSkewY(target.skewY || 0);
                 setSkewZ(target.skewZ || 0);
                 setTaperDirection(target.taperDirection || 0);
 
+                // Text
                 if (target.type === 'text' || target.type === 'i-text') {
                     const t = target as fabric.IText;
                     setFontFamily(t.fontFamily || 'Arial');
@@ -556,25 +526,17 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                     setCurveStrength(target.curveStrength || 0);
                     setCurveCenter(target.curveCenter || 0);
                     
-                    // Restore Text Effect State
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const d = (target as any).data || {};
                     if (d.textEffects) {
                         setActiveTextEffects(d.textEffects);
                         setTextEffectConfigs(d.effectConfigs || {});
-                    } else if (d.textEffect) {
-                        setActiveTextEffects([d.textEffect]);
-                        const configs = d.effectConfig ? { [d.textEffect]: d.effectConfig } : {};
-                        setTextEffectConfigs(configs);
                     } else {
                         setActiveTextEffects([]);
                         setTextEffectConfigs({});
                     }
-                } else {
-                    setActiveTextEffects([]);
-                    setTextEffectConfigs({});
                 }
-                
+
                 if (target.type === 'image') {
                     setBlurValue(0); setBrightnessValue(0); setContrastValue(0);
                     setNoiseValue(0); setSaturationValue(0); setVibranceValue(0); setPixelateValue(0);
@@ -594,10 +556,13 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 }
 
             } else {
+                // No selection or multiple
                 setSelectedObject(null);
             }
             setSelectedIds(new Set(active.map(o => ensureObjectId(o))));
         };
+
+
 
            const handleChange = () => {
                updateObjects();
@@ -661,7 +626,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (canvas as any).off('adjustment:create', handleAdjustmentCreate);
         };
-    }, [canvas, updateObjects, applyAdjustmentLayers]);
+    }, [canvas, updateObjects, applyAdjustmentLayers, activeTool]);
 
 
     // --- Helper Functions ---
@@ -2124,7 +2089,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 onGroup={handleGroup}
                 onUngroup={handleUngroup}
                 onCreateFolder={handleCreateFolder}
-                onDblClick={() => onLayerDblClick && onLayerDblClick()}
+                onDblClick={(obj) => onLayerDblClick && onLayerDblClick(obj)}
                 expandedFolders={expandedFolders}
                 onToggleFolder={(obj) => {
                      const id = ensureObjectId(obj);

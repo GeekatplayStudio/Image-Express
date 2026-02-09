@@ -102,10 +102,10 @@ export function SelectionProperties({
     const isImage = selectedObject?.type === 'image';
     const isText = selectedObject?.type === 'text' || selectedObject?.type === 'i-text';
     const isPenGeometry = selectedObject?.type === 'path' || selectedObject?.type === 'polygon' || selectedObject?.type === 'polyline';
-    const looksLikePenLayer = typeof extended.name === 'string' && extended.name.toLowerCase().includes('vector');
-    const isPenObject = !!isPenGeometry && (!!extended.penMode || !!extended.isPenPath || looksLikePenLayer);
-    const penMode = extended.penMode || (selectedObject?.type === 'path' ? 'smooth' : 'straight');
-    const penClosed = typeof extended.penClosed === 'boolean' ? extended.penClosed : selectedObject?.type !== 'polyline';
+    const looksLikePenLayer = typeof extended?.name === 'string' && extended.name.toLowerCase().includes('vector');
+    const isPenObject = !!isPenGeometry && (!!extended?.penMode || !!extended?.isPenPath || looksLikePenLayer);
+    const penMode = extended?.penMode || (selectedObject?.type === 'path' ? 'smooth' : 'straight');
+    const penClosed = typeof extended?.penClosed === 'boolean' ? extended.penClosed : selectedObject?.type !== 'polyline';
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleTransform = (values: Record<string, any>) => {
