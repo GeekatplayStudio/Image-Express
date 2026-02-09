@@ -1,4 +1,4 @@
-import { DesktopUpdatePayload, DesktopUpdateStatus } from '@/types';
+import { DesktopUpdatePayload } from '@/types';
 
 export {};
 
@@ -14,12 +14,14 @@ declare global {
         chrome: () => string;
         electron: () => string;
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onUpdateStatus?: (callback: (payload: any) => void) => () => void;
       checkForUpdates?: () => Promise<DesktopUpdatePayload>;
       downloadUpdate?: () => void;
       installUpdate?: () => Promise<void>;
       quitAndInstall?: () => void;
     };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     gapi?: any;
   }
 }

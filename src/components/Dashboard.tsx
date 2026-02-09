@@ -133,11 +133,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
     });
     const usageCounterRef = useRef(0);
     
-    const [quoteIndex, setQuoteIndex] = useState(0);
-
-    useEffect(() => {
-        setQuoteIndex(Math.floor(Math.random() * quotes.length));
-    }, []);
+    const [quoteIndex] = useState(() => Math.floor(Math.random() * quotes.length));
 
     const quote = quotes[quoteIndex];
     const [showCustomSizeModal, setShowCustomSizeModal] = useState(false);

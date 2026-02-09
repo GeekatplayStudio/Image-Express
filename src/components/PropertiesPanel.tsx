@@ -328,76 +328,128 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         const defaultFilterBackend = fabric.getFilterBackend();
         const canvas2dFilterBackend = new fabric.Canvas2dFilterBackend();
 
-        // Apply adjustment layers to each image based on stack order
-        objs.forEach((obj, idx) => {
-            if (obj.type !== 'image' && obj.type !== 'group') return; // Apply to images and groups (if supported)
-            const image = obj as fabric.Image;
-            const imageExt = image as ExtendedFabricObject;
+        // New Logic: Top-Down "Stack Consumption" to correctly handle clipping blockers
+        // We accumulate filters as we traverse from Top to Bottom
+        const globalFilters: FabricBaseFilter[] = [];
+        let currentClipStack: FabricBaseFilter[] = [];
 
-            if (!imageExt.baseFilters) {
-                const existing = image.filters || [];
-                // Save original filters that are NOT adjustment filters
-                imageExt.baseFilters = existing.filter((f) => !adjustmentFilterTypes.has(f.type));
+        // Iterate from Top (last object) to Bottom (first object)
+        for (let i = objs.length - 1; i >= 0; i--) {
+            const obj = objs[i];
+            const ext = obj as ExtendedFabricObject;
+
+            // 1. Skip helpers/selection overlays
+            if (obj.type === 'selection' || obj.type === 'activeSelection' || !obj.visible && !ext.isAdjustmentLayer) {
+                 // Note: We skip invisible visual layers, but invisible adjustment layers just don't contribute
+                 // If an invisible visual layer is here, it should probably block clipping? 
+                 // If we skip it here, we "see through" it to the layer below.
+                 // The user requested rigorous blocking. 
+                 // If I hide a layer, does the clip pass through? Usually yes if the layer is gone.
+                 // But let's stick to the visible stack logic.
+                 if (ext.isAdjustmentLayer) {
+                     // handled below
+                 } else if (obj.visible === false) {
+                    // Invisible visual layer -> Treat as non-existent for clipping flow
+                     continue; 
+                 } else if (obj.type === 'selection' || obj.type === 'activeSelection') {
+                     continue;
+                 }
             }
 
-            // Find adjustment layers above this object
-            const layersAbove = objs.slice(idx + 1);
-            
-            const adjustmentFilters: FabricBaseFilter[] = [];
-            
-            // Track if we hit a "blocking" visual layer (like another Image) 
-            // that prevents Clipped adjustments from reaching us
-            let blockedForClipped = false;
+            // 2. Is it an Adjustment Layer?
+            if (ext.isAdjustmentLayer && ext.adjustmentType && ext.adjustmentSettings) {
+                if (obj.visible === false) {
+                     // Hidden adjustment layer -> contributes nothing
+                     continue;
+                }
 
-            for (const layerObj of layersAbove) {
-                const layer = layerObj as ExtendedFabricObject;
-                
-                // If it is an adjustment layer
-                if (layer.isAdjustmentLayer && layer.adjustmentType && layer.adjustmentSettings && layer.visible !== false) {
-                     // Determine if it should apply to 'obj'
+                const opacity = typeof obj.opacity === 'number' ? obj.opacity : 1;
+                const newFilters = buildFiltersForAdjustment(ext.adjustmentType, ext.adjustmentSettings, opacity);
+
+                if (ext.clipped) {
+                     // Add to Current Clip Stack
+                     // Since we are going Top -> Bottom, the new filter (Top) should be applied AFTER inner filters (Bottom)
+                     // BUT, fabric applies array [0, 1, 2] in order.
+                     // Filter 0 acts on Image. Filter 1 acts on result of 0.
+                     // So Bottom Most Filter should be 0.
+                     // Since we visit Top first, we are seeing the LAST applied filter first.
+                     // So we should APPEND (Push) to a stack that we will eventually REVERSE?
+                     // Or, just construct the final array correctly.
                      
-                     // If it is CLIPPED:
-                     // It only applies if 'obj' is part of the immediate stack below it.
-                     // i.e., NO blocking visual layers in between.
-                     if (layer.clipped) {
-                         if (!blockedForClipped) {
-                            const layerOpacity = typeof layer.opacity === 'number' ? layer.opacity : 1;
-                            adjustmentFilters.push(
-                                ...buildFiltersForAdjustment(layer.adjustmentType, layer.adjustmentSettings, layerOpacity)
-                            );
-                         } 
-                         // If blocked, this clipped layer belongs to the blocker, not us.
-                     } 
-                     // If it is GLOBAL (Unclipped):
-                     // It applies to everything below it, regardless of blockers.
-                     else {
-                        const layerOpacity = typeof layer.opacity === 'number' ? layer.opacity : 1;
-                        adjustmentFilters.push(
-                            ...buildFiltersForAdjustment(layer.adjustmentType, layer.adjustmentSettings, layerOpacity)
-                        );
-                     }
-                } 
-                // If it is a potential "Blocker" (Visual content layer)
-                // e.g., Image, Group, Text, Path... but NOT an adjustment layer
-                else if (!layer.isAdjustmentLayer && layer.type !== 'selection') {
-                    // It blocks future CLIPPED layers
-                    blockedForClipped = true;
+                     // If we have [A, B] (B over A).
+                     // We visit B. ClipStack = [B].
+                     // Visit A. ClipStack = [A, B]? No. Adjustments stack on each other.
+                     // If B is Top. B is applied LAST.
+                     // So final array should be [...Old, ...New].
+                     // Wait. B is "On Top" visually.
+                     // Image -> Filter A -> Filter B.
+                     // So B is last in list.
+                     // We visit B first.
+                     // currentClipStack = [B].
+                     // Next is A. currentClipStack = [A, B] ?? 
+                     // No. currentClipStack is ACCUMULATING filters to apply to the NEXT VISUAL LAYER.
+                     // If we have Adj B (Top), Adj A (Below B).
+                     // They both apply to Image (Bottom).
+                     // Image should get [A, B].
+                     // We visit B. stack = [B].
+                     // We visit A. stack = [A, B]. (Unshift).
+                     currentClipStack.unshift(...newFilters);
+                } else {
+                     // Global
+                     // Same logic. Global B, Global A. Image gets [A, B].
+                     globalFilters.unshift(...newFilters);
                 }
+                continue;
             }
 
-            image.filters = [...imageExt.baseFilters, ...adjustmentFilters];
-            if (typeof image.applyFilters === 'function') {
-                const needsCanvas2d = adjustmentFilters.some((filter) => filter.type === 'Curves');
-                const shouldSwapBackend = needsCanvas2d && !(defaultFilterBackend instanceof fabric.Canvas2dFilterBackend);
-                if (shouldSwapBackend) {
-                    fabric.setFilterBackend(canvas2dFilterBackend);
-                }
-                image.applyFilters();
-                if (shouldSwapBackend) {
-                    fabric.setFilterBackend(defaultFilterBackend);
-                }
+            // 3. Visual Layer (Image/Group/etc)
+            // It CONSUMES the Clip Stack.
+            
+            // Check if supported target (Image)
+            if (obj.type === 'image') {
+                 const image = obj as fabric.Image;
+                 const imageExt = image as ExtendedFabricObject; // Re-cast to be sure
+                 // Init Base Filters if needed
+                 if (!imageExt.baseFilters) {
+                     const existing = image.filters || [];
+                     imageExt.baseFilters = existing.filter((f) => !adjustmentFilterTypes.has(f.type));
+                 }
+                 
+                 // Apply: Base + Global + LocalClipped
+                 // Note: Global filters usually apply AFTER local clipped filters? 
+                 // Or do they apply generally?
+                 // In PS: Global Adj Layer acts on everything below.
+                 // Local Clipped Adj Layer acts on Specific Layer.
+                 // So Local Clipped is tightly bound. Global is "Above".
+                 // So Global should be LAST in the pipeline (Index High).
+                 // Pipeline: Image -> Base -> Clipped -> Global.
+                 const combinedFilters = [...imageExt.baseFilters, ...currentClipStack, ...globalFilters];
+                 
+                 image.filters = combinedFilters;
+
+                 // Backend Swap Logic (Curves)
+                 if (typeof image.applyFilters === 'function') {
+                    const needsCanvas2d = combinedFilters.some((filter) => filter.type === 'Curves');
+                    const shouldSwapBackend = needsCanvas2d && !(defaultFilterBackend instanceof fabric.Canvas2dFilterBackend);
+                    if (shouldSwapBackend) {
+                        fabric.setFilterBackend(canvas2dFilterBackend);
+                    }
+                    image.applyFilters();
+                    if (shouldSwapBackend) {
+                        fabric.setFilterBackend(defaultFilterBackend);
+                    }
+                 }
+            } else if (obj.type === 'group') {
+                // Group logic - consumes stack but doesn't render filters by default
+                // TODO: Support filters on groups if possible
+            } else {
+                // Texts, etc
             }
-        });
+            
+            // Visual layer acts as a stopper for the clip stack
+            // All "pending" clipped layers have found their target.
+            currentClipStack = [];
+        }
 
         canvas.requestRenderAll();
     }, [canvas]);
@@ -437,6 +489,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         if (!canvas) return;
 
         const handleSelection = () => {
+            try {
             const active = canvas.getActiveObjects() || [];
             if (active.length === 1) {
                 // Single object selected
@@ -559,7 +612,11 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 // No selection or multiple
                 setSelectedObject(null);
             }
+            
             setSelectedIds(new Set(active.map(o => ensureObjectId(o))));
+            } catch (e) {
+                console.warn('Property Panel Selection Sync Error:', e);
+            }
         };
 
 

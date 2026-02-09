@@ -13,7 +13,6 @@ import {
     buildAutoBezierNodes,
     buildBezierPathData,
     buildSmoothPathData,
-    buildOpenTwoPointCurveNodes,
     buildStraightNodes
 } from '@/lib/pen-utils';
 import AssetLibrary from './AssetLibrary';
