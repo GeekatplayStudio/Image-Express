@@ -732,3 +732,4 @@
  GET /api/assets/serve/uploads/images/generated-1769136118241-1769136118315-196159909.png 200 in 9ms (compile: 5ms, render: 4ms)
 ✓ Compiled in 85ms
 ✓ Compiled in 94ms
+✓ Compiled in 83ms
