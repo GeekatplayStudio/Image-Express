@@ -60,6 +60,66 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect 
         localStorage.setItem('saved-palettes', JSON.stringify(newPalettes));
     };
 
+    // Draw Wheel
+    React.useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const cx = width / 2;
+        const cy = height / 2;
+        const radius = width / 2;
+
+        const imageData = ctx.createImageData(width, height);
+        const data = imageData.data;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const dx = x - cx;
+                const dy = y - cy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist <= radius) {
+                    let angle = Math.atan2(dy, dx);
+                    if (angle < 0) angle += 2 * Math.PI;
+
+                    const h = angle / (2 * Math.PI);
+                    const s = dist / radius;
+                    const l = 0.5;
+
+                    let r, g, b;
+                    if (s === 0) {
+                        r = g = b = l;
+                    } else {
+                        const hue2rgb = (p: number, q: number, t: number) => {
+                            if (t < 0) t += 1;
+                            if (t > 1) t -= 1;
+                            if (t < 1/6) return p + (q - p) * 6 * t;
+                            if (t < 1/2) return q;
+                            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                            return p;
+                        };
+                        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                        const p = 2 * l - q;
+                        r = hue2rgb(p, q, h + 1/3);
+                        g = hue2rgb(p, q, h);
+                        b = hue2rgb(p, q, h - 1/3);
+                    }
+
+                    const pxIndex = (y * width + x) * 4;
+                    data[pxIndex] = Math.round(r * 255);
+                    data[pxIndex+1] = Math.round(g * 255);
+                    data[pxIndex+2] = Math.round(b * 255);
+                    data[pxIndex+3] = 255;
+                }
+            }
+        }
+        ctx.putImageData(imageData, 0, 0);
+    }, []);
+
     // Load palettes on mount
     React.useEffect(() => {
         const saved = localStorage.getItem('saved-palettes');

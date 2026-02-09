@@ -390,3 +390,6 @@
  GET / 200 in 458ms (compile: 74ms, render: 384ms)
  GET /api/designs/list 200 in 7ms (compile: 1826µs, render: 5ms)
  GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1661µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 3ms, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1625µs, render: 2ms)
+✓ Compiled in 98ms
