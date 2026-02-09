@@ -301,7 +301,7 @@ describe('StabilityGenerator', () => {
       // We skip simulated DOM drawing as drawing now happens on Fabric canvas
       // const drawAreaLabel = screen.getByText('Draw Mask (White = Edit Area)');
       // ...
-      const drawContainer = document.body; // Falback or mock interaction if strictly needed?
+      // const drawContainer = document.body; // Falback or mock interaction if strictly needed?
       // Actually, if we are in "Direct Canvas Drawing" mode, we don't draw in the React DOM. We draw on fabric.
       // So triggering mousedown on a DIV won't do anything for fabric unless that DIV is covering the canvas.
       

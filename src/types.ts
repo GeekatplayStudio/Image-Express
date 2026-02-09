@@ -37,10 +37,13 @@ export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 
 
 export type CurvesChannel = 'rgb' | 'r' | 'g' | 'b' | 'luminosity';
 
+
+export type CurvePoint = { x: number; y: number };
+
 export type CurvesAdjustmentSettings = {
-    points: Array<{ x: number; y: number }>; // 0..1 normalized points
+    points: CurvePoint[]; // 0..1 normalized points
     channel?: CurvesChannel;
-    pointsByChannel?: Partial<Record<CurvesChannel, Array<{ x: number; y: number }>>>;
+    pointsByChannel?: Partial<Record<CurvesChannel, CurvePoint[]>>;
 };
 
 export type LevelsAdjustmentSettings = {
@@ -49,125 +52,11 @@ export type LevelsAdjustmentSettings = {
     white: number; // 0 - 1
 };
 
-export type SaturationVibranceSettings = {
-    saturation: number; // -1 to 1
-    vibrance: number; // -1 to 1
-};
+export type AdjustmentLayerSettings = CurvesAdjustmentSettings | LevelsAdjustmentSettings | Record<string, unknown>;
 
-export type HueSaturationSettings = {
-    hue: number; // -1 to 1
-    saturation: number; // -1 to 1
-    lightness: number; // -1 to 1
-};
-
-export type ExposureSettings = {
-    exposure: number; // -1 to 1
-    contrast: number; // -1 to 1
-};
-
-export type AdjustmentLayerSettings = CurvesAdjustmentSettings | LevelsAdjustmentSettings | SaturationVibranceSettings | HueSaturationSettings | ExposureSettings;
-
-export type FabricBaseFilter = fabric.filters.BaseFilter<string, Record<string, unknown>, Record<string, unknown>>;
-
-export interface ExtendedFabricObject extends fabric.Object {
-    id?: string;
-    locked?: boolean;
-    is3DModel?: boolean;
-    name?: string;
-    layerTagColor?: string;
-    curveStrength?: number;
-    curveCenter?: number;
-    skewZ?: number;
-    skewZBaseScale?: number;
-    skewZBaseScaleX?: number;
-    skewZBaseScaleY?: number;
-    skewZBaseSkewX?: number;
-    skewZBaseSkewY?: number;
-    taperDirection?: number;
-    taperBaseLeft?: number;
-    taperBaseTop?: number;
-    // absolutePositioned removed as it conflicts with base
-    cacheKey?: string;
-    mediaType?: 'video' | 'audio';
-    mediaSource?: string;
-    threeDSettings?: ThreeDSettings;
-    isAdjustmentLayer?: boolean;
-    adjustmentType?: AdjustmentLayerType;
-    adjustmentSettings?: AdjustmentLayerSettings;
-    baseFilters?: FabricBaseFilter[];
-    clipped?: boolean;
-    aiGenerated?: boolean;
-    aiProvider?: string;
-    isPenGroup?: boolean;
-    isPenPath?: boolean;
-    isMask?: boolean; // For Inpainting
-    penMode?: 'straight' | 'smooth' | 'bezier';
-    penClosed?: boolean;
-    penNodes?: PenNode[];
-    penSourcePoints?: Array<{ x: number; y: number }>;
-}
-
-export interface CanvasElement {
-    id: string;
-    type: 'text' | 'image' | 'rect';
-    properties: Record<string, unknown>;
-}
-
-export type ActiveTool = 'select' | 'text' | 'shapes' | 'paint' | 'pen' | 'gradient' | 'assets' | 'ai-zone' | '3d-gen' | 'templates' | 'adjustments' | 'layers';
-
-export type PenNode = {
-    x: number;
-    y: number;
-    handleIn: { x: number; y: number };
-    handleOut: { x: number; y: number };
-};
-
-export interface CanvasState {
-    activeSelection: fabric.Object | null; // Placeholder for Fabric Object
-    zoom: number;
-}
-
-export interface BackgroundJob {
-    id: string; // Task ID
-    type: 'text-to-3d' | 'image-to-3d' | 'stability-generate' | 'stability-inpaint' | 'stability-upscale' | 'stability-remove-bg';
-    provider?: 'meshy' | 'tripo' | 'hitems' | 'stability'; // Added provider field
-    stage?: 'preview' | 'refining'; // For multi-step jobs like Meshy V2
-    status: 'PENDING' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED';
-    progress?: number;
-    prompt?: string;
-    apiKey: string;
-    createdAt: number;
-    resultUrl?: string;
-    thumbnailUrl?: string; // If available
-}
-
-export type DesktopUpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'none' | 'error';
-
-export interface DesktopUpdatePayload {
-    status: DesktopUpdateStatus;
-    message?: string;
-}
-
-export interface GoogleDriveConfig {
-    enabled: boolean;
-    folderId?: string;
-    folderName?: string;
-    accessToken?: string;
-    tokenExpiry?: number;
-    clientId?: string;
-}
-
-export type AssetType = 'images' | 'models' | 'videos' | 'audio';
-export type AssetCategory = 'uploads' | 'generated';
-
-export interface AssetDescriptor {
-    name: string;
-    path: string;
-    type: AssetType;
-    category: AssetCategory;
-}
-
-export type CurvePoint = { x: number; y: number };
+export type HueSaturationSettings = { hue: number; saturation: number; lightness: number };
+export type ExposureSettings = { exposure: number; offset: number; gamma: number; contrast: number };
+export type SaturationVibranceSettings = { saturation: number; vibrance: number };
 
 export type LayerNode = {
     id: string;
@@ -175,20 +64,112 @@ export type LayerNode = {
     parentId: string | null;
     depth: number;
     children: LayerNode[];
+    expanded?: boolean;
 };
 
-declare global {
-    interface DesktopBridge {
-        isDesktop?: boolean;
-        checkForUpdates?: () => Promise<{ status: DesktopUpdateStatus | 'restarting'; message?: string }>;
-        installUpdate?: () => Promise<{ status: string; message?: string }>;
-        onUpdateStatus?: (callback: (payload: DesktopUpdatePayload) => void) => () => void;
-    }
-
-    interface Window {
-        desktop?: DesktopBridge;
-        gapi?: unknown;
-    }
+export interface ColorPalette {
+    id: string;
+    name: string;
+    colors: string[];
 }
 
-export {};
+export interface PenNode {
+    x: number;
+    y: number;
+    handleIn: { x: number; y: number };
+    handleOut: { x: number; y: number };
+}
+
+export type ExtendedFabricObject = fabric.Object & {
+    id?: string;
+    name?: string;
+    gradient?: {
+        type: 'linear' | 'radial';
+        coords?: { x1: number; y1: number; x2: number; y2: number; r1?: number; r2?: number };
+        colorStops?: Array<{ offset: number; color: string; opacity?: number }>;
+        angle?: number;
+    };
+    pattern?: unknown;
+    is3DModel?: boolean;
+    modelUrl?: string; 
+    isStar?: boolean;
+    starPoints?: number;
+    starInnerRadius?: number;
+    mediaType?: 'video' | 'audio' | string;
+    mediaSource?: string;
+    layerTagColor?: string;
+    isPenPath?: boolean;
+    penMode?: 'curve' | 'line' | 'straight' | 'smooth' | 'bezier';
+    penClosed?: boolean;
+    penNodes?: PenNode[];
+    penSourcePoints?: { x: number; y: number }[];
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _objects?: any[]; 
+    isMask?: boolean;
+    aiGenerated?: boolean;
+    aiProvider?: string;
+    threeDSettings?: ThreeDSettings;
+    isAdjustmentLayer?: boolean;
+    adjustmentType?: AdjustmentLayerType;
+    adjustmentSettings?: AdjustmentLayerSettings;
+    baseFilters?: FabricBaseFilter[];
+    locked?: boolean;
+    clipped?: boolean;
+    cacheKey?: string;
+    skewZ?: number;
+    taperDirection?: number;
+    curveStrength?: number;
+    curveCenter?: number;
+    skewZBaseScaleX?: number;
+    skewZBaseScaleY?: number;
+    skewZBaseSkewX?: number;
+    skewZBaseSkewY?: number;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type FabricBaseFilter = any;
+
+export interface BackgroundJob {
+   id: string;
+   type: 'upscale' | 'remove-bg' | 'generate-3d' | 'train-model' | 'stability-upscale' | 'stability-image' | 'image-to-3d' | 'text-to-3d';
+   status: 'pending' | 'processing' | 'completed' | 'failed' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'PENDING' | 'SUCCEEDED';
+   progress?: number;
+   result?: unknown;
+   resultUrl?: string; 
+   thumbnailUrl?: string;
+   error?: string;
+   createdAt: number;
+   apiKey?: string;
+   provider?: string;
+   stage?: string;
+   prompt?: string;
+}
+
+export type AssetType = 'images' | 'videos' | 'audio' | 'models';
+export type AssetCategory = 'uploads' | 'generated';
+
+export interface AssetDescriptor {
+    path: string;
+    name: string;
+    type: AssetType;
+    category: AssetCategory;
+    url?: string;
+}
+
+export interface GoogleDriveConfig {
+    enabled: boolean;
+    clientId?: string;
+    apiKey?: string;
+    appId?: string;
+    folderName?: string;
+}
+
+export interface DesktopUpdatePayload {
+    version?: string;
+    releaseDate?: string;
+    notes?: string;
+    status?: DesktopUpdateStatus;
+    message?: string;
+}
+
+export type DesktopUpdateStatus = 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error' | 'checking' | 'idle' | 'restarting';

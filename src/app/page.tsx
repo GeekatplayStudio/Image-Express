@@ -10,6 +10,7 @@ import SettingsModal from '@/components/SettingsModal';
 import { User, Settings, Box, Cloud } from 'lucide-react';
 import { useToast } from '@/providers/ToastProvider';
 
+
 export default function Home() {
   const { toast } = useToast();
   // Auth State

@@ -17,7 +17,7 @@ import { GridOverlay, GridType } from '@/components/GridOverlay';
 import { GradientControls } from '@/components/GradientControls';
 import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Move, Brush, PenTool, Shapes, Type, PaintBucket, Wand2, LayoutTemplate, Blend, Layers, Facebook, Instagram } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject } from '@/types';
+import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject, ColorPalette } from '@/types';
 import JSZip from 'jszip';
 import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import { useDialog } from '@/providers/DialogProvider';
@@ -115,6 +115,7 @@ export default function EditorView({
     const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
     const canvasRef = useRef<fabric.Canvas | null>(null);
     const [activeTool, setActiveTool] = useState<string>('select');
+    const [activePalette, setActivePalette] = useState<ColorPalette | null>(null);
     const [zoom, setZoom] = useState(1);
     const [isDirty, setIsDirty] = useState(false);
     
@@ -1982,7 +1983,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!target) return;
 
                     if (target.mediaType && target.mediaSource) {
-                        setMediaPreview({ type: target.mediaType, url: target.mediaSource });
+                        setMediaPreview({ type: target.mediaType as 'video' | 'audio', url: target.mediaSource });
                         return;
                     }
 
@@ -2108,10 +2109,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }, [settingsOpen]);
     
+    // Connection status check commented out
+    /*
     const is3DMode = activeTool === '3d-gen';
     const has2DKey = !!(apiKeys.stability || apiKeys.openai || apiKeys.google || apiKeys.banana);
     const has3DKey = !!(apiKeys.meshy || apiKeys.tripo || apiKeys.hitems);
-    const isConnected = is3DMode ? has3DKey : has2DKey;
+    // const isConnected = is3DMode ? has3DKey : has2DKey;
+    */
 
     useEffect(() => {
         backgroundJobsRef.current = backgroundJobs;
@@ -2463,6 +2467,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
                  {/* Actions */}
                       <div className="flex items-center gap-3">
+                            {/* Active Palette Bar */}
+                            {activePalette && (
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/50 rounded-full border border-border/50 animate-in fade-in zoom-in-95 duration-200">
+                                    <span className="text-xs font-medium text-muted-foreground mr-1">{activePalette.name}</span>
+                                    {activePalette.colors.map((c, i) => (
+                                        <button 
+                                            key={i} 
+                                            className="w-4 h-4 rounded-full border border-border/20 hover:scale-125 transition-transform shadow-sm"
+                                            style={{ backgroundColor: c }}
+                                            onClick={() => {
+                                                const activeObj = canvas?.getActiveObject();
+                                                if (activeObj) {
+                                                    // Apply to text or shape fill
+                                                    if (activeObj instanceof fabric.Group && activeObj.type === 'path_group') {
+                                                        // SVG - often complex
+                                                        activeObj.set({ fill: c }); // Simple attempt
+                                                    } else {
+                                                         activeObj.set({ fill: c });
+                                                    }
+                                                    canvas?.requestRenderAll();
+                                                    // If gradient tool active, maybe trigger gradient stop update? 
+                                                    // Too complex for centralized logic without more context, defaulting to object fill.
+                                                }
+                                            }}
+                                            title={`Use ${c}`}
+                                        />
+                                    ))}
+                                    <button onClick={() => setActivePalette(null)} className="ml-1 p-0.5 text-muted-foreground hover:text-foreground"><X size={12}/></button>
+                                </div>
+                            )}
+
                             <button 
                                 onClick={() => onOpenDocumentation?.()}
                                 className="w-9 h-9 flex items-center justify-center rounded-full border border-border/60 text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
@@ -2501,14 +2536,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             >
                                 <Settings size={20} />
                             </button>
-        
-                     <button 
-                        onClick={() => setShowProfileModal(true)}
-                        className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground ml-1"
-                        title="User Profile"
-                     >
-                        <User size={20} />
-                     </button>
         
                      <div className="h-6 w-px bg-border mx-1"></div>
                      
@@ -2773,7 +2800,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <Toolbar 
                                 ref={toolbarRef}
                         canvas={canvas} 
-                        activeTool={activeTool} 
+                        activeTool={activeTool}
+                        activePalette={activePalette}
+                        setActivePalette={setActivePalette}
                         setActiveTool={(tool) => {
                              if (tool === '3d-gen' && canvas) {
                                  const active = canvas.getActiveObject();
@@ -2805,7 +2834,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                         <div className="flex-1 overflow-hidden relative">
-                             <PropertiesPanel 
+                                <PropertiesPanel 
                                 canvas={canvas} 
                                 activeTool={activeTool} 
                                 onLayerDblClick={(obj) => { 
@@ -2813,7 +2842,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                         canvas.setActiveObject(obj);
                                         canvas.requestRenderAll();
                                     }
-                                    setActiveTool('select');
                                 }}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}
@@ -2958,7 +2986,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                         canvas.setActiveObject(obj);
                                         canvas.requestRenderAll();
                                     }
-                                    setActiveTool('select');
                                 }}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}
@@ -3004,7 +3031,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                         canvas.setActiveObject(obj);
                                         canvas.requestRenderAll();
                                     }
-                                    setActiveTool('select');
                                 }}
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}

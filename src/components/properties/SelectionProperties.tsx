@@ -10,7 +10,7 @@ import { ImageFilterProperties, ImageFilterValues } from './ImageFilterPropertie
 import { ShadowStrokeProperties, ShadowStrokeValues } from './ShadowStrokeProperties';
 import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
-import { Folder, Layers, Blend, ChevronDown, ChevronRight, Scissors, Lock, Unlock, Box, Type } from 'lucide-react';
+import { Folder, Layers, Blend, ChevronDown, ChevronRight, Lock, Unlock, Box, Type } from 'lucide-react';
 import { ColorPicker } from './ColorPicker';
 
 interface SelectionPropertiesProps {
@@ -365,7 +365,8 @@ export function SelectionProperties({
                                          value={gradientState.angle}
                                          onChange={(e) => {
                                              if (gradientState) {
-                                                 const { coords, ...rest } = gradientState;
+                                                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                                 const { coords: _coords, ...rest } = gradientState;
                                                  onPropChange('gradient', { ...rest, angle: parseInt(e.target.value) });
                                              }
                                          }}
@@ -381,9 +382,10 @@ export function SelectionProperties({
                                           <button 
                                             className="text-[10px] text-indigo-400 hover:text-indigo-300"
                                             onClick={() => {
-                                                 const { coords, ...rest } = gradientState;
+                                                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                                 const { coords: _coords, ...rest } = gradientState;
                                                  // Reset to angle-based by removing coords
-                                                 onPropChange('gradient', { ...rest }); 
+                                                 onPropChange('gradient', { ...rest });  
                                             }}
                                             title="Reset points to follow Angle"
                                           >

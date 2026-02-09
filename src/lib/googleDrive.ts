@@ -10,6 +10,8 @@ const FOLDER_METADATA = {
 interface StoredConfig extends GoogleDriveConfig {
   accessToken?: string;
   refreshToken?: string;
+  folderId?: string;
+  tokenExpiry?: number;
 }
 
 export function loadDriveConfig(): StoredConfig {

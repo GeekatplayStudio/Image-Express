@@ -73,7 +73,7 @@ type Palette = {
     colors: string[];
 };
 
-export function ColorPicker({ color, onChange, label = 'Color', allowAlpha = false }: ColorPickerProps) {
+export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'wheel' | 'palette'>('wheel');
     const [palettes, setPalettes] = useState<Palette[]>([]);

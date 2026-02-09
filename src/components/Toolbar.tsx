@@ -2,13 +2,25 @@
 import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool, Plus } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool, Palette } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { StarPolygon, ThreeDGroup, ExtendedFabricObject, AdjustmentLayerType, PenNode } from '@/types';
+import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
+import { 
+    PenPoint, 
+    PenModeSetting, 
+    PEN_DEFAULT_STROKE,
+    PEN_DEFAULT_FILL,
+    buildAutoBezierNodes,
+    buildBezierPathData,
+    buildSmoothPathData,
+    buildOpenTwoPointCurveNodes,
+    buildStraightNodes
+} from '@/lib/pen-utils';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
 import ImageGeneratorModal from './ImageGeneratorModal';
+import { ColorWheelTool } from './ColorWheelTool';
 import { useToast } from '@/providers/ToastProvider';
 import { loadProfileSettings } from '@/lib/profile-utils';
 
@@ -23,6 +35,8 @@ interface ToolbarProps {
     setActiveTool: (tool: string) => void;
     onOpen3DEditor?: (url: string) => void;
     apiKeys?: { stability?: string };
+    activePalette?: ColorPalette | null;
+    setActivePalette?: (palette: ColorPalette | null) => void;
 }
 
 export type ToolbarHandle = {
@@ -62,15 +76,13 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
     }
 };
 
-type PenPoint = { x: number; y: number };
-type PenMode = 'straight' | 'smooth' | 'bezier';
 type PenClosure = 'open' | 'closed';
 type BezierPathObject = fabric.Path & ExtendedFabricObject;
 type PenDraftLineObject = fabric.Object;
 type PenAnchorObject = fabric.Circle & { isPenDraftAnchor?: boolean; penAnchorIndex?: number };
 
-const PEN_STROKE = '#3b82f6';
-const PEN_FILL = '#cccccc';
+const PEN_STROKE = PEN_DEFAULT_STROKE;
+const PEN_FILL = PEN_DEFAULT_FILL;
 const PEN_ANCHOR_COLOR = '#2563eb';
 const PEN_HANDLE_COLOR = '#ffffff';
 let isPenSpacePressed = false;
@@ -86,122 +98,11 @@ const clonePenNodes = (nodes: PenNode[]) => nodes.map((node) => ({
 
 const distanceBetween = (a: PenPoint, b: PenPoint) => Math.hypot(a.x - b.x, a.y - b.y);
 
-const buildOpenTwoPointCurveNodes = (points: PenPoint[]): PenNode[] => {
-    const [start, end] = points;
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const length = Math.hypot(dx, dy);
+/* 
+ * Duplicated logic moved to @/lib/pen-utils 
+ */
 
-    if (length < 0.001) {
-        return [
-            { x: start.x, y: start.y, handleIn: { x: start.x, y: start.y }, handleOut: { x: start.x, y: start.y } },
-            { x: end.x, y: end.y, handleIn: { x: end.x, y: end.y }, handleOut: { x: end.x, y: end.y } }
-        ];
-    }
-
-    // Give open 2-point paths a real curve so smooth/bezier modes are visually distinct from straight.
-    const normalX = -dy / length;
-    const normalY = dx / length;
-    const bend = Math.min(120, Math.max(24, length * 0.28));
-    const controlX = (start.x + end.x) / 2 + (normalX * bend);
-    const controlY = (start.y + end.y) / 2 + (normalY * bend);
-
-    return [
-        {
-            x: start.x,
-            y: start.y,
-            handleIn: { x: start.x, y: start.y },
-            handleOut: {
-                x: ((2 * start.x) + controlX) / 3,
-                y: ((2 * start.y) + controlY) / 3
-            }
-        },
-        {
-            x: end.x,
-            y: end.y,
-            handleIn: {
-                x: ((2 * end.x) + controlX) / 3,
-                y: ((2 * end.y) + controlY) / 3
-            },
-            handleOut: { x: end.x, y: end.y }
-        }
-    ];
-};
-
-const buildAutoBezierNodes = (points: PenPoint[], closed: boolean): PenNode[] => {
-    const len = points.length;
-    if (len === 0) return [];
-    if (!closed && len === 2) {
-        return buildOpenTwoPointCurveNodes(points);
-    }
-
-    return points.map((point, index) => {
-        const prev = closed ? points[(index - 1 + len) % len] : points[Math.max(index - 1, 0)];
-        const next = closed ? points[(index + 1) % len] : points[Math.min(index + 1, len - 1)];
-        const tangentX = (next.x - prev.x) / 6;
-        const tangentY = (next.y - prev.y) / 6;
-
-        const handleIn = { x: point.x - tangentX, y: point.y - tangentY };
-        const handleOut = { x: point.x + tangentX, y: point.y + tangentY };
-
-        if (!closed && index === 0) {
-            handleIn.x = point.x;
-            handleIn.y = point.y;
-        }
-        if (!closed && index === len - 1) {
-            handleOut.x = point.x;
-            handleOut.y = point.y;
-        }
-
-        return {
-            x: point.x,
-            y: point.y,
-            handleIn,
-            handleOut
-        };
-    });
-};
-
-const buildStraightNodes = (points: PenPoint[]): PenNode[] => {
-    return points.map(p => ({
-        x: p.x,
-        y: p.y,
-        handleIn: { x: p.x, y: p.y },
-        handleOut: { x: p.x, y: p.y }
-    }));
-};
-
-const buildBezierPathData = (nodes: PenNode[], closed: boolean): string => {
-    if (nodes.length === 0) return '';
-    if (nodes.length === 1) return `M ${nodes[0].x} ${nodes[0].y}`;
-
-    let pathData = `M ${nodes[0].x} ${nodes[0].y}`;
-    const segmentCount = closed ? nodes.length : (nodes.length - 1);
-
-    for (let i = 0; i < segmentCount; i++) {
-        const current = nodes[i];
-        const next = nodes[(i + 1) % nodes.length];
-        pathData += ` C ${current.handleOut.x} ${current.handleOut.y} ${next.handleIn.x} ${next.handleIn.y} ${next.x} ${next.y}`;
-    }
-
-    if (closed) pathData += ' Z';
-    return pathData;
-};
-
-const buildSmoothPathData = (points: PenPoint[], closed: boolean): string => {
-    if (points.length === 0) return '';
-    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-    if (points.length === 2) {
-        if (!closed) {
-            return buildBezierPathData(buildAutoBezierNodes(points, false), false);
-        }
-        const base = `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
-        return `${base} Z`;
-    }
-    return buildBezierPathData(buildAutoBezierNodes(points, closed), closed);
-};
-
-const createPenDraftLine = (points: PenPoint[], mode: PenMode, closure: PenClosure): PenDraftLineObject | null => {
+const createPenDraftLine = (points: PenPoint[], mode: PenModeSetting, closure: PenClosure): PenDraftLineObject | null => {
     if (points.length === 0) return null;
     const isClosed = closure === 'closed' && points.length > 2;
     const baseProps = {
@@ -401,7 +302,7 @@ const attachBezierControls = (pathObj: BezierPathObject) => {
     pathObj.setCoords();
 };
 
-const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys }, ref) => {
+const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, activePalette, setActivePalette }, ref) => {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
@@ -433,14 +334,16 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         { name: 'templates', icon: LayoutTemplate, label: 'Library' },
         { name: 'adjustments', icon: Blend, label: 'Adjustments' },
         { name: 'layers', icon: Layers, label: 'Layers' },
-        { name: 'extra', icon: Plus, label: 'Add' },
+        { name: 'ai-zone', icon: Wand2, label: 'AI Zone' },
+        { name: '3d-gen', icon: Box, label: 'AI 3D' },
+        { name: 'color-wheel', icon: Palette, label: 'Color' },
     ];
 
     const [penPoints, setPenPoints] = useState<PenPoint[]>([]);
     const [penAnchors, setPenAnchors] = useState<PenAnchorObject[]>([]);
     const penActiveLineRef = useRef<PenDraftLineObject | null>(null);
     const penAnchorsRef = useRef<PenAnchorObject[]>([]);
-    const [penMode, setPenMode] = useState<PenMode>('straight');
+    const [penMode, setPenMode] = useState<PenModeSetting>('straight');
     const [penClosure, setPenClosure] = useState<PenClosure>('open');
 
     useEffect(() => {
@@ -753,7 +656,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handlePenConfigSet = (opt: any) => {
-            const mode = opt?.mode as PenMode | undefined;
+            const mode = opt?.mode as PenModeSetting | undefined;
             const closure = opt?.closure as PenClosure | undefined;
             if (mode && (mode === 'straight' || mode === 'smooth' || mode === 'bezier')) {
                 setPenMode(mode);
@@ -1478,6 +1381,23 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                     onClose={() => setActiveTool('select')}
                     onSelect={handleLoadTemplate}
                     onSaveCurrent={handleSaveTemplateTrigger}
+                />
+            )}
+
+            {activeTool === 'color-wheel' && (
+                <ColorWheelTool 
+                    onColorSelect={(color) => {
+                         if (!canvas) return;
+                         const active = canvas.getActiveObject();
+                         if (active) {
+                             active.set({ fill: color });
+                             canvas.requestRenderAll();
+                         }
+                    }}
+                    currentPalette={activePalette || null}
+                    onPaletteSelect={(palette) => {
+                         if (setActivePalette) setActivePalette(palette);
+                    }}
                 />
             )}
 

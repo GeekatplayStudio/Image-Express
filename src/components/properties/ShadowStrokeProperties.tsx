@@ -55,7 +55,7 @@ const BLEND_MODES = [
     { label: 'Luminosity', value: 'luminosity' },
 ];
 
-const CompactColorPicker = ({ color, onChange, opacity = 1 }: { color: string, onChange: (val: string) => void, opacity?: number }) => (
+const CompactColorPicker = ({ color, onChange }: { color: string, onChange: (val: string) => void, opacity?: number }) => (
     <div className="w-8 shrink-0">
         <ColorPicker color={color} onChange={onChange} label="" />
     </div>

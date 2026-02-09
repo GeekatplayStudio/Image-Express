@@ -220,3 +220,173 @@
 ✓ Compiled in 81ms
  GET /api/designs/list 200 in 7ms (compile: 1820µs, render: 5ms)
  GET /api/designs/list 200 in 4ms (compile: 1149µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 2ms, render: 3ms)
+ POST /api/logs/login 200 in 319ms (compile: 312ms, render: 7ms)
+ GET /api/user/keys?userId=vovka 200 in 7ms (compile: 3ms, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1624µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 5ms (compile: 2ms, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1520µs, render: 2ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1342µs, render: 2ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1292µs, render: 2ms)
+ GET /api/designs/list 200 in 7ms (compile: 3ms, render: 4ms)
+ GET /api/designs/list 200 in 4ms (compile: 1262µs, render: 3ms)
+✓ Compiled in 114ms
+ GET /api/designs/list 200 in 39ms (compile: 11ms, render: 28ms)
+✓ Compiled in 112ms
+ GET /api/designs/list 200 in 6ms (compile: 1567µs, render: 4ms)
+✓ Compiled in 80ms
+ GET /api/designs/list 200 in 5ms (compile: 2ms, render: 3ms)
+✓ Compiled in 73ms
+✓ Compiled in 83ms
+✓ Compiled in 67ms
+ GET /api/designs/list 200 in 5ms (compile: 1655µs, render: 4ms)
+✓ Compiled in 86ms
+✓ Compiled in 88ms
+✓ Compiled in 80ms
+ GET /api/user/keys?userId=vovka 200 in 14ms (compile: 7ms, render: 8ms)
+ POST /api/logs/login 200 in 35ms (compile: 8ms, render: 27ms)
+ GET /api/designs/list 200 in 6ms (compile: 1634µs, render: 4ms)
+✓ Compiled in 82ms
+✓ Compiled in 94ms
+✓ Compiled in 86ms
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1675µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1587µs, render: 3ms)
+✓ Compiled in 100ms
+✓ Compiled in 92ms
+✓ Compiled in 202ms
+✓ Compiled in 98ms
+✓ Compiled in 82ms
+✓ Compiled in 61ms
+✓ Compiled in 115ms
+✓ Compiled in 84ms
+✓ Compiled in 80ms
+ GET / 200 in 1699ms (compile: 349ms, render: 1349ms)
+ GET /api/designs/list 200 in 6ms (compile: 1921µs, render: 5ms)
+ GET /api/user/keys?userId=vovka 200 in 8ms (compile: 5ms, render: 3ms)
+ GET /api/designs/list 200 in 43ms (compile: 4ms, render: 39ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1552µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 3ms (compile: 1396µs, render: 1963µs)
+✓ Compiled in 88ms
+✓ Compiled in 78ms
+ GET /api/designs/list 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/designs/list 200 in 5ms (compile: 1502µs, render: 3ms)
+ POST /api/logs/login 200 in 6ms (compile: 1526µs, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1474µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1873µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1771µs, render: 2ms)
+✓ Compiled in 109ms
+✓ Compiled in 103ms
+✓ Compiled in 99ms
+✓ Compiled in 126ms
+✓ Compiled in 99ms
+✓ Compiled in 298ms
+✓ Compiled in 154ms
+ GET /api/user/keys?userId=vovka 200 in 11ms (compile: 8ms, render: 3ms)
+ GET /api/designs/list 200 in 14ms (compile: 5ms, render: 9ms)
+ GET / 200 in 439ms (compile: 68ms, render: 372ms)
+ GET /api/designs/list 200 in 5ms (compile: 1416µs, render: 4ms)
+ GET /api/designs/list 200 in 4ms (compile: 1166µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1570µs, render: 1933µs)
+✓ Compiled in 104ms
+✓ Compiled in 77ms
+✓ Compiled in 91ms
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1525µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1354µs, render: 4ms)
+✓ Compiled in 100ms
+ GET /api/user/keys?userId=vovka 200 in 12ms (compile: 8ms, render: 4ms)
+ GET /api/designs/list 200 in 15ms (compile: 5ms, render: 11ms)
+ GET / 200 in 480ms (compile: 66ms, render: 414ms)
+ GET /api/designs/list 200 in 6ms (compile: 1978µs, render: 4ms)
+ GET /api/designs/list 200 in 5ms (compile: 1746µs, render: 4ms)
+ GET /api/user/keys?userId=vovka 200 in 6ms (compile: 1878µs, render: 4ms)
+✓ Compiled in 100ms
+✓ Compiled in 94ms
+✓ Compiled in 95ms
+✓ Compiled in 89ms
+✓ Compiled in 91ms
+ GET /api/user/keys?userId=vovka 200 in 7ms (compile: 2ms, render: 5ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1973µs, render: 3ms)
+✓ Compiled in 98ms
+ GET /api/user/keys?userId=vovka 200 in 100ms (compile: 97ms, render: 3ms)
+ GET /api/designs/list 200 in 494ms (compile: 1785µs, render: 492ms)
+ GET / 200 in 546ms (compile: 74ms, render: 472ms)
+✓ Compiled in 2ms
+ GET /api/designs/list 200 in 6ms (compile: 2ms, render: 4ms)
+ GET /api/designs/list 200 in 5ms (compile: 1954µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 2ms, render: 3ms)
+✓ Compiled in 102ms
+✓ Compiled in 102ms
+✓ Compiled in 103ms
+✓ Compiled in 99ms
+✓ Compiled in 98ms
+✓ Compiled in 85ms
+✓ Compiled in 109ms
+✓ Compiled in 75ms
+✓ Compiled in 72ms
+✓ Compiled in 70ms
+✓ Compiled in 269ms
+✓ Compiled in 96ms
+✓ Compiled in 96ms
+✓ Compiled in 95ms
+✓ Compiled in 73ms
+✓ Compiled in 75ms
+✓ Compiled in 95ms
+✓ Compiled in 72ms
+✓ Compiled in 71ms
+✓ Compiled in 74ms
+✓ Compiled in 98ms
+✓ Compiled in 83ms
+✓ Compiled in 94ms
+✓ Compiled in 84ms
+✓ Compiled in 71ms
+✓ Compiled in 100ms
+✓ Compiled in 93ms
+✓ Compiled in 171ms
+✓ Compiled in 117ms
+ GET / 200 in 91ms (compile: 65ms, render: 26ms)
+✓ Compiled in 100ms
+✓ Compiled in 216ms
+✓ Compiled in 103ms
+ GET / 200 in 422ms (compile: 62ms, render: 360ms)
+ GET /api/designs/list 200 in 6ms (compile: 1857µs, render: 5ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1656µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1939µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1441µs, render: 3ms)
+✓ Compiled in 93ms
+✓ Compiled in 114ms
+✓ Compiled in 95ms
+ GET / 200 in 374ms (compile: 58ms, render: 316ms)
+ GET /api/designs/list 200 in 6ms (compile: 1807µs, render: 4ms)
+ GET /api/designs/list 200 in 4ms (compile: 1197µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1984µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1929µs, render: 3ms)
+ GET /api/user/keys?userId=vovka 200 in 4ms (compile: 1912µs, render: 2ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 19ms (compile: 9ms, render: 10ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1506µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1446µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 4ms (compile: 1386µs, render: 3ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_28%20AM-1770051149992-54158408.png 200 in 28ms (compile: 15ms, render: 12ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_33_46%20AM-1770051106381-178868920.png 200 in 34ms (compile: 29ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2010_02_03%20AM-1770051843498-930641710.png 200 in 40ms (compile: 35ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/ChatGPT%20Image%20Feb%202,%202026,%2009_32_43%20AM-1770051140042-889111889.png 200 in 46ms (compile: 42ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_5rcb25rcb25rcb25-1770051345115-978587713.png 200 in 9ms (compile: 4ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/Gemini_Generated_Image_foxeexfoxeexfoxe-1770051127774-285159866.png 200 in 18ms (compile: 10ms, render: 8ms)
+ GET /api/assets/serve/uploads/images/generated-1769182763198-1769182763244-719311517.png 200 in 8ms (compile: 3ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/generated-1769136118241-1769136118315-196159909.png 200 in 16ms (compile: 12ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769113486847-1769113487025-113613047.png 200 in 22ms (compile: 18ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/srq.png 200 in 7ms (compile: 3ms, render: 4ms)
+ GET /api/assets/serve/uploads/images/vovka-c-1770051889634-169660285.png 200 in 14ms (compile: 8ms, render: 6ms)
+ GET /api/assets/serve/uploads/images/guard.png 200 in 8ms (compile: 3ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/spaceman.png 200 in 18ms (compile: 10ms, render: 8ms)
+ GET /api/assets/serve/uploads/images/vovka.png 200 in 24ms (compile: 20ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/generated-1769136118241-1769136118315-196159909.png 200 in 11ms (compile: 7ms, render: 4ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 6ms (compile: 2ms, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 5ms (compile: 2ms, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 5ms (compile: 1231µs, render: 3ms)
+ GET /api/assets/list?type=images&category=uploads 200 in 5ms (compile: 1483µs, render: 4ms)
+ GET /api/assets/serve/uploads/images/generated-1769136118241-1769136118315-196159909.png 200 in 12ms (compile: 7ms, render: 5ms)
+ GET /api/assets/serve/uploads/images/guard.png 200 in 10ms (compile: 7ms, render: 3ms)
+✓ Compiled in 95ms
+ GET / 200 in 458ms (compile: 74ms, render: 384ms)
+ GET /api/designs/list 200 in 7ms (compile: 1826µs, render: 5ms)
+ GET /api/user/keys?userId=vovka 200 in 5ms (compile: 1661µs, render: 3ms)

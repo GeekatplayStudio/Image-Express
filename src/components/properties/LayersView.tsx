@@ -25,6 +25,7 @@ interface LayersViewProps {
     onLayerBlendChange: (value: string) => void;
     onDblClick?: (obj: fabric.Object) => void;
     onDuplicate?: () => void;
+    onToggleClip?: (obj: fabric.Object) => void;
     
     // Optional props for expanded state if managed by parent, otherwise local
     expandedFolders?: Set<string>;
@@ -49,6 +50,7 @@ export function LayersView({
     onLayerBlendChange,
     onDblClick,
     onDuplicate,
+    onToggleClip,
     expandedFolders: externalExpanded,
     onToggleFolder: externalToggleFolder
 }: LayersViewProps) {
@@ -240,6 +242,7 @@ export function LayersView({
                                  expandedIds={expanded}
                                  onToggleExpand={handleToggleExpand}
                                  onDblClick={() => onDblClick && onDblClick(node.obj)}
+                                 onToggleClip={onToggleClip}
                                  // We pass 'childrenNodes' separately from 'children' because 'children' in React is reserved
                                  childrenNodes={node.children}
                              />

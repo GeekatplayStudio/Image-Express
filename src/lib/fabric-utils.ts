@@ -144,3 +144,25 @@ export const getDefaultAdjustmentSettings = (type: AdjustmentLayerType): Adjustm
     if (type === 'exposure') return { exposure: 0, contrast: 0 } as ExposureSettings;
     return { saturation: 0, vibrance: 0 } as SaturationVibranceSettings;
 };
+
+export const getCanvasPointFromGradient = (obj: fabric.Object, x: number, y: number) => {
+     const width = obj.width || 0;
+     const height = obj.height || 0;
+     const localX = (x - 0.5) * width;
+     const localY = (y - 0.5) * height;
+     const matrix = obj.calcTransformMatrix();
+     const point = new fabric.Point(localX, localY);
+     return fabric.util.transformPoint(point, matrix);
+};
+
+export const getGradientPointFromCanvas = (obj: fabric.Object, canvasX: number, canvasY: number) => {
+     const matrix = obj.calcTransformMatrix();
+     const inverted = fabric.util.invertTransform(matrix);
+     const point = new fabric.Point(canvasX, canvasY);
+     const local = fabric.util.transformPoint(point, inverted);
+     const width = obj.width || 0;
+     const height = obj.height || 0;
+     const x = (local.x / width) + 0.5;
+     const y = (local.y / height) + 0.5;
+     return { x, y };
+};

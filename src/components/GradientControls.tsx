@@ -11,6 +11,10 @@ interface GradientControlsProps {
     activeTool: string;
 }
 
+type FabricObjectMovingEvent = {
+    target?: fabric.Object;
+};
+
 export function GradientControls({ canvas, activeTool }: GradientControlsProps) {
     useEffect(() => {
         if (!canvas) return;
@@ -130,7 +134,7 @@ export function GradientControls({ canvas, activeTool }: GradientControlsProps) 
              }
         };
 
-        const onMoving = (e: any) => {
+        const onMoving = (e: FabricObjectMovingEvent) => {
              const target = e.target;
              if (!activeObj || !p1Control || !p2Control) return;
 

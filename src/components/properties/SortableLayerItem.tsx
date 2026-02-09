@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft } from 'lucide-react';
+import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft, Link2 } from 'lucide-react';
 import { ExtendedFabricObject, LayerNode } from '@/types';
 
 interface SortableLayerItemProps {
@@ -22,9 +22,10 @@ interface SortableLayerItemProps {
     expandedIds: Set<string>;
     childrenNodes?: LayerNode[];
     removeFromFolder?: (id: string) => void;
+    onToggleClip?: (obj: fabric.Object) => void;
 }
 
-export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [], removeFromFolder }: SortableLayerItemProps) {
+export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [], removeFromFolder, onToggleClip }: SortableLayerItemProps) {
     const extendedObj = obj as ExtendedFabricObject;
     const {
         attributes,
@@ -203,6 +204,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             <EyeOff size={12} className="text-rose-500" />
                         )}
                         {isLocked && <Lock size={12} className="text-amber-500" />}
+                        {extendedObj.clipped && <Link2 size={12} className="text-primary" />}
                     </div>
                 </div>
             </div>
@@ -214,6 +216,16 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                     title={isLocked ? "Unlock" : "Lock"}
                 >
                     {isLocked ? <Lock size={14} /> : <Unlock size={14} />}
+                </button>
+                <button
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (onToggleClip) onToggleClip(obj); 
+                    }}
+                    className={`p-1.5 hover:bg-secondary rounded-md ${extendedObj.clipped ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                    title={extendedObj.clipped ? "Unclip from layer below" : "Clip to layer below"}
+                >
+                    <Link2 size={14} />
                 </button>
                 {depth > 0 && removeFromFolder && (
                      <button
@@ -261,8 +273,9 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             // Recursive props
                             onDblClick={onDblClick}
                             onToggleExpand={onToggleExpand}
-                                     expanded={expandedIds.has(child.id)}
-                                     expandedIds={expandedIds}
+                            expanded={expandedIds.has(child.id)}
+                            expandedIds={expandedIds}
+                            onToggleClip={onToggleClip}
                             childrenNodes={child.children}
                          />
                      ))}

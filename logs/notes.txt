@@ -31,7 +31,6 @@ Workspace
     [Done] Gtadient on the text sometimes not cover all text.
 
 [Done] AI inpainting need to be on main canvas, bigger size, easy to use.
-Clipping mask still confusing, need rework on workflow, make it more intuitive.
 [Done] Top layer can clip to the lower layer, to aply effect.
 [Done] Cureve and adjustment layers properties does not open by double time clicking. (Fixed selection logic)
 
@@ -43,6 +42,14 @@ Clipping mask still confusing, need rework on workflow, make it more intuitive.
 [Done] double clicking on the layer in the layers view, should also open properties of selected layer. (Verified and strengthened)
 
 with gradinet and repositioning, we need see the points of orgin of the colors
-Need have color wheel and way to save palets and retrive them.
-Doulbe click on layers in leayer view open properties for short time and then switching to back to canvas view.
-Landing page(hub) instead 8 thimbnails in row, show 6. and display last used templates first, and let people use filters to select and show other
+[Done] Need have color wheel and way to save palets and retrive them.
+[Done] Doulbe click on layers in leayer view open properties for short time and then switching to back to canvas view.
+[Done] Landing page(hub) instead 8 thimbnails in row, show 6. and display last used templates first, and let people use filters to select and show other
+[Done] Text arching cliping some text at edges.
+[Done] Pen tool need create layer with pen path
+[Done] Gradient tool need to expand, goal to have true color wheel, when user select single color, below show five colors, one is selected and 4 other is complementary colors.
+[Done] User can create their own color palet presets (5 colors) and save them. We need have additional options in our toolbox (top, side and circle) to have access to the color wheel/palets options
+[Done] there user can add/remove modify and use color palets presets.
+Also instead"+" let bring back original icons. like ai images, ai 3d.
+[Done] Clipping mask still confusing, need rework on workflow, make it more intuitive.
+[Done] in layer view, need have option to link(clip) top layer to the bottom, so effect of the top layer effecting layer under

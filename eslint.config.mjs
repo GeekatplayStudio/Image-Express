@@ -13,7 +13,8 @@ const eslintConfig = defineConfig([
         { name: "alert", message: "Use the themed Dialog/Toast providers instead of system alerts." },
         { name: "confirm", message: "Use the themed Dialog provider instead of system confirm dialogs." },
         { name: "prompt", message: "Use the themed Dialog provider instead of system prompt dialogs." }
-      ]
+      ],
+      "@typescript-eslint/no-explicit-any": "error"
     }
   },
   // Override default ignores of eslint-config-next.

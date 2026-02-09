@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { Plus, Image as ImageIcon, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
 import { useDialog } from '@/providers/DialogProvider';
@@ -120,12 +120,22 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
     const [showAllDesigns, setShowAllDesigns] = useState(false);
     const [activeCategory, setActiveCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
+    const [templateUsage, setTemplateUsage] = useState<Record<string, number>>(() => {
+        if (typeof window === 'undefined') return {};
+        const saved = localStorage.getItem('dashboard.templateUsage');
+        if (!saved) return {};
+        try {
+            return JSON.parse(saved) as Record<string, number>;
+        } catch (err) {
+            console.error('Failed to parse template usage', err);
+            return {};
+        }
+    });
+    const usageCounterRef = useRef(0);
     
-    // Fix Hydration Error: Start with index 0, randomize in useEffect
     const [quoteIndex, setQuoteIndex] = useState(0);
 
     useEffect(() => {
-        // eslint-disable-next-line
         setQuoteIndex(Math.floor(Math.random() * quotes.length));
     }, []);
 
@@ -134,9 +144,14 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
     const [customWidth, setCustomWidth] = useState(1080);
     const [customHeight, setCustomHeight] = useState(1080);
 
+    useEffect(() => {
+        const maxUsage = Object.values(templateUsage).reduce((max, val) => Math.max(max, val), 0);
+        usageCounterRef.current = Math.max(usageCounterRef.current, maxUsage);
+    }, [templateUsage]);
+
     const allTemplates = useMemo(() => {
         const base = [...POPULAR_TEMPLATES];
-        // Generate more variations to fill the grid (target 8 per row)
+        // Generate more variations to fill the grid
         const more: TemplateDescriptor[] = [];
         const variants = [
             { suffix: 'Minimal', color: 'from-slate-500 to-slate-700' },
@@ -165,6 +180,12 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
             return matchesCategory && matchesSearch;
         });
     }, [allTemplates, activeCategory, searchQuery]);
+
+    const sortedTemplates = useMemo(() => {
+        const list = [...filteredTemplates];
+        list.sort((a, b) => (templateUsage[b.id] ?? 0) - (templateUsage[a.id] ?? 0));
+        return list;
+    }, [filteredTemplates, templateUsage]);
 
     useEffect(() => {
       // Load designs from server
@@ -209,6 +230,19 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
               toast({ title: 'Delete failed', description: 'Error deleting design.', variant: 'destructive' });
           }
       }
+  };
+
+  const handleTemplateClick = (template: TemplateDescriptor) => {
+      usageCounterRef.current += 1;
+      const nextValue = usageCounterRef.current;
+      setTemplateUsage((prev) => {
+          const next = { ...prev, [template.id]: nextValue };
+          if (typeof window !== 'undefined') {
+              localStorage.setItem('dashboard.templateUsage', JSON.stringify(next));
+          }
+          return next;
+      });
+      onSelectTemplate(template);
   };
 
   const visibleDesigns = showAllDesigns ? recentDesigns : recentDesigns.slice(0, 6);
@@ -399,10 +433,10 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
              </div>
              
              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-6 gap-3">
-                {filteredTemplates.map((template) => (
+                {sortedTemplates.map((template) => (
                     <div 
                         key={template.id}
-                        onClick={() => onSelectTemplate(template)}
+                        onClick={() => handleTemplateClick(template)}
                         className="group relative aspect-[3/4] bg-card rounded-xl border border-border/50 overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
                     >
                         {/* Abstract Background */}
