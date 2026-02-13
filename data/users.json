@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "id": "usr_mll2yh8o_admin",
+      "email": "geekatplay@gmail.com",
+      "username": "vovka",
+      "displayName": "vovka",
+      "passwordHash": "a3cafb6e6684794113b0b7b41433b2946427d1190dfed06a65f6d14989aaa74f65a001120ceb2fe0c5a7ef1354fd680645b21e82c06469f00b86a37c9c844347",
+      "passwordSalt": "0bee97444fe5c226867282d38d53f79b",
+      "status": "approved",
+      "roles": [
+        "admin"
+      ],
+      "rights": [
+        "users:approve",
+        "users:manage",
+        "roles:manage",
+        "rights:manage",
+        "password:reset"
+      ],
+      "createdAt": "2026-02-13T16:06:36.719Z",
+      "updatedAt": "2026-02-13T16:06:36.719Z",
+      "approvedAt": "2026-02-13T16:06:36.719Z",
+      "approvedBy": "geekatplay@gmail.com"
+    },
+    {
+      "id": "usr_mll3va3l_member",
+      "email": "iam@geekatplay.com",
+      "username": "iam",
+      "displayName": "iam",
+      "passwordHash": "dc6958095366020a467f2fd7e543898ea81145ef089d4625c919336bc837398d9c650f739ac04057c582f40a5d551384f033626da1d6d7cf7b6a2ca59b4ee63b",
+      "passwordSalt": "d182d979d4f4c5821bd7a2ecb7198f10",
+      "status": "approved",
+      "roles": [
+        "creator"
+      ],
+      "rights": [
+        "assets:own",
+        "designs:own"
+      ],
+      "createdAt": "2026-02-13T16:32:07.111Z",
+      "updatedAt": "2026-02-13T16:32:07.111Z",
+      "approvedAt": "2026-02-13T16:32:07.111Z",
+      "approvedBy": "geekatplay@gmail.com"
+    }
+  ],
+  "updatedAt": "2026-02-13T16:32:07.137Z"
+}

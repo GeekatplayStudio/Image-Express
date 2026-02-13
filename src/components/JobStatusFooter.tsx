@@ -22,7 +22,7 @@ export default function JobStatusFooter({ jobs, onClear }: JobStatusFooterProps)
     };
 
     return (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-[min(92vw,30rem)] flex flex-col gap-2 z-50 pointer-events-none">
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-[min(92vw,30rem)] flex flex-col gap-2 z-50 pointer-events-none">
             {jobs.map((job) => (
                 <div 
                     key={job.id} 

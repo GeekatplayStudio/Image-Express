@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import InputModal from './InputModal';
+import InputModal from '../InputModal';
 
 describe('InputModal', () => {
     const mockOnConfirm = jest.fn();

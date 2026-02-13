@@ -9,6 +9,7 @@ import { Loader2, Plus, RotateCw, Box, Settings2, Sun } from 'lucide-react';
 import { BackgroundJob } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
+import useEscapeKey from '@/hooks/useEscapeKey';
 import {
     DEFAULT_HITEMS_FORMAT,
     DEFAULT_HITEMS_MODEL,
@@ -40,6 +41,7 @@ interface ThreeDGeneratorProps {
     onStartBackgroundJob?: (job: Partial<BackgroundJob>) => void; // Parent handles logic
     onRecoverBackgroundJob?: (job: Partial<BackgroundJob>) => void;
     activeJob?: BackgroundJob | null; // Pass active job if it exists
+    currentUser?: string;
 }
 
 type CaptureContext = {
@@ -153,7 +155,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 };
 
 
-export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, onStartBackgroundJob, onRecoverBackgroundJob, activeJob }: ThreeDGeneratorProps) {
+export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, onStartBackgroundJob, onRecoverBackgroundJob, activeJob, currentUser }: ThreeDGeneratorProps) {
     const dialog = useDialog();
     const { toast } = useToast();
     const [prompt, setPrompt] = useState('');
@@ -212,6 +214,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     // const [availableProviders, setAvailableProviders] = useState<string[]>([]); // Deprecated: Always show all
     
     const [hasSavedKey, setHasSavedKey] = useState(true); // Assume true initially to prevent flicker
+
+    useEscapeKey(onClose);
 
     useEffect(() => {
         // Load persist selection
@@ -1454,7 +1458,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                 body: JSON.stringify({
                                                     url: modelUrl,
                                                     filename: prompt.slice(0, 15) || 'generated-3d',
-                                                    type: 'models'
+                                                    type: 'models',
+                                                    owner: currentUser || 'Guest'
                                                 })
                                             });
                                             if(res.ok) {

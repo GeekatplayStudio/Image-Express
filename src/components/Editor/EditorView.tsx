@@ -15,7 +15,7 @@ import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
 import { GridOverlay, GridType } from '@/components/GridOverlay';
 import { GradientControls } from '@/components/GradientControls';
-import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Move, Brush, PenTool, Shapes, Type, PaintBucket, Wand2, LayoutTemplate, Blend, Layers, Facebook, Instagram } from 'lucide-react';
+import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Move, Brush, PenTool, Shapes, Type, PaintBucket, Wand2, LayoutTemplate, Blend, Layers, Palette, Facebook, Instagram, ShieldCheck } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject, ColorPalette } from '@/types';
 import JSZip from 'jszip';
@@ -23,6 +23,7 @@ import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import CircularContextMenu from '@/components/CircularContextMenu';
+import BrandIcon from '@/components/BrandIcon';
 
 interface MissingItem {
     id: string; 
@@ -42,6 +43,8 @@ interface EditorViewProps {
     onUpdateDesignInfo: (id: string | null, name: string) => void;
     onOpenDocumentation?: () => void;
     onOpenSettings: () => void;
+    onOpenAdminArea?: () => void;
+    isAdminUser?: boolean;
     settingsOpen: boolean;
     initialActiveTool?: string;
 }
@@ -98,6 +101,8 @@ export default function EditorView({
     onUpdateDesignInfo,
     onOpenDocumentation,
     onOpenSettings,
+    onOpenAdminArea,
+    isAdminUser = false,
     settingsOpen,
     initialActiveTool
 }: EditorViewProps) {
@@ -118,6 +123,8 @@ export default function EditorView({
     const [activePalette, setActivePalette] = useState<ColorPalette | null>(null);
     const [zoom, setZoom] = useState(1);
     const [isDirty, setIsDirty] = useState(false);
+    const [isRenamingDesignTitle, setIsRenamingDesignTitle] = useState(false);
+    const [designTitleDraft, setDesignTitleDraft] = useState(propDesignName || 'Untitled Design');
     
     // Context Menu
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; isOpen: boolean }>({ x: 0, y: 0, isOpen: false });
@@ -394,17 +401,19 @@ export default function EditorView({
             const formData = new FormData();
             formData.append('file', file);
             formData.append('category', 'uploads');
+            formData.append('owner', user);
 
             try {
                 const res = await fetch('/api/assets/upload', { method: 'POST', body: formData });
                 const json = await res.json();
+                const assetUrl = json.path || json.url;
 
-                if (json.success && json.url) {
+                if (json.success && assetUrl) {
                      const type = json.type || 'images'; // API endpoint returns plural usually 'images', 'models'
                      if (!canvas) continue;
 
                      if (type === 'images' || type === 'image') {
-                         fabric.FabricImage.fromURL(json.url, { crossOrigin: 'anonymous' }).then(img => {
+                         fabric.FabricImage.fromURL(assetUrl, { crossOrigin: 'anonymous' }).then(img => {
                              if (!img) return; // Error handling
                              img.scaleToWidth(Math.min(300, (canvas.width || 800) / 3));
                              canvas.centerObject(img);
@@ -424,7 +433,7 @@ export default function EditorView({
                          group.add(box); group.add(text);
                          const threeDGroup = group as ThreeDGroup;
                          threeDGroup.is3DModel = true;
-                         threeDGroup.modelUrl = json.url;
+                         threeDGroup.modelUrl = assetUrl;
                          threeDGroup.id = crypto.randomUUID();
                          threeDGroup.name = file.name;
                          
@@ -448,7 +457,7 @@ export default function EditorView({
                 toast({ title: "Upload failed for " + file.name, variant: "destructive" });
             }
         }
-    }, [canvas, pushHistory, toast]);
+    }, [canvas, pushHistory, toast, user]);
 
     const startPanelResize = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -743,6 +752,100 @@ export default function EditorView({
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, [canvas, handleUndo, handleRedo, handleDuplicate]);
+
+    useEffect(() => {
+        if (isRenamingDesignTitle) return;
+        setDesignTitleDraft(propDesignName || 'Untitled Design');
+    }, [propDesignName, isRenamingDesignTitle]);
+
+    const cancelDesignTitleEdit = () => {
+        setDesignTitleDraft(propDesignName || 'Untitled Design');
+        setIsRenamingDesignTitle(false);
+    };
+
+    const commitDesignTitle = useCallback(async () => {
+        const nextName = (designTitleDraft || '').trim() || 'Untitled Design';
+        setIsRenamingDesignTitle(false);
+
+        if (nextName === propDesignName) {
+            setDesignTitleDraft(nextName);
+            return;
+        }
+
+        if (!propDesignId) {
+            onUpdateDesignInfo(null, nextName);
+            setDesignTitleDraft(nextName);
+            setIsDirty(true);
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/designs/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: propDesignId, name: nextName })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success || !data.design) {
+                throw new Error(data.message || 'Rename failed.');
+            }
+            onUpdateDesignInfo(data.design.id, data.design.name || nextName);
+            setDesignTitleDraft(data.design.name || nextName);
+            toast({ title: 'Design renamed', description: `Now editing "${data.design.name || nextName}".`, variant: 'success' });
+        } catch (error) {
+            console.error('Design rename failed', error);
+            onUpdateDesignInfo(propDesignId, nextName);
+            setDesignTitleDraft(nextName);
+            toast({
+                title: 'Rename synced locally',
+                description: 'Name updated in the editor; save to persist server-side if needed.',
+                variant: 'warning'
+            });
+        }
+    }, [designTitleDraft, onUpdateDesignInfo, propDesignId, propDesignName, toast]);
+
+    useEffect(() => {
+        const handler = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            const target = event.target as HTMLElement | null;
+            const isInput = target && (
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.tagName === 'SELECT' ||
+                target.isContentEditable
+            );
+            if (isInput) return;
+
+            if (showExportQualityModal) {
+                event.preventDefault();
+                setShowExportQualityModal(false);
+                return;
+            }
+            if (showExportMenu) {
+                event.preventDefault();
+                setShowExportMenu(false);
+                return;
+            }
+            if (showShareMenu) {
+                event.preventDefault();
+                setShowShareMenu(false);
+                return;
+            }
+            if (showGridMenu) {
+                event.preventDefault();
+                setShowGridMenu(false);
+                return;
+            }
+            if (showToolsMenu) {
+                event.preventDefault();
+                setShowToolsMenu(false);
+                return;
+            }
+        };
+
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [showExportMenu, showExportQualityModal, showGridMenu, showShareMenu, showToolsMenu]);
 
     // --- Save Logic ---
     const handleSave = async () => {
@@ -2526,7 +2629,11 @@ document.addEventListener('DOMContentLoaded', () => {
                           const extension = (urlMatch?.[1] || 'glb').toLowerCase();
                           if (!filename.toLowerCase().endsWith(`.${extension}`)) filename += `.${extension}`;
                           try {
-                            await fetch('/api/assets/save-url', { method: 'POST', body: JSON.stringify({ url: resultUrl, filename: filename, type: 'models' }) });
+                            await fetch('/api/assets/save-url', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ url: resultUrl, filename: filename, type: 'models', owner: user })
+                            });
                           } catch (err) { console.error("Failed to auto-save asset", err); }
     
                           const addFallbackPlaceholder = () => {
@@ -2620,7 +2727,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 pollIntervalsRef.current.delete(id);
             }
         }
-    }, [backgroundJobs, canvas]);
+    }, [backgroundJobs, canvas, user]);
 
     useEffect(() => {
         const pollTimers = pollTimersRef.current;
@@ -2641,12 +2748,34 @@ document.addEventListener('DOMContentLoaded', () => {
             <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-20 relative shadow-sm">
                  <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
-                        <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center">
-                          <span className="font-bold text-white text-lg">iEX</span>
-                        </div>
-                        <span className="font-bold text-lg hidden lg:block bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500">
-                          {propDesignName || 'Explorer'}
-                        </span>
+                        <BrandIcon />
+                        {isRenamingDesignTitle ? (
+                            <input
+                                autoFocus
+                                value={designTitleDraft}
+                                onChange={(event) => setDesignTitleDraft(event.target.value)}
+                                onBlur={() => { void commitDesignTitle(); }}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        void commitDesignTitle();
+                                    } else if (event.key === 'Escape') {
+                                        event.preventDefault();
+                                        cancelDesignTitleEdit();
+                                    }
+                                }}
+                                className="hidden md:block h-8 min-w-[180px] max-w-[360px] rounded-md border border-primary/40 bg-background/90 px-3 text-sm font-semibold outline-none focus:ring-1 focus:ring-primary"
+                                placeholder="Untitled Design"
+                            />
+                        ) : (
+                            <button
+                                onClick={() => setIsRenamingDesignTitle(true)}
+                                className="hidden md:block font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500 max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"
+                                title='Click to rename document'
+                            >
+                                {propDesignName || 'Untitled Design'}
+                            </button>
+                        )}
                     </div>
                     <nav className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
                        <button 
@@ -2673,11 +2802,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         {showToolsMenu && (
                             <div className="absolute left-0 top-full mt-2 w-64 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 z-50">
                                 
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Essentials</div>
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Selection & Layers</div>
                                 <button onClick={() => { toolbarRef.current?.triggerTool('select'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                                     <Move size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
                                     <span className="flex-1">Select</span>
                                     <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">V</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('layers'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Layers size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
+                                    <span className="flex-1">Layers</span>
+                                    <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">L</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('adjustments'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Blend size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Adjustments</span>
                                 </button>
 
                                 <div className="my-1 border-t border-border/50" />
@@ -2698,10 +2835,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                    <button onClick={() => { toolbarRef.current?.triggerTool('gradient'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group col-span-2">
                                         <PaintBucket size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Fill / Gradient</span>
                                     </button>
+                                    <button onClick={() => { toolbarRef.current?.triggerTool('color-wheel'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group col-span-2">
+                                        <Palette size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Color Wheel</span>
+                                    </button>
                                 </div>
 
                                 <div className="my-1 border-t border-border/50" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Assets</div>
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Libraries</div>
                                 <button onClick={() => { toolbarRef.current?.triggerTool('assets'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                                     <ImageIcon size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Gallery</span>
                                 </button>
@@ -2716,17 +2856,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </button>
                                 <button onClick={() => { toolbarRef.current?.triggerTool('3d-gen'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                                     <Box size={16} className="text-indigo-500 group-hover:text-indigo-600 transition-colors"/> <span>AI 3D</span>
-                                </button>
-
-                                <div className="my-1 border-t border-border/50" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Edit</div>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('adjustments'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Blend size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Adjustments</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('layers'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Layers size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
-                                    <span className="flex-1">Layers</span>
-                                    <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">L</span>
                                 </button>
                             </div>
                         )}
@@ -2804,6 +2933,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             >
                                 <Settings size={20} />
                             </button>
+                            {isAdminUser && (
+                                <button
+                                    onClick={() => onOpenAdminArea?.()}
+                                    className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                                    title="Admin Area"
+                                >
+                                    <ShieldCheck size={20} />
+                                </button>
+                            )}
         
                      <div className="h-6 w-px bg-border mx-1"></div>
                      
@@ -2917,6 +3055,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      <div className="bg-card w-[800px] h-[600px] rounded-xl shadow-2xl relative flex flex-col overflow-hidden border border-border">
                           <div className="flex-1 overflow-hidden">
                               <AssetLibrary 
+                                  currentUser={user}
                                   onSelect={(url) => { if (replacingItemId) { setReplacementMap(prev => ({ ...prev, [replacingItemId]: url })); } setShowAssetBrowserForMissing(false); setReplacingItemId(null); }}
                                   onClose={() => setShowAssetBrowserForMissing(false)}
                               />
@@ -3069,6 +3208,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ref={toolbarRef}
                         canvas={canvas} 
                         activeTool={activeTool}
+                        currentUser={user}
                         activePalette={activePalette}
                         setActivePalette={setActivePalette}
                         setActiveTool={(tool) => {
@@ -3181,6 +3321,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         {activeTool === '3d-gen' && (
                             <ThreeDGenerator 
                                 initialImage={initialImageFor3D}
+                                currentUser={user}
                                 onOpenSettings={onOpenSettings}
                                 activeJob={backgroundJobs.find(j => j.status === 'IN_PROGRESS' || j.status === 'PENDING')}
                                 onStartBackgroundJob={(jobData) => {
@@ -3190,7 +3331,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                          // We keep layer visible so user sees it while generating
                                          canvas.requestRenderAll(); 
                                     }
-                                    toast({ title: 'Generation Started', description: 'Monitor progress in the top status bar.' });
+                                    toast({ title: 'Generation Started', description: 'Monitor progress in the bottom status area.' });
                                     // setActiveTool('select'); // Keep panel open or close? User asked to keep layer visible.
                                     // But typically "Layer" refers to canvas object. 
                                     // If we close panel, user gets back to canvas. 

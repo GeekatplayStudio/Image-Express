@@ -7,8 +7,18 @@ import Dashboard from '@/components/Dashboard';
 import EditorView from '@/components/Editor/EditorView';
 import DocumentationModal from '@/components/DocumentationModal';
 import SettingsModal from '@/components/SettingsModal';
-import { User, Settings, Box, Cloud } from 'lucide-react';
+import AdminAreaModal from '@/components/AdminAreaModal';
+import BrandIcon from '@/components/BrandIcon';
+import SetupWizardModal from '@/components/SetupWizardModal';
+import { User, Settings, Box, Cloud, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/providers/ToastProvider';
+import { AuthUser } from '@/types';
+import {
+  dismissSetupWizardForSession,
+  markSetupWizardCompleted,
+  onSetupWizardOpenRequest,
+  shouldAutoOpenSetupWizard
+} from '@/lib/setupWizard';
 
 
 export default function Home() {
@@ -17,6 +27,8 @@ export default function Home() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [username, setUsername] = useState('Guest');
+  const [displayName, setDisplayName] = useState('Guest');
+  const [userRoles, setUserRoles] = useState<string[]>([]);
   const [isDesktopApp, setIsDesktopApp] = useState(false);
   
   // View State
@@ -33,7 +45,11 @@ export default function Home() {
   const [pendingTool, setPendingTool] = useState<string | null>(null);
   const [showDocumentation, setShowDocumentation] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAdminArea, setShowAdminArea] = useState(false);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState({ has2D: false, has3D: false });
+  const isAdminUser = userRoles.includes('admin') && username.includes('@');
+  const setupWizardScope = isDesktopApp ? 'desktop-local' : username;
 
   // Auth Effects
   useEffect(() => {
@@ -55,9 +71,31 @@ export default function Home() {
       const storedUser = localStorage.getItem('image-express-user');
       if (desktopDetected) {
         setUsername(storedUser || 'Local Desktop');
+        setDisplayName('Local Desktop');
+        setUserRoles(['admin']);
         setShowLoginModal(false);
       } else if (storedUser) {
-        setUsername(storedUser);
+        try {
+          const parsed = JSON.parse(storedUser) as Partial<AuthUser>;
+          if (!parsed.email) throw new Error('Legacy user session');
+          setUsername(parsed.email);
+          setDisplayName(parsed.displayName || parsed.email);
+          setUserRoles(Array.isArray(parsed.roles) ? parsed.roles : []);
+        } catch {
+          if (storedUser.trim().toLowerCase() === 'vovka') {
+            setUsername('geekatplay@gmail.com');
+            setDisplayName('vovka');
+            setUserRoles(['admin']);
+          } else if (storedUser.includes('@')) {
+            setUsername(storedUser);
+            setDisplayName(storedUser.split('@')[0] || storedUser);
+            setUserRoles([]);
+          } else {
+            setUsername(`${storedUser}@local`);
+            setDisplayName(storedUser);
+            setUserRoles([]);
+          }
+        }
       } else {
         setShowLoginModal(true);
       }
@@ -69,9 +107,11 @@ export default function Home() {
     };
   }, []);
 
-  const handleLogin = (user: string) => {
-    localStorage.setItem('image-express-user', user);
-    setUsername(user);
+  const handleLogin = (user: AuthUser) => {
+    localStorage.setItem('image-express-user', JSON.stringify(user));
+    setUsername(user.email);
+    setDisplayName(user.displayName || user.email);
+    setUserRoles(Array.isArray(user.roles) ? user.roles : []);
     setShowLoginModal(false);
 
     // Fire and forget logging of the authentication event.
@@ -79,7 +119,7 @@ export default function Home() {
       fetch('/api/logs/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user })
+        body: JSON.stringify({ username: user.email })
       }).catch(() => {
         // Swallow errors to avoid blocking UX if logging fails.
       });
@@ -89,6 +129,8 @@ export default function Home() {
   const handleLogout = useCallback(() => {
     localStorage.removeItem('image-express-user');
     setUsername(isDesktopApp ? 'Local Desktop' : 'Guest');
+    setDisplayName(isDesktopApp ? 'Local Desktop' : 'Guest');
+    setUserRoles(isDesktopApp ? ['admin'] : []);
     setShowProfileModal(false);
     setShowLoginModal(!isDesktopApp);
     setCurrentView('dashboard');
@@ -165,10 +207,39 @@ export default function Home() {
     
     // Only update if changed to avoid unnecessary re-renders
     if (has2D !== connectionStatus.has2D || has3D !== connectionStatus.has3D) {
-       // eslint-disable-next-line
        setConnectionStatus({ has2D, has3D });
     }
   }, [showSettings, currentView, connectionStatus.has2D, connectionStatus.has3D]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (showLoginModal) return;
+    if (shouldAutoOpenSetupWizard(setupWizardScope)) {
+      setShowSetupWizard(true);
+    }
+  }, [showLoginModal, setupWizardScope, currentView]);
+
+  useEffect(() => {
+    const unsubscribe = onSetupWizardOpenRequest(() => {
+      setShowSetupWizard(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleCloseSetupWizard = () => {
+    dismissSetupWizardForSession(setupWizardScope);
+    setShowSetupWizard(false);
+  };
+
+  const handleCompleteSetupWizard = () => {
+    markSetupWizardCompleted(setupWizardScope);
+    setShowSetupWizard(false);
+    toast({
+      title: 'Setup complete',
+      description: 'Core API/storage setup is ready. You can reopen the wizard from Settings.',
+      variant: 'success'
+    });
+  };
 
   // Render
     if (currentView === 'editor') {
@@ -197,10 +268,14 @@ export default function Home() {
           }}
           onOpenDocumentation={() => setShowDocumentation(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenAdminArea={() => setShowAdminArea(true)}
+          isAdminUser={isAdminUser}
           settingsOpen={showSettings}
           />
           <DocumentationModal isOpen={showDocumentation} onClose={() => setShowDocumentation(false)} />
-          <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={username} />
+          <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={username} userRoles={userRoles} />
+          <AdminAreaModal isOpen={showAdminArea} onClose={() => setShowAdminArea(false)} userId={username} userRoles={userRoles} />
+          <SetupWizardModal isOpen={showSetupWizard} onClose={handleCloseSetupWizard} onComplete={handleCompleteSetupWizard} />
         </>
       );
   }
@@ -211,9 +286,7 @@ export default function Home() {
       <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-20 relative shadow-sm">
         <div className="flex items-center gap-6">
            <div className="flex items-center gap-2">
-               <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center">
-                 <span className="font-bold text-white text-lg">iEX</span>
-               </div>
+               <BrandIcon />
                <span className="font-bold text-lg hidden lg:block bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500">
                  Image Express
                </span>
@@ -259,6 +332,15 @@ export default function Home() {
              >
                 <Settings size={20} />
              </button>
+             {isAdminUser && (
+               <button
+                  onClick={() => setShowAdminArea(true)}
+                  className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                  title="Admin Area"
+               >
+                  <ShieldCheck size={20} />
+               </button>
+             )}
              <button 
                 onClick={() => setShowProfileModal(true)}
                 className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground ml-1"
@@ -272,17 +354,20 @@ export default function Home() {
       {!isDesktopApp && (
         <LoginModal 
           isOpen={showLoginModal} 
-          onLogin={handleLogin} 
+          onLogin={handleLogin}
+          onClose={() => setShowLoginModal(false)}
         />
       )}
       
       <UserProfileModal 
         isOpen={showProfileModal} 
         onClose={() => setShowProfileModal(false)}
-        username={username}
+        username={displayName}
         onLogout={handleLogout}
       />
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={username} />
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} userId={username} userRoles={userRoles} />
+      <AdminAreaModal isOpen={showAdminArea} onClose={() => setShowAdminArea(false)} userId={username} userRoles={userRoles} />
+      <SetupWizardModal isOpen={showSetupWizard} onClose={handleCloseSetupWizard} onComplete={handleCompleteSetupWizard} />
 
         <div className="flex flex-1 overflow-hidden">
            <Dashboard 

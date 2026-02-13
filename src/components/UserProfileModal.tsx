@@ -4,6 +4,7 @@ import { X, User, Mail, Camera, Save } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { loadProfileSettings, saveProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 interface UserProfileModalProps {
     isOpen: boolean;
@@ -35,6 +36,8 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
+
+    useEscapeKey(onClose, { enabled: isOpen });
 
     if (!isOpen) return null;
 

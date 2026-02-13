@@ -132,13 +132,36 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         }
     });
     const usageCounterRef = useRef(0);
-    
-    const [quoteIndex] = useState(() => Math.floor(Math.random() * quotes.length));
+    const [quoteIndex, setQuoteIndex] = useState(0);
 
-    const quote = quotes[quoteIndex];
+    const quote = quotes[quoteIndex] || quotes[0];
     const [showCustomSizeModal, setShowCustomSizeModal] = useState(false);
     const [customWidth, setCustomWidth] = useState(1080);
     const [customHeight, setCustomHeight] = useState(1080);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        let frame = 0;
+        const scheduleQuoteUpdate = (nextIndex: number) => {
+            frame = window.requestAnimationFrame(() => {
+                setQuoteIndex(nextIndex);
+            });
+        };
+
+        const quoteStorageKey = 'dashboard.quoteIndex';
+        const storedQuote = window.sessionStorage.getItem(quoteStorageKey);
+        if (storedQuote) {
+            const parsed = Number(storedQuote);
+            if (Number.isInteger(parsed) && parsed >= 0 && parsed < quotes.length) {
+                scheduleQuoteUpdate(parsed);
+                return () => window.cancelAnimationFrame(frame);
+            }
+        }
+        const nextQuoteIndex = Math.floor(Math.random() * quotes.length);
+        scheduleQuoteUpdate(nextQuoteIndex);
+        window.sessionStorage.setItem(quoteStorageKey, String(nextQuoteIndex));
+        return () => window.cancelAnimationFrame(frame);
+    }, []);
 
     useEffect(() => {
         const maxUsage = Object.values(templateUsage).reduce((max, val) => Math.max(max, val), 0);

@@ -4,6 +4,7 @@ import { X, Wand2, Loader2 } from 'lucide-react';
 import * as fabric from 'fabric';
 import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 /**
  * ImageGeneratorModal
@@ -30,6 +31,8 @@ interface ImageGeneratorModalProps {
   initialHeight?: number;
   /** Optional API Key override */
   apiKey?: string; 
+  /** Current user id/email for asset ownership */
+  currentUser?: string;
 }
 
 type CanvasWithArtboard = fabric.Canvas & {
@@ -44,7 +47,9 @@ export default function ImageGeneratorModal({
   initialWidth = 512,
   initialHeight = 512,
   apiKey,
+  currentUser,
 }: ImageGeneratorModalProps) {
+  const owner = currentUser?.trim() || 'Guest';
   // --- Generation State ---
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -134,6 +139,8 @@ export default function ImageGeneratorModal({
 
   // --- Modal View Mode (Local Zone vs Stability Specific UI) ---
   const [mode, setMode] = useState<'zone' | 'stability'>('zone');
+
+  useEscapeKey(onClose, { enabled: isOpen });
 
   // Initial Window Position
   useEffect(() => {
@@ -298,6 +305,7 @@ export default function ImageGeneratorModal({
             formData.append('file', file);
             formData.append('type', 'images');
             formData.append('category', 'generated');
+            formData.append('owner', owner);
             
             await fetch('/api/assets/upload', {
                 method: 'POST',
@@ -312,7 +320,8 @@ export default function ImageGeneratorModal({
                     url: url,
                     filename: `generated-${Date.now()}.png`,
                     type: 'images',
-                    category: 'generated'
+                    category: 'generated',
+                    owner
                 })
             });
         }

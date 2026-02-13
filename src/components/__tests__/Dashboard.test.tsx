@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import Dashboard from './Dashboard';
+import Dashboard from '../Dashboard';
 import { DialogProvider } from '@/providers/DialogProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 

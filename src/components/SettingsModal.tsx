@@ -1,15 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud, HardDrive, Loader2, HelpCircle } from 'lucide-react';
 import HelpPopup from './HelpPopup';
-import type { DesktopUpdatePayload, DesktopUpdateStatus, GoogleDriveConfig } from '@/types';
+import type { AuthUser, DesktopUpdatePayload, DesktopUpdateStatus, GoogleDriveConfig } from '@/types';
 import { connectGoogleDrive, disconnectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
+import useEscapeKey from '@/hooks/useEscapeKey';
+import {
+    loadAssetStorageSettings,
+    saveAssetStorageSettings,
+    type AssetStorageMode
+} from '@/lib/assetStorageSettings';
+import { requestOpenSetupWizard } from '@/lib/setupWizard';
 
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
     userId?: string;
+    userRoles?: string[];
 }
 
 export const STORAGE_KEYS = {
@@ -32,7 +40,7 @@ export const STORAGE_KEYS = {
 
 const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
 
-export default function SettingsModal({ isOpen, onClose, userId }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, userId, userRoles }: SettingsModalProps) {
     // 3D Keys
     const [meshyKey, setMeshyKey] = useState('');
     const [tripoKey, setTripoKey] = useState('');
@@ -60,6 +68,19 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
     const [driveError, setDriveError] = useState<string | null>(null);
     const [clientIdInput, setClientIdInput] = useState(envDriveClientId);
     const [showDriveHelp, setShowDriveHelp] = useState(false);
+    const [assetStorageMode, setAssetStorageMode] = useState<AssetStorageMode>('hybrid');
+    const [hybridUploadToCloudByDefault, setHybridUploadToCloudByDefault] = useState(false);
+    const [includeLegacyServerAssetsInHybrid, setIncludeLegacyServerAssetsInHybrid] = useState(true);
+    const [adminUsers, setAdminUsers] = useState<AuthUser[]>([]);
+    const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
+    const [adminError, setAdminError] = useState<string | null>(null);
+    const [adminDraftRoles, setAdminDraftRoles] = useState<Record<string, string>>({});
+    const [adminDraftRights, setAdminDraftRights] = useState<Record<string, string>>({});
+    const [adminBusyUser, setAdminBusyUser] = useState<string | null>(null);
+
+    const isAdmin = !!userRoles?.includes('admin') && !!userId && userId.includes('@');
+
+    useEscapeKey(onClose, { enabled: isOpen });
 
     // Load keys on mount
     useEffect(() => {
@@ -131,10 +152,50 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
             setSyncStatus('local');
         }
 
+        const assetStorageSettings = loadAssetStorageSettings();
+        setAssetStorageMode(assetStorageSettings.mode);
+        setHybridUploadToCloudByDefault(assetStorageSettings.hybridUploadToCloudByDefault);
+        setIncludeLegacyServerAssetsInHybrid(assetStorageSettings.includeLegacyServerAssetsInHybrid);
+
         return () => {
             unsubscribe?.();
         };
     }, [isOpen, userId]);
+
+    const loadAdminUsers = useCallback(async () => {
+        if (!isAdmin || !userId || userId === 'Guest') return;
+        setIsAdminUsersLoading(true);
+        setAdminError(null);
+        try {
+            const res = await fetch(`/api/user/admin/users?requesterEmail=${encodeURIComponent(userId)}`);
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                setAdminError(data.message || 'Failed to load users.');
+                setAdminUsers([]);
+                return;
+            }
+            const users = (Array.isArray(data.users) ? data.users : []) as AuthUser[];
+            setAdminUsers(users);
+            setAdminDraftRoles(
+                Object.fromEntries(users.map((user) => [user.email, (user.roles || []).join(', ')]))
+            );
+            setAdminDraftRights(
+                Object.fromEntries(users.map((user) => [user.email, (user.rights || []).join(', ')]))
+            );
+        } catch (error) {
+            console.error('Failed to load admin users', error);
+            setAdminError('Failed to load users.');
+            setAdminUsers([]);
+        } finally {
+            setIsAdminUsersLoading(false);
+        }
+    }, [isAdmin, userId]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        if (!isAdmin || !userId || userId === 'Guest') return;
+        void loadAdminUsers();
+    }, [isOpen, isAdmin, userId, loadAdminUsers]);
 
     const handleSave = async () => {
         setStatus('saving');
@@ -149,6 +210,12 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
         localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiKey);
         localStorage.setItem(STORAGE_KEYS.GOOGLE_API_KEY, googleKey);
         localStorage.setItem(STORAGE_KEYS.BANANA_API_KEY, bananaKey);
+        saveAssetStorageSettings({
+            mode: assetStorageMode,
+            cloudProvider: 'google-drive',
+            hybridUploadToCloudByDefault,
+            includeLegacyServerAssetsInHybrid
+        });
 
         // 2. Save Server (if logged in)
         if (userId && userId !== 'Guest') {
@@ -279,6 +346,45 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
             setIsDriveBusy(false);
         }
     };
+
+    const executeAdminAction = async (
+        targetEmail: string,
+        action: 'approve' | 'reject' | 'disable' | 'enable' | 'set-roles' | 'set-rights',
+        payload?: { roles?: string[]; rights?: string[] }
+    ) => {
+        if (!userId || userId === 'Guest') return;
+        setAdminBusyUser(targetEmail);
+        setAdminError(null);
+        try {
+            const res = await fetch('/api/user/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    requesterEmail: userId,
+                    targetEmail,
+                    action,
+                    ...(payload || {})
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                setAdminError(data.message || 'Admin action failed.');
+                return;
+            }
+            await loadAdminUsers();
+        } catch (error) {
+            console.error('Admin action failed', error);
+            setAdminError('Admin action failed.');
+        } finally {
+            setAdminBusyUser(null);
+        }
+    };
+
+    const parseDraftList = (value: string) =>
+        value
+            .split(',')
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0);
 
     if (!isOpen) return null;
 
@@ -580,7 +686,189 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                         )}
                     </div>
 
+                    <div className="border-t border-border/40 pt-4 space-y-3">
+                        <div>
+                            <h4 className="text-sm font-semibold flex items-center gap-2">
+                                <HardDrive size={16} className="text-primary" />
+                                Asset Storage Strategy
+                            </h4>
+                            <p className="text-[11px] text-muted-foreground">
+                                Choose where uploaded assets are stored: browser-local, hybrid, or Google Drive only.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold block">Storage Mode</label>
+                            <select
+                                value={assetStorageMode}
+                                onChange={(event) => setAssetStorageMode(event.target.value as AssetStorageMode)}
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs"
+                            >
+                                <option value="local">Local only (browser)</option>
+                                <option value="hybrid">Hybrid (local + optional cloud per upload)</option>
+                                <option value="cloud">Cloud only (Google Drive)</option>
+                            </select>
+                            <p className="text-[11px] text-muted-foreground">
+                                {assetStorageMode === 'local' && 'Files stay in your browser storage (IndexedDB).'}
+                                {assetStorageMode === 'hybrid' && 'Files save locally by default; you can check per-upload cloud copy.'}
+                                {assetStorageMode === 'cloud' && 'All uploads go to your connected Google Drive assets folder.'}
+                            </p>
+                        </div>
+
+                        {assetStorageMode === 'hybrid' && (
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={hybridUploadToCloudByDefault}
+                                    onChange={(event) => setHybridUploadToCloudByDefault(event.target.checked)}
+                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                />
+                                In hybrid mode, check cloud upload by default
+                            </label>
+                        )}
+
+                        {assetStorageMode === 'hybrid' && (
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={includeLegacyServerAssetsInHybrid}
+                                    onChange={(event) => setIncludeLegacyServerAssetsInHybrid(event.target.checked)}
+                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                />
+                                Include legacy server assets in Asset Library lists
+                            </label>
+                        )}
+
+                        {assetStorageMode !== 'local' && !driveConfig.enabled && (
+                            <div className="text-[11px] text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                                Connect Google Drive above to use cloud or hybrid cloud uploads.
+                            </div>
+                        )}
+
+                        <button
+                            onClick={() => requestOpenSetupWizard()}
+                            className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5"
+                        >
+                            <Key size={13} />
+                            Launch Setup Wizard
+                        </button>
+                    </div>
+
                     <div className="border-t border-border/40 pt-4">
+                        {isAdmin && userId && userId !== 'Guest' && (
+                            <div className="mb-6 border-b border-border/40 pb-6 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-sm font-semibold flex items-center gap-2">
+                                            <ShieldCheck size={16} className="text-primary" />
+                                            User Management
+                                        </h4>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Admin roles, approval queue, and per-user rights.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => void loadAdminUsers()}
+                                        className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1"
+                                        disabled={isAdminUsersLoading}
+                                    >
+                                        <RefreshCcw size={14} className={isAdminUsersLoading ? 'animate-spin' : ''} />
+                                        Refresh
+                                    </button>
+                                </div>
+
+                                {adminError && (
+                                    <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+                                        {adminError}
+                                    </div>
+                                )}
+
+                                {isAdminUsersLoading ? (
+                                    <div className="text-xs text-muted-foreground">Loading users...</div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {adminUsers.map((user) => {
+                                            const busy = adminBusyUser === user.email;
+                                            const rolesText = adminDraftRoles[user.email] ?? (user.roles || []).join(', ');
+                                            const rightsText = adminDraftRights[user.email] ?? (user.rights || []).join(', ');
+                                            const isPending = user.status === 'pending';
+                                            const isDisabled = user.status === 'disabled';
+
+                                            return (
+                                                <div key={user.email} className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-2">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-semibold text-foreground truncate">{user.displayName}</p>
+                                                            <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+                                                        </div>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded ${
+                                                            user.status === 'approved'
+                                                                ? 'bg-emerald-500/15 text-emerald-600'
+                                                                : user.status === 'pending'
+                                                                ? 'bg-amber-500/15 text-amber-600'
+                                                                : 'bg-red-500/15 text-red-600'
+                                                        }`}>
+                                                            {user.status}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            onClick={() => void executeAdminAction(user.email, isPending ? 'approve' : 'enable')}
+                                                            disabled={busy}
+                                                            className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
+                                                        >
+                                                            {isPending ? 'Approve' : 'Enable'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => void executeAdminAction(user.email, isPending ? 'reject' : 'disable')}
+                                                            disabled={busy}
+                                                            className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
+                                                        >
+                                                            {isPending ? 'Reject' : (isDisabled ? 'Disabled' : 'Disable')}
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] uppercase text-muted-foreground">Roles</label>
+                                                        <input
+                                                            value={rolesText}
+                                                            onChange={(e) => setAdminDraftRoles((prev) => ({ ...prev, [user.email]: e.target.value }))}
+                                                            className="w-full h-8 px-2 rounded-md bg-background border border-border text-[11px]"
+                                                            placeholder="admin, creator"
+                                                        />
+                                                        <button
+                                                            onClick={() => void executeAdminAction(user.email, 'set-roles', { roles: parseDraftList(rolesText) })}
+                                                            disabled={busy}
+                                                            className="h-7 px-2 text-[10px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
+                                                        >
+                                                            Save Roles
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] uppercase text-muted-foreground">Rights</label>
+                                                        <input
+                                                            value={rightsText}
+                                                            onChange={(e) => setAdminDraftRights((prev) => ({ ...prev, [user.email]: e.target.value }))}
+                                                            className="w-full h-8 px-2 rounded-md bg-background border border-border text-[11px]"
+                                                            placeholder="users:manage, assets:own"
+                                                        />
+                                                        <button
+                                                            onClick={() => void executeAdminAction(user.email, 'set-rights', { rights: parseDraftList(rightsText) })}
+                                                            disabled={busy}
+                                                            className="h-7 px-2 text-[10px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
+                                                        >
+                                                            Save Rights
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <button 
                             onClick={handleToggleLog}
                             className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"

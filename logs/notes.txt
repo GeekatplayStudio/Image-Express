@@ -53,3 +53,39 @@ with gradinet and repositioning, we need see the points of orgin of the colors
 Also instead"+" let bring back original icons. like ai images, ai 3d.
 [Done] Clipping mask still confusing, need rework on workflow, make it more intuitive.
 [Done] in layer view, need have option to link(clip) top layer to the bottom, so effect of the top layer effecting layer under
+
+[Done] 1: arrange toolbar icons, selection then layers, then more global, change order, update tools selsction in our right click popup menu, move notification and progress window at the bottom middle of the workspace.
+[Done] 2: add option for multiusers. Add personal area for the assets and shared areas for all. make assets window larger, with easy to read tabs.
+[Done] add option "show public assets" that will include all assets that shareble, add filtering to assets and search. 
+[Done] add option on the asset to set it public. 
+[Done] 3: add option for the user to register, user can register and send me email for approval. geekatplay@gmail.complementary
+[Done] 5: add user managment tool for admin, add roles and rights page. change user names to email add display name (vovka display, geekatplay@gmail.com user name) add options to recover lost password.
+
+New
+[Done] Need have user managment page for admin
+[Done] Need have rights and roles page 
+[Done] Need have Admin area, only visible to admin
+[Done] Set geekatplay@gmail.com as admin
+[Done] Create new user iam@geekatplay.com as normal user , password vovka3792!
+[Done] add : close any popup window when you press "ESC" 
+[Done] Click on the "Untitle document" or title in top left corner should allow to change name of that document. 
+[Done] Mouse over th iEX icon in the top left corner should create visual effect, make sparks goign from there and make color cycling o notification
+[Done] assets need have download options.
+[Done] Hybrid asset storage mode: local only / hybrid(local + optional Google Drive per upload) / cloud only (Google Drive)
+[Done] First-time setup wizard: detect per-user first run and guide API/cloud setup step-by-step (especially Google Drive).
+[Done] Test coverage pass: added unit tests for onboarding/storage/server auth+metadata modules (overall coverage 13.92% -> 18.65%).
+[Done] Main coverage gap pass: added EditorView test suite and raised EditorView coverage from 0% to 34.56% (overall 18.65% -> 23.51%).
+[Done] Next coverage gap pass: added SettingsModal test suite and raised SettingsModal coverage from 0% to 94.74% (overall 23.51% -> 27.07%).
+[Done] Next coverage gap pass: added AssetLibrary test suite and raised AssetLibrary coverage from 0% to 89.57% (overall 27.07% -> 30.88%).
+[Done] Next coverage gap pass: expanded EditorView test suite and raised EditorView coverage from 34.56% to 45.15% (overall 30.88% -> 32.37%).
+[Done] Next coverage gap pass: expanded EditorView test suite again (rename/save/load/export branches) and raised EditorView coverage from 45.15% to 57.71% (overall 32.37% -> 34.13%).
+[Done] Next coverage gap pass: replaced/expanded DesignCanvas test suite (workspace/helpers, selection/modified, delete logic, pan/zoom/recenter, context menu, cleanup) and raised DesignCanvas coverage from 35.50% to 57.98% (overall 34.13% -> 34.87%).
+[Done] Next coverage gap pass: added Toolbar test suite (tool actions, shapes/adjustments menus, assets/media/model handlers, color wheel, upload validation, imperative trigger) and raised Toolbar coverage from 0% to 45.46% (overall 34.87% -> 37.85%).
+[Done] Next coverage gap pass: added ImageGeneratorModal test suite (provider init/persistence, zone creation+cleanup, generation success/error, place on canvas, fallback onGenerate, stability mode) and raised ImageGeneratorModal coverage from 0% to 83.25% (overall 37.85% -> 39.92%).
+[Done] Next coverage gap pass: added LoginModal test suite (sign-in success/failure, register validation/success, reset request+confirm, escape close wiring) and raised LoginModal coverage from 0% to 97.12% (overall 39.92% -> 41.55%).
+[Done] Next coverage gap pass (combined): added MissingAssetsModal + UserProfileModal test suites (escape handling, modal actions, profile load/save/update, image upload preview, logout/close wiring) and raised MissingAssetsModal from 0% to 100% and UserProfileModal from 0% to 100% (overall 41.55% -> 42.66%).
+[Done] Next coverage gap pass (combined): added HelpPopup + JobStatusFooter test suites (open/close paths, escape wiring, content branches, copy-to-clipboard, clear completed jobs) and raised HelpPopup from 0% to 100% and JobStatusFooter from 0% to 100% (overall 42.66% -> 43.34%).
+[Done] Next coverage gap pass (combined): added DocumentationModal + BrandIcon test suites (manual chapters/content/links, close+escape wiring, default/custom brand notice and sparks) and raised DocumentationModal from 0% to 100% and BrandIcon from 0% to 100% (overall 43.34% -> 44.45%).
+[Done] Next coverage gap pass (combined): added Asset3DPreview + GridOverlay test suites (3D preview lighting controls/model loading and all grid overlay modes/cleanup guards) and raised Asset3DPreview from 0% to 100% and GridOverlay from 0% to 100% lines (overall 44.45% -> 45.48%).
+[Done] Test suite structure cleanup: moved component tests into dedicated __tests__ folders (src/components/__tests__, src/components/Editor/__tests__, src/components/ui/__tests__), fixed import/mocks paths, and verified all tests still pass.
+[Done] Next coverage gap pass: added AdminAreaModal test suite (access control, loading/refresh, display-name save, approve/reject, roles/rights editing, preset application, close/error flows) and raised AdminAreaModal from 0% to 97.73% lines (overall 45.48% -> 47.22%).

@@ -65,7 +65,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return (
         <ToastContext.Provider value={value}>
             {children}
-            <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2">
+            <div className="fixed bottom-4 left-1/2 z-[200] flex w-[min(92vw,30rem)] -translate-x-1/2 flex-col-reverse items-center gap-2 pointer-events-none">
                 {toasts.map((item) => {
                     const variant = item.variant || 'default';
                     const styles =
@@ -91,7 +91,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     return (
                         <div
                             key={item.id}
-                            className={`min-w-[260px] max-w-[360px] rounded-xl border px-4 py-3 shadow-xl backdrop-blur-md bg-background/80 ${styles} animate-in slide-in-from-right-2 fade-in duration-200`}
+                            className={`pointer-events-auto min-w-[260px] max-w-[360px] rounded-xl border px-4 py-3 shadow-xl backdrop-blur-md bg-background/80 ${styles} animate-in slide-in-from-bottom-2 fade-in duration-200`}
                         >
                             <div className="flex items-start gap-2">
                                 <div className="mt-0.5">{icon}</div>

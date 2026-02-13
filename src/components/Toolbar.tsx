@@ -36,6 +36,7 @@ interface ToolbarProps {
     apiKeys?: { stability?: string };
     activePalette?: ColorPalette | null;
     setActivePalette?: (palette: ColorPalette | null) => void;
+    currentUser?: string;
 }
 
 export type ToolbarHandle = {
@@ -301,7 +302,7 @@ const attachBezierControls = (pathObj: BezierPathObject) => {
     pathObj.setCoords();
 };
 
-const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, activePalette, setActivePalette }, ref) => {
+const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, activePalette, setActivePalette, currentUser }, ref) => {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
@@ -321,21 +322,21 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
-    // Reordered tools based on standard workflows
+    // Ordered from local selection/layer work to broader/global actions.
     const tools = [
         { name: 'select', icon: Move, label: 'Select' },
+        { name: 'layers', icon: Layers, label: 'Layers' },
+        { name: 'text', icon: Type, label: 'Text' },
+        { name: 'shapes', icon: Shapes, label: 'Shapes' },
         { name: 'paint', icon: Brush, label: 'Brush' },
         { name: 'pen', icon: PenTool, label: 'Pen' },
-        { name: 'shapes', icon: Shapes, label: 'Shapes' },
-        { name: 'text', icon: Type, label: 'Text' },
         { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
+        { name: 'adjustments', icon: Blend, label: 'Adjustments' },
+        { name: 'color-wheel', icon: Palette, label: 'Color' },
         { name: 'assets', icon: ImageIcon, label: 'Gallery' },
         { name: 'templates', icon: LayoutTemplate, label: 'Library' },
-        { name: 'adjustments', icon: Blend, label: 'Adjustments' },
-        { name: 'layers', icon: Layers, label: 'Layers' },
         { name: 'ai-zone', icon: Wand2, label: 'AI Zone' },
         { name: '3d-gen', icon: Box, label: 'AI 3D' },
-        { name: 'color-wheel', icon: Palette, label: 'Color' },
     ];
 
     const [penPoints, setPenPoints] = useState<PenPoint[]>([]);
@@ -1406,6 +1407,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                     canvas={canvas}
                     onClose={() => setActiveTool('select')}
                     apiKey={apiKeys?.stability}
+                    currentUser={currentUser}
                  />
             )}
 
@@ -1424,6 +1426,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             {/* Asset Library */}
             {activeTool === 'assets' && (
                 <AssetLibrary 
+                    currentUser={currentUser}
                     onClose={() => setActiveTool('select')}
                     onSelect={(path, type, name) => {
                         if (type === 'models') {
