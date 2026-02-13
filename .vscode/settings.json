@@ -3,7 +3,15 @@
         "git stash": true,
         "git add": true,
         "type": true,
-        "npm install": true
+        "npm install": true,
+        "/^node -p 'const j=require\\(\"\\./coverage/coverage-summary\\.json\"\\); \\[j\\.total\\.lines\\.total,j\\.total\\.lines\\.covered,j\\.total\\.lines\\.pct,j\\.total\\.functions\\.pct,j\\.total\\.branches\\.pct\\]\\.join\\(\"\\|\"\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -p 'const j=require\\(\"\\./coverage/coverage-summary\\.json\"\\); const e=Object\\.entries\\(j\\)\\.filter\\(\\(\\[k\\]\\)=>k!==\"total\"\\); const d=e\\.map\\(\\(\\[k,v\\]\\)=>\\(\\{k:k\\.replace\\(process\\.cwd\\(\\)\\+\"/\",\"\"\\),t:v\\.lines\\.total,c:v\\.lines\\.covered,p:v\\.lines\\.pct,u:v\\.lines\\.total-v\\.lines\\.covered\\}\\)\\); const z=d\\.filter\\(x=>x\\.p===0\\); \\[z\\.length,z\\.reduce\\(\\(s,x\\)=>s\\+x\\.t,0\\)\\]\\.join\\(\"\\|\"\\)'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     },
     "chat.agent.maxRequests": 50
 }
