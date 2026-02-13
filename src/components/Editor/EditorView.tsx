@@ -559,12 +559,16 @@ export default function EditorView({
     const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
     const [sourceObjectFor3D, setSourceObjectFor3D] = useState<fabric.Object | null>(null);
     const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJob[]>([]);
+    const [jobsHydrated, setJobsHydrated] = useState(false);
     const backgroundJobsRef = useRef<BackgroundJob[]>([]);
     const pollTimersRef = useRef<Map<string, number>>(new Map());
     const pollIntervalsRef = useRef<Map<string, number>>(new Map());
     const [editingModelUrl, setEditingModelUrl] = useState<string | null>(null);
     const [editingModelObject, setEditingModelObject] = useState<fabric.Object | null>(null);
     const [mediaPreview, setMediaPreview] = useState<{ type: 'video' | 'audio'; url: string } | null>(null);
+    const BACKGROUND_JOBS_STORAGE_KEY = 'image-express-background-jobs';
+    const MAX_PERSISTED_JOBS = 80;
+    const MAX_JOB_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
     // Initial Tool Effect
     useEffect(() => {
@@ -2096,6 +2100,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Background Jobs (AI) ---
+    const upsertBackgroundJob = useCallback((jobData: Partial<BackgroundJob>) => {
+        setBackgroundJobs((prev) => {
+            const id = typeof jobData.id === 'string' ? jobData.id.trim() : '';
+            if (!id) return prev;
+
+            const normalized: BackgroundJob = {
+                id,
+                type: (jobData.type || 'image-to-3d') as BackgroundJob['type'],
+                status: (jobData.status || 'IN_PROGRESS') as BackgroundJob['status'],
+                progress: jobData.progress,
+                result: jobData.result,
+                resultUrl: jobData.resultUrl,
+                thumbnailUrl: jobData.thumbnailUrl,
+                error: jobData.error,
+                createdAt: jobData.createdAt || Date.now(),
+                apiKey: jobData.apiKey,
+                provider: jobData.provider,
+                stage: jobData.stage,
+                prompt: jobData.prompt,
+            };
+
+            const existing = prev.find((job) => job.id === id);
+            if (!existing) {
+                return [...prev, normalized];
+            }
+
+            const merged: BackgroundJob = {
+                ...existing,
+                ...normalized,
+                error: normalized.status === 'IN_PROGRESS' || normalized.status === 'PENDING' ? undefined : (normalized.error || existing.error),
+            };
+            return prev.map((job) => (job.id === id ? merged : job));
+        });
+    }, []);
+
     // Check API keys on mount and when settings close
     useEffect(() => {
         setApiKeys({
@@ -2108,6 +2147,92 @@ document.addEventListener('DOMContentLoaded', () => {
             banana: localStorage.getItem('banana_api_key') || undefined,
         });
     }, [settingsOpen]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const raw = localStorage.getItem(BACKGROUND_JOBS_STORAGE_KEY);
+            if (!raw) {
+                setJobsHydrated(true);
+                return;
+            }
+
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                setJobsHydrated(true);
+                return;
+            }
+
+            const now = Date.now();
+            const restored = parsed
+                .filter((entry) => entry && typeof entry === 'object')
+                .map((entry) => {
+                    const source = entry as Partial<BackgroundJob>;
+                    const id = typeof source.id === 'string' ? source.id.trim() : '';
+                    if (!id) return null;
+                    const createdAt = typeof source.createdAt === 'number' && Number.isFinite(source.createdAt)
+                        ? source.createdAt
+                        : now;
+                    if (now - createdAt > MAX_JOB_AGE_MS) return null;
+
+                    const provider = source.provider;
+                    let apiKey = source.apiKey;
+                    if (!apiKey && provider) {
+                        apiKey = localStorage.getItem(`${provider}_api_key`) || undefined;
+                    }
+
+                    return {
+                        id,
+                        type: (source.type || 'image-to-3d') as BackgroundJob['type'],
+                        status: (source.status || 'IN_PROGRESS') as BackgroundJob['status'],
+                        progress: typeof source.progress === 'number' ? source.progress : undefined,
+                        resultUrl: source.resultUrl,
+                        thumbnailUrl: source.thumbnailUrl,
+                        error: source.error,
+                        createdAt,
+                        apiKey,
+                        provider,
+                        stage: source.stage,
+                        prompt: source.prompt,
+                    } as BackgroundJob;
+                })
+                .filter((entry): entry is BackgroundJob => Boolean(entry))
+                .slice(-MAX_PERSISTED_JOBS);
+
+            if (restored.length > 0) {
+                setBackgroundJobs((prev) => (prev.length > 0 ? prev : restored));
+            }
+        } catch (error) {
+            console.error('Failed to restore background jobs', error);
+        } finally {
+            setJobsHydrated(true);
+        }
+    }, [BACKGROUND_JOBS_STORAGE_KEY, MAX_JOB_AGE_MS, MAX_PERSISTED_JOBS]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !jobsHydrated) return;
+        try {
+            const compact = backgroundJobs
+                .slice(-MAX_PERSISTED_JOBS)
+                .map((job) => ({
+                    id: job.id,
+                    type: job.type,
+                    status: job.status,
+                    progress: job.progress,
+                    resultUrl: job.resultUrl,
+                    thumbnailUrl: job.thumbnailUrl,
+                    error: job.error,
+                    createdAt: job.createdAt,
+                    apiKey: job.apiKey,
+                    provider: job.provider,
+                    stage: job.stage,
+                    prompt: job.prompt,
+                }));
+            localStorage.setItem(BACKGROUND_JOBS_STORAGE_KEY, JSON.stringify(compact));
+        } catch (error) {
+            console.error('Failed to persist background jobs', error);
+        }
+    }, [backgroundJobs, jobsHydrated, BACKGROUND_JOBS_STORAGE_KEY, MAX_PERSISTED_JOBS]);
     
     // Connection status check commented out
     /*
@@ -2126,7 +2251,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeJobs.length === 0) return;
     
         const checkJobStatus = async (job: BackgroundJob) => {
-            if (!job.id || !job.apiKey) return;
+            if (!job.id) return;
+            if (!job.apiKey) {
+                const updatedJob: BackgroundJob = {
+                    ...job,
+                    status: 'FAILED',
+                    error: 'Missing API key for job polling. Re-enter key in Settings and recover this job ID.',
+                };
+                setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
+                return { status: 'FAILED', progress: job.progress || 0, progressed: false };
+            }
             try {
                 type TripoOutput = {
                     model?: string;
@@ -2154,6 +2288,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const previousProgress = job.progress || 0;
                 let resultUrl = job.resultUrl;
                 let thumbnailUrl = job.thumbnailUrl;
+                let errorDetail = job.error;
     
                 if (job.provider === 'stability') {
                     const res = await fetch(`/api/ai/stability/upscale/poll?id=${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
@@ -2169,48 +2304,167 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else if (job.provider === 'tripo') {
                      const res = await fetch(`/api/ai/tripo/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
-                     if (!res.ok) return;
+                     if (!res.ok) {
+                        const text = await res.text().catch(() => '');
+                        status = 'FAILED';
+                        errorDetail = `Tripo poll failed (${res.status}). ${text || res.statusText || 'No details returned.'}`.trim();
+                        const updatedJob: BackgroundJob = { ...job, status, error: errorDetail, progress };
+                        setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
+                        return { status, progress, progressed: false };
+                     }
                      const json = (await res.json()) as ApiResponse;
                      if (json.data) {
                          const tData = json.data;
                          if (tData.status === 'success') status = 'SUCCEEDED';
-                         else if (tData.status === 'failed' || tData.status === 'cancelled') status = 'FAILED';
+                         else if (tData.status === 'failed' || tData.status === 'cancelled') {
+                            status = 'FAILED';
+                            errorDetail = `Tripo task ${tData.status}.`;
+                         }
                          else status = 'IN_PROGRESS';
                          progress = tData.progress;
                          resultUrl = tData.output?.model || tData.output?.pbr_model || tData.output?.base_model;
                          thumbnailUrl = tData.output?.rendered_image || tData.output?.render_image;
-                     } else if (json.code !== undefined && json.code !== 0) { status = 'FAILED'; }
+                     } else if (json.code !== undefined && json.code !== 0) {
+                        status = 'FAILED';
+                        errorDetail = `Tripo error code: ${json.code}.`;
+                     }
                 } else if (job.provider === 'hitems') {
-                    const res = await fetch(`/api/ai/hitems/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
-                    if (!res.ok) return;
+                    const appId = typeof window !== 'undefined' ? localStorage.getItem('hitems_appid') : null;
+                    const rawKey = (job.apiKey || '').replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+                    const hitemsAuthHeader = rawKey.includes(':') ? rawKey : `Bearer ${rawKey}`;
+                    const headers: Record<string, string> = { 'Authorization': hitemsAuthHeader };
+                    if (appId) headers.Appid = appId;
+                    const res = await fetch(`/api/ai/hitems/${job.id}`, { headers });
+                    if (!res.ok) {
+                        const payload = await res.json().catch(() => null) as
+                            | { message?: string; msg?: string; detail?: string; error?: string }
+                            | null;
+                        const reason =
+                            payload?.message ||
+                            payload?.msg ||
+                            payload?.detail ||
+                            payload?.error ||
+                            `Hitem poll failed (${res.status}).`;
+                        status = 'FAILED';
+                        errorDetail = reason;
+                        const updatedJob: BackgroundJob = { ...job, status, error: errorDetail, progress };
+                        setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
+                        return { status, progress, progressed: false };
+                    }
                     const json = (await res.json()) as {
-                        code?: number;
+                        code?: number | string;
                         message?: string;
+                        msg?: string;
                         data?: {
                             task_status?: number;
+                            state?: string;
+                            task_msg?: string;
+                            message?: string;
                             process_pct?: number;
+                            progress?: number | string;
+                            process?: number | string;
+                            percentage?: number | string;
+                            percent?: number | string;
                             task_result?: {
                                 model_url?: string;
                                 render_url?: string;
+                                url?: string;
+                                cover_url?: string;
                             };
+                            url?: string;
+                            model_url?: string;
+                            cover_url?: string;
+                            render_url?: string;
                         };
                     };
+                    const hitemMsg =
+                        json.data?.task_msg ||
+                        json.data?.message ||
+                        json.message ||
+                        json.msg;
                     const statusCode = json.data?.task_status;
-                    if (statusCode === 4) status = 'SUCCEEDED';
-                    else if (statusCode === -1) status = 'FAILED';
-                    else status = 'IN_PROGRESS';
-                    if (json.data?.process_pct !== undefined) {
-                        progress = json.data.process_pct;
+                    const state = typeof json.data?.state === 'string' ? json.data.state.toLowerCase() : '';
+                    const codeText = json.code !== undefined ? `${json.code}` : undefined;
+                    const isOkCode = codeText === undefined || codeText === '200' || codeText === '0';
+                    const parseProgressValue = (value: unknown) => {
+                        if (value === null || value === undefined) return null;
+                        const numeric = typeof value === 'number' ? value : Number(value);
+                        if (!Number.isFinite(numeric)) return null;
+                        if (numeric <= 1) return Math.max(0, Math.min(100, Math.round(numeric * 100)));
+                        return Math.max(0, Math.min(100, Math.round(numeric)));
+                    };
+                    const progressCandidates = [
+                        json.data?.process_pct,
+                        json.data?.progress,
+                        json.data?.process,
+                        json.data?.percentage,
+                        json.data?.percent,
+                    ];
+                    const parsedProgress = progressCandidates
+                        .map(parseProgressValue)
+                        .find((value): value is number => value !== null);
+
+                    if (statusCode === 4 || state === 'success') status = 'SUCCEEDED';
+                    else if (statusCode === -1 || state === 'failed') {
+                        status = 'FAILED';
+                        const baseError = hitemMsg || `Hitem task failed${statusCode !== undefined ? ` (status ${statusCode})` : ''}.`;
+                        errorDetail = /login expired|token expired|invalid token/i.test(baseError)
+                            ? `${baseError} If you are using Bearer token, refresh it. For auto-refresh use ak:sk key format.`
+                            : baseError;
                     }
-                    resultUrl = json.data?.task_result?.model_url;
-                    thumbnailUrl = json.data?.task_result?.render_url;
+                    else if (typeof hitemMsg === 'string' && /login expired|token expired|invalid token|expired/i.test(hitemMsg)) {
+                        status = 'FAILED';
+                        errorDetail = `${hitemMsg} If you are using Bearer token, refresh it. For auto-refresh use ak:sk key format.`;
+                    }
+                    else if (statusCode !== undefined || ['created', 'queueing', 'processing', 'pending', 'running'].includes(state) || isOkCode) {
+                        status = 'IN_PROGRESS';
+                    }
+                    else if (!isOkCode) {
+                        status = 'FAILED';
+                        errorDetail = hitemMsg || `Hitem response code ${codeText}.`;
+                    }
+                    else status = 'IN_PROGRESS';
+                    if (parsedProgress !== undefined) {
+                        progress = parsedProgress;
+                    } else if (status === 'IN_PROGRESS') {
+                        if (state === 'created') progress = Math.max(progress, 5);
+                        else if (state === 'queueing') progress = Math.max(progress, 15);
+                        else if (state === 'processing' || state === 'running') progress = Math.max(progress, 30);
+                    }
+                    if (status === 'SUCCEEDED') progress = 100;
+                    const resolvedModelUrl =
+                        json.data?.task_result?.model_url ||
+                        json.data?.task_result?.url ||
+                        json.data?.model_url ||
+                        json.data?.url;
+                    resultUrl = resolvedModelUrl || resultUrl;
+                    thumbnailUrl =
+                        json.data?.task_result?.render_url ||
+                        json.data?.task_result?.cover_url ||
+                        json.data?.render_url ||
+                        json.data?.cover_url ||
+                        thumbnailUrl;
+                    if (status !== 'FAILED' && resolvedModelUrl) {
+                        status = 'SUCCEEDED';
+                        progress = 100;
+                    }
                 } else {
                     const endpoint = job.type === 'image-to-3d' ? 'image-to-3d' : 'text-to-3d';
                     const res = await fetch(`/api/ai/meshy?endpoint=${endpoint}/${job.id}`, { headers: { 'Authorization': `Bearer ${job.apiKey}` } });
-                    if (!res.ok) return;
+                    if (!res.ok) {
+                        const text = await res.text().catch(() => '');
+                        status = 'FAILED';
+                        errorDetail = `Meshy poll failed (${res.status}). ${text || res.statusText || 'No details returned.'}`.trim();
+                        const updatedJob: BackgroundJob = { ...job, status, error: errorDetail, progress };
+                        setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
+                        return { status, progress, progressed: false };
+                    }
                     data = (await res.json()) as ApiResponse;
                     if (data.status === 'SUCCEEDED') status = 'SUCCEEDED';
-                    else if (data.status === 'FAILED' || data.status === 'EXPIRED') status = 'FAILED';
+                    else if (data.status === 'FAILED' || data.status === 'EXPIRED') {
+                        status = 'FAILED';
+                        errorDetail = `Meshy task ${data.status.toLowerCase()}.`;
+                    }
                     else status = 'IN_PROGRESS'; 
                     if (data.progress !== undefined) progress = data.progress;
                     resultUrl = data.model_urls?.glb;
@@ -2257,11 +2511,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
     
                 if (status === 'SUCCEEDED' || status === 'FAILED') {
-                     const updatedJob: BackgroundJob = { ...job, status: status, resultUrl: resultUrl, thumbnailUrl: thumbnailUrl, progress: status === 'SUCCEEDED' ? 100 : progress };
+                     const updatedJob: BackgroundJob = {
+                        ...job,
+                        status: status,
+                        resultUrl: resultUrl,
+                        thumbnailUrl: thumbnailUrl,
+                        progress: status === 'SUCCEEDED' ? 100 : progress,
+                        error: status === 'FAILED' ? (errorDetail || 'Failed to process.') : undefined,
+                     };
                      setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
                      if (status === 'SUCCEEDED' && resultUrl) {
                           let filename = (job.prompt || 'generated').slice(0, 15).replace(/[^a-z0-9]/gi, '_');
-                          if (!filename.toLowerCase().endsWith('.glb')) filename += '.glb';
+                          const urlMatch = resultUrl.match(/\.([a-z0-9]+)(?:$|[?#])/i);
+                          const extension = (urlMatch?.[1] || 'glb').toLowerCase();
+                          if (!filename.toLowerCase().endsWith(`.${extension}`)) filename += `.${extension}`;
                           try {
                             await fetch('/api/assets/save-url', { method: 'POST', body: JSON.stringify({ url: resultUrl, filename: filename, type: 'models' }) });
                           } catch (err) { console.error("Failed to auto-save asset", err); }
@@ -2291,11 +2554,16 @@ document.addEventListener('DOMContentLoaded', () => {
                       }
                 } else {
                      if (progress !== job.progress || status !== job.status) {
-                         setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { ...p, progress: progress, status: status } : p));
+                         setBackgroundJobs(prev => prev.map(p => p.id === job.id ? { ...p, progress: progress, status: status, error: status === 'IN_PROGRESS' ? undefined : p.error } : p));
                      }
                 }
                 return { status, progress, progressed: progress > previousProgress };
-            } catch { }
+            } catch (error) {
+                const reason = error instanceof Error ? error.message : 'Unexpected polling error.';
+                const updatedJob: BackgroundJob = { ...job, status: 'FAILED', error: reason, progress: job.progress };
+                setBackgroundJobs(prev => prev.map(p => p.id === job.id ? updatedJob : p));
+                return { status: 'FAILED', progress: job.progress || 0, progressed: false };
+            }
         };
 
         const getJobById = (id: string) => backgroundJobsRef.current.find(j => j.id === id);
@@ -2913,11 +3181,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         {activeTool === '3d-gen' && (
                             <ThreeDGenerator 
                                 initialImage={initialImageFor3D}
+                                onOpenSettings={onOpenSettings}
                                 activeJob={backgroundJobs.find(j => j.status === 'IN_PROGRESS' || j.status === 'PENDING')}
                                 onStartBackgroundJob={(jobData) => {
-                                    setBackgroundJobs(prev => [...prev, jobData as BackgroundJob]);
-                                    if (sourceObjectFor3D && canvas) { sourceObjectFor3D.set('visible', false); canvas.requestRenderAll(); }
-                                    setActiveTool('select'); setInitialImageFor3D(undefined); setSourceObjectFor3D(null);
+                                    upsertBackgroundJob(jobData);
+                                    if (sourceObjectFor3D && canvas) { 
+                                         // sourceObjectFor3D.set('visible', false); 
+                                         // We keep layer visible so user sees it while generating
+                                         canvas.requestRenderAll(); 
+                                    }
+                                    toast({ title: 'Generation Started', description: 'Monitor progress in the top status bar.' });
+                                    // setActiveTool('select'); // Keep panel open or close? User asked to keep layer visible.
+                                    // But typically "Layer" refers to canvas object. 
+                                    // If we close panel, user gets back to canvas. 
+                                    // Let's close panel but ensure progress is visible.
+                                    setActiveTool('select'); 
+                                    setInitialImageFor3D(undefined); 
+                                    setSourceObjectFor3D(null);
+                                }}
+                                onRecoverBackgroundJob={(jobData) => {
+                                    upsertBackgroundJob(jobData);
+                                    toast({
+                                        title: 'Job recovery started',
+                                        description: `Now tracking ${jobData.id}.`,
+                                        variant: 'success'
+                                    });
                                 }}
                                 onAddToCanvas={(dataUrl, modelUrl) => {
                                     if (canvas) {

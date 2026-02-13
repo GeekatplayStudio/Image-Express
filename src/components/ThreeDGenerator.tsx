@@ -9,14 +9,36 @@ import { Loader2, Plus, RotateCw, Box, Settings2, Sun } from 'lucide-react';
 import { BackgroundJob } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
+import {
+    DEFAULT_HITEMS_FORMAT,
+    DEFAULT_HITEMS_MODEL,
+    DEFAULT_HITEMS_REQUEST_TYPE,
+    HITEMS_FORMAT_OPTIONS,
+    HITEMS_MODEL_OPTIONS,
+    HITEMS_PRESET_OPTIONS,
+    HITEMS_REQUEST_TYPE_OPTIONS,
+    applyHitemsPreset,
+    getDefaultHitemsResolution,
+    getHitemsAllowedResolutions,
+    getMatchingHitemsPresetKey,
+    hitemsRequiresMeshUrl,
+    hitemsSupportsTextureStage,
+    isHitemsPresetKey,
+    normalizeHitemsFace,
+    normalizeHitemsSelection,
+    type HitemsPresetKey,
+    type HitemsSelection,
+} from '@/lib/hitemsOptions';
 
 const SUPPORTED_PROVIDERS = ['meshy', 'tripo', 'hitems'];
 
 interface ThreeDGeneratorProps {
     onAddToCanvas: (dataUrl: string, modelUrl?: string) => void;
     onClose: () => void;
+    onOpenSettings?: () => void;
     initialImage?: string; 
     onStartBackgroundJob?: (job: Partial<BackgroundJob>) => void; // Parent handles logic
+    onRecoverBackgroundJob?: (job: Partial<BackgroundJob>) => void;
     activeJob?: BackgroundJob | null; // Pass active job if it exists
 }
 
@@ -131,7 +153,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 };
 
 
-export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, onStartBackgroundJob, activeJob }: ThreeDGeneratorProps) {
+export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, onStartBackgroundJob, onRecoverBackgroundJob, activeJob }: ThreeDGeneratorProps) {
     const dialog = useDialog();
     const { toast } = useToast();
     const [prompt, setPrompt] = useState('');
@@ -153,17 +175,29 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
     const [contactShadowIntensity, setContactShadowIntensity] = useState(0.6);
     const [groundY, setGroundY] = useState(-1);
 
+    const [hitemsAk, setHitemsAk] = useState('');
+    const [hitemsSk, setHitemsSk] = useState('');
+    const [hitemsModel, setHitemsModel] = useState(DEFAULT_HITEMS_MODEL);
+    const [hitemsRequestType, setHitemsRequestType] = useState(DEFAULT_HITEMS_REQUEST_TYPE);
+    const [hitemsResolution, setHitemsResolution] = useState(getDefaultHitemsResolution(DEFAULT_HITEMS_MODEL));
+    const [hitemsFormat, setHitemsFormat] = useState(DEFAULT_HITEMS_FORMAT);
+    const [hitemsFace, setHitemsFace] = useState('');
+    const [hitemsMeshUrl, setHitemsMeshUrl] = useState('');
+    const [hitemsPreset, setHitemsPreset] = useState<HitemsPresetKey | 'custom'>('balanced');
+    const [isValidatingHitems, setIsValidatingHitems] = useState(false);
+    const [recoverJobId, setRecoverJobId] = useState('');
+
     
     // Use internal state OR prop state
     const jobStatus = activeJob?.status || '';
     const jobProgress = activeJob?.progress || 0;
     const modelUrl = activeJob?.resultUrl || null;
+    const canPreviewModelInApp = Boolean(modelUrl && /\.(glb|gltf)(?:$|[?#])/i.test(modelUrl));
     const isJobRunning = activeJob?.status === 'IN_PROGRESS' || activeJob?.status === 'PENDING';
 
     useEffect(() => {
         if (activeJob) {
              const loading = activeJob.status === 'IN_PROGRESS' || activeJob.status === 'PENDING';
-             // eslint-disable-next-line
              if (isLoading !== loading) setIsLoading(loading);
         } else {
              
@@ -185,17 +219,53 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
         const savedProvider = localStorage.getItem('image-express-3d-provider');
         
         if (savedProvider && SUPPORTED_PROVIDERS.includes(savedProvider)) {
-             // eslint-disable-next-line
              setSelectedProvider(prev => prev !== savedProvider ? savedProvider : prev);
         }
+
+        const savedSelection = normalizeHitemsSelection({
+            model: localStorage.getItem('hitems_model') || undefined,
+            requestType: localStorage.getItem('hitems_request_type') || undefined,
+            resolution: localStorage.getItem('hitems_resolution') || undefined,
+            format: localStorage.getItem('hitems_format') || undefined,
+            face: localStorage.getItem('hitems_face') || undefined,
+            meshUrl: localStorage.getItem('hitems_mesh_url') || undefined,
+        });
+        setHitemsModel(savedSelection.model);
+        setHitemsRequestType(savedSelection.requestType);
+        setHitemsResolution(savedSelection.resolution);
+        setHitemsFormat(savedSelection.format);
+        setHitemsFace(savedSelection.face);
+        setHitemsMeshUrl(savedSelection.meshUrl);
+
+        const savedPreset = localStorage.getItem('hitems_preset');
+        if (isHitemsPresetKey(savedPreset)) {
+            setHitemsPreset(savedPreset);
+            return;
+        }
+        const matchedPreset = getMatchingHitemsPresetKey(savedSelection);
+        setHitemsPreset(matchedPreset || 'custom');
     }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        localStorage.setItem('hitems_model', hitemsModel);
+        localStorage.setItem('hitems_request_type', hitemsRequestType);
+        localStorage.setItem('hitems_resolution', hitemsResolution);
+        localStorage.setItem('hitems_format', hitemsFormat);
+        localStorage.setItem('hitems_face', hitemsFace);
+        localStorage.setItem('hitems_mesh_url', hitemsMeshUrl);
+        if (hitemsPreset !== 'custom') {
+            localStorage.setItem('hitems_preset', hitemsPreset);
+        } else {
+            localStorage.removeItem('hitems_preset');
+        }
+    }, [hitemsModel, hitemsRequestType, hitemsResolution, hitemsFormat, hitemsFace, hitemsMeshUrl, hitemsPreset]);
 
     // Check for key when provider changes
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const key = localStorage.getItem(`${selectedProvider}_api_key`);
         const hasKey = !!key;
-        // eslint-disable-next-line
         setHasSavedKey(prev => prev !== hasKey ? hasKey : prev);
         setApiKey(''); // Clear manual input on switch
     }, [selectedProvider]);
@@ -205,12 +275,208 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
          // Need to match STORAGE_KEYS from SettingsModal:
          // MESHY_API_KEY: 'meshy_api_key'
          // TRIPO_API_KEY: 'tripo_api_key'
-         return localStorage.getItem(`${selectedProvider}_api_key`) || apiKey;
+         const stored = localStorage.getItem(`${selectedProvider}_api_key`);
+         if (stored) return stored;
+         
+         if (selectedProvider === 'hitems') {
+             if (hitemsAk && hitemsSk) return `${hitemsAk}:${hitemsSk}`;
+             return apiKey; // Fallback if they pasted full string in one box (hidden now but maybe historical)
+         }
+         return apiKey;
     };
 
     const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedProvider(e.target.value);
         localStorage.setItem('image-express-3d-provider', e.target.value);
+    };
+
+    const applyHitemsSelectionToState = (selection: HitemsSelection) => {
+        setHitemsModel(selection.model);
+        setHitemsRequestType(selection.requestType);
+        setHitemsResolution(selection.resolution);
+        setHitemsFormat(selection.format);
+        setHitemsFace(selection.face);
+        setHitemsMeshUrl(selection.meshUrl);
+        const matchedPreset = getMatchingHitemsPresetKey(selection);
+        setHitemsPreset(matchedPreset || 'custom');
+    };
+
+    const getCurrentHitemsSelection = (): HitemsSelection => normalizeHitemsSelection({
+        model: hitemsModel,
+        requestType: hitemsRequestType,
+        resolution: hitemsResolution,
+        format: hitemsFormat,
+        face: hitemsFace,
+        meshUrl: hitemsMeshUrl,
+    });
+
+    const handleHitemsPresetClick = (presetKey: HitemsPresetKey) => {
+        const updated = applyHitemsPreset(presetKey, getCurrentHitemsSelection());
+        applyHitemsSelectionToState(updated);
+        setHitemsPreset(presetKey);
+    };
+
+    const handleHitemsModelChange = (nextModel: string) => {
+        const updated = normalizeHitemsSelection({
+            ...getCurrentHitemsSelection(),
+            model: nextModel,
+        });
+        applyHitemsSelectionToState(updated);
+    };
+
+    const handleHitemsRequestTypeChange = (nextRequestType: string) => {
+        const updated = normalizeHitemsSelection({
+            ...getCurrentHitemsSelection(),
+            requestType: nextRequestType,
+        });
+        applyHitemsSelectionToState(updated);
+    };
+
+    const handleHitemsResolutionChange = (nextResolution: string) => {
+        const updated = normalizeHitemsSelection({
+            ...getCurrentHitemsSelection(),
+            resolution: nextResolution,
+        });
+        applyHitemsSelectionToState(updated);
+    };
+
+    const handleHitemsFormatChange = (nextFormat: string) => {
+        const updated = normalizeHitemsSelection({
+            ...getCurrentHitemsSelection(),
+            format: nextFormat,
+        });
+        applyHitemsSelectionToState(updated);
+    };
+
+    const handleHitemsFaceChange = (nextFace: string) => {
+        setHitemsFace(nextFace);
+        const matchedPreset = getMatchingHitemsPresetKey({
+            ...getCurrentHitemsSelection(),
+            face: nextFace,
+        });
+        setHitemsPreset(matchedPreset || 'custom');
+    };
+
+    const handleHitemsMeshUrlChange = (nextMeshUrl: string) => {
+        setHitemsMeshUrl(nextMeshUrl);
+        const matchedPreset = getMatchingHitemsPresetKey({
+            ...getCurrentHitemsSelection(),
+            meshUrl: nextMeshUrl,
+        });
+        setHitemsPreset(matchedPreset || 'custom');
+    };
+
+    const validateHitemsSetup = async () => {
+        let key = getSelectedKey();
+        if (!key) {
+            toast({
+                title: 'Missing API key',
+                description: 'Add your Hitem key/token in Settings first.',
+                variant: 'warning'
+            });
+            return;
+        }
+
+        key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+        const appId = (localStorage.getItem('hitems_appid') || '').trim();
+        const localHints: string[] = [];
+
+        if (key.includes(':')) {
+            const [ak, sk] = key.split(':');
+            if (!ak || !sk) {
+                localHints.push('Key format looks invalid. Expected `ak:sk` when using app credentials.');
+            }
+        } else if (key.length < 20) {
+            localHints.push('Token length looks short. Verify you pasted the full token.');
+        }
+
+        if (!appId) {
+            localHints.push('App ID is empty. Some Hitem accounts require `hitems_appid`.');
+        }
+
+        setIsValidatingHitems(true);
+        try {
+            const authHeader = key.includes(':') && !key.startsWith('Bearer') ? key : `Bearer ${key}`;
+            const headers: Record<string, string> = { Authorization: authHeader };
+            if (appId) headers.Appid = appId;
+
+            const res = await fetch('/api/ai/hitems/validate', { method: 'GET', headers });
+            const data = await res.json().catch(() => ({})) as {
+                valid?: boolean;
+                message?: string;
+                detail?: string;
+                status?: number;
+            };
+
+            const remoteMessage = data.message || data.detail || `Validation returned status ${res.status}.`;
+            if (res.ok && data.valid) {
+                const hintText = localHints.length ? ` Local checks: ${localHints.join(' ')}` : '';
+                toast({
+                    title: 'Hitem setup looks good',
+                    description: `${remoteMessage}${hintText}`,
+                    variant: 'success'
+                });
+            } else {
+                const hintText = localHints.length ? ` ${localHints.join(' ')}` : '';
+                toast({
+                    title: 'Hitem setup validation failed',
+                    description: `${remoteMessage}${hintText}`,
+                    variant: 'destructive'
+                });
+            }
+        } catch (e) {
+            toast({
+                title: 'Validation error',
+                description: e instanceof Error ? e.message : 'Failed to validate Hitem setup.',
+                variant: 'destructive'
+            });
+        } finally {
+            setIsValidatingHitems(false);
+        }
+    };
+
+    const handleRecoverHitemsJob = () => {
+        const jobId = recoverJobId.trim();
+        if (!jobId) {
+            toast({
+                title: 'Missing job ID',
+                description: 'Enter a Hitem task ID to recover tracking.',
+                variant: 'warning'
+            });
+            return;
+        }
+
+        let key = getSelectedKey();
+        if (!key) {
+            toast({
+                title: 'Missing API key',
+                description: 'Set your Hitem key before recovering a job.',
+                variant: 'warning'
+            });
+            return;
+        }
+        key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+
+        const payload: Partial<BackgroundJob> = {
+            id: jobId,
+            type: 'image-to-3d',
+            provider: 'hitems',
+            status: 'IN_PROGRESS',
+            progress: 0,
+            prompt: `Recovered: ${jobId.slice(0, 18)}`,
+            createdAt: Date.now(),
+            apiKey: key,
+            error: undefined,
+        };
+
+        if (onRecoverBackgroundJob) onRecoverBackgroundJob(payload);
+        else if (onStartBackgroundJob) onStartBackgroundJob(payload);
+
+        toast({
+            title: 'Recovery started',
+            description: `Tracking Hitem job ${jobId}.`,
+            variant: 'success'
+        });
     };
 
     const handleGenerate = async () => {
@@ -458,6 +724,38 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             return;
         }
 
+        const normalizedSelection = normalizeHitemsSelection({
+            model: hitemsModel,
+            requestType: hitemsRequestType,
+            resolution: hitemsResolution,
+            format: hitemsFormat,
+            face: hitemsFace,
+            meshUrl: hitemsMeshUrl,
+        });
+        const rawFaceText = hitemsFace.trim();
+        if (rawFaceText && !normalizeHitemsFace(rawFaceText)) {
+            toast({
+                title: 'Invalid face count',
+                description: 'Face count must be an integer between 100000 and 2000000.',
+                variant: 'warning'
+            });
+            setIsLoading(false);
+            return;
+        }
+        applyHitemsSelectionToState(normalizedSelection);
+
+        if (hitemsRequiresMeshUrl(normalizedSelection.requestType) && !normalizedSelection.meshUrl) {
+            toast({
+                title: 'Mesh URL required',
+                description: 'Texture Existing Mesh mode requires a mesh_url (public GLB/OBJ URL).',
+                variant: 'warning'
+            });
+            setIsLoading(false);
+            return;
+        }
+
+        const normalizedFace = normalizeHitemsFace(normalizedSelection.face);
+
         try {
             const imageRes = await fetch(initialImage);
             const blob = await imageRes.blob();
@@ -467,17 +765,44 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             else if (mimeType === 'image/webp') fileExt = 'webp';
 
             const formData = new FormData();
-            formData.append('image', blob, `image.${fileExt}`);
+            formData.append('images', blob, `image.${fileExt}`);
+            formData.append('model', normalizedSelection.model);
+            formData.append('request_type', normalizedSelection.requestType);
+            formData.append('resolution', normalizedSelection.resolution);
+            formData.append('format', normalizedSelection.format);
+            if (normalizedFace) formData.append('face', normalizedFace);
+            if (hitemsRequiresMeshUrl(normalizedSelection.requestType)) {
+                formData.append('mesh_url', normalizedSelection.meshUrl);
+            }
+
+            console.log('Sending Hitem3D request with params:', {
+                contentType: mimeType,
+                fileExt,
+                model: normalizedSelection.model,
+                requestType: normalizedSelection.requestType,
+                resolution: normalizedSelection.resolution,
+                format: normalizedSelection.format,
+                face: normalizedFace || undefined,
+                meshUrl: hitemsRequiresMeshUrl(normalizedSelection.requestType) ? normalizedSelection.meshUrl : undefined
+            });
+
+            const authHeader = key.includes(':') && !key.startsWith('Bearer') ? key : `Bearer ${key}`;
+            const appId = localStorage.getItem('hitems_appid');
+
+            const headers: Record<string, string> = {
+                'Authorization': authHeader
+            };
+            if (appId) {
+                headers['Appid'] = appId;
+            }
 
             const res = await fetch('/api/ai/hitems', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${key}`
-                },
+                headers: headers,
                 body: formData
             });
 
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             const taskId = data?.data?.task_id || data?.task_id;
 
             if (res.ok && taskId) {
@@ -487,16 +812,25 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                         type: 'image-to-3d',
                         provider: 'hitems',
                         status: 'IN_PROGRESS',
-                        prompt: 'Image to 3D',
+                        prompt: `${normalizedSelection.model} (${normalizedSelection.resolution})`,
                         createdAt: Date.now(),
                         apiKey: key
                     });
                 }
             } else {
-                console.error('Hitem3D Start Error Response:', data);
+                console.error('Hitem3D Start Error Response:', data || 'Empty Response');
+                const reason =
+                    data?.message ||
+                    data?.msg ||
+                    data?.detail ||
+                    (data?.code ? `Hitem code ${data.code}.` : null) ||
+                    `Hitem request failed (${res.status}).`;
+                const setupHint = /auth|token|appid|unauthorized|forbidden|credential|login/i.test(String(reason))
+                    ? ' Check `hitems_api_key` and `hitems_appid` in Settings, then use Validate Setup.'
+                    : '';
                 toast({
                     title: 'Generation failed',
-                    description: data?.message || 'Error starting Hitem3D generation.',
+                    description: `${reason}${setupHint}`,
                     variant: 'destructive'
                 });
                 setIsLoading(false);
@@ -505,7 +839,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             console.error('Hitem3D request failed', e);
             toast({
                 title: 'Generation failed',
-                description: 'Failed to send image to Hitem3D.',
+                description: `${e instanceof Error ? e.message : 'Failed to send image to Hitem3D.'} Check setup with Validate Setup.`,
                 variant: 'destructive'
             });
             setIsLoading(false);
@@ -534,6 +868,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
             onAddToCanvas(data, modelUrl || undefined);
         }
     };
+
+    const activeHitemsPreset = HITEMS_PRESET_OPTIONS.find((preset) => preset.key === hitemsPreset) || null;
 
     // Need to import Sparkles if I use it
     return (
@@ -564,7 +900,32 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
 
             <div className="p-4 space-y-4">
 
-                    {!hasSavedKey && (
+                    {!hasSavedKey && selectedProvider === 'hitems' && (
+                        <div className="space-y-2">
+                             <div className="space-y-1">
+                                <label className="text-xs font-medium text-muted-foreground">App ID (ak_...)</label>
+                                 <input 
+                                    type="text" 
+                                    value={hitemsAk}
+                                    onChange={(e) => setHitemsAk(e.target.value)}
+                                    placeholder="ak_xxxxxxxx"
+                                    className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm font-mono"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-medium text-muted-foreground">App Secret (sk_...)</label>
+                                 <input 
+                                    type="password" 
+                                    value={hitemsSk}
+                                    onChange={(e) => setHitemsSk(e.target.value)}
+                                    placeholder="sk_xxxxxxxx"
+                                    className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm font-mono"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {!hasSavedKey && selectedProvider !== 'hitems' && (
                         <div className="space-y-1">
                             <label className="text-xs font-medium text-muted-foreground">{selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} API Key (Quick Input)</label>
                              <input 
@@ -595,7 +956,165 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                         <p className="text-[10px] text-muted-foreground text-center">
                             {selectedProvider === 'meshy' && 'Note: Meshy automatically isolates the subject. For best results, use images with clear contrast or transparent backgrounds.'}
                             {selectedProvider === 'tripo' && 'Note: Tripo performs best with a centered subject and minimal background noise.'}
-                            {selectedProvider === 'hitems' && 'Note: Hitem3D prefers a single clear subject with a clean silhouette.'}
+                            {selectedProvider === 'hitems' && 'Note: Hitem3D supports general and portrait models. Use General v2.0 for segmentation-aware output, and geometry-only mode for relief-style meshes.'}
+                        </p>
+                    </div>
+                )}
+
+                {selectedProvider === 'hitems' && initialImage && (
+                    <div className="space-y-2 rounded-md border border-border/60 bg-secondary/30 p-3">
+                        <div className="space-y-2 rounded-md border border-border/40 bg-background/60 p-2">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-medium uppercase text-muted-foreground">Setup Checklist</p>
+                                <div className="flex items-center gap-1">
+                                    {onOpenSettings && (
+                                        <button
+                                            onClick={onOpenSettings}
+                                            className="px-2 py-1 text-[10px] rounded border border-border bg-secondary/50 hover:bg-secondary"
+                                            type="button"
+                                        >
+                                            Open Settings
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={validateHitemsSetup}
+                                        disabled={isValidatingHitems}
+                                        className="px-2 py-1 text-[10px] rounded border border-border bg-secondary/50 hover:bg-secondary disabled:opacity-50"
+                                        type="button"
+                                    >
+                                        {isValidatingHitems ? 'Validating...' : 'Validate Setup'}
+                                    </button>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">1) Save `hitems_api_key` (token or `ak:sk`) in Settings.</p>
+                            <p className="text-[10px] text-muted-foreground">2) If auth fails or responses look empty, set `hitems_appid` in Settings.</p>
+                            <p className="text-[10px] text-muted-foreground">3) For staged texturing (Task 2), provide a public mesh URL.</p>
+                            <div className="pt-1 space-y-1">
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Recover Existing Job ID</label>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="text"
+                                        value={recoverJobId}
+                                        onChange={(e) => setRecoverJobId(e.target.value)}
+                                        placeholder="task_id..."
+                                        className="flex-1 px-2 py-1 bg-secondary/50 rounded border border-border text-[11px] font-mono"
+                                    />
+                                    <button
+                                        onClick={handleRecoverHitemsJob}
+                                        className="px-2 py-1 text-[10px] rounded border border-border bg-secondary/50 hover:bg-secondary"
+                                        type="button"
+                                    >
+                                        Recover
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase">One-Click Presets</label>
+                            <div className="grid grid-cols-2 gap-1">
+                                {HITEMS_PRESET_OPTIONS.map((preset) => (
+                                    <button
+                                        key={preset.key}
+                                        onClick={() => handleHitemsPresetClick(preset.key)}
+                                        className={`px-2 py-1 rounded text-[10px] border transition-colors ${
+                                            hitemsPreset === preset.key
+                                                ? 'bg-primary text-primary-foreground border-primary'
+                                                : 'bg-secondary/50 border-border hover:bg-secondary'
+                                        }`}
+                                        type="button"
+                                    >
+                                        {preset.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
+                                {activeHitemsPreset?.description || 'Custom preset values.'}
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Model</label>
+                                <select
+                                    value={hitemsModel}
+                                    onChange={(e) => handleHitemsModelChange(e.target.value)}
+                                    className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                >
+                                    {HITEMS_MODEL_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Resolution</label>
+                                <select
+                                    value={hitemsResolution}
+                                    onChange={(e) => handleHitemsResolutionChange(e.target.value)}
+                                    className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                >
+                                    {getHitemsAllowedResolutions(hitemsModel).map((value) => (
+                                        <option key={value} value={value}>{value}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Task</label>
+                                <select
+                                    value={hitemsRequestType}
+                                    onChange={(e) => handleHitemsRequestTypeChange(e.target.value)}
+                                    className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                >
+                                    {HITEMS_REQUEST_TYPE_OPTIONS.map((option) => {
+                                        const disabled = option.value === '2' && !hitemsSupportsTextureStage(hitemsModel);
+                                        return (
+                                            <option key={option.value} value={option.value} disabled={disabled}>
+                                                {option.label}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Format</label>
+                                <select
+                                    value={hitemsFormat}
+                                    onChange={(e) => handleHitemsFormatChange(e.target.value)}
+                                    className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                >
+                                    {HITEMS_FORMAT_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase">Face Count (Optional)</label>
+                            <input
+                                type="number"
+                                value={hitemsFace}
+                                onChange={(e) => handleHitemsFaceChange(e.target.value)}
+                                min={100000}
+                                max={2000000}
+                                step={1000}
+                                placeholder="100000 - 2000000"
+                                className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm"
+                            />
+                        </div>
+                        {hitemsRequestType === '2' && (
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Mesh URL (Required for staged texture)</label>
+                                <input
+                                    type="url"
+                                    value={hitemsMeshUrl}
+                                    onChange={(e) => handleHitemsMeshUrlChange(e.target.value)}
+                                    placeholder="https://.../input-mesh.glb"
+                                    className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm"
+                                />
+                            </div>
+                        )}
+                        <p className="text-[10px] text-muted-foreground">
+                            Tip: portrait models are best for faces, General v2.0 is segmentation-aware, and geometry-only mode is useful for relief/base-mesh workflows.
                         </p>
                     </div>
                 )}
@@ -628,13 +1147,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                 </button>
                 {jobStatus && <p className="text-xs text-center text-muted-foreground">
                     {jobStatus === 'SUCCEEDED' ? 'Complete!' : 
-                     jobStatus === 'FAILED' ? 'Failed' : 
+                     jobStatus === 'FAILED' ? (activeJob?.error ? `Failed: ${activeJob.error}` : 'Failed') : 
                      `Generating... ${jobProgress}%`}
                 </p>}
 
                 {/* 3D Preview Area */}
                 <div id="three-d-canvas" className="w-full aspect-square bg-black/5 rounded-lg overflow-hidden border border-border/30 relative">
                      {modelUrl ? (
+                        canPreviewModelInApp ? (
                         <>
                             <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 items-end pointer-events-none">
                                 <div className="pointer-events-auto flex flex-col items-end gap-1">
@@ -902,6 +1422,11 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                                 <OrbitControls makeDefault autoRotate />
                             </Canvas>
                         </>
+                        ) : (
+                            <div className="h-full w-full flex items-center justify-center p-4 text-center text-xs text-muted-foreground">
+                                Model was generated in a format that cannot be previewed in-app. Save it to assets or switch Hitem format to GLB.
+                            </div>
+                        )
                      ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
                              Preview will appear here
@@ -910,12 +1435,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, initialImage, 
                      
                      {modelUrl && (
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                             <button 
-                                onClick={handleCapture}
-                                className="flex items-center gap-2 bg-foreground text-background px-4 py-2 rounded-full text-xs font-bold shadow-lg hover:scale-105 transition-transform"
-                            >
-                                <Plus size={12} /> Add to Canvas
-                            </button>
+                            {canPreviewModelInApp && (
+                                <button 
+                                    onClick={handleCapture}
+                                    className="flex items-center gap-2 bg-foreground text-background px-4 py-2 rounded-full text-xs font-bold shadow-lg hover:scale-105 transition-transform"
+                                >
+                                    <Plus size={12} /> Add to Canvas
+                                </button>
+                            )}
                             <button
                                 onClick={async () => {
                                     const confirmed = await dialog.confirm('Save generated 3D model to assets?', { title: 'Save 3D model' });

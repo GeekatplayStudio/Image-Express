@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isExpiredTokenResponse, resolveHitem3dAuth } from '@/lib/hitem3dAuth';
+import {
+  hitemsRequiresMeshUrl,
+  normalizeHitemsFace,
+  normalizeHitemsFormat,
+  normalizeHitemsModel,
+  normalizeHitemsRequestType,
+  normalizeHitemsResolution,
+} from '@/lib/hitemsOptions';
 
 const BASE_URL = 'https://api.hitem3d.ai/open-api/v1';
-
-const DEFAULTS = {
-  request_type: '3',
-  model: 'hitem3dv1.5',
-  resolution: '1024',
-  format: '2', // glb
-};
 
 const getString = (value: FormDataEntryValue | null) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const getBodyString = (value: unknown) => {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
   return trimmed.length > 0 ? trimmed : null;
 };
 
@@ -69,16 +76,21 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'Missing image payload' }, { status: 400 });
       }
 
-      fields.request_type = getString(form.get('request_type')) ?? DEFAULTS.request_type;
-      fields.model = getString(form.get('model')) ?? DEFAULTS.model;
-      fields.resolution = getString(form.get('resolution')) ?? DEFAULTS.resolution;
-      fields.format = getString(form.get('format')) ?? DEFAULTS.format;
-      const face = getString(form.get('face'));
+      const model = normalizeHitemsModel(getString(form.get('model')));
+      const requestType = normalizeHitemsRequestType(model, getString(form.get('request_type')));
+      fields.request_type = requestType;
+      fields.model = model;
+      fields.resolution = normalizeHitemsResolution(model, getString(form.get('resolution')));
+      fields.format = normalizeHitemsFormat(getString(form.get('format')));
+      const face = normalizeHitemsFace(getString(form.get('face')));
       const meshUrl = getString(form.get('mesh_url'));
       const callbackUrl = getString(form.get('callback_url'));
       if (face) fields.face = face;
       if (meshUrl) fields.mesh_url = meshUrl;
       if (callbackUrl) fields.callback_url = callbackUrl;
+      if (hitemsRequiresMeshUrl(requestType) && !meshUrl) {
+        return NextResponse.json({ message: 'mesh_url is required when request_type=2.' }, { status: 400 });
+      }
     } else {
       const body = await req.json().catch(() => null);
       const imageUrl = body?.imageUrl || body?.image_url;
@@ -92,13 +104,21 @@ export async function POST(req: NextRequest) {
       const blob = await imageRes.blob();
       const fileExt = imageExtFromType(blob.type || 'image/png');
       images.push(blobToFile(blob, `image.${fileExt}`));
-      fields.request_type = body?.request_type ?? DEFAULTS.request_type;
-      fields.model = body?.model ?? DEFAULTS.model;
-      fields.resolution = body?.resolution ?? DEFAULTS.resolution;
-      fields.format = body?.format ?? DEFAULTS.format;
-      if (body?.face) fields.face = body.face;
-      if (body?.mesh_url) fields.mesh_url = body.mesh_url;
-      if (body?.callback_url) fields.callback_url = body.callback_url;
+      const model = normalizeHitemsModel(getBodyString(body?.model));
+      const requestType = normalizeHitemsRequestType(model, getBodyString(body?.request_type));
+      const meshUrl = getBodyString(body?.mesh_url);
+      fields.request_type = requestType;
+      fields.model = model;
+      fields.resolution = normalizeHitemsResolution(model, getBodyString(body?.resolution));
+      fields.format = normalizeHitemsFormat(getBodyString(body?.format));
+      const face = normalizeHitemsFace(getBodyString(body?.face));
+      if (face) fields.face = face;
+      if (meshUrl) fields.mesh_url = meshUrl;
+      const callbackUrl = getBodyString(body?.callback_url);
+      if (callbackUrl) fields.callback_url = callbackUrl;
+      if (hitemsRequiresMeshUrl(requestType) && !meshUrl) {
+        return NextResponse.json({ message: 'mesh_url is required when request_type=2.' }, { status: 400 });
+      }
     }
 
     const buildForm = () => {
@@ -122,6 +142,15 @@ export async function POST(req: NextRequest) {
     let auth = await resolveHitem3dAuth(rawAuthHeader);
     let res = await sendRequest(auth.authorization);
     let responseText = await res.text();
+    
+    console.log('[Hitem3D Debug] Raw Response:', {
+        status: res.status,
+        statusText: res.statusText,
+        headers: Object.fromEntries(res.headers.entries()),
+        bodyLength: responseText.length,
+        bodyPreview: responseText.substring(0, 500)
+    });
+
     let jsonPayload: unknown = null;
     try {
       jsonPayload = responseText ? JSON.parse(responseText) : null;
