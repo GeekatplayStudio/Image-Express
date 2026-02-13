@@ -133,9 +133,9 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
     });
     const usageCounterRef = useRef(0);
     
-    const [quoteIndex] = useState(() => Math.floor(Math.random() * quotes.length));
+    const [quoteIndex] = useState(() => (quotes.length > 0 ? Math.floor(Math.random() * quotes.length) : 0));
 
-    const quote = quotes[quoteIndex];
+    const quote = quotes[quoteIndex] || quotes[0];
     const [showCustomSizeModal, setShowCustomSizeModal] = useState(false);
     const [customWidth, setCustomWidth] = useState(1080);
     const [customHeight, setCustomHeight] = useState(1080);

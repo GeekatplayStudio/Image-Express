@@ -36,7 +36,13 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
     // 3D Keys
     const [meshyKey, setMeshyKey] = useState('');
     const [tripoKey, setTripoKey] = useState('');
-    const [hitemsKey, setHitemsKey] = useState('');
+    const [hitemsKey, setHitemsKey] = useState(''); // Stores either "token" or "ak:sk"
+    
+    // UI state for splitting Hitems key
+    const [hitemsMode, setHitemsMode] = useState<'token' | 'ak_sk'>('ak_sk');
+    const [hitemsAk, setHitemsAk] = useState('');
+    const [hitemsSk, setHitemsSk] = useState('');
+    
     const [hitemsAppId, setHitemsAppId] = useState('');
 
     // Image Keys
@@ -97,6 +103,21 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
         setHitemsKey(localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '');
         setHitemsAppId(localStorage.getItem(STORAGE_KEYS.HITEMS_APP_ID) || '');
         
+        // Parse Hitem Key
+        const rawHitemKey = localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '';
+        setHitemsKey(rawHitemKey);
+        
+        if (rawHitemKey.includes(':') && !rawHitemKey.startsWith('Bearer')) {
+            setHitemsMode('ak_sk');
+            const [ak, sk] = rawHitemKey.split(':');
+            setHitemsAk(ak || '');
+            setHitemsSk(sk || '');
+        } else {
+            // Default to AK/SK if empty, or Token if it looks like a token
+            if (!rawHitemKey) setHitemsMode('ak_sk');
+            else setHitemsMode('token');
+        }
+        
         setStabilityKey(localStorage.getItem(STORAGE_KEYS.STABILITY_API_KEY) || '');
         setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
         setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
@@ -114,6 +135,18 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                     if (data && data.keys) {
                         if (data.keys.meshy) setMeshyKey(data.keys.meshy);
                         if (data.keys.tripo) setTripoKey(data.keys.tripo);
+                        if (data.keys.hitems) {
+                             const raw = data.keys.hitems;
+                             setHitemsKey(raw);
+                             if (raw.includes(':') && !raw.startsWith('Bearer')) {
+                                setHitemsMode('ak_sk');
+                                const [ak, sk] = raw.split(':');
+                                setHitemsAk(ak || '');
+                                setHitemsSk(sk || '');
+                             } else {
+                                setHitemsMode(raw ? 'token' : 'ak_sk');
+                             }
+                        }
                         if (data.keys.stability) setStabilityKey(data.keys.stability);
                         if (data.keys.openai) setOpenaiKey(data.keys.openai);
                         if (data.keys.google) setGoogleKey(data.keys.google);
@@ -135,6 +168,12 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
             unsubscribe?.();
         };
     }, [isOpen, userId]);
+
+    useEffect(() => {
+        if (hitemsMode === 'ak_sk') {
+            setHitemsKey(hitemsAk && hitemsSk ? `${hitemsAk}:${hitemsSk}` : '');
+        }
+    }, [hitemsAk, hitemsSk, hitemsMode]);
 
     const handleSave = async () => {
         setStatus('saving');
@@ -343,16 +382,55 @@ export default function SettingsModal({ isOpen, onClose, userId }: SettingsModal
                                 />
                             </div>
 
-                            {/* Hitems3D */}
+                            {/* Hitem3D */}
                              <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
-                                <label className="text-xs font-semibold mb-1.5 block">Hitem3D</label>
-                                <input 
-                                    type="password"
-                                    value={hitemsKey}
-                                    onChange={(e) => setHitemsKey(e.target.value)}
-                                    placeholder="Access token or client_id:client_secret"
-                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
-                                />
+                                <div className="flex justify-between mb-1.5 items-center">
+                                    <label className="text-xs font-semibold">Hitem3D</label>
+                                    <div className="flex gap-2 text-[10px] bg-secondary rounded p-0.5">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setHitemsMode('ak_sk')}
+                                            className={`px-2 py-0.5 rounded transition-colors ${hitemsMode === 'ak_sk' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
+                                        >
+                                            AK/SK
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setHitemsMode('token')}
+                                            className={`px-2 py-0.5 rounded transition-colors ${hitemsMode === 'token' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
+                                        >
+                                            Token
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {hitemsMode === 'ak_sk' ? (
+                                    <div className="space-y-2">
+                                        <input 
+                                            type="text"
+                                            value={hitemsAk}
+                                            onChange={(e) => setHitemsAk(e.target.value)}
+                                            placeholder="App ID (ak_...)"
+                                            className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                        />
+                                        <input 
+                                            type="password"
+                                            value={hitemsSk}
+                                            onChange={(e) => setHitemsSk(e.target.value)}
+                                            placeholder="Secret Key (sk_...)"
+                                            className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                        />
+                                    </div>
+                                ) : (
+                                    <input 
+                                        type="password"
+                                        value={hitemsKey}
+                                        onChange={(e) => setHitemsKey(e.target.value)}
+                                        placeholder="Access Token (Bearer ...)"
+                                        className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                    />
+                                )}
+
                                 <input 
                                     type="text"
                                     value={hitemsAppId}

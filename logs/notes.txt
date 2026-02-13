@@ -53,3 +53,18 @@ with gradinet and repositioning, we need see the points of orgin of the colors
 Also instead"+" let bring back original icons. like ai images, ai 3d.
 [Done] Clipping mask still confusing, need rework on workflow, make it more intuitive.
 [Done] in layer view, need have option to link(clip) top layer to the bottom, so effect of the top layer effecting layer under
+
+New additions:
+1: Ability to connect to local ComfyUI and generate images with different models (Flux, ZImage, SDXL, Qwen).
+   Add support for inpainting and upscaling using built-in or custom ComfyUI workflows.
+   Add Flux-context support for multi-reference image generation.
+   Build a larger, task-focused interface so users do not need to manage raw workflows.
+   Also allow connection to remote ComfyUI (IP + port in settings).
+2: Ability to connect to local LLM tools (Ollama, LM Studio, AnythingLLM, Text-Gen-WebUI, Jan) and use them as assistants.
+   Add ability to send canvas exports to a vision model and ask design questions (for example, "Does my layout look good?").
+3: Ability to connect to Google Drive to store project files and assets.
+4: Fix the left toolbar: keep Select and Layers at the top; update the right-click circular tool to expose all tools.
+5: Layer selection/editing is still inconsistent and needs stabilization.
+6: Add multi-user support with private asset libraries and optional shared libraries.
+7: Add a user feedback and bug-reporting flow.
+8: Create a desktop shell so the app can run on Mac or PC with one click.
