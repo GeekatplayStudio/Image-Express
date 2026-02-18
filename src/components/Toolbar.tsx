@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool, Palette } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, CornerDownRight, MessageSquare, PenTool, Palette } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
 import { 
@@ -555,7 +555,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleMouseDown = (opt: any) => {
             if (activeTool !== 'pen') return;
-            if (!opt.scenePoint) return;
+            if (isPenSpacePressed) return;
+
+            const pointer = opt.scenePoint
+                ?? (opt.e ? (canvas as unknown as { getScenePoint: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point }).getScenePoint(opt.e) : null);
+            if (!pointer) return;
             const target = opt.target as fabric.Object | null | undefined;
             if (isPenDraftAnchor(target)) {
                 if (penClosure === 'closed' && target.penAnchorIndex === 0 && penPoints.length > 2) {
@@ -563,7 +567,6 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 }
                 return;
             }
-            const pointer = opt.scenePoint;
             const pointerPoint = { x: pointer.x, y: pointer.y };
 
             // Check validity of closing loop
@@ -611,8 +614,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             const index = target.penAnchorIndex;
             if (index === undefined || index < 0) return;
 
-            const x = target.left ?? 0;
-            const y = target.top ?? 0;
+            const center = typeof target.getCenterPoint === 'function' ? target.getCenterPoint() : null;
+            const x = center?.x ?? target.left ?? 0;
+            const y = center?.y ?? target.top ?? 0;
             setPenPoints((prev) => {
                 if (index >= prev.length) return prev;
                 const next = [...prev];
@@ -1019,6 +1023,46 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         canvas.setActiveObject(arrow);
     };
 
+    const addBentArrow = () => {
+        if (!canvas) return;
+        const shaftThickness = 28;
+        const bendX = 120;
+        const shaftHeight = 110;
+        const headWidth = 72;
+        const headLength = 48;
+        const halfThickness = shaftThickness / 2;
+        const headHalf = headWidth / 2;
+        const outerX = bendX + halfThickness;
+        const innerX = bendX - halfThickness;
+        const outerCornerRadius = 32;
+        const innerCornerRadius = 10;
+
+        const pathData = [
+            'M 0 0',
+            `L ${outerX - outerCornerRadius} 0`,
+            `Q ${outerX} 0 ${outerX} ${outerCornerRadius}`,
+            `L ${outerX} ${shaftHeight}`,
+            `L ${bendX + headHalf} ${shaftHeight}`,
+            `L ${bendX} ${shaftHeight + headLength}`,
+            `L ${bendX - headHalf} ${shaftHeight}`,
+            `L ${innerX} ${shaftHeight}`,
+            `L ${innerX} ${shaftThickness + innerCornerRadius}`,
+            `Q ${innerX} ${shaftThickness} ${innerX - innerCornerRadius} ${shaftThickness}`,
+            `L 0 ${shaftThickness}`,
+            'Z'
+        ].join(' ');
+
+        const bentArrow = new fabric.Path(pathData, {
+            left: 140,
+            top: 140,
+            fill: '#22c55e',
+            strokeWidth: 0,
+            objectCaching: false
+        });
+        canvas.add(bentArrow);
+        canvas.setActiveObject(bentArrow);
+    };
+
     const addSpeechBubble = () => {
         if (!canvas) return;
         const pathData = 'M 20 0 H 140 A 20 20 0 0 1 160 20 V 80 A 20 20 0 0 1 140 100 H 70 L 50 120 L 50 100 H 20 A 20 20 0 0 1 0 80 V 20 A 20 20 0 0 1 20 0 Z';
@@ -1250,7 +1294,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
 
         try {
             // Include custom properties in serialization
-            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints']); 
+            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId']); 
             const profile = loadProfileSettings();
             if (profile?.embedInfo) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1481,6 +1525,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                     <button onClick={addArrow} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <ArrowRight size={20} />
                         <span className="text-[10px]">Arrow</span>
+                    </button>
+                    <button onClick={addBentArrow} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <CornerDownRight size={20} />
+                        <span className="text-[10px]">Bent Arrow</span>
                     </button>
                     <button onClick={addSpeechBubble} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <MessageSquare size={20} />

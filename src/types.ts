@@ -120,6 +120,7 @@ export type ExtendedFabricObject = fabric.Object & {
     taperDirection?: number;
     curveStrength?: number;
     curveCenter?: number;
+    textPathSourceId?: string;
     skewZBaseScaleX?: number;
     skewZBaseScaleY?: number;
     skewZBaseSkewX?: number;

@@ -1,13 +1,23 @@
 import React from 'react';
 
+type PathOption = {
+    id: string;
+    label: string;
+};
+
 interface TextPropertiesProps {
     fontFamily: string;
     fontWeight: string;
     curveStrength: number;
     curveCenter: number;
+    pathOptions?: PathOption[];
+    selectedPathId?: string | null;
+    hasAttachedPath?: boolean;
     onFontFamilyChange: (font: string) => void;
     onFontWeightChange: (weight: string) => void;
     onCurveChange: (strength: number, center?: number) => void;
+    onAttachPath?: (pathId: string) => void;
+    onDetachPath?: () => void;
 }
 
 export function TextProperties({
@@ -15,9 +25,14 @@ export function TextProperties({
     fontWeight,
     curveStrength,
     curveCenter,
+    pathOptions = [],
+    selectedPathId = null,
+    hasAttachedPath = false,
     onFontFamilyChange,
     onFontWeightChange,
-    onCurveChange
+    onCurveChange,
+    onAttachPath,
+    onDetachPath
 }: TextPropertiesProps) {
     const FONTS = [
         'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana', 
@@ -68,6 +83,36 @@ export function TextProperties({
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Text Path / Curve</label>
                     
                     <div className="space-y-3">
+                        <div className="space-y-2 pb-2 border-b border-border/30">
+                            <div className="text-[10px] text-muted-foreground">Align to existing pen path</div>
+                            <select
+                                value={selectedPathId || ''}
+                                onChange={(e) => {
+                                    const nextId = e.target.value;
+                                    if (nextId) onAttachPath?.(nextId);
+                                }}
+                                className="w-full text-xs bg-transparent border border-border rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
+                                disabled={pathOptions.length === 0}
+                            >
+                                <option value="" className="bg-card text-foreground">
+                                    {pathOptions.length === 0 ? 'No pen paths on canvas' : 'Select a pen path'}
+                                </option>
+                                {pathOptions.map((path) => (
+                                    <option key={path.id} value={path.id} className="bg-card text-foreground">
+                                        {path.label}
+                                    </option>
+                                ))}
+                            </select>
+                            {hasAttachedPath && (
+                                <button
+                                    onClick={onDetachPath}
+                                    className="w-full px-2 py-1 text-[10px] rounded border border-border hover:bg-secondary transition-colors"
+                                >
+                                    Detach Path
+                                </button>
+                            )}
+                        </div>
+
                         <div className="space-y-2">
                              <div className="flex justify-between text-[10px] text-muted-foreground">
                                 <span>Curve Strength</span>

@@ -172,7 +172,8 @@ export default function EditorView({
         'penMode',
         'penClosed',
         'penNodes',
-        'penSourcePoints'
+        'penSourcePoints',
+        'textPathSourceId'
     ], []);
 
     const getHistorySnapshot = useCallback(() => {
@@ -1263,7 +1264,7 @@ export default function EditorView({
         const libsFolder = zip.folder('libs');
         const scriptsFolder = zip.folder('scripts');
 
-        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints'];
+        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId'];
         const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customProps);
 
         const metadata = {

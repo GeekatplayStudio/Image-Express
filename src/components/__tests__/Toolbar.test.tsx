@@ -256,6 +256,7 @@ type MockCanvas = {
     loadFromJSON: jest.Mock;
     toObject: jest.Mock;
     toDataURL: jest.Mock;
+    getScenePoint: jest.Mock;
 };
 
 const createCanvasStub = (activeObject: { set: jest.Mock } | null = null): MockCanvas => ({
@@ -280,6 +281,7 @@ const createCanvasStub = (activeObject: { set: jest.Mock } | null = null): MockC
     loadFromJSON: jest.fn((_json: unknown, callback: () => void) => callback()),
     toObject: jest.fn(() => ({ objects: [] })),
     toDataURL: jest.fn(() => 'data:image/png;base64,AAAAAA=='),
+    getScenePoint: jest.fn(() => ({ x: 321, y: 654 })),
 });
 
 const renderToolbar = (options?: {
@@ -364,6 +366,17 @@ describe('Toolbar', () => {
         expect(canvas.add.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ type: 'rect' }));
     });
 
+    it('adds a bent arrow from the shapes menu', () => {
+        const { canvas } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Shapes'));
+        fireEvent.click(screen.getByRole('button', { name: 'Bent Arrow' }));
+
+        expect(canvas.add).toHaveBeenCalled();
+        expect(canvas.setActiveObject).toHaveBeenCalled();
+        expect(canvas.add.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ type: 'path' }));
+    });
+
     it('creates an adjustment layer from the adjustments menu', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
 
@@ -442,5 +455,47 @@ describe('Toolbar', () => {
         expect(canvas.defaultCursor).toBe('crosshair');
         expect(canvas.hoverCursor).toBe('crosshair');
         expect(canvas.selection).toBe(false);
+    });
+
+    it('does not place pen anchors while holding space for pan', () => {
+        const { canvas } = renderToolbar();
+        fireEvent.click(screen.getByTitle('Pen'));
+
+        const mouseDownHandler = [...canvas.on.mock.calls]
+            .reverse()
+            .find((call) => call[0] === 'mouse:down')?.[1] as ((opt: unknown) => void) | undefined;
+        expect(mouseDownHandler).toBeDefined();
+
+        fireEvent.keyDown(window, { code: 'Space' });
+        act(() => {
+            mouseDownHandler?.({
+                scenePoint: { x: 120, y: 140 },
+                target: null,
+                e: { button: 0 },
+            });
+        });
+        fireEvent.keyUp(window, { code: 'Space' });
+
+        expect(canvas.add).not.toHaveBeenCalled();
+    });
+
+    it('falls back to canvas.getScenePoint when mouse event lacks scenePoint', () => {
+        const { canvas } = renderToolbar();
+        fireEvent.click(screen.getByTitle('Pen'));
+
+        const mouseDownHandler = [...canvas.on.mock.calls]
+            .reverse()
+            .find((call) => call[0] === 'mouse:down')?.[1] as ((opt: unknown) => void) | undefined;
+        expect(mouseDownHandler).toBeDefined();
+
+        act(() => {
+            mouseDownHandler?.({
+                target: null,
+                e: { button: 0 },
+            });
+        });
+
+        expect(canvas.getScenePoint).toHaveBeenCalled();
+        expect(canvas.add).toHaveBeenCalledWith(expect.objectContaining({ type: 'circle', left: 321, top: 654 }));
     });
 });

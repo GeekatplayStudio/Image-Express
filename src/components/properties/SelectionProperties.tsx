@@ -36,6 +36,9 @@ interface SelectionPropertiesProps {
     onTextOnPath?: () => void;
     onReleaseMask: () => void;
     onToggleMaskLock?: () => void;
+    textPathOptions?: Array<{ id: string; label: string }>;
+    selectedTextPathId?: string | null;
+    hasAttachedTextPath?: boolean;
     
     // Sub-component specific handlers (pass-through helpers from parent would be ideal, 
     // but for now we might need to assume parent handles the heavy lifting via onPropChange or specific props)
@@ -57,6 +60,8 @@ interface SelectionPropertiesProps {
         filters: ImageFilterValues;
     };
     shadowStrokeState?: ShadowStrokeValues; // Start loose for rapid refactor binding
+    onAttachTextToPath?: (pathId: string) => void;
+    onDetachTextPath?: () => void;
 
 }
 
@@ -74,13 +79,18 @@ export function SelectionProperties({
     onTextOnPath,
     onReleaseMask,
     onToggleMaskLock,
+    textPathOptions,
+    selectedTextPathId,
+    hasAttachedTextPath,
     updateAdjustment,
     onMake3D,
     textState,
     activeTextEffects,
     textEffectConfigs,
     effectState,
-    shadowStrokeState
+    shadowStrokeState,
+    onAttachTextToPath,
+    onDetachTextPath
 }: SelectionPropertiesProps) {
 
     const [isTransformOpen, setIsTransformOpen] = useState(false); // Collapsed by default
@@ -90,8 +100,8 @@ export function SelectionProperties({
     
     // Check for Text + Path combination
     const hasTextAndPath = selectedObjects.length === 2 && 
-        selectedObjects.some(o => o.type === 'i-text' || o.type === 'text') &&
-        selectedObjects.some(o => o.type === 'path' || o.type === 'polyline');
+        selectedObjects.some(o => o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') &&
+        selectedObjects.some(o => o.type === 'path' || o.type === 'polyline' || o.type === 'polygon');
 
     const isMasked = !!selectedObject?.clipPath;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,7 +110,7 @@ export function SelectionProperties({
     const isAdjustment = (selectedObject as ExtendedFabricObject)?.isAdjustmentLayer;
     const extended = selectedObject as ExtendedFabricObject;
     const isImage = selectedObject?.type === 'image';
-    const isText = selectedObject?.type === 'text' || selectedObject?.type === 'i-text';
+    const isText = selectedObject?.type === 'text' || selectedObject?.type === 'i-text' || selectedObject?.type === 'textbox';
     const isPenGeometry = selectedObject?.type === 'path' || selectedObject?.type === 'polygon' || selectedObject?.type === 'polyline';
     const looksLikePenLayer = typeof extended?.name === 'string' && extended.name.toLowerCase().includes('vector');
     const isPenObject = !!isPenGeometry && (!!extended?.penMode || !!extended?.isPenPath || looksLikePenLayer);
@@ -512,9 +522,14 @@ export function SelectionProperties({
                     fontWeight={textState.weight}
                     curveStrength={textState.curve}
                     curveCenter={textState.center}
+                    pathOptions={textPathOptions}
+                    selectedPathId={selectedTextPathId}
+                    hasAttachedPath={!!hasAttachedTextPath}
                     onFontFamilyChange={(f) => onPropChange('fontFamily', f)}
                     onFontWeightChange={(w) => onPropChange('fontWeight', w)}
                     onCurveChange={(s, c) => onPropChange('curve', { strength: s, center: c })}
+                    onAttachPath={onAttachTextToPath}
+                    onDetachPath={onDetachTextPath}
                 />
             )}
 
