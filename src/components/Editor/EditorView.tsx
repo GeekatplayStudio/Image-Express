@@ -63,6 +63,10 @@ type CanvasWithArtboard = fabric.Canvas & {
     artboardRect?: ArtboardRectWithBackground;
 };
 
+type ExportDataUrlOptions = fabric.TDataUrlOptions & {
+    backgroundColor?: string;
+};
+
 type SerializedFill = {
     src?: string;
     source?: string;
@@ -669,7 +673,7 @@ export default function EditorView({
     const estimateExportSize = useCallback(async (format: 'png' | 'jpg', quality: number, includeBackground: boolean) => {
         if (!canvas) return;
         const cropOptions = pendingExportCropRef.current;
-        const options: fabric.TDataUrlOptions = {
+        const options: ExportDataUrlOptions = {
             format: format === 'jpg' ? 'jpeg' : 'png',
             quality: Math.max(0.1, Math.min(1, quality / 100)),
             multiplier: 1,
@@ -3226,7 +3230,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onClick={async () => {
                                     if (!canvas || !pendingExportFormat) return;
                                     const cropOptions = pendingExportCropRef.current;
-                                    const options: fabric.TDataUrlOptions = {
+                                    const options: ExportDataUrlOptions = {
                                         format: pendingExportFormat === 'jpg' ? 'jpeg' : 'png',
                                         quality: Math.max(0.1, Math.min(1, exportQualityValue / 100)),
                                         multiplier: 1,
