@@ -24,6 +24,8 @@ import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import CircularContextMenu from '@/components/CircularContextMenu';
 import BrandIcon from '@/components/BrandIcon';
+import { Switch } from '@/components/ui/switch';
+import { normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
 
 interface MissingItem {
     id: string; 
@@ -51,9 +53,14 @@ interface EditorViewProps {
 
 type PanelMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' | 'collapsed-right';
 
+type ArtboardRectWithBackground = fabric.Rect & {
+    canvasBackgroundColor?: string;
+    canvasBackgroundEnabled?: boolean;
+};
+
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number; left: number; top: number };
-    artboardRect?: fabric.Rect;
+    artboardRect?: ArtboardRectWithBackground;
 };
 
 type SerializedFill = {
@@ -528,6 +535,7 @@ export default function EditorView({
     const [exportQualitySize, setExportQualitySize] = useState<string>('');
     const [pendingExportFormat, setPendingExportFormat] = useState<'png' | 'jpg' | null>(null);
     const [pendingExportFilename, setPendingExportFilename] = useState('');
+    const [includeCanvasBackground, setIncludeCanvasBackground] = useState(true);
     const pendingExportCropRef = useRef<{ left: number; top: number; width: number; height: number } | undefined>(undefined);
     const exportSizeTimerRef = useRef<number | null>(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
@@ -615,6 +623,29 @@ export default function EditorView({
         return `${(kb / 1024).toFixed(2)} MB`;
     };
 
+    const getCanvasBackgroundSettings = useCallback(() => {
+        const activeCanvas = canvas as CanvasWithArtboard | null;
+        const artboardRect = activeCanvas?.artboardRect as ArtboardRectWithBackground | undefined;
+        const toVisibleColor = (value: unknown): string | null => {
+            if (typeof value !== 'string') return null;
+            const parsed = parseColorWithAlpha(value);
+            if (parsed.alpha <= 0) return null;
+            return normalizeColorValue(parsed.color) || parsed.color;
+        };
+
+        const storedColor = toVisibleColor(artboardRect?.canvasBackgroundColor);
+        const fillColor = toVisibleColor(artboardRect?.fill);
+        const canvasColor = toVisibleColor(activeCanvas?.backgroundColor);
+        const color = storedColor || fillColor || canvasColor || '#ffffff';
+        const enabled = artboardRect
+            ? (typeof artboardRect.canvasBackgroundEnabled === 'boolean'
+                ? artboardRect.canvasBackgroundEnabled
+                : Boolean(fillColor))
+            : true;
+
+        return { color, enabled };
+    }, [canvas]);
+
     const withViewportReset = useCallback(async <T,>(action: () => T | Promise<T>) => {
         if (!canvas) {
             return action();
@@ -634,7 +665,7 @@ export default function EditorView({
         }
     }, [canvas]);
 
-    const estimateExportSize = useCallback(async (format: 'png' | 'jpg', quality: number) => {
+    const estimateExportSize = useCallback(async (format: 'png' | 'jpg', quality: number, includeBackground: boolean) => {
         if (!canvas) return;
         const cropOptions = pendingExportCropRef.current;
         const options: fabric.TDataUrlOptions = {
@@ -643,6 +674,10 @@ export default function EditorView({
             multiplier: 1,
             enableRetinaScaling: true
         };
+        const shouldIncludeBackground = format === 'jpg' ? true : includeBackground;
+        if (shouldIncludeBackground) {
+            options.backgroundColor = getCanvasBackgroundSettings().color;
+        }
         if (cropOptions) {
             options.left = cropOptions.left;
             options.top = cropOptions.top;
@@ -659,7 +694,7 @@ export default function EditorView({
         } catch {
             setExportQualitySize('Unavailable');
         }
-    }, [canvas, withViewportReset]);
+    }, [canvas, getCanvasBackgroundSettings, withViewportReset]);
 
     useEffect(() => {
         canvasRef.current = canvas;
@@ -671,9 +706,9 @@ export default function EditorView({
             window.clearTimeout(exportSizeTimerRef.current);
         }
         exportSizeTimerRef.current = window.setTimeout(() => {
-            estimateExportSize(pendingExportFormat, exportQualityValue);
+            estimateExportSize(pendingExportFormat, exportQualityValue, includeCanvasBackground);
         }, 150);
-    }, [showExportQualityModal, pendingExportFormat, exportQualityValue, estimateExportSize]);
+    }, [showExportQualityModal, pendingExportFormat, exportQualityValue, includeCanvasBackground, estimateExportSize]);
 
     // Handle Open Design (Local helpers)
     const handleOpenDesign = useCallback(async (design: { data?: unknown }) => {
@@ -1205,6 +1240,9 @@ export default function EditorView({
         setPendingExportFilename(filename);
         pendingExportCropRef.current = cropOptions;
         const defaultQuality = format === 'jpg' ? 90 : 100;
+        const backgroundSettings = getCanvasBackgroundSettings();
+        const defaultIncludeBackground = format === 'jpg' ? true : backgroundSettings.enabled;
+        setIncludeCanvasBackground(defaultIncludeBackground);
         setExportQualityValue(defaultQuality);
         setExportQualitySize('Calculating...');
         setShowExportQualityModal(true);
@@ -1213,7 +1251,7 @@ export default function EditorView({
             window.clearTimeout(exportSizeTimerRef.current);
         }
         exportSizeTimerRef.current = window.setTimeout(() => {
-            estimateExportSize(format, defaultQuality);
+            estimateExportSize(format, defaultQuality, defaultIncludeBackground);
         }, 100);
     };
 
@@ -3161,6 +3199,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             />
                         </div>
 
+                        <div className="flex items-center justify-between rounded-lg border border-border/70 bg-secondary/20 px-3 py-2">
+                            <div className="space-y-0.5">
+                                <div className="text-xs font-medium">Canvas background</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                    {pendingExportFormat === 'jpg' ? 'JPG exports always include a background.' : 'Turn off to export transparent PNG.'}
+                                </div>
+                            </div>
+                            <Switch
+                                checked={pendingExportFormat === 'jpg' ? true : includeCanvasBackground}
+                                onCheckedChange={setIncludeCanvasBackground}
+                                disabled={pendingExportFormat === 'jpg'}
+                                aria-label="Include canvas background"
+                            />
+                        </div>
+
                         <div className="flex justify-end gap-3 mt-4">
                             <button
                                 onClick={() => setShowExportQualityModal(false)}
@@ -3178,6 +3231,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                         multiplier: 1,
                                         enableRetinaScaling: true
                                     };
+                                    const shouldIncludeBackground = pendingExportFormat === 'jpg' ? true : includeCanvasBackground;
+                                    if (shouldIncludeBackground) {
+                                        options.backgroundColor = getCanvasBackgroundSettings().color;
+                                    }
                                     if (cropOptions) {
                                         options.left = cropOptions.left;
                                         options.top = cropOptions.top;

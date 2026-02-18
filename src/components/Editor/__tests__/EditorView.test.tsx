@@ -609,6 +609,33 @@ describe('EditorView', () => {
         });
     });
 
+    it('exports PNG without canvas background when toggle is off', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+        fireEvent.click(screen.getByRole('button', { name: /PNG/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Export Quality')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByLabelText('Include canvas background'));
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        await waitFor(() => {
+            expect(anchorClickSpy).toHaveBeenCalled();
+        });
+
+        const calls = latestCanvasStub?.toDataURL.mock.calls ?? [];
+        const pngCall = [...calls].reverse().find((call) => {
+            const options = call[0] as { format?: string } | undefined;
+            return options?.format === 'png';
+        });
+        expect(pngCall).toBeDefined();
+        expect((pngCall?.[0] as { backgroundColor?: string }).backgroundColor).toBeUndefined();
+    });
+
     it('exports JSON and HTML bundle from export menu', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);

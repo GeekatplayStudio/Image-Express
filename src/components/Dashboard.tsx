@@ -136,8 +136,14 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
 
     const quote = quotes[quoteIndex] || quotes[0];
     const [showCustomSizeModal, setShowCustomSizeModal] = useState(false);
-    const [customWidth, setCustomWidth] = useState(1080);
-    const [customHeight, setCustomHeight] = useState(1080);
+    const [customWidth, setCustomWidth] = useState('1080');
+    const [customHeight, setCustomHeight] = useState('1080');
+    const parsedCustomWidth = Number.parseInt(customWidth, 10);
+    const parsedCustomHeight = Number.parseInt(customHeight, 10);
+    const canCreateCustomDesign = Number.isFinite(parsedCustomWidth)
+        && parsedCustomWidth > 0
+        && Number.isFinite(parsedCustomHeight)
+        && parsedCustomHeight > 0;
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -549,8 +555,15 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         <label className="text-sm font-medium text-muted-foreground">Width (px)</label>
                         <input 
                             type="number" 
+                            min={1}
+                            step={1}
                             value={customWidth}
-                            onChange={(e) => setCustomWidth(Number(e.target.value))}
+                            onChange={(e) => {
+                                const next = e.target.value;
+                                if (next === '' || /^\d+$/.test(next)) {
+                                    setCustomWidth(next);
+                                }
+                            }}
                             className="w-full h-10 px-3 rounded-md border border-input bg-background focus:ring-2 focus:ring-primary outline-none"
                         />
                     </div>
@@ -558,8 +571,15 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         <label className="text-sm font-medium text-muted-foreground">Height (px)</label>
                         <input 
                             type="number" 
+                            min={1}
+                            step={1}
                             value={customHeight}
-                            onChange={(e) => setCustomHeight(Number(e.target.value))}
+                            onChange={(e) => {
+                                const next = e.target.value;
+                                if (next === '' || /^\d+$/.test(next)) {
+                                    setCustomHeight(next);
+                                }
+                            }}
                             className="w-full h-10 px-3 rounded-md border border-input bg-background focus:ring-2 focus:ring-primary outline-none"
                         />
                     </div>
@@ -573,9 +593,11 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                     </button>
                     <button 
                         onClick={() => {
-                            onNewDesign(undefined, { width: customWidth, height: customHeight });
+                            if (!canCreateCustomDesign) return;
+                            onNewDesign(undefined, { width: parsedCustomWidth, height: parsedCustomHeight });
                             setShowCustomSizeModal(false);
                         }}
+                        disabled={!canCreateCustomDesign}
                         className="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-colors"
                     >
                         Create Design

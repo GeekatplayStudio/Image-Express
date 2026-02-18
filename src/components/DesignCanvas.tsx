@@ -13,9 +13,14 @@ type ArtboardInfo = {
     top: number;
 };
 
+type ArtboardRectWithBackground = fabric.Rect & {
+    canvasBackgroundColor?: string;
+    canvasBackgroundEnabled?: boolean;
+};
+
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: ArtboardInfo;
-    artboardRect?: fabric.Rect;
+    artboardRect?: ArtboardRectWithBackground;
     centerArtboard?: () => void;
     hostContainer?: HTMLDivElement;
     workspaceBackground?: string;
@@ -465,7 +470,9 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         evented: false, // Don't intercept events, let them fall through to canvas/selection
         excludeFromExport: true, // We will handle export by cropping manually usually
         shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.3)', blur: 20, offsetX: 0, offsetY: 0, includeDefaultValues: false })
-    });
+    }) as ArtboardRectWithBackground;
+        artboard.canvasBackgroundColor = '#ffffff';
+        artboard.canvasBackgroundEnabled = true;
         canvas.add(artboard);
     // In Fabric.js v6+, methods like sendToBack are on the object itself using canvas.moveObjectTo(obj, index) or obj methods
     // Actually, in v6 it is canvas.moveObjectTo(object, index) or canvas.sendObjectToBack(object)

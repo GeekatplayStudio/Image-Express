@@ -58,9 +58,14 @@ interface CustomObjectState {
     _borderCachedOpacity?: number;
 }
 
+type ArtboardRectWithBackground = fabric.Rect & {
+    canvasBackgroundColor?: string;
+    canvasBackgroundEnabled?: boolean;
+};
+
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number; left: number; top: number };
-    artboardRect?: fabric.Rect;
+    artboardRect?: ArtboardRectWithBackground;
     centerArtboard?: () => void;
     hostContainer?: HTMLDivElement;
     workspaceBackground?: string;
@@ -104,6 +109,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     const [canvasWidth, setCanvasWidth] = useState(1080);
     const [canvasHeight, setCanvasHeight] = useState(1080);
     const [canvasColor, setCanvasColor] = useState('#ffffff');
+    const [canvasBackgroundEnabled, setCanvasBackgroundEnabled] = useState(true);
 
     // Selection Props
     const [color, setColor] = useState('#000000');
@@ -193,8 +199,21 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              const rect = extendedCanvas.artboardRect;
              setCanvasWidth(Math.round((rect.width || 0) * (rect.scaleX || 1)));
              setCanvasHeight(Math.round((rect.height || 0) * (rect.scaleY || 1)));
-             const fill = rect.fill;
-             if (typeof fill === 'string') setCanvasColor(fill);
+             const storedColor = typeof rect.canvasBackgroundColor === 'string'
+                 ? normalizeColorValue(rect.canvasBackgroundColor) || rect.canvasBackgroundColor
+                 : null;
+             const fillInfo = typeof rect.fill === 'string' ? extractColorFromStyle(rect.fill) : null;
+             const fillColor = fillInfo && fillInfo.alpha > 0 ? normalizeColorValue(fillInfo.color) || fillInfo.color : null;
+             const nextColor = storedColor || fillColor || '#ffffff';
+             const nextEnabled = typeof rect.canvasBackgroundEnabled === 'boolean'
+                 ? rect.canvasBackgroundEnabled
+                 : Boolean(fillColor);
+
+             const setRectMeta = rect as unknown as { set: (key: string, value: unknown) => void };
+             setRectMeta.set('canvasBackgroundColor', nextColor);
+             setRectMeta.set('canvasBackgroundEnabled', nextEnabled);
+             setCanvasColor(nextColor);
+             setCanvasBackgroundEnabled(nextEnabled);
              return;
         }
 
@@ -210,6 +229,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         if (typeof canvas.backgroundColor === 'string' && canvas.backgroundColor !== 'transparent') {
             setCanvasColor(normalizeColorValue(canvas.backgroundColor) || '#ffffff');
         }
+        setCanvasBackgroundEnabled(true);
     }, [canvas]);
 
     const applyAdjustmentLayers = useCallback(() => {
@@ -2171,6 +2191,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                      width={canvasWidth}
                      height={canvasHeight}
                      backgroundColor={canvasColor}
+                     backgroundEnabled={canvasBackgroundEnabled}
                      onResize={(w, h) => {
                           if (!canvas) return;
                           const ext = canvas as CanvasWithArtboard;
@@ -2189,9 +2210,30 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                           if (!canvas) return;
                           const ext = canvas as CanvasWithArtboard;
                           if (ext.artboardRect) {
-                              ext.artboardRect.set('fill', c);
+                              const rect = ext.artboardRect as ArtboardRectWithBackground;
+                              const normalized = normalizeColorValue(c) || c;
+                              const setRectMeta = rect as unknown as { set: (key: string, value: unknown) => void };
+                              setRectMeta.set('canvasBackgroundColor', normalized);
+                              if (rect.canvasBackgroundEnabled !== false) {
+                                  rect.set('fill', normalized);
+                              }
                               canvas.requestRenderAll();
-                              setCanvasColor(c);
+                              setCanvasColor(normalized);
+                          }
+                     }}
+                     onBackgroundToggle={(enabled) => {
+                          if (!canvas) return;
+                          const ext = canvas as CanvasWithArtboard;
+                          if (ext.artboardRect) {
+                              const rect = ext.artboardRect as ArtboardRectWithBackground;
+                              const stored = normalizeColorValue(rect.canvasBackgroundColor || canvasColor) || canvasColor || '#ffffff';
+                              const setRectMeta = rect as unknown as { set: (key: string, value: unknown) => void };
+                              setRectMeta.set('canvasBackgroundColor', stored);
+                              setRectMeta.set('canvasBackgroundEnabled', enabled);
+                              rect.set('fill', enabled ? stored : 'rgba(0,0,0,0)');
+                              canvas.requestRenderAll();
+                              setCanvasColor(stored);
+                              setCanvasBackgroundEnabled(enabled);
                           }
                      }}
                  />
