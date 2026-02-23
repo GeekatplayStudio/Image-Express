@@ -25,6 +25,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "coverage/**",
     "next-env.d.ts",
+    // External reference repo cloned for analysis only:
+    "Imageprocessingui/**",
   ]),
 ]);
 

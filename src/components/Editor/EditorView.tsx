@@ -9,6 +9,7 @@ import ThreeDGenerator from '@/components/ThreeDGenerator';
 import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import UserProfileModal from '@/components/UserProfileModal';
+import TopToolOptionsBar from '@/components/Editor/TopToolOptionsBar';
 import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
 import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
@@ -25,7 +26,7 @@ import { useToast } from '@/providers/ToastProvider';
 import CircularContextMenu from '@/components/CircularContextMenu';
 import BrandIcon from '@/components/BrandIcon';
 import { Switch } from '@/components/ui/switch';
-import { normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
+import { applyAlphaToColor, normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
 
 interface MissingItem {
     id: string; 
@@ -544,6 +545,16 @@ export default function EditorView({
     const pendingExportCropRef = useRef<{ left: number; top: number; width: number; height: number } | undefined>(undefined);
     const exportSizeTimerRef = useRef<number | null>(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [autoSelectEnabled, setAutoSelectEnabled] = useState(true);
+    const [selectionMode, setSelectionMode] = useState<'layer' | 'group'>('layer');
+    const [showTransformControls, setShowTransformControls] = useState(true);
+    const [paintBrushPreset, setPaintBrushPreset] = useState<'Pencil' | 'Spray' | 'Oil' | 'Watercolor'>('Pencil');
+    const [paintBrushSize, setPaintBrushSize] = useState(10);
+    const [paintBrushHardness, setPaintBrushHardness] = useState(80);
+    const [paintBrushOpacity, setPaintBrushOpacity] = useState(100);
+    const [paintBrushFlow, setPaintBrushFlow] = useState(100);
+    const [paintBrushSmoothing, setPaintBrushSmoothing] = useState(50);
+    const [paintBlendMode, setPaintBlendMode] = useState<'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten'>('source-over');
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
     const redoStackRef = useRef<string[]>([]);
@@ -565,7 +576,7 @@ export default function EditorView({
         const handleSelection = (e: { e?: Event }) => {
             // If user explicitly clicks on canvas (event exists) and we are not in a creation tool, ensure we show properties
             const creationTools = ['pen', 'paint', 'text', 'shapes', '3d-gen', 'ai-zone'];
-            if (e.e && !creationTools.includes(activeTool) && activeTool !== 'select') {
+            if (autoSelectEnabled && e.e && !creationTools.includes(activeTool) && activeTool !== 'select') {
                 setActiveTool('select');
             }
         };
@@ -575,7 +586,105 @@ export default function EditorView({
             canvas.off('selection:created', handleSelection);
             canvas.off('selection:updated', handleSelection);
         };
-    }, [canvas, activeTool, setActiveTool]);
+    }, [canvas, activeTool, autoSelectEnabled, setActiveTool]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        const objects = canvas.getObjects();
+        objects.forEach((object) => {
+            object.set({
+                hasControls: showTransformControls,
+                hasBorders: showTransformControls,
+            });
+            object.setCoords();
+        });
+        canvas.requestRenderAll();
+    }, [canvas, showTransformControls]);
+
+    useEffect(() => {
+        if (!canvas || activeTool !== 'paint') return;
+
+        const drawingCanvas = canvas as fabric.Canvas & {
+            set: (key: string, value: unknown) => void;
+            freeDrawingBrush?: fabric.BaseBrush;
+            isDrawingMode?: boolean;
+        };
+
+        if (typeof drawingCanvas.set === 'function') {
+            drawingCanvas.set('isDrawingMode', true);
+        } else {
+            drawingCanvas.isDrawingMode = true;
+        }
+
+        let brush: fabric.BaseBrush;
+        try {
+            if (paintBrushPreset === 'Spray' || paintBrushPreset === 'Oil') {
+                const sprayBrush = new fabric.SprayBrush(canvas);
+                sprayBrush.density = Math.max(5, Math.round((paintBrushFlow / 100) * 100));
+                if (paintBrushPreset === 'Oil') {
+                    sprayBrush.dotWidth = Math.max(1, paintBrushSize / 8);
+                    sprayBrush.dotWidthVariance = Math.max(1, paintBrushSize / 10);
+                    sprayBrush.randomOpacity = false;
+                    sprayBrush.optimizeOverlapping = false;
+                }
+                brush = sprayBrush;
+            } else {
+                const pencilBrush = new fabric.PencilBrush(canvas);
+                pencilBrush.decimate = Math.max(0, Number((((100 - paintBrushSmoothing) / 100) * 8).toFixed(2)));
+                const blurAmount = Math.max(0, Math.round(((100 - paintBrushHardness) / 100) * 50));
+                pencilBrush.shadow = blurAmount > 0
+                    ? new fabric.Shadow({
+                        blur: blurAmount,
+                        offsetX: 0,
+                        offsetY: 0,
+                        color: '#000000',
+                    })
+                    : null;
+                brush = pencilBrush;
+            }
+        } catch {
+            return;
+        }
+
+        brush.width = paintBrushSize;
+        const combinedOpacity = Math.max(0.01, Math.min(1, (paintBrushOpacity / 100) * (paintBrushFlow / 100)));
+        brush.color = applyAlphaToColor('#000000', combinedOpacity);
+
+        if (typeof drawingCanvas.set === 'function') {
+            drawingCanvas.set('freeDrawingBrush', brush);
+        } else {
+            drawingCanvas.freeDrawingBrush = brush;
+        }
+        canvas.requestRenderAll();
+    }, [
+        canvas,
+        activeTool,
+        paintBrushPreset,
+        paintBrushSize,
+        paintBrushHardness,
+        paintBrushOpacity,
+        paintBrushFlow,
+        paintBrushSmoothing,
+    ]);
+
+    useEffect(() => {
+        if (!canvas || activeTool !== 'paint') return;
+
+        const handlePathBlendMode = (event: { path?: fabric.Object }) => {
+            if (!event.path) return;
+            window.setTimeout(() => {
+                if (!event.path) return;
+                event.path.set({ globalCompositeOperation: paintBlendMode });
+                event.path.setCoords();
+                canvas.requestRenderAll();
+            }, 0);
+        };
+
+        canvas.on('path:created', handlePathBlendMode);
+        return () => {
+            canvas.off('path:created', handlePathBlendMode);
+        };
+    }, [canvas, activeTool, paintBlendMode]);
 
     // 3D & AI States
     const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
@@ -3078,6 +3187,40 @@ document.addEventListener('DOMContentLoaded', () => {
                      </button>
                  </div>
             </header>
+
+            <TopToolOptionsBar
+                activeTool={activeTool}
+                onTriggerTool={(tool) => {
+                    toolbarRef.current?.triggerTool(tool);
+                }}
+                selectOptions={{
+                    autoSelectEnabled,
+                    selectionMode,
+                    showTransformControls,
+                }}
+                onAutoSelectChange={setAutoSelectEnabled}
+                onSelectionModeChange={(mode) => {
+                    setSelectionMode(mode);
+                    toolbarRef.current?.triggerTool(mode === 'group' ? 'layers' : 'select');
+                }}
+                onTransformControlsChange={setShowTransformControls}
+                paintOptions={{
+                    brushPreset: paintBrushPreset,
+                    size: paintBrushSize,
+                    hardness: paintBrushHardness,
+                    opacity: paintBrushOpacity,
+                    flow: paintBrushFlow,
+                    smoothing: paintBrushSmoothing,
+                    blendMode: paintBlendMode,
+                }}
+                onPaintPresetChange={setPaintBrushPreset}
+                onPaintSizeChange={setPaintBrushSize}
+                onPaintHardnessChange={setPaintBrushHardness}
+                onPaintOpacityChange={setPaintBrushOpacity}
+                onPaintFlowChange={setPaintBrushFlow}
+                onPaintSmoothingChange={setPaintBrushSmoothing}
+                onPaintBlendModeChange={setPaintBlendMode}
+            />
 
             {/* Overlays */}
             <GridOverlay canvas={isExporting ? null : canvas} gridType={gridType} />

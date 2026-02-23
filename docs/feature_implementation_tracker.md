@@ -49,6 +49,7 @@
 | 26 | when exporting image give options on what compression quality it should be, as jpg , png. | Done | src/components/Editor/EditorView.tsx | Warnings | Pass | Prompt for quality (1-100) before export for PNG/JPG |
 | 27 | allow drag and drop assets from computer desktop to the canvas and auto upload them and use | Done | src/components/Editor/EditorView.tsx, src/types.ts | Warnings | Pass | Drag & Drop files (img/model) to canvas triggers upload & add |
 | 28 | Pen Options Squeeshed on Toolbar | Done | src/components/Toolbar.tsx | - | - | Removed embedded Pen options from Left Toolbar (Already present in Right Sidebar) |
+| 29 | Reference design upgrade program (menus/submenus/properties/tools) | In Progress (Phase 1 MVP + C2/C3 complete) | src/components/Editor/TopToolOptionsBar.tsx, src/components/Editor/EditorView.tsx, src/components/Editor/__tests__/TopToolOptionsBar.test.tsx, src/components/Editor/__tests__/EditorView.test.tsx, docs/imageprocessingui_upgrade_execution_checklist.md | Pass | Pass | Added TopToolOptionsBar MVP command layer, implemented C2 select controls, and implemented C3 brush/paint quick controls (preset, size, hardness, opacity, flow, smoothing, blend mode) with Fabric brush wiring and updated tests. Also scoped lint/build to ignore `Imageprocessingui/**` reference repo via eslint/tsconfig. |
 
 
 ---

@@ -403,13 +403,23 @@ describe('EditorView', () => {
         settingsOpen: false,
     });
 
-    it('renders core editor UI and wires header actions', () => {
+    it('renders core editor UI and wires header actions', async () => {
         const props = createDefaultProps();
-        render(<EditorView {...props} />);
+        render(<EditorView {...props} initialActiveTool="paint" />);
 
         expect(screen.getByTestId('brand-icon')).toBeInTheDocument();
         expect(screen.getByTestId('toolbar')).toBeInTheDocument();
         expect(screen.getByTestId('design-canvas')).toBeInTheDocument();
+        expect(screen.getByTestId('top-tool-options-bar')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Top option: Open Layers' }));
+        expect(mockTriggerTool).toHaveBeenCalledWith('layers');
+
+        fireEvent.click(screen.getByLabelText('Auto-Select'));
+        fireEvent.click(screen.getByRole('button', { name: 'Selection mode group' }));
+        expect(mockTriggerTool).toHaveBeenCalledWith('layers');
+
+        fireEvent.click(screen.getByLabelText('Show Transform Controls'));
 
         fireEvent.click(screen.getByTitle('How to use Image Express'));
         expect(props.onOpenDocumentation).toHaveBeenCalledTimes(1);
@@ -421,8 +431,18 @@ describe('EditorView', () => {
         expect(props.onBack).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByText('Tools'));
-        fireEvent.click(screen.getByRole('button', { name: /Select/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Select\s+V$/ }));
         expect(mockTriggerTool).toHaveBeenCalledWith('select');
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('Paint preset')).toBeInTheDocument();
+        });
+        fireEvent.change(screen.getByLabelText('Paint size'), { target: { value: '24' } });
+        fireEvent.change(screen.getByLabelText('Paint hardness'), { target: { value: '55' } });
+        fireEvent.change(screen.getByLabelText('Paint opacity'), { target: { value: '75' } });
+        fireEvent.change(screen.getByLabelText('Paint flow'), { target: { value: '70' } });
+        fireEvent.change(screen.getByLabelText('Paint smoothing'), { target: { value: '35' } });
+        fireEvent.change(screen.getByLabelText('Paint blend mode'), { target: { value: 'multiply' } });
 
         fireEvent.click(screen.getByRole('button', { name: 'Apply Palette' }));
         expect(screen.getByText('Sunset')).toBeInTheDocument();
