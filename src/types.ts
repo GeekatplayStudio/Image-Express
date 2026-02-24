@@ -120,6 +120,7 @@ export type ExtendedFabricObject = fabric.Object & {
     taperDirection?: number;
     curveStrength?: number;
     curveCenter?: number;
+    textPathSourceId?: string;
     skewZBaseScaleX?: number;
     skewZBaseScaleY?: number;
     skewZBaseSkewX?: number;
@@ -153,6 +154,10 @@ export interface AssetDescriptor {
     name: string;
     type: AssetType;
     category: AssetCategory;
+    owner?: string;
+    isPublic?: boolean;
+    createdAt?: string;
+    updatedAt?: string;
     url?: string;
 }
 
@@ -162,6 +167,22 @@ export interface GoogleDriveConfig {
     apiKey?: string;
     appId?: string;
     folderName?: string;
+}
+
+export type UserStatus = 'pending' | 'approved' | 'rejected' | 'disabled';
+
+export interface AuthUser {
+    id: string;
+    email: string;
+    username?: string;
+    displayName: string;
+    status: UserStatus;
+    roles: string[];
+    rights: string[];
+    createdAt?: string;
+    updatedAt?: string;
+    approvedAt?: string;
+    approvedBy?: string;
 }
 
 export interface DesktopUpdatePayload {

@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, MessageSquare, PenTool, Palette } from 'lucide-react';
+import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, CornerDownRight, MessageSquare, PenTool, Palette } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
 import { 
@@ -36,6 +36,7 @@ interface ToolbarProps {
     apiKeys?: { stability?: string };
     activePalette?: ColorPalette | null;
     setActivePalette?: (palette: ColorPalette | null) => void;
+    currentUser?: string;
 }
 
 export type ToolbarHandle = {
@@ -76,6 +77,7 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
 };
 
 type PenClosure = 'open' | 'closed';
+type PenPathOperation = 'add' | 'subtract' | 'intersect';
 type BezierPathObject = fabric.Path & ExtendedFabricObject;
 type PenDraftLineObject = fabric.Object;
 type PenAnchorObject = fabric.Circle & { isPenDraftAnchor?: boolean; penAnchorIndex?: number };
@@ -96,6 +98,12 @@ const clonePenNodes = (nodes: PenNode[]) => nodes.map((node) => ({
 }));
 
 const distanceBetween = (a: PenPoint, b: PenPoint) => Math.hypot(a.x - b.x, a.y - b.y);
+
+const penPathOperationToComposite: Record<PenPathOperation, GlobalCompositeOperation> = {
+    add: 'source-over',
+    subtract: 'destination-out',
+    intersect: 'source-atop',
+};
 
 /* 
  * Duplicated logic moved to @/lib/pen-utils 
@@ -301,7 +309,7 @@ const attachBezierControls = (pathObj: BezierPathObject) => {
     pathObj.setCoords();
 };
 
-const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, activePalette, setActivePalette }, ref) => {
+const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, activePalette, setActivePalette, currentUser }, ref) => {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
@@ -321,21 +329,21 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
-    // Reordered tools based on standard workflows
+    // Ordered from local selection/layer work to broader/global actions.
     const tools = [
         { name: 'select', icon: Move, label: 'Select' },
+        { name: 'layers', icon: Layers, label: 'Layers' },
+        { name: 'text', icon: Type, label: 'Text' },
+        { name: 'shapes', icon: Shapes, label: 'Shapes' },
         { name: 'paint', icon: Brush, label: 'Brush' },
         { name: 'pen', icon: PenTool, label: 'Pen' },
-        { name: 'shapes', icon: Shapes, label: 'Shapes' },
-        { name: 'text', icon: Type, label: 'Text' },
         { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
+        { name: 'adjustments', icon: Blend, label: 'Adjustments' },
+        { name: 'color-wheel', icon: Palette, label: 'Color' },
         { name: 'assets', icon: ImageIcon, label: 'Gallery' },
         { name: 'templates', icon: LayoutTemplate, label: 'Library' },
-        { name: 'adjustments', icon: Blend, label: 'Adjustments' },
-        { name: 'layers', icon: Layers, label: 'Layers' },
         { name: 'ai-zone', icon: Wand2, label: 'AI Zone' },
         { name: '3d-gen', icon: Box, label: 'AI 3D' },
-        { name: 'color-wheel', icon: Palette, label: 'Color' },
     ];
 
     const [penPoints, setPenPoints] = useState<PenPoint[]>([]);
@@ -344,6 +352,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     const penAnchorsRef = useRef<PenAnchorObject[]>([]);
     const [penMode, setPenMode] = useState<PenModeSetting>('straight');
     const [penClosure, setPenClosure] = useState<PenClosure>('open');
+    const [penPathOperation, setPenPathOperation] = useState<PenPathOperation>('add');
+    const [penAutoAddDelete, setPenAutoAddDelete] = useState(true);
+    const [penRubberBand, setPenRubberBand] = useState(true);
+    const [penCursorPoint, setPenCursorPoint] = useState<PenPoint | null>(null);
 
     useEffect(() => {
         penAnchorsRef.current = penAnchors;
@@ -358,7 +370,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             penActiveLineRef.current = null;
         }
 
-        const nextLine = createPenDraftLine(penPoints, penMode, penClosure);
+        const previewPoints = penRubberBand && penCursorPoint && penPoints.length > 0
+            ? [...penPoints, penCursorPoint]
+            : penPoints;
+        const nextLine = createPenDraftLine(previewPoints, penMode, penClosure);
         if (!nextLine) {
             canvas.requestRenderAll();
             return;
@@ -368,7 +383,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         penActiveLineRef.current = nextLine;
         penAnchorsRef.current.forEach((anchor) => canvas.bringObjectToFront(anchor));
         canvas.requestRenderAll();
-    }, [activeTool, canvas, penClosure, penMode, penPoints]);
+    }, [activeTool, canvas, penClosure, penCursorPoint, penMode, penPoints, penRubberBand]);
 
     useEffect(() => {
         const isTypingTarget = (target: EventTarget | null) => {
@@ -419,6 +434,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         penAnchorsRef.current = [];
         setPenPoints((prev) => (prev.length > 0 ? [] : prev));
         setPenAnchors((prev) => (prev.length > 0 ? [] : prev));
+        setPenCursorPoint(null);
     }, [canvas]);
 
     const finishPenPath = useCallback(() => {
@@ -446,7 +462,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             fill: isClosed ? PEN_FILL : 'transparent',
             stroke: PEN_STROKE,
             strokeWidth: 2,
-            objectCaching: false
+            objectCaching: false,
+            globalCompositeOperation: penPathOperationToComposite[penPathOperation]
         };
 
         // Normalize points to be relative to bounding box top-left
@@ -506,9 +523,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         canvas.requestRenderAll();
 
         setPenPoints([]);
+        setPenCursorPoint(null);
         penActiveLineRef.current = null;
         // Stay in Pen Tool for continuous drawing
-    }, [canvas, clearPenDraft, penAnchors, penClosure, penMode, penPoints]);
+    }, [canvas, clearPenDraft, penAnchors, penClosure, penMode, penPathOperation, penPoints]);
 
     useEffect(() => {
         if (activeTool === 'pen') return;
@@ -521,9 +539,12 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('pen:draft:update', {
             mode: penMode,
             closure: penClosure,
+            pathOperation: penPathOperation,
+            autoAddDelete: penAutoAddDelete,
+            rubberBand: penRubberBand,
             points: penPoints.length
         });
-    }, [canvas, penClosure, penMode, penPoints.length]);
+    }, [canvas, penAutoAddDelete, penClosure, penMode, penPathOperation, penPoints.length, penRubberBand]);
 
     // Pen Tool Logic (Interactive Polyline)
     useEffect(() => {
@@ -554,15 +575,36 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleMouseDown = (opt: any) => {
             if (activeTool !== 'pen') return;
-            if (!opt.scenePoint) return;
+            if (isPenSpacePressed) return;
+
+            const pointer = opt.scenePoint
+                ?? (opt.e ? (canvas as unknown as { getScenePoint: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point }).getScenePoint(opt.e) : null);
+            if (!pointer) return;
             const target = opt.target as fabric.Object | null | undefined;
             if (isPenDraftAnchor(target)) {
                 if (penClosure === 'closed' && target.penAnchorIndex === 0 && penPoints.length > 2) {
                     finishPenPath();
+                } else if (penAutoAddDelete && typeof target.penAnchorIndex === 'number') {
+                    const anchorIndex = target.penAnchorIndex;
+                    const minPoints = penClosure === 'closed' ? 3 : 2;
+                    if (penPoints.length > minPoints) {
+                        canvas.remove(target);
+                        setPenPoints((prev) => prev.filter((_, index) => index !== anchorIndex));
+                        setPenAnchors((prev) => {
+                            const next = prev
+                                .filter((_, index) => index !== anchorIndex)
+                                .map((anchor, index) => {
+                                    anchor.penAnchorIndex = index;
+                                    return anchor;
+                                });
+                            penAnchorsRef.current = next;
+                            return next;
+                        });
+                        canvas.requestRenderAll();
+                    }
                 }
                 return;
             }
-            const pointer = opt.scenePoint;
             const pointerPoint = { x: pointer.x, y: pointer.y };
 
             // Check validity of closing loop
@@ -578,6 +620,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             // START or CONTINUE
             const points = [...penPoints, pointerPoint];
             setPenPoints(points);
+            setPenCursorPoint(pointerPoint);
             const newAnchor = createAnchor(pointerPoint, points.length - 1);
             canvas.add(newAnchor);
             canvas.bringObjectToFront(newAnchor);
@@ -591,10 +634,13 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             canvas.requestRenderAll();
         };
 
-        const handleMouseMove = () => {
-            if (activeTool !== 'pen' || penPoints.length === 0) return;
-            // Draw temp line from last point to cursor? 
-            // Currently simplified: just click click
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handleMouseMove = (opt: any) => {
+            if (activeTool !== 'pen' || !penRubberBand || penPoints.length === 0) return;
+            const pointer = opt.scenePoint
+                ?? (opt.e ? (canvas as unknown as { getScenePoint: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point }).getScenePoint(opt.e) : null);
+            if (!pointer) return;
+            setPenCursorPoint({ x: pointer.x, y: pointer.y });
         };
 
         const handleDblClick = () => {
@@ -610,8 +656,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             const index = target.penAnchorIndex;
             if (index === undefined || index < 0) return;
 
-            const x = target.left ?? 0;
-            const y = target.top ?? 0;
+            const center = typeof target.getCenterPoint === 'function' ? target.getCenterPoint() : null;
+            const x = center?.x ?? target.left ?? 0;
+            const y = center?.y ?? target.top ?? 0;
             setPenPoints((prev) => {
                 if (index >= prev.length) return prev;
                 const next = [...prev];
@@ -657,11 +704,23 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         const handlePenConfigSet = (opt: any) => {
             const mode = opt?.mode as PenModeSetting | undefined;
             const closure = opt?.closure as PenClosure | undefined;
+            const pathOperation = opt?.pathOperation as PenPathOperation | undefined;
+            const autoAddDelete = opt?.autoAddDelete as boolean | undefined;
+            const rubberBand = opt?.rubberBand as boolean | undefined;
             if (mode && (mode === 'straight' || mode === 'smooth' || mode === 'bezier')) {
                 setPenMode(mode);
             }
             if (closure && (closure === 'open' || closure === 'closed')) {
                 setPenClosure(closure);
+            }
+            if (pathOperation && (pathOperation === 'add' || pathOperation === 'subtract' || pathOperation === 'intersect')) {
+                setPenPathOperation(pathOperation);
+            }
+            if (typeof autoAddDelete === 'boolean') {
+                setPenAutoAddDelete(autoAddDelete);
+            }
+            if (typeof rubberBand === 'boolean') {
+                setPenRubberBand(rubberBand);
             }
         };
 
@@ -707,7 +766,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
              (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:clear-request', handlePenClearRequest);
              window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [activeTool, canvas, clearPenDraft, finishPenPath, penClosure, penPoints]);
+    }, [activeTool, canvas, clearPenDraft, finishPenPath, penAutoAddDelete, penClosure, penPoints, penRubberBand]);
 
     // Close shapes menu when clicking outside
     useEffect(() => {
@@ -1018,6 +1077,46 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         canvas.setActiveObject(arrow);
     };
 
+    const addBentArrow = () => {
+        if (!canvas) return;
+        const shaftThickness = 28;
+        const bendX = 120;
+        const shaftHeight = 110;
+        const headWidth = 72;
+        const headLength = 48;
+        const halfThickness = shaftThickness / 2;
+        const headHalf = headWidth / 2;
+        const outerX = bendX + halfThickness;
+        const innerX = bendX - halfThickness;
+        const outerCornerRadius = 32;
+        const innerCornerRadius = 10;
+
+        const pathData = [
+            'M 0 0',
+            `L ${outerX - outerCornerRadius} 0`,
+            `Q ${outerX} 0 ${outerX} ${outerCornerRadius}`,
+            `L ${outerX} ${shaftHeight}`,
+            `L ${bendX + headHalf} ${shaftHeight}`,
+            `L ${bendX} ${shaftHeight + headLength}`,
+            `L ${bendX - headHalf} ${shaftHeight}`,
+            `L ${innerX} ${shaftHeight}`,
+            `L ${innerX} ${shaftThickness + innerCornerRadius}`,
+            `Q ${innerX} ${shaftThickness} ${innerX - innerCornerRadius} ${shaftThickness}`,
+            `L 0 ${shaftThickness}`,
+            'Z'
+        ].join(' ');
+
+        const bentArrow = new fabric.Path(pathData, {
+            left: 140,
+            top: 140,
+            fill: '#22c55e',
+            strokeWidth: 0,
+            objectCaching: false
+        });
+        canvas.add(bentArrow);
+        canvas.setActiveObject(bentArrow);
+    };
+
     const addSpeechBubble = () => {
         if (!canvas) return;
         const pathData = 'M 20 0 H 140 A 20 20 0 0 1 160 20 V 80 A 20 20 0 0 1 140 100 H 70 L 50 120 L 50 100 H 20 A 20 20 0 0 1 0 80 V 20 A 20 20 0 0 1 20 0 Z';
@@ -1249,7 +1348,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
 
         try {
             // Include custom properties in serialization
-            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints']); 
+            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId']); 
             const profile = loadProfileSettings();
             if (profile?.embedInfo) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1406,6 +1505,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                     canvas={canvas}
                     onClose={() => setActiveTool('select')}
                     apiKey={apiKeys?.stability}
+                    currentUser={currentUser}
                  />
             )}
 
@@ -1424,6 +1524,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             {/* Asset Library */}
             {activeTool === 'assets' && (
                 <AssetLibrary 
+                    currentUser={currentUser}
                     onClose={() => setActiveTool('select')}
                     onSelect={(path, type, name) => {
                         if (type === 'models') {
@@ -1478,6 +1579,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                     <button onClick={addArrow} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <ArrowRight size={20} />
                         <span className="text-[10px]">Arrow</span>
+                    </button>
+                    <button onClick={addBentArrow} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <CornerDownRight size={20} />
+                        <span className="text-[10px]">Bent Arrow</span>
                     </button>
                     <button onClick={addSpeechBubble} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <MessageSquare size={20} />

@@ -2,6 +2,7 @@
 
 import { X, HelpCircle, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 const sections = [
     { id: "introduction", title: "Introduction" },
@@ -25,6 +26,8 @@ interface DocumentationModalProps {
 }
 
 export default function DocumentationModal({ isOpen, onClose }: DocumentationModalProps) {
+    useEscapeKey(onClose, { enabled: isOpen });
+
     if (!isOpen) return null;
 
     return (

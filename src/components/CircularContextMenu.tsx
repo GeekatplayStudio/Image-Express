@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Brush, PenTool, Type, Move, Image as ImageIcon, Box, Shapes } from 'lucide-react';
+import { Brush, PenTool, Type, Move, Image as ImageIcon, Shapes, Layers, PaintBucket } from 'lucide-react';
 
 interface CircularContextMenuProps {
     x: number;
@@ -13,12 +13,13 @@ interface CircularContextMenuProps {
 
 const MENU_ITEMS = [
     { id: 'select', icon: Move, label: 'Select', color: '#60a5fa' }, // Blue
-    { id: 'paint', icon: Brush, label: 'Paint', color: '#f59e0b' }, // Amber
-    { id: 'pen', icon: PenTool, label: 'Pen', color: '#a855f7' }, // Purple
+    { id: 'layers', icon: Layers, label: 'Layers', color: '#4f46e5' }, // Indigo
     { id: 'text', icon: Type, label: 'Text', color: '#10b981' }, // Emerald
     { id: 'shapes', icon: Shapes, label: 'Shapes', color: '#0ea5e9' }, // Sky
+    { id: 'paint', icon: Brush, label: 'Paint', color: '#f59e0b' }, // Amber
+    { id: 'pen', icon: PenTool, label: 'Pen', color: '#a855f7' }, // Purple
+    { id: 'gradient', icon: PaintBucket, label: 'Fill / Gradient', color: '#f97316' }, // Orange
     { id: 'assets', icon: ImageIcon, label: 'Assets', color: '#ec4899' }, // Pink
-    { id: '3d-gen', icon: Box, label: '3D', color: '#8b5cf6' }, // Violet
 ];
 
 export default function CircularContextMenu({ x, y, isOpen, onClose, onSelectTool }: CircularContextMenuProps) {
@@ -30,28 +31,26 @@ export default function CircularContextMenu({ x, y, isOpen, onClose, onSelectToo
                 onClose();
             }
         };
+        const handleContextMenu = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                onClose();
+            }
+        };
 
         if (isOpen) {
             document.addEventListener('mousedown', handleClickOutside);
-            document.addEventListener('contextmenu', (e) => {
-                 if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-                     // Allow context menu elsewhere or close this one?
-                     // Ideally we want to prevent browser menu if we are opening ours, 
-                     // but here we just want to close if clicking outside.
-                     onClose();
-                 }
-            });
+            document.addEventListener('contextmenu', handleContextMenu);
         }
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('contextmenu', handleClickOutside); // Clean up
+            document.removeEventListener('contextmenu', handleContextMenu);
         };
     }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
-    const radius = 60;
+    const radius = 68;
     const startAngle = -90; // Top
     
     // Position adjustments to keep inside viewport

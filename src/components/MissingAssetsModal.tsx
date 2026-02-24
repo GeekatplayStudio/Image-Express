@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, Image as ImageIcon, Replace } from 'lucide-react';
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 interface MissingItem {
     id: string; // Object ID or index
@@ -16,6 +17,8 @@ interface MissingAssetsModalProps {
 }
 
 export default function MissingAssetsModal({ isOpen, missingItems, onReplace, onIgnore }: MissingAssetsModalProps) {
+    useEscapeKey(onIgnore, { enabled: isOpen });
+
     if (!isOpen) return null;
 
     return (

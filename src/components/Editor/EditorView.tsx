@@ -9,13 +9,14 @@ import ThreeDGenerator from '@/components/ThreeDGenerator';
 import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import UserProfileModal from '@/components/UserProfileModal';
+import TopToolOptionsBar from '@/components/Editor/TopToolOptionsBar';
 import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
 import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
 import { GridOverlay, GridType } from '@/components/GridOverlay';
 import { GradientControls } from '@/components/GradientControls';
-import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Move, Brush, PenTool, Shapes, Type, PaintBucket, Wand2, LayoutTemplate, Blend, Layers, Facebook, Instagram } from 'lucide-react';
+import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Move, Brush, PenTool, Shapes, Type, PaintBucket, Wand2, LayoutTemplate, Blend, Layers, Palette, Facebook, Instagram, ShieldCheck } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject, ColorPalette } from '@/types';
 import JSZip from 'jszip';
@@ -23,6 +24,9 @@ import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import CircularContextMenu from '@/components/CircularContextMenu';
+import BrandIcon from '@/components/BrandIcon';
+import { Switch } from '@/components/ui/switch';
+import { applyAlphaToColor, normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
 
 interface MissingItem {
     id: string; 
@@ -42,15 +46,26 @@ interface EditorViewProps {
     onUpdateDesignInfo: (id: string | null, name: string) => void;
     onOpenDocumentation?: () => void;
     onOpenSettings: () => void;
+    onOpenAdminArea?: () => void;
+    isAdminUser?: boolean;
     settingsOpen: boolean;
     initialActiveTool?: string;
 }
 
 type PanelMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' | 'collapsed-right';
 
+type ArtboardRectWithBackground = fabric.Rect & {
+    canvasBackgroundColor?: string;
+    canvasBackgroundEnabled?: boolean;
+};
+
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number; left: number; top: number };
-    artboardRect?: fabric.Rect;
+    artboardRect?: ArtboardRectWithBackground;
+};
+
+type ExportDataUrlOptions = fabric.TDataUrlOptions & {
+    backgroundColor?: string;
 };
 
 type SerializedFill = {
@@ -86,6 +101,21 @@ type DesignJson = {
     [key: string]: unknown;
 };
 
+const TOP_TEXT_FONT_FAMILIES = [
+    'Arial',
+    'Times New Roman',
+    'Courier New',
+    'Georgia',
+    'Verdana',
+    'Impact',
+    'Comic Sans MS',
+    'Trebuchet MS',
+    'Tahoma',
+    'Century Gothic',
+];
+
+const TOP_TEXT_FONT_STYLES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+
 export default function EditorView({ 
     initialDesign, 
     initialTemplateJsonUrl,
@@ -98,6 +128,8 @@ export default function EditorView({
     onUpdateDesignInfo,
     onOpenDocumentation,
     onOpenSettings,
+    onOpenAdminArea,
+    isAdminUser = false,
     settingsOpen,
     initialActiveTool
 }: EditorViewProps) {
@@ -118,6 +150,8 @@ export default function EditorView({
     const [activePalette, setActivePalette] = useState<ColorPalette | null>(null);
     const [zoom, setZoom] = useState(1);
     const [isDirty, setIsDirty] = useState(false);
+    const [isRenamingDesignTitle, setIsRenamingDesignTitle] = useState(false);
+    const [designTitleDraft, setDesignTitleDraft] = useState(propDesignName || 'Untitled Design');
     
     // Context Menu
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; isOpen: boolean }>({ x: 0, y: 0, isOpen: false });
@@ -158,7 +192,8 @@ export default function EditorView({
         'penMode',
         'penClosed',
         'penNodes',
-        'penSourcePoints'
+        'penSourcePoints',
+        'textPathSourceId'
     ], []);
 
     const getHistorySnapshot = useCallback(() => {
@@ -394,17 +429,19 @@ export default function EditorView({
             const formData = new FormData();
             formData.append('file', file);
             formData.append('category', 'uploads');
+            formData.append('owner', user);
 
             try {
                 const res = await fetch('/api/assets/upload', { method: 'POST', body: formData });
                 const json = await res.json();
+                const assetUrl = json.path || json.url;
 
-                if (json.success && json.url) {
+                if (json.success && assetUrl) {
                      const type = json.type || 'images'; // API endpoint returns plural usually 'images', 'models'
                      if (!canvas) continue;
 
                      if (type === 'images' || type === 'image') {
-                         fabric.FabricImage.fromURL(json.url, { crossOrigin: 'anonymous' }).then(img => {
+                         fabric.FabricImage.fromURL(assetUrl, { crossOrigin: 'anonymous' }).then(img => {
                              if (!img) return; // Error handling
                              img.scaleToWidth(Math.min(300, (canvas.width || 800) / 3));
                              canvas.centerObject(img);
@@ -424,7 +461,7 @@ export default function EditorView({
                          group.add(box); group.add(text);
                          const threeDGroup = group as ThreeDGroup;
                          threeDGroup.is3DModel = true;
-                         threeDGroup.modelUrl = json.url;
+                         threeDGroup.modelUrl = assetUrl;
                          threeDGroup.id = crypto.randomUUID();
                          threeDGroup.name = file.name;
                          
@@ -448,7 +485,7 @@ export default function EditorView({
                 toast({ title: "Upload failed for " + file.name, variant: "destructive" });
             }
         }
-    }, [canvas, pushHistory, toast]);
+    }, [canvas, pushHistory, toast, user]);
 
     const startPanelResize = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -519,9 +556,26 @@ export default function EditorView({
     const [exportQualitySize, setExportQualitySize] = useState<string>('');
     const [pendingExportFormat, setPendingExportFormat] = useState<'png' | 'jpg' | null>(null);
     const [pendingExportFilename, setPendingExportFilename] = useState('');
+    const [includeCanvasBackground, setIncludeCanvasBackground] = useState(true);
     const pendingExportCropRef = useRef<{ left: number; top: number; width: number; height: number } | undefined>(undefined);
     const exportSizeTimerRef = useRef<number | null>(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [autoSelectEnabled, setAutoSelectEnabled] = useState(true);
+    const [selectionMode, setSelectionMode] = useState<'layer' | 'group'>('layer');
+    const [showTransformControls, setShowTransformControls] = useState(true);
+    const [paintBrushPreset, setPaintBrushPreset] = useState<'Pencil' | 'Spray' | 'Oil' | 'Watercolor'>('Pencil');
+    const [paintBrushSize, setPaintBrushSize] = useState(10);
+    const [paintBrushHardness, setPaintBrushHardness] = useState(80);
+    const [paintBrushOpacity, setPaintBrushOpacity] = useState(100);
+    const [paintBrushFlow, setPaintBrushFlow] = useState(100);
+    const [paintBrushSmoothing, setPaintBrushSmoothing] = useState(50);
+    const [paintBlendMode, setPaintBlendMode] = useState<'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten'>('source-over');
+    const [penTopMode, setPenTopMode] = useState<'path' | 'shape'>('path');
+    const [penTopPathOperation, setPenTopPathOperation] = useState<'add' | 'subtract' | 'intersect'>('add');
+    const [penTopAutoAddDelete, setPenTopAutoAddDelete] = useState(true);
+    const [penTopRubberBand, setPenTopRubberBand] = useState(true);
+    const [textTopFontFamily, setTextTopFontFamily] = useState(TOP_TEXT_FONT_FAMILIES[0]);
+    const [textTopFontStyle, setTextTopFontStyle] = useState(TOP_TEXT_FONT_STYLES[0]);
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
     const redoStackRef = useRef<string[]>([]);
@@ -543,7 +597,7 @@ export default function EditorView({
         const handleSelection = (e: { e?: Event }) => {
             // If user explicitly clicks on canvas (event exists) and we are not in a creation tool, ensure we show properties
             const creationTools = ['pen', 'paint', 'text', 'shapes', '3d-gen', 'ai-zone'];
-            if (e.e && !creationTools.includes(activeTool) && activeTool !== 'select') {
+            if (autoSelectEnabled && e.e && !creationTools.includes(activeTool) && activeTool !== 'select') {
                 setActiveTool('select');
             }
         };
@@ -553,7 +607,168 @@ export default function EditorView({
             canvas.off('selection:created', handleSelection);
             canvas.off('selection:updated', handleSelection);
         };
-    }, [canvas, activeTool, setActiveTool]);
+    }, [canvas, activeTool, autoSelectEnabled, setActiveTool]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        const objects = canvas.getObjects();
+        objects.forEach((object) => {
+            object.set({
+                hasControls: showTransformControls,
+                hasBorders: showTransformControls,
+            });
+            object.setCoords();
+        });
+        canvas.requestRenderAll();
+    }, [canvas, showTransformControls]);
+
+    useEffect(() => {
+        if (!canvas || activeTool !== 'paint') return;
+
+        const drawingCanvas = canvas as fabric.Canvas & {
+            set: (key: string, value: unknown) => void;
+            freeDrawingBrush?: fabric.BaseBrush;
+            isDrawingMode?: boolean;
+        };
+
+        if (typeof drawingCanvas.set === 'function') {
+            drawingCanvas.set('isDrawingMode', true);
+        } else {
+            drawingCanvas.isDrawingMode = true;
+        }
+
+        let brush: fabric.BaseBrush;
+        try {
+            if (paintBrushPreset === 'Spray' || paintBrushPreset === 'Oil') {
+                const sprayBrush = new fabric.SprayBrush(canvas);
+                sprayBrush.density = Math.max(5, Math.round((paintBrushFlow / 100) * 100));
+                if (paintBrushPreset === 'Oil') {
+                    sprayBrush.dotWidth = Math.max(1, paintBrushSize / 8);
+                    sprayBrush.dotWidthVariance = Math.max(1, paintBrushSize / 10);
+                    sprayBrush.randomOpacity = false;
+                    sprayBrush.optimizeOverlapping = false;
+                }
+                brush = sprayBrush;
+            } else {
+                const pencilBrush = new fabric.PencilBrush(canvas);
+                pencilBrush.decimate = Math.max(0, Number((((100 - paintBrushSmoothing) / 100) * 8).toFixed(2)));
+                const blurAmount = Math.max(0, Math.round(((100 - paintBrushHardness) / 100) * 50));
+                pencilBrush.shadow = blurAmount > 0
+                    ? new fabric.Shadow({
+                        blur: blurAmount,
+                        offsetX: 0,
+                        offsetY: 0,
+                        color: '#000000',
+                    })
+                    : null;
+                brush = pencilBrush;
+            }
+        } catch {
+            return;
+        }
+
+        brush.width = paintBrushSize;
+        const combinedOpacity = Math.max(0.01, Math.min(1, (paintBrushOpacity / 100) * (paintBrushFlow / 100)));
+        brush.color = applyAlphaToColor('#000000', combinedOpacity);
+
+        if (typeof drawingCanvas.set === 'function') {
+            drawingCanvas.set('freeDrawingBrush', brush);
+        } else {
+            drawingCanvas.freeDrawingBrush = brush;
+        }
+        canvas.requestRenderAll();
+    }, [
+        canvas,
+        activeTool,
+        paintBrushPreset,
+        paintBrushSize,
+        paintBrushHardness,
+        paintBrushOpacity,
+        paintBrushFlow,
+        paintBrushSmoothing,
+    ]);
+
+    useEffect(() => {
+        if (!canvas || activeTool !== 'paint') return;
+
+        const handlePathBlendMode = (event: { path?: fabric.Object }) => {
+            if (!event.path) return;
+            window.setTimeout(() => {
+                if (!event.path) return;
+                event.path.set({ globalCompositeOperation: paintBlendMode });
+                event.path.setCoords();
+                canvas.requestRenderAll();
+            }, 0);
+        };
+
+        canvas.on('path:created', handlePathBlendMode);
+        return () => {
+            canvas.off('path:created', handlePathBlendMode);
+        };
+    }, [canvas, activeTool, paintBlendMode]);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        const canvasWithEvents = canvas as unknown as {
+            on: (eventName: string, cb: (payload?: { closure?: 'open' | 'closed'; pathOperation?: 'add' | 'subtract' | 'intersect'; autoAddDelete?: boolean; rubberBand?: boolean }) => void) => void;
+            off: (eventName: string, cb: (payload?: { closure?: 'open' | 'closed'; pathOperation?: 'add' | 'subtract' | 'intersect'; autoAddDelete?: boolean; rubberBand?: boolean }) => void) => void;
+        };
+
+        const syncPenMode = (payload?: { closure?: 'open' | 'closed'; pathOperation?: 'add' | 'subtract' | 'intersect'; autoAddDelete?: boolean; rubberBand?: boolean }) => {
+            if (payload?.closure) {
+                setPenTopMode(payload.closure === 'closed' ? 'shape' : 'path');
+            }
+            if (payload?.pathOperation) {
+                setPenTopPathOperation(payload.pathOperation);
+            }
+            if (typeof payload?.autoAddDelete === 'boolean') {
+                setPenTopAutoAddDelete(payload.autoAddDelete);
+            }
+            if (typeof payload?.rubberBand === 'boolean') {
+                setPenTopRubberBand(payload.rubberBand);
+            }
+        };
+
+        canvasWithEvents.on('pen:draft:update', syncPenMode);
+        return () => {
+            canvasWithEvents.off('pen:draft:update', syncPenMode);
+        };
+    }, [canvas]);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        const syncTextFontFamily = () => {
+            const active = canvas.getActiveObject() as (fabric.Object & { type?: string; fontFamily?: string; fontWeight?: string | number }) | null;
+            if (!active) {
+                setTextTopFontFamily(TOP_TEXT_FONT_FAMILIES[0]);
+                setTextTopFontStyle(TOP_TEXT_FONT_STYLES[0]);
+                return;
+            }
+            const activeType = active.type;
+            const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+            if (!isTextObject) return;
+            if (typeof active.fontFamily === 'string' && active.fontFamily.trim().length > 0) {
+                setTextTopFontFamily(active.fontFamily);
+            }
+            if (typeof active.fontWeight === 'string' || typeof active.fontWeight === 'number') {
+                setTextTopFontStyle(String(active.fontWeight));
+            }
+        };
+
+        syncTextFontFamily();
+        canvas.on('selection:created', syncTextFontFamily);
+        canvas.on('selection:updated', syncTextFontFamily);
+        canvas.on('selection:cleared', syncTextFontFamily);
+        canvas.on('object:modified', syncTextFontFamily);
+        return () => {
+            canvas.off('selection:created', syncTextFontFamily);
+            canvas.off('selection:updated', syncTextFontFamily);
+            canvas.off('selection:cleared', syncTextFontFamily);
+            canvas.off('object:modified', syncTextFontFamily);
+        };
+    }, [canvas]);
 
     // 3D & AI States
     const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
@@ -606,6 +821,29 @@ export default function EditorView({
         return `${(kb / 1024).toFixed(2)} MB`;
     };
 
+    const getCanvasBackgroundSettings = useCallback(() => {
+        const activeCanvas = canvas as CanvasWithArtboard | null;
+        const artboardRect = activeCanvas?.artboardRect as ArtboardRectWithBackground | undefined;
+        const toVisibleColor = (value: unknown): string | null => {
+            if (typeof value !== 'string') return null;
+            const parsed = parseColorWithAlpha(value);
+            if (parsed.alpha <= 0) return null;
+            return normalizeColorValue(parsed.color) || parsed.color;
+        };
+
+        const storedColor = toVisibleColor(artboardRect?.canvasBackgroundColor);
+        const fillColor = toVisibleColor(artboardRect?.fill);
+        const canvasColor = toVisibleColor(activeCanvas?.backgroundColor);
+        const color = storedColor || fillColor || canvasColor || '#ffffff';
+        const enabled = artboardRect
+            ? (typeof artboardRect.canvasBackgroundEnabled === 'boolean'
+                ? artboardRect.canvasBackgroundEnabled
+                : Boolean(fillColor))
+            : true;
+
+        return { color, enabled };
+    }, [canvas]);
+
     const withViewportReset = useCallback(async <T,>(action: () => T | Promise<T>) => {
         if (!canvas) {
             return action();
@@ -625,15 +863,19 @@ export default function EditorView({
         }
     }, [canvas]);
 
-    const estimateExportSize = useCallback(async (format: 'png' | 'jpg', quality: number) => {
+    const estimateExportSize = useCallback(async (format: 'png' | 'jpg', quality: number, includeBackground: boolean) => {
         if (!canvas) return;
         const cropOptions = pendingExportCropRef.current;
-        const options: fabric.TDataUrlOptions = {
+        const options: ExportDataUrlOptions = {
             format: format === 'jpg' ? 'jpeg' : 'png',
             quality: Math.max(0.1, Math.min(1, quality / 100)),
             multiplier: 1,
             enableRetinaScaling: true
         };
+        const shouldIncludeBackground = format === 'jpg' ? true : includeBackground;
+        if (shouldIncludeBackground) {
+            options.backgroundColor = getCanvasBackgroundSettings().color;
+        }
         if (cropOptions) {
             options.left = cropOptions.left;
             options.top = cropOptions.top;
@@ -650,7 +892,7 @@ export default function EditorView({
         } catch {
             setExportQualitySize('Unavailable');
         }
-    }, [canvas, withViewportReset]);
+    }, [canvas, getCanvasBackgroundSettings, withViewportReset]);
 
     useEffect(() => {
         canvasRef.current = canvas;
@@ -662,9 +904,9 @@ export default function EditorView({
             window.clearTimeout(exportSizeTimerRef.current);
         }
         exportSizeTimerRef.current = window.setTimeout(() => {
-            estimateExportSize(pendingExportFormat, exportQualityValue);
+            estimateExportSize(pendingExportFormat, exportQualityValue, includeCanvasBackground);
         }, 150);
-    }, [showExportQualityModal, pendingExportFormat, exportQualityValue, estimateExportSize]);
+    }, [showExportQualityModal, pendingExportFormat, exportQualityValue, includeCanvasBackground, estimateExportSize]);
 
     // Handle Open Design (Local helpers)
     const handleOpenDesign = useCallback(async (design: { data?: unknown }) => {
@@ -743,6 +985,100 @@ export default function EditorView({
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, [canvas, handleUndo, handleRedo, handleDuplicate]);
+
+    useEffect(() => {
+        if (isRenamingDesignTitle) return;
+        setDesignTitleDraft(propDesignName || 'Untitled Design');
+    }, [propDesignName, isRenamingDesignTitle]);
+
+    const cancelDesignTitleEdit = () => {
+        setDesignTitleDraft(propDesignName || 'Untitled Design');
+        setIsRenamingDesignTitle(false);
+    };
+
+    const commitDesignTitle = useCallback(async () => {
+        const nextName = (designTitleDraft || '').trim() || 'Untitled Design';
+        setIsRenamingDesignTitle(false);
+
+        if (nextName === propDesignName) {
+            setDesignTitleDraft(nextName);
+            return;
+        }
+
+        if (!propDesignId) {
+            onUpdateDesignInfo(null, nextName);
+            setDesignTitleDraft(nextName);
+            setIsDirty(true);
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/designs/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: propDesignId, name: nextName })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success || !data.design) {
+                throw new Error(data.message || 'Rename failed.');
+            }
+            onUpdateDesignInfo(data.design.id, data.design.name || nextName);
+            setDesignTitleDraft(data.design.name || nextName);
+            toast({ title: 'Design renamed', description: `Now editing "${data.design.name || nextName}".`, variant: 'success' });
+        } catch (error) {
+            console.error('Design rename failed', error);
+            onUpdateDesignInfo(propDesignId, nextName);
+            setDesignTitleDraft(nextName);
+            toast({
+                title: 'Rename synced locally',
+                description: 'Name updated in the editor; save to persist server-side if needed.',
+                variant: 'warning'
+            });
+        }
+    }, [designTitleDraft, onUpdateDesignInfo, propDesignId, propDesignName, toast]);
+
+    useEffect(() => {
+        const handler = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            const target = event.target as HTMLElement | null;
+            const isInput = target && (
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.tagName === 'SELECT' ||
+                target.isContentEditable
+            );
+            if (isInput) return;
+
+            if (showExportQualityModal) {
+                event.preventDefault();
+                setShowExportQualityModal(false);
+                return;
+            }
+            if (showExportMenu) {
+                event.preventDefault();
+                setShowExportMenu(false);
+                return;
+            }
+            if (showShareMenu) {
+                event.preventDefault();
+                setShowShareMenu(false);
+                return;
+            }
+            if (showGridMenu) {
+                event.preventDefault();
+                setShowGridMenu(false);
+                return;
+            }
+            if (showToolsMenu) {
+                event.preventDefault();
+                setShowToolsMenu(false);
+                return;
+            }
+        };
+
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [showExportMenu, showExportQualityModal, showGridMenu, showShareMenu, showToolsMenu]);
 
     // --- Save Logic ---
     const handleSave = async () => {
@@ -1102,6 +1438,9 @@ export default function EditorView({
         setPendingExportFilename(filename);
         pendingExportCropRef.current = cropOptions;
         const defaultQuality = format === 'jpg' ? 90 : 100;
+        const backgroundSettings = getCanvasBackgroundSettings();
+        const defaultIncludeBackground = format === 'jpg' ? true : backgroundSettings.enabled;
+        setIncludeCanvasBackground(defaultIncludeBackground);
         setExportQualityValue(defaultQuality);
         setExportQualitySize('Calculating...');
         setShowExportQualityModal(true);
@@ -1110,7 +1449,7 @@ export default function EditorView({
             window.clearTimeout(exportSizeTimerRef.current);
         }
         exportSizeTimerRef.current = window.setTimeout(() => {
-            estimateExportSize(format, defaultQuality);
+            estimateExportSize(format, defaultQuality, defaultIncludeBackground);
         }, 100);
     };
 
@@ -1122,7 +1461,7 @@ export default function EditorView({
         const libsFolder = zip.folder('libs');
         const scriptsFolder = zip.folder('scripts');
 
-        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints'];
+        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId'];
         const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customProps);
 
         const metadata = {
@@ -2526,7 +2865,11 @@ document.addEventListener('DOMContentLoaded', () => {
                           const extension = (urlMatch?.[1] || 'glb').toLowerCase();
                           if (!filename.toLowerCase().endsWith(`.${extension}`)) filename += `.${extension}`;
                           try {
-                            await fetch('/api/assets/save-url', { method: 'POST', body: JSON.stringify({ url: resultUrl, filename: filename, type: 'models' }) });
+                            await fetch('/api/assets/save-url', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ url: resultUrl, filename: filename, type: 'models', owner: user })
+                            });
                           } catch (err) { console.error("Failed to auto-save asset", err); }
     
                           const addFallbackPlaceholder = () => {
@@ -2620,7 +2963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 pollIntervalsRef.current.delete(id);
             }
         }
-    }, [backgroundJobs, canvas]);
+    }, [backgroundJobs, canvas, user]);
 
     useEffect(() => {
         const pollTimers = pollTimersRef.current;
@@ -2641,12 +2984,34 @@ document.addEventListener('DOMContentLoaded', () => {
             <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-20 relative shadow-sm">
                  <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
-                        <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center">
-                          <span className="font-bold text-white text-lg">iEX</span>
-                        </div>
-                        <span className="font-bold text-lg hidden lg:block bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500">
-                          {propDesignName || 'Explorer'}
-                        </span>
+                        <BrandIcon />
+                        {isRenamingDesignTitle ? (
+                            <input
+                                autoFocus
+                                value={designTitleDraft}
+                                onChange={(event) => setDesignTitleDraft(event.target.value)}
+                                onBlur={() => { void commitDesignTitle(); }}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        void commitDesignTitle();
+                                    } else if (event.key === 'Escape') {
+                                        event.preventDefault();
+                                        cancelDesignTitleEdit();
+                                    }
+                                }}
+                                className="hidden md:block h-8 min-w-[180px] max-w-[360px] rounded-md border border-primary/40 bg-background/90 px-3 text-sm font-semibold outline-none focus:ring-1 focus:ring-primary"
+                                placeholder="Untitled Design"
+                            />
+                        ) : (
+                            <button
+                                onClick={() => setIsRenamingDesignTitle(true)}
+                                className="hidden md:block font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500 max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"
+                                title='Click to rename document'
+                            >
+                                {propDesignName || 'Untitled Design'}
+                            </button>
+                        )}
                     </div>
                     <nav className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
                        <button 
@@ -2673,11 +3038,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         {showToolsMenu && (
                             <div className="absolute left-0 top-full mt-2 w-64 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 z-50">
                                 
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Essentials</div>
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Selection & Layers</div>
                                 <button onClick={() => { toolbarRef.current?.triggerTool('select'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                                     <Move size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
                                     <span className="flex-1">Select</span>
                                     <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">V</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('layers'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Layers size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
+                                    <span className="flex-1">Layers</span>
+                                    <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">L</span>
+                                </button>
+                                <button onClick={() => { toolbarRef.current?.triggerTool('adjustments'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                                    <Blend size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Adjustments</span>
                                 </button>
 
                                 <div className="my-1 border-t border-border/50" />
@@ -2698,10 +3071,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                    <button onClick={() => { toolbarRef.current?.triggerTool('gradient'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group col-span-2">
                                         <PaintBucket size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Fill / Gradient</span>
                                     </button>
+                                    <button onClick={() => { toolbarRef.current?.triggerTool('color-wheel'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group col-span-2">
+                                        <Palette size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Color Wheel</span>
+                                    </button>
                                 </div>
 
                                 <div className="my-1 border-t border-border/50" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Assets</div>
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Libraries</div>
                                 <button onClick={() => { toolbarRef.current?.triggerTool('assets'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                                     <ImageIcon size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Gallery</span>
                                 </button>
@@ -2716,17 +3092,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </button>
                                 <button onClick={() => { toolbarRef.current?.triggerTool('3d-gen'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                                     <Box size={16} className="text-indigo-500 group-hover:text-indigo-600 transition-colors"/> <span>AI 3D</span>
-                                </button>
-
-                                <div className="my-1 border-t border-border/50" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Edit</div>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('adjustments'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Blend size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Adjustments</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('layers'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Layers size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
-                                    <span className="flex-1">Layers</span>
-                                    <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">L</span>
                                 </button>
                             </div>
                         )}
@@ -2804,6 +3169,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             >
                                 <Settings size={20} />
                             </button>
+                            {isAdminUser && (
+                                <button
+                                    onClick={() => onOpenAdminArea?.()}
+                                    className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
+                                    title="Admin Area"
+                                >
+                                    <ShieldCheck size={20} />
+                                </button>
+                            )}
         
                      <div className="h-6 w-px bg-border mx-1"></div>
                      
@@ -2898,6 +3272,102 @@ document.addEventListener('DOMContentLoaded', () => {
                  </div>
             </header>
 
+            <TopToolOptionsBar
+                activeTool={activeTool}
+                onTriggerTool={(tool) => {
+                    toolbarRef.current?.triggerTool(tool);
+                }}
+                selectOptions={{
+                    autoSelectEnabled,
+                    selectionMode,
+                    showTransformControls,
+                }}
+                onAutoSelectChange={setAutoSelectEnabled}
+                onSelectionModeChange={(mode) => {
+                    setSelectionMode(mode);
+                    toolbarRef.current?.triggerTool(mode === 'group' ? 'layers' : 'select');
+                }}
+                onTransformControlsChange={setShowTransformControls}
+                paintOptions={{
+                    brushPreset: paintBrushPreset,
+                    size: paintBrushSize,
+                    hardness: paintBrushHardness,
+                    opacity: paintBrushOpacity,
+                    flow: paintBrushFlow,
+                    smoothing: paintBrushSmoothing,
+                    blendMode: paintBlendMode,
+                }}
+                onPaintPresetChange={setPaintBrushPreset}
+                onPaintSizeChange={setPaintBrushSize}
+                onPaintHardnessChange={setPaintBrushHardness}
+                onPaintOpacityChange={setPaintBrushOpacity}
+                onPaintFlowChange={setPaintBrushFlow}
+                onPaintSmoothingChange={setPaintBrushSmoothing}
+                onPaintBlendModeChange={setPaintBlendMode}
+                penOptions={{
+                    mode: penTopMode,
+                    pathOperation: penTopPathOperation,
+                    autoAddDelete: penTopAutoAddDelete,
+                    rubberBand: penTopRubberBand,
+                }}
+                onPenModeChange={(mode) => {
+                    setPenTopMode(mode);
+                    if (!canvas) return;
+                    (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('pen:config:set', {
+                        closure: mode === 'shape' ? 'closed' : 'open',
+                    });
+                }}
+                onPenPathOperationChange={(operation) => {
+                    setPenTopPathOperation(operation);
+                    if (!canvas) return;
+                    (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('pen:config:set', {
+                        pathOperation: operation,
+                    });
+                }}
+                onPenAutoAddDeleteChange={(enabled) => {
+                    setPenTopAutoAddDelete(enabled);
+                    if (!canvas) return;
+                    (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('pen:config:set', {
+                        autoAddDelete: enabled,
+                    });
+                }}
+                onPenRubberBandChange={(enabled) => {
+                    setPenTopRubberBand(enabled);
+                    if (!canvas) return;
+                    (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('pen:config:set', {
+                        rubberBand: enabled,
+                    });
+                }}
+                textOptions={{
+                    fontFamily: textTopFontFamily,
+                    fontFamilies: TOP_TEXT_FONT_FAMILIES,
+                    fontStyle: textTopFontStyle,
+                    fontStyles: TOP_TEXT_FONT_STYLES,
+                }}
+                onTextFontFamilyChange={(fontFamily) => {
+                    setTextTopFontFamily(fontFamily);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    const activeType = active.type;
+                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+                    if (!isTextObject) return;
+                    active.set({ fontFamily });
+                    canvas.requestRenderAll();
+                }}
+                onTextFontStyleChange={(fontStyle) => {
+                    setTextTopFontStyle(fontStyle);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    const activeType = active.type;
+                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+                    if (!isTextObject) return;
+                    active.set({ fontWeight: fontStyle });
+                    canvas.requestRenderAll();
+                }}
+            />
+
             {/* Overlays */}
             <GridOverlay canvas={isExporting ? null : canvas} gridType={gridType} />
             <GradientControls canvas={canvas} activeTool={activeTool} />
@@ -2917,6 +3387,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      <div className="bg-card w-[800px] h-[600px] rounded-xl shadow-2xl relative flex flex-col overflow-hidden border border-border">
                           <div className="flex-1 overflow-hidden">
                               <AssetLibrary 
+                                  currentUser={user}
                                   onSelect={(url) => { if (replacingItemId) { setReplacementMap(prev => ({ ...prev, [replacingItemId]: url })); } setShowAssetBrowserForMissing(false); setReplacingItemId(null); }}
                                   onClose={() => setShowAssetBrowserForMissing(false)}
                               />
@@ -3022,6 +3493,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             />
                         </div>
 
+                        <div className="flex items-center justify-between rounded-lg border border-border/70 bg-secondary/20 px-3 py-2">
+                            <div className="space-y-0.5">
+                                <div className="text-xs font-medium">Canvas background</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                    {pendingExportFormat === 'jpg' ? 'JPG exports always include a background.' : 'Turn off to export transparent PNG.'}
+                                </div>
+                            </div>
+                            <Switch
+                                checked={pendingExportFormat === 'jpg' ? true : includeCanvasBackground}
+                                onCheckedChange={setIncludeCanvasBackground}
+                                disabled={pendingExportFormat === 'jpg'}
+                                aria-label="Include canvas background"
+                            />
+                        </div>
+
                         <div className="flex justify-end gap-3 mt-4">
                             <button
                                 onClick={() => setShowExportQualityModal(false)}
@@ -3033,12 +3519,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onClick={async () => {
                                     if (!canvas || !pendingExportFormat) return;
                                     const cropOptions = pendingExportCropRef.current;
-                                    const options: fabric.TDataUrlOptions = {
+                                    const options: ExportDataUrlOptions = {
                                         format: pendingExportFormat === 'jpg' ? 'jpeg' : 'png',
                                         quality: Math.max(0.1, Math.min(1, exportQualityValue / 100)),
                                         multiplier: 1,
                                         enableRetinaScaling: true
                                     };
+                                    const shouldIncludeBackground = pendingExportFormat === 'jpg' ? true : includeCanvasBackground;
+                                    if (shouldIncludeBackground) {
+                                        options.backgroundColor = getCanvasBackgroundSettings().color;
+                                    }
                                     if (cropOptions) {
                                         options.left = cropOptions.left;
                                         options.top = cropOptions.top;
@@ -3069,6 +3559,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ref={toolbarRef}
                         canvas={canvas} 
                         activeTool={activeTool}
+                        currentUser={user}
                         activePalette={activePalette}
                         setActivePalette={setActivePalette}
                         setActiveTool={(tool) => {
@@ -3181,6 +3672,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         {activeTool === '3d-gen' && (
                             <ThreeDGenerator 
                                 initialImage={initialImageFor3D}
+                                currentUser={user}
                                 onOpenSettings={onOpenSettings}
                                 activeJob={backgroundJobs.find(j => j.status === 'IN_PROGRESS' || j.status === 'PENDING')}
                                 onStartBackgroundJob={(jobData) => {
@@ -3190,7 +3682,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                          // We keep layer visible so user sees it while generating
                                          canvas.requestRenderAll(); 
                                     }
-                                    toast({ title: 'Generation Started', description: 'Monitor progress in the top status bar.' });
+                                    toast({ title: 'Generation Started', description: 'Monitor progress in the bottom status area.' });
                                     // setActiveTool('select'); // Keep panel open or close? User asked to keep layer visible.
                                     // But typically "Layer" refers to canvas object. 
                                     // If we close panel, user gets back to canvas. 

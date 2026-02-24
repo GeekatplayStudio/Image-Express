@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../ui/switch';
 import { useToast } from '@/providers/ToastProvider';
 import { BackgroundJob, ExtendedFabricObject } from '@/types';
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 /**
  * Props for the Stability Generator Component
@@ -49,6 +50,7 @@ type CanvasWithArtboard = fabric.Canvas & {
  */
 export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, onJobCreated, onAssetSave }: StabilityGeneratorProps) {
     const { toast } = useToast();
+    useEscapeKey(onClose, { enabled: isOpen });
     // --- UI State ---
     const [activeTab, setActiveTab] = useState('generate');
     const [isProcessing, setIsProcessing] = useState(false);

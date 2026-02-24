@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
-
-const VALID_CATEGORIES = ['uploads', 'generated'] as const;
-
-type AssetType = 'images' | 'models' | 'videos' | 'audio';
-type AssetCategory = (typeof VALID_CATEGORIES)[number];
+import {
+  VALID_ASSET_CATEGORIES,
+  type AssetCategory,
+  type AssetType,
+  upsertAssetMetadata
+} from '@/lib/server/asset-metadata';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.tif', '.tiff', '.heic']);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v', '.ogv']);
@@ -35,13 +36,15 @@ export async function POST(request: Request) {
     const data = await request.formData();
     const file: File | null = data.get('file') as unknown as File;
     const rawCategory = (data.get('category') as string) || 'uploads';
+    const owner = (data.get('owner') as string) || 'Guest';
+    const isPublic = (data.get('isPublic') as string) === 'true';
 
     if (!file) {
       return NextResponse.json({ success: false, message: 'No file uploaded' }, { status: 400 });
     }
 
     const type = detectAssetType(file.name, (file as unknown as { type?: string }).type) as AssetType;
-    const category = (VALID_CATEGORIES.includes(rawCategory as AssetCategory) ? rawCategory : 'uploads') as AssetCategory;
+    const category = (VALID_ASSET_CATEGORIES.includes(rawCategory as AssetCategory) ? rawCategory : 'uploads') as AssetCategory;
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
@@ -64,13 +67,14 @@ export async function POST(request: Request) {
     const filepath = path.join(uploadDir, filename);
 
     await writeFile(filepath, buffer);
+    await upsertAssetMetadata({ category, type, name: filename, owner, isPublic });
 
     // Use our dynamic serve route instead of static public path to bypass dev server lag
     // Original: /assets/${category}/${type}/${filename}
     // New: /api/assets/serve/${category}/${type}/${filename}
     const publicPath = `/api/assets/serve/${category}/${type}/${filename}`;
 
-    return NextResponse.json({ success: true, path: publicPath, filename, type, category });
+    return NextResponse.json({ success: true, path: publicPath, filename, type, category, owner, isPublic });
   } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json({ success: false, message: 'Upload failed' }, { status: 500 });

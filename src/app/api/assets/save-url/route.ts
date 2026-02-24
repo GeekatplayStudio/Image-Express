@@ -1,23 +1,24 @@
 import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
-
-const VALID_TYPES = ['images', 'models', 'videos', 'audio'] as const;
-const VALID_CATEGORIES = ['uploads', 'generated'] as const;
-
-type AssetType = (typeof VALID_TYPES)[number];
-type AssetCategory = (typeof VALID_CATEGORIES)[number];
+import {
+  VALID_ASSET_TYPES,
+  VALID_ASSET_CATEGORIES,
+  type AssetType,
+  type AssetCategory,
+  upsertAssetMetadata
+} from '@/lib/server/asset-metadata';
 
 export async function POST(request: Request) {
   try {
-    const { url, filename, type, category } = await request.json();
+    const { url, filename, type, category, owner, isPublic } = await request.json();
 
     if (!url || !filename) {
       return NextResponse.json({ success: false, message: 'Missing url or filename' }, { status: 400 });
     }
 
-    const folderType = (type && VALID_TYPES.includes(type as AssetType) ? type : 'models') as AssetType;
-    const folderCategory = (category && VALID_CATEGORIES.includes(category as AssetCategory) ? category : 'uploads') as AssetCategory;
+    const folderType = (type && VALID_ASSET_TYPES.includes(type as AssetType) ? type : 'models') as AssetType;
+    const folderCategory = (category && VALID_ASSET_CATEGORIES.includes(category as AssetCategory) ? category : 'uploads') as AssetCategory;
     
     // Fetch the content
     const response = await fetch(url);
@@ -39,10 +40,24 @@ export async function POST(request: Request) {
     const filepath = path.join(uploadDir, uniqueName);
 
     await writeFile(filepath, buffer);
+    await upsertAssetMetadata({
+      category: folderCategory,
+      type: folderType,
+      name: uniqueName,
+      owner: typeof owner === 'string' ? owner : 'Guest',
+      isPublic: Boolean(isPublic)
+    });
 
-    const publicPath = `/assets/${folderCategory}/${folderType}/${uniqueName}`;
+    const publicPath = `/api/assets/serve/${folderCategory}/${folderType}/${uniqueName}`;
 
-    return NextResponse.json({ success: true, path: publicPath, type: folderType, category: folderCategory });
+    return NextResponse.json({
+      success: true,
+      path: publicPath,
+      type: folderType,
+      category: folderCategory,
+      owner: typeof owner === 'string' ? owner : 'Guest',
+      isPublic: Boolean(isPublic)
+    });
   } catch (error) {
     console.error('Save external error:', error);
     return NextResponse.json({ success: false, message: 'Failed to save external file' }, { status: 500 });

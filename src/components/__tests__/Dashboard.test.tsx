@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import Dashboard from './Dashboard';
+import Dashboard from '../Dashboard';
 import { DialogProvider } from '@/providers/DialogProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 
@@ -85,6 +85,31 @@ describe('Dashboard Component', () => {
         // Create 3D
         fireEvent.click(screen.getByText('Create 3D'));
         expect(mockOnNewDesign).toHaveBeenCalledWith('3d');
+    });
+
+    it('lets users clear and retype custom size without forced zero', () => {
+        renderDashboard();
+        mockOnNewDesign.mockClear();
+
+        const customSizeBtns = screen.getAllByText('Custom Size');
+        fireEvent.click(customSizeBtns[0]);
+
+        const [widthInput, heightInput] = screen.getAllByRole('spinbutton') as HTMLInputElement[];
+        const createBtn = screen.getByRole('button', { name: 'Create Design' });
+
+        fireEvent.change(widthInput, { target: { value: '' } });
+        expect(widthInput.value).toBe('');
+        expect(createBtn).toBeDisabled();
+
+        fireEvent.change(widthInput, { target: { value: '1920' } });
+        fireEvent.change(heightInput, { target: { value: '1080' } });
+
+        expect(widthInput.value).toBe('1920');
+        expect(heightInput.value).toBe('1080');
+        expect(createBtn).not.toBeDisabled();
+
+        fireEvent.click(createBtn);
+        expect(mockOnNewDesign).toHaveBeenCalledWith(undefined, { width: 1920, height: 1080 });
     });
 
     it('filters templates by category', () => {

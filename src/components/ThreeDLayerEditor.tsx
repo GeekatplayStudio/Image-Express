@@ -8,6 +8,7 @@ import * as fabric from 'fabric';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { ExtendedFabricObject, ThreeDSettings } from '@/types';
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 interface ThreeDLayerEditorProps {
     modelUrl: string;
@@ -65,6 +66,8 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
 
 
     const controlsRef = useRef<OrbitControlsImpl | null>(null);
+
+    useEscapeKey(onClose);
 
     useEffect(() => {
         if (!existingObject) return;

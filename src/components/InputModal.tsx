@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 interface InputModalProps {
     isOpen: boolean;
@@ -37,6 +38,8 @@ export default function InputModal({
             }, 100);
         }
     }, [isOpen, defaultValue]);
+
+    useEscapeKey(onCancel, { enabled: isOpen });
 
     if (!isOpen) return null;
 

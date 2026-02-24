@@ -45,12 +45,12 @@ export function PenProperties({ canvas }: PenPropertiesProps) {
         // Let's add a listener for a custom event if we can find one, otherwise relying on common events.
         
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        canvas.on('pen:state:updated' as any, updateState); // Hypothetical event
+        canvas.on('pen:draft:update' as any, updateState);
         canvas.on('mouse:up', updateState); // Fallback
         
         return () => {
              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            canvas.off('pen:state:updated' as any, updateState);
+            canvas.off('pen:draft:update' as any, updateState);
             canvas.off('mouse:up', updateState);
         };
     }, [canvas]);

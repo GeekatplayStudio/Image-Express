@@ -1,20 +1,25 @@
 import React from 'react';
 import { ColorPicker } from './ColorPicker';
+import { Switch } from '@/components/ui/switch';
 
 interface CanvasSettingsPanelProps {
     width: number;
     height: number;
     backgroundColor: string;
+    backgroundEnabled: boolean;
     onResize: (width: number, height: number) => void;
     onColorChange: (color: string) => void;
+    onBackgroundToggle: (enabled: boolean) => void;
 }
 
 export function CanvasSettingsPanel({
     width,
     height,
     backgroundColor,
+    backgroundEnabled,
     onResize,
-    onColorChange
+    onColorChange,
+    onBackgroundToggle
 }: CanvasSettingsPanelProps) {
     return (
         <div className="p-4 space-y-6">
@@ -68,6 +73,17 @@ export function CanvasSettingsPanel({
                     <h3 className="font-medium text-sm">Background</h3>
                 </div>
                 <div className="space-y-2">
+                    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-secondary/20 px-3 py-2">
+                        <div className="space-y-0.5">
+                            <div className="text-xs font-medium">Canvas background</div>
+                            <div className="text-[10px] text-muted-foreground">Turn off for transparent PNG exports</div>
+                        </div>
+                        <Switch
+                            checked={backgroundEnabled}
+                            onCheckedChange={onBackgroundToggle}
+                            aria-label="Canvas background"
+                        />
+                    </div>
                     <ColorPicker
                          color={backgroundColor.startsWith('#') ? backgroundColor : '#ffffff'}
                          onChange={onColorChange}

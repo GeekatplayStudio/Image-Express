@@ -80,3 +80,53 @@ body {
 input[type="range"] {
   accent-color: var(--primary);
 }
+
+.brand-icon-shell {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 54%, #ec4899 100%);
+}
+
+.brand-spark {
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(-2px) scale(0.3);
+}
+
+.group\/brand:hover .brand-spark {
+  animation: brand-spark 850ms ease-out infinite;
+  animation-delay: var(--spark-delay);
+}
+
+.brand-notice {
+  opacity: 0;
+  transform: translate(2px, -50%);
+  filter: hue-rotate(0deg);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.group\/brand:hover .brand-notice {
+  opacity: 1;
+  transform: translate(0, -50%);
+  animation: brand-cycle 2.8s linear infinite;
+}
+
+@keyframes brand-spark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(0) scale(0.3);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(calc(-1 * var(--spark-distance))) scale(1);
+  }
+}
+
+@keyframes brand-cycle {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}

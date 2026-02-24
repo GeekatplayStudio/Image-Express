@@ -1,6 +1,7 @@
 'use client';
 
 import { X, HelpCircle } from 'lucide-react';
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 interface HelpPopupProps {
     isOpen: boolean;
@@ -9,6 +10,8 @@ interface HelpPopupProps {
 }
 
 export default function HelpPopup({ isOpen, onClose, type }: HelpPopupProps) {
+    useEscapeKey(onClose, { enabled: isOpen });
+
     if (!isOpen) return null;
 
     return (

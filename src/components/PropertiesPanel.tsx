@@ -58,9 +58,14 @@ interface CustomObjectState {
     _borderCachedOpacity?: number;
 }
 
+type ArtboardRectWithBackground = fabric.Rect & {
+    canvasBackgroundColor?: string;
+    canvasBackgroundEnabled?: boolean;
+};
+
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number; left: number; top: number };
-    artboardRect?: fabric.Rect;
+    artboardRect?: ArtboardRectWithBackground;
     centerArtboard?: () => void;
     hostContainer?: HTMLDivElement;
     workspaceBackground?: string;
@@ -104,6 +109,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     const [canvasWidth, setCanvasWidth] = useState(1080);
     const [canvasHeight, setCanvasHeight] = useState(1080);
     const [canvasColor, setCanvasColor] = useState('#ffffff');
+    const [canvasBackgroundEnabled, setCanvasBackgroundEnabled] = useState(true);
 
     // Selection Props
     const [color, setColor] = useState('#000000');
@@ -179,6 +185,18 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
 
     const [adjustmentSettings, setAdjustmentSettings] = useState<AdjustmentLayerSettings | null>(null);
 
+    const isTextObject = (obj: fabric.Object | null | undefined): obj is fabric.IText => {
+        if (!obj) return false;
+        return obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox';
+    };
+
+    const isPathCandidate = (obj: fabric.Object | null | undefined) => {
+        if (!obj) return false;
+        if (!['path', 'polyline', 'polygon'].includes(obj.type || '')) return false;
+        const ext = obj as ExtendedFabricObject;
+        return !!ext.isPenPath || !!ext.penMode || (typeof ext.name === 'string' && ext.name.toLowerCase().includes('vector'));
+    };
+
     // --- Paint Logic ---
     // Delegated to PaintProperties component
 
@@ -193,8 +211,21 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              const rect = extendedCanvas.artboardRect;
              setCanvasWidth(Math.round((rect.width || 0) * (rect.scaleX || 1)));
              setCanvasHeight(Math.round((rect.height || 0) * (rect.scaleY || 1)));
-             const fill = rect.fill;
-             if (typeof fill === 'string') setCanvasColor(fill);
+             const storedColor = typeof rect.canvasBackgroundColor === 'string'
+                 ? normalizeColorValue(rect.canvasBackgroundColor) || rect.canvasBackgroundColor
+                 : null;
+             const fillInfo = typeof rect.fill === 'string' ? extractColorFromStyle(rect.fill) : null;
+             const fillColor = fillInfo && fillInfo.alpha > 0 ? normalizeColorValue(fillInfo.color) || fillInfo.color : null;
+             const nextColor = storedColor || fillColor || '#ffffff';
+             const nextEnabled = typeof rect.canvasBackgroundEnabled === 'boolean'
+                 ? rect.canvasBackgroundEnabled
+                 : Boolean(fillColor);
+
+             const setRectMeta = rect as unknown as { set: (key: string, value: unknown) => void };
+             setRectMeta.set('canvasBackgroundColor', nextColor);
+             setRectMeta.set('canvasBackgroundEnabled', nextEnabled);
+             setCanvasColor(nextColor);
+             setCanvasBackgroundEnabled(nextEnabled);
              return;
         }
 
@@ -210,6 +241,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         if (typeof canvas.backgroundColor === 'string' && canvas.backgroundColor !== 'transparent') {
             setCanvasColor(normalizeColorValue(canvas.backgroundColor) || '#ffffff');
         }
+        setCanvasBackgroundEnabled(true);
     }, [canvas]);
 
     const applyAdjustmentLayers = useCallback(() => {
@@ -572,7 +604,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                 setTaperDirection(target.taperDirection || 0);
 
                 // Text
-                if (target.type === 'text' || target.type === 'i-text') {
+                if (target.type === 'text' || target.type === 'i-text' || target.type === 'textbox') {
                     const t = target as fabric.IText;
                     setFontFamily(t.fontFamily || 'Arial');
                     setFontWeight((t.fontWeight as string) || 'normal');
@@ -767,6 +799,53 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         applyAdjustmentLayers();
     };
 
+    const createTextPathFromObject = useCallback(async (source: fabric.Object): Promise<fabric.Path | null> => {
+        if (source.type === 'path') {
+            const cloned = await source.clone();
+            if (cloned.type !== 'path') return null;
+            const pathClone = cloned as fabric.Path;
+            pathClone.set({ visible: false, evented: false, selectable: false });
+            return pathClone;
+        }
+
+        const sourcePoints = extractScenePenPoints(source as ExtendedFabricObject);
+        if (!sourcePoints || sourcePoints.length < 2) return null;
+
+        const isClosed = source.type === 'polygon' || !!(source as ExtendedFabricObject).penClosed;
+        const pathData = sourcePoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+        const finalPathData = isClosed ? `${pathData} Z` : pathData;
+        const path = new fabric.Path(finalPathData, { visible: false, evented: false, selectable: false });
+        return path;
+    }, []);
+
+    const alignTextToPathObject = useCallback(async (textObj: fabric.IText, sourcePathObj: fabric.Object) => {
+        if (!canvas) return false;
+
+        const pathForText = await createTextPathFromObject(sourcePathObj);
+        if (!pathForText) return false;
+
+        const currentCenter = textObj.getCenterPoint();
+        textObj.set('path', pathForText);
+        if (typeof textObj.pathStartOffset !== 'number') {
+            textObj.set('pathStartOffset', 0);
+        }
+
+        textObj.set('textPathSourceId', ensureObjectId(sourcePathObj));
+        const extText = textObj as ExtendedFabricObject;
+        extText.curveStrength = 0;
+        extText.curveCenter = 0;
+
+        textObj.setPositionByOrigin(currentCenter, 'center', 'center');
+        textObj.setCoords();
+        textObj.set('dirty', true);
+
+        setCurveStrength(0);
+        setCurveCenter(0);
+        canvas.requestRenderAll();
+        updateObjects();
+        return true;
+    }, [canvas, createTextPathFromObject, updateObjects]);
+
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handlePropChange = (prop: string, value: any) => {
@@ -863,6 +942,30 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
             return;
         }
 
+        if (prop === 'attachTextToPath') {
+            if (!isTextObject(selectedObject)) return;
+            const pathId = typeof value === 'string' ? value : value?.pathId;
+            if (!pathId) return;
+            const sourcePathObj = canvas.getObjects().find((obj) => ensureObjectId(obj) === pathId);
+            if (!sourcePathObj || !isPathCandidate(sourcePathObj)) return;
+
+            void alignTextToPathObject(selectedObject as fabric.IText, sourcePathObj);
+            return;
+        }
+
+        if (prop === 'detachTextPath') {
+            if (!isTextObject(selectedObject)) return;
+            selectedObject.set('path', null);
+            selectedObject.set('pathStartOffset', 0);
+            selectedObject.set('textPathSourceId', undefined);
+            selectedObject.set('dirty', true);
+            setCurveStrength(0);
+            setCurveCenter(0);
+            canvas.requestRenderAll();
+            updateObjects();
+            return;
+        }
+
         // Standard Props & layout
         const startProps = ['left', 'top', 'width', 'height', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'visible', 'globalCompositeOperation'];
         if (startProps.includes(prop)) {
@@ -956,7 +1059,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         if (prop === 'curve') {
              const { strength, center } = value;
              const extended = selectedObject as ExtendedFabricObject;
-             extended.set({ curveStrength: strength, curveCenter: center });
+             extended.set({ curveStrength: strength, curveCenter: center, textPathSourceId: undefined });
              setCurveStrength(strength);
              setCurveCenter(center ?? 0);
              
@@ -1355,7 +1458,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         }
 
         if (prop === 'toggleTextEffect' || prop === 'updateTextEffectConfig') {
-             if (selectedObject.type !== 'text' && selectedObject.type !== 'i-text') return;
+             if (selectedObject.type !== 'text' && selectedObject.type !== 'i-text' && selectedObject.type !== 'textbox') return;
              
              let newActive = [...activeTextEffects];
              let newConfigs = { ...textEffectConfigs };
@@ -1906,54 +2009,12 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         const active = canvas.getActiveObjects();
         if (active.length !== 2) return;
         
-        const textObj = active.find(o => o.type === 'i-text' || o.type === 'text') as fabric.IText | undefined;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pathObj = active.find(o => o.type === 'path' || o.type === 'polyline') as any;
+        const textObj = active.find((obj) => isTextObject(obj)) as fabric.IText | undefined;
+        const pathObj = active.find((obj) => isPathCandidate(obj));
         
         if (!textObj || !pathObj) return;
-
-        // Create a path instance for the text
-        let pathForText: fabric.Path;
-
-        if (pathObj.type === 'polyline') {
-            // Convert points to path data
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const points = (pathObj as any).points as {x:number, y:number}[];
-            if (!points || points.length < 2) return;
-            
-            const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-            pathForText = new fabric.Path(d);
-            // Copy transforms
-            pathForText.left = pathObj.left;
-            pathForText.top = pathObj.top;
-            pathForText.scaleX = pathObj.scaleX;
-            pathForText.scaleY = pathObj.scaleY;
-            pathForText.angle = pathObj.angle;
-            pathForText.width = pathObj.width;
-            pathForText.height = pathObj.height;
-        } else {
-             // It's a Path
-             pathForText = await pathObj.clone();
-        }
-
-        // Align coordinates - Fabric Text Path uses the path relative to text center if not absolute?
-        // Actually, documentation says: "The path is relative to object center."
-        // So we need to position the path effectively.
-        // For simplicity v1: Just assign it.
-        // We might need to adjust (pathForText.absolutePositioned = true) if supported or manual offset.
-        
-        // Use the path absolute position
-        // const absolutePositioned = true; 
-        
-        // Fabric 6 way?
-        // textObj.path = pathForText;
-        // pathForText.absolutePositioned = true; // If supported.
-        
-        // We set it and hide the original
-        textObj.set({ path: pathForText });
-        
-        // Hide original
-        pathObj.visible = false;
+        const attached = await alignTextToPathObject(textObj, pathObj);
+        if (!attached) return;
         
         canvas.discardActiveObject();
         canvas.setActiveObject(textObj);
@@ -2171,6 +2232,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                      width={canvasWidth}
                      height={canvasHeight}
                      backgroundColor={canvasColor}
+                     backgroundEnabled={canvasBackgroundEnabled}
                      onResize={(w, h) => {
                           if (!canvas) return;
                           const ext = canvas as CanvasWithArtboard;
@@ -2189,9 +2251,30 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                           if (!canvas) return;
                           const ext = canvas as CanvasWithArtboard;
                           if (ext.artboardRect) {
-                              ext.artboardRect.set('fill', c);
+                              const rect = ext.artboardRect as ArtboardRectWithBackground;
+                              const normalized = normalizeColorValue(c) || c;
+                              const setRectMeta = rect as unknown as { set: (key: string, value: unknown) => void };
+                              setRectMeta.set('canvasBackgroundColor', normalized);
+                              if (rect.canvasBackgroundEnabled !== false) {
+                                  rect.set('fill', normalized);
+                              }
                               canvas.requestRenderAll();
-                              setCanvasColor(c);
+                              setCanvasColor(normalized);
+                          }
+                     }}
+                     onBackgroundToggle={(enabled) => {
+                          if (!canvas) return;
+                          const ext = canvas as CanvasWithArtboard;
+                          if (ext.artboardRect) {
+                              const rect = ext.artboardRect as ArtboardRectWithBackground;
+                              const stored = normalizeColorValue(rect.canvasBackgroundColor || canvasColor) || canvasColor || '#ffffff';
+                              const setRectMeta = rect as unknown as { set: (key: string, value: unknown) => void };
+                              setRectMeta.set('canvasBackgroundColor', stored);
+                              setRectMeta.set('canvasBackgroundEnabled', enabled);
+                              rect.set('fill', enabled ? stored : 'rgba(0,0,0,0)');
+                              canvas.requestRenderAll();
+                              setCanvasColor(stored);
+                              setCanvasBackgroundEnabled(enabled);
                           }
                      }}
                  />
@@ -2200,6 +2283,20 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     }
 
     void opacity; void adjustmentSettings;
+
+    const textPathOptions = objects
+        .filter((obj) => obj !== selectedObject && isPathCandidate(obj))
+        .map((obj, index) => {
+            const ext = obj as ExtendedFabricObject;
+            return {
+                id: ensureObjectId(obj),
+                label: ext.name || `Path ${index + 1}`
+            };
+        });
+
+    const selectedTextPathId = selectedObject?.textPathSourceId ?? null;
+    const hasAttachedTextPath = isTextObject(selectedObject)
+        && !!((selectedObject as unknown as { path?: fabric.Path | null }).path);
 
     return (
         <SelectionProperties 
@@ -2220,8 +2317,13 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              onUngroup={handleUngroup}
              onCreateMask={handleCreateMask}
              onTextOnPath={handleTextOnPath}
+             textPathOptions={textPathOptions}
+             selectedTextPathId={selectedTextPathId}
+             hasAttachedTextPath={hasAttachedTextPath}
              onReleaseMask={handleReleaseMask}
              onToggleMaskLock={toggleMaskLock}
+             onAttachTextToPath={(pathId) => handlePropChange('attachTextToPath', pathId)}
+             onDetachTextPath={() => handlePropChange('detachTextPath', true)}
              updateAdjustment={updateAdjustment}
              textState={{ font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter }}
              activeTextEffects={activeTextEffects}

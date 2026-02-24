@@ -14,6 +14,7 @@ const config: Config = {
   moduleNameMapper: {
     // Handle module aliases (this will be automatically configured for you soon)
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^jspdf$': '<rootDir>/src/test/mocks/jspdf.ts',
   },
   modulePathIgnorePatterns: ['<rootDir>/.next/'],
   testPathIgnorePatterns: ['<rootDir>/.next/'],

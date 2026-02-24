@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
+import useEscapeKey from '@/hooks/useEscapeKey';
 
 interface Template {
     id: string;
@@ -66,6 +67,8 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
     useEffect(() => {
         fetchTemplates();
     }, []);
+
+    useEscapeKey(onClose);
 
     return (
         <DraggableResizablePanel

@@ -1,27 +1,30 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
-
-const VALID_TYPES = ['images', 'models', 'videos', 'audio'] as const;
-const VALID_CATEGORIES = ['uploads', 'generated'] as const;
-
-type AssetType = (typeof VALID_TYPES)[number];
-type AssetCategory = (typeof VALID_CATEGORIES)[number];
+import {
+  VALID_ASSET_TYPES,
+  VALID_ASSET_CATEGORIES,
+  type AssetType,
+  type AssetCategory,
+  getAssetMetadata,
+  renameAssetMetadata
+} from '@/lib/server/asset-metadata';
 
 export async function POST(request: Request) {
   try {
-    const { type, oldName, newName, category } = await request.json();
+    const { type, oldName, newName, category, owner } = await request.json();
 
     if (!type || !oldName || !newName) {
         return NextResponse.json({ success: false, message: 'Missing parameters' }, { status: 400 });
     }
 
-    if (!VALID_TYPES.includes(type as AssetType) || (category && !VALID_CATEGORIES.includes(category as AssetCategory))) {
+    if (!VALID_ASSET_TYPES.includes(type as AssetType) || (category && !VALID_ASSET_CATEGORIES.includes(category as AssetCategory))) {
         return NextResponse.json({ success: false, message: 'Invalid types' }, { status: 400 });
     }
 
-    const folderCategory = (category && VALID_CATEGORIES.includes(category as AssetCategory) ? category : 'uploads') as AssetCategory;
-    const folderType = (VALID_TYPES.includes(type as AssetType) ? type : 'images') as AssetType;
+    const folderCategory = (category && VALID_ASSET_CATEGORIES.includes(category as AssetCategory) ? category : 'uploads') as AssetCategory;
+    const folderType = (VALID_ASSET_TYPES.includes(type as AssetType) ? type : 'images') as AssetType;
+    const requestedOwner = typeof owner === 'string' ? owner.trim() : '';
 
     // Sanitize new name slightly (basic check)
     if (newName.includes('..') || newName.includes('/') || newName.includes('\\')) {
@@ -52,16 +55,24 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: 'Asset not found' }, { status: 404 });
     }
 
+    if (requestedOwner) {
+        const metadata = await getAssetMetadata(folderCategory, folderType, oldName);
+        if (metadata?.owner && metadata.owner !== requestedOwner) {
+            return NextResponse.json({ success: false, message: 'Only the owner can rename this asset' }, { status: 403 });
+        }
+    }
+
     if (fs.existsSync(newFilePath)) {
          return NextResponse.json({ success: false, message: 'Filename already exists' }, { status: 409 });
     }
 
     await fs.promises.rename(oldPath, newFilePath);
+    await renameAssetMetadata(folderCategory, folderType, oldName, finalNewName);
 
     return NextResponse.json({ 
         success: true, 
         newName: finalNewName,
-        newPath: `/assets/${folderCategory}/${folderType}/${finalNewName}`
+        newPath: `/api/assets/serve/${folderCategory}/${folderType}/${finalNewName}`
     });
 
   } catch (error) {
