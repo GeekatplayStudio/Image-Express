@@ -160,6 +160,9 @@ describe('TopToolOptionsBar', () => {
         const onTextFontFamilyChange = jest.fn();
         const onTextFontStyleChange = jest.fn();
         const onTextFontSizeChange = jest.fn();
+        const onTextBoldChange = jest.fn();
+        const onTextItalicChange = jest.fn();
+        const onTextUnderlineChange = jest.fn();
 
         render(
             <TopToolOptionsBar
@@ -171,10 +174,16 @@ describe('TopToolOptionsBar', () => {
                     fontStyle: 'normal',
                     fontStyles: ['normal', 'bold'],
                     fontSize: 40,
+                    bold: false,
+                    italic: false,
+                    underline: false,
                 }}
                 onTextFontFamilyChange={onTextFontFamilyChange}
                 onTextFontStyleChange={onTextFontStyleChange}
                 onTextFontSizeChange={onTextFontSizeChange}
+                onTextBoldChange={onTextBoldChange}
+                onTextItalicChange={onTextItalicChange}
+                onTextUnderlineChange={onTextUnderlineChange}
             />
         );
 
@@ -195,5 +204,14 @@ describe('TopToolOptionsBar', () => {
         });
 
         expect(onTextFontSizeChange).toHaveBeenCalledWith(72);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Text toggle bold' }));
+        expect(onTextBoldChange).toHaveBeenCalledWith(true);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Text toggle italic' }));
+        expect(onTextItalicChange).toHaveBeenCalledWith(true);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Text toggle underline' }));
+        expect(onTextUnderlineChange).toHaveBeenCalledWith(true);
     });
 });

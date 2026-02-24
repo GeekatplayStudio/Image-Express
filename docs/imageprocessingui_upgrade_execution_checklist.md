@@ -122,7 +122,7 @@ How to use:
 - [x] Font family selector.
 - [x] Font style selector.
 - [x] Size control.
-- [ ] Bold/Italic/Underline toggles.
+- [x] Bold/Italic/Underline toggles.
 - [ ] Alignment controls.
 - [ ] Color shortcut.
 

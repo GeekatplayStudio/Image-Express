@@ -578,6 +578,9 @@ export default function EditorView({
     const [textTopFontFamily, setTextTopFontFamily] = useState(TOP_TEXT_FONT_FAMILIES[0]);
     const [textTopFontStyle, setTextTopFontStyle] = useState(TOP_TEXT_FONT_STYLES[0]);
     const [textTopFontSize, setTextTopFontSize] = useState(TOP_TEXT_DEFAULT_SIZE);
+    const [textTopBold, setTextTopBold] = useState(false);
+    const [textTopItalic, setTextTopItalic] = useState(false);
+    const [textTopUnderline, setTextTopUnderline] = useState(false);
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
     const redoStackRef = useRef<string[]>([]);
@@ -742,11 +745,20 @@ export default function EditorView({
         if (!canvas) return;
 
         const syncTextFontFamily = () => {
-            const active = canvas.getActiveObject() as (fabric.Object & { type?: string; fontFamily?: string; fontWeight?: string | number }) | null;
+            const active = canvas.getActiveObject() as (fabric.Object & {
+                type?: string;
+                fontFamily?: string;
+                fontWeight?: string | number;
+                fontStyle?: string;
+                underline?: boolean;
+            }) | null;
             if (!active) {
                 setTextTopFontFamily(TOP_TEXT_FONT_FAMILIES[0]);
                 setTextTopFontStyle(TOP_TEXT_FONT_STYLES[0]);
                 setTextTopFontSize(TOP_TEXT_DEFAULT_SIZE);
+                setTextTopBold(false);
+                setTextTopItalic(false);
+                setTextTopUnderline(false);
                 return;
             }
             const activeType = active.type;
@@ -757,11 +769,16 @@ export default function EditorView({
             }
             if (typeof active.fontWeight === 'string' || typeof active.fontWeight === 'number') {
                 setTextTopFontStyle(String(active.fontWeight));
+                const normalizedWeight = String(active.fontWeight).toLowerCase();
+                const numericWeight = Number(normalizedWeight);
+                setTextTopBold(normalizedWeight === 'bold' || (!Number.isNaN(numericWeight) && numericWeight >= 600));
             }
             const activeWithFontSize = active as unknown as { fontSize?: number };
             if (typeof activeWithFontSize.fontSize === 'number') {
                 setTextTopFontSize(Math.max(8, Math.round(activeWithFontSize.fontSize)));
             }
+            setTextTopItalic(active.fontStyle === 'italic');
+            setTextTopUnderline(Boolean(active.underline));
         };
 
         syncTextFontFamily();
@@ -3351,6 +3368,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     fontStyle: textTopFontStyle,
                     fontStyles: TOP_TEXT_FONT_STYLES,
                     fontSize: textTopFontSize,
+                    bold: textTopBold,
+                    italic: textTopItalic,
+                    underline: textTopUnderline,
                 }}
                 onTextFontFamilyChange={(fontFamily) => {
                     setTextTopFontFamily(fontFamily);
@@ -3365,6 +3385,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }}
                 onTextFontStyleChange={(fontStyle) => {
                     setTextTopFontStyle(fontStyle);
+                    const normalizedWeight = String(fontStyle).toLowerCase();
+                    const numericWeight = Number(normalizedWeight);
+                    setTextTopBold(normalizedWeight === 'bold' || (!Number.isNaN(numericWeight) && numericWeight >= 600));
                     if (!canvas) return;
                     const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
                     if (!active) return;
@@ -3384,6 +3407,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
                     if (!isTextObject) return;
                     active.set({ fontSize: normalizedSize });
+                    canvas.requestRenderAll();
+                }}
+                onTextBoldChange={(enabled) => {
+                    setTextTopBold(enabled);
+                    const nextWeight = enabled ? 'bold' : 'normal';
+                    setTextTopFontStyle(nextWeight);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    const activeType = active.type;
+                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+                    if (!isTextObject) return;
+                    active.set({ fontWeight: nextWeight });
+                    canvas.requestRenderAll();
+                }}
+                onTextItalicChange={(enabled) => {
+                    setTextTopItalic(enabled);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    const activeType = active.type;
+                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+                    if (!isTextObject) return;
+                    active.set({ fontStyle: enabled ? 'italic' : 'normal' });
+                    canvas.requestRenderAll();
+                }}
+                onTextUnderlineChange={(enabled) => {
+                    setTextTopUnderline(enabled);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    const activeType = active.type;
+                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+                    if (!isTextObject) return;
+                    active.set({ underline: enabled });
                     canvas.requestRenderAll();
                 }}
             />

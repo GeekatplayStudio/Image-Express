@@ -51,10 +51,16 @@ interface TopToolOptionsBarProps {
         fontStyle: string;
         fontStyles: string[];
         fontSize: number;
+        bold: boolean;
+        italic: boolean;
+        underline: boolean;
     };
     onTextFontFamilyChange?: (fontFamily: string) => void;
     onTextFontStyleChange?: (fontStyle: string) => void;
     onTextFontSizeChange?: (fontSize: number) => void;
+    onTextBoldChange?: (enabled: boolean) => void;
+    onTextItalicChange?: (enabled: boolean) => void;
+    onTextUnderlineChange?: (enabled: boolean) => void;
 }
 
 const TOOL_ACTIONS: Record<string, ToolOptionAction[]> = {
@@ -120,6 +126,9 @@ export default function TopToolOptionsBar({
     onTextFontFamilyChange,
     onTextFontStyleChange,
     onTextFontSizeChange,
+    onTextBoldChange,
+    onTextItalicChange,
+    onTextUnderlineChange,
 }: TopToolOptionsBarProps) {
     const actions = TOOL_ACTIONS[activeTool] || FALLBACK_ACTIONS;
 
@@ -393,6 +402,30 @@ export default function TopToolOptionsBar({
                             />
                             <span>{textOptions.fontSize}px</span>
                         </label>
+
+                        <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
+                            <button
+                                onClick={() => onTextBoldChange?.(!textOptions.bold)}
+                                className={`px-2.5 py-1 text-xs font-bold ${textOptions.bold ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Text toggle bold"
+                            >
+                                B
+                            </button>
+                            <button
+                                onClick={() => onTextItalicChange?.(!textOptions.italic)}
+                                className={`px-2.5 py-1 text-xs italic border-l border-border/50 ${textOptions.italic ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Text toggle italic"
+                            >
+                                I
+                            </button>
+                            <button
+                                onClick={() => onTextUnderlineChange?.(!textOptions.underline)}
+                                className={`px-2.5 py-1 text-xs underline border-l border-border/50 ${textOptions.underline ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Text toggle underline"
+                            >
+                                U
+                            </button>
+                        </div>
                     </>
                 )}
 

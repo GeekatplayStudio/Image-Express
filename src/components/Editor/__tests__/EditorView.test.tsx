@@ -505,6 +505,8 @@ describe('EditorView', () => {
             set: jest.fn(),
             fontFamily: 'Arial',
             fontWeight: 'normal',
+            fontStyle: 'normal',
+            underline: false,
             fontSize: 40,
         };
 
@@ -529,9 +531,15 @@ describe('EditorView', () => {
             target: { value: '72' },
         });
 
+        fireEvent.click(screen.getByRole('button', { name: 'Text toggle bold' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Text toggle italic' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Text toggle underline' }));
+
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontFamily: 'Georgia' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontWeight: 'bold' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontSize: 72 });
+        expect(activeTextObject.set).toHaveBeenCalledWith({ fontStyle: 'italic' });
+        expect(activeTextObject.set).toHaveBeenCalledWith({ underline: true });
         expect(latestCanvasStub?.requestRenderAll).toHaveBeenCalled();
     });
 
