@@ -33,6 +33,8 @@ describe('TopToolOptionsBar', () => {
         const onAutoSelectChange = jest.fn();
         const onSelectionModeChange = jest.fn();
         const onTransformControlsChange = jest.fn();
+        const onSelectFeatherChange = jest.fn();
+        const onSelectAntiAliasChange = jest.fn();
 
         render(
             <TopToolOptionsBar
@@ -42,10 +44,14 @@ describe('TopToolOptionsBar', () => {
                     autoSelectEnabled: true,
                     selectionMode: 'layer',
                     showTransformControls: true,
+                    feather: 0,
+                    antiAlias: true,
                 }}
                 onAutoSelectChange={onAutoSelectChange}
                 onSelectionModeChange={onSelectionModeChange}
                 onTransformControlsChange={onTransformControlsChange}
+                onSelectFeatherChange={onSelectFeatherChange}
+                onSelectAntiAliasChange={onSelectAntiAliasChange}
             />
         );
 
@@ -57,6 +63,12 @@ describe('TopToolOptionsBar', () => {
 
         fireEvent.click(screen.getByLabelText('Show Transform Controls'));
         expect(onTransformControlsChange).toHaveBeenCalledWith(false);
+
+        fireEvent.change(screen.getByLabelText('Select feather'), { target: { value: '24' } });
+        expect(onSelectFeatherChange).toHaveBeenCalledWith(24);
+
+        fireEvent.click(screen.getByLabelText('Select anti-alias'));
+        expect(onSelectAntiAliasChange).toHaveBeenCalledWith(false);
     });
 
     it('renders and wires paint family controls', () => {

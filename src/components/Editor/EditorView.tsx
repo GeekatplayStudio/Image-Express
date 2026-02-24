@@ -564,6 +564,8 @@ export default function EditorView({
     const [autoSelectEnabled, setAutoSelectEnabled] = useState(true);
     const [selectionMode, setSelectionMode] = useState<'layer' | 'group'>('layer');
     const [showTransformControls, setShowTransformControls] = useState(true);
+    const [selectFeather, setSelectFeather] = useState(0);
+    const [selectAntiAlias, setSelectAntiAlias] = useState(true);
     const [paintBrushPreset, setPaintBrushPreset] = useState<'Pencil' | 'Spray' | 'Oil' | 'Watercolor'>('Pencil');
     const [paintBrushSize, setPaintBrushSize] = useState(10);
     const [paintBrushHardness, setPaintBrushHardness] = useState(80);
@@ -628,6 +630,21 @@ export default function EditorView({
         });
         canvas.requestRenderAll();
     }, [canvas, showTransformControls]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        const activeCanvas = canvas as fabric.Canvas & {
+            contextContainer?: CanvasRenderingContext2D | null;
+            contextTop?: CanvasRenderingContext2D | null;
+        };
+        if (activeCanvas.contextContainer) {
+            activeCanvas.contextContainer.imageSmoothingEnabled = selectAntiAlias;
+        }
+        if (activeCanvas.contextTop) {
+            activeCanvas.contextTop.imageSmoothingEnabled = selectAntiAlias;
+        }
+        canvas.requestRenderAll();
+    }, [canvas, selectAntiAlias]);
 
     useEffect(() => {
         if (!canvas || activeTool !== 'paint') return;
@@ -3321,6 +3338,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     autoSelectEnabled,
                     selectionMode,
                     showTransformControls,
+                    feather: selectFeather,
+                    antiAlias: selectAntiAlias,
                 }}
                 onAutoSelectChange={setAutoSelectEnabled}
                 onSelectionModeChange={(mode) => {
@@ -3328,6 +3347,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     toolbarRef.current?.triggerTool(mode === 'group' ? 'layers' : 'select');
                 }}
                 onTransformControlsChange={setShowTransformControls}
+                onSelectFeatherChange={(feather) => {
+                    const normalizedFeather = Math.max(0, Math.min(100, Math.round(feather)));
+                    setSelectFeather(normalizedFeather);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    active.set({
+                        shadow: normalizedFeather > 0
+                            ? new fabric.Shadow({
+                                color: 'rgba(0, 0, 0, 0.35)',
+                                blur: normalizedFeather,
+                                offsetX: 0,
+                                offsetY: 0,
+                            })
+                            : null,
+                    });
+                    canvas.requestRenderAll();
+                }}
+                onSelectAntiAliasChange={setSelectAntiAlias}
                 paintOptions={{
                     brushPreset: paintBrushPreset,
                     size: paintBrushSize,

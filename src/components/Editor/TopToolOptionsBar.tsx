@@ -15,10 +15,14 @@ interface TopToolOptionsBarProps {
         autoSelectEnabled: boolean;
         selectionMode: 'layer' | 'group';
         showTransformControls: boolean;
+        feather: number;
+        antiAlias: boolean;
     };
     onAutoSelectChange?: (enabled: boolean) => void;
     onSelectionModeChange?: (mode: 'layer' | 'group') => void;
     onTransformControlsChange?: (enabled: boolean) => void;
+    onSelectFeatherChange?: (feather: number) => void;
+    onSelectAntiAliasChange?: (enabled: boolean) => void;
     paintOptions?: {
         brushPreset: 'Pencil' | 'Spray' | 'Oil' | 'Watercolor';
         size: number;
@@ -113,6 +117,8 @@ export default function TopToolOptionsBar({
     onAutoSelectChange,
     onSelectionModeChange,
     onTransformControlsChange,
+    onSelectFeatherChange,
+    onSelectAntiAliasChange,
     paintOptions,
     onPaintPresetChange,
     onPaintSizeChange,
@@ -190,6 +196,30 @@ export default function TopToolOptionsBar({
                                 aria-label="Show Transform Controls"
                             />
                             <span>Show Transform Controls</span>
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Feather</span>
+                            <input
+                                aria-label="Select feather"
+                                type="range"
+                                min={0}
+                                max={100}
+                                value={selectOptions.feather}
+                                onChange={(event) => onSelectFeatherChange?.(Number(event.target.value))}
+                                className="w-20"
+                            />
+                            <span>{selectOptions.feather}px</span>
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <input
+                                type="checkbox"
+                                checked={selectOptions.antiAlias}
+                                onChange={(event) => onSelectAntiAliasChange?.(event.target.checked)}
+                                aria-label="Select anti-alias"
+                            />
+                            <span>Anti-alias</span>
                         </label>
                     </>
                 )}

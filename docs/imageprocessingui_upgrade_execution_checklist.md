@@ -103,7 +103,7 @@ How to use:
 - [x] Auto-select toggle.
 - [x] Selection mode (`Layer`/`Group`) toggle.
 - [x] Transform controls toggle.
-- [ ] Feather and anti-alias controls where relevant.
+- [x] Feather and anti-alias controls where relevant.
 
 ## C3. Brush/Paint Family
 - [x] Brush preset trigger.

@@ -30,11 +30,15 @@ if (typeof global.TextDecoder === 'undefined') {
 
 function createCanvasStub() {
     const canvasElement = document.createElement('canvas');
+    const contextContainer = { imageSmoothingEnabled: true } as CanvasRenderingContext2D;
+    const contextTop = { imageSmoothingEnabled: true } as CanvasRenderingContext2D;
     return {
         width: 1200,
         height: 800,
         viewportTransform: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number],
         backgroundColor: '#ffffff',
+        contextContainer,
+        contextTop,
         on: jest.fn(),
         off: jest.fn(),
         fire: jest.fn(),
@@ -408,6 +412,9 @@ describe('EditorView', () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="paint" />);
 
+        const activeObject = { set: jest.fn() };
+        latestCanvasStub?.getActiveObject.mockReturnValue(activeObject);
+
         expect(screen.getByTestId('brand-icon')).toBeInTheDocument();
         expect(screen.getByTestId('toolbar')).toBeInTheDocument();
         expect(screen.getByTestId('design-canvas')).toBeInTheDocument();
@@ -421,6 +428,15 @@ describe('EditorView', () => {
         expect(mockTriggerTool).toHaveBeenCalledWith('layers');
 
         fireEvent.click(screen.getByLabelText('Show Transform Controls'));
+
+        fireEvent.change(screen.getByLabelText('Select feather'), { target: { value: '18' } });
+        expect(activeObject.set).toHaveBeenCalledWith(expect.objectContaining({ shadow: expect.anything() }));
+
+        fireEvent.click(screen.getByLabelText('Select anti-alias'));
+        await waitFor(() => {
+            expect(latestCanvasStub?.contextContainer?.imageSmoothingEnabled).toBe(false);
+            expect(latestCanvasStub?.contextTop?.imageSmoothingEnabled).toBe(false);
+        });
 
         fireEvent.click(screen.getByTitle('How to use Image Express'));
         expect(props.onOpenDocumentation).toHaveBeenCalledTimes(1);

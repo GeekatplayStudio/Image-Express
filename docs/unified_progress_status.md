@@ -3,7 +3,7 @@
 Last updated: 2026-02-24  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
-HEAD: 8beef22
+HEAD: 04204ff
 
 ## Purpose
 This is the single source of truth for implementation progress across:
@@ -29,11 +29,11 @@ Verification method used:
 - [x] Top tool options bar component created and mounted under header.
 - [x] Bound to active tool and live selection/object state.
 
-### C2. Select/Move Family (partially complete section)
+### C2. Select/Move Family
 - [x] Auto-select toggle
 - [x] Selection mode toggle (Layer/Group)
 - [x] Transform controls toggle
-- [ ] Feather / anti-alias controls
+- [x] Feather / anti-alias controls
 
 ### C3. Brush/Paint Family
 - [x] Brush preset
@@ -80,7 +80,6 @@ Verification method used:
 - [ ] Help menu shell + mapped actions
 
 ### C) Top Tool Options Bar Remaining
-- [ ] C2: Feather/anti-alias controls
 - [ ] C6: Shape/Rectangle family (all)
 - [ ] C7: Gradient family (all)
 - [ ] C8: Crop/Eyedropper/Zoom/Hand family (all)
@@ -127,9 +126,9 @@ From `feature_implementation_tracker.md`:
 ---
 
 ## Current Recommended Next Step
-Proceed with **C2.4 Feather/anti-alias controls**:
-- [ ] Add feather/anti-alias UI controls in top select options
-- [ ] Introduce editor state + object application behavior
+Proceed with **C6.1 Shape/Path/Pixels mode toggles**:
+- [ ] Add C6 mode toggle controls in top options when shape tool is active
+- [ ] Introduce editor state + routing behavior for selected mode
 - [ ] Add/update tests for toolbar + editor integration
 - [ ] Run validation gates and update this file + checklist/tracker
 
