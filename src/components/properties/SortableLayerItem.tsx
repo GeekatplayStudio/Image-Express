@@ -23,9 +23,12 @@ interface SortableLayerItemProps {
     childrenNodes?: LayerNode[];
     removeFromFolder?: (id: string) => void;
     onToggleClip?: (obj: fabric.Object) => void;
+    onToggleInspector?: (obj: fabric.Object) => void;
+    inspectorLayerId?: string | null;
+    sortableEnabled?: boolean;
 }
 
-export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [], removeFromFolder, onToggleClip }: SortableLayerItemProps) {
+export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [], removeFromFolder, onToggleClip, onToggleInspector, inspectorLayerId = null, sortableEnabled = true }: SortableLayerItemProps) {
     const extendedObj = obj as ExtendedFabricObject;
     const {
         attributes,
@@ -35,11 +38,12 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
         transition,
         isDragging,
         isOver
-    } = useSortable({ id });
+    } = useSortable({ id, disabled: !sortableEnabled });
 
     const isGroup = obj.type === 'group';
     const children = childrenNodes;
     const isSelected = selectedIds.has(id);
+    const inspectorOpen = inspectorLayerId === id;
     const [showQuickActions, setShowQuickActions] = useState(false);
 
     const [isEditing, setIsEditing] = useState(false);
@@ -103,9 +107,9 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
         >
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div 
-                    {...attributes} 
-                    {...listeners} 
-                    className="cursor-move text-muted-foreground/50 hover:text-foreground p-1 hover:bg-secondary rounded touch-none relative"
+                    {...(sortableEnabled ? attributes : {})}
+                    {...(sortableEnabled ? listeners : {})}
+                    className={`text-muted-foreground/50 p-1 rounded touch-none relative ${sortableEnabled ? 'cursor-move hover:text-foreground hover:bg-secondary' : 'cursor-default opacity-40'}`}
                     style={{ backgroundColor: tagColor !== 'transparent' ? tagColor : undefined, color: tagColor !== 'transparent' ? '#fff' : undefined }}
                     onMouseDown={(e) => isEditing && e.stopPropagation()}
                     onDoubleClick={(e) => {
@@ -222,9 +226,9 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            setShowQuickActions((prev) => !prev);
+                            onToggleInspector?.(obj);
                         }}
-                        className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground"
+                        className={`p-1.5 hover:bg-secondary rounded-md ${inspectorOpen ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                         title="Layer settings"
                     >
                         <SlidersHorizontal size={14} />
@@ -313,6 +317,9 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             expanded={expandedIds.has(child.id)}
                             expandedIds={expandedIds}
                             onToggleClip={onToggleClip}
+                            onToggleInspector={onToggleInspector}
+                            inspectorLayerId={inspectorLayerId}
+                            sortableEnabled={sortableEnabled}
                             childrenNodes={child.children}
                          />
                      ))}

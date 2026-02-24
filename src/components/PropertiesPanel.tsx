@@ -2183,6 +2183,34 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
                     if (!selectedObject) return;
                     handlePropChange('globalCompositeOperation', value);
                 }}
+                onLayerNumericPropChange={(prop, value) => {
+                    if (!selectedObject || !canvas) return;
+                    const normalizedValue = Number.isFinite(value) ? value : 0;
+                    if (prop === 'left' || prop === 'top') {
+                        selectedObject.set(prop, normalizedValue);
+                        selectedObject.setCoords();
+                        canvas.requestRenderAll();
+                        updateObjects();
+                        return;
+                    }
+
+                    if (prop === 'width') {
+                        const baseWidth = selectedObject.width || 1;
+                        const nextScaleX = Math.max(0.01, normalizedValue / baseWidth);
+                        selectedObject.set('scaleX', nextScaleX);
+                        selectedObject.setCoords();
+                        canvas.requestRenderAll();
+                        updateObjects();
+                        return;
+                    }
+
+                    const baseHeight = selectedObject.height || 1;
+                    const nextScaleY = Math.max(0.01, normalizedValue / baseHeight);
+                    selectedObject.set('scaleY', nextScaleY);
+                    selectedObject.setCoords();
+                    canvas.requestRenderAll();
+                    updateObjects();
+                }}
                 onToggleClip={handleToggleClip}
                 onToggleVisibility={(obj) => { 
                     obj.visible = !obj.visible;

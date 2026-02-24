@@ -3,7 +3,7 @@
 Last updated: 2026-02-24  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
-HEAD: 2d9ab9e
+HEAD: 4dcd759
 
 ## Purpose
 This is the single source of truth for implementation progress across:
@@ -95,6 +95,11 @@ Completed in this pass (layer cleanliness phase 1):
 - [x] Simplified layer row controls to reduce persistent icon clutter.
 - [x] Added selected-layer settings/overflow affordance on the right side of row.
 
+Completed in this pass (layer cleanliness phase 2/3):
+- [x] Added selected-layer properties inspector toggle and dedicated layer properties surface (X/Y/W/H).
+- [x] Added explicit Arrange Layers mode toggle and gated drag-sort behavior behind arrange mode.
+- [x] Added component tests for new layer inspector and arrange mode behaviors.
+
 ### E) Missing Tools Program
 - [ ] Alias/identity first phase (Move/Hand/Zoom/Path select aliases)
 - [ ] Raster selection tools (marquee/lasso/wand)
@@ -131,10 +136,10 @@ From `feature_implementation_tracker.md`:
 ---
 
 ## Current Recommended Next Step
-Proceed with **Layer cleanliness phase 2 (dedicated selected-layer properties panel toggle)**:
-- [ ] Add explicit selected-layer properties toggle state in layer row.
-- [ ] Open a dedicated layer properties surface (instead of dense row actions).
-- [ ] Move remaining row quick actions into top strip or compact overflow.
+Proceed with **D1 Right icon rail**:
+- [ ] Add compact right icon rail for panel switching (Layers / Properties first).
+- [ ] Persist selected panel state and reflect active selection visually.
+- [ ] Keep dock/floating/collapse behavior intact while switching panel content.
 - [ ] Run validation gates and update this file + checklist/tracker.
 
 ---

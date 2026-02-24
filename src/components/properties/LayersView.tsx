@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import * as fabric from 'fabric';
-import { Layers, Folder, FolderPlus, Copy, Lock, Unlock, Link2, Link2Off, Trash2 } from 'lucide-react';
+import { Layers, Folder, FolderPlus, Copy, Lock, Unlock, Link2, Link2Off, Trash2, ArrowUpDown } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { LayerNode } from '@/types';
@@ -23,6 +23,7 @@ interface LayersViewProps {
     onCreateFolder: () => void;
     onLayerOpacityChange: (value: number) => void;
     onLayerBlendChange: (value: string) => void;
+    onLayerNumericPropChange?: (prop: 'left' | 'top' | 'width' | 'height', value: number) => void;
     onDblClick?: (obj: fabric.Object) => void;
     onDuplicate?: () => void;
     onToggleClip?: (obj: fabric.Object) => void;
@@ -48,6 +49,7 @@ export function LayersView({
     onCreateFolder,
     onLayerOpacityChange,
     onLayerBlendChange,
+    onLayerNumericPropChange,
     onDblClick,
     onDuplicate,
     onToggleClip,
@@ -56,7 +58,12 @@ export function LayersView({
 }: LayersViewProps) {
     
     const [localExpanded, setLocalExpanded] = useState<Set<string>>(new Set());
+    const [inspectorLayerId, setInspectorLayerId] = useState<string | null>(null);
+    const [arrangeMode, setArrangeMode] = useState(false);
     const expanded = externalExpanded ?? localExpanded;
+
+    const selectedLayerId = selectedObject ? ensureObjectId(selectedObject) : null;
+    const isInspectorOpen = !!selectedLayerId && selectedLayerId === inspectorLayerId;
     
     const handleToggleExpand = (obj: fabric.Object) => {
         if (externalToggleFolder) {
@@ -145,6 +152,16 @@ export function LayersView({
         }
     };
 
+    const handleToggleInspector = (obj: fabric.Object) => {
+        const id = ensureObjectId(obj);
+        setInspectorLayerId((prev) => (prev === id ? null : id));
+    };
+
+    const applyNumericProp = (prop: 'left' | 'top' | 'width' | 'height', value: number) => {
+        if (!onLayerNumericPropChange || Number.isNaN(value)) return;
+        onLayerNumericPropChange(prop, value);
+    };
+
     return (
         <div className="flex flex-col h-full bg-card">
             {/* Header */}
@@ -169,6 +186,15 @@ export function LayersView({
                     </button>
                     <button onClick={onDuplicate} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Duplicate">
                      <Copy size={14} />
+                    </button>
+                    <button
+                        onClick={() => setArrangeMode((prev) => !prev)}
+                        className={`p-1.5 rounded ${arrangeMode ? 'bg-secondary text-foreground' : 'hover:bg-secondary text-muted-foreground'}`}
+                        title="Arrange layers"
+                        aria-label="Arrange layers"
+                        aria-pressed={arrangeMode}
+                    >
+                        <ArrowUpDown size={14} />
                     </button>
                  </div>
 
@@ -246,6 +272,64 @@ export function LayersView({
                  </div>
              </div>
 
+             {isInspectorOpen && selectedObject && (
+                <div className="px-3 py-2 border-b border-border/30 bg-secondary/5 space-y-2">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Selected Layer Properties</div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1 text-[10px] text-muted-foreground">
+                            X
+                            <input
+                                type="number"
+                                value={Math.round(selectedObject.left || 0)}
+                                onChange={(event) => {
+                                    const next = Number(event.target.value);
+                                    applyNumericProp('left', next);
+                                }}
+                                className="h-7 bg-secondary rounded-md text-[11px] px-2 border border-border/50 focus:ring-1 focus:ring-ring"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[10px] text-muted-foreground">
+                            Y
+                            <input
+                                type="number"
+                                value={Math.round(selectedObject.top || 0)}
+                                onChange={(event) => {
+                                    const next = Number(event.target.value);
+                                    applyNumericProp('top', next);
+                                }}
+                                className="h-7 bg-secondary rounded-md text-[11px] px-2 border border-border/50 focus:ring-1 focus:ring-ring"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[10px] text-muted-foreground">
+                            W
+                            <input
+                                type="number"
+                                value={Math.round((selectedObject.width || 0) * (selectedObject.scaleX || 1))}
+                                min={1}
+                                onChange={(event) => {
+                                    const next = Number(event.target.value);
+                                    applyNumericProp('width', next);
+                                }}
+                                className="h-7 bg-secondary rounded-md text-[11px] px-2 border border-border/50 focus:ring-1 focus:ring-ring"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[10px] text-muted-foreground">
+                            H
+                            <input
+                                type="number"
+                                value={Math.round((selectedObject.height || 0) * (selectedObject.scaleY || 1))}
+                                min={1}
+                                onChange={(event) => {
+                                    const next = Number(event.target.value);
+                                    applyNumericProp('height', next);
+                                }}
+                                className="h-7 bg-secondary rounded-md text-[11px] px-2 border border-border/50 focus:ring-1 focus:ring-ring"
+                            />
+                        </label>
+                    </div>
+                </div>
+             )}
+
              {/* List */}
              <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
                  <DndContext 
@@ -272,6 +356,9 @@ export function LayersView({
                                  onToggleExpand={handleToggleExpand}
                                  onDblClick={() => onDblClick && onDblClick(node.obj)}
                                  onToggleClip={onToggleClip}
+                                 onToggleInspector={handleToggleInspector}
+                                 inspectorLayerId={inspectorLayerId}
+                                 sortableEnabled={arrangeMode}
                                  // We pass 'childrenNodes' separately from 'children' because 'children' in React is reserved
                                  childrenNodes={node.children}
                              />

@@ -34,6 +34,10 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
 | Feb 8 2026 | Lint | `npm run lint` - warnings only, no errors | ✅ Verified |
 | Feb 1 2026 | Build | `npm run build` passes | ✅ Verified |
 | Feb 1 2026 | Lint | `npm run lint` - warnings only, no errors | ✅ Verified |
+| Feb 24 2026 | `LayersView.tsx` + `SortableLayerItem.tsx` | Moved selected-layer lock/clip/delete to top strip and reduced persistent row actions | ✅ Done |
+| Feb 24 2026 | `LayersView.tsx` + `PropertiesPanel.tsx` | Added selected-layer inspector toggle and dedicated X/Y/W/H mini-surface | ✅ Done |
+| Feb 24 2026 | `LayersView.tsx` + `SortableLayerItem.tsx` | Added explicit Arrange Layers mode; drag-sort enabled only in arrange mode | ✅ Done |
+| Feb 24 2026 | `LayersView.test.tsx` | Added tests for inspector toggle/properties and arrange mode toggle | ✅ Done |
 
 ---
 ## 1. QA & Build Standards
@@ -132,6 +136,9 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
     - [x] Drag and drop reordering.
     - [x] Visibility/Lock toggles in list.
     - [x] Auto-updates when objects change.
+    - [x] Selected-layer lock/clip/delete actions available in compact top strip.
+    - [x] Selected-layer settings toggle opens dedicated mini inspector (X/Y/W/H).
+    - [x] Arrange mode toggle gates drag-sort behavior for cleaner default list state.
 
 ## 12. User Profile
 - [x] **Profile Modal**: Opens from avatar button in editor header.

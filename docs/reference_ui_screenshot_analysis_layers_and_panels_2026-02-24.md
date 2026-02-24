@@ -417,3 +417,12 @@ Acceptance criteria:
 Implement Phase 1 + Phase 2 first. That pair gives the biggest visual cleanup while preserving your existing strong feature set.
 
 You already have richer functionality than the reference in several areas; the missing piece is mostly **interaction architecture and control density**, not core capability.
+
+---
+
+## 10) Implementation Status Snapshot (Current)
+
+- [x] Phase 1 complete: top-strip selected-layer actions + cleaner row density.
+- [x] Phase 2 complete: selected-layer settings toggle opens dedicated mini inspector (X/Y/W/H).
+- [x] Phase 3 complete: explicit Arrange Layers mode gates drag-sort behavior.
+- [ ] Phase 4 pending: broader consistency pass + right icon rail + panel state persistence.

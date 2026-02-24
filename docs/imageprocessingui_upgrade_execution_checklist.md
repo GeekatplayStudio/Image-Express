@@ -168,6 +168,9 @@ How to use:
 ## D4. Layer/History/Info/Navigator Organization
 - [x] Move selected-layer lock/clip/delete to compact top action strip (phase 1 cleanup).
 - [x] Reduce persistent per-row action density; keep compact row visibility + settings affordance.
+- [x] Add selected-layer properties inspector toggle from row settings icon.
+- [x] Add dedicated layer properties mini-surface (X/Y/W/H) for selected layer.
+- [x] Add explicit Arrange Layers mode toggle and gate drag-sort to that mode.
 - [ ] Add panel-level shortcuts and visibility state persistence.
 - [ ] Ensure history panel reflects true undo stack (not mock list).
 - [ ] Ensure navigator/info panels map to real canvas state if exposed.
