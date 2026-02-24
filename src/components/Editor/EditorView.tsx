@@ -581,6 +581,7 @@ export default function EditorView({
     const [textTopBold, setTextTopBold] = useState(false);
     const [textTopItalic, setTextTopItalic] = useState(false);
     const [textTopUnderline, setTextTopUnderline] = useState(false);
+    const [textTopAlign, setTextTopAlign] = useState<'left' | 'center' | 'right' | 'justify'>('left');
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
     const redoStackRef = useRef<string[]>([]);
@@ -751,6 +752,7 @@ export default function EditorView({
                 fontWeight?: string | number;
                 fontStyle?: string;
                 underline?: boolean;
+                textAlign?: 'left' | 'center' | 'right' | 'justify';
             }) | null;
             if (!active) {
                 setTextTopFontFamily(TOP_TEXT_FONT_FAMILIES[0]);
@@ -759,6 +761,7 @@ export default function EditorView({
                 setTextTopBold(false);
                 setTextTopItalic(false);
                 setTextTopUnderline(false);
+                setTextTopAlign('left');
                 return;
             }
             const activeType = active.type;
@@ -779,6 +782,9 @@ export default function EditorView({
             }
             setTextTopItalic(active.fontStyle === 'italic');
             setTextTopUnderline(Boolean(active.underline));
+            if (active.textAlign) {
+                setTextTopAlign(active.textAlign);
+            }
         };
 
         syncTextFontFamily();
@@ -3371,6 +3377,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     bold: textTopBold,
                     italic: textTopItalic,
                     underline: textTopUnderline,
+                    align: textTopAlign,
                 }}
                 onTextFontFamilyChange={(fontFamily) => {
                     setTextTopFontFamily(fontFamily);
@@ -3442,6 +3449,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
                     if (!isTextObject) return;
                     active.set({ underline: enabled });
+                    canvas.requestRenderAll();
+                }}
+                onTextAlignChange={(align) => {
+                    setTextTopAlign(align);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    const activeType = active.type;
+                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+                    if (!isTextObject) return;
+                    active.set({ textAlign: align });
                     canvas.requestRenderAll();
                 }}
             />

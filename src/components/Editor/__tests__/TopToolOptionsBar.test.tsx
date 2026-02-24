@@ -163,6 +163,7 @@ describe('TopToolOptionsBar', () => {
         const onTextBoldChange = jest.fn();
         const onTextItalicChange = jest.fn();
         const onTextUnderlineChange = jest.fn();
+        const onTextAlignChange = jest.fn();
 
         render(
             <TopToolOptionsBar
@@ -177,6 +178,7 @@ describe('TopToolOptionsBar', () => {
                     bold: false,
                     italic: false,
                     underline: false,
+                    align: 'left',
                 }}
                 onTextFontFamilyChange={onTextFontFamilyChange}
                 onTextFontStyleChange={onTextFontStyleChange}
@@ -184,6 +186,7 @@ describe('TopToolOptionsBar', () => {
                 onTextBoldChange={onTextBoldChange}
                 onTextItalicChange={onTextItalicChange}
                 onTextUnderlineChange={onTextUnderlineChange}
+                onTextAlignChange={onTextAlignChange}
             />
         );
 
@@ -213,5 +216,17 @@ describe('TopToolOptionsBar', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Text toggle underline' }));
         expect(onTextUnderlineChange).toHaveBeenCalledWith(true);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Text align center' }));
+        expect(onTextAlignChange).toHaveBeenCalledWith('center');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Text align right' }));
+        expect(onTextAlignChange).toHaveBeenCalledWith('right');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Text align justify' }));
+        expect(onTextAlignChange).toHaveBeenCalledWith('justify');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Text align left' }));
+        expect(onTextAlignChange).toHaveBeenCalledWith('left');
     });
 });

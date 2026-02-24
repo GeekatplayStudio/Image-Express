@@ -123,7 +123,7 @@ How to use:
 - [x] Font style selector.
 - [x] Size control.
 - [x] Bold/Italic/Underline toggles.
-- [ ] Alignment controls.
+- [x] Alignment controls.
 - [ ] Color shortcut.
 
 ## C6. Shape/Rectangle Family

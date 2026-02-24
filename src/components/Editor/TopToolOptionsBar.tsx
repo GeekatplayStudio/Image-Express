@@ -54,6 +54,7 @@ interface TopToolOptionsBarProps {
         bold: boolean;
         italic: boolean;
         underline: boolean;
+        align: 'left' | 'center' | 'right' | 'justify';
     };
     onTextFontFamilyChange?: (fontFamily: string) => void;
     onTextFontStyleChange?: (fontStyle: string) => void;
@@ -61,6 +62,7 @@ interface TopToolOptionsBarProps {
     onTextBoldChange?: (enabled: boolean) => void;
     onTextItalicChange?: (enabled: boolean) => void;
     onTextUnderlineChange?: (enabled: boolean) => void;
+    onTextAlignChange?: (align: 'left' | 'center' | 'right' | 'justify') => void;
 }
 
 const TOOL_ACTIONS: Record<string, ToolOptionAction[]> = {
@@ -129,6 +131,7 @@ export default function TopToolOptionsBar({
     onTextBoldChange,
     onTextItalicChange,
     onTextUnderlineChange,
+    onTextAlignChange,
 }: TopToolOptionsBarProps) {
     const actions = TOOL_ACTIONS[activeTool] || FALLBACK_ACTIONS;
 
@@ -424,6 +427,37 @@ export default function TopToolOptionsBar({
                                 aria-label="Text toggle underline"
                             >
                                 U
+                            </button>
+                        </div>
+
+                        <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
+                            <button
+                                onClick={() => onTextAlignChange?.('left')}
+                                className={`px-2.5 py-1 text-xs ${textOptions.align === 'left' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Text align left"
+                            >
+                                L
+                            </button>
+                            <button
+                                onClick={() => onTextAlignChange?.('center')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'center' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Text align center"
+                            >
+                                C
+                            </button>
+                            <button
+                                onClick={() => onTextAlignChange?.('right')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'right' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Text align right"
+                            >
+                                R
+                            </button>
+                            <button
+                                onClick={() => onTextAlignChange?.('justify')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'justify' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Text align justify"
+                            >
+                                J
                             </button>
                         </div>
                     </>

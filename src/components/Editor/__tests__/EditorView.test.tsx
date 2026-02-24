@@ -507,6 +507,7 @@ describe('EditorView', () => {
             fontWeight: 'normal',
             fontStyle: 'normal',
             underline: false,
+            textAlign: 'left',
             fontSize: 40,
         };
 
@@ -534,12 +535,18 @@ describe('EditorView', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Text toggle bold' }));
         fireEvent.click(screen.getByRole('button', { name: 'Text toggle italic' }));
         fireEvent.click(screen.getByRole('button', { name: 'Text toggle underline' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Text align center' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Text align right' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Text align justify' }));
 
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontFamily: 'Georgia' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontWeight: 'bold' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontSize: 72 });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontStyle: 'italic' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ underline: true });
+        expect(activeTextObject.set).toHaveBeenCalledWith({ textAlign: 'center' });
+        expect(activeTextObject.set).toHaveBeenCalledWith({ textAlign: 'right' });
+        expect(activeTextObject.set).toHaveBeenCalledWith({ textAlign: 'justify' });
         expect(latestCanvasStub?.requestRenderAll).toHaveBeenCalled();
     });
 
