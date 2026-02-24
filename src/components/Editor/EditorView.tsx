@@ -115,6 +115,7 @@ const TOP_TEXT_FONT_FAMILIES = [
 ];
 
 const TOP_TEXT_FONT_STYLES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+const TOP_TEXT_DEFAULT_SIZE = 40;
 
 export default function EditorView({ 
     initialDesign, 
@@ -576,6 +577,7 @@ export default function EditorView({
     const [penTopRubberBand, setPenTopRubberBand] = useState(true);
     const [textTopFontFamily, setTextTopFontFamily] = useState(TOP_TEXT_FONT_FAMILIES[0]);
     const [textTopFontStyle, setTextTopFontStyle] = useState(TOP_TEXT_FONT_STYLES[0]);
+    const [textTopFontSize, setTextTopFontSize] = useState(TOP_TEXT_DEFAULT_SIZE);
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
     const redoStackRef = useRef<string[]>([]);
@@ -744,6 +746,7 @@ export default function EditorView({
             if (!active) {
                 setTextTopFontFamily(TOP_TEXT_FONT_FAMILIES[0]);
                 setTextTopFontStyle(TOP_TEXT_FONT_STYLES[0]);
+                setTextTopFontSize(TOP_TEXT_DEFAULT_SIZE);
                 return;
             }
             const activeType = active.type;
@@ -754,6 +757,10 @@ export default function EditorView({
             }
             if (typeof active.fontWeight === 'string' || typeof active.fontWeight === 'number') {
                 setTextTopFontStyle(String(active.fontWeight));
+            }
+            const activeWithFontSize = active as unknown as { fontSize?: number };
+            if (typeof activeWithFontSize.fontSize === 'number') {
+                setTextTopFontSize(Math.max(8, Math.round(activeWithFontSize.fontSize)));
             }
         };
 
@@ -3343,6 +3350,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fontFamilies: TOP_TEXT_FONT_FAMILIES,
                     fontStyle: textTopFontStyle,
                     fontStyles: TOP_TEXT_FONT_STYLES,
+                    fontSize: textTopFontSize,
                 }}
                 onTextFontFamilyChange={(fontFamily) => {
                     setTextTopFontFamily(fontFamily);
@@ -3364,6 +3372,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
                     if (!isTextObject) return;
                     active.set({ fontWeight: fontStyle });
+                    canvas.requestRenderAll();
+                }}
+                onTextFontSizeChange={(fontSize) => {
+                    const normalizedSize = Math.max(8, Math.min(240, Math.round(fontSize)));
+                    setTextTopFontSize(normalizedSize);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    const activeType = active.type;
+                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+                    if (!isTextObject) return;
+                    active.set({ fontSize: normalizedSize });
                     canvas.requestRenderAll();
                 }}
             />

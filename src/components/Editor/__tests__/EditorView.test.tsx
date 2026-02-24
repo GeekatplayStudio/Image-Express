@@ -505,6 +505,7 @@ describe('EditorView', () => {
             set: jest.fn(),
             fontFamily: 'Arial',
             fontWeight: 'normal',
+            fontSize: 40,
         };
 
         const props = createDefaultProps();
@@ -524,8 +525,13 @@ describe('EditorView', () => {
             target: { value: 'bold' },
         });
 
+        fireEvent.change(screen.getByLabelText('Text font size'), {
+            target: { value: '72' },
+        });
+
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontFamily: 'Georgia' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontWeight: 'bold' });
+        expect(activeTextObject.set).toHaveBeenCalledWith({ fontSize: 72 });
         expect(latestCanvasStub?.requestRenderAll).toHaveBeenCalled();
     });
 

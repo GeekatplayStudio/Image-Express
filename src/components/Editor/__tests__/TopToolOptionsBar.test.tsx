@@ -159,6 +159,7 @@ describe('TopToolOptionsBar', () => {
         const onTriggerTool = jest.fn();
         const onTextFontFamilyChange = jest.fn();
         const onTextFontStyleChange = jest.fn();
+        const onTextFontSizeChange = jest.fn();
 
         render(
             <TopToolOptionsBar
@@ -169,9 +170,11 @@ describe('TopToolOptionsBar', () => {
                     fontFamilies: ['Arial', 'Georgia'],
                     fontStyle: 'normal',
                     fontStyles: ['normal', 'bold'],
+                    fontSize: 40,
                 }}
                 onTextFontFamilyChange={onTextFontFamilyChange}
                 onTextFontStyleChange={onTextFontStyleChange}
+                onTextFontSizeChange={onTextFontSizeChange}
             />
         );
 
@@ -186,5 +189,11 @@ describe('TopToolOptionsBar', () => {
         });
 
         expect(onTextFontStyleChange).toHaveBeenCalledWith('bold');
+
+        fireEvent.change(screen.getByLabelText('Text font size'), {
+            target: { value: '72' },
+        });
+
+        expect(onTextFontSizeChange).toHaveBeenCalledWith(72);
     });
 });

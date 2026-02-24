@@ -50,9 +50,11 @@ interface TopToolOptionsBarProps {
         fontFamilies: string[];
         fontStyle: string;
         fontStyles: string[];
+        fontSize: number;
     };
     onTextFontFamilyChange?: (fontFamily: string) => void;
     onTextFontStyleChange?: (fontStyle: string) => void;
+    onTextFontSizeChange?: (fontSize: number) => void;
 }
 
 const TOOL_ACTIONS: Record<string, ToolOptionAction[]> = {
@@ -117,6 +119,7 @@ export default function TopToolOptionsBar({
     textOptions,
     onTextFontFamilyChange,
     onTextFontStyleChange,
+    onTextFontSizeChange,
 }: TopToolOptionsBarProps) {
     const actions = TOOL_ACTIONS[activeTool] || FALLBACK_ACTIONS;
 
@@ -375,6 +378,20 @@ export default function TopToolOptionsBar({
                                     <option key={style} value={style}>{style}</option>
                                 ))}
                             </select>
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Size</span>
+                            <input
+                                aria-label="Text font size"
+                                type="range"
+                                min={8}
+                                max={240}
+                                value={textOptions.fontSize}
+                                onChange={(event) => onTextFontSizeChange?.(Number(event.target.value))}
+                                className="w-20"
+                            />
+                            <span>{textOptions.fontSize}px</span>
                         </label>
                     </>
                 )}

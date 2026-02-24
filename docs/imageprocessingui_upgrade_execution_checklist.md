@@ -121,7 +121,7 @@ How to use:
 ## C5. Text Family
 - [x] Font family selector.
 - [x] Font style selector.
-- [ ] Size control.
+- [x] Size control.
 - [ ] Bold/Italic/Underline toggles.
 - [ ] Alignment controls.
 - [ ] Color shortcut.
