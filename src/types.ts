@@ -121,6 +121,10 @@ export type ExtendedFabricObject = fabric.Object & {
     curveStrength?: number;
     curveCenter?: number;
     textPathSourceId?: string;
+    shapeDrawMode?: 'shape' | 'path' | 'pixels';
+    gradientTypeHint?: 'linear' | 'radial' | 'angle';
+    gradientReversed?: boolean;
+    gradientDitherEnabled?: boolean;
     skewZBaseScaleX?: number;
     skewZBaseScaleY?: number;
     skewZBaseSkewX?: number;

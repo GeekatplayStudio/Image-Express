@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import * as fabric from 'fabric';
-import { ExtendedFabricObject, AdjustmentLayerSettings } from '@/types';
+import { ExtendedFabricObject, AdjustmentLayerSettings, AdjustmentLayerType } from '@/types';
 import { TransformProperties } from './TransformProperties';
 import { LayoutProperties } from './LayoutProperties';
 import { LayerEffectsProperties } from './LayerEffectsProperties';
@@ -12,6 +12,61 @@ import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
 import { Folder, Layers, Blend, ChevronDown, ChevronRight, Lock, Unlock, Box, Type } from 'lucide-react';
 import { ColorPicker } from './ColorPicker';
+
+type AdjustmentLauncherItem = {
+    label: string;
+    type?: AdjustmentLayerType;
+    enabled: boolean;
+};
+
+const ADJUSTMENT_LAUNCHER_GROUPS: Array<{ title: string; items: AdjustmentLauncherItem[] }> = [
+    {
+        title: 'Basic',
+        items: [
+            { label: 'Brightness/Contrast', type: 'brightness-contrast', enabled: false },
+            { label: 'Hue/Saturation', type: 'hue-saturation', enabled: true },
+            { label: 'Exposure', type: 'exposure', enabled: true },
+            { label: 'Vibrance', type: 'saturation-vibrance', enabled: true },
+        ]
+    },
+    {
+        title: 'Tonal',
+        items: [
+            { label: 'Levels', type: 'levels', enabled: true },
+            { label: 'Curves', type: 'curves', enabled: true },
+            { label: 'Black & White', type: 'black-white', enabled: true },
+        ]
+    },
+    {
+        title: 'Color',
+        items: [
+            { label: 'Color Balance', type: 'color-balance', enabled: false },
+            { label: 'Light and Color', enabled: false },
+            { label: 'Solid Color', enabled: false },
+        ]
+    },
+];
+
+const ADJUSTMENT_QUICK_TYPES: AdjustmentLayerType[] = [
+    'curves',
+    'levels',
+    'hue-saturation',
+    'exposure',
+    'saturation-vibrance',
+    'black-white',
+];
+
+const getAdjustmentTypeLabel = (type: AdjustmentLayerType) => {
+    if (type === 'curves') return 'Curves';
+    if (type === 'levels') return 'Levels';
+    if (type === 'saturation-vibrance') return 'Vibrance';
+    if (type === 'hue-saturation') return 'Hue/Saturation';
+    if (type === 'exposure') return 'Exposure';
+    if (type === 'black-white') return 'Black & White';
+    if (type === 'brightness-contrast') return 'Brightness/Contrast';
+    if (type === 'color-balance') return 'Color Balance';
+    return 'Adjustment';
+};
 
 interface SelectionPropertiesProps {
     selectedObject: fabric.Object | null;
@@ -46,6 +101,8 @@ interface SelectionPropertiesProps {
     
     // We'll define specific ones for clarity where complex
     updateAdjustment: (settings: AdjustmentLayerSettings) => void;
+    onAdjustmentTypeChange?: (type: AdjustmentLayerType) => void;
+    onCreateAdjustmentLayer?: (type: AdjustmentLayerType) => void;
     onMake3D?: (imageUrl: string) => void;
     
     // Specific state overrides that might not be on object directly or need React state
@@ -83,6 +140,8 @@ export function SelectionProperties({
     selectedTextPathId,
     hasAttachedTextPath,
     updateAdjustment,
+    onAdjustmentTypeChange,
+    onCreateAdjustmentLayer,
     onMake3D,
     textState,
     activeTextEffects,
@@ -94,6 +153,7 @@ export function SelectionProperties({
 }: SelectionPropertiesProps) {
 
     const [isTransformOpen, setIsTransformOpen] = useState(false); // Collapsed by default
+    const [colorMode, setColorMode] = useState<'RGB' | 'HSB' | 'CMYK' | 'Lab'>('RGB');
 
     const isMultiple = selectedObjects.length > 1;
     const isGroup = selectedObject?.type === 'group';
@@ -116,11 +176,50 @@ export function SelectionProperties({
     const isPenObject = !!isPenGeometry && (!!extended?.penMode || !!extended?.isPenPath || looksLikePenLayer);
     const penMode = extended?.penMode || (selectedObject?.type === 'path' ? 'smooth' : 'straight');
     const penClosed = typeof extended?.penClosed === 'boolean' ? extended.penClosed : selectedObject?.type !== 'polyline';
+    const canCreateAdjustments = !!onCreateAdjustmentLayer;
+    const canSwitchAdjustmentType = !!onAdjustmentTypeChange;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleTransform = (values: Record<string, any>) => {
         Object.entries(values).forEach(([k, v]) => onPropChange(k, v));
     };
+
+    const renderAdjustmentLauncher = (mode: 'create' | 'switch') => (
+        <div className="rounded-md border border-border/50 bg-secondary/20 p-2 space-y-2">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Adjustment launcher</div>
+            {ADJUSTMENT_LAUNCHER_GROUPS.map((group) => (
+                <div key={group.title} className="space-y-1">
+                    <div className="text-[10px] text-muted-foreground">{group.title}</div>
+                    <div className="flex flex-wrap gap-1">
+                        {group.items.map((item) => {
+                            const isInteractive = item.enabled && !!item.type && (mode === 'switch' ? canSwitchAdjustmentType : canCreateAdjustments);
+                            const isActive = mode === 'switch' && !!item.type && extended?.adjustmentType === item.type;
+                            return (
+                                <button
+                                    key={`${group.title}-${item.label}`}
+                                    type="button"
+                                    disabled={!isInteractive}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isActive ? 'bg-primary/20 text-primary border-primary/40' : isInteractive ? 'border-border/50 bg-background/80 text-foreground hover:bg-background' : 'border-border/30 bg-background/40 text-muted-foreground/70 cursor-not-allowed'}`}
+                                    onClick={() => {
+                                        if (!isInteractive || !item.type) return;
+                                        if (mode === 'switch') {
+                                            onAdjustmentTypeChange?.(item.type);
+                                            return;
+                                        }
+                                        onCreateAdjustmentLayer?.(item.type);
+                                    }}
+                                    aria-label={`Adjustment action ${item.label}`}
+                                >
+                                    {item.label}
+                                    {!item.enabled ? ' (Soon)' : ''}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 
     if (isMultiple) {
         return (
@@ -328,11 +427,33 @@ export function SelectionProperties({
                     </div>
                     
                     {!isGradient ? (
-                        <ColorPicker 
-                            color={color} 
-                            onChange={(val) => onPropChange('fill', val)} 
-                            label=""
-                        />
+                        <div className="space-y-2">
+                            <div className="grid grid-cols-4 gap-1 rounded-md border border-border/50 bg-secondary/20 p-1">
+                                {(['RGB', 'HSB', 'CMYK', 'Lab'] as const).map((mode) => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        onClick={() => setColorMode(mode)}
+                                        className={`text-[10px] px-1.5 py-1 rounded transition-colors ${colorMode === mode ? 'bg-background text-foreground shadow-sm border border-border/60' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                        aria-label={`Color mode ${mode}`}
+                                    >
+                                        {mode}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {colorMode !== 'RGB' && (
+                                <div className="text-[10px] text-muted-foreground px-1">
+                                    {colorMode} mode UI is currently mapped through the same fill mutation pipeline; channel-specific numeric editors will be added next.
+                                </div>
+                            )}
+
+                            <ColorPicker 
+                                color={color} 
+                                onChange={(val) => onPropChange('fill', val)} 
+                                label=""
+                            />
+                        </div>
                     ) : (
                         <div className="space-y-3 bg-secondary/20 p-2 rounded-md">
                              <div className="flex items-center justify-between text-xs">
@@ -506,6 +627,13 @@ export function SelectionProperties({
                 />
             )}
 
+            {!isAdjustment && canCreateAdjustments && (
+                <div className="p-4 border-b border-border/50 space-y-3">
+                    <h3 className="font-medium text-sm">Adjustments</h3>
+                    {renderAdjustmentLauncher('create')}
+                </div>
+            )}
+
 
             {isText && textState && (
                 <TextEffectsProperties
@@ -543,6 +671,26 @@ export function SelectionProperties({
             {isAdjustment && extended?.adjustmentType && (
                  <div className="p-4 border-b border-border/50 space-y-3">
                     <h3 className="font-medium text-sm">Adjustment Settings</h3>
+                    <div className="rounded-md border border-border/50 bg-secondary/20 p-2 space-y-2">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Quick controls</div>
+                        <div className="flex flex-wrap gap-1">
+                            {ADJUSTMENT_QUICK_TYPES.map((type) => {
+                                const isActive = extended.adjustmentType === type;
+                                return (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isActive ? 'bg-primary/20 text-primary border-primary/40' : 'border-border/50 bg-background/80 text-foreground hover:bg-background'}`}
+                                        onClick={() => onAdjustmentTypeChange?.(type)}
+                                        aria-label={`Quick adjustment ${getAdjustmentTypeLabel(type)}`}
+                                    >
+                                        {getAdjustmentTypeLabel(type)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    {renderAdjustmentLauncher('switch')}
                     <AdjustmentControls 
                         type={extended.adjustmentType}
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any

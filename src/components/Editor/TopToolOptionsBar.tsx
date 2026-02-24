@@ -1,44 +1,81 @@
 'use client';
 
-import { Wand2, Layers, Palette, Type, PenTool, Shapes, Paintbrush, PaintBucket, MousePointer2 } from 'lucide-react';
-
-type ToolOptionAction = {
-    label: string;
-    tool: string;
-    icon: React.ComponentType<{ size?: number; className?: string }>;
-};
+import type { RasterBlendMode, RasterBrushPreset } from '@/lib/raster-engine';
+import SelectionControls from '@/components/Editor/top-tool-options/SelectionControls';
+import PaintControls from '@/components/Editor/top-tool-options/PaintControls';
+import RetouchControls from '@/components/Editor/top-tool-options/RetouchControls';
+import GradientControls from '@/components/Editor/top-tool-options/GradientControls';
 
 interface TopToolOptionsBarProps {
     activeTool: string;
-    onTriggerTool: (tool: string) => void;
     selectOptions?: {
         autoSelectEnabled: boolean;
         selectionMode: 'layer' | 'group';
         showTransformControls: boolean;
         feather: number;
         antiAlias: boolean;
+        modifyPixels?: number;
     };
     onAutoSelectChange?: (enabled: boolean) => void;
     onSelectionModeChange?: (mode: 'layer' | 'group') => void;
     onTransformControlsChange?: (enabled: boolean) => void;
     onSelectFeatherChange?: (feather: number) => void;
     onSelectAntiAliasChange?: (enabled: boolean) => void;
+    onSelectionModifyPixelsChange?: (pixels: number) => void;
+    onSelectionExpand?: () => void;
+    onSelectionContract?: () => void;
+    healingOptions?: {
+        size: number;
+        hardness: number;
+        sampleAllLayers: boolean;
+    };
+    onHealingSizeChange?: (size: number) => void;
+    onHealingHardnessChange?: (hardness: number) => void;
+    onHealingSampleAllLayersChange?: (enabled: boolean) => void;
+    cloneOptions?: {
+        size: number;
+        hardness: number;
+        aligned: boolean;
+        sampleAllLayers: boolean;
+        hasSource: boolean;
+    };
+    onCloneSizeChange?: (size: number) => void;
+    onCloneHardnessChange?: (hardness: number) => void;
+    onCloneAlignedChange?: (enabled: boolean) => void;
+    onCloneSampleAllLayersChange?: (enabled: boolean) => void;
+    onCloneClearSource?: () => void;
+    wandOptions?: {
+        threshold: number;
+    };
+    onWandThresholdChange?: (threshold: number) => void;
     paintOptions?: {
-        brushPreset: 'Pencil' | 'Spray' | 'Oil' | 'Watercolor';
+        brushPreset: RasterBrushPreset;
         size: number;
         hardness: number;
         opacity: number;
         flow: number;
         smoothing: number;
-        blendMode: 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten';
+        blendMode: RasterBlendMode;
     };
-    onPaintPresetChange?: (preset: 'Pencil' | 'Spray' | 'Oil' | 'Watercolor') => void;
+    onPaintPresetChange?: (preset: RasterBrushPreset) => void;
     onPaintSizeChange?: (size: number) => void;
     onPaintHardnessChange?: (hardness: number) => void;
     onPaintOpacityChange?: (opacity: number) => void;
     onPaintFlowChange?: (flow: number) => void;
     onPaintSmoothingChange?: (smoothing: number) => void;
-    onPaintBlendModeChange?: (mode: 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten') => void;
+    onPaintBlendModeChange?: (mode: RasterBlendMode) => void;
+    gradientOptions?: {
+        type: 'linear' | 'radial' | 'angle';
+        blendMode: 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten';
+        opacity: number;
+        reverse: boolean;
+        dither: boolean;
+    };
+    onGradientTypeChange?: (type: 'linear' | 'radial' | 'angle') => void;
+    onGradientBlendModeChange?: (mode: 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten') => void;
+    onGradientOpacityChange?: (opacity: number) => void;
+    onGradientReverseChange?: (enabled: boolean) => void;
+    onGradientDitherChange?: (enabled: boolean) => void;
     penOptions?: {
         mode: 'path' | 'shape';
         pathOperation: 'add' | 'subtract' | 'intersect';
@@ -69,56 +106,74 @@ interface TopToolOptionsBarProps {
     onTextItalicChange?: (enabled: boolean) => void;
     onTextUnderlineChange?: (enabled: boolean) => void;
     onTextAlignChange?: (align: 'left' | 'center' | 'right' | 'justify') => void;
+    shapeOptions?: {
+        mode: 'shape' | 'path' | 'pixels';
+        fillColor: string;
+        strokeColor: string;
+        strokeWidth: number;
+        fixedSize: boolean;
+    };
+    onShapeModeChange?: (mode: 'shape' | 'path' | 'pixels') => void;
+    onShapeFillColorChange?: (color: string) => void;
+    onShapeStrokeColorChange?: (color: string) => void;
+    onShapeStrokeWidthChange?: (width: number) => void;
+    onShapeFixedSizeChange?: (enabled: boolean) => void;
+    cropOptions?: {
+        ratioPreset: 'free' | '1:1' | '4:3' | '16:9';
+        deleteOutside: boolean;
+        useArtboardBounds: boolean;
+    };
+    onCropRatioPresetChange?: (preset: 'free' | '1:1' | '4:3' | '16:9') => void;
+    onCropDeleteOutsideChange?: (enabled: boolean) => void;
+    onCropUseArtboardBoundsChange?: (enabled: boolean) => void;
+    onCropApply?: () => void;
+    eyedropperOptions?: {
+        sampleSize: 1 | 3 | 5 | 11;
+        sampleSource: 'current-layer' | 'all-layers';
+        sampledColor: string;
+    };
+    onEyedropperSampleSizeChange?: (size: 1 | 3 | 5 | 11) => void;
+    onEyedropperSampleSourceChange?: (source: 'current-layer' | 'all-layers') => void;
+    onEyedropperSample?: () => void;
+    zoomOptions?: {
+        mode: 'in' | 'out';
+        step: 5 | 10 | 25 | 50;
+        zoomPercent: number;
+    };
+    onZoomModeChange?: (mode: 'in' | 'out') => void;
+    onZoomStepChange?: (step: 5 | 10 | 25 | 50) => void;
+    onZoomApply?: () => void;
+    onZoomFitToScreen?: () => void;
+    onZoomReset?: () => void;
+    handOptions?: {
+        lockPan: boolean;
+    };
+    onHandLockPanChange?: (enabled: boolean) => void;
 }
-
-const TOOL_ACTIONS: Record<string, ToolOptionAction[]> = {
-    select: [
-        { label: 'Open Layers', tool: 'layers', icon: Layers },
-        { label: 'Adjustments', tool: 'adjustments', icon: Wand2 },
-        { label: 'Color Wheel', tool: 'color-wheel', icon: Palette },
-    ],
-    text: [
-        { label: 'Text Tool', tool: 'text', icon: Type },
-        { label: 'Pen Tool', tool: 'pen', icon: PenTool },
-        { label: 'Shapes Tool', tool: 'shapes', icon: Shapes },
-    ],
-    paint: [
-        { label: 'Paint Tool', tool: 'paint', icon: Paintbrush },
-        { label: 'Gradient Tool', tool: 'gradient', icon: PaintBucket },
-        { label: 'Color Wheel', tool: 'color-wheel', icon: Palette },
-    ],
-    pen: [
-        { label: 'Pen Tool', tool: 'pen', icon: PenTool },
-        { label: 'Select Tool', tool: 'select', icon: MousePointer2 },
-        { label: 'Shapes Tool', tool: 'shapes', icon: Shapes },
-    ],
-    gradient: [
-        { label: 'Gradient Tool', tool: 'gradient', icon: PaintBucket },
-        { label: 'Paint Tool', tool: 'paint', icon: Paintbrush },
-        { label: 'Color Wheel', tool: 'color-wheel', icon: Palette },
-    ],
-    shapes: [
-        { label: 'Shapes Tool', tool: 'shapes', icon: Shapes },
-        { label: 'Text Tool', tool: 'text', icon: Type },
-        { label: 'Gradient Tool', tool: 'gradient', icon: PaintBucket },
-    ],
-};
-
-const FALLBACK_ACTIONS: ToolOptionAction[] = [
-    { label: 'Select Tool', tool: 'select', icon: MousePointer2 },
-    { label: 'Open Layers', tool: 'layers', icon: Layers },
-    { label: 'Color Wheel', tool: 'color-wheel', icon: Palette },
-];
 
 export default function TopToolOptionsBar({
     activeTool,
-    onTriggerTool,
     selectOptions,
     onAutoSelectChange,
     onSelectionModeChange,
     onTransformControlsChange,
     onSelectFeatherChange,
     onSelectAntiAliasChange,
+    onSelectionModifyPixelsChange,
+    onSelectionExpand,
+    onSelectionContract,
+    healingOptions,
+    onHealingSizeChange,
+    onHealingHardnessChange,
+    onHealingSampleAllLayersChange,
+    cloneOptions,
+    onCloneSizeChange,
+    onCloneHardnessChange,
+    onCloneAlignedChange,
+    onCloneSampleAllLayersChange,
+    onCloneClearSource,
+    wandOptions,
+    onWandThresholdChange,
     paintOptions,
     onPaintPresetChange,
     onPaintSizeChange,
@@ -127,6 +182,12 @@ export default function TopToolOptionsBar({
     onPaintFlowChange,
     onPaintSmoothingChange,
     onPaintBlendModeChange,
+    gradientOptions,
+    onGradientTypeChange,
+    onGradientBlendModeChange,
+    onGradientOpacityChange,
+    onGradientReverseChange,
+    onGradientDitherChange,
     penOptions,
     onPenModeChange,
     onPenPathOperationChange,
@@ -141,8 +202,58 @@ export default function TopToolOptionsBar({
     onTextItalicChange,
     onTextUnderlineChange,
     onTextAlignChange,
+    shapeOptions,
+    onShapeModeChange,
+    onShapeFillColorChange,
+    onShapeStrokeColorChange,
+    onShapeStrokeWidthChange,
+    onShapeFixedSizeChange,
+    cropOptions,
+    onCropRatioPresetChange,
+    onCropDeleteOutsideChange,
+    onCropUseArtboardBoundsChange,
+    onCropApply,
+    eyedropperOptions,
+    onEyedropperSampleSizeChange,
+    onEyedropperSampleSourceChange,
+    onEyedropperSample,
+    zoomOptions,
+    onZoomModeChange,
+    onZoomStepChange,
+    onZoomApply,
+    onZoomFitToScreen,
+    onZoomReset,
+    handOptions,
+    onHandLockPanChange,
 }: TopToolOptionsBarProps) {
-    const actions = TOOL_ACTIONS[activeTool] || FALLBACK_ACTIONS;
+    const normalizedActiveTool = activeTool || 'select';
+    const displayToolName = normalizedActiveTool === 'select'
+        ? 'move'
+        : normalizedActiveTool === 'path-select'
+            ? 'path select'
+            : normalizedActiveTool === 'clone-stamp'
+                ? 'clone stamp'
+                : normalizedActiveTool === 'healing'
+                    ? 'healing brush'
+            : normalizedActiveTool;
+
+    const hasQuickControls = Boolean(
+        (activeTool === 'select' && selectOptions)
+        || (activeTool === 'marquee' && selectOptions)
+        || (activeTool === 'lasso' && selectOptions)
+        || (activeTool === 'wand' && selectOptions)
+        || (activeTool === 'healing' && healingOptions)
+        || (activeTool === 'clone-stamp' && cloneOptions)
+        || (activeTool === 'paint' && paintOptions)
+        || (activeTool === 'gradient' && gradientOptions)
+        || (activeTool === 'pen' && penOptions)
+        || (activeTool === 'text' && textOptions)
+        || (activeTool === 'shapes' && shapeOptions)
+        || (activeTool === 'crop' && cropOptions)
+        || (activeTool === 'eyedropper' && eyedropperOptions)
+        || (activeTool === 'zoom' && zoomOptions)
+        || (activeTool === 'hand' && handOptions)
+    );
 
     return (
         <div
@@ -154,180 +265,66 @@ export default function TopToolOptionsBar({
                     Tool Options
                 </span>
                 <span className="text-xs px-2 py-1 rounded-full bg-secondary text-foreground border border-border/60 truncate">
-                    {activeTool || 'select'}
+                    {displayToolName}
                 </span>
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                {activeTool === 'select' && selectOptions && (
-                    <>
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <input
-                                type="checkbox"
-                                checked={selectOptions.autoSelectEnabled}
-                                onChange={(event) => onAutoSelectChange?.(event.target.checked)}
-                                aria-label="Auto-Select"
-                            />
-                            <span>Auto-Select</span>
-                        </label>
-
-                        <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
-                            <button
-                                onClick={() => onSelectionModeChange?.('layer')}
-                                className={`px-2.5 py-1 text-xs ${selectOptions.selectionMode === 'layer' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
-                                aria-label="Selection mode layer"
-                            >
-                                Layer
-                            </button>
-                            <button
-                                onClick={() => onSelectionModeChange?.('group')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${selectOptions.selectionMode === 'group' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
-                                aria-label="Selection mode group"
-                            >
-                                Group
-                            </button>
-                        </div>
-
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <input
-                                type="checkbox"
-                                checked={selectOptions.showTransformControls}
-                                onChange={(event) => onTransformControlsChange?.(event.target.checked)}
-                                aria-label="Show Transform Controls"
-                            />
-                            <span>Show Transform Controls</span>
-                        </label>
-
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <span className="text-muted-foreground">Feather</span>
-                            <input
-                                aria-label="Select feather"
-                                type="range"
-                                min={0}
-                                max={100}
-                                value={selectOptions.feather}
-                                onChange={(event) => onSelectFeatherChange?.(Number(event.target.value))}
-                                className="w-20"
-                            />
-                            <span>{selectOptions.feather}px</span>
-                        </label>
-
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <input
-                                type="checkbox"
-                                checked={selectOptions.antiAlias}
-                                onChange={(event) => onSelectAntiAliasChange?.(event.target.checked)}
-                                aria-label="Select anti-alias"
-                            />
-                            <span>Anti-alias</span>
-                        </label>
-                    </>
+                {(activeTool === 'select' || activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand') && selectOptions && (
+                    <SelectionControls
+                        activeTool={activeTool}
+                        selectOptions={selectOptions}
+                        wandOptions={wandOptions}
+                        onAutoSelectChange={onAutoSelectChange}
+                        onSelectionModeChange={onSelectionModeChange}
+                        onTransformControlsChange={onTransformControlsChange}
+                        onSelectFeatherChange={onSelectFeatherChange}
+                        onSelectAntiAliasChange={onSelectAntiAliasChange}
+                        onSelectionModifyPixelsChange={onSelectionModifyPixelsChange}
+                        onSelectionExpand={onSelectionExpand}
+                        onSelectionContract={onSelectionContract}
+                        onWandThresholdChange={onWandThresholdChange}
+                    />
                 )}
 
                 {activeTool === 'paint' && paintOptions && (
-                    <>
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <span className="text-muted-foreground">Preset</span>
-                            <select
-                                aria-label="Paint preset"
-                                value={paintOptions.brushPreset}
-                                onChange={(event) => onPaintPresetChange?.(event.target.value as 'Pencil' | 'Spray' | 'Oil' | 'Watercolor')}
-                                className="bg-transparent outline-none"
-                            >
-                                <option value="Pencil">Pencil</option>
-                                <option value="Spray">Spray</option>
-                                <option value="Oil">Oil</option>
-                                <option value="Watercolor">Watercolor</option>
-                            </select>
-                        </label>
+                    <PaintControls
+                        paintOptions={paintOptions}
+                        onPaintPresetChange={onPaintPresetChange}
+                        onPaintSizeChange={onPaintSizeChange}
+                        onPaintHardnessChange={onPaintHardnessChange}
+                        onPaintOpacityChange={onPaintOpacityChange}
+                        onPaintFlowChange={onPaintFlowChange}
+                        onPaintSmoothingChange={onPaintSmoothingChange}
+                        onPaintBlendModeChange={onPaintBlendModeChange}
+                    />
+                )}
 
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <span className="text-muted-foreground">Size</span>
-                            <input
-                                aria-label="Paint size"
-                                type="range"
-                                min={1}
-                                max={100}
-                                value={paintOptions.size}
-                                onChange={(event) => onPaintSizeChange?.(Number(event.target.value))}
-                                className="w-20"
-                            />
-                            <span>{paintOptions.size}</span>
-                        </label>
+                {(activeTool === 'healing' || activeTool === 'clone-stamp') && (
+                    <RetouchControls
+                        activeTool={activeTool}
+                        healingOptions={healingOptions}
+                        onHealingSizeChange={onHealingSizeChange}
+                        onHealingHardnessChange={onHealingHardnessChange}
+                        onHealingSampleAllLayersChange={onHealingSampleAllLayersChange}
+                        cloneOptions={cloneOptions}
+                        onCloneSizeChange={onCloneSizeChange}
+                        onCloneHardnessChange={onCloneHardnessChange}
+                        onCloneAlignedChange={onCloneAlignedChange}
+                        onCloneSampleAllLayersChange={onCloneSampleAllLayersChange}
+                        onCloneClearSource={onCloneClearSource}
+                    />
+                )}
 
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <span className="text-muted-foreground">Hardness</span>
-                            <input
-                                aria-label="Paint hardness"
-                                type="range"
-                                min={0}
-                                max={100}
-                                value={paintOptions.hardness}
-                                onChange={(event) => onPaintHardnessChange?.(Number(event.target.value))}
-                                className="w-20"
-                            />
-                            <span>{paintOptions.hardness}%</span>
-                        </label>
-
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <span className="text-muted-foreground">Opacity</span>
-                            <input
-                                aria-label="Paint opacity"
-                                type="range"
-                                min={1}
-                                max={100}
-                                value={paintOptions.opacity}
-                                onChange={(event) => onPaintOpacityChange?.(Number(event.target.value))}
-                                className="w-20"
-                            />
-                            <span>{paintOptions.opacity}%</span>
-                        </label>
-
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <span className="text-muted-foreground">Flow</span>
-                            <input
-                                aria-label="Paint flow"
-                                type="range"
-                                min={1}
-                                max={100}
-                                value={paintOptions.flow}
-                                onChange={(event) => onPaintFlowChange?.(Number(event.target.value))}
-                                className="w-20"
-                            />
-                            <span>{paintOptions.flow}%</span>
-                        </label>
-
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <span className="text-muted-foreground">Smoothing</span>
-                            <input
-                                aria-label="Paint smoothing"
-                                type="range"
-                                min={0}
-                                max={100}
-                                value={paintOptions.smoothing}
-                                onChange={(event) => onPaintSmoothingChange?.(Number(event.target.value))}
-                                className="w-20"
-                            />
-                            <span>{paintOptions.smoothing}%</span>
-                        </label>
-
-                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                            <span className="text-muted-foreground">Blend</span>
-                            <select
-                                aria-label="Paint blend mode"
-                                value={paintOptions.blendMode}
-                                onChange={(event) => onPaintBlendModeChange?.(event.target.value as 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten')}
-                                className="bg-transparent outline-none"
-                            >
-                                <option value="source-over">Normal</option>
-                                <option value="multiply">Multiply</option>
-                                <option value="screen">Screen</option>
-                                <option value="overlay">Overlay</option>
-                                <option value="darken">Darken</option>
-                                <option value="lighten">Lighten</option>
-                            </select>
-                        </label>
-                    </>
+                {activeTool === 'gradient' && gradientOptions && (
+                    <GradientControls
+                        gradientOptions={gradientOptions}
+                        onGradientTypeChange={onGradientTypeChange}
+                        onGradientBlendModeChange={onGradientBlendModeChange}
+                        onGradientOpacityChange={onGradientOpacityChange}
+                        onGradientReverseChange={onGradientReverseChange}
+                        onGradientDitherChange={onGradientDitherChange}
+                    />
                 )}
 
                 {activeTool === 'pen' && penOptions && (
@@ -507,21 +504,279 @@ export default function TopToolOptionsBar({
                     </>
                 )}
 
-                {actions.map((action) => {
-                    const Icon = action.icon;
-                    return (
+                {activeTool === 'shapes' && shapeOptions && (
+                    <>
+                        <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
+                            <button
+                                onClick={() => onShapeModeChange?.('shape')}
+                                className={`px-2.5 py-1 text-xs ${shapeOptions.mode === 'shape' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Shape mode shape"
+                            >
+                                Shape
+                            </button>
+                            <button
+                                onClick={() => onShapeModeChange?.('path')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${shapeOptions.mode === 'path' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Shape mode path"
+                            >
+                                Path
+                            </button>
+                            <button
+                                onClick={() => onShapeModeChange?.('pixels')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${shapeOptions.mode === 'pixels' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Shape mode pixels"
+                            >
+                                Pixels
+                            </button>
+                        </div>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Fill</span>
+                            <input
+                                aria-label="Shape fill color"
+                                type="color"
+                                value={shapeOptions.fillColor}
+                                onChange={(event) => onShapeFillColorChange?.(event.target.value)}
+                                className="h-6 w-8 rounded border border-border/60 bg-transparent p-0"
+                            />
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Stroke</span>
+                            <input
+                                aria-label="Shape stroke color"
+                                type="color"
+                                value={shapeOptions.strokeColor}
+                                onChange={(event) => onShapeStrokeColorChange?.(event.target.value)}
+                                className="h-6 w-8 rounded border border-border/60 bg-transparent p-0"
+                            />
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Stroke Width</span>
+                            <input
+                                aria-label="Shape stroke width"
+                                type="range"
+                                min={0}
+                                max={40}
+                                value={shapeOptions.strokeWidth}
+                                onChange={(event) => onShapeStrokeWidthChange?.(Number(event.target.value))}
+                                className="w-20"
+                            />
+                            <span>{shapeOptions.strokeWidth}px</span>
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <input
+                                type="checkbox"
+                                checked={shapeOptions.fixedSize}
+                                onChange={(event) => onShapeFixedSizeChange?.(event.target.checked)}
+                                aria-label="Shape fixed size"
+                            />
+                            <span>Fixed Size</span>
+                        </label>
+                    </>
+                )}
+
+                {activeTool === 'crop' && cropOptions && (
+                    <>
+                        <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
+                            <button
+                                onClick={() => onCropRatioPresetChange?.('free')}
+                                className={`px-2.5 py-1 text-xs ${cropOptions.ratioPreset === 'free' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Crop ratio free"
+                            >
+                                Free
+                            </button>
+                            <button
+                                onClick={() => onCropRatioPresetChange?.('1:1')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '1:1' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Crop ratio 1:1"
+                            >
+                                1:1
+                            </button>
+                            <button
+                                onClick={() => onCropRatioPresetChange?.('4:3')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '4:3' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Crop ratio 4:3"
+                            >
+                                4:3
+                            </button>
+                            <button
+                                onClick={() => onCropRatioPresetChange?.('16:9')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '16:9' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Crop ratio 16:9"
+                            >
+                                16:9
+                            </button>
+                        </div>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <input
+                                type="checkbox"
+                                checked={cropOptions.deleteOutside}
+                                onChange={(event) => onCropDeleteOutsideChange?.(event.target.checked)}
+                                aria-label="Crop delete outside"
+                            />
+                            <span>Delete Outside</span>
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <input
+                                type="checkbox"
+                                checked={cropOptions.useArtboardBounds}
+                                onChange={(event) => onCropUseArtboardBoundsChange?.(event.target.checked)}
+                                aria-label="Crop use artboard bounds"
+                            />
+                            <span>Use Artboard Bounds</span>
+                        </label>
+
                         <button
-                            key={`${activeTool}-${action.tool}-${action.label}`}
-                            onClick={() => onTriggerTool(action.tool)}
-                            className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium border border-border/60 bg-secondary/40 hover:bg-secondary transition-colors"
-                            aria-label={`Top option: ${action.label}`}
-                            title={`Top option: ${action.label}`}
+                            onClick={() => onCropApply?.()}
+                            className="shrink-0 px-3 py-1 text-xs rounded-md border border-border/60 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                            aria-label="Apply crop"
                         >
-                            <Icon size={14} className="text-muted-foreground" />
-                            <span>{action.label}</span>
+                            Apply Crop
                         </button>
-                    );
-                })}
+                    </>
+                )}
+
+                {activeTool === 'eyedropper' && eyedropperOptions && (
+                    <>
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Sample Size</span>
+                            <select
+                                aria-label="Eyedropper sample size"
+                                value={eyedropperOptions.sampleSize}
+                                onChange={(event) => onEyedropperSampleSizeChange?.(Number(event.target.value) as 1 | 3 | 5 | 11)}
+                                className="bg-transparent outline-none"
+                            >
+                                <option value={1}>Point</option>
+                                <option value={3}>3x3</option>
+                                <option value={5}>5x5</option>
+                                <option value={11}>11x11</option>
+                            </select>
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Source</span>
+                            <select
+                                aria-label="Eyedropper sample source"
+                                value={eyedropperOptions.sampleSource}
+                                onChange={(event) => onEyedropperSampleSourceChange?.(event.target.value as 'current-layer' | 'all-layers')}
+                                className="bg-transparent outline-none"
+                            >
+                                <option value="current-layer">Current Layer</option>
+                                <option value="all-layers">All Layers</option>
+                            </select>
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Color</span>
+                            <input
+                                aria-label="Eyedropper sampled color"
+                                type="color"
+                                value={eyedropperOptions.sampledColor}
+                                readOnly
+                                className="h-6 w-8 rounded border border-border/60 bg-transparent p-0"
+                            />
+                        </label>
+
+                        <button
+                            onClick={() => onEyedropperSample?.()}
+                            className="shrink-0 px-3 py-1 text-xs rounded-md border border-border/60 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                            aria-label="Eyedropper sample"
+                        >
+                            Sample
+                        </button>
+                    </>
+                )}
+
+                {activeTool === 'zoom' && zoomOptions && (
+                    <>
+                        <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
+                            <button
+                                onClick={() => onZoomModeChange?.('in')}
+                                className={`px-2.5 py-1 text-xs ${zoomOptions.mode === 'in' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Zoom mode in"
+                            >
+                                In
+                            </button>
+                            <button
+                                onClick={() => onZoomModeChange?.('out')}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${zoomOptions.mode === 'out' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                aria-label="Zoom mode out"
+                            >
+                                Out
+                            </button>
+                        </div>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Step</span>
+                            <select
+                                aria-label="Zoom step"
+                                value={zoomOptions.step}
+                                onChange={(event) => onZoomStepChange?.(Number(event.target.value) as 5 | 10 | 25 | 50)}
+                                className="bg-transparent outline-none"
+                            >
+                                <option value={5}>5%</option>
+                                <option value={10}>10%</option>
+                                <option value={25}>25%</option>
+                                <option value={50}>50%</option>
+                            </select>
+                        </label>
+
+                        <span className="shrink-0 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            {zoomOptions.zoomPercent}%
+                        </span>
+
+                        <button
+                            onClick={() => onZoomApply?.()}
+                            className="shrink-0 px-3 py-1 text-xs rounded-md border border-border/60 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                            aria-label="Zoom apply"
+                        >
+                            Apply
+                        </button>
+
+                        <button
+                            onClick={() => onZoomFitToScreen?.()}
+                            className="shrink-0 px-3 py-1 text-xs rounded-md border border-border/60 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                            aria-label="Zoom fit to screen"
+                        >
+                            Fit
+                        </button>
+
+                        <button
+                            onClick={() => onZoomReset?.()}
+                            className="shrink-0 px-3 py-1 text-xs rounded-md border border-border/60 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                            aria-label="Zoom reset"
+                        >
+                            100%
+                        </button>
+                    </>
+                )}
+
+                {activeTool === 'hand' && handOptions && (
+                    <>
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <input
+                                type="checkbox"
+                                checked={handOptions.lockPan}
+                                onChange={(event) => onHandLockPanChange?.(event.target.checked)}
+                                aria-label="Hand lock pan"
+                            />
+                            <span>Pan Without Space</span>
+                        </label>
+                        <span className="shrink-0 text-xs text-muted-foreground px-2 py-1 rounded-md border border-border/60 bg-secondary/30">
+                            Space + Drag remains available.
+                        </span>
+                    </>
+                )}
+                {!hasQuickControls && (
+                    <span className="shrink-0 text-xs text-muted-foreground px-2">
+                        No quick properties for this tool.
+                    </span>
+                )}
             </div>
         </div>
     );

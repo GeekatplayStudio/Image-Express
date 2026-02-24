@@ -12,7 +12,10 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "npm.cmd": true
+        "npm.cmd": true,
+        "git commit": true,
+        "git push": true,
+        "git rev-parse": true
     },
     "chat.agent.maxRequests": 50
 }

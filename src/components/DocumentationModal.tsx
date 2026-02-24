@@ -83,7 +83,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="editor-layout" title="Editor Layout">
                             <ul className="list-disc list-inside space-y-2">
                                 <li><span className="font-medium">Header bar:</span> houses Save, Settings, Profile, Export, and quick status chips for AI and 3D connectivity.</li>
-                                <li><span className="font-medium">Toolbar (left):</span> tool-based workflow including Select, Shapes, Text, Gradient fill, Asset Library, AI Zone, AI 3D, Templates, and Layers.</li>
+                                <li><span className="font-medium">Toolbar (left):</span> creation-focused workflow (Move, Text, Shapes, Brush, Pen, Fill/Gradient, Gallery, Library, AI Zone, AI 3D).</li>
                                 <li><span className="font-medium">Design canvas (center):</span> Fabric.js workspace with a white artboard and checkerboard surroundings.</li>
                                 <li><span className="font-medium">Properties panel (right):</span> contextual styling, layer ordering, and canvas configuration.</li>
                                 <li><span className="font-medium">Job Status footer:</span> logs AI background jobs with live progress and completion actions.</li>
@@ -101,7 +101,8 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
 
                         <Section id="toolbar" title="Toolbar Tools">
                             <ul className="list-disc list-inside space-y-2">
-                                <li><span className="font-medium">Select:</span> switches back to standard object manipulation.</li>
+                                <li><span className="font-medium">Move (Select alias):</span> switches back to standard object manipulation and transform behavior.</li>
+                                <li><span className="font-medium">Path Select (A):</span> alias entry in tool switching surfaces that routes to Move/Select behavior.</li>
                                 <li><span className="font-medium">Shapes:</span> quick-add rectangle, circle, triangle, or star geometry.</li>
                                 <li><span className="font-medium">Text:</span> inserts editable Fabric IText objects with live typing support.</li>
                                 <li><span className="font-medium">Fill / Gradient:</span> activates gradient painting mode handled in the properties panel.</li>
@@ -109,7 +110,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                                 <li><span className="font-medium">AI Zone:</span> launches the draggable image generator with prompt controls and zone-based placement.</li>
                                 <li><span className="font-medium">AI 3D:</span> opens the 3D generator for Meshy or Tripo powered model creation.</li>
                                 <li><span className="font-medium">Library:</span> loads or saves templates that capture the current canvas layout.</li>
-                                <li><span className="font-medium">Layers:</span> jumps the properties panel to layer management view when collapsed.</li>
+                                <li><span className="font-medium">Layers/Adjustments/Color:</span> available from the right properties rail instead of the left toolbar.</li>
                             </ul>
                         </Section>
 

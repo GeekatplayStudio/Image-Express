@@ -25,23 +25,23 @@ How to use:
 ## B) Menu Bar Upgrade Path (Reference Taxonomy)
 
 ## B1. File Menu
-- [ ] Add `File` menu shell.
+- [x] Add `File` menu shell.
 - [ ] Add `New` action mapping.
 - [ ] Add `Open` action mapping.
 - [ ] Add `Open Recent` submenu wiring.
 - [ ] Add `Close` / `Close All` behavior or hide until supported.
 - [ ] Add `Save` and `Save As` mapping.
-- [ ] Add `Export As` mapping to existing export flow.
+- [x] Add `Export As` mapping to existing export flow.
 - [ ] Add `Export for Web` mapping or hide until supported.
 - [ ] Add `Exit` behavior for desktop mode only (or hide on web).
 
 ## B2. Edit Menu
-- [ ] Add `Edit` menu shell.
-- [ ] Wire `Undo`.
-- [ ] Wire `Redo`.
+- [x] Add `Edit` menu shell.
+- [x] Wire `Undo`.
+- [x] Wire `Redo`.
 - [ ] Wire `Cut/Copy/Paste` only where object clipboard behavior is valid.
 - [ ] Wire `Free Transform` / `Transform` to existing selection transform workflows.
-- [ ] Add `Preferences` mapping to Settings.
+- [x] Add `Preferences` mapping to Settings.
 
 ## B3. Image Menu
 - [ ] Add `Image` menu shell.
@@ -73,9 +73,9 @@ How to use:
 - [ ] Expose only implemented filters; hide all placeholder commands.
 
 ## B7. View Menu
-- [ ] Add `View` menu shell.
-- [ ] Wire `Fit to Screen`, `Zoom In`, `Zoom Out`.
-- [ ] Wire `Show Grid` to current GridOverlay system.
+- [x] Add `View` menu shell.
+- [x] Wire `Fit to Screen`, `Zoom In`, `Zoom Out`.
+- [x] Wire `Show Grid` to current GridOverlay system.
 - [ ] Add `Show Rulers/Guides/Snap/Lock Guides` only if implemented.
 
 ## B8. Window Menu
@@ -129,41 +129,41 @@ How to use:
 - [x] Color shortcut.
 
 ## C6. Shape/Rectangle Family
-- [ ] Shape/Path/Pixels mode toggles.
-- [ ] Fill and stroke shortcuts.
-- [ ] Stroke width control.
-- [ ] Fixed size toggle.
+- [x] Shape/Path/Pixels mode toggles.
+- [x] Fill and stroke shortcuts.
+- [x] Stroke width control.
+- [x] Fixed size toggle.
 
 ## C7. Gradient Family
-- [ ] Gradient type mode (Linear/Radial/Angle).
-- [ ] Blend mode.
-- [ ] Opacity.
-- [ ] Reverse and Dither toggles.
+- [x] Gradient type mode (Linear/Radial/Angle).
+- [x] Blend mode.
+- [x] Opacity.
+- [x] Reverse and Dither toggles.
 
 ## C8. Crop/Eyedropper/Zoom/Hand
-- [ ] Crop ratio presets and crop options.
-- [ ] Eyedropper sample size/source options.
-- [ ] Zoom in/out mode toggles and fit behavior.
-- [ ] Hand tool alias and behavior indicator.
+- [x] Crop ratio presets and crop options.
+- [x] Eyedropper sample size/source options.
+- [x] Zoom in/out mode toggles and fit behavior.
+- [x] Hand tool alias and behavior indicator.
 
 ---
 
 ## D) Properties + Panel Organization Upgrade
 
 ## D1. Right Icon Rail
-- [ ] Add compact right icon rail for panel switching.
-- [ ] Add icons: Layers, Properties, History, Color, Swatches, Brushes, Channels, Paths, Adjustments, Navigator, Info.
-- [ ] Keep existing dock/floating/collapse panel behavior intact.
+- [x] Add compact right icon rail for panel switching (Layers/Properties first slice).
+- [x] Add icons: Layers, Properties, History, Color, Swatches, Brushes, Channels, Adjustments, Navigator, Info.
+- [x] Keep existing dock/floating/collapse panel behavior intact.
 
 ## D2. Color System
-- [ ] Add RGB/HSB/CMYK/Lab tabs in color workflow UI.
-- [ ] Preserve existing palette harmony + saved palettes.
-- [ ] Ensure color changes apply to selected object through existing mutation pipeline.
+- [x] Add RGB/HSB/CMYK/Lab tabs in color workflow UI.
+- [x] Preserve existing palette harmony + saved palettes.
+- [x] Ensure color changes apply to selected object through existing mutation pipeline.
 
 ## D3. Adjustment Layers Discoverability
-- [ ] Add categorized adjustment launcher (matching reference naming).
-- [ ] Keep current adjustment engine (`AdjustmentControls`, filter application, clipping logic).
-- [ ] Add top quick controls when adjustment layer is selected.
+- [x] Add categorized adjustment launcher (matching reference naming).
+- [x] Keep current adjustment engine (`AdjustmentControls`, filter application, clipping logic).
+- [x] Add top quick controls when adjustment layer is selected.
 
 ## D4. Layer/History/Info/Navigator Organization
 - [x] Move selected-layer lock/clip/delete to compact top action strip (phase 1 cleanup).
@@ -171,27 +171,33 @@ How to use:
 - [x] Add selected-layer properties inspector toggle from row settings icon.
 - [x] Add dedicated layer properties mini-surface (X/Y/W/H) for selected layer.
 - [x] Add explicit Arrange Layers mode toggle and gate drag-sort to that mode.
-- [ ] Add panel-level shortcuts and visibility state persistence.
-- [ ] Ensure history panel reflects true undo stack (not mock list).
-- [ ] Ensure navigator/info panels map to real canvas state if exposed.
+- [x] Add panel-level shortcuts and visibility state persistence.
+- [x] Ensure history panel reflects true undo stack (not mock list).
+- [x] Ensure navigator/info panels map to real canvas state if exposed.
 
 ---
 
 ## E) Missing Tools Program (Phased)
 
 ## E1. Alias/Identity First (No New Engine)
-- [ ] Add Move naming alias over Select.
-- [ ] Add Hand tool alias over pan behavior.
-- [ ] Add Zoom tool alias over existing zoom system.
-- [ ] Add Path Selection alias where useful.
+- [x] Add Move naming alias over Select.
+- [x] Add Hand tool alias over pan behavior.
+- [x] Add Zoom tool alias over existing zoom system.
+- [x] Add Path Selection alias where useful.
+
+## E1.5 Raster Brush Engine Consolidation
+- [x] Add shared raster engine utility as single brush source of truth.
+- [x] Keep left-rail `Pen` as vector curves/path tool (separate from raster brushes).
+- [x] Keep `Oil` and `Watercolor` presets on the same raster engine path.
 
 ## E2. New Selection Tools (Require Raster Selection Engine)
-- [ ] Rectangular Marquee.
-- [ ] Lasso.
-- [ ] Magic Wand.
-- [ ] Selection modify operations (expand/contract/feather etc.).
+- [x] Rectangular Marquee.
+- [x] Lasso.
+- [x] Magic Wand.
+- [x] Selection modify operations (expand/contract/feather etc.).
 
 ## E3. Advanced Raster Retouch Tools (Deferred)
+- [x] Bootstrap identities for Healing Brush + Clone Stamp (safe fallback behavior + clone source scaffolding).
 - [ ] Healing Brush.
 - [ ] Clone Stamp.
 - [ ] History Brush.
@@ -202,11 +208,11 @@ How to use:
 
 ## F) Bottom-Right Utility Upgrade
 
-- [ ] Move or duplicate zoom controls to bottom-right utility cluster.
-- [ ] Keep current zoom logic as single source of truth.
-- [ ] Add compact status chips (zoom %, canvas size, grid state).
-- [ ] Ensure no overlap with floating properties panel.
-- [ ] Ensure no overlap with context menu and job status UI.
+- [x] Move or duplicate zoom controls to bottom-right utility cluster.
+- [x] Keep current zoom logic as single source of truth.
+- [x] Add compact status chips (zoom %, canvas size, grid state).
+- [x] Ensure no overlap with floating properties panel.
+- [x] Ensure no overlap with context menu and job status UI.
 
 ---
 
@@ -227,9 +233,9 @@ For each implemented phase:
 
 - [ ] Phase 0 complete (architecture prep)
 - [x] Phase 1 complete (TopToolOptionsBar MVP)
-- [ ] Phase 2 complete (Right icon rail)
-- [ ] Phase 3 complete (Bottom-right utilities)
+- [x] Phase 2 complete (Right icon rail)
+- [x] Phase 3 complete (Bottom-right utilities)
 - [ ] Phase 4 complete (Menu taxonomy shell)
-- [ ] Phase 5 complete (Color/Adjustment organization enhancements)
-- [ ] Phase 6 complete (Missing-tools phase 1 aliases)
+- [x] Phase 5 complete (Color/Adjustment organization enhancements)
+- [x] Phase 6 complete (Missing-tools phase 1 aliases)
 - [ ] Phase 7+ complete (advanced raster tools roadmap)

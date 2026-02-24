@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { 
     ExtendedFabricObject, 
@@ -18,10 +18,10 @@ import {
 // Extracted Components
 import { LayersView } from './properties/LayersView';
 import { SelectionProperties } from './properties/SelectionProperties';
-import { PaintProperties } from './properties/PaintProperties';
 import { CanvasSettingsPanel } from './properties/CanvasSettingsPanel';
 import AssetLibrary from './AssetLibrary';
 import { useGradientControls } from '@/hooks/useGradientControls';
+import type { RasterBlendMode, RasterBrushPreset } from '@/lib/raster-engine';
 
 // Utils & Libs
 import { 
@@ -44,8 +44,20 @@ import {
 
 import { CurvesFilter } from '@/lib/fabric-filters';
 
-import { PenProperties } from './properties/PenProperties';
 import { PenModeSetting, extractScenePenPoints, PEN_DEFAULT_FILL, PEN_DEFAULT_STROKE, buildSmoothPathData, extractSceneBezierNodes, buildBezierPathData, buildAutoBezierNodes } from '@/lib/pen-utils';
+import { PanelMode, PanelModeRail } from './properties/PanelModeRail';
+import {
+    HistoryPanelView,
+    ColorPanelView,
+    SwatchesPanelView,
+    BrushesPanelView,
+    AdjustmentsPanelView,
+    ComingSoonPanelView,
+    NavigatorPanelView,
+    InfoPanelView,
+    ColorPanelMode,
+    NavigatorSceneRect,
+} from './properties/PanelUtilityViews';
 
 interface CustomObjectState {
     _strokeEnabled?: boolean;
@@ -80,11 +92,66 @@ interface PropertiesPanelProps {
     onMake3D?: (imageUrl: string) => void;
     onDuplicate?: () => void;
     onAssetSelect?: (url: string, type: string, name?: string) => void;
+    historyState?: { undo: number; redo: number };
+    onUndo?: () => void;
+    onRedo?: () => void;
+    zoom?: number;
+    brushOptions?: {
+        brushPreset: RasterBrushPreset;
+        size: number;
+        hardness: number;
+        opacity: number;
+        flow: number;
+        smoothing: number;
+        blendMode: RasterBlendMode;
+    };
+    onBrushPresetChange?: (preset: RasterBrushPreset) => void;
+    onBrushSizeChange?: (size: number) => void;
+    onBrushHardnessChange?: (hardness: number) => void;
+    onBrushOpacityChange?: (opacity: number) => void;
+    onBrushFlowChange?: (flow: number) => void;
+    onBrushSmoothingChange?: (smoothing: number) => void;
+    onBrushBlendModeChange?: (mode: RasterBlendMode) => void;
+    onActivatePaintTool?: () => void;
 }
 
+const PANEL_MODE_STORAGE_KEY = 'image-express-properties-panel-mode';
+const PANEL_MODE_VALUES: PanelMode[] = [
+    'layers',
+    'properties',
+    'history',
+    'color',
+    'swatches',
+    'brushes',
+    'channels',
+    'adjustments',
+    'navigator',
+    'info',
+];
 
 
-export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, onMake3D, onDuplicate, onAssetSelect }: PropertiesPanelProps) {
+
+export default function PropertiesPanel({
+    canvas,
+    activeTool,
+    onLayerDblClick,
+    onMake3D,
+    onDuplicate,
+    onAssetSelect,
+    historyState,
+    onUndo,
+    onRedo,
+    zoom = 1,
+    brushOptions,
+    onBrushPresetChange,
+    onBrushSizeChange,
+    onBrushHardnessChange,
+    onBrushOpacityChange,
+    onBrushFlowChange,
+    onBrushSmoothingChange,
+    onBrushBlendModeChange,
+    onActivatePaintTool,
+}: PropertiesPanelProps) {
     const [selectedObject, setSelectedObject] = useState<ExtendedFabricObject | null>(() => {
         if (!canvas) return null;
         const active = canvas.getActiveObjects();
@@ -104,12 +171,45 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+    const [panelMode, setPanelMode] = useState<PanelMode>('properties');
+    const [colorPanelMode, setColorPanelMode] = useState<ColorPanelMode>('RGB');
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const persisted = window.localStorage.getItem(PANEL_MODE_STORAGE_KEY);
+        if (persisted && PANEL_MODE_VALUES.includes(persisted as PanelMode)) {
+            setPanelMode(persisted as PanelMode);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem(PANEL_MODE_STORAGE_KEY, panelMode);
+    }, [panelMode]);
+
+    useEffect(() => {
+        if (activeTool === 'paint' && panelMode === 'properties') {
+            setPanelMode('brushes');
+        }
+    }, [activeTool, panelMode]);
+
+    const withPanelRail = (content: ReactNode) => (
+        <div className="h-full relative">
+            <PanelModeRail mode={panelMode} onModeChange={setPanelMode} />
+            {content}
+        </div>
+    );
 
     // Canvas Settings
     const [canvasWidth, setCanvasWidth] = useState(1080);
     const [canvasHeight, setCanvasHeight] = useState(1080);
     const [canvasColor, setCanvasColor] = useState('#ffffff');
     const [canvasBackgroundEnabled, setCanvasBackgroundEnabled] = useState(true);
+    const [navigatorWorld, setNavigatorWorld] = useState<NavigatorSceneRect>({ left: 0, top: 0, width: 1080, height: 1080 });
+    const [navigatorViewport, setNavigatorViewport] = useState<NavigatorSceneRect>({ left: 0, top: 0, width: 1080, height: 1080 });
+    const [navigatorObjects, setNavigatorObjects] = useState<NavigatorSceneRect[]>([]);
+    const [navigatorBackground, setNavigatorBackground] = useState('#ffffff');
+    const navigatorWorldRef = useRef<NavigatorSceneRect>({ left: 0, top: 0, width: 1080, height: 1080 });
 
     // Selection Props
     const [color, setColor] = useState('#000000');
@@ -243,6 +343,136 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         }
         setCanvasBackgroundEnabled(true);
     }, [canvas]);
+
+    const normalizeNavigatorRect = useCallback((rect: NavigatorSceneRect): NavigatorSceneRect => {
+        const width = Number.isFinite(rect.width) ? Math.max(1, rect.width) : 1;
+        const height = Number.isFinite(rect.height) ? Math.max(1, rect.height) : 1;
+        const left = Number.isFinite(rect.left) ? rect.left : 0;
+        const top = Number.isFinite(rect.top) ? rect.top : 0;
+        return { left, top, width, height };
+    }, []);
+
+    const getObjectSceneRect = useCallback((obj: fabric.Object | null | undefined): NavigatorSceneRect | null => {
+        if (!obj) return null;
+        if (typeof obj.getCoords === 'function') {
+            const coords = obj.getCoords();
+            if (Array.isArray(coords) && coords.length > 0) {
+                const xs = coords.map((point) => point.x).filter((value) => Number.isFinite(value));
+                const ys = coords.map((point) => point.y).filter((value) => Number.isFinite(value));
+                if (xs.length > 0 && ys.length > 0) {
+                    const minX = Math.min(...xs);
+                    const maxX = Math.max(...xs);
+                    const minY = Math.min(...ys);
+                    const maxY = Math.max(...ys);
+                    if (Number.isFinite(minX) && Number.isFinite(maxX) && Number.isFinite(minY) && Number.isFinite(maxY)) {
+                        return normalizeNavigatorRect({
+                            left: minX,
+                            top: minY,
+                            width: maxX - minX,
+                            height: maxY - minY,
+                        });
+                    }
+                }
+            }
+        }
+
+        if (typeof obj.getBoundingRect === 'function') {
+            const bounds = obj.getBoundingRect();
+            if (
+                Number.isFinite(bounds.left)
+                && Number.isFinite(bounds.top)
+                && Number.isFinite(bounds.width)
+                && Number.isFinite(bounds.height)
+            ) {
+                return normalizeNavigatorRect({
+                    left: bounds.left,
+                    top: bounds.top,
+                    width: bounds.width,
+                    height: bounds.height,
+                });
+            }
+        }
+
+        return null;
+    }, [normalizeNavigatorRect]);
+
+    const getNavigatorWorldBounds = useCallback((): NavigatorSceneRect => {
+        if (!canvas) {
+            return { left: 0, top: 0, width: Math.max(1, canvasWidth), height: Math.max(1, canvasHeight) };
+        }
+
+        const extendedCanvas = canvas as CanvasWithArtboard;
+        if (extendedCanvas.artboardRect) {
+            const artboardRect = getObjectSceneRect(extendedCanvas.artboardRect);
+            if (artboardRect) {
+                return artboardRect;
+            }
+        }
+
+        if (extendedCanvas.artboard) {
+            return normalizeNavigatorRect({
+                left: extendedCanvas.artboard.left,
+                top: extendedCanvas.artboard.top,
+                width: extendedCanvas.artboard.width,
+                height: extendedCanvas.artboard.height,
+            });
+        }
+
+        return { left: 0, top: 0, width: Math.max(1, canvasWidth), height: Math.max(1, canvasHeight) };
+    }, [canvas, canvasWidth, canvasHeight, getObjectSceneRect, normalizeNavigatorRect]);
+
+    const getNavigatorObjectRects = useCallback((world: NavigatorSceneRect) => {
+        if (!canvas) return [];
+        const extendedCanvas = canvas as CanvasWithArtboard;
+        const items = canvas.getObjects()
+            .filter((obj) => obj !== extendedCanvas.artboardRect && obj.visible !== false)
+            .map((obj) => getObjectSceneRect(obj))
+            .filter((rect): rect is NavigatorSceneRect => !!rect)
+            .map((rect) => {
+                const right = Math.min(world.left + world.width, rect.left + rect.width);
+                const bottom = Math.min(world.top + world.height, rect.top + rect.height);
+                const left = Math.max(world.left, rect.left);
+                const top = Math.max(world.top, rect.top);
+                const width = right - left;
+                const height = bottom - top;
+                if (width <= 0 || height <= 0) return null;
+                return { left, top, width, height };
+            })
+            .filter((rect): rect is NavigatorSceneRect => !!rect);
+        return items.slice(0, 200);
+    }, [canvas, getObjectSceneRect]);
+
+    const syncNavigatorStatic = useCallback(() => {
+        if (!canvas) return;
+        const nextWorld = getNavigatorWorldBounds();
+        navigatorWorldRef.current = nextWorld;
+        setNavigatorWorld(nextWorld);
+        setNavigatorObjects(getNavigatorObjectRects(nextWorld));
+
+        const extendedCanvas = canvas as CanvasWithArtboard;
+        const artboardColor = extendedCanvas.artboardRect && typeof extendedCanvas.artboardRect.canvasBackgroundColor === 'string'
+            ? normalizeColorValue(extendedCanvas.artboardRect.canvasBackgroundColor) || extendedCanvas.artboardRect.canvasBackgroundColor
+            : null;
+        setNavigatorBackground(artboardColor || canvasColor || '#ffffff');
+    }, [canvas, canvasColor, getNavigatorObjectRects, getNavigatorWorldBounds]);
+
+    const syncNavigatorViewport = useCallback(() => {
+        if (!canvas) return;
+        const world = navigatorWorldRef.current;
+        const zoomValue = Math.max(0.0001, canvas.getZoom() || 1);
+        const viewport = canvas.viewportTransform || [zoomValue, 0, 0, zoomValue, 0, 0];
+        const visibleWidth = (canvas.width || canvas.getWidth() || 1) / zoomValue;
+        const visibleHeight = (canvas.height || canvas.getHeight() || 1) / zoomValue;
+        const sceneLeft = (-viewport[4]) / zoomValue;
+        const sceneTop = (-viewport[5]) / zoomValue;
+        const nextViewport = normalizeNavigatorRect({
+            left: Math.max(world.left, Math.min(sceneLeft, world.left + world.width - visibleWidth)),
+            top: Math.max(world.top, Math.min(sceneTop, world.top + world.height - visibleHeight)),
+            width: Math.min(world.width, visibleWidth),
+            height: Math.min(world.height, visibleHeight),
+        });
+        setNavigatorViewport(nextViewport);
+    }, [canvas, normalizeNavigatorRect]);
 
     const applyAdjustmentLayers = useCallback(() => {
         if (!canvas) return;
@@ -500,6 +730,38 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              (canvas as any).off('workspace:color', syncCanvasMetrics);
         };
     }, [canvas, syncCanvasMetrics]);
+
+    useEffect(() => {
+        if (!canvas || panelMode !== 'navigator') return;
+
+        const syncAll = () => {
+            syncNavigatorStatic();
+            syncNavigatorViewport();
+        };
+        const syncViewportOnly = () => {
+            syncNavigatorViewport();
+        };
+
+        syncAll();
+
+        canvas.on('object:added', syncAll);
+        canvas.on('object:removed', syncAll);
+        canvas.on('object:modified', syncAll);
+        canvas.on('path:created', syncAll);
+        canvas.on('after:render', syncViewportOnly);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (canvas as any).on('artboard:resize', syncAll);
+
+        return () => {
+            canvas.off('object:added', syncAll);
+            canvas.off('object:removed', syncAll);
+            canvas.off('object:modified', syncAll);
+            canvas.off('path:created', syncAll);
+            canvas.off('after:render', syncViewportOnly);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (canvas as any).off('artboard:resize', syncAll);
+        };
+    }, [canvas, panelMode, syncNavigatorStatic, syncNavigatorViewport]);
 
 
 
@@ -797,6 +1059,28 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         selectedObject.adjustmentSettings = newSettings as AdjustmentLayerSettings;
         setAdjustmentSettings(newSettings as AdjustmentLayerSettings);
         applyAdjustmentLayers();
+    };
+
+    const handleCreateAdjustmentLayer = (type: AdjustmentLayerType) => {
+        if (!canvas) return;
+        (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('adjustment:create', { type });
+    };
+
+    const handleAdjustmentTypeChange = (type: AdjustmentLayerType) => {
+        if (!selectedObject || !canvas) return;
+        const target = selectedObject as ExtendedFabricObject;
+        if (!target.isAdjustmentLayer) return;
+
+        // eslint-disable-next-line react-hooks/immutability
+        target.adjustmentType = type;
+        target.adjustmentSettings = getDefaultAdjustmentSettings(type);
+        target.name = getAdjustmentLabel(type);
+        setAdjustmentSettings(target.adjustmentSettings);
+        target.set('dirty', true);
+
+        applyAdjustmentLayers();
+        canvas.requestRenderAll();
+        updateObjects();
     };
 
     const createTextPathFromObject = useCallback(async (source: fabric.Object): Promise<fabric.Path | null> => {
@@ -2113,24 +2397,143 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         );
     }
 
-    if (activeTool === 'paint') {
-        return (
-            <PaintProperties 
-                canvas={canvas}
+    const selectedExt = selectedObject as ExtendedFabricObject | null;
+    const hasEditableFillTarget = !!selectedObject
+        && selectedIds.size <= 1
+        && selectedObject.type !== 'image'
+        && selectedObject.type !== 'group'
+        && !selectedExt?.isAdjustmentLayer;
+    const selectedAdjustmentType = selectedExt?.isAdjustmentLayer ? selectedExt.adjustmentType ?? null : null;
+
+    if (panelMode === 'color') {
+        return withPanelRail(
+            <ColorPanelView
+                color={color}
+                colorMode={colorPanelMode}
+                hasEditableTarget={hasEditableFillTarget}
+                onColorModeChange={setColorPanelMode}
+                onColorChange={(nextColor) => handlePropChange('fill', nextColor)}
+            />
+        );
+    }
+
+    if (panelMode === 'swatches') {
+        return withPanelRail(
+            <SwatchesPanelView
+                hasEditableTarget={hasEditableFillTarget}
+                onApplySwatch={(nextColor) => handlePropChange('fill', nextColor)}
+            />
+        );
+    }
+
+    if (panelMode === 'brushes') {
+        return withPanelRail(
+            <BrushesPanelView
                 activeTool={activeTool}
-                onExpandFolder={(id) => {
-                     setExpandedFolders(prev => {
-                         const n = new Set(prev);
-                         n.add(id);
-                         return n;
-                     });
+                brushOptions={brushOptions}
+                onBrushPresetChange={onBrushPresetChange}
+                onBrushSizeChange={onBrushSizeChange}
+                onBrushHardnessChange={onBrushHardnessChange}
+                onBrushOpacityChange={onBrushOpacityChange}
+                onBrushFlowChange={onBrushFlowChange}
+                onBrushSmoothingChange={onBrushSmoothingChange}
+                onBrushBlendModeChange={onBrushBlendModeChange}
+                onActivatePaintTool={onActivatePaintTool}
+            />
+        );
+    }
+
+    if (panelMode === 'channels') {
+        return withPanelRail(
+            <ComingSoonPanelView
+                title="Channels"
+                description="Channel editing (RGB/alpha channel isolation and per-channel operations) is not implemented yet."
+            />
+        );
+    }
+
+    if (panelMode === 'adjustments') {
+        return withPanelRail(
+            <AdjustmentsPanelView
+                selectedAdjustmentType={selectedAdjustmentType}
+                onCreateAdjustment={handleCreateAdjustmentLayer}
+                onSwitchAdjustmentType={selectedAdjustmentType ? handleAdjustmentTypeChange : undefined}
+            />
+        );
+    }
+
+    if (panelMode === 'history') {
+        return withPanelRail(
+            <HistoryPanelView
+                undoCount={historyState?.undo ?? 0}
+                redoCount={historyState?.redo ?? 0}
+                onUndo={onUndo}
+                onRedo={onRedo}
+            />
+        );
+    }
+
+    if (panelMode === 'navigator') {
+        return withPanelRail(
+            <NavigatorPanelView
+                zoom={zoom}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+                navigatorWorld={navigatorWorld}
+                navigatorViewport={navigatorViewport}
+                navigatorObjects={navigatorObjects}
+                navigatorBackground={navigatorBackground}
+                onZoomStep={(delta) => {
+                    if (!canvas) return;
+                    const currentZoom = canvas.getZoom();
+                    const nextZoom = Math.max(0.05, Math.min(20, currentZoom + delta));
+                    const centerPoint = new fabric.Point((canvas.width || 1) / 2, (canvas.height || 1) / 2);
+                    canvas.zoomToPoint(centerPoint, nextZoom);
+                    canvas.requestRenderAll();
                 }}
-                onObjectsUpdate={updateObjects}
+                onResetView={() => {
+                    if (!canvas) return;
+                    canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as fabric.TMat2D);
+                    canvas.requestRenderAll();
+                }}
+                onNavigate={(sceneX, sceneY) => {
+                    if (!canvas) return;
+                    const world = navigatorWorldRef.current;
+                    const zoomValue = Math.max(0.05, canvas.getZoom() || 1);
+                    const viewportWidth = (canvas.width || canvas.getWidth() || 1) / zoomValue;
+                    const viewportHeight = (canvas.height || canvas.getHeight() || 1) / zoomValue;
+
+                    const centerX = world.width <= viewportWidth
+                        ? world.left + (world.width / 2)
+                        : Math.max(world.left + (viewportWidth / 2), Math.min(sceneX, world.left + world.width - (viewportWidth / 2)));
+                    const centerY = world.height <= viewportHeight
+                        ? world.top + (world.height / 2)
+                        : Math.max(world.top + (viewportHeight / 2), Math.min(sceneY, world.top + world.height - (viewportHeight / 2)));
+
+                    const viewport = (canvas.viewportTransform ? [...canvas.viewportTransform] : [zoomValue, 0, 0, zoomValue, 0, 0]) as fabric.TMat2D;
+                    viewport[4] = ((canvas.width || canvas.getWidth() || 1) / 2) - (centerX * zoomValue);
+                    viewport[5] = ((canvas.height || canvas.getHeight() || 1) / 2) - (centerY * zoomValue);
+                    canvas.setViewportTransform(viewport);
+                    canvas.requestRenderAll();
+                }}
+            />
+        );
+    }
+
+    if (panelMode === 'info') {
+        return withPanelRail(
+            <InfoPanelView
+                activeTool={activeTool}
+                zoom={zoom}
+                objectCount={objects.length}
+                selectedCount={selectedIds.size}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
             />
         );
     }
     
-    if (activeTool === 'layers') {
+    if (activeTool === 'layers' || panelMode === 'layers') {
         const handleToggleClip = () => {
             if (!selectedObject || !canvas) return;
             const ext = selectedObject as ExtendedFabricObject;
@@ -2139,7 +2542,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
             canvas.requestRenderAll();
             updateObjects();
         };
-        return (
+        return withPanelRail(
             <LayersView 
                 objects={objects}
                 selectedIds={selectedIds}
@@ -2249,13 +2652,9 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
         );
     }
 
-    if (activeTool === 'pen') {
-        return <PenProperties canvas={canvas} />;
-    }
-
     if (!selectedObject && selectedIds.size === 0) {
-         return (
-             <div className="h-full bg-card overflow-y-auto">
+         return withPanelRail(
+             <div className="h-full bg-card overflow-y-auto pr-12">
                  <CanvasSettingsPanel 
                      width={canvasWidth}
                      height={canvasHeight}
@@ -2326,7 +2725,7 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
     const hasAttachedTextPath = isTextObject(selectedObject)
         && !!((selectedObject as unknown as { path?: fabric.Path | null }).path);
 
-    return (
+    return withPanelRail(
         <SelectionProperties 
              selectedObject={selectedObject}
              selectedObjects={canvas?.getActiveObjects() || []}
@@ -2353,6 +2752,8 @@ export default function PropertiesPanel({ canvas, activeTool, onLayerDblClick, o
              onAttachTextToPath={(pathId) => handlePropChange('attachTextToPath', pathId)}
              onDetachTextPath={() => handlePropChange('detachTextPath', true)}
              updateAdjustment={updateAdjustment}
+             onAdjustmentTypeChange={handleAdjustmentTypeChange}
+             onCreateAdjustmentLayer={handleCreateAdjustmentLayer}
              textState={{ font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter }}
              activeTextEffects={activeTextEffects}
              textEffectConfigs={textEffectConfigs}

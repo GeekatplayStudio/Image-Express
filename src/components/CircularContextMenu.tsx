@@ -12,7 +12,8 @@ interface CircularContextMenuProps {
 }
 
 const MENU_ITEMS = [
-    { id: 'select', icon: Move, label: 'Select', color: '#60a5fa' }, // Blue
+    { id: 'select', icon: Move, label: 'Move', color: '#60a5fa' }, // Blue
+    { id: 'path-select', icon: PenTool, label: 'Path Select', color: '#8b5cf6' }, // Violet
     { id: 'layers', icon: Layers, label: 'Layers', color: '#4f46e5' }, // Indigo
     { id: 'text', icon: Type, label: 'Text', color: '#10b981' }, // Emerald
     { id: 'shapes', icon: Shapes, label: 'Shapes', color: '#0ea5e9' }, // Sky

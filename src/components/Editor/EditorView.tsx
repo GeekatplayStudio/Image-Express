@@ -10,13 +10,14 @@ import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import UserProfileModal from '@/components/UserProfileModal';
 import TopToolOptionsBar from '@/components/Editor/TopToolOptionsBar';
+import ToolsDropdownMenu from '@/components/Editor/ToolsDropdownMenu';
 import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
 import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
 import { GridOverlay, GridType } from '@/components/GridOverlay';
 import { GradientControls } from '@/components/GradientControls';
-import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, Box, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Move, Brush, PenTool, Shapes, Type, PaintBucket, Wand2, LayoutTemplate, Blend, Layers, Palette, Facebook, Instagram, ShieldCheck } from 'lucide-react';
+import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Facebook, Instagram, ShieldCheck } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject, ColorPalette } from '@/types';
 import JSZip from 'jszip';
@@ -26,7 +27,13 @@ import { useToast } from '@/providers/ToastProvider';
 import CircularContextMenu from '@/components/CircularContextMenu';
 import BrandIcon from '@/components/BrandIcon';
 import { Switch } from '@/components/ui/switch';
-import { applyAlphaToColor, normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
+import { normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
+import {
+    applyRasterBrushToCanvas,
+    disableRasterDrawingMode,
+    type RasterBlendMode,
+    type RasterBrushPreset
+} from '@/lib/raster-engine';
 
 interface MissingItem {
     id: string; 
@@ -62,6 +69,26 @@ type ArtboardRectWithBackground = fabric.Rect & {
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number; left: number; top: number };
     artboardRect?: ArtboardRectWithBackground;
+    centerArtboard?: () => void;
+};
+
+type MarqueeSelectionHelper = fabric.Rect & {
+    isSelectionOverlayHelper?: boolean;
+};
+
+type LassoSelectionHelper = fabric.Path & {
+    isSelectionOverlayHelper?: boolean;
+};
+
+type CanvasWithExportInternals = fabric.Canvas & {
+    disposed?: boolean;
+    destroyed?: boolean;
+    elements?: {
+        upper?: { ctx?: CanvasRenderingContext2D; el?: HTMLCanvasElement };
+        lower?: { el?: HTMLCanvasElement };
+    };
+    lowerCanvasEl?: HTMLCanvasElement;
+    getElement?: () => HTMLCanvasElement;
 };
 
 type ExportDataUrlOptions = fabric.TDataUrlOptions & {
@@ -116,6 +143,13 @@ const TOP_TEXT_FONT_FAMILIES = [
 
 const TOP_TEXT_FONT_STYLES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 const TOP_TEXT_DEFAULT_SIZE = 40;
+const TOP_CROP_RATIO_PRESETS = ['free', '1:1', '4:3', '16:9'] as const;
+const TOP_EYEDROPPER_SAMPLE_SIZES = [1, 3, 5, 11] as const;
+const TOP_ZOOM_STEPS = [5, 10, 25, 50] as const;
+
+type TopCropRatioPreset = typeof TOP_CROP_RATIO_PRESETS[number];
+type TopEyedropperSampleSize = typeof TOP_EYEDROPPER_SAMPLE_SIZES[number];
+type TopZoomStep = typeof TOP_ZOOM_STEPS[number];
 
 export default function EditorView({ 
     initialDesign, 
@@ -194,7 +228,10 @@ export default function EditorView({
         'penClosed',
         'penNodes',
         'penSourcePoints',
-        'textPathSourceId'
+        'textPathSourceId',
+        'gradientTypeHint',
+        'gradientReversed',
+        'gradientDitherEnabled'
     ], []);
 
     const getHistorySnapshot = useCallback(() => {
@@ -545,12 +582,17 @@ export default function EditorView({
     };
     
     // UI States
+    const [showFileMenu, setShowFileMenu] = useState(false);
+    const [showEditMenu, setShowEditMenu] = useState(false);
+    const [showViewMenu, setShowViewMenu] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const shareRef = useRef<HTMLDivElement>(null);
     const [showGridMenu, setShowGridMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
     const [gridType, setGridType] = useState<GridType>('none');
+    const [utilityCanvasSize, setUtilityCanvasSize] = useState({ width: 1080, height: 1080 });
+    const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
     const [isExporting, setIsExporting] = useState(false);
     const [showExportQualityModal, setShowExportQualityModal] = useState(false);
     const [exportQualityValue, setExportQualityValue] = useState(100);
@@ -566,13 +608,28 @@ export default function EditorView({
     const [showTransformControls, setShowTransformControls] = useState(true);
     const [selectFeather, setSelectFeather] = useState(0);
     const [selectAntiAlias, setSelectAntiAlias] = useState(true);
-    const [paintBrushPreset, setPaintBrushPreset] = useState<'Pencil' | 'Spray' | 'Oil' | 'Watercolor'>('Pencil');
+    const [selectionModifyPixels, setSelectionModifyPixels] = useState(12);
+    const [wandTopThreshold, setWandTopThreshold] = useState(48);
+    const [healingTopSize, setHealingTopSize] = useState(24);
+    const [healingTopHardness, setHealingTopHardness] = useState(70);
+    const [healingTopSampleAllLayers, setHealingTopSampleAllLayers] = useState(true);
+    const [cloneTopSize, setCloneTopSize] = useState(24);
+    const [cloneTopHardness, setCloneTopHardness] = useState(70);
+    const [cloneTopAligned, setCloneTopAligned] = useState(true);
+    const [cloneTopSampleAllLayers, setCloneTopSampleAllLayers] = useState(true);
+    const [cloneSourcePoint, setCloneSourcePoint] = useState<fabric.Point | null>(null);
+    const [paintBrushPreset, setPaintBrushPreset] = useState<RasterBrushPreset>('Pencil');
     const [paintBrushSize, setPaintBrushSize] = useState(10);
     const [paintBrushHardness, setPaintBrushHardness] = useState(80);
     const [paintBrushOpacity, setPaintBrushOpacity] = useState(100);
     const [paintBrushFlow, setPaintBrushFlow] = useState(100);
     const [paintBrushSmoothing, setPaintBrushSmoothing] = useState(50);
-    const [paintBlendMode, setPaintBlendMode] = useState<'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten'>('source-over');
+    const [paintBlendMode, setPaintBlendMode] = useState<RasterBlendMode>('source-over');
+    const [gradientTopType, setGradientTopType] = useState<'linear' | 'radial' | 'angle'>('linear');
+    const [gradientTopBlendMode, setGradientTopBlendMode] = useState<'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten'>('source-over');
+    const [gradientTopOpacity, setGradientTopOpacity] = useState(100);
+    const [gradientTopReverse, setGradientTopReverse] = useState(false);
+    const [gradientTopDither, setGradientTopDither] = useState(false);
     const [penTopMode, setPenTopMode] = useState<'path' | 'shape'>('path');
     const [penTopPathOperation, setPenTopPathOperation] = useState<'add' | 'subtract' | 'intersect'>('add');
     const [penTopAutoAddDelete, setPenTopAutoAddDelete] = useState(true);
@@ -585,12 +642,27 @@ export default function EditorView({
     const [textTopItalic, setTextTopItalic] = useState(false);
     const [textTopUnderline, setTextTopUnderline] = useState(false);
     const [textTopAlign, setTextTopAlign] = useState<'left' | 'center' | 'right' | 'justify'>('left');
+    const [shapeTopMode, setShapeTopMode] = useState<'shape' | 'path' | 'pixels'>('shape');
+    const [shapeTopFillColor, setShapeTopFillColor] = useState('#8b5cf6');
+    const [shapeTopStrokeColor, setShapeTopStrokeColor] = useState('#111827');
+    const [shapeTopStrokeWidth, setShapeTopStrokeWidth] = useState(0);
+    const [shapeTopFixedSize, setShapeTopFixedSize] = useState(false);
+    const [cropTopRatioPreset, setCropTopRatioPreset] = useState<TopCropRatioPreset>('free');
+    const [cropTopDeleteOutside, setCropTopDeleteOutside] = useState(false);
+    const [cropTopUseArtboardBounds, setCropTopUseArtboardBounds] = useState(true);
+    const [eyedropperTopSampleSize, setEyedropperTopSampleSize] = useState<TopEyedropperSampleSize>(1);
+    const [eyedropperTopSampleSource, setEyedropperTopSampleSource] = useState<'current-layer' | 'all-layers'>('current-layer');
+    const [eyedropperTopSampledColor, setEyedropperTopSampledColor] = useState('#000000');
+    const [zoomTopMode, setZoomTopMode] = useState<'in' | 'out'>('in');
+    const [zoomTopStep, setZoomTopStep] = useState<TopZoomStep>(10);
+    const [handTopLockPan, setHandTopLockPan] = useState(true);
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
     const redoStackRef = useRef<string[]>([]);
     const isRestoringRef = useRef(false);
     const historyReadyRef = useRef(false);
     const [historyState, setHistoryState] = useState({ undo: 0, redo: 0 });
+    const retouchNoticeAtRef = useRef(0);
     
     // Assets & Missing Items
     const [showMissingAssetsModal, setShowMissingAssetsModal] = useState(false);
@@ -605,7 +677,7 @@ export default function EditorView({
         if (!canvas) return;
         const handleSelection = (e: { e?: Event }) => {
             // If user explicitly clicks on canvas (event exists) and we are not in a creation tool, ensure we show properties
-            const creationTools = ['pen', 'paint', 'text', 'shapes', '3d-gen', 'ai-zone'];
+            const creationTools = ['marquee', 'lasso', 'wand', 'healing', 'clone-stamp', 'pen', 'paint', 'text', 'shapes', '3d-gen', 'ai-zone'];
             if (autoSelectEnabled && e.e && !creationTools.includes(activeTool) && activeTool !== 'select') {
                 setActiveTool('select');
             }
@@ -647,60 +719,652 @@ export default function EditorView({
     }, [canvas, selectAntiAlias]);
 
     useEffect(() => {
-        if (!canvas || activeTool !== 'paint') return;
+        if (!canvas) return;
 
-        const drawingCanvas = canvas as fabric.Canvas & {
-            set: (key: string, value: unknown) => void;
-            freeDrawingBrush?: fabric.BaseBrush;
-            isDrawingMode?: boolean;
+        let isDragging = false;
+        let selectionTool: 'marquee' | 'lasso' | null = null;
+        let dragStart: fabric.Point | null = null;
+        let marqueeHelper: MarqueeSelectionHelper | null = null;
+        let lassoHelper: LassoSelectionHelper | null = null;
+        let lassoPoints: fabric.Point[] = [];
+
+        const intersectsBounds = (
+            a: { left: number; top: number; width: number; height: number },
+            b: { left: number; top: number; width: number; height: number }
+        ) => {
+            return !(
+                a.left + a.width < b.left
+                || b.left + b.width < a.left
+                || a.top + a.height < b.top
+                || b.top + b.height < a.top
+            );
         };
 
-        if (typeof drawingCanvas.set === 'function') {
-            drawingCanvas.set('isDrawingMode', true);
-        } else {
-            drawingCanvas.isDrawingMode = true;
-        }
-
-        let brush: fabric.BaseBrush;
-        try {
-            if (paintBrushPreset === 'Spray' || paintBrushPreset === 'Oil') {
-                const sprayBrush = new fabric.SprayBrush(canvas);
-                sprayBrush.density = Math.max(5, Math.round((paintBrushFlow / 100) * 100));
-                if (paintBrushPreset === 'Oil') {
-                    sprayBrush.dotWidth = Math.max(1, paintBrushSize / 8);
-                    sprayBrush.dotWidthVariance = Math.max(1, paintBrushSize / 10);
-                    sprayBrush.randomOpacity = false;
-                    sprayBrush.optimizeOverlapping = false;
-                }
-                brush = sprayBrush;
-            } else {
-                const pencilBrush = new fabric.PencilBrush(canvas);
-                pencilBrush.decimate = Math.max(0, Number((((100 - paintBrushSmoothing) / 100) * 8).toFixed(2)));
-                const blurAmount = Math.max(0, Math.round(((100 - paintBrushHardness) / 100) * 50));
-                pencilBrush.shadow = blurAmount > 0
-                    ? new fabric.Shadow({
-                        blur: blurAmount,
-                        offsetX: 0,
-                        offsetY: 0,
-                        color: '#000000',
-                    })
-                    : null;
-                brush = pencilBrush;
+        const pointInPolygon = (point: fabric.Point, polygon: fabric.Point[]) => {
+            if (polygon.length < 3) return false;
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i].x;
+                const yi = polygon[i].y;
+                const xj = polygon[j].x;
+                const yj = polygon[j].y;
+                const intersects = ((yi > point.y) !== (yj > point.y))
+                    && (point.x < (((xj - xi) * (point.y - yi)) / ((yj - yi) || Number.EPSILON)) + xi);
+                if (intersects) inside = !inside;
             }
-        } catch {
+            return inside;
+        };
+
+        const getPolygonBounds = (points: fabric.Point[]) => {
+            let minX = Infinity;
+            let minY = Infinity;
+            let maxX = -Infinity;
+            let maxY = -Infinity;
+            points.forEach((point) => {
+                if (point.x < minX) minX = point.x;
+                if (point.y < minY) minY = point.y;
+                if (point.x > maxX) maxX = point.x;
+                if (point.y > maxY) maxY = point.y;
+            });
+            return {
+                left: minX,
+                top: minY,
+                width: Math.max(0, maxX - minX),
+                height: Math.max(0, maxY - minY),
+            };
+        };
+
+        const buildLassoPathData = (points: fabric.Point[], closed = false) => {
+            if (points.length === 0) return '';
+            const start = points[0];
+            let pathData = `M ${start.x} ${start.y}`;
+            for (let i = 1; i < points.length; i += 1) {
+                pathData += ` L ${points[i].x} ${points[i].y}`;
+            }
+            if (closed && points.length > 2) {
+                pathData += ' Z';
+            }
+            return pathData;
+        };
+
+        const updateLassoHelperPath = (points: fabric.Point[], closed = false) => {
+            if (!lassoHelper || points.length === 0) return;
+            const nextPath = new fabric.Path(buildLassoPathData(points, closed));
+            lassoHelper.set({
+                path: nextPath.path,
+                width: nextPath.width,
+                height: nextPath.height,
+                pathOffset: nextPath.pathOffset,
+                dirty: true,
+            });
+            lassoHelper.setCoords();
+        };
+
+        const clearSelectionHelpers = () => {
+            if (marqueeHelper) {
+                canvas.remove(marqueeHelper);
+                marqueeHelper = null;
+            }
+            if (lassoHelper) {
+                canvas.remove(lassoHelper);
+                lassoHelper = null;
+            }
+            lassoPoints = [];
+        };
+
+        const getScenePointer = (opt: fabric.TPointerEventInfo): fabric.Point | null => {
+            const optWithScene = opt as unknown as { scenePoint?: fabric.Point };
+            if (optWithScene.scenePoint) return optWithScene.scenePoint;
+
+            const canvasWithScene = canvas as unknown as {
+                getScenePoint?: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point;
+            };
+            if (opt.e && typeof canvasWithScene.getScenePoint === 'function') {
+                return canvasWithScene.getScenePoint(opt.e);
+            }
+
+            return null;
+        };
+
+        const collectSelectableObjects = () => canvas.getObjects().filter((obj) => {
+                const ext = obj as ExtendedFabricObject & {
+                    isPenDraftAnchor?: boolean;
+                    isSelectionOverlayHelper?: boolean;
+                };
+
+                if (obj === marqueeHelper || obj === lassoHelper || ext.isSelectionOverlayHelper) return false;
+                if (obj.type === 'activeSelection' || obj.type === 'selection') return false;
+                if (ext.isPenDraftAnchor) return false;
+                if (ext.name === 'Artboard') return false;
+                if (obj.selectable === false || obj.evented === false) return false;
+                return true;
+            });
+
+        const commitSelectedObjects = (selected: fabric.Object[]) => {
+            if (selected.length === 0) {
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+                return;
+            }
+
+            if (selectionMode === 'layer' || selected.length === 1) {
+                const topMost = selected[selected.length - 1];
+                if (topMost) {
+                    canvas.setActiveObject(topMost);
+                    canvas.requestRenderAll();
+                }
+                return;
+            }
+
+            const activeSelection = new fabric.ActiveSelection(selected, { canvas });
+            canvas.setActiveObject(activeSelection);
+            canvas.requestRenderAll();
+        };
+
+        const commitMarqueeSelection = (selectionBounds: { left: number; top: number; width: number; height: number }) => {
+            const selected = collectSelectableObjects().filter((obj) => {
+                const objectBounds = obj.getBoundingRect();
+                return intersectsBounds(selectionBounds, objectBounds);
+            });
+            commitSelectedObjects(selected);
+        };
+
+        const commitLassoSelection = (points: fabric.Point[]) => {
+            if (points.length < 3) {
+                canvas.requestRenderAll();
+                return;
+            }
+            const polygonBounds = getPolygonBounds(points);
+            const selected = collectSelectableObjects().filter((obj) => {
+                const objectBounds = obj.getBoundingRect();
+                if (!intersectsBounds(polygonBounds, objectBounds)) return false;
+
+                const center = new fabric.Point(
+                    objectBounds.left + (objectBounds.width / 2),
+                    objectBounds.top + (objectBounds.height / 2)
+                );
+                if (pointInPolygon(center, points)) return true;
+
+                const corners = [
+                    new fabric.Point(objectBounds.left, objectBounds.top),
+                    new fabric.Point(objectBounds.left + objectBounds.width, objectBounds.top),
+                    new fabric.Point(objectBounds.left, objectBounds.top + objectBounds.height),
+                    new fabric.Point(objectBounds.left + objectBounds.width, objectBounds.top + objectBounds.height),
+                ];
+                return corners.some((corner) => pointInPolygon(corner, points));
+            });
+
+            commitSelectedObjects(selected);
+        };
+
+        const toRgbColor = (value: unknown): { r: number; g: number; b: number } | null => {
+            if (typeof value !== 'string') return null;
+            const parsed = parseColorWithAlpha(value);
+            if (parsed.alpha <= 0) return null;
+
+            const normalized = (normalizeColorValue(parsed.color) || parsed.color).trim();
+            const shortHex = normalized.match(/^#([0-9a-f]{3})$/i);
+            if (shortHex) {
+                const digits = shortHex[1];
+                return {
+                    r: Number.parseInt(`${digits[0]}${digits[0]}`, 16),
+                    g: Number.parseInt(`${digits[1]}${digits[1]}`, 16),
+                    b: Number.parseInt(`${digits[2]}${digits[2]}`, 16),
+                };
+            }
+
+            const fullHex = normalized.match(/^#([0-9a-f]{6})$/i);
+            if (fullHex) {
+                const digits = fullHex[1];
+                return {
+                    r: Number.parseInt(digits.slice(0, 2), 16),
+                    g: Number.parseInt(digits.slice(2, 4), 16),
+                    b: Number.parseInt(digits.slice(4, 6), 16),
+                };
+            }
+
+            const rgbMatch = normalized.match(/^rgba?\(([^)]+)\)$/i);
+            if (rgbMatch) {
+                const channels = rgbMatch[1].split(',').slice(0, 3).map((part) => Number.parseFloat(part.trim()));
+                if (channels.length === 3 && channels.every((channel) => Number.isFinite(channel))) {
+                    return {
+                        r: Math.max(0, Math.min(255, Math.round(channels[0]))),
+                        g: Math.max(0, Math.min(255, Math.round(channels[1]))),
+                        b: Math.max(0, Math.min(255, Math.round(channels[2]))),
+                    };
+                }
+            }
+
+            return null;
+        };
+
+        const getObjectRepresentativeColor = (obj: fabric.Object): { r: number; g: number; b: number } | null => {
+            const ext = obj as ExtendedFabricObject;
+            return toRgbColor(ext.fill) || toRgbColor(ext.stroke) || null;
+        };
+
+        const colorDistance = (
+            a: { r: number; g: number; b: number },
+            b: { r: number; g: number; b: number }
+        ) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+
+        const isPointInsideBounds = (
+            point: fabric.Point,
+            bounds: { left: number; top: number; width: number; height: number }
+        ) => (
+            point.x >= bounds.left
+            && point.x <= bounds.left + bounds.width
+            && point.y >= bounds.top
+            && point.y <= bounds.top + bounds.height
+        );
+
+        const commitWandSelection = (opt: fabric.TPointerEventInfo, pointer: fabric.Point) => {
+            const selectableObjects = collectSelectableObjects();
+            if (selectableObjects.length === 0) {
+                commitSelectedObjects([]);
+                return;
+            }
+
+            const optWithTarget = opt as fabric.TPointerEventInfo & { target?: fabric.Object | null };
+            const directTarget = optWithTarget.target && selectableObjects.includes(optWithTarget.target)
+                ? optWithTarget.target
+                : null;
+            const fallbackTarget = selectableObjects.filter((obj) => isPointInsideBounds(pointer, obj.getBoundingRect())).at(-1) || null;
+            const seedTarget = directTarget || fallbackTarget;
+            if (!seedTarget) {
+                commitSelectedObjects([]);
+                return;
+            }
+
+            const normalizedThreshold = Math.max(0, Math.min(180, Math.round(wandTopThreshold)));
+            const seedColor = getObjectRepresentativeColor(seedTarget);
+            if (!seedColor || normalizedThreshold <= 0) {
+                commitSelectedObjects([seedTarget]);
+                return;
+            }
+
+            const selected = selectableObjects.filter((obj) => {
+                const objectColor = getObjectRepresentativeColor(obj);
+                if (!objectColor) return obj === seedTarget;
+                return colorDistance(seedColor, objectColor) <= normalizedThreshold;
+            });
+
+            if (!selected.includes(seedTarget)) {
+                selected.push(seedTarget);
+            }
+            commitSelectedObjects(selected);
+        };
+
+        const cancelLassoCapture = () => {
+            if (!isDragging || selectionTool !== 'lasso') return false;
+            isDragging = false;
+            selectionTool = null;
+            dragStart = null;
+            clearSelectionHelpers();
+            canvas.requestRenderAll();
+            return true;
+        };
+
+        const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
+            const isMarquee = activeTool === 'marquee';
+            const isLasso = activeTool === 'lasso';
+            const isWand = activeTool === 'wand';
+            if (!isMarquee && !isLasso && !isWand) return;
+            const rawEvent = opt.e as MouseEvent | PointerEvent | TouchEvent | undefined;
+            if (rawEvent && 'button' in rawEvent && rawEvent.button !== 0) return;
+
+            const pointer = getScenePointer(opt);
+            if (!pointer) return;
+
+            if (isWand) {
+                commitWandSelection(opt, pointer);
+                return;
+            }
+
+            isDragging = true;
+            selectionTool = isLasso ? 'lasso' : 'marquee';
+            dragStart = pointer;
+            clearSelectionHelpers();
+
+            if (selectionTool === 'marquee') {
+                marqueeHelper = new fabric.Rect({
+                    left: pointer.x,
+                    top: pointer.y,
+                    width: 1,
+                    height: 1,
+                    fill: 'rgba(37,99,235,0.12)',
+                    stroke: '#2563eb',
+                    strokeWidth: 1,
+                    strokeDashArray: [4, 4],
+                    originX: 'left',
+                    originY: 'top',
+                    selectable: false,
+                    evented: false,
+                    objectCaching: false,
+                    excludeFromExport: true,
+                }) as MarqueeSelectionHelper;
+                marqueeHelper.isSelectionOverlayHelper = true;
+                canvas.add(marqueeHelper);
+            } else {
+                lassoPoints = [pointer];
+                lassoHelper = new fabric.Path(buildLassoPathData([pointer, pointer]), {
+                    fill: 'rgba(37,99,235,0.12)',
+                    stroke: '#2563eb',
+                    strokeWidth: 1.2,
+                    strokeDashArray: [4, 4],
+                    selectable: false,
+                    evented: false,
+                    objectCaching: false,
+                    excludeFromExport: true,
+                }) as LassoSelectionHelper;
+                lassoHelper.isSelectionOverlayHelper = true;
+                canvas.add(lassoHelper);
+            }
+
+            canvas.requestRenderAll();
+        };
+
+        const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
+            if (!isDragging || !selectionTool) return;
+            const pointer = getScenePointer(opt);
+            if (!pointer) return;
+
+            if (selectionTool === 'marquee') {
+                if (!dragStart || !marqueeHelper) return;
+                const left = Math.min(dragStart.x, pointer.x);
+                const top = Math.min(dragStart.y, pointer.y);
+                const width = Math.max(1, Math.abs(pointer.x - dragStart.x));
+                const height = Math.max(1, Math.abs(pointer.y - dragStart.y));
+                marqueeHelper.set({
+                    left,
+                    top,
+                    width,
+                    height,
+                });
+                marqueeHelper.setCoords();
+                canvas.requestRenderAll();
+                return;
+            }
+
+            if (!lassoHelper) return;
+            const lastPoint = lassoPoints[lassoPoints.length - 1];
+            if (lastPoint && Math.hypot(pointer.x - lastPoint.x, pointer.y - lastPoint.y) < 2) return;
+            lassoPoints = [...lassoPoints, pointer];
+            updateLassoHelperPath(lassoPoints, false);
+            canvas.requestRenderAll();
+        };
+
+        const handleMouseUp = (opt: fabric.TPointerEventInfo) => {
+            if (!isDragging || !selectionTool) return;
+            isDragging = false;
+
+            const pointer = getScenePointer(opt) || dragStart;
+            if (!pointer || !dragStart) {
+                selectionTool = null;
+                dragStart = null;
+                clearSelectionHelpers();
+                return;
+            }
+
+            if (selectionTool === 'marquee') {
+                const selectionBounds = {
+                    left: Math.min(dragStart.x, pointer.x),
+                    top: Math.min(dragStart.y, pointer.y),
+                    width: Math.abs(pointer.x - dragStart.x),
+                    height: Math.abs(pointer.y - dragStart.y),
+                };
+                selectionTool = null;
+                dragStart = null;
+                clearSelectionHelpers();
+
+                if (selectionBounds.width < 2 || selectionBounds.height < 2) {
+                    canvas.requestRenderAll();
+                    return;
+                }
+
+                commitMarqueeSelection(selectionBounds);
+                return;
+            }
+
+            const finalizedPoints = [...lassoPoints];
+            const lastPoint = finalizedPoints[finalizedPoints.length - 1];
+            if (!lastPoint || Math.hypot(pointer.x - lastPoint.x, pointer.y - lastPoint.y) >= 1) {
+                finalizedPoints.push(pointer);
+            }
+
+            selectionTool = null;
+            dragStart = null;
+            clearSelectionHelpers();
+            if (finalizedPoints.length < 3) {
+                canvas.requestRenderAll();
+                return;
+            }
+
+            commitLassoSelection(finalizedPoints);
+        };
+
+        const handleWindowKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            if (cancelLassoCapture()) {
+                event.preventDefault();
+            }
+        };
+
+        canvas.on('mouse:down', handleMouseDown);
+        canvas.on('mouse:move', handleMouseMove);
+        canvas.on('mouse:up', handleMouseUp);
+        window.addEventListener('keydown', handleWindowKeyDown);
+
+        return () => {
+            isDragging = false;
+            selectionTool = null;
+            dragStart = null;
+            lassoPoints = [];
+            canvas.off('mouse:down', handleMouseDown);
+            canvas.off('mouse:move', handleMouseMove);
+            canvas.off('mouse:up', handleMouseUp);
+            window.removeEventListener('keydown', handleWindowKeyDown);
+            clearSelectionHelpers();
+        };
+    }, [canvas, activeTool, selectionMode, wandTopThreshold]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        const isHealing = activeTool === 'healing';
+        const isCloneStamp = activeTool === 'clone-stamp';
+        if (!isHealing && !isCloneStamp) return;
+
+        const notifyRetouchFallback = (title: string, description: string) => {
+            const now = Date.now();
+            if (now - retouchNoticeAtRef.current < 1200) return;
+            retouchNoticeAtRef.current = now;
+            toast({
+                title,
+                description,
+                variant: 'warning',
+            });
+        };
+
+        const getScenePointer = (opt: fabric.TPointerEventInfo): fabric.Point | null => {
+            const optWithScene = opt as unknown as { scenePoint?: fabric.Point };
+            if (optWithScene.scenePoint) return optWithScene.scenePoint;
+
+            const canvasWithScene = canvas as unknown as {
+                getScenePoint?: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point;
+            };
+            if (opt.e && typeof canvasWithScene.getScenePoint === 'function') {
+                return canvasWithScene.getScenePoint(opt.e);
+            }
+
+            return null;
+        };
+
+        const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
+            const rawEvent = opt.e as MouseEvent | PointerEvent | TouchEvent | undefined;
+            if (rawEvent && 'button' in rawEvent && rawEvent.button !== 0) return;
+            const pointer = getScenePointer(opt);
+            if (!pointer) return;
+
+            if (isCloneStamp) {
+                const isAltKey = Boolean(rawEvent && 'altKey' in rawEvent && rawEvent.altKey);
+                if (isAltKey) {
+                    setCloneSourcePoint(new fabric.Point(pointer.x, pointer.y));
+                    return;
+                }
+                if (!cloneSourcePoint) {
+                    notifyRetouchFallback(
+                        'Clone source required',
+                        'Option-click on the canvas to set a clone source point.'
+                    );
+                    return;
+                }
+                notifyRetouchFallback(
+                    'Clone Stamp bootstrap',
+                    'Raster sampling path is in progress. Current action is a safe no-op.'
+                );
+                canvas.requestRenderAll();
+                return;
+            }
+
+            notifyRetouchFallback(
+                'Healing Brush bootstrap',
+                'Raster healing path is in progress. Current action is a safe no-op.'
+            );
+            canvas.requestRenderAll();
+        };
+
+        canvas.on('mouse:down', handleMouseDown);
+        return () => {
+            canvas.off('mouse:down', handleMouseDown);
+        };
+    }, [canvas, activeTool, cloneSourcePoint, toast]);
+
+    const handleSelectionModify = useCallback((mode: 'expand' | 'contract') => {
+        if (!canvas) return;
+
+        const intersectsBounds = (
+            a: { left: number; top: number; width: number; height: number },
+            b: { left: number; top: number; width: number; height: number }
+        ) => !(
+            a.left + a.width < b.left
+            || b.left + b.width < a.left
+            || a.top + a.height < b.top
+            || b.top + b.height < a.top
+        );
+
+        const collectSelectableObjects = () => canvas.getObjects().filter((obj) => {
+            const ext = obj as ExtendedFabricObject & {
+                isPenDraftAnchor?: boolean;
+                isSelectionOverlayHelper?: boolean;
+            };
+            if (ext.isSelectionOverlayHelper) return false;
+            if (obj.type === 'activeSelection' || obj.type === 'selection') return false;
+            if (ext.isPenDraftAnchor) return false;
+            if (ext.name === 'Artboard') return false;
+            if (obj.selectable === false || obj.evented === false) return false;
+            return true;
+        });
+
+        const commitSelectedObjects = (selected: fabric.Object[]) => {
+            if (selected.length === 0) {
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+                return;
+            }
+            if (selectionMode === 'layer' || selected.length === 1) {
+                const topMost = selected[selected.length - 1];
+                if (topMost) {
+                    canvas.setActiveObject(topMost);
+                    canvas.requestRenderAll();
+                }
+                return;
+            }
+            const nextSelection = new fabric.ActiveSelection(selected, { canvas });
+            canvas.setActiveObject(nextSelection);
+            canvas.requestRenderAll();
+        };
+
+        const activeObjects = canvas.getActiveObjects();
+        const activeObject = canvas.getActiveObject();
+        const selectedObjects = activeObjects.length > 0
+            ? activeObjects
+            : activeObject
+                ? [activeObject]
+                : [];
+        if (selectedObjects.length === 0) {
+            canvas.requestRenderAll();
             return;
         }
 
-        brush.width = paintBrushSize;
-        const combinedOpacity = Math.max(0.01, Math.min(1, (paintBrushOpacity / 100) * (paintBrushFlow / 100)));
-        brush.color = applyAlphaToColor('#000000', combinedOpacity);
+        const bounds = selectedObjects.map((obj) => obj.getBoundingRect());
+        const unionBounds = bounds.reduce((acc, rect) => ({
+            left: Math.min(acc.left, rect.left),
+            top: Math.min(acc.top, rect.top),
+            width: Math.max(acc.left + acc.width, rect.left + rect.width) - Math.min(acc.left, rect.left),
+            height: Math.max(acc.top + acc.height, rect.top + rect.height) - Math.min(acc.top, rect.top),
+        }));
 
-        if (typeof drawingCanvas.set === 'function') {
-            drawingCanvas.set('freeDrawingBrush', brush);
-        } else {
-            drawingCanvas.freeDrawingBrush = brush;
+        const modifyPixels = Math.max(1, Math.min(120, Math.round(selectionModifyPixels)));
+        if (mode === 'expand') {
+            const expandedBounds = {
+                left: unionBounds.left - modifyPixels,
+                top: unionBounds.top - modifyPixels,
+                width: unionBounds.width + (modifyPixels * 2),
+                height: unionBounds.height + (modifyPixels * 2),
+            };
+            const expandedSelection = collectSelectableObjects().filter((obj) => intersectsBounds(expandedBounds, obj.getBoundingRect()));
+            commitSelectedObjects(expandedSelection);
+            return;
         }
-        canvas.requestRenderAll();
+
+        const contractedBounds = {
+            left: unionBounds.left + modifyPixels,
+            top: unionBounds.top + modifyPixels,
+            width: Math.max(0, unionBounds.width - (modifyPixels * 2)),
+            height: Math.max(0, unionBounds.height - (modifyPixels * 2)),
+        };
+
+        if (contractedBounds.width < 1 || contractedBounds.height < 1) {
+            commitSelectedObjects([selectedObjects[selectedObjects.length - 1]]);
+            return;
+        }
+
+        const contractedSelection = selectedObjects.filter((obj) => {
+            const rect = obj.getBoundingRect();
+            const centerX = rect.left + (rect.width / 2);
+            const centerY = rect.top + (rect.height / 2);
+            return (
+                centerX >= contractedBounds.left
+                && centerX <= contractedBounds.left + contractedBounds.width
+                && centerY >= contractedBounds.top
+                && centerY <= contractedBounds.top + contractedBounds.height
+            );
+        });
+
+        commitSelectedObjects(contractedSelection);
+    }, [canvas, selectionMode, selectionModifyPixels]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        if (activeTool !== 'paint') {
+            disableRasterDrawingMode(canvas);
+            return;
+        }
+
+        try {
+            applyRasterBrushToCanvas(canvas, {
+                preset: paintBrushPreset,
+                size: paintBrushSize,
+                hardness: paintBrushHardness,
+                opacity: paintBrushOpacity,
+                flow: paintBrushFlow,
+                smoothing: paintBrushSmoothing,
+                color: '#000000',
+            });
+            canvas.requestRenderAll();
+        } catch {
+            return;
+        }
     }, [
         canvas,
         activeTool,
@@ -827,6 +1491,279 @@ export default function EditorView({
         };
     }, [canvas]);
 
+    const isShapeEditableObject = useCallback((obj: fabric.Object | null | undefined): obj is fabric.Object & ExtendedFabricObject => {
+        if (!obj) return false;
+        if ((obj as ExtendedFabricObject).isStar) return true;
+        return ['rect', 'circle', 'triangle', 'polygon', 'polyline', 'path', 'ellipse', 'line'].includes(obj.type || '');
+    }, []);
+
+    const emitShapeTopConfig = useCallback((overrides?: Partial<{
+        mode: 'shape' | 'path' | 'pixels';
+        fillColor: string;
+        strokeColor: string;
+        strokeWidth: number;
+        fixedSize: boolean;
+    }>) => {
+        if (!canvas) return;
+        const nextMode = overrides?.mode ?? shapeTopMode;
+        const nextFillColor = overrides?.fillColor ?? shapeTopFillColor;
+        const nextStrokeColor = overrides?.strokeColor ?? shapeTopStrokeColor;
+        const nextStrokeWidth = overrides?.strokeWidth ?? shapeTopStrokeWidth;
+        const nextFixedSize = overrides?.fixedSize ?? shapeTopFixedSize;
+        (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('shape:config:set', {
+            mode: nextMode,
+            fillColor: nextFillColor,
+            strokeColor: nextStrokeColor,
+            strokeWidth: Math.max(0, Math.min(40, Math.round(nextStrokeWidth))),
+            fixedSize: nextFixedSize,
+        });
+    }, [canvas, shapeTopMode, shapeTopFillColor, shapeTopStrokeColor, shapeTopStrokeWidth, shapeTopFixedSize]);
+
+    const applyShapeTopConfigToActiveObject = useCallback((overrides?: Partial<{
+        mode: 'shape' | 'path' | 'pixels';
+        fillColor: string;
+        strokeColor: string;
+        strokeWidth: number;
+        fixedSize: boolean;
+    }>) => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
+        if (!isShapeEditableObject(active)) return;
+
+        const nextMode = overrides?.mode ?? shapeTopMode;
+        const nextFillColor = overrides?.fillColor ?? shapeTopFillColor;
+        const nextStrokeColor = overrides?.strokeColor ?? shapeTopStrokeColor;
+        const normalizedStrokeWidth = Math.max(0, Math.min(40, Math.round(overrides?.strokeWidth ?? shapeTopStrokeWidth)));
+        const nextFixedSize = overrides?.fixedSize ?? shapeTopFixedSize;
+        const resolvedFill = nextMode === 'path' ? 'transparent' : nextFillColor;
+        const resolvedStrokeWidth = nextMode === 'path' ? Math.max(1, normalizedStrokeWidth) : normalizedStrokeWidth;
+
+        active.set({
+            fill: resolvedFill,
+            stroke: nextStrokeColor,
+            strokeWidth: resolvedStrokeWidth,
+            lockScalingX: nextFixedSize,
+            lockScalingY: nextFixedSize,
+            dirty: true,
+        });
+        active.shapeDrawMode = nextMode;
+        active.setCoords();
+        canvas.requestRenderAll();
+    }, [
+        canvas,
+        isShapeEditableObject,
+        shapeTopMode,
+        shapeTopFillColor,
+        shapeTopStrokeColor,
+        shapeTopStrokeWidth,
+        shapeTopFixedSize,
+    ]);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        const syncShapeControls = () => {
+            const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
+            if (!isShapeEditableObject(active)) return;
+
+            let inferredMode: 'shape' | 'path' | 'pixels' = active.shapeDrawMode === 'pixels' ? 'pixels' : 'shape';
+            if (typeof active.fill === 'string') {
+                const parsedFill = parseColorWithAlpha(active.fill);
+                const normalizedFill = normalizeColorValue(parsedFill.color);
+                if (normalizedFill && normalizedFill.startsWith('#')) {
+                    setShapeTopFillColor(normalizedFill);
+                }
+                if (parsedFill.alpha <= 0 || parsedFill.color.toLowerCase() === 'transparent') {
+                    inferredMode = active.shapeDrawMode === 'pixels' ? 'pixels' : 'path';
+                }
+            }
+
+            if (typeof active.stroke === 'string') {
+                const parsedStroke = parseColorWithAlpha(active.stroke);
+                const normalizedStroke = normalizeColorValue(parsedStroke.color);
+                if (normalizedStroke && normalizedStroke.startsWith('#')) {
+                    setShapeTopStrokeColor(normalizedStroke);
+                }
+            }
+
+            if (typeof active.strokeWidth === 'number') {
+                setShapeTopStrokeWidth(Math.max(0, Math.min(40, Math.round(active.strokeWidth))));
+            }
+
+            setShapeTopMode(inferredMode);
+            setShapeTopFixedSize(Boolean(active.lockScalingX && active.lockScalingY));
+        };
+
+        syncShapeControls();
+        canvas.on('selection:created', syncShapeControls);
+        canvas.on('selection:updated', syncShapeControls);
+        canvas.on('object:modified', syncShapeControls);
+        return () => {
+            canvas.off('selection:created', syncShapeControls);
+            canvas.off('selection:updated', syncShapeControls);
+            canvas.off('object:modified', syncShapeControls);
+        };
+    }, [canvas, isShapeEditableObject]);
+
+    const extractGradientStops = useCallback((fill: unknown) => {
+        if (!fill || typeof fill !== 'object') return null;
+        const grad = fill as fabric.Gradient<'linear' | 'radial'>;
+        if (!Array.isArray(grad.colorStops)) return null;
+        const normalized = grad.colorStops
+            .map((stop) => ({
+                offset: typeof stop.offset === 'number' ? Math.max(0, Math.min(1, stop.offset)) : 0,
+                color: typeof stop.color === 'string' && stop.color.trim().length > 0 ? stop.color : '#0000ff',
+            }))
+            .sort((a, b) => a.offset - b.offset);
+        if (normalized.length === 0) return null;
+        return normalized;
+    }, []);
+
+    const resolveGradientStops = useCallback((fill: unknown, reverse: boolean) => {
+        const fallbackStops = [
+            { offset: 0, color: '#0000ff' },
+            { offset: 1, color: '#ff0000' },
+        ];
+        const stops = extractGradientStops(fill) || fallbackStops;
+        if (!reverse) return stops;
+        return stops
+            .map((stop) => ({ offset: 1 - stop.offset, color: stop.color }))
+            .sort((a, b) => a.offset - b.offset);
+    }, [extractGradientStops]);
+
+    const applyGradientTopConfigToActiveObject = useCallback((overrides?: Partial<{
+        type: 'linear' | 'radial' | 'angle';
+        blendMode: 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten';
+        opacity: number;
+        reverse: boolean;
+        dither: boolean;
+    }>) => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject & {
+            get: (key: string) => unknown;
+            set: (props: unknown) => void;
+            setCoords: () => void;
+        }) | null;
+        if (!active) return;
+
+        const nextType = overrides?.type ?? gradientTopType;
+        const nextBlendMode = overrides?.blendMode ?? gradientTopBlendMode;
+        const nextOpacity = Math.max(1, Math.min(100, Math.round(overrides?.opacity ?? gradientTopOpacity)));
+        const nextReverse = overrides?.reverse ?? gradientTopReverse;
+        const nextDither = overrides?.dither ?? gradientTopDither;
+        const currentFill = active.get('fill');
+        const existingGradient = currentFill && typeof currentFill === 'object' && (currentFill as fabric.Gradient<'linear' | 'radial'>).type
+            ? (currentFill as fabric.Gradient<'linear' | 'radial'>)
+            : null;
+        const nextStops = resolveGradientStops(currentFill, nextReverse);
+
+        let nextGradient: fabric.Gradient<'linear' | 'radial'> | null = null;
+        if (nextType === 'radial') {
+            const radialSourceCoords = existingGradient?.type === 'radial' && existingGradient.coords
+                ? (existingGradient.coords as {
+                    x1?: number;
+                    y1?: number;
+                    r1?: number;
+                    x2?: number;
+                    y2?: number;
+                    r2?: number;
+                })
+                : null;
+            const radialCoords = existingGradient?.type === 'radial' && existingGradient.coords
+                ? {
+                    x1: radialSourceCoords?.x1 ?? 0.5,
+                    y1: radialSourceCoords?.y1 ?? 0.5,
+                    r1: radialSourceCoords?.r1 ?? 0,
+                    x2: radialSourceCoords?.x2 ?? 0.5,
+                    y2: radialSourceCoords?.y2 ?? 0.5,
+                    r2: radialSourceCoords?.r2 ?? 0.5,
+                }
+                : { x1: 0.5, y1: 0.5, r1: 0, x2: 0.5, y2: 0.5, r2: 0.5 };
+            nextGradient = new fabric.Gradient({
+                type: 'radial',
+                gradientUnits: 'percentage',
+                coords: radialCoords,
+                colorStops: nextStops,
+            });
+        } else {
+            const linearCoords = existingGradient?.type === 'linear' && existingGradient.coords
+                ? {
+                    x1: existingGradient.coords.x1 ?? 0,
+                    y1: existingGradient.coords.y1 ?? 0.5,
+                    x2: existingGradient.coords.x2 ?? 1,
+                    y2: existingGradient.coords.y2 ?? 0.5,
+                }
+                : { x1: 0, y1: 0.5, x2: 1, y2: 0.5 };
+            nextGradient = new fabric.Gradient({
+                type: 'linear',
+                gradientUnits: 'percentage',
+                coords: linearCoords,
+                colorStops: nextStops,
+            });
+        }
+
+        active.set({
+            fill: nextGradient,
+            globalCompositeOperation: nextBlendMode,
+            opacity: nextOpacity / 100,
+            dirty: true,
+        });
+        active.gradientTypeHint = nextType;
+        active.gradientReversed = nextReverse;
+        active.gradientDitherEnabled = nextDither;
+        active.setCoords();
+        canvas.requestRenderAll();
+    }, [
+        canvas,
+        gradientTopType,
+        gradientTopBlendMode,
+        gradientTopOpacity,
+        gradientTopReverse,
+        gradientTopDither,
+        resolveGradientStops,
+    ]);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        const syncGradientControls = () => {
+            const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
+            if (!active) return;
+            const fill = active.fill as unknown;
+            const gradient = fill && typeof fill === 'object' && ((fill as fabric.Gradient<'linear' | 'radial'>).type === 'linear' || (fill as fabric.Gradient<'linear' | 'radial'>).type === 'radial')
+                ? (fill as fabric.Gradient<'linear' | 'radial'>)
+                : null;
+            if (!gradient) return;
+
+            if (gradient.type === 'radial') {
+                setGradientTopType('radial');
+            } else {
+                setGradientTopType(active.gradientTypeHint === 'angle' ? 'angle' : 'linear');
+            }
+
+            const blendMode = active.globalCompositeOperation;
+            if (blendMode && ['source-over', 'multiply', 'screen', 'overlay', 'darken', 'lighten'].includes(blendMode)) {
+                setGradientTopBlendMode(blendMode as 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten');
+            }
+
+            if (typeof active.opacity === 'number') {
+                setGradientTopOpacity(Math.max(1, Math.min(100, Math.round(active.opacity * 100))));
+            }
+            setGradientTopReverse(Boolean(active.gradientReversed));
+            setGradientTopDither(Boolean(active.gradientDitherEnabled));
+        };
+
+        syncGradientControls();
+        canvas.on('selection:created', syncGradientControls);
+        canvas.on('selection:updated', syncGradientControls);
+        canvas.on('object:modified', syncGradientControls);
+        return () => {
+            canvas.off('selection:created', syncGradientControls);
+            canvas.off('selection:updated', syncGradientControls);
+            canvas.off('object:modified', syncGradientControls);
+        };
+    }, [canvas]);
+
     // 3D & AI States
     const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
     const [sourceObjectFor3D, setSourceObjectFor3D] = useState<fabric.Object | null>(null);
@@ -848,7 +1785,9 @@ export default function EditorView({
              const toolMap: Record<string, string> = {
                  'upload': 'assets',
                  '3d': '3d-gen',
-                 'ai': 'ai-zone'
+                 'ai': 'ai-zone',
+                 'move': 'select',
+                 'path-select': 'select',
              };
              // Defer slightly to ensure canvas init doesn't override
              setTimeout(() => {
@@ -856,6 +1795,7 @@ export default function EditorView({
              }, 100);
         }
     }, [initialActiveTool]);
+
     const exportRef = useRef<HTMLDivElement>(null);
     const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
     const toolbarRef = useRef<ToolbarHandle | null>(null);
@@ -905,18 +1845,75 @@ export default function EditorView({
         if (!canvas) {
             return action();
         }
+        const runtimeCanvas = canvas as CanvasWithExportInternals;
         const originalTransform = canvas.viewportTransform ? ([...canvas.viewportTransform] as fabric.TMat2D) : undefined;
-        if (originalTransform) {
-            canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as fabric.TMat2D);
-            canvas.requestRenderAll();
+        let shouldRestoreTransform = false;
+        if (originalTransform && !runtimeCanvas.disposed && !runtimeCanvas.destroyed) {
+            try {
+                canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as fabric.TMat2D);
+                canvas.requestRenderAll();
+                shouldRestoreTransform = true;
+            } catch (error) {
+                console.warn('Viewport reset skipped during export/save:', error);
+            }
         }
         try {
             return await action();
         } finally {
-            if (originalTransform) {
-                canvas.setViewportTransform(originalTransform);
-                canvas.requestRenderAll();
+            if (originalTransform && shouldRestoreTransform && !runtimeCanvas.disposed && !runtimeCanvas.destroyed) {
+                try {
+                    canvas.setViewportTransform(originalTransform);
+                    canvas.requestRenderAll();
+                } catch (error) {
+                    console.warn('Viewport restore skipped after export/save:', error);
+                }
             }
+        }
+    }, [canvas]);
+
+    const safeCanvasToDataURL = useCallback((options: ExportDataUrlOptions) => {
+        if (!canvas) throw new Error('Canvas unavailable');
+
+        try {
+            return canvas.toDataURL(options);
+        } catch (primaryError) {
+            const runtimeCanvas = canvas as CanvasWithExportInternals;
+            const format = options.format || 'png';
+            const quality = options.quality ?? 1;
+            const retinaScaling = options.enableRetinaScaling && typeof canvas.getRetinaScaling === 'function'
+                ? canvas.getRetinaScaling()
+                : 1;
+            const finalMultiplier = (options.multiplier || 1) * retinaScaling;
+
+            // Fabric v7 Canvas#toDataURL can fail when upper canvas internals are unavailable.
+            // In that case, fallback to StaticCanvas export path that does not rely on `elements.upper`.
+            const canUseStaticFallback = !runtimeCanvas.elements?.upper
+                && typeof fabric.StaticCanvas?.prototype?.toCanvasElement === 'function'
+                && typeof (canvas as unknown as { calcViewportBoundaries?: unknown }).calcViewportBoundaries === 'function'
+                && typeof (canvas as unknown as { renderCanvas?: unknown }).renderCanvas === 'function';
+
+            if (canUseStaticFallback) {
+                try {
+                    const toCanvasElement = fabric.StaticCanvas.prototype.toCanvasElement as (
+                        this: fabric.StaticCanvas,
+                        multiplier?: number,
+                        options?: fabric.TToCanvasElementOptions
+                    ) => HTMLCanvasElement;
+                    const snapshotCanvas = toCanvasElement.call(canvas as unknown as fabric.StaticCanvas, finalMultiplier, options);
+                    return snapshotCanvas.toDataURL(`image/${format}`, quality);
+                } catch (fallbackError) {
+                    console.warn('StaticCanvas fallback export failed:', fallbackError);
+                }
+            }
+
+            const lowerCanvasEl = runtimeCanvas.lowerCanvasEl
+                || runtimeCanvas.elements?.lower?.el
+                || runtimeCanvas.getElement?.();
+            if (lowerCanvasEl) {
+                return lowerCanvasEl.toDataURL(`image/${format}`, quality);
+            }
+
+            throw primaryError;
         }
     }, [canvas]);
 
@@ -941,7 +1938,7 @@ export default function EditorView({
         }
 
         try {
-            const dataUrl = await withViewportReset(() => canvas.toDataURL(options));
+            const dataUrl = await withViewportReset(() => safeCanvasToDataURL(options));
             const base64Index = dataUrl.indexOf(',');
             const base64Length = base64Index >= 0 ? dataUrl.length - base64Index - 1 : dataUrl.length;
             const bytes = Math.floor((base64Length * 3) / 4);
@@ -949,7 +1946,7 @@ export default function EditorView({
         } catch {
             setExportQualitySize('Unavailable');
         }
-    }, [canvas, getCanvasBackgroundSettings, withViewportReset]);
+    }, [canvas, getCanvasBackgroundSettings, safeCanvasToDataURL, withViewportReset]);
 
     useEffect(() => {
         canvasRef.current = canvas;
@@ -1044,6 +2041,59 @@ export default function EditorView({
     }, [canvas, handleUndo, handleRedo, handleDuplicate]);
 
     useEffect(() => {
+        const isTypingTarget = (target: EventTarget | null) => {
+            if (!(target instanceof HTMLElement)) return false;
+            if (target.isContentEditable) return true;
+            const tag = target.tagName;
+            return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+        };
+
+        const handler = (event: KeyboardEvent) => {
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
+            if (isTypingTarget(event.target)) return;
+
+            const key = event.key.toLowerCase();
+            if (key === 'v') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('select');
+                return;
+            }
+            if (key === 'w') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('wand');
+                return;
+            }
+            if (key === 'm') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('marquee');
+                return;
+            }
+            if (key === 'l') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('lasso');
+                return;
+            }
+            if (key === 'j') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('healing');
+                return;
+            }
+            if (key === 's') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('clone-stamp');
+                return;
+            }
+            if (key === 'a') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('path-select');
+            }
+        };
+
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
+
+    useEffect(() => {
         if (isRenamingDesignTitle) return;
         setDesignTitleDraft(propDesignName || 'Untitled Design');
     }, [propDesignName, isRenamingDesignTitle]);
@@ -1111,6 +2161,21 @@ export default function EditorView({
                 setShowExportQualityModal(false);
                 return;
             }
+            if (showFileMenu) {
+                event.preventDefault();
+                setShowFileMenu(false);
+                return;
+            }
+            if (showEditMenu) {
+                event.preventDefault();
+                setShowEditMenu(false);
+                return;
+            }
+            if (showViewMenu) {
+                event.preventDefault();
+                setShowViewMenu(false);
+                return;
+            }
             if (showExportMenu) {
                 event.preventDefault();
                 setShowExportMenu(false);
@@ -1135,7 +2200,7 @@ export default function EditorView({
 
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [showExportMenu, showExportQualityModal, showGridMenu, showShareMenu, showToolsMenu]);
+    }, [showEditMenu, showExportMenu, showExportQualityModal, showFileMenu, showGridMenu, showShareMenu, showToolsMenu, showViewMenu]);
 
     // --- Save Logic ---
     const handleSave = async () => {
@@ -1169,12 +2234,12 @@ export default function EditorView({
             setIsExporting(true);
             try {
                 // Attempt with multiplier
-                thumbnailDataUrl = await withViewportReset(() => canvas.toDataURL({ format: 'png', multiplier: 0.5, enableRetinaScaling: true, quality: 1 }));
+                thumbnailDataUrl = await withViewportReset(() => safeCanvasToDataURL({ format: 'png', multiplier: 0.5, enableRetinaScaling: true, quality: 1 }));
             } catch (e) {
                 console.warn('Thumbnail generation with multiplier failed, retrying without:', e);
                 try {
                      // Fallback without multiplier
-                    thumbnailDataUrl = await withViewportReset(() => canvas.toDataURL({ format: 'png', multiplier: 1, enableRetinaScaling: true, quality: 1 }));
+                    thumbnailDataUrl = await withViewportReset(() => safeCanvasToDataURL({ format: 'png', multiplier: 1, enableRetinaScaling: true, quality: 1 }));
                 } catch (e2) {
                     console.error('Thumbnail generation failed completely:', e2);
                 }
@@ -1430,7 +2495,7 @@ export default function EditorView({
                                                     unit: 'px',
                                                     format: [pdfWidth, pdfHeight]
                                                 });
-                                                const imgData = canvas.toDataURL({
+                                                const imgData = safeCanvasToDataURL({
                                                     format: 'png',
                                                     quality: 1,
                                                     multiplier: 1,
@@ -1518,7 +2583,7 @@ export default function EditorView({
         const libsFolder = zip.folder('libs');
         const scriptsFolder = zip.folder('scripts');
 
-        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId'];
+        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId', 'gradientTypeHint', 'gradientReversed', 'gradientDitherEnabled'];
         const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customProps);
 
         const metadata = {
@@ -2289,6 +3354,364 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    const parseCropAspectRatio = useCallback((preset: TopCropRatioPreset): number | null => {
+        if (preset === 'free') return null;
+        const [widthToken, heightToken] = preset.split(':');
+        const width = Number(widthToken);
+        const height = Number(heightToken);
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+            return null;
+        }
+        return width / height;
+    }, []);
+
+    const buildAspectCropRect = useCallback((
+        sourceRect: { left: number; top: number; width: number; height: number },
+        aspectRatio: number | null
+    ) => {
+        if (!aspectRatio) {
+            return {
+                left: sourceRect.left,
+                top: sourceRect.top,
+                width: Math.max(1, sourceRect.width),
+                height: Math.max(1, sourceRect.height),
+            };
+        }
+
+        const sourceRatio = sourceRect.width / sourceRect.height;
+        let width = sourceRect.width;
+        let height = sourceRect.height;
+        if (sourceRatio > aspectRatio) {
+            width = sourceRect.height * aspectRatio;
+        } else {
+            height = sourceRect.width / aspectRatio;
+        }
+        return {
+            left: sourceRect.left + (sourceRect.width - width) / 2,
+            top: sourceRect.top + (sourceRect.height - height) / 2,
+            width: Math.max(1, width),
+            height: Math.max(1, height),
+        };
+    }, []);
+
+    const applyTopCropSettings = useCallback(() => {
+        if (!canvas) return;
+        const activeCanvas = canvas as CanvasWithArtboard;
+        const fallbackWidth = canvas.width || canvas.getWidth();
+        const fallbackHeight = canvas.height || canvas.getHeight();
+        if (!fallbackWidth || !fallbackHeight) return;
+
+        const sourceRect = cropTopUseArtboardBounds && activeCanvas.artboard
+            ? {
+                left: activeCanvas.artboard.left,
+                top: activeCanvas.artboard.top,
+                width: activeCanvas.artboard.width,
+                height: activeCanvas.artboard.height,
+            }
+            : { left: 0, top: 0, width: fallbackWidth, height: fallbackHeight };
+
+        const cropRect = buildAspectCropRect(sourceRect, parseCropAspectRatio(cropTopRatioPreset));
+
+        activeCanvas.artboard = {
+            left: cropRect.left,
+            top: cropRect.top,
+            width: cropRect.width,
+            height: cropRect.height,
+        };
+
+        if (activeCanvas.artboardRect) {
+            activeCanvas.artboardRect.set({
+                left: cropRect.left,
+                top: cropRect.top,
+                width: cropRect.width,
+                height: cropRect.height,
+            });
+            activeCanvas.artboardRect.setCoords();
+        }
+
+        let removedCount = 0;
+        if (cropTopDeleteOutside) {
+            const intersects = (
+                a: { left: number; top: number; width: number; height: number },
+                b: { left: number; top: number; width: number; height: number }
+            ) => (
+                a.left < b.left + b.width
+                && a.left + a.width > b.left
+                && a.top < b.top + b.height
+                && a.top + a.height > b.top
+            );
+
+            const objects = [...canvas.getObjects()];
+            for (const obj of objects) {
+                if (obj === activeCanvas.artboardRect) continue;
+                const bounds = obj.getBoundingRect();
+                if (!intersects(bounds, cropRect)) {
+                    canvas.remove(obj);
+                    removedCount += 1;
+                }
+            }
+        }
+
+        canvas.requestRenderAll();
+        setIsDirty(true);
+        setActiveTool('select');
+        toast({
+            title: 'Crop applied',
+            description: removedCount > 0
+                ? `Removed ${removedCount} object${removedCount === 1 ? '' : 's'} outside crop bounds.`
+                : 'Artboard crop bounds updated.',
+            variant: 'success',
+        });
+    }, [
+        canvas,
+        cropTopUseArtboardBounds,
+        buildAspectCropRect,
+        parseCropAspectRatio,
+        cropTopRatioPreset,
+        cropTopDeleteOutside,
+        toast,
+        setActiveTool,
+    ]);
+
+    const readColorFromActiveObject = useCallback((): string | null => {
+        if (!canvas) return null;
+        const active = canvas.getActiveObject() as (fabric.Object & { fill?: unknown; stroke?: unknown }) | null;
+        if (!active) return null;
+        const candidates = [active.fill, active.stroke];
+        for (const value of candidates) {
+            if (typeof value !== 'string' || !value.trim()) continue;
+            const parsed = parseColorWithAlpha(value);
+            const normalized = normalizeColorValue(parsed.color);
+            if (normalized && normalized.startsWith('#') && normalized.length === 7) {
+                return normalized;
+            }
+        }
+        return null;
+    }, [canvas]);
+
+    const readColorFromCanvasCenter = useCallback((sampleSize: TopEyedropperSampleSize): string | null => {
+        if (!canvas) return null;
+        const exportCanvas = canvas as CanvasWithExportInternals;
+        const sourceCanvas = exportCanvas.lowerCanvasEl || exportCanvas.getElement?.();
+        if (!sourceCanvas) return null;
+        const context = sourceCanvas.getContext('2d');
+        if (!context) return null;
+
+        const pixelWindow = Math.max(1, sampleSize);
+        const centerX = Math.floor(sourceCanvas.width / 2);
+        const centerY = Math.floor(sourceCanvas.height / 2);
+        const halfWindow = Math.floor(pixelWindow / 2);
+        const startX = Math.max(0, centerX - halfWindow);
+        const startY = Math.max(0, centerY - halfWindow);
+        const width = Math.min(pixelWindow, sourceCanvas.width - startX);
+        const height = Math.min(pixelWindow, sourceCanvas.height - startY);
+        if (width <= 0 || height <= 0) return null;
+
+        try {
+            const imageData = context.getImageData(startX, startY, width, height).data;
+            let red = 0;
+            let green = 0;
+            let blue = 0;
+            let count = 0;
+            for (let index = 0; index < imageData.length; index += 4) {
+                const alpha = imageData[index + 3];
+                if (alpha === 0) continue;
+                red += imageData[index];
+                green += imageData[index + 1];
+                blue += imageData[index + 2];
+                count += 1;
+            }
+            if (count === 0) return null;
+            const toHex = (value: number) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0');
+            return `#${toHex(red / count)}${toHex(green / count)}${toHex(blue / count)}`;
+        } catch {
+            return null;
+        }
+    }, [canvas]);
+
+    const handleEyedropperSample = useCallback(() => {
+        if (!canvas) return;
+        const sampledColor = (
+            eyedropperTopSampleSource === 'current-layer'
+                ? readColorFromActiveObject() || readColorFromCanvasCenter(eyedropperTopSampleSize)
+                : readColorFromCanvasCenter(eyedropperTopSampleSize) || readColorFromActiveObject()
+        );
+
+        if (!sampledColor) {
+            toast({
+                title: 'Sample unavailable',
+                description: 'No readable color source was found for the current sample settings.',
+                variant: 'warning',
+            });
+            return;
+        }
+
+        setEyedropperTopSampledColor(sampledColor);
+        setShapeTopFillColor(sampledColor);
+        setTextTopColor(sampledColor);
+        (canvas as unknown as {
+            fire: (eventName: string, payload?: unknown) => void;
+        }).fire('eyedropper:sample', {
+            color: sampledColor,
+            sampleSize: eyedropperTopSampleSize,
+            sampleSource: eyedropperTopSampleSource,
+        });
+        toast({
+            title: 'Color sampled',
+            description: `${sampledColor.toUpperCase()} captured from ${eyedropperTopSampleSource === 'current-layer' ? 'current layer' : 'all layers'}.`,
+            variant: 'success',
+        });
+    }, [
+        canvas,
+        eyedropperTopSampleSource,
+        readColorFromActiveObject,
+        readColorFromCanvasCenter,
+        eyedropperTopSampleSize,
+        toast,
+    ]);
+
+    const handleFitToScreen = useCallback(() => {
+        if (!canvas) return;
+        const canvasWithArtboard = canvas as CanvasWithArtboard;
+        if (typeof canvasWithArtboard.centerArtboard === 'function') {
+            canvasWithArtboard.centerArtboard();
+            setZoom(canvas.getZoom());
+            return;
+        }
+        const centerPoint = new fabric.Point((canvas.width || canvas.getWidth()) / 2, (canvas.height || canvas.getHeight()) / 2);
+        canvas.zoomToPoint(centerPoint, 1);
+        canvas.requestRenderAll();
+        setZoom(1);
+    }, [canvas]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const syncViewportSize = () => {
+            setViewportSize({
+                width: window.innerWidth,
+                height: window.innerHeight,
+            });
+        };
+        syncViewportSize();
+        window.addEventListener('resize', syncViewportSize);
+        return () => window.removeEventListener('resize', syncViewportSize);
+    }, []);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        const syncUtilityCanvasSize = () => {
+            const activeCanvas = canvas as CanvasWithArtboard;
+            if (activeCanvas.artboardRect) {
+                const width = Math.max(1, Math.round((activeCanvas.artboardRect.width || 0) * (activeCanvas.artboardRect.scaleX || 1)));
+                const height = Math.max(1, Math.round((activeCanvas.artboardRect.height || 0) * (activeCanvas.artboardRect.scaleY || 1)));
+                setUtilityCanvasSize({ width, height });
+                return;
+            }
+
+            if (activeCanvas.artboard) {
+                setUtilityCanvasSize({
+                    width: Math.max(1, Math.round(activeCanvas.artboard.width)),
+                    height: Math.max(1, Math.round(activeCanvas.artboard.height)),
+                });
+                return;
+            }
+
+            const canvasZoom = canvas.getZoom() || 1;
+            const width = Math.max(1, Math.round((canvas.width || canvas.getWidth() || 1080) / canvasZoom));
+            const height = Math.max(1, Math.round((canvas.height || canvas.getHeight() || 1080) / canvasZoom));
+            setUtilityCanvasSize({ width, height });
+        };
+
+        const canvasWithEvents = canvas as unknown as {
+            on: (eventName: string, cb: () => void) => void;
+            off: (eventName: string, cb: () => void) => void;
+        };
+
+        syncUtilityCanvasSize();
+        canvasWithEvents.on('artboard:resize', syncUtilityCanvasSize);
+        canvas.on('object:modified', syncUtilityCanvasSize);
+        canvas.on('object:added', syncUtilityCanvasSize);
+        canvas.on('object:removed', syncUtilityCanvasSize);
+
+        return () => {
+            canvasWithEvents.off('artboard:resize', syncUtilityCanvasSize);
+            canvas.off('object:modified', syncUtilityCanvasSize);
+            canvas.off('object:added', syncUtilityCanvasSize);
+            canvas.off('object:removed', syncUtilityCanvasSize);
+        };
+    }, [canvas]);
+
+    const gridStatusLabel = useMemo(() => {
+        const labels: Record<GridType, string> = {
+            none: 'Off',
+            'rule-of-thirds': 'Thirds',
+            'golden-ratio': 'Golden',
+            cross: 'Cross',
+            'grid-4x4': '4x4',
+            'canvas-border': 'Border',
+        };
+        return labels[gridType];
+    }, [gridType]);
+
+    const bottomRightUtilityStyle = useMemo(() => {
+        const clusterWidth = 260;
+        const clusterHeight = 68;
+        let right = 16;
+        let bottom = backgroundJobs.length > 0 ? 176 : 16;
+
+        const activeViewportWidth = viewportSize.width || 0;
+        const activeViewportHeight = viewportSize.height || 0;
+        const intersects = (
+            a: { left: number; top: number; right: number; bottom: number },
+            b: { left: number; top: number; right: number; bottom: number }
+        ) => (
+            a.left < b.right
+            && a.right > b.left
+            && a.top < b.bottom
+            && a.bottom > b.top
+        );
+
+        if (activeViewportWidth > 0 && activeViewportHeight > 0) {
+            const createClusterRect = (nextRight: number, nextBottom: number) => ({
+                left: activeViewportWidth - nextRight - clusterWidth,
+                top: activeViewportHeight - nextBottom - clusterHeight,
+                right: activeViewportWidth - nextRight,
+                bottom: activeViewportHeight - nextBottom,
+            });
+
+            if (contextMenu.isOpen) {
+                const contextRect = {
+                    left: contextMenu.x - 90,
+                    top: contextMenu.y - 90,
+                    right: contextMenu.x + 90,
+                    bottom: contextMenu.y + 90,
+                };
+                if (intersects(createClusterRect(right, bottom), contextRect)) {
+                    bottom += 96;
+                }
+            }
+
+            if (panelState.mode === 'floating') {
+                const floatingHeight = Math.round(activeViewportHeight * 0.7);
+                const floatingRect = {
+                    left: panelState.position.x,
+                    top: panelState.position.y,
+                    right: panelState.position.x + panelState.width,
+                    bottom: panelState.position.y + floatingHeight,
+                };
+                if (intersects(createClusterRect(right, bottom), floatingRect)) {
+                    right = Math.max(16, activeViewportWidth - floatingRect.left + 16);
+                }
+            }
+        }
+
+        return {
+            right: `${right}px`,
+            bottom: `${bottom}px`,
+        };
+    }, [backgroundJobs.length, contextMenu, panelState, viewportSize]);
+
     // --- Interactive Tools & Events (Zoom, Gradient, DoubleClick 3D) ---
     const handleZoom = (factor: number) => {
         if (!canvas) return;
@@ -2377,6 +3800,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     useEffect(() => {
         if (!canvas) return;
+        (canvas as unknown as {
+            fire: (eventName: string, payload?: unknown) => void;
+        }).fire('hand:mode:set', {
+            enabled: activeTool === 'hand' && handTopLockPan,
+        });
+    }, [canvas, activeTool, handTopLockPan]);
+
+    useEffect(() => {
+        if (!canvas) return;
     
                 const handleDblClick = (e: fabric.TPointerEventInfo) => {
                     const target = e.target as (ThreeDImage & ExtendedFabricObject) | undefined;
@@ -2448,17 +3880,47 @@ document.addEventListener('DOMContentLoaded', () => {
                     const oy = activeObj.originY === 'center' ? 0.5 : (activeObj.originY === 'bottom' ? 1 : 0);
                     const n1 = { x: (p1Local.x / w) + ox, y: (p1Local.y / h) + oy };
                     const n2 = { x: (p2Local.x / w) + ox, y: (p2Local.y / h) + oy };
-    
-                    const newGradient = new fabric.Gradient({
-                        type: 'linear', gradientUnits: 'percentage',
-                        coords: { x1: n1.x, y1: n1.y, x2: n2.x, y2: n2.y },
-                        colorStops: [ { offset: 0, color: 'blue' }, { offset: 1, color: 'red' } ]
-                    });
-                    const currentFill = activeObj.get('fill');
-                    if (currentFill && (currentFill as fabric.Gradient<'linear'>).type === 'linear') {
-                         newGradient.colorStops = (currentFill as fabric.Gradient<'linear'>).colorStops;
+
+                    const editableGradientObject = activeObj as fabric.Object & ExtendedFabricObject & {
+                        get: (key: string) => unknown;
+                        set: (props: unknown) => void;
+                        setCoords?: () => void;
+                    };
+                    const currentFill = editableGradientObject.get('fill');
+                    const nextStops = resolveGradientStops(currentFill, gradientTopReverse);
+                    const nextType = gradientTopType;
+                    const nextBlendMode = gradientTopBlendMode;
+                    const nextOpacity = Math.max(1, Math.min(100, Math.round(gradientTopOpacity)));
+                    const nextDither = gradientTopDither;
+
+                    let newGradient: fabric.Gradient<'linear' | 'radial'>;
+                    if (nextType === 'radial') {
+                        const radius = Math.max(0.001, Math.hypot(n2.x - n1.x, n2.y - n1.y));
+                        newGradient = new fabric.Gradient({
+                            type: 'radial',
+                            gradientUnits: 'percentage',
+                            coords: { x1: n1.x, y1: n1.y, r1: 0, x2: n1.x, y2: n1.y, r2: radius },
+                            colorStops: nextStops,
+                        });
+                    } else {
+                        newGradient = new fabric.Gradient({
+                            type: 'linear',
+                            gradientUnits: 'percentage',
+                            coords: { x1: n1.x, y1: n1.y, x2: n2.x, y2: n2.y },
+                            colorStops: nextStops,
+                        });
                     }
-                    activeObj.set('fill', newGradient);
+
+                    editableGradientObject.set({
+                        fill: newGradient,
+                        globalCompositeOperation: nextBlendMode,
+                        opacity: nextOpacity / 100,
+                        dirty: true,
+                    });
+                    editableGradientObject.gradientTypeHint = nextType;
+                    editableGradientObject.gradientReversed = gradientTopReverse;
+                    editableGradientObject.gradientDitherEnabled = nextDither;
+                    editableGradientObject.setCoords?.();
                     canvas.requestRenderAll();
                 },
                 'mouse:up': () => { isDown = false; activeObj = null; }
@@ -2479,7 +3941,16 @@ document.addEventListener('DOMContentLoaded', () => {
           canvas.off('mouse:move', gradientHandlers['mouse:move']);
           canvas.off('mouse:up', gradientHandlers['mouse:up']);
         };
-    }, [canvas, activeTool]);
+    }, [
+        canvas,
+        activeTool,
+        gradientTopType,
+        gradientTopBlendMode,
+        gradientTopOpacity,
+        gradientTopReverse,
+        gradientTopDither,
+        resolveGradientStops,
+    ]);
 
     useEffect(() => {
         if (!mediaPreview) return;
@@ -3080,10 +4551,181 @@ document.addEventListener('DOMContentLoaded', () => {
                          <span>Hub</span>
                        </button>
                     </nav>
+                    <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowFileMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showFileMenu}
+                            >
+                                <span>File</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showFileMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showFileMenu && (
+                                <div data-testid="menu-file" className="absolute left-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowFileMenu(false);
+                                            void handleSave();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Save
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowFileMenu(false);
+                                            setShowEditMenu(false);
+                                            setShowViewMenu(false);
+                                            setShowToolsMenu(false);
+                                            setShowGridMenu(false);
+                                            setShowShareMenu(false);
+                                            setShowExportMenu(true);
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Export As...
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowEditMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showEditMenu}
+                            >
+                                <span>Edit</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showEditMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showEditMenu && (
+                                <div data-testid="menu-edit" className="absolute left-0 top-full mt-2 w-52 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowEditMenu(false);
+                                            handleUndo();
+                                        }}
+                                        disabled={historyState.undo < 2}
+                                        className={`w-full text-left px-4 py-2.5 text-sm ${historyState.undo < 2 ? 'text-muted-foreground/40 cursor-not-allowed' : 'hover:bg-secondary/50'}`}
+                                    >
+                                        Undo
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowEditMenu(false);
+                                            handleRedo();
+                                        }}
+                                        disabled={historyState.redo < 1}
+                                        className={`w-full text-left px-4 py-2.5 text-sm ${historyState.redo < 1 ? 'text-muted-foreground/40 cursor-not-allowed' : 'hover:bg-secondary/50'}`}
+                                    >
+                                        Redo
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowEditMenu(false);
+                                            void handleDuplicate();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Duplicate
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        onClick={() => {
+                                            setShowEditMenu(false);
+                                            onOpenSettings();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Preferences...
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowViewMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showViewMenu}
+                            >
+                                <span>View</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showViewMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showViewMenu && (
+                                <div data-testid="menu-view" className="absolute left-0 top-full mt-2 w-52 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowViewMenu(false);
+                                            handleFitToScreen();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Fit to Screen
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowViewMenu(false);
+                                            handleZoom(0.1);
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Zoom In
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowViewMenu(false);
+                                            handleZoom(-0.1);
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Zoom Out
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        onClick={() => {
+                                            setShowViewMenu(false);
+                                            setGridType((prev) => (prev === 'none' ? 'rule-of-thirds' : 'none'));
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        {gridType === 'none' ? 'Show Grid' : 'Hide Grid'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                     <div className="relative">
                         <button
                             onClick={() => {
+                                setShowFileMenu(false);
+                                setShowEditMenu(false);
+                                setShowViewMenu(false);
                                 setShowExportMenu(false);
+                                setShowShareMenu(false);
                                 setShowGridMenu(false);
                                 setShowToolsMenu((prev) => !prev);
                             }}
@@ -3093,64 +4735,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             <ChevronDown size={14} />
                         </button>
                         {showToolsMenu && (
-                            <div className="absolute left-0 top-full mt-2 w-64 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 z-50">
-                                
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Selection & Layers</div>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('select'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Move size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
-                                    <span className="flex-1">Select</span>
-                                    <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">V</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('layers'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Layers size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> 
-                                    <span className="flex-1">Layers</span>
-                                    <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">L</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('adjustments'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Blend size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Adjustments</span>
-                                </button>
-
-                                <div className="my-1 border-t border-border/50" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Creation</div>
-                                <div className="grid grid-cols-2 gap-1 px-2">
-                                    <button onClick={() => { toolbarRef.current?.triggerTool('text'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
-                                        <Type size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Text</span>
-                                    </button>
-                                    <button onClick={() => { toolbarRef.current?.triggerTool('shapes'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
-                                        <Shapes size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Shapes</span>
-                                    </button>
-                                    <button onClick={() => { toolbarRef.current?.triggerTool('paint'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
-                                        <Brush size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Brush</span>
-                                    </button>
-                                    <button onClick={() => { toolbarRef.current?.triggerTool('pen'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
-                                        <PenTool size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Pen</span>
-                                    </button>
-                                   <button onClick={() => { toolbarRef.current?.triggerTool('gradient'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group col-span-2">
-                                        <PaintBucket size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Fill / Gradient</span>
-                                    </button>
-                                    <button onClick={() => { toolbarRef.current?.triggerTool('color-wheel'); setShowToolsMenu(false); }} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group col-span-2">
-                                        <Palette size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Color Wheel</span>
-                                    </button>
-                                </div>
-
-                                <div className="my-1 border-t border-border/50" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Libraries</div>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('assets'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <ImageIcon size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Gallery</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('templates'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <LayoutTemplate size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/> <span>Library</span>
-                                </button>
-
-                                <div className="my-1 border-t border-border/50" />
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">AI & 3D</div>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('ai-zone'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Wand2 size={16} className="text-purple-500 group-hover:text-purple-600 transition-colors"/> <span>AI Zone</span>
-                                </button>
-                                <button onClick={() => { toolbarRef.current?.triggerTool('3d-gen'); setShowToolsMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                                    <Box size={16} className="text-indigo-500 group-hover:text-indigo-600 transition-colors"/> <span>AI 3D</span>
-                                </button>
-                            </div>
+                            <ToolsDropdownMenu
+                                onTriggerTool={(tool) => {
+                                    toolbarRef.current?.triggerTool(tool);
+                                    setShowToolsMenu(false);
+                                }}
+                            />
                         )}
                     </div>
                  </div>
@@ -3241,7 +4831,15 @@ document.addEventListener('DOMContentLoaded', () => {
                      {/* Grid Menu */}
                      <div className="relative">
                         <button 
-                            onClick={() => setShowGridMenu(!showGridMenu)}
+                            onClick={() => {
+                                setShowFileMenu(false);
+                                setShowEditMenu(false);
+                                setShowViewMenu(false);
+                                setShowToolsMenu(false);
+                                setShowExportMenu(false);
+                                setShowShareMenu(false);
+                                setShowGridMenu((prev) => !prev);
+                            }}
                             className={`p-2 hover:bg-secondary rounded-full transition-colors ${gridType !== 'none' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                             title="Grid & Guides"
                         >
@@ -3273,7 +4871,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                      <div className="relative" ref={shareRef}>
                         <button 
-                          onClick={() => setShowShareMenu(!showShareMenu)}
+                          onClick={() => {
+                              setShowFileMenu(false);
+                              setShowEditMenu(false);
+                              setShowViewMenu(false);
+                              setShowToolsMenu(false);
+                              setShowGridMenu(false);
+                              setShowExportMenu(false);
+                              setShowShareMenu((prev) => !prev);
+                          }}
                           className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
                           title="Share"
                         >
@@ -3289,7 +4895,15 @@ document.addEventListener('DOMContentLoaded', () => {
                      
                      <div className="relative" ref={exportRef}>
                         <button 
-                          onClick={() => setShowExportMenu(!showExportMenu)}
+                          onClick={() => {
+                              setShowFileMenu(false);
+                              setShowEditMenu(false);
+                              setShowViewMenu(false);
+                              setShowToolsMenu(false);
+                              setShowGridMenu(false);
+                              setShowShareMenu(false);
+                              setShowExportMenu((prev) => !prev);
+                          }}
                           className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-full text-sm font-semibold shadow-lg shadow-primary/20 transition-all transform hover:scale-105 active:scale-95"
                         >
                             <Download size={16} />
@@ -3331,20 +4945,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <TopToolOptionsBar
                 activeTool={activeTool}
-                onTriggerTool={(tool) => {
-                    toolbarRef.current?.triggerTool(tool);
-                }}
                 selectOptions={{
                     autoSelectEnabled,
                     selectionMode,
                     showTransformControls,
                     feather: selectFeather,
                     antiAlias: selectAntiAlias,
+                    modifyPixels: selectionModifyPixels,
                 }}
                 onAutoSelectChange={setAutoSelectEnabled}
                 onSelectionModeChange={(mode) => {
                     setSelectionMode(mode);
-                    toolbarRef.current?.triggerTool(mode === 'group' ? 'layers' : 'select');
                 }}
                 onTransformControlsChange={setShowTransformControls}
                 onSelectFeatherChange={(feather) => {
@@ -3366,6 +4977,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     canvas.requestRenderAll();
                 }}
                 onSelectAntiAliasChange={setSelectAntiAlias}
+                onSelectionModifyPixelsChange={(pixels) => {
+                    setSelectionModifyPixels(Math.max(1, Math.min(120, Math.round(pixels))));
+                }}
+                onSelectionExpand={() => handleSelectionModify('expand')}
+                onSelectionContract={() => handleSelectionModify('contract')}
+                wandOptions={{
+                    threshold: wandTopThreshold,
+                }}
+                onWandThresholdChange={(threshold) => {
+                    setWandTopThreshold(Math.max(0, Math.min(180, Math.round(threshold))));
+                }}
+                healingOptions={{
+                    size: healingTopSize,
+                    hardness: healingTopHardness,
+                    sampleAllLayers: healingTopSampleAllLayers,
+                }}
+                onHealingSizeChange={(size) => {
+                    setHealingTopSize(Math.max(1, Math.min(200, Math.round(size))));
+                }}
+                onHealingHardnessChange={(hardness) => {
+                    setHealingTopHardness(Math.max(0, Math.min(100, Math.round(hardness))));
+                }}
+                onHealingSampleAllLayersChange={setHealingTopSampleAllLayers}
+                cloneOptions={{
+                    size: cloneTopSize,
+                    hardness: cloneTopHardness,
+                    aligned: cloneTopAligned,
+                    sampleAllLayers: cloneTopSampleAllLayers,
+                    hasSource: Boolean(cloneSourcePoint),
+                }}
+                onCloneSizeChange={(size) => {
+                    setCloneTopSize(Math.max(1, Math.min(200, Math.round(size))));
+                }}
+                onCloneHardnessChange={(hardness) => {
+                    setCloneTopHardness(Math.max(0, Math.min(100, Math.round(hardness))));
+                }}
+                onCloneAlignedChange={setCloneTopAligned}
+                onCloneSampleAllLayersChange={setCloneTopSampleAllLayers}
+                onCloneClearSource={() => setCloneSourcePoint(null)}
                 paintOptions={{
                     brushPreset: paintBrushPreset,
                     size: paintBrushSize,
@@ -3382,6 +5032,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 onPaintFlowChange={setPaintBrushFlow}
                 onPaintSmoothingChange={setPaintBrushSmoothing}
                 onPaintBlendModeChange={setPaintBlendMode}
+                gradientOptions={{
+                    type: gradientTopType,
+                    blendMode: gradientTopBlendMode,
+                    opacity: gradientTopOpacity,
+                    reverse: gradientTopReverse,
+                    dither: gradientTopDither,
+                }}
+                onGradientTypeChange={(type) => {
+                    setGradientTopType(type);
+                    applyGradientTopConfigToActiveObject({ type });
+                }}
+                onGradientBlendModeChange={(blendMode) => {
+                    setGradientTopBlendMode(blendMode);
+                    applyGradientTopConfigToActiveObject({ blendMode });
+                }}
+                onGradientOpacityChange={(opacity) => {
+                    const normalizedOpacity = Math.max(1, Math.min(100, Math.round(opacity)));
+                    setGradientTopOpacity(normalizedOpacity);
+                    applyGradientTopConfigToActiveObject({ opacity: normalizedOpacity });
+                }}
+                onGradientReverseChange={(enabled) => {
+                    setGradientTopReverse(enabled);
+                    applyGradientTopConfigToActiveObject({ reverse: enabled });
+                }}
+                onGradientDitherChange={(enabled) => {
+                    setGradientTopDither(enabled);
+                    applyGradientTopConfigToActiveObject({ dither: enabled });
+                }}
                 penOptions={{
                     mode: penTopMode,
                     pathOperation: penTopPathOperation,
@@ -3524,6 +5202,92 @@ document.addEventListener('DOMContentLoaded', () => {
                     active.set({ textAlign: align });
                     canvas.requestRenderAll();
                 }}
+                shapeOptions={{
+                    mode: shapeTopMode,
+                    fillColor: shapeTopFillColor,
+                    strokeColor: shapeTopStrokeColor,
+                    strokeWidth: shapeTopStrokeWidth,
+                    fixedSize: shapeTopFixedSize,
+                }}
+                onShapeModeChange={(mode) => {
+                    setShapeTopMode(mode);
+                    emitShapeTopConfig({ mode });
+                    applyShapeTopConfigToActiveObject({ mode });
+                }}
+                onShapeFillColorChange={(color) => {
+                    const normalizedColor = normalizeColorValue(color);
+                    if (!normalizedColor || !normalizedColor.startsWith('#')) return;
+                    setShapeTopFillColor(normalizedColor);
+                    emitShapeTopConfig({ fillColor: normalizedColor });
+                    applyShapeTopConfigToActiveObject({ fillColor: normalizedColor });
+                }}
+                onShapeStrokeColorChange={(color) => {
+                    const normalizedColor = normalizeColorValue(color);
+                    if (!normalizedColor || !normalizedColor.startsWith('#')) return;
+                    setShapeTopStrokeColor(normalizedColor);
+                    emitShapeTopConfig({ strokeColor: normalizedColor });
+                    applyShapeTopConfigToActiveObject({ strokeColor: normalizedColor });
+                }}
+                onShapeStrokeWidthChange={(width) => {
+                    const normalizedWidth = Math.max(0, Math.min(40, Math.round(width)));
+                    setShapeTopStrokeWidth(normalizedWidth);
+                    emitShapeTopConfig({ strokeWidth: normalizedWidth });
+                    applyShapeTopConfigToActiveObject({ strokeWidth: normalizedWidth });
+                }}
+                onShapeFixedSizeChange={(enabled) => {
+                    setShapeTopFixedSize(enabled);
+                    emitShapeTopConfig({ fixedSize: enabled });
+                    applyShapeTopConfigToActiveObject({ fixedSize: enabled });
+                }}
+                cropOptions={{
+                    ratioPreset: cropTopRatioPreset,
+                    deleteOutside: cropTopDeleteOutside,
+                    useArtboardBounds: cropTopUseArtboardBounds,
+                }}
+                onCropRatioPresetChange={(preset) => {
+                    if (!TOP_CROP_RATIO_PRESETS.includes(preset)) return;
+                    setCropTopRatioPreset(preset);
+                }}
+                onCropDeleteOutsideChange={setCropTopDeleteOutside}
+                onCropUseArtboardBoundsChange={setCropTopUseArtboardBounds}
+                onCropApply={applyTopCropSettings}
+                eyedropperOptions={{
+                    sampleSize: eyedropperTopSampleSize,
+                    sampleSource: eyedropperTopSampleSource,
+                    sampledColor: eyedropperTopSampledColor,
+                }}
+                onEyedropperSampleSizeChange={(size) => {
+                    if (!TOP_EYEDROPPER_SAMPLE_SIZES.includes(size)) return;
+                    setEyedropperTopSampleSize(size);
+                }}
+                onEyedropperSampleSourceChange={setEyedropperTopSampleSource}
+                onEyedropperSample={handleEyedropperSample}
+                zoomOptions={{
+                    mode: zoomTopMode,
+                    step: zoomTopStep,
+                    zoomPercent: Math.round(zoom * 100),
+                }}
+                onZoomModeChange={setZoomTopMode}
+                onZoomStepChange={(step) => {
+                    if (!TOP_ZOOM_STEPS.includes(step)) return;
+                    setZoomTopStep(step);
+                }}
+                onZoomApply={() => {
+                    const direction = zoomTopMode === 'in' ? 1 : -1;
+                    handleZoom((zoomTopStep / 100) * direction);
+                }}
+                onZoomFitToScreen={handleFitToScreen}
+                onZoomReset={() => {
+                    if (!canvas) return;
+                    const centerPoint = new fabric.Point((canvas.width || canvas.getWidth()) / 2, (canvas.height || canvas.getHeight()) / 2);
+                    canvas.zoomToPoint(centerPoint, 1);
+                    canvas.requestRenderAll();
+                    setZoom(1);
+                }}
+                handOptions={{
+                    lockPan: handTopLockPan,
+                }}
+                onHandLockPanChange={setHandTopLockPan}
             />
 
             {/* Overlays */}
@@ -3695,7 +5459,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     }
 
                                     await withExportOverlays(async () => {
-                                        const dataUrl = await withViewportReset(() => canvas.toDataURL(options));
+                                        const dataUrl = await withViewportReset(() => safeCanvasToDataURL(options));
                                         downloadFile(dataUrl, pendingExportFilename);
                                     });
 
@@ -3712,7 +5476,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             {/* Main Editor Layout */}
             <div className="flex flex-1 overflow-hidden relative">
-                <aside className="w-[60px] bg-card border-r flex flex-col items-center py-4 z-20 shadow-xl gap-4 relative overflow-y-auto">
+                <aside className="w-[60px] bg-card border-r flex flex-col items-center py-2 z-20 shadow-xl relative overflow-hidden">
                             <Toolbar 
                                 ref={toolbarRef}
                         canvas={canvas} 
@@ -3763,6 +5527,27 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}
                                 onAssetSelect={handleAssetSelect}
+                                historyState={historyState}
+                                onUndo={handleUndo}
+                                onRedo={handleRedo}
+                                zoom={zoom}
+                                brushOptions={{
+                                    brushPreset: paintBrushPreset,
+                                    size: paintBrushSize,
+                                    hardness: paintBrushHardness,
+                                    opacity: paintBrushOpacity,
+                                    flow: paintBrushFlow,
+                                    smoothing: paintBrushSmoothing,
+                                    blendMode: paintBlendMode,
+                                }}
+                                onBrushPresetChange={setPaintBrushPreset}
+                                onBrushSizeChange={setPaintBrushSize}
+                                onBrushHardnessChange={setPaintBrushHardness}
+                                onBrushOpacityChange={setPaintBrushOpacity}
+                                onBrushFlowChange={setPaintBrushFlow}
+                                onBrushSmoothingChange={setPaintBrushSmoothing}
+                                onBrushBlendModeChange={setPaintBlendMode}
+                                onActivatePaintTool={() => setActiveTool('paint')}
                             />
                         </div>
                         <div 
@@ -3898,10 +5683,61 @@ document.addEventListener('DOMContentLoaded', () => {
                         />
                    </div>
                    
-                   <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-popover/90 backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-border/50 z-20 transform hover:-translate-y-1 transition-transform duration-300">
-                       <button onClick={() => handleZoom(0.1)} className="p-2 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors" title="Zoom In">+</button>
-                       <span className="text-xs font-mono text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
-                       <button onClick={() => handleZoom(-0.1)} className="p-2 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors" title="Zoom Out">-</button>
+                   <div
+                       data-testid="bottom-right-utilities"
+                       className="absolute z-30 flex flex-col items-end gap-2 pointer-events-none"
+                       style={bottomRightUtilityStyle}
+                   >
+                       <div className="flex items-center gap-1.5 pointer-events-auto">
+                           <span className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide rounded-full border border-border/60 bg-popover/90 backdrop-blur text-muted-foreground">
+                               Zoom {Math.round(zoom * 100)}%
+                           </span>
+                           <span className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide rounded-full border border-border/60 bg-popover/90 backdrop-blur text-muted-foreground">
+                               Canvas {utilityCanvasSize.width}x{utilityCanvasSize.height}
+                           </span>
+                           <span className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide rounded-full border border-border/60 bg-popover/90 backdrop-blur text-muted-foreground">
+                               Grid {gridStatusLabel}
+                           </span>
+                       </div>
+                       <div className="flex items-center gap-1 bg-popover/90 backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-border/50 pointer-events-auto">
+                           <button
+                               onClick={() => handleZoom(-0.1)}
+                               className="p-2 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                               title="Zoom Out"
+                           >
+                               -
+                           </button>
+                           <span className="text-xs font-mono text-muted-foreground w-12 text-center">
+                               {Math.round(zoom * 100)}%
+                           </span>
+                           <button
+                               onClick={() => handleZoom(0.1)}
+                               className="p-2 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                               title="Zoom In"
+                           >
+                               +
+                           </button>
+                           <button
+                               onClick={handleFitToScreen}
+                               className="px-2.5 py-1.5 text-xs rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                               title="Fit to Screen"
+                           >
+                               Fit
+                           </button>
+                           <button
+                               onClick={() => {
+                                   if (!canvas) return;
+                                   const centerPoint = new fabric.Point((canvas.width || canvas.getWidth()) / 2, (canvas.height || canvas.getHeight()) / 2);
+                                   canvas.zoomToPoint(centerPoint, 1);
+                                   canvas.requestRenderAll();
+                                   setZoom(1);
+                               }}
+                               className="px-2.5 py-1.5 text-xs rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                               title="Reset Zoom"
+                           >
+                               100
+                           </button>
+                       </div>
                    </div>
                 </main>
                 
@@ -3929,6 +5765,27 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}
                                 onAssetSelect={handleAssetSelect}
+                                historyState={historyState}
+                                onUndo={handleUndo}
+                                onRedo={handleRedo}
+                                zoom={zoom}
+                                brushOptions={{
+                                    brushPreset: paintBrushPreset,
+                                    size: paintBrushSize,
+                                    hardness: paintBrushHardness,
+                                    opacity: paintBrushOpacity,
+                                    flow: paintBrushFlow,
+                                    smoothing: paintBrushSmoothing,
+                                    blendMode: paintBlendMode,
+                                }}
+                                onBrushPresetChange={setPaintBrushPreset}
+                                onBrushSizeChange={setPaintBrushSize}
+                                onBrushHardnessChange={setPaintBrushHardness}
+                                onBrushOpacityChange={setPaintBrushOpacity}
+                                onBrushFlowChange={setPaintBrushFlow}
+                                onBrushSmoothingChange={setPaintBrushSmoothing}
+                                onBrushBlendModeChange={setPaintBlendMode}
+                                onActivatePaintTool={() => setActiveTool('paint')}
                             />
                         </div>
                         <div 
@@ -3975,6 +5832,27 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onMake3D={(imageUrl) => { setInitialImageFor3D(imageUrl); if (canvas) { setSourceObjectFor3D(canvas.getActiveObject() || null); } setActiveTool('3d-gen'); }}
                                 onDuplicate={handleDuplicate}
                                 onAssetSelect={handleAssetSelect}
+                                historyState={historyState}
+                                onUndo={handleUndo}
+                                onRedo={handleRedo}
+                                zoom={zoom}
+                                brushOptions={{
+                                    brushPreset: paintBrushPreset,
+                                    size: paintBrushSize,
+                                    hardness: paintBrushHardness,
+                                    opacity: paintBrushOpacity,
+                                    flow: paintBrushFlow,
+                                    smoothing: paintBrushSmoothing,
+                                    blendMode: paintBlendMode,
+                                }}
+                                onBrushPresetChange={setPaintBrushPreset}
+                                onBrushSizeChange={setPaintBrushSize}
+                                onBrushHardnessChange={setPaintBrushHardness}
+                                onBrushOpacityChange={setPaintBrushOpacity}
+                                onBrushFlowChange={setPaintBrushFlow}
+                                onBrushSmoothingChange={setPaintBrushSmoothing}
+                                onBrushBlendModeChange={setPaintBlendMode}
+                                onActivatePaintTool={() => setActiveTool('paint')}
                             />
                         </div>
                     </div>

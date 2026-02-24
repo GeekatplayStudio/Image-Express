@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { TextDecoder, TextEncoder } from 'util';
 
 const mockTriggerTool = jest.fn();
@@ -61,6 +61,7 @@ function createCanvasStub() {
         getObjects: jest.fn(() => []),
         getWidth: jest.fn(() => 1200),
         getHeight: jest.fn(() => 800),
+        centerArtboard: jest.fn(),
         add: jest.fn(),
         remove: jest.fn(),
         bringToFront: jest.fn(),
@@ -420,12 +421,8 @@ describe('EditorView', () => {
         expect(screen.getByTestId('design-canvas')).toBeInTheDocument();
         expect(screen.getByTestId('top-tool-options-bar')).toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Top option: Open Layers' }));
-        expect(mockTriggerTool).toHaveBeenCalledWith('layers');
-
         fireEvent.click(screen.getByLabelText('Auto-Select'));
         fireEvent.click(screen.getByRole('button', { name: 'Selection mode group' }));
-        expect(mockTriggerTool).toHaveBeenCalledWith('layers');
 
         fireEvent.click(screen.getByLabelText('Show Transform Controls'));
 
@@ -448,7 +445,7 @@ describe('EditorView', () => {
         expect(props.onBack).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByText('Tools'));
-        fireEvent.click(screen.getByRole('button', { name: /^Select\s+V$/ }));
+        fireEvent.click(screen.getByRole('button', { name: /^Move\s+V$/ }));
         expect(mockTriggerTool).toHaveBeenCalledWith('select');
 
         await waitFor(() => {
@@ -512,6 +509,255 @@ describe('EditorView', () => {
 
         expect(latestCanvasStub?.fire).toHaveBeenCalledWith('pen:config:set', {
             rubberBand: false,
+        });
+    });
+
+    it('wires top shape controls and applies shape style to active shape object', async () => {
+        const activeShapeObject = {
+            type: 'rect',
+            set: jest.fn(),
+            setCoords: jest.fn(),
+            fill: '#8b5cf6',
+            stroke: '#111827',
+            strokeWidth: 2,
+            lockScalingX: false,
+            lockScalingY: false,
+        };
+
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="shapes" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Shape mode shape' })).toBeInTheDocument();
+        });
+
+        latestCanvasStub?.getActiveObject.mockReturnValue(activeShapeObject);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Shape mode path' }));
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('shape:config:set', expect.objectContaining({
+            mode: 'path',
+        }));
+        expect(activeShapeObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            fill: 'transparent',
+            strokeWidth: 1,
+        }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Shape mode shape' }));
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('shape:config:set', expect.objectContaining({
+            mode: 'shape',
+        }));
+
+        fireEvent.change(screen.getByLabelText('Shape fill color'), {
+            target: { value: '#336699' },
+        });
+        expect(activeShapeObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            fill: '#336699',
+        }));
+
+        fireEvent.change(screen.getByLabelText('Shape stroke color'), {
+            target: { value: '#ff5500' },
+        });
+        expect(activeShapeObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            stroke: '#ff5500',
+        }));
+
+        fireEvent.change(screen.getByLabelText('Shape stroke width'), {
+            target: { value: '12' },
+        });
+        expect(activeShapeObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            strokeWidth: 12,
+        }));
+
+        fireEvent.click(screen.getByLabelText('Shape fixed size'));
+        expect(activeShapeObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            lockScalingX: true,
+            lockScalingY: true,
+        }));
+
+        expect(activeShapeObject.setCoords).toHaveBeenCalled();
+        expect(latestCanvasStub?.requestRenderAll).toHaveBeenCalled();
+    });
+
+    it('wires top gradient controls and applies gradient config with angle fallback', async () => {
+        const activeGradientObject: {
+            [key: string]: unknown;
+            type: string;
+            fill: unknown;
+            globalCompositeOperation: string;
+            opacity: number;
+            gradientTypeHint?: 'linear' | 'radial' | 'angle';
+            gradientReversed?: boolean;
+            gradientDitherEnabled?: boolean;
+            get: jest.Mock;
+            set: jest.Mock;
+            setCoords: jest.Mock;
+        } = {
+            type: 'rect',
+            fill: {
+                type: 'linear',
+                coords: { x1: 0, y1: 0, x2: 1, y2: 1 },
+                colorStops: [
+                    { offset: 0, color: '#0000ff' },
+                    { offset: 1, color: '#ff0000' },
+                ],
+            },
+            globalCompositeOperation: 'source-over',
+            opacity: 1,
+            gradientTypeHint: 'linear',
+            gradientReversed: false,
+            gradientDitherEnabled: false,
+            get: jest.fn((key: string) => activeGradientObject[key]),
+            set: jest.fn((props: Record<string, unknown>) => {
+                Object.assign(activeGradientObject, props);
+            }),
+            setCoords: jest.fn(),
+        };
+
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="gradient" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Gradient type radial' })).toBeInTheDocument();
+        });
+
+        latestCanvasStub?.getActiveObject.mockReturnValue(activeGradientObject);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Gradient type radial' }));
+        expect(activeGradientObject.gradientTypeHint).toBe('radial');
+        expect(activeGradientObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            fill: expect.anything(),
+            globalCompositeOperation: 'source-over',
+            opacity: 1,
+        }));
+
+        fireEvent.change(screen.getByLabelText('Gradient blend mode'), {
+            target: { value: 'multiply' },
+        });
+        expect(activeGradientObject.globalCompositeOperation).toBe('multiply');
+
+        fireEvent.change(screen.getByLabelText('Gradient opacity'), {
+            target: { value: '65' },
+        });
+        expect(activeGradientObject.opacity).toBeCloseTo(0.65, 5);
+
+        fireEvent.click(screen.getByLabelText('Gradient reverse'));
+        expect(activeGradientObject.gradientReversed).toBe(true);
+
+        fireEvent.click(screen.getByLabelText('Gradient dither'));
+        expect(activeGradientObject.gradientDitherEnabled).toBe(true);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Gradient type angle' }));
+        expect(activeGradientObject.gradientTypeHint).toBe('angle');
+        expect((activeGradientObject.fill as { type?: string }).type).toBe('linear');
+        expect(activeGradientObject.setCoords).toHaveBeenCalled();
+        expect(latestCanvasStub?.requestRenderAll).toHaveBeenCalled();
+    });
+
+    it('wires crop/eyedropper/zoom/hand top utility controls', async () => {
+        const props = createDefaultProps();
+        const { rerender } = render(<EditorView {...props} initialActiveTool="crop" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Apply crop' })).toBeInTheDocument();
+        });
+
+        const artboardRect = {
+            set: jest.fn(),
+            setCoords: jest.fn(),
+        };
+        const insideObject = {
+            getBoundingRect: jest.fn(() => ({ left: 100, top: 100, width: 200, height: 200 })),
+        };
+        const outsideObject = {
+            getBoundingRect: jest.fn(() => ({ left: 1500, top: 900, width: 120, height: 120 })),
+        };
+
+        const mutableCanvas = latestCanvasStub as (ReturnType<typeof createCanvasStub> & {
+            artboard?: { width: number; height: number; left: number; top: number };
+            artboardRect?: { set: jest.Mock; setCoords: jest.Mock };
+        }) | null;
+        if (mutableCanvas) {
+            mutableCanvas.artboard = { left: 0, top: 0, width: 1200, height: 800 };
+            mutableCanvas.artboardRect = artboardRect;
+        }
+        latestCanvasStub?.getObjects.mockReturnValue([
+            artboardRect as unknown as object,
+            insideObject as unknown as object,
+            outsideObject as unknown as object,
+        ]);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Crop ratio 1:1' }));
+        fireEvent.click(screen.getByLabelText('Crop delete outside'));
+        fireEvent.click(screen.getByRole('button', { name: 'Apply crop' }));
+
+        expect(artboardRect.set).toHaveBeenCalledWith(expect.objectContaining({
+            width: 800,
+            height: 800,
+        }));
+        expect(latestCanvasStub?.remove).toHaveBeenCalledWith(outsideObject);
+        expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Crop applied',
+            variant: 'success',
+        }));
+
+        rerender(<EditorView {...props} initialActiveTool="eyedropper" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Eyedropper sample' })).toBeInTheDocument();
+        });
+        latestCanvasStub?.getActiveObject.mockReturnValue({
+            fill: '#336699',
+            stroke: '#000000',
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Eyedropper sample' }));
+
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('eyedropper:sample', expect.objectContaining({
+            color: '#336699',
+            sampleSize: 1,
+            sampleSource: 'current-layer',
+        }));
+        expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Color sampled',
+            variant: 'success',
+        }));
+
+        rerender(<EditorView {...props} initialActiveTool="zoom" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Zoom apply' })).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Zoom mode out' }));
+        fireEvent.change(screen.getByLabelText('Zoom step'), { target: { value: '25' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Zoom apply' }));
+
+        await waitFor(() => {
+            expect(latestCanvasStub?.zoomToPoint).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Zoom fit to screen' }));
+        expect(latestCanvasStub?.centerArtboard).toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Zoom reset' }));
+        expect(latestCanvasStub?.zoomToPoint).toHaveBeenCalledWith(expect.anything(), 1);
+
+        rerender(<EditorView {...props} initialActiveTool="hand" />);
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('Hand lock pan')).toBeInTheDocument();
+        });
+        await waitFor(() => {
+            expect(latestCanvasStub?.fire).toHaveBeenCalledWith('hand:mode:set', {
+                enabled: true,
+            });
+        });
+
+        fireEvent.click(screen.getByLabelText('Hand lock pan'));
+        await waitFor(() => {
+            expect(latestCanvasStub?.fire).toHaveBeenCalledWith('hand:mode:set', {
+                enabled: false,
+            });
         });
     });
 
@@ -646,6 +892,301 @@ describe('EditorView', () => {
         });
     });
 
+    it('wires file/edit/view menu shells to existing editor actions', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /^File$/i }));
+        const fileMenu = await screen.findByTestId('menu-file');
+        fireEvent.click(within(fileMenu).getByRole('button', { name: 'Save' }));
+        await waitFor(() => {
+            expect(mockDialogPrompt).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /^File$/i }));
+        fireEvent.click(within(await screen.findByTestId('menu-file')).getByRole('button', { name: 'Export As...' }));
+        expect(await screen.findByRole('button', { name: /PNG/i })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
+        const editMenu = await screen.findByTestId('menu-edit');
+        fireEvent.click(within(editMenu).getByRole('button', { name: 'Preferences...' }));
+        expect(props.onOpenSettings).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(screen.getByRole('button', { name: /^View$/i }));
+        const viewMenu = await screen.findByTestId('menu-view');
+        fireEvent.click(within(viewMenu).getByRole('button', { name: 'Zoom In' }));
+        await waitFor(() => {
+            expect(latestCanvasStub?.zoomToPoint).toHaveBeenCalled();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /^View$/i }));
+        fireEvent.click(within(await screen.findByTestId('menu-view')).getByRole('button', { name: 'Show Grid' }));
+        expect(screen.getByText('Grid Thirds')).toBeInTheDocument();
+
+        fireEvent.keyDown(window, { key: 'v' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('select');
+    });
+
+    it('supports move, wand, healing, clone stamp, marquee, lasso, and path-select keyboard aliases', () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        fireEvent.keyDown(window, { key: 'v' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('select');
+
+        fireEvent.keyDown(window, { key: 'w' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('wand');
+
+        fireEvent.keyDown(window, { key: 'j' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('healing');
+
+        fireEvent.keyDown(window, { key: 's' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('clone-stamp');
+
+        fireEvent.keyDown(window, { key: 'm' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('marquee');
+
+        fireEvent.keyDown(window, { key: 'l' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('lasso');
+
+        fireEvent.keyDown(window, { key: 'a' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('path-select');
+    });
+
+    it('uses marquee drag bounds to select the top-most intersecting object', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="marquee" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('marquee')).toBeInTheDocument();
+        });
+
+        const backObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 60, top: 60, width: 80, height: 80 })),
+        };
+        const frontObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 120, top: 120, width: 90, height: 90 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([
+            backObject as unknown as object,
+            frontObject as unknown as object,
+        ]);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        const dragStart = { scenePoint: { x: 40, y: 40 }, e: { button: 0 } };
+        const dragMove = { scenePoint: { x: 250, y: 250 }, e: { button: 0 } };
+
+        getHandlers('mouse:down').forEach((handler) => handler(dragStart));
+        getHandlers('mouse:move').forEach((handler) => handler(dragMove));
+        getHandlers('mouse:up').forEach((handler) => handler(dragMove));
+
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(frontObject);
+    });
+
+    it('uses lasso path bounds to select the top-most object inside polygon', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="lasso" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('lasso')).toBeInTheDocument();
+        });
+
+        const backObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 60, top: 60, width: 60, height: 60 })),
+        };
+        const frontObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 140, top: 120, width: 80, height: 80 })),
+        };
+        const outsideObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 420, top: 350, width: 60, height: 60 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([
+            backObject as unknown as object,
+            frontObject as unknown as object,
+            outsideObject as unknown as object,
+        ]);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        getHandlers('mouse:down').forEach((handler) => handler({
+            scenePoint: { x: 40, y: 40 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:move').forEach((handler) => handler({
+            scenePoint: { x: 260, y: 70 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:move').forEach((handler) => handler({
+            scenePoint: { x: 260, y: 250 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:move').forEach((handler) => handler({
+            scenePoint: { x: 40, y: 250 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:up').forEach((handler) => handler({
+            scenePoint: { x: 40, y: 40 },
+            e: { button: 0 },
+        }));
+
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(frontObject);
+        expect(latestCanvasStub?.setActiveObject).not.toHaveBeenCalledWith(outsideObject);
+    });
+
+    it('uses wand threshold matching and falls back to pointer-hit target when direct target is missing', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="wand" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('wand')).toBeInTheDocument();
+        });
+
+        const seedObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            fill: '#336699',
+            stroke: null,
+            getBoundingRect: jest.fn(() => ({ left: 120, top: 120, width: 80, height: 80 })),
+        };
+        const nearObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            fill: '#3a6ea4',
+            stroke: null,
+            getBoundingRect: jest.fn(() => ({ left: 320, top: 120, width: 80, height: 80 })),
+        };
+        const farObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            fill: '#e11d48',
+            stroke: null,
+            getBoundingRect: jest.fn(() => ({ left: 520, top: 120, width: 80, height: 80 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([
+            seedObject as unknown as object,
+            nearObject as unknown as object,
+            farObject as unknown as object,
+        ]);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '20' } });
+        getHandlers('mouse:down').forEach((handler) => handler({
+            scenePoint: { x: 140, y: 140 },
+            e: { button: 0 },
+            target: seedObject,
+        }));
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(nearObject);
+
+        latestCanvasStub?.setActiveObject.mockClear();
+
+        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '0' } });
+        getHandlers('mouse:down').forEach((handler) => handler({
+            scenePoint: { x: 140, y: 140 },
+            e: { button: 0 },
+        }));
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(seedObject);
+    });
+
+    it('captures clone source point on option-click and updates clone source status', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="clone-stamp" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('clone stamp')).toBeInTheDocument();
+        });
+        expect(screen.getByText('Source: Option-click to set')).toBeInTheDocument();
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 140, y: 110 },
+                e: { button: 0, altKey: true },
+            }));
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText('Source: Set')).toBeInTheDocument();
+        });
+    });
+
+    it('applies selection expand and contract operations from top controls', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="select" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('move')).toBeInTheDocument();
+        });
+
+        const selectedObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 100, top: 100, width: 60, height: 60 })),
+        };
+        const neighborObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 180, top: 100, width: 60, height: 60 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([
+            selectedObject as unknown as object,
+            neighborObject as unknown as object,
+        ]);
+        latestCanvasStub?.getActiveObject.mockReturnValue(selectedObject as unknown as object);
+        latestCanvasStub?.getActiveObjects.mockReturnValue([selectedObject as unknown as object]);
+
+        fireEvent.change(screen.getByLabelText('Selection modify pixels'), { target: { value: '40' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Selection expand' }));
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(neighborObject);
+
+        latestCanvasStub?.setActiveObject.mockClear();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Selection contract' }));
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(selectedObject);
+    });
+
     it('handles grid selection, context menu tool trigger, and zoom controls', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
@@ -658,6 +1199,10 @@ describe('EditorView', () => {
         expect(screen.getByTestId('context-menu')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Context Paint' }));
         expect(mockTriggerTool).toHaveBeenCalledWith('paint');
+
+        expect(screen.getByTestId('bottom-right-utilities')).toBeInTheDocument();
+        expect(screen.getByText('Grid Thirds')).toBeInTheDocument();
+        expect(screen.getByText('Canvas 1200x800')).toBeInTheDocument();
 
         fireEvent.click(screen.getByTitle('Zoom In'));
         fireEvent.click(screen.getByTitle('Zoom Out'));
@@ -723,6 +1268,38 @@ describe('EditorView', () => {
         expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
             title: 'Save failed',
             variant: 'destructive',
+        }));
+    });
+
+    it('saves successfully when canvas toDataURL throws with missing upper ctx', async () => {
+        mockDialogPrompt.mockResolvedValueOnce('Recovered Save');
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        await waitFor(() => {
+            expect(latestCanvasStub).toBeTruthy();
+        });
+
+        latestCanvasStub?.toDataURL.mockImplementation(() => {
+            throw new TypeError("Cannot set properties of undefined (setting 'ctx')");
+        });
+
+        const fallbackCanvas = document.createElement('canvas');
+        Object.defineProperty(fallbackCanvas, 'toDataURL', {
+            configurable: true,
+            writable: true,
+            value: jest.fn(() => 'data:image/png;base64,FALLBACK'),
+        });
+        latestCanvasStub?.getElement.mockReturnValue(fallbackCanvas);
+
+        fireEvent.click(screen.getByTitle('Save Design'));
+
+        await waitFor(() => {
+            expect(hasFetchCall(fetchMock, '/api/designs/save', 'POST')).toBe(true);
+        });
+        expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Design saved',
+            variant: 'success',
         }));
     });
 

@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
-import { Type, Square, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Layers, Box, Wand2, PaintBucket, Brush, Blend, ArrowRight, CornerDownRight, MessageSquare, PenTool, Palette } from 'lucide-react';
+import { Type, Square, LassoSelect, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Box, Wand2, PaintBucket, Brush, ArrowRight, CornerDownRight, MessageSquare, PenTool, ShieldCheck, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
 import { 
@@ -65,6 +65,30 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
         canvas.defaultCursor = 'default';
         canvas.hoverCursor = 'move';
         canvas.selection = true;
+    } else if (tool === 'marquee') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    } else if (tool === 'lasso') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    } else if (tool === 'wand') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    } else if (tool === 'healing') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    } else if (tool === 'clone-stamp') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    } else if (tool === 'paint') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
     } else if (tool === 'gradient') {
         canvas.defaultCursor = 'crosshair';
         canvas.hoverCursor = 'crosshair';
@@ -72,6 +96,22 @@ const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
     } else if (tool === 'pen') {
         canvas.defaultCursor = 'crosshair';
         canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    } else if (tool === 'crop') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    } else if (tool === 'eyedropper') {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.selection = false;
+    } else if (tool === 'zoom') {
+        canvas.defaultCursor = 'zoom-in';
+        canvas.hoverCursor = 'zoom-in';
+        canvas.selection = false;
+    } else if (tool === 'hand') {
+        canvas.defaultCursor = 'grab';
+        canvas.hoverCursor = 'grab';
         canvas.selection = false;
     }
 };
@@ -81,11 +121,31 @@ type PenPathOperation = 'add' | 'subtract' | 'intersect';
 type BezierPathObject = fabric.Path & ExtendedFabricObject;
 type PenDraftLineObject = fabric.Object;
 type PenAnchorObject = fabric.Circle & { isPenDraftAnchor?: boolean; penAnchorIndex?: number };
+type ShapeTopMode = 'shape' | 'path' | 'pixels';
+type ShapeConfigPayload = {
+    mode: ShapeTopMode;
+    fillColor: string;
+    strokeColor: string;
+    strokeWidth: number;
+    fixedSize: boolean;
+};
+
+const TOOL_ALIAS_MAP: Record<string, string> = {
+    move: 'select',
+    'path-select': 'select',
+};
 
 const PEN_STROKE = PEN_DEFAULT_STROKE;
 const PEN_FILL = PEN_DEFAULT_FILL;
 const PEN_ANCHOR_COLOR = '#2563eb';
 const PEN_HANDLE_COLOR = '#ffffff';
+const DEFAULT_SHAPE_CONFIG: ShapeConfigPayload = {
+    mode: 'shape',
+    fillColor: '#8b5cf6',
+    strokeColor: '#111827',
+    strokeWidth: 0,
+    fixedSize: false,
+};
 let isPenSpacePressed = false;
 
 const isPenDraftAnchor = (obj?: fabric.Object | null): obj is PenAnchorObject => !!obj && (obj as PenAnchorObject).isPenDraftAnchor === true;
@@ -96,6 +156,29 @@ const clonePenNodes = (nodes: PenNode[]) => nodes.map((node) => ({
     handleIn: { ...node.handleIn },
     handleOut: { ...node.handleOut }
 }));
+
+const getPenNodeBounds = (nodes: PenNode[]) => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    nodes.forEach((node) => {
+        const points = [node, node.handleIn, node.handleOut];
+        points.forEach((point) => {
+            if (point.x < minX) minX = point.x;
+            if (point.y < minY) minY = point.y;
+            if (point.x > maxX) maxX = point.x;
+            if (point.y > maxY) maxY = point.y;
+        });
+    });
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+        return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    }
+
+    return { minX, minY, maxX, maxY };
+};
 
 const distanceBetween = (a: PenPoint, b: PenPoint) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -143,17 +226,19 @@ const createPenDraftLine = (points: PenPoint[], mode: PenModeSetting, closure: P
     return new fabric.Path(buildBezierPathData(nodes, isClosed), baseProps);
 };
 
-const getScenePointFromPathPoint = (pathObj: fabric.Path, point: PenPoint): fabric.Point => {
+const getViewportPointFromPathPoint = (pathObj: fabric.Path, point: PenPoint): fabric.Point => {
     const transformPoint = (fabric.util as unknown as { transformPoint: (point: fabric.Point, transform: number[]) => fabric.Point }).transformPoint;
+    const multiplyTransformMatrices = (fabric.util as unknown as { multiplyTransformMatrices: (a: number[], b: number[]) => number[] }).multiplyTransformMatrices;
     const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
     const localPoint = new fabric.Point(point.x - pathOffset.x, point.y - pathOffset.y);
-    return transformPoint(localPoint, pathObj.calcTransformMatrix());
+    const viewportTransform = pathObj.getViewportTransform();
+    return transformPoint(localPoint, multiplyTransformMatrices(viewportTransform, pathObj.calcTransformMatrix()));
 };
 
 const getPathPointFromScenePoint = (pathObj: fabric.Path, point: PenPoint): PenPoint => {
     const transformPoint = (fabric.util as unknown as { transformPoint: (point: fabric.Point, transform: number[]) => fabric.Point }).transformPoint;
     const invertTransform = (fabric.util as unknown as { invertTransform: (transform: number[]) => number[] }).invertTransform;
-    const inverse = invertTransform(pathObj.calcTransformMatrix());
+    const inverse = invertTransform(pathObj.calcOwnMatrix());
     const localPoint = transformPoint(new fabric.Point(point.x, point.y), inverse);
     const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
     return {
@@ -207,7 +292,7 @@ const attachBezierControls = (pathObj: BezierPathObject) => {
             const currentNodes = target.penNodes || [];
             const node = currentNodes[nodeIndex];
             if (!node) return;
-            const anchorPoint = getScenePointFromPathPoint(target, { x: node.x, y: node.y });
+            const anchorPoint = getViewportPointFromPathPoint(target, { x: node.x, y: node.y });
             const size = styleOverride?.cornerSize ?? fabricObject.cornerSize ?? 10;
 
             ctx.save();
@@ -238,7 +323,7 @@ const attachBezierControls = (pathObj: BezierPathObject) => {
                 const currentNodes = target.penNodes || [];
                 const node = currentNodes[index];
                 if (!node) return new fabric.Point(0, 0);
-                return getScenePointFromPathPoint(target, { x: node.x, y: node.y });
+                return getViewportPointFromPathPoint(target, { x: node.x, y: node.y });
             },
             actionHandler: (_eventData, transform, x, y) => {
                 const target = transform.target as BezierPathObject;
@@ -272,7 +357,7 @@ const attachBezierControls = (pathObj: BezierPathObject) => {
                     const currentNodes = target.penNodes || [];
                     const node = currentNodes[index];
                     if (!node) return new fabric.Point(0, 0);
-                    return getScenePointFromPathPoint(target, node[handleKey]);
+                    return getViewportPointFromPathPoint(target, node[handleKey]);
                 },
                 actionHandler: (eventData, transform, x, y) => {
                     const target = transform.target as BezierPathObject;
@@ -309,7 +394,16 @@ const attachBezierControls = (pathObj: BezierPathObject) => {
     pathObj.setCoords();
 };
 
-const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, setActiveTool, onOpen3DEditor, apiKeys, activePalette, setActivePalette, currentUser }, ref) => {
+const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
+    canvas,
+    activeTool,
+    setActiveTool,
+    onOpen3DEditor,
+    apiKeys,
+    activePalette,
+    setActivePalette,
+    currentUser
+}, ref) => {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
@@ -328,18 +422,21 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
+    const [shapeConfig, setShapeConfig] = useState<ShapeConfigPayload>(DEFAULT_SHAPE_CONFIG);
 
-    // Ordered from local selection/layer work to broader/global actions.
+    // Left rail is creation-focused: tools that create new content.
     const tools = [
-        { name: 'select', icon: Move, label: 'Select' },
-        { name: 'layers', icon: Layers, label: 'Layers' },
+        { name: 'select', icon: Move, label: 'Move' },
+        { name: 'marquee', icon: Square, label: 'Marquee' },
+        { name: 'lasso', icon: LassoSelect, label: 'Lasso' },
+        { name: 'wand', icon: Wand2, label: 'Magic Wand' },
         { name: 'text', icon: Type, label: 'Text' },
         { name: 'shapes', icon: Shapes, label: 'Shapes' },
         { name: 'paint', icon: Brush, label: 'Brush' },
+        { name: 'healing', icon: ShieldCheck, label: 'Healing Brush' },
+        { name: 'clone-stamp', icon: Copy, label: 'Clone Stamp' },
         { name: 'pen', icon: PenTool, label: 'Pen' },
         { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
-        { name: 'adjustments', icon: Blend, label: 'Adjustments' },
-        { name: 'color-wheel', icon: Palette, label: 'Color' },
         { name: 'assets', icon: ImageIcon, label: 'Gallery' },
         { name: 'templates', icon: LayoutTemplate, label: 'Library' },
         { name: 'ai-zone', icon: Wand2, label: 'AI Zone' },
@@ -466,25 +563,32 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             globalCompositeOperation: penPathOperationToComposite[penPathOperation]
         };
 
-        // Normalize points to be relative to bounding box top-left
-        // This ensures controls stay valid even if object is moved/transformed
-        const minX = Math.min(...finalPoints.map(p => p.x));
-        const minY = Math.min(...finalPoints.map(p => p.y));
-        const normalizedPoints = finalPoints.map(p => ({ x: p.x - minX, y: p.y - minY }));
-
-        // Always create a BezierPathObject to ensure it's editable
-        let nodes: PenNode[] = [];
-        if (penMode === 'straight') {
-             nodes = buildStraightNodes(normalizedPoints);
-        } else {
-             nodes = buildAutoBezierNodes(normalizedPoints, isClosed);
-        }
+        // Build nodes in scene space first, then normalize by full bezier bounds
+        // (anchors + handles) so path placement stays stable after Fabric recomputes pathOffset.
+        const sceneNodes = penMode === 'straight'
+            ? buildStraightNodes(finalPoints)
+            : buildAutoBezierNodes(finalPoints, isClosed);
+        const { minX, minY } = getPenNodeBounds(sceneNodes);
+        const nodes = sceneNodes.map((node) => ({
+            x: node.x - minX,
+            y: node.y - minY,
+            handleIn: {
+                x: node.handleIn.x - minX,
+                y: node.handleIn.y - minY
+            },
+            handleOut: {
+                x: node.handleOut.x - minX,
+                y: node.handleOut.y - minY
+            }
+        }));
 
         const pathData = buildBezierPathData(nodes, isClosed);
         const bezierPath = new fabric.Path(pathData, {
             ...objectBaseProps,
             left: minX,
-            top: minY
+            top: minY,
+            originX: 'left',
+            originY: 'top'
         }) as BezierPathObject;
 
         bezierPath.set({
@@ -492,13 +596,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             penMode: 'bezier',
             penClosed: isClosed,
             penNodes: nodes, // Stored as relative
-            penSourcePoints: finalPoints.map((point) => ({ ...point })) // Keep original source if needed, or update? Better to keep source as relative too if we reload?
-            // Actually, penSourcePoints (raw clicks) are less critical than penNodes (bezier state).
-            // Let's store relative source points too to be consistent.
-            // penSourcePoints: normalizedPoints
+            penSourcePoints: nodes.map((node) => ({ x: node.x, y: node.y }))
         });
-        // We actually want penSourcePoints to be relative so we can rebuild from them if needed.
-        bezierPath.penSourcePoints = normalizedPoints;
         
         attachBezierControls(bezierPath);
         const createdObject = bezierPath;
@@ -768,6 +867,43 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         };
     }, [activeTool, canvas, clearPenDraft, finishPenPath, penAutoAddDelete, penClosure, penPoints, penRubberBand]);
 
+    useEffect(() => {
+        if (!canvas) return;
+
+        const handleShapeConfigSet = (payload?: Partial<ShapeConfigPayload>) => {
+            setShapeConfig((prev) => {
+                const nextMode = payload?.mode && ['shape', 'path', 'pixels'].includes(payload.mode)
+                    ? payload.mode
+                    : prev.mode;
+                const nextFillColor = typeof payload?.fillColor === 'string' && payload.fillColor.trim().length > 0
+                    ? payload.fillColor
+                    : prev.fillColor;
+                const nextStrokeColor = typeof payload?.strokeColor === 'string' && payload.strokeColor.trim().length > 0
+                    ? payload.strokeColor
+                    : prev.strokeColor;
+                const nextStrokeWidth = typeof payload?.strokeWidth === 'number'
+                    ? Math.max(0, Math.min(40, Math.round(payload.strokeWidth)))
+                    : prev.strokeWidth;
+                const nextFixedSize = typeof payload?.fixedSize === 'boolean'
+                    ? payload.fixedSize
+                    : prev.fixedSize;
+
+                return {
+                    mode: nextMode,
+                    fillColor: nextFillColor,
+                    strokeColor: nextStrokeColor,
+                    strokeWidth: nextStrokeWidth,
+                    fixedSize: nextFixedSize,
+                };
+            });
+        };
+
+        (canvas as unknown as { on: (eventName: string, cb: (payload?: Partial<ShapeConfigPayload>) => void) => void }).on('shape:config:set', handleShapeConfigSet);
+        return () => {
+            (canvas as unknown as { off: (eventName: string, cb: (payload?: Partial<ShapeConfigPayload>) => void) => void }).off('shape:config:set', handleShapeConfigSet);
+        };
+    }, [canvas]);
+
     // Close shapes menu when clicking outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -905,6 +1041,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     };
 
     const handleToolClick = (toolName: string) => {
+           const normalizedToolName = TOOL_ALIAS_MAP[toolName] || toolName;
            if (toolName === 'extra') {
                 setShowExtraMenu((prev) => {
                     const next = !prev;
@@ -938,30 +1075,45 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                     }
                     return next;
                 });
-                setShowShapesMenu(false);
-                setActiveTool('layers');
-                return;
+               setShowShapesMenu(false);
+               setActiveTool('layers');
+               return;
            }
 
         // Toggle behavior: Close tool if clicking standard panel icons again
-        if (activeTool === toolName) {
+        if (activeTool === normalizedToolName) {
             // Exceptions: 'text' (add new text), 'select' (deselect all)
             const nonTogglingTools = ['select', 'text'];
-            if (!nonTogglingTools.includes(toolName)) {
+            if (!nonTogglingTools.includes(normalizedToolName)) {
                 setActiveTool('select');
                 return;
             }
         }
 
-        setActiveTool(toolName);
+        setActiveTool(normalizedToolName);
         setShowShapesMenu(false);
         setShowAdjustmentMenu(false);
         
         // Handle single-action tools
-        switch(toolName) {
+        switch(normalizedToolName) {
             case 'select':
                 if (canvas) {
                     configureCanvasForTool(canvas, 'select');
+                }
+                break;
+            case 'marquee':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'marquee');
+                }
+                break;
+            case 'lasso':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'lasso');
+                }
+                break;
+            case 'wand':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'wand');
                 }
                 break;
             case 'gradient': 
@@ -975,6 +1127,41 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
             case 'pen':
                 if (canvas) {
                     configureCanvasForTool(canvas, 'pen');
+                }
+                break;
+            case 'paint':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'paint');
+                }
+                break;
+            case 'healing':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'healing');
+                }
+                break;
+            case 'clone-stamp':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'clone-stamp');
+                }
+                break;
+            case 'crop':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'crop');
+                }
+                break;
+            case 'eyedropper':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'eyedropper');
+                }
+                break;
+            case 'zoom':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'zoom');
+                }
+                break;
+            case 'hand':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'hand');
                 }
                 break;
             case 'text':
@@ -996,17 +1183,33 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         triggerTool: (toolName: string) => handleToolClick(toolName)
     }));
 
+    const applyShapeConfig = useCallback((obj: fabric.Object) => {
+        const resolvedStrokeWidth = shapeConfig.mode === 'path'
+            ? Math.max(1, shapeConfig.strokeWidth)
+            : shapeConfig.strokeWidth;
+        obj.set({
+            fill: shapeConfig.mode === 'path' ? 'transparent' : shapeConfig.fillColor,
+            stroke: shapeConfig.strokeColor,
+            strokeWidth: resolvedStrokeWidth,
+            lockScalingX: shapeConfig.fixedSize,
+            lockScalingY: shapeConfig.fixedSize,
+            dirty: true,
+        });
+        (obj as ExtendedFabricObject).shapeDrawMode = shapeConfig.mode;
+        obj.setCoords();
+    }, [shapeConfig]);
+
     const addRectangle = () => {
         if (!canvas) return;
         const rect = new fabric.Rect({
             left: 100,
             top: 100,
-            fill: '#8b5cf6',
             width: 100,
             height: 100,
             rx: 0, 
             ry: 0,
         });
+        applyShapeConfig(rect);
         canvas.add(rect);
         canvas.setActiveObject(rect);
     };
@@ -1016,9 +1219,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         const circle = new fabric.Circle({
             left: 150,
             top: 150,
-            fill: '#ec4899', // Pink
             radius: 50,
         });
+        applyShapeConfig(circle);
         canvas.add(circle);
         canvas.setActiveObject(circle);
     };
@@ -1028,10 +1231,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         const triangle = new fabric.Triangle({
             left: 200,
             top: 200,
-            fill: '#06b6d4', // Cyan
             width: 100,
             height: 100,
         });
+        applyShapeConfig(triangle);
         canvas.add(triangle);
         canvas.setActiveObject(triangle);
     };
@@ -1043,7 +1246,6 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         const star = new fabric.Polygon(points, {
             left: 250,
             top: 250,
-            fill: '#eab308', // Yellow
             objectCaching: false,
         }) as StarPolygon;
         
@@ -1051,6 +1253,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         star.isStar = true;
         star.starPoints = 5;
         star.starInnerRadius = 0.5; // ratio
+        applyShapeConfig(star);
 
         canvas.add(star);
         canvas.setActiveObject(star);
@@ -1070,9 +1273,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         const arrow = new fabric.Polygon(points, {
             left: 120,
             top: 120,
-            fill: '#22c55e',
             objectCaching: false
         });
+        applyShapeConfig(arrow);
         canvas.add(arrow);
         canvas.setActiveObject(arrow);
     };
@@ -1109,10 +1312,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         const bentArrow = new fabric.Path(pathData, {
             left: 140,
             top: 140,
-            fill: '#22c55e',
-            strokeWidth: 0,
             objectCaching: false
         });
+        applyShapeConfig(bentArrow);
         canvas.add(bentArrow);
         canvas.setActiveObject(bentArrow);
     };
@@ -1123,9 +1325,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
         const bubble = new fabric.Path(pathData, {
             left: 140,
             top: 140,
-            fill: '#f97316',
             objectCaching: false
         });
+        applyShapeConfig(bubble);
         canvas.add(bubble);
         canvas.setActiveObject(bubble);
     };
@@ -1442,7 +1644,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
     }
 
     return (
-        <div className="flex flex-col gap-3 w-full items-center pt-2 relative">
+        <div className="flex w-full flex-col items-center pt-2 relative">
             <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -1450,25 +1652,25 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({ canvas, activeTool, s
                 accept="image/jpeg,image/png,image/webp,image/svg+xml"
                 onChange={handleFileChange}
             />
-            {tools.map((tool) => (
-                <button 
-                    key={tool.name}
-                    onClick={() => handleToolClick(tool.name)}
-                    ref={tool.name === 'shapes' ? shapesButtonRef : tool.name === 'adjustments' ? adjustmentsButtonRef : tool.name === 'extra' ? extraButtonRef : undefined}
-                    className={cn(
-                        "flex flex-col items-center justify-center gap-1 group relative w-10 h-10 rounded-xl transition-all duration-200 z-20",
-                        activeTool === tool.name || (tool.name === 'adjustments' && showAdjustmentMenu)
-                            ? "bg-primary/20 text-primary shadow-sm"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    )}
-                    title={tool.label}
-                >
-                    <tool.icon size={20} strokeWidth={1.5} className="group-hover:scale-110 transition-transform duration-200"/>
-                    <span className="text-[10px] font-medium opacity-0 group-hover:opacity-100 absolute -bottom-4 transition-opacity duration-200 pointer-events-none whitespace-nowrap bg-popover text-popover-foreground px-2 py-0.5 rounded shadow-md border z-50">
-                        {tool.label}
-                    </span>
-                </button>
-            ))}
+            <div className="flex max-h-[calc(100%-0.5rem)] overflow-y-auto flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin">
+                {tools.map((tool) => (
+                    <button
+                        key={tool.name}
+                        onClick={() => handleToolClick(tool.name)}
+                        ref={tool.name === 'shapes' ? shapesButtonRef : undefined}
+                        className={cn(
+                            "h-8 w-8 rounded-sm flex items-center justify-center transition-colors z-20",
+                            activeTool === tool.name
+                                ? "bg-secondary text-foreground"
+                                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                        )}
+                        title={tool.label}
+                        aria-label={tool.label}
+                    >
+                        <tool.icon size={16} />
+                    </button>
+                ))}
+            </div>
 
             {/* Pen Options now moved to PropertiesPanel (Right Sidebar) to avoid squishing */}
 

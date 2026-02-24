@@ -425,4 +425,4 @@ You already have richer functionality than the reference in several areas; the m
 - [x] Phase 1 complete: top-strip selected-layer actions + cleaner row density.
 - [x] Phase 2 complete: selected-layer settings toggle opens dedicated mini inspector (X/Y/W/H).
 - [x] Phase 3 complete: explicit Arrange Layers mode gates drag-sort behavior.
-- [ ] Phase 4 pending: broader consistency pass + right icon rail + panel state persistence.
+- [ ] Phase 4 pending: broader consistency pass (full right icon rail taxonomy now includes color/swatches/brushes/channels/paths/adjustments; history/navigator/info shortcuts and categorized adjustment launcher quick controls are also implemented).

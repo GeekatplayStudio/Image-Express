@@ -1,0 +1,156 @@
+'use client';
+
+type SelectOptions = {
+    autoSelectEnabled: boolean;
+    selectionMode: 'layer' | 'group';
+    showTransformControls: boolean;
+    feather: number;
+    antiAlias: boolean;
+    modifyPixels?: number;
+};
+
+type WandOptions = {
+    threshold: number;
+};
+
+interface SelectionControlsProps {
+    activeTool: string;
+    selectOptions: SelectOptions;
+    wandOptions?: WandOptions;
+    onAutoSelectChange?: (enabled: boolean) => void;
+    onSelectionModeChange?: (mode: 'layer' | 'group') => void;
+    onTransformControlsChange?: (enabled: boolean) => void;
+    onSelectFeatherChange?: (feather: number) => void;
+    onSelectAntiAliasChange?: (enabled: boolean) => void;
+    onSelectionModifyPixelsChange?: (pixels: number) => void;
+    onSelectionExpand?: () => void;
+    onSelectionContract?: () => void;
+    onWandThresholdChange?: (threshold: number) => void;
+}
+
+export default function SelectionControls({
+    activeTool,
+    selectOptions,
+    wandOptions,
+    onAutoSelectChange,
+    onSelectionModeChange,
+    onTransformControlsChange,
+    onSelectFeatherChange,
+    onSelectAntiAliasChange,
+    onSelectionModifyPixelsChange,
+    onSelectionExpand,
+    onSelectionContract,
+    onWandThresholdChange,
+}: SelectionControlsProps) {
+    return (
+        <>
+            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <input
+                    type="checkbox"
+                    checked={selectOptions.autoSelectEnabled}
+                    onChange={(event) => onAutoSelectChange?.(event.target.checked)}
+                    aria-label="Auto-Select"
+                />
+                <span>Auto-Select</span>
+            </label>
+
+            <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
+                <button
+                    onClick={() => onSelectionModeChange?.('layer')}
+                    className={`px-2.5 py-1 text-xs ${selectOptions.selectionMode === 'layer' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                    aria-label="Selection mode layer"
+                >
+                    Layer
+                </button>
+                <button
+                    onClick={() => onSelectionModeChange?.('group')}
+                    className={`px-2.5 py-1 text-xs border-l border-border/50 ${selectOptions.selectionMode === 'group' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                    aria-label="Selection mode group"
+                >
+                    Group
+                </button>
+            </div>
+
+            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <input
+                    type="checkbox"
+                    checked={selectOptions.showTransformControls}
+                    onChange={(event) => onTransformControlsChange?.(event.target.checked)}
+                    aria-label="Show Transform Controls"
+                />
+                <span>Show Transform Controls</span>
+            </label>
+
+            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <span className="text-muted-foreground">Feather</span>
+                <input
+                    aria-label="Select feather"
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={selectOptions.feather}
+                    onChange={(event) => onSelectFeatherChange?.(Number(event.target.value))}
+                    className="w-20"
+                />
+                <span>{selectOptions.feather}px</span>
+            </label>
+
+            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <input
+                    type="checkbox"
+                    checked={selectOptions.antiAlias}
+                    onChange={(event) => onSelectAntiAliasChange?.(event.target.checked)}
+                    aria-label="Select anti-alias"
+                />
+                <span>Anti-alias</span>
+            </label>
+
+            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <span className="text-muted-foreground">Modify</span>
+                <input
+                    aria-label="Selection modify pixels"
+                    type="range"
+                    min={1}
+                    max={120}
+                    value={selectOptions.modifyPixels ?? 12}
+                    onChange={(event) => onSelectionModifyPixelsChange?.(Number(event.target.value))}
+                    className="w-20"
+                />
+                <span>{selectOptions.modifyPixels ?? 12}px</span>
+            </label>
+
+            <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
+                <button
+                    onClick={() => onSelectionExpand?.()}
+                    className="px-2.5 py-1 text-xs text-muted-foreground hover:bg-secondary/50"
+                    aria-label="Selection expand"
+                >
+                    Expand
+                </button>
+                <button
+                    onClick={() => onSelectionContract?.()}
+                    className="px-2.5 py-1 text-xs border-l border-border/50 text-muted-foreground hover:bg-secondary/50"
+                    aria-label="Selection contract"
+                >
+                    Contract
+                </button>
+            </div>
+
+            {activeTool === 'wand' && wandOptions && (
+                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                    <span className="text-muted-foreground">Threshold</span>
+                    <input
+                        aria-label="Wand threshold"
+                        type="range"
+                        min={0}
+                        max={180}
+                        value={wandOptions.threshold}
+                        onChange={(event) => onWandThresholdChange?.(Number(event.target.value))}
+                        className="w-20"
+                    />
+                    <span>{wandOptions.threshold}</span>
+                </label>
+            )}
+        </>
+    );
+}

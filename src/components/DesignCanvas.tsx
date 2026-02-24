@@ -580,6 +580,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     let lastPosX = 0;
     let lastPosY = 0;
     let isSpacePressed = false;
+    let handModeLocked = false;
 
     const isTypingTarget = (target: EventTarget | null) => {
         if (!(target instanceof HTMLElement)) return false;
@@ -592,9 +593,10 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         if (!isDragging) return;
         canvas.setViewportTransform(canvas.viewportTransform!);
         isDragging = false;
-        canvas.selection = true;
-        canvas.defaultCursor = 'default';
-        canvas.setCursor('default');
+        canvas.selection = !handModeLocked;
+        canvas.defaultCursor = handModeLocked ? 'grab' : 'default';
+        canvas.hoverCursor = handModeLocked ? 'grab' : 'move';
+        canvas.setCursor(handModeLocked ? 'grab' : 'default');
     };
 
     const handlePanKeyDown = (event: KeyboardEvent) => {
@@ -614,6 +616,24 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         isSpacePressed = false;
         stopPanning();
     };
+
+    const handModeBridge = canvas as unknown as {
+        on: (eventName: string, cb: (payload?: { enabled?: boolean }) => void) => void;
+        off: (eventName: string, cb: (payload?: { enabled?: boolean }) => void) => void;
+    };
+
+    const handleHandModeSet = (payload?: { enabled?: boolean }) => {
+        handModeLocked = Boolean(payload?.enabled);
+        canvas.selection = !handModeLocked;
+        canvas.defaultCursor = handModeLocked ? 'grab' : 'default';
+        canvas.hoverCursor = handModeLocked ? 'grab' : 'move';
+        if (!isDragging) {
+            canvas.setCursor(handModeLocked ? 'grab' : 'default');
+        }
+        canvas.requestRenderAll();
+    };
+
+    handModeBridge.on('hand:mode:set', handleHandModeSet);
 
     window.addEventListener('keydown', handlePanKeyDown);
     window.addEventListener('keyup', handlePanKeyUp);
@@ -657,7 +677,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     canvas.on('mouse:down', (opt) => {
         const evt = opt.e as MouseEvent;
         // Pan with Space + Left Click on empty canvas so object/pen controls stay usable.
-        if (isSpacePressed && evt.button === 0 && !opt.target) {
+        if ((isSpacePressed || handModeLocked) && evt.button === 0 && !opt.target) {
             hasUserInteracted = true; // User took control
             isDragging = true;
             canvas.selection = false; // Disable selection while panning
@@ -777,6 +797,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
       window.removeEventListener('keydown', handlePanKeyDown);
       window.removeEventListener('keyup', handlePanKeyUp);
       window.removeEventListener('blur', handlePanWindowBlur);
+      handModeBridge.off('hand:mode:set', handleHandModeSet);
       canvas.dispose();
       resizeObserver.disconnect();
     };

@@ -104,6 +104,10 @@ jest.mock('fabric', () => {
         setPositionByOrigin = jest.fn();
 
         calcTransformMatrix = jest.fn(() => [1, 0, 0, 1, 0, 0]);
+
+        calcOwnMatrix = jest.fn(() => [1, 0, 0, 1, 0, 0]);
+
+        getViewportTransform = jest.fn(() => [1, 0, 0, 1, 0, 0]);
     }
 
     class MockPoint {
@@ -377,14 +381,12 @@ describe('Toolbar', () => {
         expect(canvas.add.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ type: 'path' }));
     });
 
-    it('creates an adjustment layer from the adjustments menu', () => {
-        const { canvas, setActiveToolSpy } = renderToolbar();
+    it('exposes a creation-focused rail without property panel tool buttons', () => {
+        renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Adjustments'));
-        fireEvent.click(screen.getByRole('button', { name: 'Curves' }));
-
-        expect(canvas.fire).toHaveBeenCalledWith('adjustment:create', { type: 'curves' });
-        expect(setActiveToolSpy).toHaveBeenCalledWith('layers');
+        expect(screen.queryByTitle('Layers')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('Adjustments')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('Color')).not.toBeInTheDocument();
     });
 
     it('loads selected image assets onto the canvas', async () => {
@@ -413,23 +415,6 @@ describe('Toolbar', () => {
         expect(setActiveToolSpy).toHaveBeenCalledWith('select');
     });
 
-    it('applies a selected color and palette from color wheel tool', () => {
-        const activeObject = { set: jest.fn() };
-        const { canvas, setActivePaletteSpy } = renderToolbar({ activeObject });
-
-        fireEvent.click(screen.getByTitle('Color'));
-        fireEvent.click(screen.getByRole('button', { name: 'Apply Color' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Pick Palette' }));
-
-        expect(activeObject.set).toHaveBeenCalledWith({ fill: '#123456' });
-        expect(canvas.requestRenderAll).toHaveBeenCalled();
-        expect(setActivePaletteSpy).toHaveBeenCalledWith({
-            id: 'palette-1',
-            name: 'Warm',
-            colors: ['#123456', '#ff9900'],
-        });
-    });
-
     it('shows warning toast for unsupported file uploads', () => {
         const { container } = renderToolbar();
         const input = container.querySelector('input[type="file"]');
@@ -446,15 +431,99 @@ describe('Toolbar', () => {
     });
 
     it('supports imperative tool switching through ref handle', () => {
-        const { ref, canvas } = renderToolbar();
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
 
         act(() => {
             ref.current?.triggerTool('pen');
         });
 
+        expect(setActiveToolSpy).toHaveBeenCalledWith('pen');
         expect(canvas.defaultCursor).toBe('crosshair');
         expect(canvas.hoverCursor).toBe('crosshair');
         expect(canvas.selection).toBe(false);
+    });
+
+    it('supports marquee tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('marquee');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('marquee');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports lasso tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('lasso');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('lasso');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports wand tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('wand');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('wand');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports healing tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('healing');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('healing');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports clone stamp tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('clone-stamp');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('clone-stamp');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('routes path-select alias to move/select behavior', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('pen');
+        });
+        expect(canvas.selection).toBe(false);
+
+        act(() => {
+            ref.current?.triggerTool('path-select');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('select');
+        expect(canvas.defaultCursor).toBe('default');
+        expect(canvas.hoverCursor).toBe('move');
+        expect(canvas.selection).toBe(true);
     });
 
     it('does not place pen anchors while holding space for pan', () => {
@@ -497,5 +566,48 @@ describe('Toolbar', () => {
 
         expect(canvas.getScenePoint).toHaveBeenCalled();
         expect(canvas.add).toHaveBeenCalledWith(expect.objectContaining({ type: 'circle', left: 321, top: 654 }));
+    });
+
+    it('finalizes pen paths using top-left origin coordinates to avoid placement drift', () => {
+        const { canvas } = renderToolbar();
+        fireEvent.click(screen.getByTitle('Pen'));
+
+        const getLatestHandler = (eventName: string) => [...canvas.on.mock.calls]
+            .reverse()
+            .find((call) => call[0] === eventName)?.[1] as ((opt?: unknown) => void) | undefined;
+
+        expect(getLatestHandler('mouse:down')).toBeDefined();
+        expect(getLatestHandler('mouse:dblclick')).toBeDefined();
+
+        act(() => {
+            getLatestHandler('mouse:down')?.({
+                scenePoint: { x: 200, y: 160 },
+                target: null,
+                e: { button: 0 },
+            });
+        });
+        act(() => {
+            getLatestHandler('mouse:down')?.({
+                scenePoint: { x: 340, y: 220 },
+                target: null,
+                e: { button: 0 },
+            });
+        });
+        act(() => {
+            getLatestHandler('mouse:dblclick')?.();
+        });
+
+        const createdPath = canvas.add.mock.calls
+            .map((call) => call[0] as Record<string, unknown>)
+            .reverse()
+            .find((obj) => obj?.type === 'path');
+
+        expect(createdPath).toEqual(expect.objectContaining({
+            isPenPath: true,
+            originX: 'left',
+            originY: 'top',
+            left: 200,
+            top: 160,
+        }));
     });
 });
