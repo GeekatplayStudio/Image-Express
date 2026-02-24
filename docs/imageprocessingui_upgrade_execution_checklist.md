@@ -123,10 +123,10 @@ How to use:
 ## C5. Text Family
 - [x] Font family selector.
 - [x] Font style selector.
-- [x] Size control.
+- [x] Size slider/input.
 - [x] Bold/Italic/Underline toggles.
 - [x] Alignment controls.
-- [ ] Color shortcut.
+- [x] Color shortcut.
 
 ## C6. Shape/Rectangle Family
 - [ ] Shape/Path/Pixels mode toggles.

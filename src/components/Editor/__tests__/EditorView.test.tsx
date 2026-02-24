@@ -509,6 +509,7 @@ describe('EditorView', () => {
             underline: false,
             textAlign: 'left',
             fontSize: 40,
+            fill: '#000000',
         };
 
         const props = createDefaultProps();
@@ -532,6 +533,10 @@ describe('EditorView', () => {
             target: { value: '72' },
         });
 
+        fireEvent.change(screen.getByLabelText('Text color'), {
+            target: { value: '#336699' },
+        });
+
         fireEvent.click(screen.getByRole('button', { name: 'Text toggle bold' }));
         fireEvent.click(screen.getByRole('button', { name: 'Text toggle italic' }));
         fireEvent.click(screen.getByRole('button', { name: 'Text toggle underline' }));
@@ -542,6 +547,7 @@ describe('EditorView', () => {
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontFamily: 'Georgia' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontWeight: 'bold' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontSize: 72 });
+        expect(activeTextObject.set).toHaveBeenCalledWith({ fill: '#336699' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ fontStyle: 'italic' });
         expect(activeTextObject.set).toHaveBeenCalledWith({ underline: true });
         expect(activeTextObject.set).toHaveBeenCalledWith({ textAlign: 'center' });

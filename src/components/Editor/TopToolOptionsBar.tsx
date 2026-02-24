@@ -51,6 +51,7 @@ interface TopToolOptionsBarProps {
         fontStyle: string;
         fontStyles: string[];
         fontSize: number;
+        color: string;
         bold: boolean;
         italic: boolean;
         underline: boolean;
@@ -59,6 +60,7 @@ interface TopToolOptionsBarProps {
     onTextFontFamilyChange?: (fontFamily: string) => void;
     onTextFontStyleChange?: (fontStyle: string) => void;
     onTextFontSizeChange?: (fontSize: number) => void;
+    onTextColorChange?: (color: string) => void;
     onTextBoldChange?: (enabled: boolean) => void;
     onTextItalicChange?: (enabled: boolean) => void;
     onTextUnderlineChange?: (enabled: boolean) => void;
@@ -128,6 +130,7 @@ export default function TopToolOptionsBar({
     onTextFontFamilyChange,
     onTextFontStyleChange,
     onTextFontSizeChange,
+    onTextColorChange,
     onTextBoldChange,
     onTextItalicChange,
     onTextUnderlineChange,
@@ -404,6 +407,17 @@ export default function TopToolOptionsBar({
                                 className="w-20"
                             />
                             <span>{textOptions.fontSize}px</span>
+                        </label>
+
+                        <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <span className="text-muted-foreground">Color</span>
+                            <input
+                                aria-label="Text color"
+                                type="color"
+                                value={textOptions.color}
+                                onChange={(event) => onTextColorChange?.(event.target.value)}
+                                className="h-6 w-8 rounded border border-border/60 bg-transparent p-0"
+                            />
                         </label>
 
                         <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">

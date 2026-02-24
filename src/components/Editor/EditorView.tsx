@@ -578,6 +578,7 @@ export default function EditorView({
     const [textTopFontFamily, setTextTopFontFamily] = useState(TOP_TEXT_FONT_FAMILIES[0]);
     const [textTopFontStyle, setTextTopFontStyle] = useState(TOP_TEXT_FONT_STYLES[0]);
     const [textTopFontSize, setTextTopFontSize] = useState(TOP_TEXT_DEFAULT_SIZE);
+    const [textTopColor, setTextTopColor] = useState('#000000');
     const [textTopBold, setTextTopBold] = useState(false);
     const [textTopItalic, setTextTopItalic] = useState(false);
     const [textTopUnderline, setTextTopUnderline] = useState(false);
@@ -753,11 +754,13 @@ export default function EditorView({
                 fontStyle?: string;
                 underline?: boolean;
                 textAlign?: 'left' | 'center' | 'right' | 'justify';
+                fill?: unknown;
             }) | null;
             if (!active) {
                 setTextTopFontFamily(TOP_TEXT_FONT_FAMILIES[0]);
                 setTextTopFontStyle(TOP_TEXT_FONT_STYLES[0]);
                 setTextTopFontSize(TOP_TEXT_DEFAULT_SIZE);
+                setTextTopColor('#000000');
                 setTextTopBold(false);
                 setTextTopItalic(false);
                 setTextTopUnderline(false);
@@ -779,6 +782,13 @@ export default function EditorView({
             const activeWithFontSize = active as unknown as { fontSize?: number };
             if (typeof activeWithFontSize.fontSize === 'number') {
                 setTextTopFontSize(Math.max(8, Math.round(activeWithFontSize.fontSize)));
+            }
+            if (typeof active.fill === 'string' && active.fill.trim().length > 0) {
+                const { color } = parseColorWithAlpha(active.fill);
+                const normalizedColor = normalizeColorValue(color);
+                if (typeof normalizedColor === 'string' && normalizedColor.startsWith('#') && normalizedColor.length === 7) {
+                    setTextTopColor(normalizedColor);
+                }
             }
             setTextTopItalic(active.fontStyle === 'italic');
             setTextTopUnderline(Boolean(active.underline));
@@ -3374,6 +3384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fontStyle: textTopFontStyle,
                     fontStyles: TOP_TEXT_FONT_STYLES,
                     fontSize: textTopFontSize,
+                    color: textTopColor,
                     bold: textTopBold,
                     italic: textTopItalic,
                     underline: textTopUnderline,
@@ -3414,6 +3425,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
                     if (!isTextObject) return;
                     active.set({ fontSize: normalizedSize });
+                    canvas.requestRenderAll();
+                }}
+                onTextColorChange={(color) => {
+                    const normalizedColor = normalizeColorValue(color);
+                    if (!normalizedColor || !normalizedColor.startsWith('#')) return;
+                    setTextTopColor(normalizedColor);
+                    if (!canvas) return;
+                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
+                    if (!active) return;
+                    const activeType = active.type;
+                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
+                    if (!isTextObject) return;
+                    active.set({ fill: normalizedColor });
                     canvas.requestRenderAll();
                 }}
                 onTextBoldChange={(enabled) => {
