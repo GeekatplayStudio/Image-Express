@@ -1,5 +1,7 @@
 # Imageprocessingui Upgrade — Execution Checklist (Menus, Properties, Submenus, Missing Tools)
 
+Canonical progress file: [docs/unified_progress_status.md](docs/unified_progress_status.md)
+
 Purpose: This is the implementation tracking checklist to execute the reference-design upgrade safely in Image Express.
 
 How to use:

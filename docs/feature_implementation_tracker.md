@@ -1,5 +1,7 @@
 # Feature Implementation Tracker
 
+Canonical progress file: [docs/unified_progress_status.md](docs/unified_progress_status.md)
+
 **Purpose:** Track requested features, verify existing functionality before each change, and record lint/build results per feature.
 
 ## Process Checklist (Do this before each feature)

@@ -1,5 +1,7 @@
 # Image Express Continuation Handoff (Updated 2026-02-24)
 
+Canonical progress file: [docs/unified_progress_status.md](docs/unified_progress_status.md)
+
 ## 1) Canonical Resume Point
 - Repository: https://github.com/GeekatplayStudio/Image-Express.git
 - Branch: main
