@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft, Link2 } from 'lucide-react';
+import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft, Link2, SlidersHorizontal, MoreHorizontal } from 'lucide-react';
 import { ExtendedFabricObject, LayerNode } from '@/types';
 
 interface SortableLayerItemProps {
@@ -40,6 +40,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
     const isGroup = obj.type === 'group';
     const children = childrenNodes;
     const isSelected = selectedIds.has(id);
+    const [showQuickActions, setShowQuickActions] = useState(false);
 
     const [isEditing, setIsEditing] = useState(false);
     const [name, setName] = useState(extendedObj.name || (extendedObj.isAdjustmentLayer ? 'Adjustment' : (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' ? 'Folder' : (obj.type || 'Object')))));
@@ -211,47 +212,83 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
             
             <div className={`flex items-center gap-1 ${isSelected ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'} transition-opacity ml-2`}>
                 <button
-                    onClick={(e) => { e.stopPropagation(); toggleLock(obj); }}
-                    className={`p-1.5 hover:bg-secondary rounded-md ${isLocked ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground hover:text-foreground'}`}
-                    title={isLocked ? "Unlock" : "Lock"}
-                >
-                    {isLocked ? <Lock size={14} /> : <Unlock size={14} />}
-                </button>
-                <button
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
-                        if (onToggleClip) onToggleClip(obj); 
-                    }}
-                    className={`p-1.5 hover:bg-secondary rounded-md ${extendedObj.clipped ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                    title={extendedObj.clipped ? "Unclip from layer below" : "Clip to layer below"}
-                >
-                    <Link2 size={14} />
-                </button>
-                {depth > 0 && removeFromFolder && (
-                     <button
-                        onClick={(e) => { e.stopPropagation(); removeFromFolder(id); }}
-                        className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-primary"
-                        title="Move out of folder"
-                    >
-                        <ArrowLeft size={14} />
-                    </button>
-                )}
-                <button
                     onClick={(e) => { e.stopPropagation(); toggleVisibility(obj); }}
                     className={`p-1.5 hover:bg-secondary rounded-md ${isVisible ? 'text-emerald-500 hover:text-emerald-600' : 'text-rose-500 hover:text-rose-600'}`}
                     title={isVisible ? "Hide" : "Show"}
                 >
                     {isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
                 </button>
-                <button 
-                    onClick={(e) => { e.stopPropagation(); deleteLayer(obj); }}
-                    className="p-1.5 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive border border-transparent hover:border-destructive/20"
-                    title="Delete"
+                {isSelected && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowQuickActions((prev) => !prev);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground"
+                        title="Layer settings"
+                    >
+                        <SlidersHorizontal size={14} />
+                    </button>
+                )}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowQuickActions((prev) => !prev);
+                    }}
+                    className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground"
+                    title="More layer actions"
                 >
-                    <Trash2 size={12} />
+                    <MoreHorizontal size={14} />
                 </button>
             </div>
             </div>
+
+            {showQuickActions && isSelected && (
+                <div className="mt-1 ml-6 rounded-md border border-border/60 bg-card/95 backdrop-blur-sm p-1 flex items-center gap-1">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleLock(obj);
+                        }}
+                        className={`p-1.5 hover:bg-secondary rounded-md ${isLocked ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground hover:text-foreground'}`}
+                        title={isLocked ? 'Unlock' : 'Lock'}
+                    >
+                        {isLocked ? <Lock size={13} /> : <Unlock size={13} />}
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onToggleClip) onToggleClip(obj);
+                        }}
+                        className={`p-1.5 hover:bg-secondary rounded-md ${extendedObj.clipped ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                        title={extendedObj.clipped ? 'Unclip from layer below' : 'Clip to layer below'}
+                    >
+                        <Link2 size={13} />
+                    </button>
+                    {depth > 0 && removeFromFolder && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                removeFromFolder(id);
+                            }}
+                            className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-primary"
+                            title="Move out of folder"
+                        >
+                            <ArrowLeft size={13} />
+                        </button>
+                    )}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            deleteLayer(obj);
+                        }}
+                        className="p-1.5 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive"
+                        title="Delete"
+                    >
+                        <Trash2 size={13} />
+                    </button>
+                </div>
+            )}
             
             {/* Render Children if Group and Expanded */}
             {isGroup && expanded && children.length > 0 && (

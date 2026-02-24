@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import * as fabric from 'fabric';
-import { Layers, Folder, FolderPlus, Copy } from 'lucide-react';
+import { Layers, Folder, FolderPlus, Copy, Lock, Unlock, Link2, Link2Off, Trash2 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { LayerNode } from '@/types';
@@ -156,19 +156,48 @@ export function LayersView({
             </div>
 
             {/* Toolbar */}
-             <div className="flex items-center gap-1 px-3 py-2 border-b border-border/30 bg-secondary/5">
-                 <button onClick={onCreateFolder} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="New Folder">
+             <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/30 bg-secondary/5">
+                 <div className="flex items-center gap-1">
+                    <button onClick={onCreateFolder} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="New Folder">
                      <FolderPlus size={14} />
-                 </button>
-                 <button onClick={onGroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Group">
+                    </button>
+                    <button onClick={onGroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Group">
                      <Folder size={14} />
-                 </button>
-                 <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Ungroup">
+                    </button>
+                    <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Ungroup">
                      <Layers size={14} />
-                 </button>
-                 <button onClick={onDuplicate} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Duplicate">
+                    </button>
+                    <button onClick={onDuplicate} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Duplicate">
                      <Copy size={14} />
-                 </button>
+                    </button>
+                 </div>
+
+                 <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => selectedObject && onToggleLock(selectedObject)}
+                        disabled={!selectedObject}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={selectedObject && (selectedObject as { locked?: boolean }).locked ? 'Unlock selected layer' : 'Lock selected layer'}
+                    >
+                        {selectedObject && (selectedObject as { locked?: boolean }).locked ? <Unlock size={14} /> : <Lock size={14} />}
+                    </button>
+                    <button
+                        onClick={() => selectedObject && onToggleClip?.(selectedObject)}
+                        disabled={!selectedObject || !onToggleClip}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={selectedObject && (selectedObject as { clipped?: boolean }).clipped ? 'Unclip selected layer' : 'Clip selected layer'}
+                    >
+                        {selectedObject && (selectedObject as { clipped?: boolean }).clipped ? <Link2Off size={14} /> : <Link2 size={14} />}
+                    </button>
+                    <button
+                        onClick={() => selectedObject && onDelete(selectedObject)}
+                        disabled={!selectedObject}
+                        className="p-1.5 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Delete selected layer"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                 </div>
              </div>
 
              {/* Layer Controls */}

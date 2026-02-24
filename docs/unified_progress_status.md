@@ -3,7 +3,7 @@
 Last updated: 2026-02-24  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
-HEAD: 04204ff
+HEAD: 2d9ab9e
 
 ## Purpose
 This is the single source of truth for implementation progress across:
@@ -90,6 +90,11 @@ Verification method used:
 - [ ] Adjustment discoverability launcher
 - [ ] Layer/History/Info/Navigator organization updates
 
+Completed in this pass (layer cleanliness phase 1):
+- [x] Moved selected-layer lock/clip/delete actions to a compact top action strip.
+- [x] Simplified layer row controls to reduce persistent icon clutter.
+- [x] Added selected-layer settings/overflow affordance on the right side of row.
+
 ### E) Missing Tools Program
 - [ ] Alias/identity first phase (Move/Hand/Zoom/Path select aliases)
 - [ ] Raster selection tools (marquee/lasso/wand)
@@ -126,11 +131,11 @@ From `feature_implementation_tracker.md`:
 ---
 
 ## Current Recommended Next Step
-Proceed with **C6.1 Shape/Path/Pixels mode toggles**:
-- [ ] Add C6 mode toggle controls in top options when shape tool is active
-- [ ] Introduce editor state + routing behavior for selected mode
-- [ ] Add/update tests for toolbar + editor integration
-- [ ] Run validation gates and update this file + checklist/tracker
+Proceed with **Layer cleanliness phase 2 (dedicated selected-layer properties panel toggle)**:
+- [ ] Add explicit selected-layer properties toggle state in layer row.
+- [ ] Open a dedicated layer properties surface (instead of dense row actions).
+- [ ] Move remaining row quick actions into top strip or compact overflow.
+- [ ] Run validation gates and update this file + checklist/tracker.
 
 ---
 

@@ -166,6 +166,8 @@ How to use:
 - [ ] Add top quick controls when adjustment layer is selected.
 
 ## D4. Layer/History/Info/Navigator Organization
+- [x] Move selected-layer lock/clip/delete to compact top action strip (phase 1 cleanup).
+- [x] Reduce persistent per-row action density; keep compact row visibility + settings affordance.
 - [ ] Add panel-level shortcuts and visibility state persistence.
 - [ ] Ensure history panel reflects true undo stack (not mock list).
 - [ ] Ensure navigator/info panels map to real canvas state if exposed.
