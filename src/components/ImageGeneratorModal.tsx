@@ -5,6 +5,7 @@ import * as fabric from 'fabric';
 import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import { APP_THEME } from '@/lib/theme-tokens';
 
 /**
  * ImageGeneratorModal
@@ -172,12 +173,12 @@ export default function ImageGeneratorModal({
             top: 100,
             width: 512,
             height: 512,
-            fill: 'rgba(139, 92, 246, 0.1)', // Transluscent Purple
-            stroke: '#8b5cf6',
+            fill: APP_THEME.zoneOverlayFill,
+            stroke: APP_THEME.zoneStroke,
             strokeWidth: 2,
             strokeDashArray: [5, 5], // Dashed line
             transparentCorners: false,
-            cornerColor: '#8b5cf6',
+            cornerColor: APP_THEME.zoneStroke,
             cornerStrokeColor: '#fff',
         });
         
@@ -477,12 +478,12 @@ export default function ImageGeneratorModal({
       {/* 
         Modal Header - Draggable Handle 
       */}
-      <div 
+        <div 
         className="h-10 bg-secondary/50 border-b flex items-center justify-between px-3 cursor-move select-none"
         onMouseDown={handleMouseDown}
       >
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
-           <Wand2 size={16} className="text-purple-500"/>
+           <Wand2 size={16} className="text-primary"/>
            AI Generation Zone
         </div>
         <button onClick={onClose} className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors no-drag">
@@ -502,7 +503,7 @@ export default function ImageGeneratorModal({
           </button>
           <button 
              onClick={() => setMode('stability')}
-             className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${mode === 'stability' ? 'border-purple-500 text-purple-600 bg-purple-500/5' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+             className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${mode === 'stability' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
              Stability AI
           </button>

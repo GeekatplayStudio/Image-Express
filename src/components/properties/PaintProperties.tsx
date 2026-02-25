@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 import { Wand2 } from 'lucide-react';
 import { ExtendedFabricObject } from '@/types';
 import { moveObjectToGroup, moveObjectToCanvas, applyAlphaToColor } from '@/lib/fabric-utils';
+import { APP_THEME } from '@/lib/theme-tokens';
 import { ColorPicker } from './ColorPicker';
 
 interface PaintPropertiesProps {
@@ -317,7 +318,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                                         setPaintBlendMode('source-over');
                                     }
                                 }}
-                                className={`px-3 py-2 text-xs rounded-md border transition-all ${brushType === b ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary hover:bg-secondary/80 border-transparent'}`}
+                                className={`px-3 py-2 text-xs rounded-md border transition-all ${brushType === b ? 'bg-tool-accent text-tool-accent-foreground border-tool-accent' : 'bg-secondary hover:bg-secondary/80 border-transparent'}`}
                                 >
                                     {b}
                                 </button>
@@ -333,7 +334,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                     />
                     
                     <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide pt-1">
-                        {['#000000', '#ffffff', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'].map(c => (
+                        {APP_THEME.paintSwatches.map(c => (
                         <button 
                             key={c}
                             onClick={() => setPaintColor(c)}

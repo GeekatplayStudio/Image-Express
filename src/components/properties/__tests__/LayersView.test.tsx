@@ -112,4 +112,48 @@ describe('LayersView', () => {
         fireEvent.click(arrangeButton);
         expect(arrangeButton).toHaveAttribute('aria-pressed', 'true');
     });
+
+    it('triggers quick layer order controls from the top toolbar', () => {
+        const selectedObject = makeObject();
+        const onMoveLayerUp = jest.fn();
+        const onMoveLayerDown = jest.fn();
+        const onBringLayerToFront = jest.fn();
+        const onSendLayerToBack = jest.fn();
+
+        render(
+            <LayersView
+                objects={[selectedObject]}
+                selectedIds={new Set(['layer-1'])}
+                selectedObject={selectedObject}
+                onSelect={jest.fn()}
+                onToggleVisibility={jest.fn()}
+                onToggleLock={jest.fn()}
+                onDelete={jest.fn()}
+                onReorder={jest.fn()}
+                onGroup={jest.fn()}
+                onUngroup={jest.fn()}
+                onCreateFolder={jest.fn()}
+                onLayerOpacityChange={jest.fn()}
+                onLayerBlendChange={jest.fn()}
+                onMoveLayerUp={onMoveLayerUp}
+                onMoveLayerDown={onMoveLayerDown}
+                onBringLayerToFront={onBringLayerToFront}
+                onSendLayerToBack={onSendLayerToBack}
+                canMoveLayerUp
+                canMoveLayerDown
+                canBringLayerToFront
+                canSendLayerToBack
+            />
+        );
+
+        fireEvent.click(screen.getByTitle('Move selected layer up'));
+        fireEvent.click(screen.getByTitle('Move selected layer down'));
+        fireEvent.click(screen.getByTitle('Bring selected layer to front'));
+        fireEvent.click(screen.getByTitle('Send selected layer to back'));
+
+        expect(onMoveLayerUp).toHaveBeenCalledTimes(1);
+        expect(onMoveLayerDown).toHaveBeenCalledTimes(1);
+        expect(onBringLayerToFront).toHaveBeenCalledTimes(1);
+        expect(onSendLayerToBack).toHaveBeenCalledTimes(1);
+    });
 });

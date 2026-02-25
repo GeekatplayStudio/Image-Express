@@ -24,6 +24,10 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Interactive Tools**: Gradient editor, shape tools, and text manipulation.
 - **Export Options**: Export designs to PNG, JPG, SVG, PDF, JSON, and self-contained HTML bundles with all assets rewritten for offline playback.
 - **In-App Manual**: Contextual help modal with persistent chapter navigation and quick close actions.
+- **Workspace Crop & Picker Reliability**:
+  - Crop supports direct drag-draft selection in canvas workspace and apply-from-top controls.
+  - Eyedropper samples from clicked canvas points without switching layer selection state.
+  - Picker launches an expanded color wheel panel with harmony modes (complementary/triadic/tetradic/etc.) and saved swatches.
 
 ### AI Capabilities
 - **Advanced 3D Generation**: 

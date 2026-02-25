@@ -12,6 +12,7 @@ import {
     type AssetStorageMode
 } from '@/lib/assetStorageSettings';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
+import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -77,6 +78,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [assetStorageMode, setAssetStorageMode] = useState<AssetStorageMode>('hybrid');
     const [hybridUploadToCloudByDefault, setHybridUploadToCloudByDefault] = useState(false);
     const [includeLegacyServerAssetsInHybrid, setIncludeLegacyServerAssetsInHybrid] = useState(true);
+    const [expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover] = useState(true);
     const [adminUsers, setAdminUsers] = useState<AuthUser[]>([]);
     const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
     const [adminError, setAdminError] = useState<string | null>(null);
@@ -189,6 +191,8 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setAssetStorageMode(assetStorageSettings.mode);
         setHybridUploadToCloudByDefault(assetStorageSettings.hybridUploadToCloudByDefault);
         setIncludeLegacyServerAssetsInHybrid(assetStorageSettings.includeLegacyServerAssetsInHybrid);
+        const uiPreferences = loadUiPreferences();
+        setExpandToolRailLabelsOnHover(uiPreferences.expandToolRailLabelsOnHover);
 
         return () => {
             unsubscribe?.();
@@ -248,6 +252,9 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             cloudProvider: 'google-drive',
             hybridUploadToCloudByDefault,
             includeLegacyServerAssetsInHybrid
+        });
+        saveUiPreferences({
+            expandToolRailLabelsOnHover,
         });
 
         // 2. Save Server (if logged in)
@@ -453,7 +460,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                     {/* 3D Generation Section */}
                     <div className="space-y-4">
                          <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
-                             <Box size={16} className="text-indigo-500"/>
+                             <Box size={16} className="text-primary"/>
                              3D Services
                         </h4>
                         
@@ -466,7 +473,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     value={meshyKey}
                                     onChange={(e) => setMeshyKey(e.target.value)}
                                     placeholder="Enter Meshy API Key"
-                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
 
@@ -478,7 +485,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     value={tripoKey}
                                     onChange={(e) => setTripoKey(e.target.value)}
                                     placeholder="Enter Tripo API Key"
-                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
 
@@ -511,14 +518,14 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                             value={hitemsAk}
                                             onChange={(e) => setHitemsAk(e.target.value)}
                                             placeholder="App ID (ak_...)"
-                                            className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                            className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                         />
                                         <input 
                                             type="password"
                                             value={hitemsSk}
                                             onChange={(e) => setHitemsSk(e.target.value)}
                                             placeholder="Secret Key (sk_...)"
-                                            className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                            className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                         />
                                     </div>
                                 ) : (
@@ -527,7 +534,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         value={hitemsKey}
                                         onChange={(e) => setHitemsKey(e.target.value)}
                                         placeholder="Access Token (Bearer ...)"
-                                        className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                        className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                     />
                                 )}
 
@@ -536,7 +543,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     value={hitemsAppId}
                                     onChange={(e) => setHitemsAppId(e.target.value)}
                                     placeholder="Optional Appid (if required)"
-                                    className="mt-2 w-full h-9 px-3 rounded-md bg-background border border-border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs font-mono placeholder:font-sans"
+                                    className="mt-2 w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
                         </div>
@@ -547,7 +554,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                     {/* Image Generation Config */}
                     <div className="space-y-4">
                         <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
-                             <Cloud size={16} className="text-pink-500"/> 
+                             <Cloud size={16} className="text-primary"/> 
                              Image & Vision
                         </h4>
                         
@@ -563,7 +570,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     value={stabilityKey}
                                     onChange={(e) => setStabilityKey(e.target.value)}
                                     placeholder="sk-..."
-                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none text-xs font-mono placeholder:font-sans"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
 
@@ -578,7 +585,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     value={openaiKey}
                                     onChange={(e) => setOpenaiKey(e.target.value)}
                                     placeholder="sk-..."
-                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none text-xs font-mono placeholder:font-sans"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
 
@@ -593,7 +600,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     value={googleKey}
                                     onChange={(e) => setGoogleKey(e.target.value)}
                                     placeholder="Enter API Key"
-                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none text-xs font-mono placeholder:font-sans"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
 
@@ -608,7 +615,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     value={bananaKey}
                                     onChange={(e) => setBananaKey(e.target.value)}
                                     placeholder="Enter API Key"
-                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none text-xs font-mono placeholder:font-sans"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
                         </div>
@@ -826,6 +833,27 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                     </div>
 
                     <div className="border-t border-border/40 pt-4">
+                        <div className="mb-6 border-b border-border/40 pb-6 space-y-3">
+                            <div>
+                                <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <Server size={16} className="text-primary" />
+                                    Interface Behavior
+                                </h4>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Control whether left and right tool rails expand with text labels when hovered.
+                                </p>
+                            </div>
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={expandToolRailLabelsOnHover}
+                                    onChange={(event) => setExpandToolRailLabelsOnHover(event.target.checked)}
+                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                />
+                                Expand side tool rails on hover
+                            </label>
+                        </div>
+
                         {isAdmin && userId && userId !== 'Guest' && (
                             <div className="mb-6 border-b border-border/40 pb-6 space-y-3">
                                 <div className="flex items-center justify-between">

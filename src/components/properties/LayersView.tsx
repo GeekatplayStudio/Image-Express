@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import * as fabric from 'fabric';
-import { Layers, Folder, FolderPlus, Copy, Lock, Unlock, Link2, Link2Off, Trash2, ArrowUpDown } from 'lucide-react';
+import { Layers, Folder, FolderPlus, Copy, Lock, Unlock, Link2, Link2Off, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { LayerNode } from '@/types';
@@ -27,6 +27,14 @@ interface LayersViewProps {
     onDblClick?: (obj: fabric.Object) => void;
     onDuplicate?: () => void;
     onToggleClip?: (obj: fabric.Object) => void;
+    onMoveLayerUp?: () => void;
+    onMoveLayerDown?: () => void;
+    onBringLayerToFront?: () => void;
+    onSendLayerToBack?: () => void;
+    canMoveLayerUp?: boolean;
+    canMoveLayerDown?: boolean;
+    canBringLayerToFront?: boolean;
+    canSendLayerToBack?: boolean;
     
     // Optional props for expanded state if managed by parent, otherwise local
     expandedFolders?: Set<string>;
@@ -53,6 +61,14 @@ export function LayersView({
     onDblClick,
     onDuplicate,
     onToggleClip,
+    onMoveLayerUp,
+    onMoveLayerDown,
+    onBringLayerToFront,
+    onSendLayerToBack,
+    canMoveLayerUp = false,
+    canMoveLayerDown = false,
+    canBringLayerToFront = false,
+    canSendLayerToBack = false,
     expandedFolders: externalExpanded,
     onToggleFolder: externalToggleFolder
 }: LayersViewProps) {
@@ -195,6 +211,39 @@ export function LayersView({
                         aria-pressed={arrangeMode}
                     >
                         <ArrowUpDown size={14} />
+                    </button>
+                    <div className="w-px h-5 bg-border/60 mx-1" />
+                    <button
+                        onClick={onMoveLayerUp}
+                        disabled={!selectedObject || !canMoveLayerUp || !onMoveLayerUp}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Move selected layer up"
+                    >
+                        <ArrowUp size={14} />
+                    </button>
+                    <button
+                        onClick={onMoveLayerDown}
+                        disabled={!selectedObject || !canMoveLayerDown || !onMoveLayerDown}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Move selected layer down"
+                    >
+                        <ArrowDown size={14} />
+                    </button>
+                    <button
+                        onClick={onBringLayerToFront}
+                        disabled={!selectedObject || !canBringLayerToFront || !onBringLayerToFront}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Bring selected layer to front"
+                    >
+                        <ChevronsUp size={14} />
+                    </button>
+                    <button
+                        onClick={onSendLayerToBack}
+                        disabled={!selectedObject || !canSendLayerToBack || !onSendLayerToBack}
+                        className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Send selected layer to back"
+                    >
+                        <ChevronsDown size={14} />
                     </button>
                  </div>
 

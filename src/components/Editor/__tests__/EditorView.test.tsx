@@ -36,6 +36,7 @@ function createCanvasStub() {
         width: 1200,
         height: 800,
         viewportTransform: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number],
+        artboardRect: null as object | null,
         backgroundColor: '#ffffff',
         contextContainer,
         contextTop,
@@ -59,12 +60,14 @@ function createCanvasStub() {
         requestRenderAll: jest.fn(),
         getElement: jest.fn(() => canvasElement),
         getObjects: jest.fn(() => []),
+        skipTargetFind: false,
         getWidth: jest.fn(() => 1200),
         getHeight: jest.fn(() => 800),
         centerArtboard: jest.fn(),
         add: jest.fn(),
         remove: jest.fn(),
         bringToFront: jest.fn(),
+        moveObjectTo: jest.fn(),
         moveTo: jest.fn(),
         centerObject: jest.fn(),
         setActiveObject: jest.fn(),
@@ -232,15 +235,48 @@ jest.mock('@/components/CircularContextMenu', () => ({
     default: ({
         isOpen,
         onSelectTool,
+        onLayerOrderAction,
+        layerOrderState,
         onClose,
     }: {
         isOpen: boolean;
         onSelectTool: (tool: string) => void;
+        onLayerOrderAction?: (action: 'move-up' | 'move-down' | 'to-front' | 'to-back') => void;
+        layerOrderState?: {
+            canMoveUp: boolean;
+            canMoveDown: boolean;
+            canBringToFront: boolean;
+            canSendToBack: boolean;
+        };
         onClose: () => void;
     }) => (
         isOpen ? (
             <div data-testid="context-menu">
                 <button onClick={() => onSelectTool('paint')}>Context Paint</button>
+                <button
+                    onClick={() => onLayerOrderAction?.('move-up')}
+                    disabled={!layerOrderState?.canMoveUp}
+                >
+                    Context Move Up
+                </button>
+                <button
+                    onClick={() => onLayerOrderAction?.('move-down')}
+                    disabled={!layerOrderState?.canMoveDown}
+                >
+                    Context Move Down
+                </button>
+                <button
+                    onClick={() => onLayerOrderAction?.('to-front')}
+                    disabled={!layerOrderState?.canBringToFront}
+                >
+                    Context To Front
+                </button>
+                <button
+                    onClick={() => onLayerOrderAction?.('to-back')}
+                    disabled={!layerOrderState?.canSendToBack}
+                >
+                    Context To Back
+                </button>
                 <button onClick={onClose}>Close Context</button>
             </div>
         ) : null
@@ -286,6 +322,11 @@ function hasFetchCall(fetchMock: jest.Mock, url: string, method?: string) {
         if (!method) return true;
         return init?.method === method;
     });
+}
+
+function ensureTopMenusExpanded() {
+    if (screen.queryByRole('button', { name: /^File$/i })) return;
+    fireEvent.click(screen.getByLabelText('Toggle top menu bar'));
 }
 
 describe('EditorView', () => {
@@ -412,6 +453,7 @@ describe('EditorView', () => {
     it('renders core editor UI and wires header actions', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="paint" />);
+        ensureTopMenusExpanded();
 
         const activeObject = { set: jest.fn() };
         latestCanvasStub?.getActiveObject.mockReturnValue(activeObject);
@@ -435,17 +477,19 @@ describe('EditorView', () => {
             expect(latestCanvasStub?.contextTop?.imageSmoothingEnabled).toBe(false);
         });
 
-        fireEvent.click(screen.getByTitle('How to use Image Express'));
+        fireEvent.click(screen.getByRole('button', { name: /^Help$/i }));
+        fireEvent.click(within(await screen.findByTestId('menu-help')).getByRole('button', { name: 'Documentation' }));
         expect(props.onOpenDocumentation).toHaveBeenCalledTimes(1);
 
-        fireEvent.click(screen.getByTitle('Settings'));
+        fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }));
+        fireEvent.click(within(await screen.findByTestId('menu-settings')).getByRole('button', { name: 'Preferences...' }));
         expect(props.onOpenSettings).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByTitle('Back to Hub'));
         expect(props.onBack).toHaveBeenCalledTimes(1);
 
-        fireEvent.click(screen.getByText('Tools'));
-        fireEvent.click(screen.getByRole('button', { name: /^Move\s+V$/ }));
+        fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+        fireEvent.click(within(await screen.findByTestId('menu-select')).getByRole('button', { name: 'Move Tool' }));
         expect(mockTriggerTool).toHaveBeenCalledWith('select');
 
         await waitFor(() => {
@@ -517,7 +561,7 @@ describe('EditorView', () => {
             type: 'rect',
             set: jest.fn(),
             setCoords: jest.fn(),
-            fill: '#8b5cf6',
+            fill: '#1f8aa5',
             stroke: '#111827',
             strokeWidth: 2,
             lockScalingX: false,
@@ -761,6 +805,188 @@ describe('EditorView', () => {
         });
     });
 
+    it('applies crop using drag-draft bounds from the workspace', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="crop" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Apply crop' })).toBeInTheDocument();
+        });
+
+        const artboardRect = {
+            set: jest.fn(),
+            setCoords: jest.fn(),
+        };
+
+        const mutableCanvas = latestCanvasStub as (ReturnType<typeof createCanvasStub> & {
+            artboard?: { width: number; height: number; left: number; top: number };
+            artboardRect?: { set: jest.Mock; setCoords: jest.Mock };
+        }) | null;
+        if (mutableCanvas) {
+            mutableCanvas.artboard = { left: 0, top: 0, width: 1200, height: 800 };
+            mutableCanvas.artboardRect = artboardRect;
+        }
+        latestCanvasStub?.getObjects.mockReturnValue([artboardRect as unknown as object]);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 120, y: 100 },
+                e: { button: 0 },
+            }));
+            getHandlers('mouse:move').forEach((handler) => handler({
+                scenePoint: { x: 420, y: 260 },
+                e: { button: 0 },
+            }));
+            getHandlers('mouse:up').forEach((handler) => handler({
+                scenePoint: { x: 420, y: 260 },
+                e: { button: 0 },
+            }));
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Apply crop' }));
+        expect(artboardRect.set).toHaveBeenCalledWith(expect.objectContaining({
+            left: 120,
+            top: 100,
+            width: 300,
+            height: 160,
+        }));
+    });
+
+    it('samples eyedropper color from clicked scene point', async () => {
+        const props = createDefaultProps();
+        const getContextSpy = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+            () => ({
+                getImageData: jest.fn(() => ({ data: new Uint8ClampedArray([10, 20, 30, 255]) })),
+            } as unknown as CanvasRenderingContext2D)
+        );
+
+        render(<EditorView {...props} initialActiveTool="eyedropper" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Eyedropper sample' })).toBeInTheDocument();
+        });
+
+        const runtimeCanvas = latestCanvasStub as (ReturnType<typeof createCanvasStub> & {
+            lowerCanvasEl?: HTMLCanvasElement;
+        }) | null;
+        if (runtimeCanvas) {
+            const lowerCanvas = document.createElement('canvas');
+            lowerCanvas.width = 1200;
+            lowerCanvas.height = 800;
+            runtimeCanvas.lowerCanvasEl = lowerCanvas;
+        }
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 140, y: 160 },
+                e: { button: 0 },
+            }));
+        });
+
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('eyedropper:sample', expect.objectContaining({
+            color: '#0a141e',
+            sampleSize: 1,
+            sampleSource: 'current-layer',
+        }));
+        getContextSpy.mockRestore();
+    });
+
+    it('keeps eyedropper active and blocks target-finding selection while sampling', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="eyedropper" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Eyedropper sample' })).toBeInTheDocument();
+        });
+
+        const runtimeCanvas = latestCanvasStub as (ReturnType<typeof createCanvasStub> & {
+            skipTargetFind?: boolean;
+        }) | null;
+        expect(runtimeCanvas?.skipTargetFind).toBe(true);
+
+        const selectionHandlers = (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === 'selection:created')
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        act(() => {
+            selectionHandlers.forEach((handler) => handler({
+                e: new MouseEvent('mousedown'),
+                selected: [{}],
+            }));
+        });
+
+        expect(screen.getByRole('button', { name: 'Eyedropper sample' })).toBeInTheDocument();
+    });
+
+    it('renders brush cursor preview for paint-size tools and clears on mouse out', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="paint" />);
+
+        const getHandlers = (eventName: string) => (
+            (latestCanvasStub?.on.mock.calls || [])
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (opt: unknown) => void)
+        );
+
+        await waitFor(() => {
+            expect(getHandlers('mouse:out').length).toBeGreaterThan(0);
+        });
+
+        act(() => {
+            getHandlers('mouse:move').forEach((handler) => handler({
+                e: { clientX: 220, clientY: 180 },
+            }));
+        });
+
+        const brushPreview = await screen.findByTestId('canvas-cursor-preview-brush');
+        expect(brushPreview).toHaveStyle({ width: '10px', height: '10px' });
+
+        act(() => {
+            getHandlers('mouse:out').forEach((handler) => handler({}));
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByTestId('canvas-cursor-preview')).not.toBeInTheDocument();
+        });
+    });
+
+    it('renders eyedropper target cursor preview when eyedropper is active', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="eyedropper" />);
+
+        const getHandlers = (eventName: string) => (
+            (latestCanvasStub?.on.mock.calls || [])
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (opt: unknown) => void)
+        );
+
+        await waitFor(() => {
+            expect(getHandlers('mouse:out').length).toBeGreaterThan(0);
+        });
+
+        act(() => {
+            getHandlers('mouse:move').forEach((handler) => handler({
+                e: { clientX: 300, clientY: 210 },
+            }));
+        });
+
+        expect(await screen.findByTestId('canvas-cursor-preview-eyedropper')).toBeInTheDocument();
+    });
+
     it('applies top text font family changes to active text object', async () => {
         const activeTextObject = {
             type: 'i-text',
@@ -829,8 +1055,10 @@ describe('EditorView', () => {
                 currentDesignId="design-42"
             />
         );
+        ensureTopMenusExpanded();
 
-        fireEvent.click(screen.getByTitle('Admin Area'));
+        fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }));
+        fireEvent.click(within(await screen.findByTestId('menu-settings')).getByRole('button', { name: 'Admin Area' }));
         expect(props.onOpenAdminArea).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByTitle('Click to rename document'));
@@ -881,20 +1109,47 @@ describe('EditorView', () => {
     it('closes open menus on Escape', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
+        ensureTopMenusExpanded();
 
-        fireEvent.click(screen.getByText('Tools'));
-        expect(screen.getByText('AI Zone')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }));
+        expect(screen.getByTestId('menu-settings')).toBeInTheDocument();
 
         fireEvent.keyDown(window, { key: 'Escape' });
 
         await waitFor(() => {
-            expect(screen.queryByText('AI Zone')).toBeNull();
+            expect(screen.queryByTestId('menu-settings')).toBeNull();
         });
     });
 
-    it('wires file/edit/view menu shells to existing editor actions', async () => {
+    it('wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
+        ensureTopMenusExpanded();
+
+        const lockableLayer = {
+            type: 'rect',
+            locked: false,
+            name: 'Layer 1',
+            set: jest.fn(),
+            setCoords: jest.fn(),
+        };
+        const selectableOne = {
+            type: 'rect',
+            visible: true,
+            selectable: true,
+            evented: true,
+        };
+        const selectableTwo = {
+            type: 'rect',
+            visible: true,
+            selectable: true,
+            evented: true,
+        };
+        latestCanvasStub?.getActiveObject.mockReturnValue(lockableLayer as unknown as object);
+        latestCanvasStub?.getObjects.mockReturnValue([
+            selectableOne as unknown as object,
+            selectableTwo as unknown as object,
+        ]);
 
         fireEvent.click(screen.getByRole('button', { name: /^File$/i }));
         const fileMenu = await screen.findByTestId('menu-file');
@@ -909,8 +1164,36 @@ describe('EditorView', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
         const editMenu = await screen.findByTestId('menu-edit');
-        fireEvent.click(within(editMenu).getByRole('button', { name: 'Preferences...' }));
-        expect(props.onOpenSettings).toHaveBeenCalledTimes(1);
+        expect(within(editMenu).getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+        expect(within(editMenu).queryByRole('button', { name: 'Preferences...' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Image$/i }));
+        const imageMenu = await screen.findByTestId('menu-image');
+        fireEvent.click(within(imageMenu).getByRole('button', { name: 'Crop Tool' }));
+        expect(mockTriggerTool).toHaveBeenCalledWith('crop');
+
+        fireEvent.click(screen.getByRole('button', { name: /^Layer$/i }));
+        const layerMenu = await screen.findByTestId('menu-layer');
+        fireEvent.click(within(layerMenu).getByRole('button', { name: 'Lock Layer' }));
+        expect(lockableLayer.set).toHaveBeenCalledWith(expect.objectContaining({
+            lockMovementX: true,
+            lockMovementY: true,
+            lockRotation: true,
+            lockScalingX: true,
+            lockScalingY: true,
+            selectable: false,
+            evented: false,
+        }));
+
+        fireEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+        const selectMenu = await screen.findByTestId('menu-select');
+        fireEvent.click(within(selectMenu).getByRole('button', { name: 'Select All' }));
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(selectableTwo);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Filter$/i }));
+        const filterMenu = await screen.findByTestId('menu-filter');
+        fireEvent.click(within(filterMenu).getByRole('button', { name: 'Blur Tool' }));
+        expect(mockTriggerTool).toHaveBeenCalledWith('blur');
 
         fireEvent.click(screen.getByRole('button', { name: /^View$/i }));
         const viewMenu = await screen.findByTestId('menu-view');
@@ -923,11 +1206,31 @@ describe('EditorView', () => {
         fireEvent.click(within(await screen.findByTestId('menu-view')).getByRole('button', { name: 'Show Grid' }));
         expect(screen.getByText('Grid Thirds')).toBeInTheDocument();
 
+        fireEvent.click(screen.getByRole('button', { name: /^Window$/i }));
+        const windowMenu = await screen.findByTestId('menu-window');
+        const historyPanelToggle = within(windowMenu).getByRole('menuitemcheckbox', { name: /History Panel/i });
+        expect(historyPanelToggle).toHaveAttribute('aria-checked', 'false');
+        fireEvent.click(historyPanelToggle);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Window$/i }));
+        const windowMenuAfterSwitch = await screen.findByTestId('menu-window');
+        expect(within(windowMenuAfterSwitch).getByRole('menuitemcheckbox', { name: /History Panel/i })).toHaveAttribute('aria-checked', 'true');
+        fireEvent.click(within(windowMenuAfterSwitch).getByRole('menuitemcheckbox', { name: /History Panel/i }));
+
+        fireEvent.click(screen.getByRole('button', { name: /^Window$/i }));
+        const windowMenuAfterCollapse = await screen.findByTestId('menu-window');
+        expect(within(windowMenuAfterCollapse).getByRole('menuitemcheckbox', { name: /History Panel/i })).toHaveAttribute('aria-checked', 'false');
+
+        fireEvent.click(screen.getByRole('button', { name: /^Help$/i }));
+        const helpMenu = await screen.findByTestId('menu-help');
+        fireEvent.click(within(helpMenu).getByRole('button', { name: 'Documentation' }));
+        expect(props.onOpenDocumentation).toHaveBeenCalledTimes(1);
+
         fireEvent.keyDown(window, { key: 'v' });
         expect(mockTriggerTool).toHaveBeenCalledWith('select');
     });
 
-    it('supports move, wand, healing, clone stamp, marquee, lasso, and path-select keyboard aliases', () => {
+    it('supports move, wand, quick-select, selection brush, healing, history brush, blur, dodge, clone stamp, marquee, lasso, and path-select keyboard aliases', () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
 
@@ -937,8 +1240,23 @@ describe('EditorView', () => {
         fireEvent.keyDown(window, { key: 'w' });
         expect(mockTriggerTool).toHaveBeenCalledWith('wand');
 
+        fireEvent.keyDown(window, { key: 'q' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('quick-select');
+
+        fireEvent.keyDown(window, { key: 'k' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('selection-brush');
+
         fireEvent.keyDown(window, { key: 'j' });
         expect(mockTriggerTool).toHaveBeenCalledWith('healing');
+
+        fireEvent.keyDown(window, { key: 'y' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('history-brush');
+
+        fireEvent.keyDown(window, { key: 'b' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('blur');
+
+        fireEvent.keyDown(window, { key: 'o' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('dodge');
 
         fireEvent.keyDown(window, { key: 's' });
         expect(mockTriggerTool).toHaveBeenCalledWith('clone-stamp');
@@ -951,6 +1269,170 @@ describe('EditorView', () => {
 
         fireEvent.keyDown(window, { key: 'a' });
         expect(mockTriggerTool).toHaveBeenCalledWith('path-select');
+    });
+
+    it('unlocks a locked layer from the canvas lock badge click', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const lockedObject = {
+            type: 'rect',
+            name: 'Locked layer',
+            locked: true,
+            visible: true,
+            set: jest.fn(),
+            setCoords: jest.fn(),
+            getBoundingRect: jest.fn(() => ({ left: 100, top: 80, width: 160, height: 120 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([lockedObject as unknown as object]);
+        latestCanvasStub?.getActiveObject.mockReturnValue(lockedObject as unknown as object);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        act(() => {
+            getHandlers('after:render').forEach((handler) => handler({}));
+        });
+        const unlockButton = await screen.findByRole('button', { name: 'Unlock layer Locked layer' });
+        fireEvent.click(unlockButton);
+
+        expect(lockedObject.locked).toBe(false);
+        expect(lockedObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            lockMovementX: false,
+            lockMovementY: false,
+            selectable: true,
+            evented: true,
+        }));
+        expect(lockedObject.setCoords).toHaveBeenCalled();
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('object:modified', { target: lockedObject });
+    });
+
+    it('shows a corner lock badge for locked layers and unlocks from canvas', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const lockedObject = {
+            id: 'locked-hover',
+            type: 'rect',
+            name: 'Locked hover layer',
+            locked: true,
+            visible: true,
+            set: jest.fn(),
+            setCoords: jest.fn(),
+            getBoundingRect: jest.fn(() => ({ left: 120, top: 90, width: 180, height: 140 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([lockedObject as unknown as object]);
+        latestCanvasStub?.getActiveObject.mockReturnValue(null);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        act(() => {
+            getHandlers('after:render').forEach((handler) => handler({}));
+        });
+
+        const unlockButton = await screen.findByTestId('locked-layer-hover-unlock-locked-hover');
+        fireEvent.click(unlockButton);
+
+        expect(lockedObject.locked).toBe(false);
+        expect(lockedObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            lockMovementX: false,
+            lockMovementY: false,
+            selectable: true,
+            evented: true,
+        }));
+        expect(lockedObject.setCoords).toHaveBeenCalled();
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('object:modified', { target: lockedObject });
+    });
+
+    it('shows only one unlock lock control when selected layer is locked', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const lockedObject = {
+            id: 'locked-single-ui',
+            type: 'rect',
+            name: 'Locked single layer',
+            locked: true,
+            visible: true,
+            set: jest.fn(),
+            setCoords: jest.fn(),
+            getBoundingRect: jest.fn(() => ({ left: 140, top: 110, width: 150, height: 120 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([lockedObject as unknown as object]);
+        latestCanvasStub?.getActiveObject.mockReturnValue(lockedObject as unknown as object);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        act(() => {
+            getHandlers('after:render').forEach((handler) => handler({}));
+        });
+
+        expect(screen.getByTestId('locked-layer-hover-unlock-locked-single-ui')).toBeInTheDocument();
+        const unlockControls = await screen.findAllByRole('button', { name: 'Unlock layer Locked single layer' });
+        expect(unlockControls).toHaveLength(1);
+    });
+
+    it('unlocks a locked child layer inside a group from the canvas lock badge click', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const lockedChildObject = {
+            type: 'rect',
+            name: 'Locked child layer',
+            locked: true,
+            visible: true,
+            set: jest.fn(),
+            setCoords: jest.fn(),
+            getBoundingRect: jest.fn(() => ({ left: 200, top: 150, width: 120, height: 100 })),
+        };
+
+        const parentGroupObject = {
+            type: 'group',
+            name: 'Parent Group',
+            locked: false,
+            visible: true,
+            getObjects: jest.fn(() => [lockedChildObject]),
+            getBoundingRect: jest.fn(() => ({ left: 190, top: 130, width: 180, height: 150 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([parentGroupObject as unknown as object]);
+        latestCanvasStub?.getActiveObject.mockReturnValue(lockedChildObject as unknown as object);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        act(() => {
+            getHandlers('after:render').forEach((handler) => handler({}));
+        });
+        const unlockButton = await screen.findByRole('button', { name: 'Unlock layer Locked child layer' });
+        fireEvent.click(unlockButton);
+
+        expect(lockedChildObject.locked).toBe(false);
+        expect(lockedChildObject.set).toHaveBeenCalledWith(expect.objectContaining({
+            lockMovementX: false,
+            lockMovementY: false,
+            selectable: true,
+            evented: true,
+        }));
+        expect(lockedChildObject.setCoords).toHaveBeenCalled();
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('object:modified', { target: lockedChildObject });
     });
 
     it('uses marquee drag bounds to select the top-most intersecting object', async () => {
@@ -1001,6 +1483,70 @@ describe('EditorView', () => {
 
         await waitFor(() => {
             expect(screen.getByText('lasso')).toBeInTheDocument();
+        });
+
+        const backObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 60, top: 60, width: 60, height: 60 })),
+        };
+        const frontObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 140, top: 120, width: 80, height: 80 })),
+        };
+        const outsideObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            getBoundingRect: jest.fn(() => ({ left: 420, top: 350, width: 60, height: 60 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([
+            backObject as unknown as object,
+            frontObject as unknown as object,
+            outsideObject as unknown as object,
+        ]);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        getHandlers('mouse:down').forEach((handler) => handler({
+            scenePoint: { x: 40, y: 40 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:move').forEach((handler) => handler({
+            scenePoint: { x: 260, y: 70 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:move').forEach((handler) => handler({
+            scenePoint: { x: 260, y: 250 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:move').forEach((handler) => handler({
+            scenePoint: { x: 40, y: 250 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:up').forEach((handler) => handler({
+            scenePoint: { x: 40, y: 40 },
+            e: { button: 0 },
+        }));
+
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(frontObject);
+        expect(latestCanvasStub?.setActiveObject).not.toHaveBeenCalledWith(outsideObject);
+    });
+
+    it('routes selection brush interactions through the lasso selection pipeline', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="selection-brush" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('selection brush')).toBeInTheDocument();
         });
 
         const backObject = {
@@ -1122,6 +1668,60 @@ describe('EditorView', () => {
         expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(seedObject);
     });
 
+    it('routes quick selection interactions through the wand selection pipeline', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="quick-select" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('quick selection')).toBeInTheDocument();
+        });
+
+        const seedObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            fill: '#336699',
+            stroke: null,
+            getBoundingRect: jest.fn(() => ({ left: 120, top: 120, width: 80, height: 80 })),
+        };
+        const nearObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            fill: '#3a6ea4',
+            stroke: null,
+            getBoundingRect: jest.fn(() => ({ left: 320, top: 120, width: 80, height: 80 })),
+        };
+        const farObject = {
+            type: 'rect',
+            selectable: true,
+            evented: true,
+            fill: '#e11d48',
+            stroke: null,
+            getBoundingRect: jest.fn(() => ({ left: 520, top: 120, width: 80, height: 80 })),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([
+            seedObject as unknown as object,
+            nearObject as unknown as object,
+            farObject as unknown as object,
+        ]);
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '20' } });
+        getHandlers('mouse:down').forEach((handler) => handler({
+            scenePoint: { x: 140, y: 140 },
+            e: { button: 0 },
+            target: seedObject,
+        }));
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(nearObject);
+    });
+
     it('captures clone source point on option-click and updates clone source status', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="clone-stamp" />);
@@ -1147,6 +1747,249 @@ describe('EditorView', () => {
         await waitFor(() => {
             expect(screen.getByText('Source: Set')).toBeInTheDocument();
         });
+    });
+
+    it('creates and reuses a dedicated retouch layer during retouch strokes', async () => {
+        const props = createDefaultProps();
+        const gradient = { addColorStop: jest.fn() };
+        const context2d = {
+            drawImage: jest.fn(),
+            getImageData: jest.fn(() => ({ data: new Uint8ClampedArray(4), width: 32, height: 32 })),
+            putImageData: jest.fn(),
+            createRadialGradient: jest.fn(() => gradient),
+            beginPath: jest.fn(),
+            arc: jest.fn(),
+            fill: jest.fn(),
+            save: jest.fn(),
+            restore: jest.fn(),
+            fillStyle: '',
+            globalAlpha: 1,
+            globalCompositeOperation: 'source-over',
+            filter: 'none',
+        } as unknown as CanvasRenderingContext2D;
+        const getContextSpy = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+            () => context2d
+        );
+
+        render(<EditorView {...props} initialActiveTool="history-brush" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('history brush')).toBeInTheDocument();
+        });
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void)
+                || []
+        );
+
+        latestCanvasStub?.add.mockClear();
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 170, y: 120 },
+                e: { button: 0 },
+            }));
+            getHandlers('mouse:up').forEach((handler) => handler({}));
+        });
+
+        expect(latestCanvasStub?.add).toHaveBeenCalledTimes(1);
+        expect(latestCanvasStub?.add.mock.calls[0]?.[0]).toEqual(
+            expect.objectContaining({ isRetouchLayer: true })
+        );
+
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 205, y: 155 },
+                e: { button: 0 },
+            }));
+            getHandlers('mouse:up').forEach((handler) => handler({}));
+        });
+
+        expect(latestCanvasStub?.add).toHaveBeenCalledTimes(1);
+        getContextSpy.mockRestore();
+    });
+
+    it('shows retouch unavailable warning when canvas 2D context is not available', async () => {
+        const props = createDefaultProps();
+        const getContextSpy = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+            () => null
+        );
+
+        render(<EditorView {...props} initialActiveTool="history-brush" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('history brush')).toBeInTheDocument();
+        });
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void)
+                || []
+        );
+
+        mockToast.mockClear();
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 150, y: 120 },
+                e: { button: 0 },
+            }));
+        });
+
+        expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Retouch unavailable',
+            variant: 'warning',
+        }));
+        expect(latestCanvasStub?.add).not.toHaveBeenCalled();
+        getContextSpy.mockRestore();
+    });
+
+    it('falls back to lower-canvas sampling when all-layer snapshot export is unavailable', async () => {
+        const props = createDefaultProps();
+        const gradient = { addColorStop: jest.fn() };
+        const context2d = {
+            drawImage: jest.fn(),
+            getImageData: jest.fn(() => ({ data: new Uint8ClampedArray(4), width: 32, height: 32 })),
+            putImageData: jest.fn(),
+            createRadialGradient: jest.fn(() => gradient),
+            beginPath: jest.fn(),
+            arc: jest.fn(),
+            fill: jest.fn(),
+            save: jest.fn(),
+            restore: jest.fn(),
+            fillStyle: '',
+            globalAlpha: 1,
+            globalCompositeOperation: 'source-over',
+            filter: 'none',
+        } as unknown as CanvasRenderingContext2D;
+        const getContextSpy = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+            () => context2d
+        );
+
+        render(<EditorView {...props} initialActiveTool="blur" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('blur tool')).toBeInTheDocument();
+        });
+
+        const lowerCanvas = document.createElement('canvas');
+        lowerCanvas.width = 2400;
+        lowerCanvas.height = 1600;
+
+        const runtimeCanvas = latestCanvasStub as ReturnType<typeof createCanvasStub> & {
+            toCanvasElement?: jest.Mock;
+            lowerCanvasEl?: HTMLCanvasElement;
+        };
+        runtimeCanvas.toCanvasElement = jest.fn(() => {
+            throw new Error('tainted canvas');
+        });
+        runtimeCanvas.lowerCanvasEl = lowerCanvas;
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void)
+                || []
+        );
+
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 170, y: 120 },
+                e: { button: 0 },
+            }));
+            getHandlers('mouse:up').forEach((handler) => handler({}));
+        });
+
+        expect(runtimeCanvas.toCanvasElement).toHaveBeenCalled();
+        expect(context2d.drawImage).toHaveBeenCalledWith(
+            lowerCanvas,
+            expect.any(Number),
+            expect.any(Number),
+            expect.any(Number),
+            expect.any(Number),
+            0,
+            0,
+            expect.any(Number),
+            expect.any(Number)
+        );
+        getContextSpy.mockRestore();
+    });
+
+    it('captures a fresh history source snapshot at each history-brush stroke start', async () => {
+        const props = createDefaultProps();
+        const gradient = { addColorStop: jest.fn() };
+        const initialSnapshot = { data: new Uint8ClampedArray(4), width: 32, height: 32 };
+        const strokeOneSnapshot = { data: new Uint8ClampedArray(4), width: 32, height: 32 };
+        const strokeTwoSnapshot = { data: new Uint8ClampedArray(4), width: 32, height: 32 };
+        const context2d = {
+            drawImage: jest.fn(),
+            getImageData: jest.fn()
+                .mockReturnValueOnce(initialSnapshot)
+                .mockReturnValueOnce(strokeOneSnapshot)
+                .mockReturnValueOnce(strokeTwoSnapshot)
+                .mockReturnValue({ data: new Uint8ClampedArray(4), width: 32, height: 32 }),
+            putImageData: jest.fn(),
+            createRadialGradient: jest.fn(() => gradient),
+            beginPath: jest.fn(),
+            arc: jest.fn(),
+            fill: jest.fn(),
+            save: jest.fn(),
+            restore: jest.fn(),
+            fillStyle: '',
+            globalAlpha: 1,
+            globalCompositeOperation: 'source-over',
+            filter: 'none',
+        } as unknown as CanvasRenderingContext2D;
+        const getContextSpy = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+            () => context2d
+        );
+
+        render(<EditorView {...props} initialActiveTool="history-brush" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('history brush')).toBeInTheDocument();
+        });
+
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void)
+                || []
+        );
+
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 170, y: 120 },
+                e: { button: 0 },
+            }));
+            getHandlers('mouse:up').forEach((handler) => handler({}));
+        });
+
+        act(() => {
+            getHandlers('mouse:down').forEach((handler) => handler({
+                scenePoint: { x: 205, y: 155 },
+                e: { button: 0 },
+            }));
+            getHandlers('mouse:up').forEach((handler) => handler({}));
+        });
+
+        expect(context2d.putImageData).toHaveBeenCalledWith(strokeOneSnapshot, 0, 0);
+        expect(context2d.putImageData).toHaveBeenCalledWith(strokeTwoSnapshot, 0, 0);
+        getContextSpy.mockRestore();
+    });
+
+    it('shows sharpen controls when sharpen tool is active', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="sharpen" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('sharpen tool')).toBeInTheDocument();
+        });
+
+        expect(screen.getByLabelText('Sharpen size')).toBeInTheDocument();
+        expect(screen.getByLabelText('Sharpen strength')).toBeInTheDocument();
+        expect(screen.getByLabelText('Sharpen sample all layers')).toBeInTheDocument();
     });
 
     it('applies selection expand and contract operations from top controls', async () => {
@@ -1210,6 +2053,58 @@ describe('EditorView', () => {
         await waitFor(() => {
             expect(latestCanvasStub?.zoomToPoint).toHaveBeenCalledTimes(2);
         });
+    });
+
+    it('reorders active layer from context menu move-up and send-to-back actions', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const artboardObject = {
+            type: 'rect',
+            name: 'Artboard',
+            setCoords: jest.fn(),
+        };
+        const bottomObject = {
+            type: 'rect',
+            name: 'Bottom Layer',
+            setCoords: jest.fn(),
+        };
+        const activeObject = {
+            type: 'rect',
+            name: 'Active Layer',
+            setCoords: jest.fn(),
+        };
+
+        latestCanvasStub?.getObjects.mockReturnValue([
+            artboardObject as unknown as object,
+            bottomObject as unknown as object,
+            activeObject as unknown as object,
+        ]);
+        latestCanvasStub!.artboardRect = artboardObject as unknown as object;
+        latestCanvasStub?.getActiveObject.mockReturnValue(activeObject as unknown as object);
+
+        fireEvent.contextMenu(screen.getByTestId('design-canvas'));
+        expect(screen.getByTestId('context-menu')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Context To Back' }));
+        expect(latestCanvasStub?.moveObjectTo).toHaveBeenCalledWith(activeObject, 1);
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(activeObject);
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('object:modified', { target: activeObject });
+
+        latestCanvasStub?.moveObjectTo.mockClear();
+        latestCanvasStub?.setActiveObject.mockClear();
+        latestCanvasStub?.fire.mockClear();
+        latestCanvasStub?.getObjects.mockReturnValue([
+            artboardObject as unknown as object,
+            activeObject as unknown as object,
+            bottomObject as unknown as object,
+        ]);
+
+        fireEvent.contextMenu(screen.getByTestId('design-canvas'));
+        fireEvent.click(screen.getByRole('button', { name: 'Context Move Up' }));
+        expect(latestCanvasStub?.moveObjectTo).toHaveBeenCalledWith(activeObject, 2);
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(activeObject);
+        expect(latestCanvasStub?.fire).toHaveBeenCalledWith('object:modified', { target: activeObject });
     });
 
     it('saves a new design and uploads a Drive backup when Drive is connected', async () => {

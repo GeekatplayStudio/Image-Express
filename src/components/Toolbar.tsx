@@ -2,9 +2,42 @@
 import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
-import { Type, Square, LassoSelect, Image as ImageIcon, LayoutTemplate, Shapes, Circle, Triangle, Star, Move, Box, Wand2, PaintBucket, Brush, ArrowRight, CornerDownRight, MessageSquare, PenTool, ShieldCheck, Copy } from 'lucide-react';
+import {
+    Type,
+    Square,
+    LassoSelect,
+    Image as ImageIcon,
+    LayoutTemplate,
+    Shapes,
+    Circle,
+    Triangle,
+    Star,
+    Move,
+    Box,
+    Wand2,
+    PaintBucket,
+    Brush,
+    ArrowRight,
+    CornerDownRight,
+    MessageSquare,
+    PenTool,
+    ShieldCheck,
+    Copy,
+    History,
+    Blend,
+    Sun,
+    Sparkles,
+    Scan,
+    Crop,
+    Pipette,
+    Search,
+    Hand,
+    ArrowUpDown,
+    type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
+import { APP_THEME } from '@/lib/theme-tokens';
 import { 
     PenPoint, 
     PenModeSetting, 
@@ -37,6 +70,8 @@ interface ToolbarProps {
     activePalette?: ColorPalette | null;
     setActivePalette?: (palette: ColorPalette | null) => void;
     currentUser?: string;
+    enableHoverLabels?: boolean;
+    zoomCursorMode?: 'in' | 'out';
 }
 
 export type ToolbarHandle = {
@@ -46,6 +81,31 @@ export type ToolbarHandle = {
 type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number };
 };
+
+type ToolCursorConfig = {
+    defaultCursor: string;
+    hoverCursor: string;
+    selection: boolean;
+};
+
+const CROSSHAIR_TOOLS = new Set([
+    'marquee',
+    'lasso',
+    'wand',
+    'quick-select',
+    'selection-brush',
+    'healing',
+    'clone-stamp',
+    'history-brush',
+    'blur',
+    'sharpen',
+    'dodge',
+    'paint',
+    'gradient',
+    'pen',
+    'crop',
+    'eyedropper',
+]);
 
 const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: number) => {
     const points = [];
@@ -58,62 +118,62 @@ const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: numb
     return points;
 };
 
-const configureCanvasForTool = (canvas: fabric.Canvas, tool: string) => {
+const resolveToolCursorConfig = (
+    tool: string,
+    options?: { zoomMode?: 'in' | 'out' }
+): ToolCursorConfig | null => {
+    if (tool === 'select') {
+        return {
+            defaultCursor: 'default',
+            hoverCursor: 'move',
+            selection: true,
+        };
+    }
+
+    if (tool === 'zoom') {
+        const zoomCursor = options?.zoomMode === 'out' ? 'zoom-out' : 'zoom-in';
+        return {
+            defaultCursor: zoomCursor,
+            hoverCursor: zoomCursor,
+            selection: false,
+        };
+    }
+
+    if (tool === 'hand') {
+        return {
+            defaultCursor: 'grab',
+            hoverCursor: 'grab',
+            selection: false,
+        };
+    }
+
+    if (CROSSHAIR_TOOLS.has(tool)) {
+        return {
+            defaultCursor: 'crosshair',
+            hoverCursor: 'crosshair',
+            selection: false,
+        };
+    }
+
+    return null;
+};
+
+const configureCanvasForTool = (
+    canvas: fabric.Canvas,
+    tool: string,
+    options?: { zoomMode?: 'in' | 'out' }
+) => {
+    const config = resolveToolCursorConfig(tool, options);
+    if (!config) return;
+
     if (tool === 'select') {
         // canvas.discardActiveObject(); // Don't clear selection when switching to select tool
         canvas.requestRenderAll();
-        canvas.defaultCursor = 'default';
-        canvas.hoverCursor = 'move';
-        canvas.selection = true;
-    } else if (tool === 'marquee') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'lasso') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'wand') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'healing') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'clone-stamp') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'paint') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'gradient') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'pen') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'crop') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'eyedropper') {
-        canvas.defaultCursor = 'crosshair';
-        canvas.hoverCursor = 'crosshair';
-        canvas.selection = false;
-    } else if (tool === 'zoom') {
-        canvas.defaultCursor = 'zoom-in';
-        canvas.hoverCursor = 'zoom-in';
-        canvas.selection = false;
-    } else if (tool === 'hand') {
-        canvas.defaultCursor = 'grab';
-        canvas.hoverCursor = 'grab';
-        canvas.selection = false;
     }
+
+    canvas.defaultCursor = config.defaultCursor;
+    canvas.hoverCursor = config.hoverCursor;
+    canvas.selection = config.selection;
 };
 
 type PenClosure = 'open' | 'closed';
@@ -135,13 +195,87 @@ const TOOL_ALIAS_MAP: Record<string, string> = {
     'path-select': 'select',
 };
 
+type ToolbarToolDefinition = {
+    name: string;
+    icon: LucideIcon;
+    label: string;
+    shortLabel?: string;
+};
+
+type ToolbarToolGroupId = 'selection' | 'retouch';
+
+type ToolbarToolGroupDefinition = {
+    id: ToolbarToolGroupId;
+    label: string;
+    tools: ToolbarToolDefinition[];
+    defaultTool: string;
+};
+
+const SELECTION_TOOL_GROUP: ToolbarToolGroupDefinition = {
+    id: 'selection',
+    label: 'Selection Tools',
+    defaultTool: 'select',
+    tools: [
+        { name: 'select', icon: Move, label: 'Move' },
+        { name: 'marquee', icon: Square, label: 'Marquee' },
+        { name: 'lasso', icon: LassoSelect, label: 'Lasso' },
+        { name: 'wand', icon: Wand2, label: 'Magic Wand', shortLabel: 'Wand' },
+        { name: 'quick-select', icon: Wand2, label: 'Quick Selection', shortLabel: 'Quick' },
+        { name: 'selection-brush', icon: Brush, label: 'Selection Brush', shortLabel: 'Sel Brush' },
+        { name: 'path-select', icon: PenTool, label: 'Path Select', shortLabel: 'Path' },
+    ],
+};
+
+const RETOUCH_TOOL_GROUP: ToolbarToolGroupDefinition = {
+    id: 'retouch',
+    label: 'Retouch Tools',
+    defaultTool: 'healing',
+    tools: [
+        { name: 'healing', icon: ShieldCheck, label: 'Healing Brush', shortLabel: 'Healing' },
+        { name: 'clone-stamp', icon: Copy, label: 'Clone Stamp', shortLabel: 'Clone' },
+        { name: 'history-brush', icon: History, label: 'History Brush', shortLabel: 'History' },
+        { name: 'blur', icon: Blend, label: 'Blur Tool', shortLabel: 'Blur' },
+        { name: 'sharpen', icon: Scan, label: 'Sharpen Tool', shortLabel: 'Sharpen' },
+        { name: 'dodge', icon: Sun, label: 'Dodge Tool', shortLabel: 'Dodge' },
+    ],
+};
+
+const TOOL_GROUPS: ToolbarToolGroupDefinition[] = [SELECTION_TOOL_GROUP, RETOUCH_TOOL_GROUP];
+
+const TOOL_GROUP_BY_ID: Record<ToolbarToolGroupId, ToolbarToolGroupDefinition> = {
+    selection: SELECTION_TOOL_GROUP,
+    retouch: RETOUCH_TOOL_GROUP,
+};
+
+const CREATION_PRIMARY_TOOLS: ToolbarToolDefinition[] = [
+    { name: 'text', icon: Type, label: 'Text' },
+    { name: 'shapes', icon: Shapes, label: 'Shapes' },
+    { name: 'pen', icon: PenTool, label: 'Pen' },
+    { name: 'paint', icon: Brush, label: 'Brushes', shortLabel: 'Brush' },
+    { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient', shortLabel: 'Fill' },
+];
+
+const CREATION_LIBRARY_TOOLS: ToolbarToolDefinition[] = [
+    { name: 'assets', icon: ImageIcon, label: 'Gallery' },
+    { name: 'templates', icon: LayoutTemplate, label: 'Library', shortLabel: 'Templates' },
+    { name: 'ai-zone', icon: Sparkles, label: 'AI Zone' },
+    { name: '3d-gen', icon: Box, label: 'AI 3D' },
+];
+
+const WORKSPACE_UTILITY_TOOLS: ToolbarToolDefinition[] = [
+    { name: 'crop', icon: Crop, label: 'Crop' },
+    { name: 'eyedropper', icon: Pipette, label: 'Eyedropper', shortLabel: 'Picker' },
+    { name: 'zoom', icon: Search, label: 'Zoom' },
+    { name: 'hand', icon: Hand, label: 'Hand' },
+];
+
 const PEN_STROKE = PEN_DEFAULT_STROKE;
 const PEN_FILL = PEN_DEFAULT_FILL;
 const PEN_ANCHOR_COLOR = '#2563eb';
 const PEN_HANDLE_COLOR = '#ffffff';
 const DEFAULT_SHAPE_CONFIG: ShapeConfigPayload = {
     mode: 'shape',
-    fillColor: '#8b5cf6',
+    fillColor: APP_THEME.shapeDefaultFillHex,
     strokeColor: '#111827',
     strokeWidth: 0,
     fixedSize: false,
@@ -402,7 +536,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     apiKeys,
     activePalette,
     setActivePalette,
-    currentUser
+    currentUser,
+    enableHoverLabels = true,
+    zoomCursorMode = 'in',
 }, ref) => {
     const { toast } = useToast();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
@@ -423,25 +559,22 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
     const [shapeConfig, setShapeConfig] = useState<ShapeConfigPayload>(DEFAULT_SHAPE_CONFIG);
-
-    // Left rail is creation-focused: tools that create new content.
-    const tools = [
-        { name: 'select', icon: Move, label: 'Move' },
-        { name: 'marquee', icon: Square, label: 'Marquee' },
-        { name: 'lasso', icon: LassoSelect, label: 'Lasso' },
-        { name: 'wand', icon: Wand2, label: 'Magic Wand' },
-        { name: 'text', icon: Type, label: 'Text' },
-        { name: 'shapes', icon: Shapes, label: 'Shapes' },
-        { name: 'paint', icon: Brush, label: 'Brush' },
-        { name: 'healing', icon: ShieldCheck, label: 'Healing Brush' },
-        { name: 'clone-stamp', icon: Copy, label: 'Clone Stamp' },
-        { name: 'pen', icon: PenTool, label: 'Pen' },
-        { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient' },
-        { name: 'assets', icon: ImageIcon, label: 'Gallery' },
-        { name: 'templates', icon: LayoutTemplate, label: 'Library' },
-        { name: 'ai-zone', icon: Wand2, label: 'AI Zone' },
-        { name: '3d-gen', icon: Box, label: 'AI 3D' },
-    ];
+    const toolGroupMenuRef = useRef<HTMLDivElement>(null);
+    const selectionGroupButtonRef = useRef<HTMLButtonElement>(null);
+    const retouchGroupButtonRef = useRef<HTMLButtonElement>(null);
+    const [openToolGroup, setOpenToolGroup] = useState<ToolbarToolGroupId | null>(null);
+    const [toolGroupMenuPos, setToolGroupMenuPos] = useState<{ left: number; top: number } | null>(null);
+    const [toolGroupPrimaryTool, setToolGroupPrimaryTool] = useState<Record<ToolbarToolGroupId, string>>({
+        selection: SELECTION_TOOL_GROUP.defaultTool,
+        retouch: RETOUCH_TOOL_GROUP.defaultTool,
+    });
+    const [isRailHovered, setIsRailHovered] = useState(false);
+    const normalizedActiveTool = TOOL_ALIAS_MAP[activeTool] || activeTool;
+    const isRailExpanded = enableHoverLabels && isRailHovered;
+    const [foregroundColor, setForegroundColor] = useState('#000000');
+    const [backgroundColor, setBackgroundColor] = useState('#ffffff');
+    const foregroundColorInputRef = useRef<HTMLInputElement>(null);
+    const backgroundColorInputRef = useRef<HTMLInputElement>(null);
 
     const [penPoints, setPenPoints] = useState<PenPoint[]>([]);
     const [penAnchors, setPenAnchors] = useState<PenAnchorObject[]>([]);
@@ -457,6 +590,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     useEffect(() => {
         penAnchorsRef.current = penAnchors;
     }, [penAnchors]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        configureCanvasForTool(canvas, normalizedActiveTool, { zoomMode: zoomCursorMode });
+    }, [canvas, normalizedActiveTool, zoomCursorMode]);
 
     useEffect(() => {
         if (!canvas || activeTool !== 'pen') return;
@@ -907,11 +1045,23 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     // Close shapes menu when clicking outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (shapesMenuRef.current && !shapesMenuRef.current.contains(event.target as Node)) {
+            const targetNode = event.target as Node;
+            if (shapesMenuRef.current && !shapesMenuRef.current.contains(targetNode)) {
                 setShowShapesMenu(false);
             }
-            if (adjustmentMenuRef.current && !adjustmentMenuRef.current.contains(event.target as Node)) {
+            if (adjustmentMenuRef.current && !adjustmentMenuRef.current.contains(targetNode)) {
                 setShowAdjustmentMenu(false);
+            }
+            if (extraMenuRef.current && !extraMenuRef.current.contains(targetNode)) {
+                setShowExtraMenu(false);
+            }
+
+            const clickedGroupButton = (
+                selectionGroupButtonRef.current?.contains(targetNode)
+                || retouchGroupButtonRef.current?.contains(targetNode)
+            );
+            if (toolGroupMenuRef.current && !toolGroupMenuRef.current.contains(targetNode) && !clickedGroupButton) {
+                setOpenToolGroup(null);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
@@ -1040,6 +1190,45 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         canvas.setActiveObject(text);
     };
 
+    const syncToolbarColorsToCanvas = useCallback((nextForeground: string, nextBackground: string) => {
+        if (!canvas) return;
+
+        const activeObject = canvas.getActiveObject() as (fabric.Object & { fill?: unknown }) | null;
+        if (activeObject && 'fill' in activeObject) {
+            activeObject.set({ fill: nextForeground as never });
+            activeObject.setCoords();
+            canvas.requestRenderAll();
+            canvas.fire('object:modified', { target: activeObject });
+        }
+        const canvasEventBus = canvas as unknown as {
+            fire: (eventName: string, payload?: unknown) => void;
+        };
+        canvasEventBus.fire('toolbar:color:change', {
+            foregroundColor: nextForeground,
+            backgroundColor: nextBackground,
+        });
+    }, [canvas]);
+
+    const handleForegroundColorChange = (nextColor: string) => {
+        if (!nextColor) return;
+        setForegroundColor(nextColor);
+        syncToolbarColorsToCanvas(nextColor, backgroundColor);
+    };
+
+    const handleBackgroundColorChange = (nextColor: string) => {
+        if (!nextColor) return;
+        setBackgroundColor(nextColor);
+        syncToolbarColorsToCanvas(foregroundColor, nextColor);
+    };
+
+    const handleSwapToolbarColors = () => {
+        const nextForeground = backgroundColor;
+        const nextBackground = foregroundColor;
+        setForegroundColor(nextForeground);
+        setBackgroundColor(nextBackground);
+        syncToolbarColorsToCanvas(nextForeground, nextBackground);
+    };
+
     const handleToolClick = (toolName: string) => {
            const normalizedToolName = TOOL_ALIAS_MAP[toolName] || toolName;
            if (toolName === 'extra') {
@@ -1052,6 +1241,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 });
                 setShowShapesMenu(false);
                 setShowAdjustmentMenu(false);
+                setOpenToolGroup(null);
+                setToolGroupMenuPos(null);
                 setActiveTool('extra');
                 return;
            }
@@ -1064,6 +1255,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     return next;
                 });
                 setShowAdjustmentMenu(false);
+                setOpenToolGroup(null);
+                setToolGroupMenuPos(null);
                 setActiveTool('shapes');
                 return;
         }
@@ -1076,6 +1269,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     return next;
                 });
                setShowShapesMenu(false);
+               setOpenToolGroup(null);
+               setToolGroupMenuPos(null);
                setActiveTool('layers');
                return;
            }
@@ -1093,6 +1288,21 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         setActiveTool(normalizedToolName);
         setShowShapesMenu(false);
         setShowAdjustmentMenu(false);
+        setShowExtraMenu(false);
+        setOpenToolGroup(null);
+        setToolGroupMenuPos(null);
+
+        const resolvedPrimaryTool = TOOL_GROUPS.some((group) => group.tools.some((tool) => tool.name === toolName))
+            ? toolName
+            : normalizedToolName;
+        const owningGroup = TOOL_GROUPS.find((group) => group.tools.some((tool) => tool.name === resolvedPrimaryTool));
+        if (owningGroup) {
+            setToolGroupPrimaryTool((prev) => (
+                prev[owningGroup.id] === resolvedPrimaryTool
+                    ? prev
+                    : { ...prev, [owningGroup.id]: resolvedPrimaryTool }
+            ));
+        }
         
         // Handle single-action tools
         switch(normalizedToolName) {
@@ -1114,6 +1324,16 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             case 'wand':
                 if (canvas) {
                     configureCanvasForTool(canvas, 'wand');
+                }
+                break;
+            case 'quick-select':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'quick-select');
+                }
+                break;
+            case 'selection-brush':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'selection-brush');
                 }
                 break;
             case 'gradient': 
@@ -1144,6 +1364,26 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     configureCanvasForTool(canvas, 'clone-stamp');
                 }
                 break;
+            case 'history-brush':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'history-brush');
+                }
+                break;
+            case 'blur':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'blur');
+                }
+                break;
+            case 'sharpen':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'sharpen');
+                }
+                break;
+            case 'dodge':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'dodge');
+                }
+                break;
             case 'crop':
                 if (canvas) {
                     configureCanvasForTool(canvas, 'crop');
@@ -1156,7 +1396,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 break;
             case 'zoom':
                 if (canvas) {
-                    configureCanvasForTool(canvas, 'zoom');
+                    configureCanvasForTool(canvas, 'zoom', { zoomMode: zoomCursorMode });
                 }
                 break;
             case 'hand':
@@ -1177,6 +1417,46 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 // Properties Panel handles the view reset, we just set activeTool
                 break;
         }
+    };
+
+    const getToolGroupButtonRef = (groupId: ToolbarToolGroupId) => (
+        groupId === 'selection' ? selectionGroupButtonRef : retouchGroupButtonRef
+    );
+
+    const openToolGroupMenuFor = (groupId: ToolbarToolGroupId) => {
+        const group = TOOL_GROUP_BY_ID[groupId];
+        const estimatedHeight = Math.max(180, 44 + (group.tools.length * 36));
+        setToolGroupMenuPos(positionMenu(getToolGroupButtonRef(groupId), 212, estimatedHeight));
+        setOpenToolGroup(groupId);
+    };
+
+    const handleToolGroupMenuSelect = (groupId: ToolbarToolGroupId, toolName: string) => {
+        setToolGroupPrimaryTool((prev) => (
+            prev[groupId] === toolName
+                ? prev
+                : { ...prev, [groupId]: toolName }
+        ));
+        setOpenToolGroup(null);
+        setToolGroupMenuPos(null);
+        handleToolClick(toolName);
+    };
+
+    const handleToolGroupButtonClick = (groupId: ToolbarToolGroupId) => {
+        const group = TOOL_GROUP_BY_ID[groupId];
+        const isGroupActive = group.tools.some((tool) => (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool);
+        if (isGroupActive) {
+            if (openToolGroup === groupId) {
+                setOpenToolGroup(null);
+                setToolGroupMenuPos(null);
+            } else {
+                openToolGroupMenuFor(groupId);
+            }
+            return;
+        }
+
+        const preferredTool = group.tools.find((tool) => tool.name === toolGroupPrimaryTool[groupId])?.name
+            || group.defaultTool;
+        handleToolClick(preferredTool);
     };
 
     useImperativeHandle(ref, () => ({
@@ -1644,7 +1924,12 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     }
 
     return (
-        <div className="flex w-full flex-col items-center pt-2 relative">
+        <div
+            className="relative self-start origin-left flex w-full flex-col items-start pt-2"
+            data-testid="toolbar-rail-host"
+            onMouseEnter={() => setIsRailHovered(true)}
+            onMouseLeave={() => setIsRailHovered(false)}
+        >
             <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -1652,27 +1937,239 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 accept="image/jpeg,image/png,image/webp,image/svg+xml"
                 onChange={handleFileChange}
             />
-            <div className="flex max-h-[calc(100%-0.5rem)] overflow-y-auto flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin">
-                {tools.map((tool) => (
+            <input
+                type="color"
+                ref={foregroundColorInputRef}
+                className="hidden"
+                value={foregroundColor}
+                onChange={(event) => handleForegroundColorChange(event.target.value)}
+                aria-label="Foreground color picker"
+            />
+            <input
+                type="color"
+                ref={backgroundColorInputRef}
+                className="hidden"
+                value={backgroundColor}
+                onChange={(event) => handleBackgroundColorChange(event.target.value)}
+                aria-label="Background color picker"
+            />
+            <div
+                className={cn(
+                    'ml-[10px] flex max-h-[calc(100%-0.5rem)] overflow-y-auto flex-col items-stretch gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out',
+                    isRailExpanded ? 'w-56 shadow-xl' : 'w-10'
+                )}
+                data-testid="toolbar-rail"
+            >
+                {TOOL_GROUPS.map((group) => {
+                    const isGroupActive = group.tools.some((tool) => (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool);
+                    const activeGroupTool = group.tools.find((tool) => (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool);
+                    const primaryTool = activeGroupTool
+                        || group.tools.find((tool) => tool.name === toolGroupPrimaryTool[group.id])
+                        || group.tools[0];
+                    const groupButtonRef = group.id === 'selection' ? selectionGroupButtonRef : retouchGroupButtonRef;
+                    return (
+                        <button
+                            key={group.id}
+                            onClick={() => handleToolGroupButtonClick(group.id)}
+                            onContextMenu={(event) => {
+                                event.preventDefault();
+                                openToolGroupMenuFor(group.id);
+                            }}
+                            ref={groupButtonRef}
+                            className={cn(
+                                'relative rounded-sm flex transition-colors z-20',
+                                isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
+                                (isGroupActive || openToolGroup === group.id)
+                                    ? "bg-tool-accent text-tool-accent-foreground"
+                                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                            )}
+                            title={`${group.label} (${primaryTool.label})`}
+                            aria-label={`${group.label} (${primaryTool.label})`}
+                        >
+                            <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
+                                <primaryTool.icon size={16} />
+                            </span>
+                            {isRailExpanded && (
+                                <span className="truncate text-[11px] font-medium">
+                                    {primaryTool.shortLabel ?? primaryTool.label}
+                                </span>
+                            )}
+                            <span className="pointer-events-none absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+                        </button>
+                    );
+                })}
+
+                <div className="my-0.5 h-px w-full bg-border/60" />
+
+                {CREATION_PRIMARY_TOOLS.map((tool) => {
+                    const isToolActive = (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool;
+                    return (
+                        <button
+                            key={tool.name}
+                            onClick={() => handleToolClick(tool.name)}
+                            ref={tool.name === 'shapes' ? shapesButtonRef : undefined}
+                            className={cn(
+                                'rounded-sm flex transition-colors z-20',
+                                isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
+                                isToolActive
+                                    ? "bg-tool-accent text-tool-accent-foreground"
+                                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                            )}
+                            title={tool.label}
+                            aria-label={tool.label}
+                        >
+                            <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
+                                <tool.icon size={16} />
+                            </span>
+                            {isRailExpanded && (
+                                <span className="truncate text-[11px] font-medium">
+                                    {tool.shortLabel ?? tool.label}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+
+                <div className="my-0.5 h-px w-full bg-border/60" />
+
+                {CREATION_LIBRARY_TOOLS.map((tool) => {
+                    const isToolActive = (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool;
+                    return (
+                        <button
+                            key={tool.name}
+                            onClick={() => handleToolClick(tool.name)}
+                            className={cn(
+                                'rounded-sm flex transition-colors z-20',
+                                isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
+                                isToolActive
+                                    ? "bg-tool-accent text-tool-accent-foreground"
+                                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                            )}
+                            title={tool.label}
+                            aria-label={tool.label}
+                        >
+                            <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
+                                <tool.icon size={16} />
+                            </span>
+                            {isRailExpanded && (
+                                <span className="truncate text-[11px] font-medium">
+                                    {tool.shortLabel ?? tool.label}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+
+                <div className="my-0.5 h-px w-full bg-border/60" />
+
+                {WORKSPACE_UTILITY_TOOLS.map((tool) => {
+                    const isToolActive = (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool;
+                    return (
+                        <button
+                            key={tool.name}
+                            onClick={() => handleToolClick(tool.name)}
+                            className={cn(
+                                'rounded-sm flex transition-colors z-20',
+                                isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
+                                isToolActive
+                                    ? "bg-tool-accent text-tool-accent-foreground"
+                                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                            )}
+                            title={tool.label}
+                            aria-label={tool.label}
+                        >
+                            <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
+                                <tool.icon size={16} />
+                            </span>
+                            {isRailExpanded && (
+                                <span className="truncate text-[11px] font-medium">
+                                    {tool.shortLabel ?? tool.label}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+
+                <div className="my-0.5 h-px w-full bg-border/60" />
+
+                <div
+                    className={cn(
+                        'flex w-full rounded-sm',
+                        isRailExpanded ? 'items-center gap-2 px-2 py-1' : 'flex-col items-center gap-1 py-1'
+                    )}
+                >
                     <button
-                        key={tool.name}
-                        onClick={() => handleToolClick(tool.name)}
-                        ref={tool.name === 'shapes' ? shapesButtonRef : undefined}
+                        type="button"
+                        title="Foreground color"
+                        aria-label="Foreground color"
+                        onClick={() => foregroundColorInputRef.current?.click()}
                         className={cn(
-                            "h-8 w-8 rounded-sm flex items-center justify-center transition-colors z-20",
-                            activeTool === tool.name
-                                ? "bg-secondary text-foreground"
-                                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                            'relative shrink-0 overflow-hidden rounded-full border border-border/70 shadow-sm',
+                            isRailExpanded ? 'h-7 w-7' : 'h-6 w-6'
                         )}
-                        title={tool.label}
-                        aria-label={tool.label}
+                        style={{ backgroundColor: foregroundColor }}
+                    />
+                    <button
+                        type="button"
+                        title="Swap colors"
+                        aria-label="Swap colors"
+                        onClick={handleSwapToolbarColors}
+                        className={cn(
+                            'inline-flex items-center justify-center rounded-sm text-muted-foreground hover:bg-secondary/70 hover:text-foreground transition-colors',
+                            isRailExpanded ? 'h-7 w-7' : 'h-6 w-6'
+                        )}
                     >
-                        <tool.icon size={16} />
+                        <ArrowUpDown size={14} />
                     </button>
-                ))}
+                    <button
+                        type="button"
+                        title="Background color"
+                        aria-label="Background color"
+                        onClick={() => backgroundColorInputRef.current?.click()}
+                        className={cn(
+                            'relative shrink-0 overflow-hidden rounded-full border border-border/70 shadow-sm',
+                            isRailExpanded ? 'h-7 w-7' : 'h-6 w-6'
+                        )}
+                        style={{ backgroundColor: backgroundColor }}
+                    />
+                    {isRailExpanded && (
+                        <span className="truncate text-[10px] text-muted-foreground ml-1">FG/BG</span>
+                    )}
+                </div>
             </div>
 
             {/* Pen Options now moved to PropertiesPanel (Right Sidebar) to avoid squishing */}
+
+            {openToolGroup && toolGroupMenuPos && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={toolGroupMenuRef}
+                    style={{ left: toolGroupMenuPos.left, top: toolGroupMenuPos.top }}
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-2 grid grid-cols-1 gap-1 z-[2000] w-52 animate-in fade-in slide-in-from-left-2 duration-150"
+                >
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/60">
+                        {TOOL_GROUP_BY_ID[openToolGroup].label}
+                    </div>
+                    {TOOL_GROUP_BY_ID[openToolGroup].tools.map((tool) => {
+                        const isToolActive = (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool;
+                        return (
+                            <button
+                                key={tool.name}
+                                onClick={() => handleToolGroupMenuSelect(openToolGroup, tool.name)}
+                                className={cn(
+                                    "flex items-center gap-2 p-2 rounded transition-colors text-[11px]",
+                                    isToolActive
+                                        ? "bg-tool-accent text-tool-accent-foreground"
+                                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                )}
+                            >
+                                <tool.icon size={15} />
+                                <span>{tool.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>,
+                document.body
+            )}
 
             {/* Template Library */}
             {activeTool === 'templates' && (
@@ -1684,15 +2181,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 />
             )}
 
-            {activeTool === 'color-wheel' && (
+            {(activeTool === 'color-wheel' || activeTool === 'eyedropper') && (
                 <ColorWheelTool 
                     onColorSelect={(color) => {
-                         if (!canvas) return;
-                         const active = canvas.getActiveObject();
-                         if (active) {
-                             active.set({ fill: color });
-                             canvas.requestRenderAll();
-                         }
+                        setForegroundColor(color);
+                        syncToolbarColorsToCanvas(color, backgroundColor);
                     }}
                     currentPalette={activePalette || null}
                     onPaletteSelect={(palette) => {

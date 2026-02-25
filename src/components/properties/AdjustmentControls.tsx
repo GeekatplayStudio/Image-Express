@@ -9,6 +9,7 @@ import {
     ExposureSettings, 
     SaturationVibranceSettings 
 } from '@/types';
+import { APP_THEME } from '@/lib/theme-tokens';
 
 interface AdjustmentControlsProps {
     type: AdjustmentLayerType;
@@ -38,7 +39,7 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                 ? '#3b82f6'
                 : channel === 'luminosity'
                     ? '#e5e7eb'
-                    : '#a855f7';
+                    : APP_THEME.curveDefaultStroke;
     
     const smoothPath = () => {
         if (sorted.length < 2) return '';
@@ -190,8 +191,8 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                             cx={toSvgX(point.x)}
                             cy={toSvgY(point.y)}
                             r={activePointIndex === index ? 8 : 6} 
-                            fill={activePointIndex === index ? '#fff' : '#a855f7'}
-                            stroke={activePointIndex === index ? '#a855f7' : '#fff'}
+                            fill={activePointIndex === index ? '#fff' : APP_THEME.curveDefaultStroke}
+                            stroke={activePointIndex === index ? APP_THEME.curveDefaultStroke : '#fff'}
                             strokeWidth={2}
                             onPointerDown={startDrag(index)}
                             onClick={removePoint(index)}

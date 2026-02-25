@@ -9,6 +9,8 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-tool-accent: var(--tool-accent);
+  --color-tool-accent-foreground: var(--tool-accent-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -33,8 +35,10 @@
   --card-foreground: hsl(0 0% 98%);
   --popover: hsl(240 4% 10%);
   --popover-foreground: hsl(0 0% 98%);
-  --primary: hsl(263 70% 50%);
+  --primary: hsl(193 63% 43%);
   --primary-foreground: hsl(0 0% 100%);
+  --tool-accent: hsl(193 58% 39%);
+  --tool-accent-foreground: hsl(0 0% 100%);
   --secondary: hsl(240 4% 16%);
   --secondary-foreground: hsl(0 0% 98%);
   --muted: hsl(240 4% 16%);
@@ -78,11 +82,16 @@ body {
 }
 
 input[type="range"] {
-  accent-color: var(--primary);
+  accent-color: var(--tool-accent);
 }
 
 .brand-icon-shell {
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 54%, #ec4899 100%);
+  background: linear-gradient(
+    135deg,
+    var(--ui-brand-gradient-start) 0%,
+    var(--ui-brand-gradient-mid) 54%,
+    var(--ui-brand-gradient-end) 100%
+  );
 }
 
 .brand-spark {

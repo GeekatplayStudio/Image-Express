@@ -292,6 +292,8 @@ const renderToolbar = (options?: {
     initialTool?: string;
     onOpen3DEditor?: (url: string) => void;
     activeObject?: { set: jest.Mock } | null;
+    enableHoverLabels?: boolean;
+    zoomCursorMode?: 'in' | 'out';
 }) => {
     const canvas = createCanvasStub(options?.activeObject ?? null);
     const setActiveToolSpy = jest.fn();
@@ -315,6 +317,8 @@ const renderToolbar = (options?: {
                 onOpen3DEditor={options?.onOpen3DEditor}
                 setActivePalette={setActivePaletteSpy}
                 currentUser="tester"
+                enableHoverLabels={options?.enableHoverLabels}
+                zoomCursorMode={options?.zoomCursorMode}
             />
         );
     };
@@ -349,6 +353,56 @@ describe('Toolbar', () => {
         expect(canvas.selection).toBe(false);
     });
 
+    it('shows persistent workspace utility tools on the rail', () => {
+        renderToolbar();
+
+        expect(screen.getByTitle('Crop')).toBeInTheDocument();
+        expect(screen.getByTitle('Eyedropper')).toBeInTheDocument();
+        expect(screen.getByTitle('Zoom')).toBeInTheDocument();
+        expect(screen.getByTitle('Hand')).toBeInTheDocument();
+    });
+
+    it('opens color wheel when eyedropper is selected and applies wheel colors as foreground', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Eyedropper'));
+        expect(setActiveToolSpy).toHaveBeenCalledWith('eyedropper');
+        expect(screen.getByTestId('mock-color-wheel-tool')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Apply Color' }));
+        expect(canvas.fire).toHaveBeenCalledWith(
+            'toolbar:color:change',
+            expect.objectContaining({
+                foregroundColor: '#123456',
+                backgroundColor: '#ffffff',
+            })
+        );
+    });
+
+    it('applies zoom out cursor when zoom mode is out', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar({ zoomCursorMode: 'out' });
+
+        fireEvent.click(screen.getByTitle('Zoom'));
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('zoom');
+        expect(canvas.defaultCursor).toBe('zoom-out');
+        expect(canvas.hoverCursor).toBe('zoom-out');
+    });
+
+    it('swaps foreground and background utility colors and syncs canvas event', () => {
+        const { canvas } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Swap colors'));
+
+        expect(canvas.fire).toHaveBeenCalledWith(
+            'toolbar:color:change',
+            expect.objectContaining({
+                foregroundColor: '#ffffff',
+                backgroundColor: '#000000',
+            })
+        );
+    });
+
     it('adds text to the canvas from the text tool', () => {
         const { canvas } = renderToolbar();
 
@@ -357,6 +411,33 @@ describe('Toolbar', () => {
         expect(canvas.add).toHaveBeenCalledTimes(1);
         expect(canvas.setActiveObject).toHaveBeenCalledTimes(1);
         expect(canvas.add.mock.calls[0][0]).toEqual(expect.objectContaining({ type: 'i-text', text: 'Tap to edit' }));
+    });
+
+    it('opens selection tool group flyout and switches to marquee', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Selection Tools (Move)'));
+        fireEvent.click(screen.getByRole('button', { name: 'Marquee' }));
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('marquee');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('opens retouch group and routes sharpen selection through flyout', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Retouch Tools (Healing Brush)'));
+        expect(setActiveToolSpy).toHaveBeenCalledWith('healing');
+
+        fireEvent.click(screen.getByTitle('Retouch Tools (Healing Brush)'));
+        fireEvent.click(screen.getByRole('button', { name: 'Sharpen Tool' }));
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('sharpen');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
     });
 
     it('opens shapes menu and adds a rectangle', () => {
@@ -387,6 +468,26 @@ describe('Toolbar', () => {
         expect(screen.queryByTitle('Layers')).not.toBeInTheDocument();
         expect(screen.queryByTitle('Adjustments')).not.toBeInTheDocument();
         expect(screen.queryByTitle('Color')).not.toBeInTheDocument();
+    });
+
+    it('expands and reveals tool labels on hover when enabled', () => {
+        renderToolbar();
+        const railHost = screen.getByTestId('toolbar-rail-host');
+
+        expect(screen.queryByText('AI 3D')).not.toBeInTheDocument();
+        fireEvent.mouseEnter(railHost);
+        expect(screen.getByText('AI 3D')).toBeInTheDocument();
+
+        fireEvent.mouseLeave(railHost);
+        expect(screen.queryByText('AI 3D')).not.toBeInTheDocument();
+    });
+
+    it('stays icon-only when hover labels are disabled', () => {
+        renderToolbar({ enableHoverLabels: false });
+        const railHost = screen.getByTestId('toolbar-rail-host');
+
+        fireEvent.mouseEnter(railHost);
+        expect(screen.queryByText('AI 3D')).not.toBeInTheDocument();
     });
 
     it('loads selected image assets onto the canvas', async () => {
@@ -482,6 +583,32 @@ describe('Toolbar', () => {
         expect(canvas.selection).toBe(false);
     });
 
+    it('supports quick selection tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('quick-select');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('quick-select');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports selection brush tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('selection-brush');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('selection-brush');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
     it('supports healing tool activation through ref handle', () => {
         const { ref, canvas, setActiveToolSpy } = renderToolbar();
 
@@ -503,6 +630,58 @@ describe('Toolbar', () => {
         });
 
         expect(setActiveToolSpy).toHaveBeenCalledWith('clone-stamp');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports history brush tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('history-brush');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('history-brush');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports blur tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('blur');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('blur');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports sharpen tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('sharpen');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('sharpen');
+        expect(canvas.defaultCursor).toBe('crosshair');
+        expect(canvas.hoverCursor).toBe('crosshair');
+        expect(canvas.selection).toBe(false);
+    });
+
+    it('supports dodge tool activation through ref handle', () => {
+        const { ref, canvas, setActiveToolSpy } = renderToolbar();
+
+        act(() => {
+            ref.current?.triggerTool('dodge');
+        });
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('dodge');
         expect(canvas.defaultCursor).toBe('crosshair');
         expect(canvas.hoverCursor).toBe('crosshair');
         expect(canvas.selection).toBe(false);

@@ -13,10 +13,13 @@ type WandOptions = {
     threshold: number;
 };
 
+type SelectionFamilyTool = 'select' | 'marquee' | 'lasso' | 'wand' | 'quick-select' | 'selection-brush' | 'path-select';
+
 interface SelectionControlsProps {
     activeTool: string;
     selectOptions: SelectOptions;
     wandOptions?: WandOptions;
+    onSelectToolChange?: (tool: SelectionFamilyTool) => void;
     onAutoSelectChange?: (enabled: boolean) => void;
     onSelectionModeChange?: (mode: 'layer' | 'group') => void;
     onTransformControlsChange?: (enabled: boolean) => void;
@@ -32,6 +35,7 @@ export default function SelectionControls({
     activeTool,
     selectOptions,
     wandOptions,
+    onSelectToolChange,
     onAutoSelectChange,
     onSelectionModeChange,
     onTransformControlsChange,
@@ -42,8 +46,31 @@ export default function SelectionControls({
     onSelectionContract,
     onWandThresholdChange,
 }: SelectionControlsProps) {
+    const tools: Array<{ key: SelectionFamilyTool; label: string }> = [
+        { key: 'select', label: 'Move' },
+        { key: 'marquee', label: 'Marquee' },
+        { key: 'lasso', label: 'Lasso' },
+        { key: 'wand', label: 'Wand' },
+        { key: 'quick-select', label: 'Quick' },
+        { key: 'selection-brush', label: 'Sel Brush' },
+        { key: 'path-select', label: 'Path' },
+    ];
+
     return (
         <>
+            <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/20">
+                {tools.map((tool, index) => (
+                    <button
+                        key={tool.key}
+                        onClick={() => onSelectToolChange?.(tool.key)}
+                        className={`px-2.5 py-1 text-xs ${index > 0 ? 'border-l border-border/50' : ''} ${activeTool === tool.key ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                        aria-label={`Selection tool ${tool.key}`}
+                    >
+                        {tool.label}
+                    </button>
+                ))}
+            </div>
+
             <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <input
                     type="checkbox"
@@ -57,14 +84,14 @@ export default function SelectionControls({
             <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                 <button
                     onClick={() => onSelectionModeChange?.('layer')}
-                    className={`px-2.5 py-1 text-xs ${selectOptions.selectionMode === 'layer' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                    className={`px-2.5 py-1 text-xs ${selectOptions.selectionMode === 'layer' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                     aria-label="Selection mode layer"
                 >
                     Layer
                 </button>
                 <button
                     onClick={() => onSelectionModeChange?.('group')}
-                    className={`px-2.5 py-1 text-xs border-l border-border/50 ${selectOptions.selectionMode === 'group' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                    className={`px-2.5 py-1 text-xs border-l border-border/50 ${selectOptions.selectionMode === 'group' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                     aria-label="Selection mode group"
                 >
                     Group
@@ -136,7 +163,7 @@ export default function SelectionControls({
                 </button>
             </div>
 
-            {activeTool === 'wand' && wandOptions && (
+            {(activeTool === 'wand' || activeTool === 'quick-select') && wandOptions && (
                 <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Threshold</span>
                     <input

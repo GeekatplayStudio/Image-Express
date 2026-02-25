@@ -45,7 +45,7 @@ const START_ACTIONS = [
         id: 'start-upload',
         label: 'Upload Media',
         icon: Upload,
-        color: 'bg-gradient-to-br from-blue-400 to-indigo-500',
+        color: 'bg-gradient-to-br from-primary/80 to-tool-accent',
          textColor: 'text-blue-50',
         action: 'upload'
     },
@@ -61,8 +61,8 @@ const START_ACTIONS = [
         id: 'start-ai-img',
         label: 'Generate Image',
         icon: Sparkles,
-        color: 'bg-gradient-to-br from-pink-500 to-rose-600',
-         textColor: 'text-pink-50',
+        color: 'bg-gradient-to-br from-primary to-tool-accent',
+         textColor: 'text-primary-foreground',
         action: 'ai'
     }
 ];
@@ -75,7 +75,7 @@ const POPULAR_TEMPLATES: TemplateDescriptor[] = [
     height: 1080,
     type: 'Social Media',
     icon: Instagram,
-    color: 'from-pink-500 to-orange-500',
+    color: 'from-primary to-tool-accent',
     // jsonUrl: null // No JSON, start blank
   },
   {
@@ -94,7 +94,7 @@ const POPULAR_TEMPLATES: TemplateDescriptor[] = [
     height: 2560,
     type: 'Print',
     icon: Book,
-    color: 'from-blue-600 to-indigo-600',
+    color: 'from-primary to-tool-accent',
   },
   {
     id: 't-banner',
@@ -360,7 +360,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         <section className="space-y-4">
            <div className="flex items-center justify-between px-2">
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Clock size={20} className="text-purple-500" />
+                    <Clock size={20} className="text-primary" />
                     Your Projects
                 </h2>
                 <div className="text-sm text-muted-foreground">{recentDesigns.length} saved</div>
@@ -452,7 +452,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         <section className="space-y-4">
              <div className="flex items-center justify-between px-2">
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Layout size={20} className="text-indigo-500" />
+                    <Layout size={20} className="text-primary" />
                     Popular Templates
                 </h2>
              </div>
@@ -526,16 +526,16 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                    <a href="https://www.youtube.com/@geekatplay" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-[#FF0000]/10 text-[#FF0000] hover:bg-[#FF0000]/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
                      YouTube
                    </a>
-                   <a href="https://www.geekatplay.com" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-indigo-500/10 text-indigo-600 hover:bg-indigo-500/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
+                   <a href="https://www.geekatplay.com" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
                       Geekatplay.com
                    </a>
-                   <a href="https://www.chopinephotography.com" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
+                   <a href="https://www.chopinephotography.com" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
                       ChopinePhotography.com
                    </a>
                    
                    <div className="w-px h-6 bg-border mx-2 hidden md:block"></div>
 
-                   <a href="https://geekatplay.gumroad.com/coffee" target="_blank" rel="noreferrer" className="group px-4 py-1.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-full text-xs font-semibold transition-all shadow-md hover:shadow-lg flex items-center gap-2 transform hover:-translate-y-0.5">
+                   <a href="https://geekatplay.gumroad.com/coffee" target="_blank" rel="noreferrer" className="group px-4 py-1.5 bg-gradient-to-r from-primary to-tool-accent hover:from-primary/90 hover:to-tool-accent/90 text-white rounded-full text-xs font-semibold transition-all shadow-md hover:shadow-lg flex items-center gap-2 transform hover:-translate-y-0.5">
                       <Heart size={14} className="group-hover:animate-bounce" fill="currentColor" />
                       Support my work
                    </a>

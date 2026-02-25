@@ -78,7 +78,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                 </button>
 
                 {/* Header / Cover */}
-                <div className="h-32 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
+                <div className="h-32 ui-brand-gradient-surface relative">
                      <div className="absolute -bottom-12 left-8">
                                  <div className="w-24 h-24 rounded-full border-4 border-card bg-secondary flex items-center justify-center relative group overflow-hidden">
                              {image ? (

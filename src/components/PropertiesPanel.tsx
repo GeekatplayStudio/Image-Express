@@ -88,6 +88,9 @@ type CanvasWithArtboard = fabric.Canvas & {
 interface PropertiesPanelProps {
     canvas: fabric.Canvas | null;
     activeTool: string;
+    panelMode?: PanelMode;
+    enablePanelRailHoverLabels?: boolean;
+    onPanelModeChange?: (mode: PanelMode) => void;
     onLayerDblClick?: (obj?: fabric.Object) => void;
     onMake3D?: (imageUrl: string) => void;
     onDuplicate?: () => void;
@@ -134,6 +137,9 @@ const PANEL_MODE_VALUES: PanelMode[] = [
 export default function PropertiesPanel({
     canvas,
     activeTool,
+    panelMode: controlledPanelMode,
+    enablePanelRailHoverLabels = true,
+    onPanelModeChange,
     onLayerDblClick,
     onMake3D,
     onDuplicate,
@@ -171,31 +177,42 @@ export default function PropertiesPanel({
     const [objects, setObjects] = useState<fabric.Object[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-    const [panelMode, setPanelMode] = useState<PanelMode>('properties');
+    const [uncontrolledPanelMode, setUncontrolledPanelMode] = useState<PanelMode>('properties');
+    const panelMode = controlledPanelMode ?? uncontrolledPanelMode;
+    const setPanelMode = useCallback((mode: PanelMode) => {
+        if (onPanelModeChange) {
+            onPanelModeChange(mode);
+        }
+        if (controlledPanelMode === undefined) {
+            setUncontrolledPanelMode(mode);
+        }
+    }, [controlledPanelMode, onPanelModeChange]);
     const [colorPanelMode, setColorPanelMode] = useState<ColorPanelMode>('RGB');
 
     useEffect(() => {
+        if (controlledPanelMode !== undefined) return;
         if (typeof window === 'undefined') return;
         const persisted = window.localStorage.getItem(PANEL_MODE_STORAGE_KEY);
         if (persisted && PANEL_MODE_VALUES.includes(persisted as PanelMode)) {
             setPanelMode(persisted as PanelMode);
         }
-    }, []);
+    }, [controlledPanelMode, setPanelMode]);
 
     useEffect(() => {
+        if (controlledPanelMode !== undefined) return;
         if (typeof window === 'undefined') return;
         window.localStorage.setItem(PANEL_MODE_STORAGE_KEY, panelMode);
-    }, [panelMode]);
+    }, [controlledPanelMode, panelMode]);
 
     useEffect(() => {
         if (activeTool === 'paint' && panelMode === 'properties') {
             setPanelMode('brushes');
         }
-    }, [activeTool, panelMode]);
+    }, [activeTool, panelMode, setPanelMode]);
 
     const withPanelRail = (content: ReactNode) => (
         <div className="h-full relative">
-            <PanelModeRail mode={panelMode} onModeChange={setPanelMode} />
+            <PanelModeRail mode={panelMode} onModeChange={setPanelMode} showHoverLabels={enablePanelRailHoverLabels} />
             {content}
         </div>
     );
@@ -1209,7 +1226,15 @@ export default function PropertiesPanel({
             }
 
             if (replacementExt.locked) {
-                replacement.set({ lockMovementX: true, lockMovementY: true, selectable: false, evented: false });
+                replacement.set({
+                    lockMovementX: true,
+                    lockMovementY: true,
+                    lockRotation: true,
+                    lockScalingX: true,
+                    lockScalingY: true,
+                    selectable: false,
+                    evented: false
+                });
             }
 
             canvas.setActiveObject(replacement);
@@ -1968,6 +1993,133 @@ export default function PropertiesPanel({
         updateObjects();
     };
 
+    const getLayerOrderState = useCallback((target: fabric.Object | null) => {
+        if (!canvas || !target) {
+            return {
+                canMoveUp: false,
+                canMoveDown: false,
+                canBringToFront: false,
+                canSendToBack: false,
+            };
+        }
+
+        const ext = target as ExtendedFabricObject;
+        const canvasWithArtboard = canvas as CanvasWithArtboard;
+        if (
+            target.type === 'activeSelection'
+            || target.type === 'selection'
+            || ext.isRetouchLayer
+            || ext.name === 'Artboard'
+            || (canvasWithArtboard.artboardRect && target === canvasWithArtboard.artboardRect)
+        ) {
+            return {
+                canMoveUp: false,
+                canMoveDown: false,
+                canBringToFront: false,
+                canSendToBack: false,
+            };
+        }
+
+        if (target.group && typeof target.group.getObjects === 'function') {
+            const siblings = target.group.getObjects();
+            const currentIndex = siblings.indexOf(target);
+            const maxIndex = siblings.length - 1;
+            const canMoveUp = currentIndex >= 0 && currentIndex < maxIndex;
+            const canMoveDown = currentIndex > 0;
+            return {
+                canMoveUp,
+                canMoveDown,
+                canBringToFront: canMoveUp,
+                canSendToBack: canMoveDown,
+            };
+        }
+
+        const objects = canvas.getObjects();
+        const currentIndex = objects.indexOf(target);
+        if (currentIndex < 0) {
+            return {
+                canMoveUp: false,
+                canMoveDown: false,
+                canBringToFront: false,
+                canSendToBack: false,
+            };
+        }
+        const artboardIndex = canvasWithArtboard.artboardRect ? objects.indexOf(canvasWithArtboard.artboardRect) : -1;
+        const minIndex = artboardIndex >= 0 ? artboardIndex + 1 : 0;
+        const maxIndex = objects.length - 1;
+        const canMoveUp = currentIndex < maxIndex;
+        const canMoveDown = currentIndex > minIndex;
+        return {
+            canMoveUp,
+            canMoveDown,
+            canBringToFront: canMoveUp,
+            canSendToBack: canMoveDown,
+        };
+    }, [canvas]);
+
+    const handleLayerOrderAction = useCallback((action: 'move-up' | 'move-down' | 'to-front' | 'to-back', targetOverride?: fabric.Object | null) => {
+        if (!canvas) return;
+        const target = targetOverride || selectedObject;
+        if (!target) return;
+        const ext = target as ExtendedFabricObject;
+        const canvasWithArtboard = canvas as CanvasWithArtboard;
+        if (
+            target.type === 'activeSelection'
+            || target.type === 'selection'
+            || ext.isRetouchLayer
+            || ext.name === 'Artboard'
+            || (canvasWithArtboard.artboardRect && target === canvasWithArtboard.artboardRect)
+        ) {
+            return;
+        }
+
+        let moved = false;
+        if (target.group && typeof target.group.getObjects === 'function') {
+            const parent = target.group as fabric.Group;
+            const siblings = parent.getObjects();
+            const currentIndex = siblings.indexOf(target);
+            if (currentIndex < 0) return;
+            const maxIndex = siblings.length - 1;
+            let nextIndex = currentIndex;
+            if (action === 'move-up') nextIndex = Math.min(maxIndex, currentIndex + 1);
+            if (action === 'move-down') nextIndex = Math.max(0, currentIndex - 1);
+            if (action === 'to-front') nextIndex = maxIndex;
+            if (action === 'to-back') nextIndex = 0;
+            if (nextIndex !== currentIndex) {
+                parent.remove(target);
+                parent.insertAt(nextIndex, target);
+                parent.setCoords();
+                parent.set('dirty', true);
+                moved = true;
+            }
+        } else {
+            const objects = canvas.getObjects();
+            const currentIndex = objects.indexOf(target);
+            if (currentIndex < 0) return;
+            const artboardIndex = canvasWithArtboard.artboardRect ? objects.indexOf(canvasWithArtboard.artboardRect) : -1;
+            const minIndex = artboardIndex >= 0 ? artboardIndex + 1 : 0;
+            const maxIndex = objects.length - 1;
+            let nextIndex = currentIndex;
+            if (action === 'move-up') nextIndex = Math.min(maxIndex, currentIndex + 1);
+            if (action === 'move-down') nextIndex = Math.max(minIndex, currentIndex - 1);
+            if (action === 'to-front') nextIndex = maxIndex;
+            if (action === 'to-back') nextIndex = minIndex;
+            if (nextIndex !== currentIndex) {
+                canvas.moveObjectTo(target, nextIndex);
+                moved = true;
+            }
+        }
+
+        if (!moved) return;
+        target.setCoords();
+        if (target.group) target.group.set('dirty', true);
+        canvas.setActiveObject(target);
+        canvas.fire('object:modified', { target });
+        canvas.requestRenderAll();
+        updateObjects();
+        applyAdjustmentLayers();
+    }, [canvas, selectedObject, updateObjects, applyAdjustmentLayers]);
+
     const handleReorder = (activeId: string, overId: string) => {
         if (!canvas) return;
 
@@ -2534,6 +2686,7 @@ export default function PropertiesPanel({
     }
     
     if (activeTool === 'layers' || panelMode === 'layers') {
+        const layerOrderState = getLayerOrderState(selectedObject);
         const handleToggleClip = () => {
             if (!selectedObject || !canvas) return;
             const ext = selectedObject as ExtendedFabricObject;
@@ -2625,14 +2778,31 @@ export default function PropertiesPanel({
                 onToggleLock={(obj) => { 
                     const l = !(obj as ExtendedFabricObject).locked;
                     (obj as ExtendedFabricObject).locked = l;
-                    obj.set({ lockMovementX: l, lockMovementY: l, selectable: !l, evented: !l });
+                    obj.set({
+                        lockMovementX: l,
+                        lockMovementY: l,
+                        lockRotation: l,
+                        lockScalingX: l,
+                        lockScalingY: l,
+                        selectable: !l,
+                        evented: !l
+                    });
                     if (obj.group) obj.group.set('dirty', true);
-                    canvas?.discardActiveObject();
+                    if (l) canvas?.discardActiveObject();
+                    canvas?.fire('object:modified', { target: obj });
                     canvas?.requestRenderAll();
                     updateObjects();
                 }}
                 onDelete={deleteLayer}
                 onReorder={handleReorder}
+                onMoveLayerUp={() => handleLayerOrderAction('move-up')}
+                onMoveLayerDown={() => handleLayerOrderAction('move-down')}
+                onBringLayerToFront={() => handleLayerOrderAction('to-front')}
+                onSendLayerToBack={() => handleLayerOrderAction('to-back')}
+                canMoveLayerUp={layerOrderState.canMoveUp}
+                canMoveLayerDown={layerOrderState.canMoveDown}
+                canBringLayerToFront={layerOrderState.canBringToFront}
+                canSendLayerToBack={layerOrderState.canSendToBack}
                 onRemoveFromFolder={handleRemoveFromFolder}
                 onAddToFolder={handleAddToFolder}
                 onGroup={handleGroup}

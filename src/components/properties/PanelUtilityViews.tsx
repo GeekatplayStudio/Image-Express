@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { History, Undo2, Redo2, Compass, Info, Palette, Grid3x3, Blend, Brush } from 'lucide-react';
 import { AdjustmentLayerType } from '@/types';
 import type { RasterBlendMode, RasterBrushPreset } from '@/lib/raster-engine';
+import { APP_THEME } from '@/lib/theme-tokens';
 import { ColorPicker } from './ColorPicker';
 
 export interface NavigatorSceneRect {
@@ -93,10 +94,7 @@ type AdjustmentLauncherItem = {
     enabled: boolean;
 };
 
-const DEFAULT_SWATCHES = [
-    '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff', '#ff00ff',
-    '#f97316', '#f43f5e', '#8b5cf6', '#6366f1', '#0ea5e9', '#14b8a6', '#22c55e', '#eab308',
-];
+const DEFAULT_SWATCHES = [...APP_THEME.utilitySwatches];
 
 const ADJUSTMENT_LAUNCHER_GROUPS: Array<{ title: string; items: AdjustmentLauncherItem[] }> = [
     {
@@ -544,7 +542,7 @@ export function AdjustmentsPanelView({
                                         key={type}
                                         type="button"
                                         onClick={() => onSwitchAdjustmentType(type)}
-                                        className={`text-[10px] px-2 py-1 rounded border transition-colors ${active ? 'bg-primary/20 text-primary border-primary/40' : 'border-border/50 bg-background/80 text-foreground hover:bg-background'}`}
+                                        className={`text-[10px] px-2 py-1 rounded border transition-colors ${active ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/40' : 'border-border/50 bg-background/80 text-foreground hover:bg-background'}`}
                                         aria-label={`Quick adjustment ${getAdjustmentTypeLabel(type)}`}
                                     >
                                         {getAdjustmentTypeLabel(type)}
@@ -676,7 +674,7 @@ export function NavigatorPanelView({
                                 />
                             ))}
                             <div
-                                className="absolute rounded-[2px] border-2 border-primary/80 bg-primary/20 pointer-events-none"
+                                className="absolute rounded-[2px] border-2 border-tool-accent/80 bg-tool-accent/20 pointer-events-none"
                                 style={viewportRect}
                             />
                         </button>

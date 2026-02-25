@@ -287,7 +287,7 @@ export default function Home() {
         <div className="flex items-center gap-6">
            <div className="flex items-center gap-2">
                <BrandIcon />
-               <span className="font-bold text-lg hidden lg:block bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500">
+               <span className="font-bold text-lg hidden lg:block ui-brand-gradient-text">
                  Image Express
                </span>
            </div>
@@ -298,7 +298,7 @@ export default function Home() {
               <div
                 className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border transition-all ${
                   connectionStatus.has3D
-                    ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-600'
+                    ? 'bg-primary/10 border-primary/20 text-primary'
                     : 'bg-secondary/30 border-transparent text-muted-foreground/30 opacity-60'
                 }`}
                 title={connectionStatus.has3D ? '3D Services Connected' : 'No 3D Services Connected'}
@@ -309,7 +309,7 @@ export default function Home() {
               <div
                 className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border transition-all ${
                   connectionStatus.has2D
-                    ? 'bg-purple-500/10 border-purple-500/20 text-purple-600'
+                    ? 'bg-primary/10 border-primary/20 text-primary'
                     : 'bg-secondary/30 border-transparent text-muted-foreground/30 opacity-60'
                 }`}
                 title={connectionStatus.has2D ? 'Generative AI Connected' : 'No Generative AI Connected'}

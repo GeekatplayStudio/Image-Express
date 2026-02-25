@@ -3,6 +3,36 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import TopToolOptionsBar from '../TopToolOptionsBar';
 
 describe('TopToolOptionsBar', () => {
+    it('renders save/undo/redo actions when toolbar handlers are provided', () => {
+        const onSave = jest.fn();
+        const onUndo = jest.fn();
+        const onRedo = jest.fn();
+
+        render(
+            <TopToolOptionsBar
+                activeTool="select"
+                toolbarActions={{
+                    isDirty: true,
+                    canUndo: true,
+                    canRedo: false,
+                }}
+                onSave={onSave}
+                onUndo={onUndo}
+                onRedo={onRedo}
+            />
+        );
+
+        fireEvent.click(screen.getByTitle('Save Design'));
+        fireEvent.click(screen.getByTitle('Undo'));
+        expect(onSave).toHaveBeenCalledTimes(1);
+        expect(onUndo).toHaveBeenCalledTimes(1);
+
+        const redoButton = screen.getByTitle('Redo');
+        expect(redoButton).toBeDisabled();
+        fireEvent.click(redoButton);
+        expect(onRedo).not.toHaveBeenCalled();
+    });
+
     it('renders active tool and only tool-specific quick properties', () => {
         render(<TopToolOptionsBar activeTool="select" />);
 
@@ -21,6 +51,7 @@ describe('TopToolOptionsBar', () => {
         const onSelectionModifyPixelsChange = jest.fn();
         const onSelectionExpand = jest.fn();
         const onSelectionContract = jest.fn();
+        const onSelectToolChange = jest.fn();
 
         render(
             <TopToolOptionsBar
@@ -41,8 +72,18 @@ describe('TopToolOptionsBar', () => {
                 onSelectionModifyPixelsChange={onSelectionModifyPixelsChange}
                 onSelectionExpand={onSelectionExpand}
                 onSelectionContract={onSelectionContract}
+                onSelectToolChange={onSelectToolChange}
             />
         );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Selection tool wand' }));
+        expect(onSelectToolChange).toHaveBeenCalledWith('wand');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Selection tool quick-select' }));
+        expect(onSelectToolChange).toHaveBeenCalledWith('quick-select');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Selection tool selection-brush' }));
+        expect(onSelectToolChange).toHaveBeenCalledWith('selection-brush');
 
         fireEvent.click(screen.getByLabelText('Auto-Select'));
         expect(onAutoSelectChange).toHaveBeenCalledWith(false);
@@ -67,6 +108,28 @@ describe('TopToolOptionsBar', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Selection contract' }));
         expect(onSelectionContract).toHaveBeenCalledTimes(1);
+    });
+
+    it('highlights the active selection subtool in selection controls', () => {
+        render(
+            <TopToolOptionsBar
+                activeTool="lasso"
+                selectOptions={{
+                    autoSelectEnabled: true,
+                    selectionMode: 'layer',
+                    showTransformControls: true,
+                    feather: 0,
+                    antiAlias: true,
+                    modifyPixels: 12,
+                }}
+            />
+        );
+
+        const lassoButton = screen.getByRole('button', { name: 'Selection tool lasso' });
+        expect(lassoButton.className).toMatch(/bg-tool-accent/);
+
+        const moveButton = screen.getByRole('button', { name: 'Selection tool select' });
+        expect(moveButton.className).toMatch(/text-muted-foreground/);
     });
 
     it('reuses select controls for marquee tool mode', () => {
@@ -135,6 +198,30 @@ describe('TopToolOptionsBar', () => {
         expect(onWandThresholdChange).toHaveBeenCalledWith(72);
     });
 
+    it('reuses wand threshold controls for quick selection mode', () => {
+        const onWandThresholdChange = jest.fn();
+
+        render(
+            <TopToolOptionsBar
+                activeTool="quick-select"
+                selectOptions={{
+                    autoSelectEnabled: true,
+                    selectionMode: 'layer',
+                    showTransformControls: true,
+                    feather: 0,
+                    antiAlias: true,
+                }}
+                wandOptions={{
+                    threshold: 30,
+                }}
+                onWandThresholdChange={onWandThresholdChange}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '44' } });
+        expect(onWandThresholdChange).toHaveBeenCalledWith(44);
+    });
+
     it('renders and wires healing brush bootstrap controls', () => {
         const onHealingSizeChange = jest.fn();
         const onHealingHardnessChange = jest.fn();
@@ -162,6 +249,122 @@ describe('TopToolOptionsBar', () => {
 
         fireEvent.click(screen.getByLabelText('Healing sample all layers'));
         expect(onHealingSampleAllLayersChange).toHaveBeenCalledWith(false);
+    });
+
+    it('renders and wires history brush bootstrap controls', () => {
+        const onHistorySizeChange = jest.fn();
+        const onHistoryHardnessChange = jest.fn();
+        const onHistorySampleAllLayersChange = jest.fn();
+
+        render(
+            <TopToolOptionsBar
+                activeTool="history-brush"
+                historyOptions={{
+                    size: 28,
+                    hardness: 65,
+                    sampleAllLayers: true,
+                }}
+                onHistorySizeChange={onHistorySizeChange}
+                onHistoryHardnessChange={onHistoryHardnessChange}
+                onHistorySampleAllLayersChange={onHistorySampleAllLayersChange}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('History brush size'), { target: { value: '44' } });
+        expect(onHistorySizeChange).toHaveBeenCalledWith(44);
+
+        fireEvent.change(screen.getByLabelText('History brush hardness'), { target: { value: '35' } });
+        expect(onHistoryHardnessChange).toHaveBeenCalledWith(35);
+
+        fireEvent.click(screen.getByLabelText('History brush sample all layers'));
+        expect(onHistorySampleAllLayersChange).toHaveBeenCalledWith(false);
+    });
+
+    it('renders and wires blur tool bootstrap controls', () => {
+        const onBlurSizeChange = jest.fn();
+        const onBlurStrengthChange = jest.fn();
+        const onBlurSampleAllLayersChange = jest.fn();
+
+        render(
+            <TopToolOptionsBar
+                activeTool="blur"
+                blurOptions={{
+                    size: 32,
+                    strength: 55,
+                    sampleAllLayers: true,
+                }}
+                onBlurSizeChange={onBlurSizeChange}
+                onBlurStrengthChange={onBlurStrengthChange}
+                onBlurSampleAllLayersChange={onBlurSampleAllLayersChange}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('Blur size'), { target: { value: '48' } });
+        expect(onBlurSizeChange).toHaveBeenCalledWith(48);
+
+        fireEvent.change(screen.getByLabelText('Blur strength'), { target: { value: '25' } });
+        expect(onBlurStrengthChange).toHaveBeenCalledWith(25);
+
+        fireEvent.click(screen.getByLabelText('Blur sample all layers'));
+        expect(onBlurSampleAllLayersChange).toHaveBeenCalledWith(false);
+    });
+
+    it('renders and wires sharpen tool bootstrap controls', () => {
+        const onSharpenSizeChange = jest.fn();
+        const onSharpenStrengthChange = jest.fn();
+        const onSharpenSampleAllLayersChange = jest.fn();
+
+        render(
+            <TopToolOptionsBar
+                activeTool="sharpen"
+                sharpenOptions={{
+                    size: 30,
+                    strength: 52,
+                    sampleAllLayers: true,
+                }}
+                onSharpenSizeChange={onSharpenSizeChange}
+                onSharpenStrengthChange={onSharpenStrengthChange}
+                onSharpenSampleAllLayersChange={onSharpenSampleAllLayersChange}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('Sharpen size'), { target: { value: '54' } });
+        expect(onSharpenSizeChange).toHaveBeenCalledWith(54);
+
+        fireEvent.change(screen.getByLabelText('Sharpen strength'), { target: { value: '31' } });
+        expect(onSharpenStrengthChange).toHaveBeenCalledWith(31);
+
+        fireEvent.click(screen.getByLabelText('Sharpen sample all layers'));
+        expect(onSharpenSampleAllLayersChange).toHaveBeenCalledWith(false);
+    });
+
+    it('renders and wires dodge tool bootstrap controls', () => {
+        const onDodgeSizeChange = jest.fn();
+        const onDodgeExposureChange = jest.fn();
+        const onDodgeProtectTonesChange = jest.fn();
+
+        render(
+            <TopToolOptionsBar
+                activeTool="dodge"
+                dodgeOptions={{
+                    size: 30,
+                    exposure: 35,
+                    protectTones: true,
+                }}
+                onDodgeSizeChange={onDodgeSizeChange}
+                onDodgeExposureChange={onDodgeExposureChange}
+                onDodgeProtectTonesChange={onDodgeProtectTonesChange}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('Dodge size'), { target: { value: '56' } });
+        expect(onDodgeSizeChange).toHaveBeenCalledWith(56);
+
+        fireEvent.change(screen.getByLabelText('Dodge exposure'), { target: { value: '42' } });
+        expect(onDodgeExposureChange).toHaveBeenCalledWith(42);
+
+        fireEvent.click(screen.getByLabelText('Dodge protect tones'));
+        expect(onDodgeProtectTonesChange).toHaveBeenCalledWith(false);
     });
 
     it('renders and wires clone stamp bootstrap controls', () => {
@@ -356,7 +559,7 @@ describe('TopToolOptionsBar', () => {
                 activeTool="shapes"
                 shapeOptions={{
                     mode: 'shape',
-                    fillColor: '#8b5cf6',
+                    fillColor: '#1f8aa5',
                     strokeColor: '#111827',
                     strokeWidth: 2,
                     fixedSize: false,

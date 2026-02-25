@@ -51,7 +51,7 @@ Canonical progress file: [docs/unified_progress_status.md](docs/unified_progress
 - src/components/Editor/__tests__/EditorView.test.tsx
 - docs/imageprocessingui_reference_functionality_analysis.md
 - docs/imageprocessingui_upgrade_gap_and_integration_plan.md
-- docs/imageprocessingui_upgrade_execution_checklist.md
+- docs/unified_progress_status.md
 - docs/feature_implementation_tracker.md
 - eslint.config.mjs
 - tsconfig.json
@@ -67,7 +67,7 @@ Canonical progress file: [docs/unified_progress_status.md](docs/unified_progress
 ## 4.1) Verification Audit (Checked Items vs Real Implementation)
 Audit date: 2026-02-24
 
-Result: All currently checked items in section C of `docs/imageprocessingui_upgrade_execution_checklist.md` are implemented in code and covered by targeted tests.
+Result: All currently checked items in section C tracked at the time are implemented in code and covered by targeted tests.
 
 Evidence summary:
 - UI controls exist in `src/components/Editor/TopToolOptionsBar.tsx`.
@@ -84,8 +84,8 @@ No mismatch found between checked C-items and implementation status.
 
 ## 5) Current Tracker/Checklist State
 - Program tracking row is in docs/feature_implementation_tracker.md (item 29).
-- Checklist source of truth is docs/imageprocessingui_upgrade_execution_checklist.md.
-- Completed in checklist:
+- Canonical progress source is docs/unified_progress_status.md.
+- Completed in tracked upgrade status:
   - C1 full section
   - C2: first 3 items (Feather/anti-alias still pending)
   - C3: all items
@@ -112,7 +112,7 @@ For each sub-step:
 3. Run focused tests
 4. Run npm run lint
 5. Run npm run build
-6. Update docs/imageprocessingui_upgrade_execution_checklist.md
+6. Update docs/unified_progress_status.md
 7. Update docs/feature_implementation_tracker.md notes
 
 ## 8) Local Workspace Notes (Not Pushed)
@@ -138,4 +138,4 @@ Validation commands:
 ## 10) Suggested Prompt to Resume in New Chat
 Use this exact context when starting the next chat:
 
-"Continue Image Express upgrade plan from commit fdba3b3 on main. Verified complete and working: C1, C2 (except Feather/anti-alias), C3, C4, and C5.1–C5.5. Next is C5.6 (Text color shortcut). Implement with tests, then run focused tests + lint + build, and update docs/imageprocessingui_upgrade_execution_checklist.md and docs/feature_implementation_tracker.md."
+"Continue Image Express upgrade plan from commit fdba3b3 on main. Verified complete and working: C1, C2 (except Feather/anti-alias), C3, C4, and C5.1–C5.5. Next is C5.6 (Text color shortcut). Implement with tests, then run focused tests + lint + build, and update docs/unified_progress_status.md and docs/feature_implementation_tracker.md."

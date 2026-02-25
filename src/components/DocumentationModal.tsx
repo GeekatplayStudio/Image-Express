@@ -103,6 +103,9 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                             <ul className="list-disc list-inside space-y-2">
                                 <li><span className="font-medium">Move (Select alias):</span> switches back to standard object manipulation and transform behavior.</li>
                                 <li><span className="font-medium">Path Select (A):</span> alias entry in tool switching surfaces that routes to Move/Select behavior.</li>
+                                <li><span className="font-medium">Crop:</span> drag directly in the workspace to draft crop bounds, then apply from the top options bar (or press Enter).</li>
+                                <li><span className="font-medium">Eyedropper / Picker:</span> clicking the canvas samples point color and keeps picker mode active without selecting underlying layers.</li>
+                                <li><span className="font-medium">Color wheel:</span> picker opens a full wheel panel with hue ring, saturation/value square, harmony presets, and quick swatches.</li>
                                 <li><span className="font-medium">Shapes:</span> quick-add rectangle, circle, triangle, or star geometry.</li>
                                 <li><span className="font-medium">Text:</span> inserts editable Fabric IText objects with live typing support.</li>
                                 <li><span className="font-medium">Fill / Gradient:</span> activates gradient painting mode handled in the properties panel.</li>
@@ -182,6 +185,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="shortcuts" title="Productivity Shortcuts">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Space + Drag to pan, Scroll to zoom, Double-click empty canvas to recenter.</li>
+                                <li>With Crop active, press Enter to apply the current crop draft bounds.</li>
                                 <li>Drag layer grips to reorder, or double-click names to rename elements quickly.</li>
                                 <li>Use Shift while resizing Fabric objects to maintain aspect ratio.</li>
                             </ul>

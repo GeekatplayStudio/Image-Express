@@ -59,4 +59,21 @@ describe('PanelModeRail', () => {
         fireEvent.click(layersButton);
         expect(onModeChange).toHaveBeenCalledWith('layers');
     });
+
+    it('reveals panel labels on hover when hover labels are enabled', () => {
+        const onModeChange = jest.fn();
+        render(<PanelModeRail mode="layers" onModeChange={onModeChange} showHoverLabels />);
+
+        expect(screen.queryByText('Layers')).not.toBeInTheDocument();
+        fireEvent.mouseEnter(screen.getByTestId('panel-mode-rail'));
+        expect(screen.getByText('Layers')).toBeInTheDocument();
+    });
+
+    it('keeps icon-only rail when hover labels are disabled', () => {
+        const onModeChange = jest.fn();
+        render(<PanelModeRail mode="layers" onModeChange={onModeChange} showHoverLabels={false} />);
+
+        fireEvent.mouseEnter(screen.getByTestId('panel-mode-rail'));
+        expect(screen.queryByText('Layers')).not.toBeInTheDocument();
+    });
 });

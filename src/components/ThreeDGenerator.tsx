@@ -880,7 +880,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         <div className="absolute top-4 left-4 z-50 bg-card/95 backdrop-blur-xl border border-border pb-4 rounded-xl shadow-2xl w-80 animate-in fade-in slide-in-from-left-4 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-border/50 bg-secondary/20">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
-                     <Box size={16} className="text-purple-500" />
+                     <Box size={16} className="text-primary" />
                     {initialImage ? 'Image to 3D' : 'AI 3D Generator'}
                 </h3>
                 <button onClick={onClose} className="text-muted-foreground hover:text-foreground">X</button>
@@ -893,7 +893,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     <select 
                         value={selectedProvider} 
                         onChange={handleProviderChange}
-                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border focus:border-indigo-500 outline-none text-foreground dark:bg-zinc-950 bg-zinc-950"
+                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border focus:border-primary outline-none text-foreground dark:bg-zinc-950 bg-zinc-950"
                     >
                         {SUPPORTED_PROVIDERS.map(p => (
                             <option key={p} value={p} className="bg-zinc-950 text-white">{p.charAt(0).toUpperCase() + p.slice(1)}</option>

@@ -199,7 +199,7 @@ export function SelectionProperties({
                                     key={`${group.title}-${item.label}`}
                                     type="button"
                                     disabled={!isInteractive}
-                                    className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isActive ? 'bg-primary/20 text-primary border-primary/40' : isInteractive ? 'border-border/50 bg-background/80 text-foreground hover:bg-background' : 'border-border/30 bg-background/40 text-muted-foreground/70 cursor-not-allowed'}`}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isActive ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/40' : isInteractive ? 'border-border/50 bg-background/80 text-foreground hover:bg-background' : 'border-border/30 bg-background/40 text-muted-foreground/70 cursor-not-allowed'}`}
                                     onClick={() => {
                                         if (!isInteractive || !item.type) return;
                                         if (mode === 'switch') {
@@ -306,7 +306,7 @@ export function SelectionProperties({
                             {onToggleMaskLock && (
                                 <button 
                                     onClick={onToggleMaskLock} 
-                                    className={`px-3 py-1.5 rounded text-xs flex items-center gap-2 border transition-colors ${!isMaskAbsolute ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/50 hover:bg-secondary border-border/50'}`}
+                                    className={`px-3 py-1.5 rounded text-xs flex items-center gap-2 border transition-colors ${!isMaskAbsolute ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/50 hover:bg-secondary border-border/50'}`}
                                     title={!isMaskAbsolute ? "Mask is locked to layer (Attached)" : "Mask is fixed on canvas (Detached/Window)"}
                                 >
                                     {!isMaskAbsolute ? <Lock size={14} /> : <Unlock size={14} />}
@@ -374,7 +374,7 @@ export function SelectionProperties({
                                 <button
                                     key={mode}
                                     onClick={() => onPropChange('penPathUpdate', { mode })}
-                                    className={`text-[10px] px-1.5 py-1 rounded border transition-colors capitalize ${penMode === mode ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                                    className={`text-[10px] px-1.5 py-1 rounded border transition-colors capitalize ${penMode === mode ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                                 >
                                     {mode === 'bezier' ? 'Bezier' : mode}
                                 </button>
@@ -386,13 +386,13 @@ export function SelectionProperties({
                         <div className="grid grid-cols-2 gap-1">
                             <button
                                 onClick={() => onPropChange('penPathUpdate', { closed: false })}
-                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${!penClosed ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${!penClosed ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                             >
                                 Open
                             </button>
                             <button
                                 onClick={() => onPropChange('penPathUpdate', { closed: true })}
-                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${penClosed ? 'bg-primary/20 text-primary border-primary/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${penClosed ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                             >
                                 Closed
                             </button>
@@ -511,7 +511,7 @@ export function SelectionProperties({
                                      <div className="flex items-center justify-between">
                                           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Control Points</div>
                                           <button 
-                                            className="text-[10px] text-indigo-400 hover:text-indigo-300"
+                                            className="text-[10px] text-primary hover:text-primary/80"
                                             onClick={() => {
                                                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
                                                  const { coords: _coords, ...rest } = gradientState;
@@ -680,7 +680,7 @@ export function SelectionProperties({
                                     <button
                                         key={type}
                                         type="button"
-                                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isActive ? 'bg-primary/20 text-primary border-primary/40' : 'border-border/50 bg-background/80 text-foreground hover:bg-background'}`}
+                                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isActive ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/40' : 'border-border/50 bg-background/80 text-foreground hover:bg-background'}`}
                                         onClick={() => onAdjustmentTypeChange?.(type)}
                                         aria-label={`Quick adjustment ${getAdjustmentTypeLabel(type)}`}
                                     >
@@ -714,7 +714,7 @@ export function SelectionProperties({
                                 onMake3D(dataUrl);
                             }
                         }}
-                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs py-2 rounded shadow-sm transition-all"
+                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-tool-accent hover:from-primary/90 hover:to-tool-accent/90 text-white text-xs py-2 rounded shadow-sm transition-all"
                      >
                         <Box size={14} />
                         Convert to 3D

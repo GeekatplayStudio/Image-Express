@@ -99,9 +99,8 @@ To reduce file bloat and improve maintainability:
 ## 7) Canonical Docs to Read First
 
 1. `docs/unified_progress_status.md` (single source of truth)
-2. `docs/imageprocessingui_upgrade_execution_checklist.md` (checklist state)
-3. `docs/feature_implementation_tracker.md` (feature row + validation notes)
-4. `docs/reference_ui_screenshot_analysis_layers_and_panels_2026-02-24.md` (UX separation rationale)
+2. `docs/feature_implementation_tracker.md` (feature row + validation notes)
+3. `docs/reference_ui_screenshot_analysis_layers_and_panels_2026-02-24.md` (UX separation rationale)
 
 ## 8) Suggested Resume Prompt for Next AI
 

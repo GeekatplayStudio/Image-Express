@@ -479,11 +479,11 @@ This sequence gives immediate UX parity gains from the mother design while keepi
 
 ## 13) Implementation Tracking Checklist
 
-Use this checklist during implementation to track every step with checkboxes:
+Use the canonical tracker during implementation to track every step:
 
-- [docs/imageprocessingui_upgrade_execution_checklist.md](docs/imageprocessingui_upgrade_execution_checklist.md)
+- [docs/unified_progress_status.md](docs/unified_progress_status.md)
 
-This checklist includes:
+This tracker includes:
 - full menu taxonomy rollout (including submenu groups),
 - top tool options bar controls by tool family,
 - properties/panel organization upgrades,

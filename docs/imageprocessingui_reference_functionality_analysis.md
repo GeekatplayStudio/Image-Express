@@ -472,9 +472,9 @@ Use the mother design to improve **organization and discoverability**, while pre
 
 Before implementation and during delivery, track every menu/property/tool step in:
 
-- [docs/imageprocessingui_upgrade_execution_checklist.md](docs/imageprocessingui_upgrade_execution_checklist.md)
+- [docs/unified_progress_status.md](docs/unified_progress_status.md)
 
-This is the canonical step-by-step checklist for:
+This is the canonical step-by-step tracker for:
 - menu + submenu rollout,
 - top tool options implementation,
 - properties/panel organization improvements,

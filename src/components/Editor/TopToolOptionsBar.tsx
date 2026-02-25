@@ -5,9 +5,18 @@ import SelectionControls from '@/components/Editor/top-tool-options/SelectionCon
 import PaintControls from '@/components/Editor/top-tool-options/PaintControls';
 import RetouchControls from '@/components/Editor/top-tool-options/RetouchControls';
 import GradientControls from '@/components/Editor/top-tool-options/GradientControls';
+import { Redo2, Save, Undo2 } from 'lucide-react';
 
 interface TopToolOptionsBarProps {
     activeTool: string;
+    toolbarActions?: {
+        isDirty: boolean;
+        canUndo: boolean;
+        canRedo: boolean;
+    };
+    onSave?: () => void;
+    onUndo?: () => void;
+    onRedo?: () => void;
     selectOptions?: {
         autoSelectEnabled: boolean;
         selectionMode: 'layer' | 'group';
@@ -24,6 +33,7 @@ interface TopToolOptionsBarProps {
     onSelectionModifyPixelsChange?: (pixels: number) => void;
     onSelectionExpand?: () => void;
     onSelectionContract?: () => void;
+    onSelectToolChange?: (tool: 'select' | 'marquee' | 'lasso' | 'wand' | 'quick-select' | 'selection-brush' | 'path-select') => void;
     healingOptions?: {
         size: number;
         hardness: number;
@@ -32,6 +42,38 @@ interface TopToolOptionsBarProps {
     onHealingSizeChange?: (size: number) => void;
     onHealingHardnessChange?: (hardness: number) => void;
     onHealingSampleAllLayersChange?: (enabled: boolean) => void;
+    historyOptions?: {
+        size: number;
+        hardness: number;
+        sampleAllLayers: boolean;
+    };
+    onHistorySizeChange?: (size: number) => void;
+    onHistoryHardnessChange?: (hardness: number) => void;
+    onHistorySampleAllLayersChange?: (enabled: boolean) => void;
+    blurOptions?: {
+        size: number;
+        strength: number;
+        sampleAllLayers: boolean;
+    };
+    onBlurSizeChange?: (size: number) => void;
+    onBlurStrengthChange?: (strength: number) => void;
+    onBlurSampleAllLayersChange?: (enabled: boolean) => void;
+    sharpenOptions?: {
+        size: number;
+        strength: number;
+        sampleAllLayers: boolean;
+    };
+    onSharpenSizeChange?: (size: number) => void;
+    onSharpenStrengthChange?: (strength: number) => void;
+    onSharpenSampleAllLayersChange?: (enabled: boolean) => void;
+    dodgeOptions?: {
+        size: number;
+        exposure: number;
+        protectTones: boolean;
+    };
+    onDodgeSizeChange?: (size: number) => void;
+    onDodgeExposureChange?: (exposure: number) => void;
+    onDodgeProtectTonesChange?: (enabled: boolean) => void;
     cloneOptions?: {
         size: number;
         hardness: number;
@@ -153,6 +195,10 @@ interface TopToolOptionsBarProps {
 
 export default function TopToolOptionsBar({
     activeTool,
+    toolbarActions,
+    onSave,
+    onUndo,
+    onRedo,
     selectOptions,
     onAutoSelectChange,
     onSelectionModeChange,
@@ -162,10 +208,27 @@ export default function TopToolOptionsBar({
     onSelectionModifyPixelsChange,
     onSelectionExpand,
     onSelectionContract,
+    onSelectToolChange,
     healingOptions,
     onHealingSizeChange,
     onHealingHardnessChange,
     onHealingSampleAllLayersChange,
+    historyOptions,
+    onHistorySizeChange,
+    onHistoryHardnessChange,
+    onHistorySampleAllLayersChange,
+    blurOptions,
+    onBlurSizeChange,
+    onBlurStrengthChange,
+    onBlurSampleAllLayersChange,
+    sharpenOptions,
+    onSharpenSizeChange,
+    onSharpenStrengthChange,
+    onSharpenSampleAllLayersChange,
+    dodgeOptions,
+    onDodgeSizeChange,
+    onDodgeExposureChange,
+    onDodgeProtectTonesChange,
     cloneOptions,
     onCloneSizeChange,
     onCloneHardnessChange,
@@ -229,12 +292,24 @@ export default function TopToolOptionsBar({
     const normalizedActiveTool = activeTool || 'select';
     const displayToolName = normalizedActiveTool === 'select'
         ? 'move'
-        : normalizedActiveTool === 'path-select'
-            ? 'path select'
+            : normalizedActiveTool === 'path-select'
+                ? 'path select'
             : normalizedActiveTool === 'clone-stamp'
                 ? 'clone stamp'
+                : normalizedActiveTool === 'blur'
+                    ? 'blur tool'
+                : normalizedActiveTool === 'sharpen'
+                    ? 'sharpen tool'
+                : normalizedActiveTool === 'dodge'
+                    ? 'dodge tool'
+                : normalizedActiveTool === 'history-brush'
+                    ? 'history brush'
                 : normalizedActiveTool === 'healing'
                     ? 'healing brush'
+                : normalizedActiveTool === 'quick-select'
+                    ? 'quick selection'
+                : normalizedActiveTool === 'selection-brush'
+                    ? 'selection brush'
             : normalizedActiveTool;
 
     const hasQuickControls = Boolean(
@@ -242,7 +317,13 @@ export default function TopToolOptionsBar({
         || (activeTool === 'marquee' && selectOptions)
         || (activeTool === 'lasso' && selectOptions)
         || (activeTool === 'wand' && selectOptions)
+        || (activeTool === 'quick-select' && selectOptions)
+        || (activeTool === 'selection-brush' && selectOptions)
         || (activeTool === 'healing' && healingOptions)
+        || (activeTool === 'history-brush' && historyOptions)
+        || (activeTool === 'blur' && blurOptions)
+        || (activeTool === 'sharpen' && sharpenOptions)
+        || (activeTool === 'dodge' && dodgeOptions)
         || (activeTool === 'clone-stamp' && cloneOptions)
         || (activeTool === 'paint' && paintOptions)
         || (activeTool === 'gradient' && gradientOptions)
@@ -254,23 +335,63 @@ export default function TopToolOptionsBar({
         || (activeTool === 'zoom' && zoomOptions)
         || (activeTool === 'hand' && handOptions)
     );
+    const showToolbarActions = Boolean(onSave || onUndo || onRedo);
+    const canUndo = toolbarActions?.canUndo ?? false;
+    const canRedo = toolbarActions?.canRedo ?? false;
+    const isDirty = toolbarActions?.isDirty ?? false;
 
     return (
         <div
             data-testid="top-tool-options-bar"
             className="h-12 border-b border-border/50 bg-card/60 backdrop-blur-sm px-4 flex items-center justify-between gap-4"
         >
-            <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
-                    Tool Options
-                </span>
-                <span className="text-xs px-2 py-1 rounded-full bg-secondary text-foreground border border-border/60 truncate">
-                    {displayToolName}
-                </span>
+            <div className="flex items-center gap-3 min-w-0">
+                {showToolbarActions && (
+                    <>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                                onClick={() => onSave?.()}
+                                disabled={!onSave}
+                                className={`h-8 w-8 rounded-full border border-border/60 flex items-center justify-center transition-colors ${onSave ? (isDirty ? 'text-primary hover:bg-secondary/60' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60') : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                                title="Save Design"
+                                aria-label="Save design"
+                            >
+                                <Save size={14} />
+                            </button>
+                            <button
+                                onClick={() => onUndo?.()}
+                                disabled={!onUndo || !canUndo}
+                                className={`h-8 w-8 rounded-full border border-border/60 flex items-center justify-center transition-colors ${onUndo && canUndo ? 'text-muted-foreground hover:text-foreground hover:bg-secondary/60' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                                title="Undo"
+                                aria-label="Undo"
+                            >
+                                <Undo2 size={14} />
+                            </button>
+                            <button
+                                onClick={() => onRedo?.()}
+                                disabled={!onRedo || !canRedo}
+                                className={`h-8 w-8 rounded-full border border-border/60 flex items-center justify-center transition-colors ${onRedo && canRedo ? 'text-muted-foreground hover:text-foreground hover:bg-secondary/60' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                                title="Redo"
+                                aria-label="Redo"
+                            >
+                                <Redo2 size={14} />
+                            </button>
+                        </div>
+                        <div className="h-5 w-px bg-border/60 shrink-0" />
+                    </>
+                )}
+                <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
+                        Tool Options
+                    </span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-tool-accent text-tool-accent-foreground border border-border/60 truncate">
+                        {displayToolName}
+                    </span>
+                </div>
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                {(activeTool === 'select' || activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand') && selectOptions && (
+                {(activeTool === 'select' || activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush') && selectOptions && (
                     <SelectionControls
                         activeTool={activeTool}
                         selectOptions={selectOptions}
@@ -283,6 +404,7 @@ export default function TopToolOptionsBar({
                         onSelectionModifyPixelsChange={onSelectionModifyPixelsChange}
                         onSelectionExpand={onSelectionExpand}
                         onSelectionContract={onSelectionContract}
+                        onSelectToolChange={onSelectToolChange}
                         onWandThresholdChange={onWandThresholdChange}
                     />
                 )}
@@ -300,13 +422,29 @@ export default function TopToolOptionsBar({
                     />
                 )}
 
-                {(activeTool === 'healing' || activeTool === 'clone-stamp') && (
+                {(activeTool === 'healing' || activeTool === 'history-brush' || activeTool === 'clone-stamp' || activeTool === 'blur' || activeTool === 'sharpen' || activeTool === 'dodge') && (
                     <RetouchControls
                         activeTool={activeTool}
                         healingOptions={healingOptions}
                         onHealingSizeChange={onHealingSizeChange}
                         onHealingHardnessChange={onHealingHardnessChange}
                         onHealingSampleAllLayersChange={onHealingSampleAllLayersChange}
+                        historyOptions={historyOptions}
+                        onHistorySizeChange={onHistorySizeChange}
+                        onHistoryHardnessChange={onHistoryHardnessChange}
+                        onHistorySampleAllLayersChange={onHistorySampleAllLayersChange}
+                        blurOptions={blurOptions}
+                        onBlurSizeChange={onBlurSizeChange}
+                        onBlurStrengthChange={onBlurStrengthChange}
+                        onBlurSampleAllLayersChange={onBlurSampleAllLayersChange}
+                        sharpenOptions={sharpenOptions}
+                        onSharpenSizeChange={onSharpenSizeChange}
+                        onSharpenStrengthChange={onSharpenStrengthChange}
+                        onSharpenSampleAllLayersChange={onSharpenSampleAllLayersChange}
+                        dodgeOptions={dodgeOptions}
+                        onDodgeSizeChange={onDodgeSizeChange}
+                        onDodgeExposureChange={onDodgeExposureChange}
+                        onDodgeProtectTonesChange={onDodgeProtectTonesChange}
                         cloneOptions={cloneOptions}
                         onCloneSizeChange={onCloneSizeChange}
                         onCloneHardnessChange={onCloneHardnessChange}
@@ -332,14 +470,14 @@ export default function TopToolOptionsBar({
                         <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                             <button
                                 onClick={() => onPenModeChange?.('path')}
-                                className={`px-2.5 py-1 text-xs ${penOptions.mode === 'path' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs ${penOptions.mode === 'path' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Pen mode path"
                             >
                                 Path
                             </button>
                             <button
                                 onClick={() => onPenModeChange?.('shape')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${penOptions.mode === 'shape' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${penOptions.mode === 'shape' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Pen mode shape"
                             >
                                 Shape
@@ -349,21 +487,21 @@ export default function TopToolOptionsBar({
                         <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                             <button
                                 onClick={() => onPenPathOperationChange?.('add')}
-                                className={`px-2.5 py-1 text-xs ${penOptions.pathOperation === 'add' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs ${penOptions.pathOperation === 'add' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Pen operation add"
                             >
                                 Add
                             </button>
                             <button
                                 onClick={() => onPenPathOperationChange?.('subtract')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${penOptions.pathOperation === 'subtract' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${penOptions.pathOperation === 'subtract' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Pen operation subtract"
                             >
                                 Subtract
                             </button>
                             <button
                                 onClick={() => onPenPathOperationChange?.('intersect')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${penOptions.pathOperation === 'intersect' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${penOptions.pathOperation === 'intersect' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Pen operation intersect"
                             >
                                 Intersect
@@ -450,21 +588,21 @@ export default function TopToolOptionsBar({
                         <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                             <button
                                 onClick={() => onTextBoldChange?.(!textOptions.bold)}
-                                className={`px-2.5 py-1 text-xs font-bold ${textOptions.bold ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs font-bold ${textOptions.bold ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Text toggle bold"
                             >
                                 B
                             </button>
                             <button
                                 onClick={() => onTextItalicChange?.(!textOptions.italic)}
-                                className={`px-2.5 py-1 text-xs italic border-l border-border/50 ${textOptions.italic ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs italic border-l border-border/50 ${textOptions.italic ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Text toggle italic"
                             >
                                 I
                             </button>
                             <button
                                 onClick={() => onTextUnderlineChange?.(!textOptions.underline)}
-                                className={`px-2.5 py-1 text-xs underline border-l border-border/50 ${textOptions.underline ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs underline border-l border-border/50 ${textOptions.underline ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Text toggle underline"
                             >
                                 U
@@ -474,28 +612,28 @@ export default function TopToolOptionsBar({
                         <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                             <button
                                 onClick={() => onTextAlignChange?.('left')}
-                                className={`px-2.5 py-1 text-xs ${textOptions.align === 'left' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs ${textOptions.align === 'left' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Text align left"
                             >
                                 L
                             </button>
                             <button
                                 onClick={() => onTextAlignChange?.('center')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'center' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'center' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Text align center"
                             >
                                 C
                             </button>
                             <button
                                 onClick={() => onTextAlignChange?.('right')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'right' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'right' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Text align right"
                             >
                                 R
                             </button>
                             <button
                                 onClick={() => onTextAlignChange?.('justify')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'justify' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${textOptions.align === 'justify' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Text align justify"
                             >
                                 J
@@ -509,21 +647,21 @@ export default function TopToolOptionsBar({
                         <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                             <button
                                 onClick={() => onShapeModeChange?.('shape')}
-                                className={`px-2.5 py-1 text-xs ${shapeOptions.mode === 'shape' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs ${shapeOptions.mode === 'shape' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Shape mode shape"
                             >
                                 Shape
                             </button>
                             <button
                                 onClick={() => onShapeModeChange?.('path')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${shapeOptions.mode === 'path' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${shapeOptions.mode === 'path' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Shape mode path"
                             >
                                 Path
                             </button>
                             <button
                                 onClick={() => onShapeModeChange?.('pixels')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${shapeOptions.mode === 'pixels' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${shapeOptions.mode === 'pixels' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Shape mode pixels"
                             >
                                 Pixels
@@ -583,28 +721,28 @@ export default function TopToolOptionsBar({
                         <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                             <button
                                 onClick={() => onCropRatioPresetChange?.('free')}
-                                className={`px-2.5 py-1 text-xs ${cropOptions.ratioPreset === 'free' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs ${cropOptions.ratioPreset === 'free' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Crop ratio free"
                             >
                                 Free
                             </button>
                             <button
                                 onClick={() => onCropRatioPresetChange?.('1:1')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '1:1' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '1:1' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Crop ratio 1:1"
                             >
                                 1:1
                             </button>
                             <button
                                 onClick={() => onCropRatioPresetChange?.('4:3')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '4:3' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '4:3' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Crop ratio 4:3"
                             >
                                 4:3
                             </button>
                             <button
                                 onClick={() => onCropRatioPresetChange?.('16:9')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '16:9' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${cropOptions.ratioPreset === '16:9' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Crop ratio 16:9"
                             >
                                 16:9
@@ -697,14 +835,14 @@ export default function TopToolOptionsBar({
                         <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                             <button
                                 onClick={() => onZoomModeChange?.('in')}
-                                className={`px-2.5 py-1 text-xs ${zoomOptions.mode === 'in' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs ${zoomOptions.mode === 'in' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Zoom mode in"
                             >
                                 In
                             </button>
                             <button
                                 onClick={() => onZoomModeChange?.('out')}
-                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${zoomOptions.mode === 'out' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                                className={`px-2.5 py-1 text-xs border-l border-border/50 ${zoomOptions.mode === 'out' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                                 aria-label="Zoom mode out"
                             >
                                 Out

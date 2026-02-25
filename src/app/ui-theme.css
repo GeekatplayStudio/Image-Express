@@ -1,0 +1,48 @@
+:root {
+  --ui-brand-gradient-start: #6366f1;
+  --ui-brand-gradient-mid: #8b5cf6;
+  --ui-brand-gradient-end: #ec4899;
+  --ui-avatar-gradient-start: hsl(196 62% 55%);
+  --ui-avatar-gradient-end: hsl(183 52% 46%);
+  --ui-slider-accent: var(--tool-accent);
+}
+
+.ui-brand-gradient-text {
+  background-image: linear-gradient(
+    135deg,
+    var(--ui-brand-gradient-start) 0%,
+    var(--ui-brand-gradient-mid) 54%,
+    var(--ui-brand-gradient-end) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ui-brand-gradient-surface {
+  background-image: linear-gradient(
+    135deg,
+    var(--ui-brand-gradient-start) 0%,
+    var(--ui-brand-gradient-mid) 54%,
+    var(--ui-brand-gradient-end) 100%
+  );
+}
+
+.ui-avatar-gradient {
+  background-image: linear-gradient(
+    135deg,
+    var(--ui-avatar-gradient-start) 0%,
+    var(--ui-avatar-gradient-end) 100%
+  );
+}
+
+.ui-focus-accent:focus,
+.ui-focus-accent:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.ui-slider {
+  accent-color: var(--ui-slider-accent);
+}

@@ -16,7 +16,7 @@ const Slider = React.forwardRef<HTMLInputElement, Omit<React.InputHTMLAttributes
         onChange={(e) => onValueChange?.([parseFloat(e.target.value)])}
         ref={ref}
         className={cn(
-            "w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary", 
+            "w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer ui-slider", 
             className
         )}
         {...props}

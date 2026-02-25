@@ -10,30 +10,44 @@ import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import UserProfileModal from '@/components/UserProfileModal';
 import TopToolOptionsBar from '@/components/Editor/TopToolOptionsBar';
-import ToolsDropdownMenu from '@/components/Editor/ToolsDropdownMenu';
 import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
 import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
 import * as fabric from 'fabric';
 import { GridOverlay, GridType } from '@/components/GridOverlay';
 import { GradientControls } from '@/components/GradientControls';
-import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, User, Save, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Undo2, Redo2, Square, Facebook, Instagram, ShieldCheck } from 'lucide-react';
+import { Download, Share2, Home as HomeIcon, ChevronDown, Image as ImageIcon, FileText, FileCode, Settings, User, X, Maximize, Minimize, ChevronLeft, ChevronRight, GripHorizontal, Grid3x3, LayoutGrid, Crosshair as CrosshairIcon, Archive, Square, Facebook, Instagram, Lock, Unlock } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BackgroundJob, ThreeDImage, ThreeDGroup, ExtendedFabricObject, ColorPalette } from '@/types';
 import JSZip from 'jszip';
 import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
-import CircularContextMenu from '@/components/CircularContextMenu';
+import CircularContextMenu, { type LayerOrderAction, type LayerOrderState } from '@/components/CircularContextMenu';
 import BrandIcon from '@/components/BrandIcon';
 import { Switch } from '@/components/ui/switch';
-import { normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
+import { ensureObjectId, normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
+import { APP_THEME } from '@/lib/theme-tokens';
+import { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
+import { loadUiPreferences, UI_PREFERENCES_CHANGED_EVENT } from '@/lib/ui-preferences';
 import {
     applyRasterBrushToCanvas,
     disableRasterDrawingMode,
     type RasterBlendMode,
     type RasterBrushPreset
 } from '@/lib/raster-engine';
+import {
+    computeRetouchBrushProfile,
+    createSoftBrushMask,
+    interpolateStrokePoints,
+    isLocalPointInsideBounds,
+    resolveNextCloneSourcePoint,
+    stampDodge,
+    stampFromSource,
+    stampSharpen,
+    toLocalRetouchPoint,
+    type RetouchBounds,
+} from '@/lib/retouch-engine';
 
 interface MissingItem {
     id: string; 
@@ -59,7 +73,7 @@ interface EditorViewProps {
     initialActiveTool?: string;
 }
 
-type PanelMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' | 'collapsed-right';
+type PanelDockMode = 'docked-left' | 'docked-right' | 'floating' | 'collapsed-left' | 'collapsed-right';
 
 type ArtboardRectWithBackground = fabric.Rect & {
     canvasBackgroundColor?: string;
@@ -93,6 +107,37 @@ type CanvasWithExportInternals = fabric.Canvas & {
 
 type ExportDataUrlOptions = fabric.TDataUrlOptions & {
     backgroundColor?: string;
+};
+
+type RetouchLayerState = {
+    bounds: RetouchBounds;
+    layerCanvas: HTMLCanvasElement;
+    ctx: CanvasRenderingContext2D;
+    image: fabric.Image & ExtendedFabricObject;
+};
+
+type RectBounds = {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+};
+
+type LockedLayerOverlayEntry = {
+    id: string;
+    object: fabric.Object & ExtendedFabricObject;
+    paintOrder: number;
+    sceneBounds: RectBounds;
+    viewportBounds: RectBounds;
+    iconBounds: RectBounds;
+};
+
+type CanvasLockControl = {
+    id: string;
+    object: fabric.Object & ExtendedFabricObject;
+    locked: boolean;
+    buttonBounds: RectBounds;
+    label: string;
 };
 
 type SerializedFill = {
@@ -146,10 +191,41 @@ const TOP_TEXT_DEFAULT_SIZE = 40;
 const TOP_CROP_RATIO_PRESETS = ['free', '1:1', '4:3', '16:9'] as const;
 const TOP_EYEDROPPER_SAMPLE_SIZES = [1, 3, 5, 11] as const;
 const TOP_ZOOM_STEPS = [5, 10, 25, 50] as const;
+const PANEL_MODE_STORAGE_KEY = 'image-express-properties-panel-mode';
+const WINDOW_PANEL_ITEMS: Array<{ mode: PanelRailMode; label: string }> = [
+    { mode: 'layers', label: 'Layers Panel' },
+    { mode: 'properties', label: 'Properties Panel' },
+    { mode: 'history', label: 'History Panel' },
+    { mode: 'color', label: 'Color Panel' },
+    { mode: 'swatches', label: 'Swatches Panel' },
+    { mode: 'brushes', label: 'Brushes Panel' },
+    { mode: 'channels', label: 'Channels Panel' },
+    { mode: 'adjustments', label: 'Adjustments Panel' },
+    { mode: 'navigator', label: 'Navigator Panel' },
+    { mode: 'info', label: 'Info Panel' },
+];
 
 type TopCropRatioPreset = typeof TOP_CROP_RATIO_PRESETS[number];
 type TopEyedropperSampleSize = typeof TOP_EYEDROPPER_SAMPLE_SIZES[number];
 type TopZoomStep = typeof TOP_ZOOM_STEPS[number];
+type CursorPreviewKind = 'brush' | 'eyedropper';
+type CursorPreviewConfig = {
+    kind: CursorPreviewKind;
+    diameter: number;
+};
+type CursorPreviewState = {
+    kind: CursorPreviewKind;
+    clientX: number;
+    clientY: number;
+    diameter: number;
+};
+const DISABLED_LAYER_ORDER_STATE: LayerOrderState = {
+    enabled: false,
+    canMoveUp: false,
+    canMoveDown: false,
+    canBringToFront: false,
+    canSendToBack: false,
+};
 
 export default function EditorView({ 
     initialDesign, 
@@ -190,6 +266,9 @@ export default function EditorView({
     
     // Context Menu
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; isOpen: boolean }>({ x: 0, y: 0, isOpen: false });
+    const [lockedLayerOverlayEntries, setLockedLayerOverlayEntries] = useState<LockedLayerOverlayEntry[]>([]);
+    const [hoveredLockedLayerId, setHoveredLockedLayerId] = useState<string | null>(null);
+    const [canvasLockControl, setCanvasLockControl] = useState<CanvasLockControl | null>(null);
 
     const customHistoryProps = useMemo(() => [
         'id',
@@ -229,6 +308,7 @@ export default function EditorView({
         'penNodes',
         'penSourcePoints',
         'textPathSourceId',
+        'isRetouchLayer',
         'gradientTypeHint',
         'gradientReversed',
         'gradientDitherEnabled'
@@ -396,9 +476,120 @@ export default function EditorView({
         });
     }, []);
 
+    const getActiveLayerOrderState = useCallback((): LayerOrderState => {
+        if (!canvas) return DISABLED_LAYER_ORDER_STATE;
+        const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
+        if (!active) return DISABLED_LAYER_ORDER_STATE;
+        if (active.type === 'activeSelection' || active.type === 'selection') return DISABLED_LAYER_ORDER_STATE;
+        const ext = active as ExtendedFabricObject;
+        if (ext.isRetouchLayer || ext.name === 'Artboard') return DISABLED_LAYER_ORDER_STATE;
+        const canvasWithArtboard = canvas as CanvasWithArtboard;
+        if (canvasWithArtboard.artboardRect && active === canvasWithArtboard.artboardRect) return DISABLED_LAYER_ORDER_STATE;
+
+        if (active.group && typeof active.group.getObjects === 'function') {
+            const siblings = active.group.getObjects();
+            const currentIndex = siblings.indexOf(active);
+            if (currentIndex < 0) return DISABLED_LAYER_ORDER_STATE;
+            const maxIndex = siblings.length - 1;
+            const canMoveUp = currentIndex < maxIndex;
+            const canMoveDown = currentIndex > 0;
+            return {
+                enabled: siblings.length > 1,
+                canMoveUp,
+                canMoveDown,
+                canBringToFront: canMoveUp,
+                canSendToBack: canMoveDown,
+            };
+        }
+
+        const objects = canvas.getObjects();
+        const currentIndex = objects.indexOf(active);
+        if (currentIndex < 0) return DISABLED_LAYER_ORDER_STATE;
+        const artboardIndex = canvasWithArtboard.artboardRect ? objects.indexOf(canvasWithArtboard.artboardRect) : -1;
+        const minIndex = artboardIndex >= 0 ? artboardIndex + 1 : 0;
+        const maxIndex = objects.length - 1;
+        if (currentIndex < minIndex || maxIndex < minIndex) return DISABLED_LAYER_ORDER_STATE;
+        const canMoveUp = currentIndex < maxIndex;
+        const canMoveDown = currentIndex > minIndex;
+        return {
+            enabled: true,
+            canMoveUp,
+            canMoveDown,
+            canBringToFront: canMoveUp,
+            canSendToBack: canMoveDown,
+        };
+    }, [canvas]);
+
+    const handleContextLayerOrderAction = useCallback((action: LayerOrderAction) => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
+        if (!active) {
+            toast({ title: 'Layer reorder unavailable', description: 'Select a layer on canvas first.', variant: 'warning' });
+            return;
+        }
+        if (active.type === 'activeSelection' || active.type === 'selection') {
+            toast({ title: 'Layer reorder unavailable', description: 'Select a single layer to reorder.', variant: 'warning' });
+            return;
+        }
+        const ext = active as ExtendedFabricObject;
+        const canvasWithArtboard = canvas as CanvasWithArtboard;
+        if (ext.isRetouchLayer || ext.name === 'Artboard' || (canvasWithArtboard.artboardRect && active === canvasWithArtboard.artboardRect)) {
+            return;
+        }
+
+        const runtimeCanvas = canvas as fabric.Canvas & {
+            moveObjectTo?: (object: fabric.Object, index: number) => void;
+            fire?: (eventName: string, payload?: Record<string, unknown>) => void;
+        };
+        let moved = false;
+
+        if (active.group && typeof active.group.getObjects === 'function') {
+            const parent = active.group as fabric.Group;
+            const siblings = parent.getObjects();
+            const currentIndex = siblings.indexOf(active);
+            if (currentIndex < 0) return;
+            const maxIndex = siblings.length - 1;
+            let nextIndex = currentIndex;
+            if (action === 'move-up') nextIndex = Math.min(maxIndex, currentIndex + 1);
+            if (action === 'move-down') nextIndex = Math.max(0, currentIndex - 1);
+            if (action === 'to-front') nextIndex = maxIndex;
+            if (action === 'to-back') nextIndex = 0;
+            if (nextIndex !== currentIndex) {
+                parent.remove(active);
+                parent.insertAt(nextIndex, active);
+                parent.set('dirty', true);
+                parent.setCoords();
+                moved = true;
+            }
+        } else {
+            const objects = canvas.getObjects();
+            const currentIndex = objects.indexOf(active);
+            if (currentIndex < 0 || !runtimeCanvas.moveObjectTo) return;
+            const artboardIndex = canvasWithArtboard.artboardRect ? objects.indexOf(canvasWithArtboard.artboardRect) : -1;
+            const minIndex = artboardIndex >= 0 ? artboardIndex + 1 : 0;
+            const maxIndex = objects.length - 1;
+            let nextIndex = currentIndex;
+            if (action === 'move-up') nextIndex = Math.min(maxIndex, currentIndex + 1);
+            if (action === 'move-down') nextIndex = Math.max(minIndex, currentIndex - 1);
+            if (action === 'to-front') nextIndex = maxIndex;
+            if (action === 'to-back') nextIndex = minIndex;
+            if (nextIndex !== currentIndex) {
+                runtimeCanvas.moveObjectTo(active, nextIndex);
+                moved = true;
+            }
+        }
+
+        if (!moved) return;
+        active.setCoords();
+        if (active.group) active.group.set('dirty', true);
+        canvas.setActiveObject(active);
+        runtimeCanvas.fire?.('object:modified', { target: active });
+        canvas.requestRenderAll();
+    }, [canvas, toast]);
+
     // Panel State
     const [panelState, setPanelState] = useState<{
-        mode: PanelMode;
+        mode: PanelDockMode;
         position: { x: number; y: number };
         width: number;
     }>({
@@ -406,6 +597,7 @@ export default function EditorView({
         position: { x: 100, y: 100 },
         width: 320
     });
+    const [propertiesPanelMode, setPropertiesPanelMode] = useState<PanelRailMode>('properties');
     
     const [isDraggingPanel, setIsDraggingPanel] = useState(false);
     const dragPanelOffset = useRef({ x: 0, y: 0 });
@@ -580,11 +772,51 @@ export default function EditorView({
              return { ...prev, mode: 'floating', position: { x: window.innerWidth - 400, y: 100 }};
         });
     };
+
+    const isPropertiesPanelVisible = panelState.mode !== 'collapsed-left' && panelState.mode !== 'collapsed-right';
+
+    const handleWindowPanelToggle = useCallback((mode: PanelRailMode) => {
+        const isChecked = isPropertiesPanelVisible && propertiesPanelMode === mode;
+        if (isChecked) {
+            setPanelState((prev) => {
+                if (prev.mode === 'docked-left') return { ...prev, mode: 'collapsed-left' };
+                if (prev.mode === 'docked-right') return { ...prev, mode: 'collapsed-right' };
+                if (prev.mode === 'floating') return { ...prev, mode: 'collapsed-right', position: { x: 0, y: 0 } };
+                return prev;
+            });
+            return;
+        }
+
+        setPropertiesPanelMode(mode);
+        setPanelState((prev) => {
+            if (prev.mode === 'collapsed-left') return { ...prev, mode: 'docked-left' };
+            if (prev.mode === 'collapsed-right') return { ...prev, mode: 'docked-right' };
+            return prev;
+        });
+    }, [isPropertiesPanelVisible, propertiesPanelMode]);
+
+    const handleWindowDockMode = useCallback((mode: 'docked-left' | 'docked-right' | 'floating') => {
+        setPanelState((prev) => {
+            if (mode === 'floating') {
+                const nextX = typeof window !== 'undefined' ? Math.max(24, window.innerWidth - 400) : prev.position.x;
+                return { ...prev, mode: 'floating', position: { x: nextX, y: 100 } };
+            }
+            return { ...prev, mode, position: { x: 0, y: 0 } };
+        });
+    }, []);
     
     // UI States
     const [showFileMenu, setShowFileMenu] = useState(false);
     const [showEditMenu, setShowEditMenu] = useState(false);
+    const [showImageMenu, setShowImageMenu] = useState(false);
+    const [showLayerMenu, setShowLayerMenu] = useState(false);
+    const [showSelectMenu, setShowSelectMenu] = useState(false);
+    const [showFilterMenu, setShowFilterMenu] = useState(false);
     const [showViewMenu, setShowViewMenu] = useState(false);
+    const [showWindowMenu, setShowWindowMenu] = useState(false);
+    const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+    const [showHelpMenu, setShowHelpMenu] = useState(false);
+    const [showTopNavMenus, setShowTopNavMenus] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const shareRef = useRef<HTMLDivElement>(null);
@@ -613,11 +845,26 @@ export default function EditorView({
     const [healingTopSize, setHealingTopSize] = useState(24);
     const [healingTopHardness, setHealingTopHardness] = useState(70);
     const [healingTopSampleAllLayers, setHealingTopSampleAllLayers] = useState(true);
+    const [historyBrushTopSize, setHistoryBrushTopSize] = useState(24);
+    const [historyBrushTopHardness, setHistoryBrushTopHardness] = useState(70);
+    const [historyBrushTopSampleAllLayers, setHistoryBrushTopSampleAllLayers] = useState(true);
+    const [blurTopSize, setBlurTopSize] = useState(28);
+    const [blurTopStrength, setBlurTopStrength] = useState(45);
+    const [blurTopSampleAllLayers, setBlurTopSampleAllLayers] = useState(true);
+    const [sharpenTopSize, setSharpenTopSize] = useState(28);
+    const [sharpenTopStrength, setSharpenTopStrength] = useState(42);
+    const [sharpenTopSampleAllLayers, setSharpenTopSampleAllLayers] = useState(true);
+    const [dodgeTopSize, setDodgeTopSize] = useState(28);
+    const [dodgeTopExposure, setDodgeTopExposure] = useState(30);
+    const [dodgeTopProtectTones, setDodgeTopProtectTones] = useState(true);
     const [cloneTopSize, setCloneTopSize] = useState(24);
     const [cloneTopHardness, setCloneTopHardness] = useState(70);
     const [cloneTopAligned, setCloneTopAligned] = useState(true);
     const [cloneTopSampleAllLayers, setCloneTopSampleAllLayers] = useState(true);
     const [cloneSourcePoint, setCloneSourcePoint] = useState<fabric.Point | null>(null);
+    const [expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover] = useState(() => (
+        loadUiPreferences().expandToolRailLabelsOnHover
+    ));
     const [paintBrushPreset, setPaintBrushPreset] = useState<RasterBrushPreset>('Pencil');
     const [paintBrushSize, setPaintBrushSize] = useState(10);
     const [paintBrushHardness, setPaintBrushHardness] = useState(80);
@@ -643,19 +890,76 @@ export default function EditorView({
     const [textTopUnderline, setTextTopUnderline] = useState(false);
     const [textTopAlign, setTextTopAlign] = useState<'left' | 'center' | 'right' | 'justify'>('left');
     const [shapeTopMode, setShapeTopMode] = useState<'shape' | 'path' | 'pixels'>('shape');
-    const [shapeTopFillColor, setShapeTopFillColor] = useState('#8b5cf6');
+    const [shapeTopFillColor, setShapeTopFillColor] = useState<string>(APP_THEME.shapeDefaultFillHex);
     const [shapeTopStrokeColor, setShapeTopStrokeColor] = useState('#111827');
     const [shapeTopStrokeWidth, setShapeTopStrokeWidth] = useState(0);
     const [shapeTopFixedSize, setShapeTopFixedSize] = useState(false);
     const [cropTopRatioPreset, setCropTopRatioPreset] = useState<TopCropRatioPreset>('free');
     const [cropTopDeleteOutside, setCropTopDeleteOutside] = useState(false);
     const [cropTopUseArtboardBounds, setCropTopUseArtboardBounds] = useState(true);
+    const [cropTopDraftRect, setCropTopDraftRect] = useState<RectBounds | null>(null);
     const [eyedropperTopSampleSize, setEyedropperTopSampleSize] = useState<TopEyedropperSampleSize>(1);
     const [eyedropperTopSampleSource, setEyedropperTopSampleSource] = useState<'current-layer' | 'all-layers'>('current-layer');
     const [eyedropperTopSampledColor, setEyedropperTopSampledColor] = useState('#000000');
     const [zoomTopMode, setZoomTopMode] = useState<'in' | 'out'>('in');
     const [zoomTopStep, setZoomTopStep] = useState<TopZoomStep>(10);
     const [handTopLockPan, setHandTopLockPan] = useState(true);
+    const [cursorPreview, setCursorPreview] = useState<CursorPreviewState | null>(null);
+    const eyedropperPointerRef = useRef<fabric.Point | null>(null);
+    const cropDraftHelperRef = useRef<(fabric.Rect & { isSelectionOverlayHelper?: boolean }) | null>(null);
+
+    const cursorPreviewConfig = useMemo<CursorPreviewConfig | null>(() => {
+        if (activeTool === 'eyedropper') {
+            return { kind: 'eyedropper', diameter: 20 };
+        }
+        if (activeTool === 'paint') {
+            return { kind: 'brush', diameter: paintBrushSize };
+        }
+        if (activeTool === 'healing') {
+            return { kind: 'brush', diameter: healingTopSize };
+        }
+        if (activeTool === 'clone-stamp') {
+            return { kind: 'brush', diameter: cloneTopSize };
+        }
+        if (activeTool === 'history-brush') {
+            return { kind: 'brush', diameter: historyBrushTopSize };
+        }
+        if (activeTool === 'blur') {
+            return { kind: 'brush', diameter: blurTopSize };
+        }
+        if (activeTool === 'sharpen') {
+            return { kind: 'brush', diameter: sharpenTopSize };
+        }
+        if (activeTool === 'dodge') {
+            return { kind: 'brush', diameter: dodgeTopSize };
+        }
+        return null;
+    }, [
+        activeTool,
+        blurTopSize,
+        cloneTopSize,
+        dodgeTopSize,
+        healingTopSize,
+        historyBrushTopSize,
+        paintBrushSize,
+        sharpenTopSize,
+    ]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const persistedMode = window.localStorage.getItem(PANEL_MODE_STORAGE_KEY);
+        if (persistedMode) {
+            const matched = WINDOW_PANEL_ITEMS.find((item) => item.mode === persistedMode);
+            if (matched) {
+                setPropertiesPanelMode(matched.mode);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem(PANEL_MODE_STORAGE_KEY, propertiesPanelMode);
+    }, [propertiesPanelMode]);
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(null);
     const undoStackRef = useRef<string[]>([]);
     const redoStackRef = useRef<string[]>([]);
@@ -663,6 +967,8 @@ export default function EditorView({
     const historyReadyRef = useRef(false);
     const [historyState, setHistoryState] = useState({ undo: 0, redo: 0 });
     const retouchNoticeAtRef = useRef(0);
+    const retouchLayerRef = useRef<RetouchLayerState | null>(null);
+    const retouchHistorySourceRef = useRef<ImageData | null>(null);
     
     // Assets & Missing Items
     const [showMissingAssetsModal, setShowMissingAssetsModal] = useState(false);
@@ -677,7 +983,7 @@ export default function EditorView({
         if (!canvas) return;
         const handleSelection = (e: { e?: Event }) => {
             // If user explicitly clicks on canvas (event exists) and we are not in a creation tool, ensure we show properties
-            const creationTools = ['marquee', 'lasso', 'wand', 'healing', 'clone-stamp', 'pen', 'paint', 'text', 'shapes', '3d-gen', 'ai-zone'];
+            const creationTools = ['marquee', 'lasso', 'wand', 'quick-select', 'selection-brush', 'healing', 'clone-stamp', 'history-brush', 'blur', 'sharpen', 'dodge', 'pen', 'paint', 'text', 'shapes', '3d-gen', 'ai-zone', 'crop', 'eyedropper', 'zoom', 'hand'];
             if (autoSelectEnabled && e.e && !creationTools.includes(activeTool) && activeTool !== 'select') {
                 setActiveTool('select');
             }
@@ -718,8 +1024,442 @@ export default function EditorView({
         canvas.requestRenderAll();
     }, [canvas, selectAntiAlias]);
 
+    const getRetouchBounds = useCallback((): RetouchBounds | null => {
+        if (!canvas) return null;
+
+        const withArtboard = canvas as CanvasWithArtboard;
+        const artboard = withArtboard.artboard;
+        if (artboard && artboard.width > 0 && artboard.height > 0) {
+            return {
+                left: artboard.left,
+                top: artboard.top,
+                width: Math.max(1, Math.round(artboard.width)),
+                height: Math.max(1, Math.round(artboard.height)),
+            };
+        }
+
+        const fallbackWidth = Number(canvas.getWidth?.() || utilityCanvasSize.width || 1);
+        const fallbackHeight = Number(canvas.getHeight?.() || utilityCanvasSize.height || 1);
+        return {
+            left: 0,
+            top: 0,
+            width: Math.max(1, Math.round(fallbackWidth)),
+            height: Math.max(1, Math.round(fallbackHeight)),
+        };
+    }, [canvas, utilityCanvasSize.height, utilityCanvasSize.width]);
+
+    const ensureRetouchLayer = useCallback((): RetouchLayerState | null => {
+        if (!canvas) return null;
+
+        const bounds = getRetouchBounds();
+        if (!bounds) return null;
+        const normalizeLayer = (
+            imageLayer: fabric.Image & ExtendedFabricObject,
+            sourceElement?: HTMLCanvasElement | HTMLImageElement | null
+        ): RetouchLayerState | null => {
+            const layerCanvas = document.createElement('canvas');
+            layerCanvas.width = bounds.width;
+            layerCanvas.height = bounds.height;
+            const layerCtx = layerCanvas.getContext('2d');
+            if (!layerCtx) return null;
+            if (sourceElement) {
+                try {
+                    layerCtx.drawImage(sourceElement, 0, 0, bounds.width, bounds.height);
+                } catch {
+                    // ignore invalid source draw
+                }
+            }
+
+            const imageAny = imageLayer as unknown as {
+                setElement?: (element: HTMLCanvasElement) => void;
+            };
+            imageAny.setElement?.(layerCanvas);
+            imageLayer.set({
+                left: bounds.left,
+                top: bounds.top,
+                originX: 'left',
+                originY: 'top',
+                selectable: false,
+                evented: false,
+                hasControls: false,
+                hasBorders: false,
+                objectCaching: false,
+                isRetouchLayer: true,
+                name: imageLayer.name || 'Retouch Layer',
+                dirty: true,
+            });
+            imageLayer.setCoords();
+
+            const canvasWithFront = canvas as unknown as {
+                bringObjectToFront?: (object: fabric.Object) => void;
+                bringToFront?: (object: fabric.Object) => void;
+            };
+            canvasWithFront.bringObjectToFront?.(imageLayer);
+            canvasWithFront.bringToFront?.(imageLayer);
+
+            const layerState = {
+                bounds,
+                layerCanvas,
+                ctx: layerCtx,
+                image: imageLayer,
+            };
+            retouchLayerRef.current = layerState;
+            try {
+                retouchHistorySourceRef.current = layerCtx.getImageData(0, 0, bounds.width, bounds.height);
+            } catch {
+                retouchHistorySourceRef.current = null;
+            }
+            return layerState;
+        };
+
+        const current = retouchLayerRef.current;
+        if (
+            current
+            && current.bounds.width === bounds.width
+            && current.bounds.height === bounds.height
+            && current.bounds.left === bounds.left
+            && current.bounds.top === bounds.top
+        ) {
+            return current;
+        }
+
+        const existingLayer = canvas.getObjects().find((obj) => (obj as ExtendedFabricObject).isRetouchLayer) as (fabric.Image & ExtendedFabricObject) | undefined;
+        if (existingLayer) {
+            const existingAny = existingLayer as unknown as {
+                getElement?: () => HTMLCanvasElement | HTMLImageElement | null;
+            };
+            const existingElement = existingAny.getElement?.() || null;
+            return normalizeLayer(existingLayer, existingElement);
+        }
+
+        const newCanvas = document.createElement('canvas');
+        newCanvas.width = bounds.width;
+        newCanvas.height = bounds.height;
+        const newCtx = newCanvas.getContext('2d');
+        if (!newCtx) return null;
+
+        const image = new fabric.Image(newCanvas, {
+            left: bounds.left,
+            top: bounds.top,
+            originX: 'left',
+            originY: 'top',
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hasBorders: false,
+            objectCaching: false,
+        }) as fabric.Image & ExtendedFabricObject;
+        image.isRetouchLayer = true;
+        image.name = 'Retouch Layer';
+        image.id = image.id || `retouch-${Date.now()}`;
+
+        canvas.add(image);
+        const canvasWithFront = canvas as unknown as {
+            bringObjectToFront?: (object: fabric.Object) => void;
+            bringToFront?: (object: fabric.Object) => void;
+        };
+        canvasWithFront.bringObjectToFront?.(image);
+        canvasWithFront.bringToFront?.(image);
+        canvas.requestRenderAll();
+
+        const layerState = {
+            bounds,
+            layerCanvas: newCanvas,
+            ctx: newCtx,
+            image,
+        };
+        retouchLayerRef.current = layerState;
+        try {
+            retouchHistorySourceRef.current = newCtx.getImageData(0, 0, bounds.width, bounds.height);
+        } catch {
+            retouchHistorySourceRef.current = null;
+        }
+        return layerState;
+    }, [canvas, getRetouchBounds]);
+
+    useEffect(() => {
+        if (!canvas) {
+            retouchLayerRef.current = null;
+            retouchHistorySourceRef.current = null;
+        }
+    }, [canvas]);
+
+    const setObjectLockedFromCanvasOverlay = useCallback((obj: fabric.Object & ExtendedFabricObject, nextLocked: boolean) => {
+        if (!canvas) return;
+        const runtimeCanvas = canvas as fabric.Canvas & {
+            fire?: (eventName: string, payload?: Record<string, unknown>) => void;
+        };
+        obj.locked = nextLocked;
+        obj.set({
+            lockMovementX: nextLocked,
+            lockMovementY: nextLocked,
+            lockRotation: nextLocked,
+            lockScalingX: nextLocked,
+            lockScalingY: nextLocked,
+            selectable: !nextLocked,
+            evented: !nextLocked,
+        });
+        obj.setCoords();
+        if (obj.group) obj.group.set('dirty', true);
+        if (nextLocked) canvas.discardActiveObject();
+        runtimeCanvas.fire?.('object:modified', { target: obj });
+        canvas.requestRenderAll();
+    }, [canvas]);
+
+    useEffect(() => {
+        if (!canvas) {
+            setLockedLayerOverlayEntries([]);
+            setHoveredLockedLayerId(null);
+            setCanvasLockControl(null);
+            return;
+        }
+
+        const LOCK_BADGE_MIN_SIZE = 11;
+        const LOCK_BADGE_MAX_SIZE = 14;
+
+        const isLockedOverlayCandidate = (obj: fabric.Object): obj is fabric.Object & ExtendedFabricObject => {
+            const ext = obj as ExtendedFabricObject & {
+                isSelectionOverlayHelper?: boolean;
+                isPenDraftAnchor?: boolean;
+            };
+            if (!ext.locked) return false;
+            if (obj.visible === false) return false;
+            if (obj.type === 'activeSelection' || obj.type === 'selection') return false;
+            if (ext.isSelectionOverlayHelper || ext.isPenDraftAnchor || ext.isRetouchLayer) return false;
+            if (ext.name === 'Artboard') return false;
+            return true;
+        };
+
+        const isCanvasLockControlCandidate = (obj: fabric.Object | null | undefined): obj is fabric.Object & ExtendedFabricObject => {
+            if (!obj) return false;
+            const ext = obj as ExtendedFabricObject & {
+                isSelectionOverlayHelper?: boolean;
+                isPenDraftAnchor?: boolean;
+            };
+            if (ext.locked) return false;
+            if (obj.type === 'activeSelection' || obj.type === 'selection') return false;
+            if (ext.isSelectionOverlayHelper || ext.isPenDraftAnchor || ext.isRetouchLayer) return false;
+            if (ext.name === 'Artboard') return false;
+            if (obj.visible === false) return false;
+            return true;
+        };
+
+        const toRectBounds = (
+            bounds: Partial<{ left: number; top: number; width: number; height: number }>
+        ): RectBounds | null => {
+            const left = Number(bounds.left);
+            const top = Number(bounds.top);
+            const width = Number(bounds.width);
+            const height = Number(bounds.height);
+            if (!Number.isFinite(left) || !Number.isFinite(top) || !Number.isFinite(width) || !Number.isFinite(height)) {
+                return null;
+            }
+            if (width <= 0 || height <= 0) return null;
+            return { left, top, width, height };
+        };
+
+        const getObjectSceneBounds = (obj: fabric.Object): RectBounds | null => {
+            if (typeof obj.getCoords === 'function') {
+                const coords = obj.getCoords();
+                if (Array.isArray(coords) && coords.length > 0) {
+                    const xs = coords.map((point) => point.x).filter((value) => Number.isFinite(value));
+                    const ys = coords.map((point) => point.y).filter((value) => Number.isFinite(value));
+                    if (xs.length > 0 && ys.length > 0) {
+                        const left = Math.min(...xs);
+                        const right = Math.max(...xs);
+                        const top = Math.min(...ys);
+                        const bottom = Math.max(...ys);
+                        if (Number.isFinite(left) && Number.isFinite(top) && Number.isFinite(right) && Number.isFinite(bottom)) {
+                            return toRectBounds({
+                                left,
+                                top,
+                                width: right - left,
+                                height: bottom - top,
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (typeof obj.getBoundingRect === 'function') {
+                return toRectBounds(obj.getBoundingRect());
+            }
+
+            return null;
+        };
+
+        const toViewportRect = (sceneBounds: RectBounds): RectBounds => {
+            const viewport = canvas.viewportTransform || [1, 0, 0, 1, 0, 0] as fabric.TMat2D;
+            const transformPoint = (
+                point: fabric.Point
+            ) => fabric.util.transformPoint(point, viewport);
+
+            const topLeft = transformPoint(new fabric.Point(sceneBounds.left, sceneBounds.top));
+            const bottomRight = transformPoint(new fabric.Point(
+                sceneBounds.left + sceneBounds.width,
+                sceneBounds.top + sceneBounds.height
+            ));
+
+            const left = Math.min(topLeft.x, bottomRight.x);
+            const top = Math.min(topLeft.y, bottomRight.y);
+            const width = Math.abs(bottomRight.x - topLeft.x);
+            const height = Math.abs(bottomRight.y - topLeft.y);
+            return { left, top, width, height };
+        };
+
+        const buildLockedOverlayEntries = (): LockedLayerOverlayEntry[] => {
+            const entries: LockedLayerOverlayEntry[] = [];
+            let paintOrder = 0;
+
+            const walkObject = (obj: fabric.Object, parentLocked: boolean) => {
+                const ext = obj as ExtendedFabricObject;
+                const isCurrentLocked = Boolean(ext.locked);
+
+                if (!parentLocked && isLockedOverlayCandidate(obj)) {
+                    const sceneBounds = getObjectSceneBounds(obj);
+                    if (sceneBounds) {
+                        const viewportBounds = toViewportRect(sceneBounds);
+                        if (viewportBounds.width > 0 && viewportBounds.height > 0) {
+                            const iconSizeBase = Math.min(viewportBounds.width, viewportBounds.height) * 0.18;
+                            const iconSize = Math.max(LOCK_BADGE_MIN_SIZE, Math.min(LOCK_BADGE_MAX_SIZE, iconSizeBase));
+                            const iconPadding = Math.max(3, Math.round(iconSize * 0.22));
+                            const iconBounds: RectBounds = {
+                                left: viewportBounds.left + viewportBounds.width - iconSize - iconPadding,
+                                top: viewportBounds.top + iconPadding,
+                                width: iconSize,
+                                height: iconSize,
+                            };
+                            const id = ensureObjectId(obj);
+
+                            entries.push({
+                                id,
+                                object: obj as fabric.Object & ExtendedFabricObject,
+                                paintOrder,
+                                sceneBounds,
+                                viewportBounds,
+                                iconBounds,
+                            });
+                        }
+                    }
+                }
+
+                paintOrder += 1;
+
+                const isGroup = obj.type === 'group' && typeof (obj as fabric.Group).getObjects === 'function';
+                if (!isGroup) return;
+
+                const nextParentLocked = parentLocked || isCurrentLocked;
+                if (nextParentLocked) return;
+
+                const children = (obj as fabric.Group).getObjects();
+                children.forEach((child) => walkObject(child, nextParentLocked));
+            };
+
+            canvas.getObjects().forEach((obj) => walkObject(obj, false));
+            return entries;
+        };
+
+        const areEntriesEqual = (
+            entries: LockedLayerOverlayEntry[],
+            nextEntries: LockedLayerOverlayEntry[]
+        ) => {
+            if (entries.length !== nextEntries.length) return false;
+            for (let index = 0; index < entries.length; index += 1) {
+                const current = entries[index];
+                const next = nextEntries[index];
+                if (current.id !== next.id) return false;
+                if (current.paintOrder !== next.paintOrder) return false;
+                if (current.viewportBounds.left !== next.viewportBounds.left) return false;
+                if (current.viewportBounds.top !== next.viewportBounds.top) return false;
+                if (current.viewportBounds.width !== next.viewportBounds.width) return false;
+                if (current.viewportBounds.height !== next.viewportBounds.height) return false;
+                if (current.iconBounds.left !== next.iconBounds.left) return false;
+                if (current.iconBounds.top !== next.iconBounds.top) return false;
+                if (current.iconBounds.width !== next.iconBounds.width) return false;
+                if (current.iconBounds.height !== next.iconBounds.height) return false;
+            }
+            return true;
+        };
+
+        const syncLockedLayerOverlayEntries = () => {
+            const nextEntries = buildLockedOverlayEntries();
+            setLockedLayerOverlayEntries((current) => (
+                areEntriesEqual(current, nextEntries) ? current : nextEntries
+            ));
+            setHoveredLockedLayerId((current) => (
+                current && nextEntries.some((entry) => entry.id === current) ? current : null
+            ));
+
+            const activeObject = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
+            if (!isCanvasLockControlCandidate(activeObject)) {
+                setCanvasLockControl(null);
+                return;
+            }
+
+            const activeSceneBounds = getObjectSceneBounds(activeObject);
+            if (!activeSceneBounds) {
+                setCanvasLockControl(null);
+                return;
+            }
+
+            const activeViewportBounds = toViewportRect(activeSceneBounds);
+            const buttonSize = Math.max(12, Math.min(16, Math.min(activeViewportBounds.width, activeViewportBounds.height) * 0.16));
+            const canvasElement = typeof canvas.getElement === 'function' ? canvas.getElement() : null;
+            const maxLeft = Number.isFinite(canvasElement?.clientWidth)
+                ? Math.max(2, (canvasElement?.clientWidth ?? 0) - buttonSize - 2)
+                : Number.POSITIVE_INFINITY;
+            const maxTop = Number.isFinite(canvasElement?.clientHeight)
+                ? Math.max(2, (canvasElement?.clientHeight ?? 0) - buttonSize - 2)
+                : Number.POSITIVE_INFINITY;
+            const cornerInset = Math.max(2, Math.round(buttonSize * 0.24));
+            const desiredLeft = activeViewportBounds.left + activeViewportBounds.width - buttonSize - cornerInset;
+            const desiredTop = activeViewportBounds.top + cornerInset;
+            const buttonBounds: RectBounds = {
+                left: Math.min(maxLeft, Math.max(2, desiredLeft)),
+                top: Math.min(maxTop, Math.max(2, desiredTop)),
+                width: buttonSize,
+                height: buttonSize,
+            };
+            const activeId = ensureObjectId(activeObject);
+            const locked = Boolean(activeObject.locked);
+            const label = `${locked ? 'Unlock' : 'Lock'} layer ${activeObject.name || activeId}`;
+            setCanvasLockControl({
+                id: activeId,
+                object: activeObject,
+                locked,
+                buttonBounds,
+                label,
+            });
+        };
+
+        canvas.on('after:render', syncLockedLayerOverlayEntries);
+        canvas.on('object:added', syncLockedLayerOverlayEntries);
+        canvas.on('object:removed', syncLockedLayerOverlayEntries);
+        canvas.on('object:modified', syncLockedLayerOverlayEntries);
+        canvas.on('selection:created', syncLockedLayerOverlayEntries);
+        canvas.on('selection:updated', syncLockedLayerOverlayEntries);
+        canvas.on('selection:cleared', syncLockedLayerOverlayEntries);
+        canvas.requestRenderAll();
+        syncLockedLayerOverlayEntries();
+
+        return () => {
+            canvas.off('after:render', syncLockedLayerOverlayEntries);
+            canvas.off('object:added', syncLockedLayerOverlayEntries);
+            canvas.off('object:removed', syncLockedLayerOverlayEntries);
+            canvas.off('object:modified', syncLockedLayerOverlayEntries);
+            canvas.off('selection:created', syncLockedLayerOverlayEntries);
+            canvas.off('selection:updated', syncLockedLayerOverlayEntries);
+            canvas.off('selection:cleared', syncLockedLayerOverlayEntries);
+        };
+    }, [canvas]);
+
     useEffect(() => {
         if (!canvas) return;
+        const resolvedSelectionTool = activeTool === 'quick-select'
+            ? 'wand'
+            : activeTool === 'selection-brush'
+                ? 'lasso'
+                : activeTool;
 
         let isDragging = false;
         let selectionTool: 'marquee' | 'lasso' | null = null;
@@ -1006,9 +1746,9 @@ export default function EditorView({
         };
 
         const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
-            const isMarquee = activeTool === 'marquee';
-            const isLasso = activeTool === 'lasso';
-            const isWand = activeTool === 'wand';
+            const isMarquee = resolvedSelectionTool === 'marquee';
+            const isLasso = resolvedSelectionTool === 'lasso';
+            const isWand = resolvedSelectionTool === 'wand';
             if (!isMarquee && !isLasso && !isWand) return;
             const rawEvent = opt.e as MouseEvent | PointerEvent | TouchEvent | undefined;
             if (rawEvent && 'button' in rawEvent && rawEvent.button !== 0) return;
@@ -1172,9 +1912,20 @@ export default function EditorView({
         if (!canvas) return;
         const isHealing = activeTool === 'healing';
         const isCloneStamp = activeTool === 'clone-stamp';
-        if (!isHealing && !isCloneStamp) return;
+        const isHistoryBrush = activeTool === 'history-brush';
+        const isBlur = activeTool === 'blur';
+        const isSharpen = activeTool === 'sharpen';
+        const isDodge = activeTool === 'dodge';
+        if (!isHealing && !isCloneStamp && !isHistoryBrush && !isBlur && !isSharpen && !isDodge) return;
 
-        const notifyRetouchFallback = (title: string, description: string) => {
+        let isDrawing = false;
+        let strokeMutated = false;
+        let lastPoint: fabric.Point | null = null;
+        let cloneOffset: fabric.Point | null = null;
+        let sourceCanvas: HTMLCanvasElement | null = null;
+        let maskCanvas: HTMLCanvasElement | null = null;
+
+        const notifyRetouch = (title: string, description: string) => {
             const now = Date.now();
             if (now - retouchNoticeAtRef.current < 1200) return;
             retouchNoticeAtRef.current = now;
@@ -1199,6 +1950,258 @@ export default function EditorView({
             return null;
         };
 
+        const buildSceneSourceCanvas = (layer: RetouchLayerState, useAllLayers: boolean) => {
+            if (!useAllLayers) {
+                return layer.layerCanvas;
+            }
+
+            const source = document.createElement('canvas');
+            source.width = layer.bounds.width;
+            source.height = layer.bounds.height;
+            const sourceCtx = source.getContext('2d');
+            if (!sourceCtx) return null;
+
+            const canvasAny = canvas as unknown as {
+                toCanvasElement?: (options?: Record<string, unknown>) => HTMLCanvasElement;
+                lowerCanvasEl?: HTMLCanvasElement;
+                getElement?: () => HTMLCanvasElement | null;
+            };
+
+            if (typeof canvasAny.toCanvasElement === 'function') {
+                try {
+                    const snapshot = canvasAny.toCanvasElement({
+                        left: layer.bounds.left,
+                        top: layer.bounds.top,
+                        width: layer.bounds.width,
+                        height: layer.bounds.height,
+                        multiplier: 1,
+                        enableRetinaScaling: false,
+                        withoutTransform: true,
+                    });
+                    sourceCtx.drawImage(snapshot, 0, 0, layer.bounds.width, layer.bounds.height);
+                    return source;
+                } catch {
+                    // fall through to lower-canvas sampling
+                }
+            }
+
+            const lowerCanvas = canvasAny.lowerCanvasEl || canvasAny.getElement?.();
+            if (lowerCanvas) {
+                try {
+                    const vt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+                    const mapSceneToViewport = (point: fabric.Point) => new fabric.Point(
+                        (point.x * vt[0]) + (point.y * vt[2]) + vt[4],
+                        (point.x * vt[1]) + (point.y * vt[3]) + vt[5]
+                    );
+
+                    const topLeft = mapSceneToViewport(new fabric.Point(layer.bounds.left, layer.bounds.top));
+                    const bottomRight = mapSceneToViewport(new fabric.Point(layer.bounds.left + layer.bounds.width, layer.bounds.top + layer.bounds.height));
+                    const logicalWidth = Number(canvas.getWidth?.() || layer.bounds.width || 1);
+                    const logicalHeight = Number(canvas.getHeight?.() || layer.bounds.height || 1);
+                    const pixelScaleX = lowerCanvas.width / Math.max(1, logicalWidth);
+                    const pixelScaleY = lowerCanvas.height / Math.max(1, logicalHeight);
+
+                    let sx = Math.floor(Math.min(topLeft.x, bottomRight.x) * pixelScaleX);
+                    let sy = Math.floor(Math.min(topLeft.y, bottomRight.y) * pixelScaleY);
+                    let sw = Math.ceil(Math.abs(bottomRight.x - topLeft.x) * pixelScaleX);
+                    let sh = Math.ceil(Math.abs(bottomRight.y - topLeft.y) * pixelScaleY);
+
+                    sx = Math.max(0, Math.min(lowerCanvas.width - 1, sx));
+                    sy = Math.max(0, Math.min(lowerCanvas.height - 1, sy));
+                    sw = Math.max(1, Math.min(lowerCanvas.width - sx, sw));
+                    sh = Math.max(1, Math.min(lowerCanvas.height - sy, sh));
+
+                    sourceCtx.drawImage(lowerCanvas, sx, sy, sw, sh, 0, 0, layer.bounds.width, layer.bounds.height);
+                    return source;
+                } catch {
+                    // fallback to retouch-layer-only sampling
+                }
+            }
+
+            try {
+                sourceCtx.drawImage(layer.layerCanvas, 0, 0);
+            } catch {
+                return null;
+            }
+            return source;
+        };
+
+        const buildHistorySourceCanvas = (layer: RetouchLayerState) => {
+            const historyImageData = retouchHistorySourceRef.current;
+            if (!historyImageData) return layer.layerCanvas;
+
+            const historyCanvas = document.createElement('canvas');
+            historyCanvas.width = historyImageData.width;
+            historyCanvas.height = historyImageData.height;
+            const historyCtx = historyCanvas.getContext('2d');
+            if (!historyCtx) return layer.layerCanvas;
+            historyCtx.putImageData(historyImageData, 0, 0);
+            return historyCanvas;
+        };
+
+        const getBrushProfile = () => {
+            if (isCloneStamp) {
+                return computeRetouchBrushProfile({
+                    mode: 'clone',
+                    size: cloneTopSize,
+                    hardness: cloneTopHardness,
+                });
+            }
+            if (isHealing) {
+                return computeRetouchBrushProfile({
+                    mode: 'healing',
+                    size: healingTopSize,
+                    hardness: healingTopHardness,
+                });
+            }
+            if (isHistoryBrush) {
+                return computeRetouchBrushProfile({
+                    mode: 'history',
+                    size: historyBrushTopSize,
+                    hardness: historyBrushTopHardness,
+                });
+            }
+            if (isBlur) {
+                return computeRetouchBrushProfile({
+                    mode: 'blur',
+                    size: blurTopSize,
+                    strength: blurTopStrength,
+                });
+            }
+            if (isSharpen) {
+                return computeRetouchBrushProfile({
+                    mode: 'sharpen',
+                    size: sharpenTopSize,
+                    strength: sharpenTopStrength,
+                });
+            }
+            return computeRetouchBrushProfile({
+                mode: 'dodge',
+                size: dodgeTopSize,
+                exposure: dodgeTopExposure,
+                protectTones: dodgeTopProtectTones,
+            });
+        };
+
+        const markLayerMutated = (layer: RetouchLayerState) => {
+            layer.image.set({ dirty: true });
+            layer.image.setCoords();
+            canvas.requestRenderAll();
+            strokeMutated = true;
+        };
+
+        const stampAtPoint = (scenePoint: fabric.Point, layer: RetouchLayerState) => {
+            const localDestination = toLocalRetouchPoint(scenePoint, layer.bounds);
+            if (!isLocalPointInsideBounds(localDestination, layer.bounds)) return;
+
+            const profile = getBrushProfile();
+            const size = profile.size;
+            const opacity = profile.opacity;
+
+            if (isDodge) {
+                const didStampDodge = stampDodge({
+                    destinationCtx: layer.ctx,
+                    destinationPoint: localDestination,
+                    size,
+                    opacity,
+                    protectTones: dodgeTopProtectTones,
+                    maskCanvas,
+                });
+                if (didStampDodge) {
+                    markLayerMutated(layer);
+                }
+                return;
+            }
+
+            if (!sourceCanvas) return;
+
+            const localSource = isCloneStamp
+                ? new fabric.Point(
+                    localDestination.x + (cloneOffset?.x || 0),
+                    localDestination.y + (cloneOffset?.y || 0)
+                )
+                : localDestination;
+
+            if (!isLocalPointInsideBounds(localSource, layer.bounds)) return;
+
+            const blurPx = profile.blurPx;
+
+            if (isSharpen) {
+                const didSharpen = stampSharpen({
+                    sourceCanvas,
+                    destinationCtx: layer.ctx,
+                    sourcePoint: localSource,
+                    destinationPoint: localDestination,
+                    size,
+                    opacity,
+                    amount: profile.sharpenAmount,
+                    maskCanvas,
+                });
+                if (didSharpen) {
+                    markLayerMutated(layer);
+                }
+                return;
+            }
+
+            const didStamp = stampFromSource({
+                sourceCanvas,
+                destinationCtx: layer.ctx,
+                sourcePoint: localSource,
+                destinationPoint: localDestination,
+                size,
+                opacity,
+                blurPx,
+                maskCanvas,
+                compositeOperation: profile.compositeOperation,
+            });
+            let didMutate = didStamp;
+
+            if (isHealing && didStamp && profile.secondaryPass) {
+                const didSecondaryStamp = stampFromSource({
+                    sourceCanvas,
+                    destinationCtx: layer.ctx,
+                    sourcePoint: localSource,
+                    destinationPoint: localDestination,
+                    size,
+                    opacity: profile.secondaryPass.opacity,
+                    blurPx: profile.secondaryPass.blurPx,
+                    maskCanvas,
+                    compositeOperation: profile.secondaryPass.compositeOperation,
+                });
+                didMutate = didMutate || didSecondaryStamp;
+            }
+
+            if (didMutate) {
+                markLayerMutated(layer);
+            }
+        };
+
+        const finishStroke = () => {
+            if (!isDrawing) return;
+            const endPoint = lastPoint;
+            const nextCloneSourcePoint = isCloneStamp
+                ? resolveNextCloneSourcePoint({
+                    aligned: cloneTopAligned,
+                    strokeMutated,
+                    endPoint,
+                    cloneOffset,
+                })
+                : null;
+            isDrawing = false;
+            lastPoint = null;
+            cloneOffset = null;
+            sourceCanvas = null;
+            maskCanvas = null;
+            if (strokeMutated) {
+                pushHistory();
+                setIsDirty(true);
+            }
+            if (nextCloneSourcePoint) {
+                setCloneSourcePoint(nextCloneSourcePoint);
+            }
+            strokeMutated = false;
+        };
+
         const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
             const rawEvent = opt.e as MouseEvent | PointerEvent | TouchEvent | undefined;
             if (rawEvent && 'button' in rawEvent && rawEvent.button !== 0) return;
@@ -1212,32 +2215,186 @@ export default function EditorView({
                     return;
                 }
                 if (!cloneSourcePoint) {
-                    notifyRetouchFallback(
+                    notifyRetouch(
                         'Clone source required',
                         'Option-click on the canvas to set a clone source point.'
                     );
                     return;
                 }
-                notifyRetouchFallback(
-                    'Clone Stamp bootstrap',
-                    'Raster sampling path is in progress. Current action is a safe no-op.'
+            }
+
+            const layer = ensureRetouchLayer();
+            if (!layer) {
+                notifyRetouch(
+                    'Retouch unavailable',
+                    'Retouch layer could not be prepared on this canvas.'
                 );
-                canvas.requestRenderAll();
                 return;
             }
 
-            notifyRetouchFallback(
-                'Healing Brush bootstrap',
-                'Raster healing path is in progress. Current action is a safe no-op.'
-            );
-            canvas.requestRenderAll();
+            try {
+                retouchHistorySourceRef.current = layer.ctx.getImageData(0, 0, layer.bounds.width, layer.bounds.height);
+            } catch {
+                retouchHistorySourceRef.current = null;
+            }
+            isDrawing = true;
+            strokeMutated = false;
+            lastPoint = pointer;
+            const profile = getBrushProfile();
+            maskCanvas = createSoftBrushMask(profile.size, profile.maskHardness);
+
+            if (isCloneStamp) {
+                cloneOffset = new fabric.Point(
+                    (cloneSourcePoint?.x || 0) - pointer.x,
+                    (cloneSourcePoint?.y || 0) - pointer.y
+                );
+                sourceCanvas = buildSceneSourceCanvas(layer, cloneTopSampleAllLayers);
+            } else if (isHealing) {
+                sourceCanvas = buildSceneSourceCanvas(layer, healingTopSampleAllLayers);
+            } else if (isHistoryBrush) {
+                sourceCanvas = buildHistorySourceCanvas(layer);
+            } else if (isBlur) {
+                sourceCanvas = buildSceneSourceCanvas(layer, blurTopSampleAllLayers);
+            } else if (isSharpen) {
+                sourceCanvas = buildSceneSourceCanvas(layer, sharpenTopSampleAllLayers);
+            } else {
+                sourceCanvas = null;
+            }
+
+            stampAtPoint(pointer, layer);
+            if (!strokeMutated && !isDodge) {
+                notifyRetouch(
+                    'Retouch source unavailable',
+                    'Could not read source pixels for the current stroke.'
+                );
+                finishStroke();
+                return;
+            }
+        };
+
+        const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
+            if (!isDrawing || !lastPoint) return;
+            const pointer = getScenePointer(opt);
+            if (!pointer) return;
+            const layer = retouchLayerRef.current;
+            if (!layer) return;
+
+            const stepSpacing = getBrushProfile().spacing;
+            const points = interpolateStrokePoints(lastPoint, pointer, stepSpacing);
+            points.forEach((point) => stampAtPoint(point, layer));
+            lastPoint = pointer;
+        };
+
+        const handleMouseUp = () => {
+            finishStroke();
         };
 
         canvas.on('mouse:down', handleMouseDown);
+        canvas.on('mouse:move', handleMouseMove);
+        canvas.on('mouse:up', handleMouseUp);
         return () => {
+            finishStroke();
             canvas.off('mouse:down', handleMouseDown);
+            canvas.off('mouse:move', handleMouseMove);
+            canvas.off('mouse:up', handleMouseUp);
         };
-    }, [canvas, activeTool, cloneSourcePoint, toast]);
+    }, [
+        canvas,
+        activeTool,
+        blurTopSampleAllLayers,
+        blurTopSize,
+        blurTopStrength,
+        cloneSourcePoint,
+        cloneTopAligned,
+        cloneTopHardness,
+        cloneTopSampleAllLayers,
+        cloneTopSize,
+        dodgeTopExposure,
+        dodgeTopProtectTones,
+        dodgeTopSize,
+        ensureRetouchLayer,
+        healingTopHardness,
+        healingTopSampleAllLayers,
+        healingTopSize,
+        historyBrushTopHardness,
+        historyBrushTopSize,
+        sharpenTopSampleAllLayers,
+        sharpenTopSize,
+        sharpenTopStrength,
+        pushHistory,
+        toast,
+    ]);
+
+    useEffect(() => {
+        if (!canvas || !cursorPreviewConfig) {
+            setCursorPreview(null);
+            return;
+        }
+
+        const clampCursorDiameter = (diameter: number) => {
+            if (cursorPreviewConfig.kind !== 'brush') return 20;
+            const zoomScale = Number.isFinite(zoom) ? Math.max(0.05, zoom) : 1;
+            return Math.max(8, Math.min(320, diameter * zoomScale));
+        };
+
+        const resolveClientPoint = (opt: fabric.TPointerEventInfo): { x: number; y: number } | null => {
+            const rawEvent = opt.e as MouseEvent | PointerEvent | TouchEvent | undefined;
+            if (rawEvent && 'clientX' in rawEvent && 'clientY' in rawEvent) {
+                return { x: rawEvent.clientX, y: rawEvent.clientY };
+            }
+
+            const optWithScene = opt as unknown as { scenePoint?: fabric.Point };
+            const canvasWithScene = canvas as unknown as {
+                getScenePoint?: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point;
+                lowerCanvasEl?: HTMLCanvasElement;
+                getElement?: () => HTMLCanvasElement | null;
+            };
+            const scenePoint = optWithScene.scenePoint
+                || (opt.e && typeof canvasWithScene.getScenePoint === 'function'
+                    ? canvasWithScene.getScenePoint(opt.e)
+                    : null);
+            if (!scenePoint) return null;
+
+            const canvasElement = canvasWithScene.lowerCanvasEl || canvasWithScene.getElement?.();
+            if (!canvasElement) return null;
+
+            const rect = canvasElement.getBoundingClientRect();
+            const logicalWidth = Number(canvas.getWidth?.() || canvasElement.width || 1);
+            const logicalHeight = Number(canvas.getHeight?.() || canvasElement.height || 1);
+            const vt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+            const viewportX = (scenePoint.x * vt[0]) + (scenePoint.y * vt[2]) + vt[4];
+            const viewportY = (scenePoint.x * vt[1]) + (scenePoint.y * vt[3]) + vt[5];
+
+            return {
+                x: rect.left + (viewportX * (rect.width / Math.max(1, logicalWidth))),
+                y: rect.top + (viewportY * (rect.height / Math.max(1, logicalHeight))),
+            };
+        };
+
+        const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
+            const point = resolveClientPoint(opt);
+            if (!point) return;
+
+            setCursorPreview({
+                kind: cursorPreviewConfig.kind,
+                clientX: point.x,
+                clientY: point.y,
+                diameter: clampCursorDiameter(cursorPreviewConfig.diameter),
+            });
+        };
+
+        const clearCursorPreview = () => {
+            setCursorPreview(null);
+        };
+
+        canvas.on('mouse:move', handleMouseMove);
+        canvas.on('mouse:out', clearCursorPreview);
+        return () => {
+            canvas.off('mouse:move', handleMouseMove);
+            canvas.off('mouse:out', clearCursorPreview);
+            setCursorPreview(null);
+        };
+    }, [canvas, cursorPreviewConfig, zoom]);
 
     const handleSelectionModify = useCallback((mode: 'expand' | 'contract') => {
         if (!canvas) return;
@@ -2063,6 +3220,16 @@ export default function EditorView({
                 toolbarRef.current?.triggerTool('wand');
                 return;
             }
+            if (key === 'q') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('quick-select');
+                return;
+            }
+            if (key === 'k') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('selection-brush');
+                return;
+            }
             if (key === 'm') {
                 event.preventDefault();
                 toolbarRef.current?.triggerTool('marquee');
@@ -2076,6 +3243,21 @@ export default function EditorView({
             if (key === 'j') {
                 event.preventDefault();
                 toolbarRef.current?.triggerTool('healing');
+                return;
+            }
+            if (key === 'y') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('history-brush');
+                return;
+            }
+            if (key === 'b') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('blur');
+                return;
+            }
+            if (key === 'o') {
+                event.preventDefault();
+                toolbarRef.current?.triggerTool('dodge');
                 return;
             }
             if (key === 's') {
@@ -2171,9 +3353,44 @@ export default function EditorView({
                 setShowEditMenu(false);
                 return;
             }
+            if (showImageMenu) {
+                event.preventDefault();
+                setShowImageMenu(false);
+                return;
+            }
+            if (showLayerMenu) {
+                event.preventDefault();
+                setShowLayerMenu(false);
+                return;
+            }
+            if (showSelectMenu) {
+                event.preventDefault();
+                setShowSelectMenu(false);
+                return;
+            }
+            if (showFilterMenu) {
+                event.preventDefault();
+                setShowFilterMenu(false);
+                return;
+            }
             if (showViewMenu) {
                 event.preventDefault();
                 setShowViewMenu(false);
+                return;
+            }
+            if (showWindowMenu) {
+                event.preventDefault();
+                setShowWindowMenu(false);
+                return;
+            }
+            if (showSettingsMenu) {
+                event.preventDefault();
+                setShowSettingsMenu(false);
+                return;
+            }
+            if (showHelpMenu) {
+                event.preventDefault();
+                setShowHelpMenu(false);
                 return;
             }
             if (showExportMenu) {
@@ -2200,7 +3417,7 @@ export default function EditorView({
 
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [showEditMenu, showExportMenu, showExportQualityModal, showFileMenu, showGridMenu, showShareMenu, showToolsMenu, showViewMenu]);
+    }, [showEditMenu, showExportMenu, showExportQualityModal, showFileMenu, showFilterMenu, showGridMenu, showHelpMenu, showImageMenu, showLayerMenu, showSelectMenu, showSettingsMenu, showShareMenu, showToolsMenu, showViewMenu, showWindowMenu]);
 
     // --- Save Logic ---
     const handleSave = async () => {
@@ -2583,7 +3800,7 @@ export default function EditorView({
         const libsFolder = zip.folder('libs');
         const scriptsFolder = zip.folder('scripts');
 
-        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId', 'gradientTypeHint', 'gradientReversed', 'gradientDitherEnabled'];
+        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId', 'isRetouchLayer', 'gradientTypeHint', 'gradientReversed', 'gradientDitherEnabled'];
         const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customProps);
 
         const metadata = {
@@ -3410,7 +4627,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             : { left: 0, top: 0, width: fallbackWidth, height: fallbackHeight };
 
-        const cropRect = buildAspectCropRect(sourceRect, parseCropAspectRatio(cropTopRatioPreset));
+        const hasDraftRect = Boolean(
+            cropTopDraftRect
+            && cropTopDraftRect.width > 1
+            && cropTopDraftRect.height > 1
+        );
+        const cropRect = hasDraftRect
+            ? {
+                left: cropTopDraftRect!.left,
+                top: cropTopDraftRect!.top,
+                width: cropTopDraftRect!.width,
+                height: cropTopDraftRect!.height,
+            }
+            : buildAspectCropRect(sourceRect, parseCropAspectRatio(cropTopRatioPreset));
 
         activeCanvas.artboard = {
             left: cropRect.left,
@@ -3455,16 +4684,25 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.requestRenderAll();
         setIsDirty(true);
         setActiveTool('select');
+        setCropTopDraftRect(null);
+        const cropHelper = cropDraftHelperRef.current;
+        if (cropHelper) {
+            canvas.remove(cropHelper);
+            cropDraftHelperRef.current = null;
+        }
         toast({
             title: 'Crop applied',
             description: removedCount > 0
                 ? `Removed ${removedCount} object${removedCount === 1 ? '' : 's'} outside crop bounds.`
-                : 'Artboard crop bounds updated.',
+                : hasDraftRect
+                    ? 'Draft crop bounds applied.'
+                    : 'Artboard crop bounds updated.',
             variant: 'success',
         });
     }, [
         canvas,
         cropTopUseArtboardBounds,
+        cropTopDraftRect,
         buildAspectCropRect,
         parseCropAspectRatio,
         cropTopRatioPreset,
@@ -3472,6 +4710,20 @@ document.addEventListener('DOMContentLoaded', () => {
         toast,
         setActiveTool,
     ]);
+
+    const getScenePointerFromEvent = useCallback((opt: fabric.TPointerEventInfo): fabric.Point | null => {
+        const optWithScene = opt as unknown as { scenePoint?: fabric.Point };
+        if (optWithScene.scenePoint) {
+            return optWithScene.scenePoint;
+        }
+        const canvasWithScene = canvas as unknown as {
+            getScenePoint?: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point;
+        };
+        if (opt.e && typeof canvasWithScene.getScenePoint === 'function') {
+            return canvasWithScene.getScenePoint(opt.e);
+        }
+        return null;
+    }, [canvas]);
 
     const readColorFromActiveObject = useCallback((): string | null => {
         if (!canvas) return null;
@@ -3487,6 +4739,52 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         return null;
+    }, [canvas]);
+
+    const readColorFromCanvasPoint = useCallback((point: fabric.Point, sampleSize: TopEyedropperSampleSize): string | null => {
+        if (!canvas) return null;
+        const exportCanvas = canvas as CanvasWithExportInternals;
+        const sourceCanvas = exportCanvas.lowerCanvasEl || exportCanvas.getElement?.();
+        if (!sourceCanvas) return null;
+        const context = sourceCanvas.getContext('2d');
+        if (!context) return null;
+
+        const canvasWidth = Math.max(1, canvas.getWidth?.() || sourceCanvas.width);
+        const canvasHeight = Math.max(1, canvas.getHeight?.() || sourceCanvas.height);
+        const vt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+        const viewportX = (point.x * vt[0]) + (point.y * vt[2]) + vt[4];
+        const viewportY = (point.x * vt[1]) + (point.y * vt[3]) + vt[5];
+        const pixelCenterX = Math.round((viewportX / canvasWidth) * sourceCanvas.width);
+        const pixelCenterY = Math.round((viewportY / canvasHeight) * sourceCanvas.height);
+
+        const pixelWindow = Math.max(1, sampleSize);
+        const halfWindow = Math.floor(pixelWindow / 2);
+        const startX = Math.max(0, pixelCenterX - halfWindow);
+        const startY = Math.max(0, pixelCenterY - halfWindow);
+        const width = Math.min(pixelWindow, sourceCanvas.width - startX);
+        const height = Math.min(pixelWindow, sourceCanvas.height - startY);
+        if (width <= 0 || height <= 0) return null;
+
+        try {
+            const imageData = context.getImageData(startX, startY, width, height).data;
+            let red = 0;
+            let green = 0;
+            let blue = 0;
+            let count = 0;
+            for (let index = 0; index < imageData.length; index += 4) {
+                const alpha = imageData[index + 3];
+                if (alpha === 0) continue;
+                red += imageData[index];
+                green += imageData[index + 1];
+                blue += imageData[index + 2];
+                count += 1;
+            }
+            if (count === 0) return null;
+            const toHex = (value: number) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0');
+            return `#${toHex(red / count)}${toHex(green / count)}${toHex(blue / count)}`;
+        } catch {
+            return null;
+        }
     }, [canvas]);
 
     const readColorFromCanvasCenter = useCallback((sampleSize: TopEyedropperSampleSize): string | null => {
@@ -3529,13 +4827,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, [canvas]);
 
-    const handleEyedropperSample = useCallback(() => {
+    const resolveEyedropperSample = useCallback((preferredPoint?: fabric.Point | null): string | null => {
+        const pointColor = preferredPoint
+            ? readColorFromCanvasPoint(preferredPoint, eyedropperTopSampleSize)
+            : null;
+        const centerColor = pointColor || readColorFromCanvasCenter(eyedropperTopSampleSize);
+        if (eyedropperTopSampleSource === 'current-layer') {
+            return pointColor || readColorFromActiveObject() || centerColor;
+        }
+        return centerColor || readColorFromActiveObject();
+    }, [
+        eyedropperTopSampleSource,
+        eyedropperTopSampleSize,
+        readColorFromActiveObject,
+        readColorFromCanvasCenter,
+        readColorFromCanvasPoint,
+    ]);
+
+    const handleEyedropperSample = useCallback((preferredPoint?: fabric.Point | null) => {
         if (!canvas) return;
-        const sampledColor = (
-            eyedropperTopSampleSource === 'current-layer'
-                ? readColorFromActiveObject() || readColorFromCanvasCenter(eyedropperTopSampleSize)
-                : readColorFromCanvasCenter(eyedropperTopSampleSize) || readColorFromActiveObject()
-        );
+        const sampledColor = resolveEyedropperSample(preferredPoint ?? eyedropperPointerRef.current);
 
         if (!sampledColor) {
             toast({
@@ -3564,11 +4875,139 @@ document.addEventListener('DOMContentLoaded', () => {
     }, [
         canvas,
         eyedropperTopSampleSource,
-        readColorFromActiveObject,
-        readColorFromCanvasCenter,
+        resolveEyedropperSample,
         eyedropperTopSampleSize,
         toast,
     ]);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        const clearDraftHelper = () => {
+            const helper = cropDraftHelperRef.current;
+            if (!helper) return;
+            canvas.remove(helper);
+            cropDraftHelperRef.current = null;
+            canvas.requestRenderAll();
+        };
+
+        if (activeTool !== 'crop') {
+            clearDraftHelper();
+            setCropTopDraftRect(null);
+            return;
+        }
+
+        let isDragging = false;
+        let dragStart: fabric.Point | null = null;
+
+        const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
+            const rawEvent = opt.e as MouseEvent | PointerEvent | TouchEvent | undefined;
+            if (rawEvent && 'button' in rawEvent && rawEvent.button !== 0) return;
+
+            const pointer = getScenePointerFromEvent(opt);
+            if (!pointer) return;
+
+            isDragging = true;
+            dragStart = pointer;
+            clearDraftHelper();
+            setCropTopDraftRect(null);
+
+            const helper = new fabric.Rect({
+                left: pointer.x,
+                top: pointer.y,
+                width: 1,
+                height: 1,
+                fill: 'rgba(31,138,165,0.12)',
+                stroke: '#1f8aa5',
+                strokeWidth: 1.2,
+                strokeDashArray: [6, 4],
+                selectable: false,
+                evented: false,
+                objectCaching: false,
+                excludeFromExport: true,
+            }) as fabric.Rect & { isSelectionOverlayHelper?: boolean };
+            helper.isSelectionOverlayHelper = true;
+            cropDraftHelperRef.current = helper;
+            canvas.add(helper);
+            canvas.requestRenderAll();
+        };
+
+        const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
+            if (!isDragging || !dragStart || !cropDraftHelperRef.current) return;
+            const pointer = getScenePointerFromEvent(opt);
+            if (!pointer) return;
+
+            const left = Math.min(dragStart.x, pointer.x);
+            const top = Math.min(dragStart.y, pointer.y);
+            const width = Math.max(1, Math.abs(pointer.x - dragStart.x));
+            const height = Math.max(1, Math.abs(pointer.y - dragStart.y));
+
+            cropDraftHelperRef.current.set({ left, top, width, height });
+            cropDraftHelperRef.current.setCoords();
+            setCropTopDraftRect({ left, top, width, height });
+            canvas.requestRenderAll();
+        };
+
+        const handleMouseUp = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            dragStart = null;
+        };
+
+        const handleWindowKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            applyTopCropSettings();
+        };
+
+        canvas.on('mouse:down', handleMouseDown);
+        canvas.on('mouse:move', handleMouseMove);
+        canvas.on('mouse:up', handleMouseUp);
+        window.addEventListener('keydown', handleWindowKeyDown);
+        return () => {
+            canvas.off('mouse:down', handleMouseDown);
+            canvas.off('mouse:move', handleMouseMove);
+            canvas.off('mouse:up', handleMouseUp);
+            window.removeEventListener('keydown', handleWindowKeyDown);
+            clearDraftHelper();
+        };
+    }, [canvas, activeTool, applyTopCropSettings, getScenePointerFromEvent]);
+
+    useEffect(() => {
+        if (!canvas || activeTool !== 'eyedropper') return;
+        const eyedropperCanvas = canvas as fabric.Canvas & {
+            skipTargetFind?: boolean;
+        };
+        const previousSkipTargetFind = Boolean(eyedropperCanvas.skipTargetFind);
+        eyedropperCanvas.skipTargetFind = true;
+        canvas.selection = false;
+        if (canvas.getActiveObject()) {
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
+        }
+
+        const handleMouseMove = (opt: fabric.TPointerEventInfo) => {
+            const pointer = getScenePointerFromEvent(opt);
+            if (pointer) eyedropperPointerRef.current = pointer;
+        };
+
+        const handleMouseDown = (opt: fabric.TPointerEventInfo) => {
+            const rawEvent = opt.e as MouseEvent | PointerEvent | TouchEvent | undefined;
+            if (rawEvent && 'button' in rawEvent && rawEvent.button !== 0) return;
+            const pointer = getScenePointerFromEvent(opt);
+            if (!pointer) return;
+            eyedropperPointerRef.current = pointer;
+            handleEyedropperSample(pointer);
+        };
+
+        canvas.on('mouse:move', handleMouseMove);
+        canvas.on('mouse:down', handleMouseDown);
+        return () => {
+            canvas.off('mouse:move', handleMouseMove);
+            canvas.off('mouse:down', handleMouseDown);
+            eyedropperCanvas.skipTargetFind = previousSkipTargetFind;
+        };
+    }, [canvas, activeTool, getScenePointerFromEvent, handleEyedropperSample]);
 
     const handleFitToScreen = useCallback(() => {
         if (!canvas) return;
@@ -3745,6 +5184,138 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.requestRenderAll();
         setZoom(newZoom);
     };
+
+    const openPanelModeFromMenu = useCallback((mode: PanelRailMode) => {
+        setPropertiesPanelMode(mode);
+        setPanelState((prev) => {
+            if (prev.mode === 'collapsed-left') return { ...prev, mode: 'docked-left' };
+            if (prev.mode === 'collapsed-right') return { ...prev, mode: 'docked-right' };
+            return prev;
+        });
+    }, []);
+
+    const triggerToolbarTool = useCallback((toolName: string) => {
+        toolbarRef.current?.triggerTool(toolName);
+    }, []);
+
+    const getMenuLayerTarget = useCallback((): (fabric.Object & ExtendedFabricObject) | null => {
+        if (!canvas) return null;
+        const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
+        if (!active) return null;
+        if (active.type === 'activeSelection' || active.type === 'selection') return null;
+        const ext = active as ExtendedFabricObject;
+        if (ext.name === 'Artboard') return null;
+        const canvasWithArtboard = canvas as CanvasWithArtboard;
+        if (canvasWithArtboard.artboardRect && active === canvasWithArtboard.artboardRect) return null;
+        return active;
+    }, [canvas]);
+
+    const handleLayerDeleteFromMenu = useCallback(() => {
+        if (!canvas) return;
+        const activeObjects = canvas.getActiveObjects();
+        const active = canvas.getActiveObject();
+        const selected = activeObjects.length > 0
+            ? activeObjects
+            : active
+                ? [active]
+                : [];
+
+        if (selected.length === 0) {
+            toast({ title: 'Delete unavailable', description: 'Select a layer first.', variant: 'warning' });
+            return;
+        }
+
+        const canvasWithArtboard = canvas as CanvasWithArtboard;
+        const removable = selected.filter((obj) => {
+            const ext = obj as ExtendedFabricObject;
+            if (ext.name === 'Artboard') return false;
+            if (canvasWithArtboard.artboardRect && obj === canvasWithArtboard.artboardRect) return false;
+            return true;
+        });
+
+        if (removable.length === 0) {
+            toast({ title: 'Delete unavailable', description: 'The selected layer cannot be deleted.', variant: 'warning' });
+            return;
+        }
+
+        const runtimeCanvas = canvas as fabric.Canvas & {
+            fire?: (eventName: string, payload?: Record<string, unknown>) => void;
+        };
+
+        canvas.discardActiveObject();
+        removable.forEach((obj) => canvas.remove(obj));
+        runtimeCanvas.fire?.('object:modified', { target: removable[0] });
+        canvas.requestRenderAll();
+        setIsDirty(true);
+        pushHistory();
+    }, [canvas, pushHistory, toast]);
+
+    const handleLayerToggleLockFromMenu = useCallback(() => {
+        const target = getMenuLayerTarget();
+        if (!target) {
+            toast({ title: 'Lock unavailable', description: 'Select a single layer first.', variant: 'warning' });
+            return;
+        }
+        setObjectLockedFromCanvasOverlay(target, !Boolean(target.locked));
+        setIsDirty(true);
+        pushHistory();
+    }, [getMenuLayerTarget, pushHistory, setObjectLockedFromCanvasOverlay, toast]);
+
+    const handleSelectAllFromMenu = useCallback(() => {
+        if (!canvas) return;
+        const selectable = canvas.getObjects().filter((obj) => {
+            const ext = obj as ExtendedFabricObject & {
+                isSelectionOverlayHelper?: boolean;
+                isPenDraftAnchor?: boolean;
+            };
+            if (obj.type === 'activeSelection' || obj.type === 'selection') return false;
+            if (ext.isSelectionOverlayHelper || ext.isPenDraftAnchor || ext.isRetouchLayer) return false;
+            if (ext.name === 'Artboard') return false;
+            if (obj.visible === false) return false;
+            if (obj.selectable === false || obj.evented === false) return false;
+            return true;
+        });
+
+        if (selectable.length === 0) {
+            toast({ title: 'Select all unavailable', description: 'No selectable layers found.', variant: 'warning' });
+            return;
+        }
+
+        if (selectionMode === 'layer' || selectable.length === 1) {
+            canvas.setActiveObject(selectable[selectable.length - 1]);
+        } else {
+            canvas.setActiveObject(new fabric.ActiveSelection(selectable, { canvas }));
+        }
+        canvas.requestRenderAll();
+    }, [canvas, selectionMode, toast]);
+
+    const handleDeselectFromMenu = useCallback(() => {
+        if (!canvas) return;
+        canvas.discardActiveObject();
+        canvas.requestRenderAll();
+    }, [canvas]);
+
+    const handleResetZoomFromMenu = useCallback(() => {
+        if (!canvas) return;
+        const centerPoint = new fabric.Point((canvas.width || canvas.getWidth()) / 2, (canvas.height || canvas.getHeight()) / 2);
+        canvas.zoomToPoint(centerPoint, 1);
+        canvas.requestRenderAll();
+        setZoom(1);
+    }, [canvas]);
+
+    const handleShowShortcutsFromMenu = useCallback(() => {
+        toast({
+            title: 'Keyboard shortcuts',
+            description: 'V Move, M Marquee, L Lasso, W Wand, J Healing, Y History, B Blur, O Dodge, S Clone, A Path Select.',
+            variant: 'success',
+        });
+    }, [toast]);
+
+    const handleShowAboutFromMenu = useCallback(async () => {
+        await dialog.alert('Image Express editor. Build and edit designs with layered tools, retouch workflows, and panel-based controls.', {
+            title: 'About Image Express',
+        });
+    }, [dialog]);
 
     const handleCaptureVideoFrame = useCallback(() => {
         if (!canvas || !mediaPreview || mediaPreview.type !== 'video') return;
@@ -4013,6 +5584,18 @@ document.addEventListener('DOMContentLoaded', () => {
             google: localStorage.getItem('google_api_key') || undefined,
             banana: localStorage.getItem('banana_api_key') || undefined,
         });
+    }, [settingsOpen]);
+
+    useEffect(() => {
+        const syncUiPreferences = () => {
+            setExpandToolRailLabelsOnHover(loadUiPreferences().expandToolRailLabelsOnHover);
+        };
+
+        syncUiPreferences();
+        window.addEventListener(UI_PREFERENCES_CHANGED_EVENT, syncUiPreferences);
+        return () => {
+            window.removeEventListener(UI_PREFERENCES_CHANGED_EVENT, syncUiPreferences);
+        };
     }, [settingsOpen]);
 
     useEffect(() => {
@@ -4506,6 +6089,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }, []);
 
+    const activeLayerOrderState = getActiveLayerOrderState();
+    const menuLayerTarget = getMenuLayerTarget();
+
     return (
         <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
             {/* Editor Header */}
@@ -4534,7 +6120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ) : (
                             <button
                                 onClick={() => setIsRenamingDesignTitle(true)}
-                                className="hidden md:block font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-pink-500 max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"
+                                className="hidden md:block font-bold text-lg ui-brand-gradient-text max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"
                                 title='Click to rename document'
                             >
                                 {propDesignName || 'Untitled Design'}
@@ -4550,9 +6136,40 @@ document.addEventListener('DOMContentLoaded', () => {
                          <HomeIcon size={16} />
                          <span>Hub</span>
                        </button>
+                       <button
+                          onClick={() => {
+                              const next = !showTopNavMenus;
+                              setShowTopNavMenus(next);
+                              if (!next) {
+                                  setShowFileMenu(false);
+                                  setShowEditMenu(false);
+                                  setShowImageMenu(false);
+                                  setShowLayerMenu(false);
+                                  setShowSelectMenu(false);
+                                  setShowFilterMenu(false);
+                                  setShowViewMenu(false);
+                                  setShowWindowMenu(false);
+                                  setShowSettingsMenu(false);
+                                  setShowHelpMenu(false);
+                                  setShowExportMenu(false);
+                                  setShowShareMenu(false);
+                                  setShowGridMenu(false);
+                                  setShowToolsMenu(false);
+                              }
+                          }}
+                          className="h-8 w-8 rounded-full border border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground transition-colors inline-flex items-center justify-center"
+                          title={showTopNavMenus ? 'Collapse menus' : 'Expand menus'}
+                          aria-label="Toggle top menu bar"
+                       >
+                          <ChevronRight
+                              size={14}
+                              className={`transition-transform duration-200 ${showTopNavMenus ? 'rotate-180' : ''}`}
+                          />
+                       </button>
                     </nav>
+                    {showTopNavMenus && (
                     <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
-                        <div className="relative">
+                        <div className="relative order-1">
                             <button
                                 onClick={() => {
                                     setShowExportMenu(false);
@@ -4560,7 +6177,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                     setShowShareMenu(false);
                                     setShowToolsMenu(false);
                                     setShowEditMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowFilterMenu(false);
                                     setShowViewMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu(false);
                                     setShowFileMenu((prev) => !prev);
                                 }}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
@@ -4584,10 +6208,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                         onClick={() => {
                                             setShowFileMenu(false);
                                             setShowEditMenu(false);
+                                            setShowImageMenu(false);
+                                            setShowLayerMenu(false);
+                                            setShowSelectMenu(false);
+                                            setShowFilterMenu(false);
                                             setShowViewMenu(false);
                                             setShowToolsMenu(false);
                                             setShowGridMenu(false);
                                             setShowShareMenu(false);
+                                            setShowWindowMenu(false);
+                                            setShowHelpMenu(false);
+                                            setShowSettingsMenu(false);
                                             setShowExportMenu(true);
                                         }}
                                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
@@ -4597,7 +6228,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             )}
                         </div>
-                        <div className="relative">
+                        <div className="relative order-3">
                             <button
                                 onClick={() => {
                                     setShowExportMenu(false);
@@ -4605,7 +6236,383 @@ document.addEventListener('DOMContentLoaded', () => {
                                     setShowShareMenu(false);
                                     setShowToolsMenu(false);
                                     setShowFileMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowFilterMenu(false);
                                     setShowViewMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu(false);
+                                    setShowImageMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showImageMenu}
+                            >
+                                <span>Image</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showImageMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showImageMenu && (
+                                <div data-testid="menu-image" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowImageMenu(false);
+                                            triggerToolbarTool('crop');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Crop Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowImageMenu(false);
+                                            openPanelModeFromMenu('adjustments');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Adjustments Panel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowImageMenu(false);
+                                            openPanelModeFromMenu('color');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Color Panel
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        onClick={() => {
+                                            setShowImageMenu(false);
+                                            handleFitToScreen();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Fit to Screen
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowImageMenu(false);
+                                            handleResetZoomFromMenu();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Reset Zoom (100%)
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative order-4">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowFilterMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu(false);
+                                    setShowLayerMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showLayerMenu}
+                            >
+                                <span>Layer</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showLayerMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showLayerMenu && (
+                                <div data-testid="menu-layer" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowLayerMenu(false);
+                                            void handleDuplicate();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Duplicate Layer
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowLayerMenu(false);
+                                            handleLayerDeleteFromMenu();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Delete Layer
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        onClick={() => {
+                                            setShowLayerMenu(false);
+                                            handleLayerToggleLockFromMenu();
+                                        }}
+                                        disabled={!menuLayerTarget}
+                                        className={`w-full text-left px-4 py-2.5 text-sm ${menuLayerTarget ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                                    >
+                                        {menuLayerTarget?.locked ? 'Unlock Layer' : 'Lock Layer'}
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        onClick={() => {
+                                            setShowLayerMenu(false);
+                                            handleContextLayerOrderAction('move-up');
+                                        }}
+                                        disabled={!activeLayerOrderState.canMoveUp}
+                                        className={`w-full text-left px-4 py-2.5 text-sm ${activeLayerOrderState.canMoveUp ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                                    >
+                                        Bring Forward
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowLayerMenu(false);
+                                            handleContextLayerOrderAction('move-down');
+                                        }}
+                                        disabled={!activeLayerOrderState.canMoveDown}
+                                        className={`w-full text-left px-4 py-2.5 text-sm ${activeLayerOrderState.canMoveDown ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                                    >
+                                        Send Backward
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowLayerMenu(false);
+                                            handleContextLayerOrderAction('to-front');
+                                        }}
+                                        disabled={!activeLayerOrderState.canBringToFront}
+                                        className={`w-full text-left px-4 py-2.5 text-sm ${activeLayerOrderState.canBringToFront ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                                    >
+                                        Bring to Front
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowLayerMenu(false);
+                                            handleContextLayerOrderAction('to-back');
+                                        }}
+                                        disabled={!activeLayerOrderState.canSendToBack}
+                                        className={`w-full text-left px-4 py-2.5 text-sm ${activeLayerOrderState.canSendToBack ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
+                                    >
+                                        Send to Back
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative order-5">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowFilterMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu(false);
+                                    setShowSelectMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showSelectMenu}
+                            >
+                                <span>Select</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showSelectMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showSelectMenu && (
+                                <div data-testid="menu-select" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            handleSelectAllFromMenu();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            handleDeselectFromMenu();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Deselect
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            handleSelectionModify('expand');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Expand Selection
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            handleSelectionModify('contract');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Contract Selection
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            triggerToolbarTool('select');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Move Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            triggerToolbarTool('marquee');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Marquee Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            triggerToolbarTool('lasso');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Lasso Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            triggerToolbarTool('wand');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Magic Wand Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            triggerToolbarTool('quick-select');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Quick Selection Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowSelectMenu(false);
+                                            triggerToolbarTool('selection-brush');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Selection Brush Tool
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative order-6">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu(false);
+                                    setShowFilterMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showFilterMenu}
+                            >
+                                <span>Filter</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showFilterMenu && (
+                                <div data-testid="menu-filter" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowFilterMenu(false);
+                                            triggerToolbarTool('blur');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Blur Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowFilterMenu(false);
+                                            triggerToolbarTool('sharpen');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Sharpen Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowFilterMenu(false);
+                                            triggerToolbarTool('dodge');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Dodge Tool
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowFilterMenu(false);
+                                            triggerToolbarTool('healing');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Healing Brush
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        onClick={() => {
+                                            setShowFilterMenu(false);
+                                            openPanelModeFromMenu('adjustments');
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Open Adjustments Panel
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative order-2">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowFilterMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu(false);
                                     setShowEditMenu((prev) => !prev);
                                 }}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
@@ -4645,20 +6652,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                     >
                                         Duplicate
                                     </button>
-                                    <div className="my-1 border-t border-border/50" />
-                                    <button
-                                        onClick={() => {
-                                            setShowEditMenu(false);
-                                            onOpenSettings();
-                                        }}
-                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                                    >
-                                        Preferences...
-                                    </button>
                                 </div>
                             )}
                         </div>
-                        <div className="relative">
+                        <div className="relative order-7">
                             <button
                                 onClick={() => {
                                     setShowExportMenu(false);
@@ -4667,6 +6664,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                     setShowToolsMenu(false);
                                     setShowFileMenu(false);
                                     setShowEditMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowFilterMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu(false);
                                     setShowViewMenu((prev) => !prev);
                                 }}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
@@ -4717,32 +6721,224 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             )}
                         </div>
-                    </div>
-                    <div className="relative">
-                        <button
-                            onClick={() => {
-                                setShowFileMenu(false);
-                                setShowEditMenu(false);
-                                setShowViewMenu(false);
-                                setShowExportMenu(false);
-                                setShowShareMenu(false);
-                                setShowGridMenu(false);
-                                setShowToolsMenu((prev) => !prev);
-                            }}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                        >
-                            <span>Tools</span>
-                            <ChevronDown size={14} />
-                        </button>
-                        {showToolsMenu && (
-                            <ToolsDropdownMenu
-                                onTriggerTool={(tool) => {
-                                    toolbarRef.current?.triggerTool(tool);
+                        <div className="relative order-8">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
                                     setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowFilterMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu(false);
+                                    setShowWindowMenu((prev) => !prev);
                                 }}
-                            />
-                        )}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showWindowMenu}
+                            >
+                                <span>Window</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showWindowMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showWindowMenu && (
+                                <div data-testid="menu-window" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    {WINDOW_PANEL_ITEMS.map((item) => {
+                                        const checked = isPropertiesPanelVisible && propertiesPanelMode === item.mode;
+                                        return (
+                                            <button
+                                                key={item.mode}
+                                                role="menuitemcheckbox"
+                                                aria-checked={checked}
+                                                onClick={() => {
+                                                    handleWindowPanelToggle(item.mode);
+                                                    setShowWindowMenu(false);
+                                                }}
+                                                className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${checked ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
+                                            >
+                                                <span>{item.label}</span>
+                                                <span className={`text-xs ${checked ? 'text-primary' : 'text-transparent'}`}>✓</span>
+                                            </button>
+                                        );
+                                    })}
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        role="menuitemcheckbox"
+                                        aria-checked={isPropertiesPanelVisible}
+                                        onClick={() => {
+                                            if (isPropertiesPanelVisible) {
+                                                setPanelState((prev) => {
+                                                    if (prev.mode === 'docked-left') return { ...prev, mode: 'collapsed-left' };
+                                                    if (prev.mode === 'docked-right') return { ...prev, mode: 'collapsed-right' };
+                                                    if (prev.mode === 'floating') return { ...prev, mode: 'collapsed-right', position: { x: 0, y: 0 } };
+                                                    return prev;
+                                                });
+                                            } else {
+                                                setPanelState((prev) => {
+                                                    if (prev.mode === 'collapsed-left') return { ...prev, mode: 'docked-left' };
+                                                    if (prev.mode === 'collapsed-right') return { ...prev, mode: 'docked-right' };
+                                                    return { ...prev, mode: 'docked-right' };
+                                                });
+                                            }
+                                            setShowWindowMenu(false);
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${isPropertiesPanelVisible ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
+                                    >
+                                        <span>Show Properties Panel</span>
+                                        <span className={`text-xs ${isPropertiesPanelVisible ? 'text-primary' : 'text-transparent'}`}>✓</span>
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        role="menuitemcheckbox"
+                                        aria-checked={panelState.mode === 'docked-left'}
+                                        onClick={() => {
+                                            handleWindowDockMode('docked-left');
+                                            setShowWindowMenu(false);
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'docked-left') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
+                                    >
+                                        <span>Dock Left</span>
+                                        <span className={`text-xs ${(panelState.mode === 'docked-left') ? 'text-primary' : 'text-transparent'}`}>✓</span>
+                                    </button>
+                                    <button
+                                        role="menuitemcheckbox"
+                                        aria-checked={panelState.mode === 'docked-right'}
+                                        onClick={() => {
+                                            handleWindowDockMode('docked-right');
+                                            setShowWindowMenu(false);
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'docked-right') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
+                                    >
+                                        <span>Dock Right</span>
+                                        <span className={`text-xs ${(panelState.mode === 'docked-right') ? 'text-primary' : 'text-transparent'}`}>✓</span>
+                                    </button>
+                                    <button
+                                        role="menuitemcheckbox"
+                                        aria-checked={panelState.mode === 'floating'}
+                                        onClick={() => {
+                                            handleWindowDockMode('floating');
+                                            setShowWindowMenu(false);
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'floating') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
+                                    >
+                                        <span>Float Panel</span>
+                                        <span className={`text-xs ${(panelState.mode === 'floating') ? 'text-primary' : 'text-transparent'}`}>✓</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative order-9">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowFilterMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowHelpMenu(false);
+                                    setShowSettingsMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showSettingsMenu}
+                            >
+                                <span>Settings</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showSettingsMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showSettingsMenu && (
+                                <div data-testid="menu-settings" className="absolute left-0 top-full mt-2 w-52 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowSettingsMenu(false);
+                                            onOpenSettings();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Preferences...
+                                    </button>
+                                    {isAdminUser && (
+                                        <button
+                                            onClick={() => {
+                                                setShowSettingsMenu(false);
+                                                onOpenAdminArea?.();
+                                            }}
+                                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                        >
+                                            Admin Area
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative order-10">
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowGridMenu(false);
+                                    setShowShareMenu(false);
+                                    setShowToolsMenu(false);
+                                    setShowFileMenu(false);
+                                    setShowEditMenu(false);
+                                    setShowImageMenu(false);
+                                    setShowLayerMenu(false);
+                                    setShowSelectMenu(false);
+                                    setShowFilterMenu(false);
+                                    setShowViewMenu(false);
+                                    setShowWindowMenu(false);
+                                    setShowSettingsMenu(false);
+                                    setShowHelpMenu((prev) => !prev);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                                aria-expanded={showHelpMenu}
+                            >
+                                <span>Help</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showHelpMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showHelpMenu && (
+                                <div data-testid="menu-help" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                                    <button
+                                        onClick={() => {
+                                            setShowHelpMenu(false);
+                                            onOpenDocumentation?.();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Documentation
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowHelpMenu(false);
+                                            handleShowShortcutsFromMenu();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        Keyboard Shortcuts
+                                    </button>
+                                    <div className="my-1 border-t border-border/50" />
+                                    <button
+                                        onClick={() => {
+                                            setShowHelpMenu(false);
+                                            void handleShowAboutFromMenu();
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                                    >
+                                        About Image Express
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
+                    )}
                  </div>
 
                  {/* Actions */}
@@ -4778,55 +6974,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             )}
 
-                            <button 
-                                onClick={() => onOpenDocumentation?.()}
-                                className="w-9 h-9 flex items-center justify-center rounded-full border border-border/60 text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                                title="How to use Image Express"
-                            >
-                                ?
-                            </button>
-                     <button 
-                        onClick={() => handleSave()}
-                        className={`p-2 hover:bg-secondary rounded-full transition-colors ${isDirty ? 'text-primary animate-pulse' : 'text-muted-foreground'}`}
-                        title="Save Design"
-                     >
-                        <Save size={20} />
-                     </button>
-                                         <button
-                                                onClick={handleUndo}
-                                                disabled={historyState.undo < 2}
-                                                className={`p-2 rounded-full transition-colors ${historyState.undo < 2 ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
-                                                title="Undo"
-                                            >
-                                                <Undo2 size={18} />
-                                            </button>
-                                         <button
-                                                onClick={handleRedo}
-                                                disabled={historyState.redo < 1}
-                                                className={`p-2 rounded-full transition-colors ${historyState.redo < 1 ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
-                                                title="Redo"
-                                            >
-                                                <Redo2 size={18} />
-                                            </button>
-        
-                            <button 
-                                onClick={onOpenSettings}
-                                className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
-                                title="Settings"
-                            >
-                                <Settings size={20} />
-                            </button>
-                            {isAdminUser && (
-                                <button
-                                    onClick={() => onOpenAdminArea?.()}
-                                    className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
-                                    title="Admin Area"
-                                >
-                                    <ShieldCheck size={20} />
-                                </button>
-                            )}
-        
-                     <div className="h-6 w-px bg-border mx-1"></div>
+                     {activePalette && <div className="h-6 w-px bg-border mx-1"></div>}
                      
                      {/* Grid Menu */}
                      <div className="relative">
@@ -4834,7 +6982,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             onClick={() => {
                                 setShowFileMenu(false);
                                 setShowEditMenu(false);
+                                setShowImageMenu(false);
+                                setShowLayerMenu(false);
+                                setShowSelectMenu(false);
+                                setShowFilterMenu(false);
                                 setShowViewMenu(false);
+                                setShowWindowMenu(false);
+                                setShowHelpMenu(false);
+                                setShowSettingsMenu(false);
                                 setShowToolsMenu(false);
                                 setShowExportMenu(false);
                                 setShowShareMenu(false);
@@ -4874,7 +7029,14 @@ document.addEventListener('DOMContentLoaded', () => {
                           onClick={() => {
                               setShowFileMenu(false);
                               setShowEditMenu(false);
+                              setShowImageMenu(false);
+                              setShowLayerMenu(false);
+                              setShowSelectMenu(false);
+                              setShowFilterMenu(false);
                               setShowViewMenu(false);
+                              setShowWindowMenu(false);
+                              setShowHelpMenu(false);
+                              setShowSettingsMenu(false);
                               setShowToolsMenu(false);
                               setShowGridMenu(false);
                               setShowExportMenu(false);
@@ -4888,7 +7050,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          {showShareMenu && (
                               <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                                   <button onClick={() => handleShare('facebook')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Facebook size={16} className="text-blue-600"/> <span className="font-medium">Facebook</span></button>
-                                  <button onClick={() => handleShare('instagram')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Instagram size={16} className="text-pink-600"/> <span className="font-medium">Instagram</span></button>
+                                  <button onClick={() => handleShare('instagram')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Instagram size={16} className="text-primary"/> <span className="font-medium">Instagram</span></button>
                             </div>
                         )}
                      </div>
@@ -4898,7 +7060,14 @@ document.addEventListener('DOMContentLoaded', () => {
                           onClick={() => {
                               setShowFileMenu(false);
                               setShowEditMenu(false);
+                              setShowImageMenu(false);
+                              setShowLayerMenu(false);
+                              setShowSelectMenu(false);
+                              setShowFilterMenu(false);
                               setShowViewMenu(false);
+                              setShowWindowMenu(false);
+                              setShowHelpMenu(false);
+                              setShowSettingsMenu(false);
                               setShowToolsMenu(false);
                               setShowGridMenu(false);
                               setShowShareMenu(false);
@@ -4914,7 +7083,7 @@ document.addEventListener('DOMContentLoaded', () => {
                               <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                                   <button onClick={() => handleExport('png')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-blue-500"/> <span className="font-medium">PNG</span></button>
                                   <button onClick={() => handleExport('jpg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-orange-500"/> <span className="font-medium">JPG</span></button>
-                                  <button onClick={() => handleExport('svg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-purple-500"/> <span className="font-medium">SVG</span></button>
+                                  <button onClick={() => handleExport('svg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-primary"/> <span className="font-medium">SVG</span></button>
                                   <button onClick={() => handleExport('pdf')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileText size={16} className="text-red-500"/> <span className="font-medium">PDF</span></button>
                                   <button onClick={() => handleExport('json')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-green-500"/> <span className="font-medium">JSON</span></button>
                                   <button onClick={() => handleExport('html')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-sky-400"/> <span className="font-medium">HTML Bundle</span></button>
@@ -4923,7 +7092,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      </div>
                      <button
                         onClick={() => setShowProfileModal(true)}
-                        className="relative w-9 h-9 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"
+                        className="relative w-9 h-9 rounded-full ui-avatar-gradient ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"
                         title="User Profile"
                      >
                         {profileSettings?.image ? (
@@ -4945,6 +7114,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <TopToolOptionsBar
                 activeTool={activeTool}
+                toolbarActions={{
+                    isDirty,
+                    canUndo: historyState.undo >= 2,
+                    canRedo: historyState.redo >= 1,
+                }}
+                onSave={() => {
+                    void handleSave();
+                }}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
                 selectOptions={{
                     autoSelectEnabled,
                     selectionMode,
@@ -4982,6 +7161,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }}
                 onSelectionExpand={() => handleSelectionModify('expand')}
                 onSelectionContract={() => handleSelectionModify('contract')}
+                onSelectToolChange={(tool) => {
+                    toolbarRef.current?.triggerTool(tool);
+                }}
                 wandOptions={{
                     threshold: wandTopThreshold,
                 }}
@@ -5000,6 +7182,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     setHealingTopHardness(Math.max(0, Math.min(100, Math.round(hardness))));
                 }}
                 onHealingSampleAllLayersChange={setHealingTopSampleAllLayers}
+                historyOptions={{
+                    size: historyBrushTopSize,
+                    hardness: historyBrushTopHardness,
+                    sampleAllLayers: historyBrushTopSampleAllLayers,
+                }}
+                onHistorySizeChange={(size) => {
+                    setHistoryBrushTopSize(Math.max(1, Math.min(200, Math.round(size))));
+                }}
+                onHistoryHardnessChange={(hardness) => {
+                    setHistoryBrushTopHardness(Math.max(0, Math.min(100, Math.round(hardness))));
+                }}
+                onHistorySampleAllLayersChange={setHistoryBrushTopSampleAllLayers}
+                blurOptions={{
+                    size: blurTopSize,
+                    strength: blurTopStrength,
+                    sampleAllLayers: blurTopSampleAllLayers,
+                }}
+                onBlurSizeChange={(size) => {
+                    setBlurTopSize(Math.max(1, Math.min(240, Math.round(size))));
+                }}
+                onBlurStrengthChange={(strength) => {
+                    setBlurTopStrength(Math.max(1, Math.min(100, Math.round(strength))));
+                }}
+                onBlurSampleAllLayersChange={setBlurTopSampleAllLayers}
+                sharpenOptions={{
+                    size: sharpenTopSize,
+                    strength: sharpenTopStrength,
+                    sampleAllLayers: sharpenTopSampleAllLayers,
+                }}
+                onSharpenSizeChange={(size) => {
+                    setSharpenTopSize(Math.max(1, Math.min(240, Math.round(size))));
+                }}
+                onSharpenStrengthChange={(strength) => {
+                    setSharpenTopStrength(Math.max(1, Math.min(100, Math.round(strength))));
+                }}
+                onSharpenSampleAllLayersChange={setSharpenTopSampleAllLayers}
+                dodgeOptions={{
+                    size: dodgeTopSize,
+                    exposure: dodgeTopExposure,
+                    protectTones: dodgeTopProtectTones,
+                }}
+                onDodgeSizeChange={(size) => {
+                    setDodgeTopSize(Math.max(1, Math.min(240, Math.round(size))));
+                }}
+                onDodgeExposureChange={(exposure) => {
+                    setDodgeTopExposure(Math.max(1, Math.min(100, Math.round(exposure))));
+                }}
+                onDodgeProtectTonesChange={setDodgeTopProtectTones}
                 cloneOptions={{
                     size: cloneTopSize,
                     hardness: cloneTopHardness,
@@ -5476,7 +7706,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             {/* Main Editor Layout */}
             <div className="flex flex-1 overflow-hidden relative">
-                <aside className="w-[60px] bg-card border-r flex flex-col items-center py-2 z-20 shadow-xl relative overflow-hidden">
+                <aside className="w-[60px] bg-card border-r flex flex-col items-center py-2 z-20 shadow-xl relative overflow-visible">
                             <Toolbar 
                                 ref={toolbarRef}
                         canvas={canvas} 
@@ -5501,6 +7731,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         }} 
                         onOpen3DEditor={(url) => setEditingModelUrl(url)} 
                         apiKeys={apiKeys} 
+                        zoomCursorMode={zoomTopMode}
+                        enableHoverLabels={expandToolRailLabelsOnHover}
                      />
                 </aside>
 
@@ -5518,6 +7750,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <PropertiesPanel 
                                 canvas={canvas} 
                                 activeTool={activeTool} 
+                                panelMode={propertiesPanelMode}
+                                onPanelModeChange={setPropertiesPanelMode}
                                 onLayerDblClick={(obj) => { 
                                     if(obj && canvas) {
                                         canvas.setActiveObject(obj);
@@ -5548,6 +7782,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onBrushSmoothingChange={setPaintBrushSmoothing}
                                 onBrushBlendModeChange={setPaintBlendMode}
                                 onActivatePaintTool={() => setActiveTool('paint')}
+                                enablePanelRailHoverLabels={expandToolRailLabelsOnHover}
                             />
                         </div>
                         <div 
@@ -5681,6 +7916,98 @@ document.addEventListener('DOMContentLoaded', () => {
                             initialHeight={initialSize?.height}
                             onRightClick={handleRightClick}
                         />
+                        {(lockedLayerOverlayEntries.length > 0 || canvasLockControl) && (
+                            <div className="absolute inset-0 z-20 pointer-events-none">
+                                {lockedLayerOverlayEntries.map((entry) => {
+                                    const isHovered = hoveredLockedLayerId === entry.id;
+                                    const isActiveLockTarget = canvasLockControl?.id === entry.id;
+                                    if (isActiveLockTarget) return null;
+
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={`locked-layer-overlay-${entry.id}`}
+                                            data-testid={`locked-layer-hover-unlock-${entry.id}`}
+                                            aria-label={`Unlock layer ${entry.object.name || entry.id}`}
+                                            className={`absolute pointer-events-auto flex items-center justify-center cursor-pointer transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.78)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-300/70 rounded-[2px] ${isHovered ? 'text-white' : 'text-slate-200/90 hover:text-white'}`}
+                                            style={{
+                                                left: `${entry.iconBounds.left}px`,
+                                                top: `${entry.iconBounds.top}px`,
+                                                width: `${entry.iconBounds.width}px`,
+                                                height: `${entry.iconBounds.height}px`,
+                                            }}
+                                            onMouseEnter={() => setHoveredLockedLayerId(entry.id)}
+                                            onMouseLeave={() => setHoveredLockedLayerId((current) => (current === entry.id ? null : current))}
+                                            onClick={(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                setObjectLockedFromCanvasOverlay(entry.object, false);
+                                                setHoveredLockedLayerId(null);
+                                            }}
+                                        >
+                                            <Lock size={Math.max(8, Math.round(entry.iconBounds.width * 0.82))} />
+                                        </button>
+                                    );
+                                })}
+                                {canvasLockControl && (
+                                    <button
+                                        type="button"
+                                        data-testid={`transform-lock-toggle-${canvasLockControl.id}`}
+                                        aria-label={canvasLockControl.label}
+                                        className={`absolute pointer-events-auto flex items-center justify-center cursor-pointer transition-colors drop-shadow-[0_1px_2px_rgba(0,0,0,0.78)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-300/70 rounded-[2px] ${canvasLockControl.locked
+                                            ? 'text-slate-100/95 hover:text-white'
+                                            : 'text-slate-400/95 hover:text-slate-200'}`}
+                                        style={{
+                                            left: `${canvasLockControl.buttonBounds.left}px`,
+                                            top: `${canvasLockControl.buttonBounds.top}px`,
+                                            width: `${canvasLockControl.buttonBounds.width}px`,
+                                            height: `${canvasLockControl.buttonBounds.height}px`,
+                                        }}
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            setObjectLockedFromCanvasOverlay(canvasLockControl.object, !canvasLockControl.locked);
+                                            setHoveredLockedLayerId(null);
+                                        }}
+                                    >
+                                        {canvasLockControl.locked
+                                            ? <Lock size={Math.max(9, Math.round(canvasLockControl.buttonBounds.width * 0.82))} />
+                                            : <Unlock size={Math.max(9, Math.round(canvasLockControl.buttonBounds.width * 0.82))} />}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {cursorPreview && (
+                            <div
+                                data-testid="canvas-cursor-preview"
+                                className="fixed z-30 pointer-events-none"
+                                style={{
+                                    left: `${cursorPreview.clientX}px`,
+                                    top: `${cursorPreview.clientY}px`,
+                                    transform: 'translate(-50%, -50%)',
+                                }}
+                            >
+                                {cursorPreview.kind === 'brush' ? (
+                                    <div
+                                        data-testid="canvas-cursor-preview-brush"
+                                        className="relative rounded-full border border-sky-300/95 shadow-[0_0_0_1px_rgba(15,23,42,0.55)]"
+                                        style={{
+                                            width: `${cursorPreview.diameter}px`,
+                                            height: `${cursorPreview.diameter}px`,
+                                        }}
+                                    >
+                                        <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-200/95 shadow-[0_0_0_1px_rgba(15,23,42,0.6)]" />
+                                    </div>
+                                ) : (
+                                    <div data-testid="canvas-cursor-preview-eyedropper" className="relative h-6 w-6">
+                                        <div className="absolute inset-0 rounded-full border border-sky-200/95 bg-slate-950/20 shadow-[0_0_0_1px_rgba(15,23,42,0.65)]" />
+                                        <div className="absolute left-1/2 top-[2px] h-[calc(100%-4px)] w-px -translate-x-1/2 bg-sky-100/95" />
+                                        <div className="absolute top-1/2 left-[2px] w-[calc(100%-4px)] h-px -translate-y-1/2 bg-sky-100/95" />
+                                        <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-100/95 shadow-[0_0_0_1px_rgba(15,23,42,0.8)]" />
+                                    </div>
+                                )}
+                            </div>
+                        )}
                    </div>
                    
                    <div
@@ -5755,6 +8082,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <PropertiesPanel 
                                 canvas={canvas} 
                                 activeTool={activeTool} 
+                                panelMode={propertiesPanelMode}
+                                onPanelModeChange={setPropertiesPanelMode}
                                 onLayerDblClick={(obj) => { 
                                     if(obj && canvas) {
                                         canvas.setActiveObject(obj);
@@ -5786,6 +8115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onBrushSmoothingChange={setPaintBrushSmoothing}
                                 onBrushBlendModeChange={setPaintBlendMode}
                                 onActivatePaintTool={() => setActiveTool('paint')}
+                                enablePanelRailHoverLabels={expandToolRailLabelsOnHover}
                             />
                         </div>
                         <div 
@@ -5822,6 +8152,8 @@ document.addEventListener('DOMContentLoaded', () => {
                              <PropertiesPanel 
                                 canvas={canvas} 
                                 activeTool={activeTool} 
+                                panelMode={propertiesPanelMode}
+                                onPanelModeChange={setPropertiesPanelMode}
                                 onLayerDblClick={(obj) => { 
                                     if(obj && canvas) {
                                         canvas.setActiveObject(obj);
@@ -5853,6 +8185,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 onBrushSmoothingChange={setPaintBrushSmoothing}
                                 onBrushBlendModeChange={setPaintBlendMode}
                                 onActivatePaintTool={() => setActiveTool('paint')}
+                                enablePanelRailHoverLabels={expandToolRailLabelsOnHover}
                             />
                         </div>
                     </div>
@@ -5867,6 +8200,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 onSelectTool={(tool) => { 
                     toolbarRef.current?.triggerTool(tool);
                 }}
+                onLayerOrderAction={handleContextLayerOrderAction}
+                layerOrderState={activeLayerOrderState}
             />
         </div>
     );

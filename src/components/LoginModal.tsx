@@ -180,7 +180,7 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-card w-full max-w-md p-8 rounded-2xl shadow-2xl border border-border/50 animate-in zoom-in-95 duration-300">
                 <div className="text-center mb-6">
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">Creative Flow</h1>
+                    <h1 className="text-2xl font-bold ui-brand-gradient-text">Creative Flow</h1>
                     <p className="text-sm text-muted-foreground mt-2">Secure access by email with admin approvals</p>
                 </div>
 

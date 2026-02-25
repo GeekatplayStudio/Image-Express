@@ -1,6 +1,6 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-02-24  
+Last updated: 2026-02-25  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 HEAD: 4dcd759
@@ -72,13 +72,13 @@ Verification method used:
 ### B) Menu Bar Upgrade Path
 - [x] File menu shell + mapped existing actions (`Save`, `Export As` launcher)
 - [x] Edit menu shell + mapped existing actions (`Undo`, `Redo`, `Duplicate`, `Preferences`)
-- [ ] Image menu shell + mapped actions
-- [ ] Layer menu shell + mapped actions
-- [ ] Select menu shell + mapped actions
-- [ ] Filter menu shell + mapped actions
+- [x] Image menu shell + mapped actions
+- [x] Layer menu shell + mapped actions
+- [x] Select menu shell + mapped actions
+- [x] Filter menu shell + mapped actions
 - [x] View menu shell + mapped existing actions (`Fit`, `Zoom In/Out`, `Show Grid`)
-- [ ] Window menu shell + mapped actions
-- [ ] Help menu shell + mapped actions
+- [x] Window menu shell + mapped actions
+- [x] Help menu shell + mapped actions
 
 ### C) Top Tool Options Bar Remaining
 - [x] C6: Shape/Rectangle family (all)
@@ -146,6 +146,13 @@ Completed in this pass (D1 rail taxonomy expansion slice):
 - [x] Extended rail persistence + hydration tests for new modes.
 - [x] Added `PropertiesPanel` test coverage for brushes mode control wiring.
 
+Completed in this pass (layer lock canvas interaction slice):
+- [x] Added direct on-canvas lock badges for locked layers with click-to-unlock behavior.
+- [x] Added pale hover outline feedback for locked layers to reduce accidental drag attempts.
+- [x] Extended lock-badge hit-testing to nested locked child layers inside groups (while preventing duplicate child badges when parent group is locked).
+- [x] Added `EditorView` regression coverage for lock badge unlock flow (top-level and grouped child layers).
+- [x] Validation rerun: `npm test -- src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`, `npm run build`.
+
 ### E) Missing Tools Program
 - [x] Alias/identity first phase (Move/Hand/Zoom/Path select aliases)
 - [x] Raster selection tools (marquee/lasso/wand/selection modify complete)
@@ -191,9 +198,25 @@ Completed in this pass (E3 retouch bootstrap slice):
 - [x] Added left-rail tool identities for `Healing Brush` and `Clone Stamp` with cursor/tool routing.
 - [x] Added tool-menu entries and keyboard aliases (`J` for Healing, `S` for Clone Stamp).
 - [x] Added top option control surfaces for healing/clone bootstrap settings (size/hardness/sample/alignment/source state).
-- [x] Added clone source-point scaffolding (`Option`-click sets source) and safe no-op fallback behavior for both tools while raster retouch engine integration is pending.
+- [x] Added clone source-point scaffolding (`Option`-click sets source).
 - [x] Added focused tests for healing/clone top controls, keyboard alias routing, toolbar activation, and clone source scaffolding behavior.
 - [x] Validation rerun: `npm test -- src/components/__tests__/Toolbar.test.tsx src/components/Editor/__tests__/TopToolOptionsBar.test.tsx src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`, `npm run build`.
+- [x] Added left-rail `History Brush` bootstrap identity with cursor/tool routing.
+- [x] Added tools-menu entry and keyboard alias (`Y`) for history brush activation.
+- [x] Added top option control surface for history brush bootstrap settings (size/hardness/sample state).
+- [x] Added focused tests for history brush top controls, toolbar activation, tools-menu routing, and keyboard alias handling.
+- [x] Validation rerun: `npm test -- src/components/Editor/__tests__/ToolsDropdownMenu.test.tsx src/components/Editor/__tests__/TopToolOptionsBar.test.tsx src/components/Editor/__tests__/EditorView.test.tsx src/components/__tests__/Toolbar.test.tsx --watch=false`, `npm run lint`, `npm run build`.
+- [x] Added left-rail `Blur Tool` and `Dodge Tool` bootstrap identities with cursor/tool routing.
+- [x] Added tools-menu entries and keyboard aliases (`B` for Blur, `O` for Dodge).
+- [x] Added top option control surfaces for blur/dodge bootstrap settings (size/strength/sample and size/exposure/protect tones).
+- [x] Added focused tests for blur/dodge top controls, toolbar activation, tools-menu routing, and keyboard alias handling.
+- [x] Validation rerun: `npm test -- src/components/Editor/__tests__/ToolsDropdownMenu.test.tsx src/components/Editor/__tests__/TopToolOptionsBar.test.tsx src/components/Editor/__tests__/EditorView.test.tsx src/components/__tests__/Toolbar.test.tsx --watch=false`, `npm run lint`, `npm run build`.
+- [x] Added first-pass dedicated raster retouch layer engine and wired live stroke mutations for clone/healing/history/blur/dodge.
+- [x] Added retouch utility module (`src/lib/retouch-engine.ts`) for soft masks, stroke interpolation, and sampled/dodge dab stamping.
+- [x] Added clone aligned-flow continuation and history-source snapshot capture for retouch strokes.
+- [x] Preserved safe warning behavior only when source pixels are unavailable, instead of unconditional no-op.
+- [x] Added regression tests for retouch-layer creation/reuse and unavailable-context handling in `EditorView` plus retouch utility unit tests.
+- [x] Validation rerun: `npm test -- src/components/Editor/__tests__/EditorView.test.tsx src/components/Editor/__tests__/TopToolOptionsBar.test.tsx src/components/Editor/__tests__/ToolsDropdownMenu.test.tsx src/components/__tests__/Toolbar.test.tsx --watch=false`, `npm run lint`, `npm run build`.
 
 ### F) Bottom-Right Utility Upgrade
 - [x] Utility cluster placement and overlap-safe status chips
@@ -220,6 +243,81 @@ Completed in this pass (B1/B2/B7 menu-shell first increment):
 - [x] Wired `View` menu to existing viewport/grid flows (`Fit to Screen`, `Zoom In`, `Zoom Out`, `Show/Hide Grid`).
 - [x] Added smoke test coverage for menu action wiring and keyboard coexistence in `EditorView`.
 - [x] Validation rerun: `npm test -- src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`, `npm run build`.
+
+Completed in this pass (B8 window menu panel wiring):
+- [x] Added `Window` dropdown shell in editor header.
+- [x] Added panel toggles for Layers/Properties/History/Color/Swatches/Brushes/Channels/Adjustments/Navigator/Info.
+- [x] Wired toggles to real shared panel-mode state (EditorView <-> PropertiesPanel) with persisted mode hydration.
+- [x] Added panel visibility + dock-mode toggles (show/hide, dock left/right, float) that reflect live panel state.
+- [x] Added/updated `EditorView` integration test coverage for window menu toggle state reflection.
+- [x] Validation rerun: `npm test -- src/components/Editor/__tests__/EditorView.test.tsx src/components/__tests__/PropertiesPanel.test.tsx`, `npm run lint`, `npm run build`.
+
+Completed in this pass (tool rail hover-label discoverability slice):
+- [x] Added left toolbar hover-expand behavior to reveal tool names while keeping default icon-first compact layout.
+- [x] Added right panel rail hover-expand behavior to reveal panel labels with the same interaction model.
+- [x] Added a persisted configuration toggle in `Settings` to enable/disable hover expansion (`Expand side tool rails on hover`).
+- [x] Wired editor runtime to rehydrate/apply preference changes via shared UI-preferences storage/event.
+- [x] Validation rerun: `npm test -- src/components/__tests__/Toolbar.test.tsx src/components/properties/__tests__/PanelModeRail.test.tsx src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`, `npm run build`.
+
+Completed in this pass (E3 retouch fidelity + regression slice):
+- [x] Added safer all-layers retouch source fallback when `toCanvasElement` snapshot export is unavailable (including tainted/cross-origin snapshot failure scenarios) by sampling from runtime lower canvas with viewport-aware crop mapping.
+- [x] Extracted clone aligned source-point continuation into shared helper logic and added dedicated regression unit coverage.
+- [x] Added `EditorView` regression coverage for:
+  - lower-canvas fallback source sampling path,
+  - history-brush per-stroke source snapshot restore semantics.
+- [x] Validation rerun: `npm test -- src/lib/__tests__/retouch-engine.test.ts src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`, `npm run build`.
+
+Completed in this pass (E3 retouch blend/softness calibration slice):
+- [x] Expanded retouch brush profiles with mode-aware compositing metadata and optional secondary-pass blending.
+- [x] Tuned healing/blur/sharpen/dodge calibration curves for opacity, hardness, spacing, and effect strength to reduce haloing/smearing at extreme sizes/strengths.
+- [x] Added healing two-pass stamping (`source-over` base + `soft-light` detail pass) for smoother blend fidelity.
+- [x] Added focused unit coverage for profile calibration behavior across healing/blur/sharpen/dodge modes.
+- [x] Validation rerun: `npm test -- --runInBand src/lib/__tests__/retouch-engine.test.ts src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`, `npm run build`.
+
+Completed in this pass (Phase 4 left-toolbar utility + cursor foundation slice):
+- [x] Added persistent left-rail utility tools (`Crop`, `Eyedropper`, `Zoom`, `Hand`) so they are no longer dropdown-only.
+- [x] Added bottom utility FG/BG/swap cluster in the left rail with canvas sync event (`toolbar:color:change`) for downstream consumers.
+- [x] Replaced ad-hoc cursor conditionals with a centralized cursor resolver and added zoom cursor mode parity (`zoom-in`/`zoom-out`) from top options.
+- [x] Wired toolbar zoom cursor mode from `EditorView` (`zoomTopMode`) into toolbar cursor handling.
+- [x] Added/updated toolbar regression coverage for persistent utility controls, zoom-out cursor mode, and color swap sync event.
+- [x] Validation rerun: `npm test -- --runInBand src/components/__tests__/Toolbar.test.tsx src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`, `npm run build`.
+
+Completed in this pass (Phase 4 cursor realism + test-coverage audit slice):
+- [x] Added real on-canvas tool cursor previews in workspace:
+  - brush-size ring for paint/retouch family tools,
+  - target-style cursor for eyedropper.
+- [x] Added viewport-aware pointer mapping for cursor previews with scene-point fallback.
+- [x] Added `EditorView` regression tests for brush cursor preview rendering and eyedropper target preview rendering.
+- [x] Full suite audit rerun completed: `npm test -- --runInBand` (50 suites / 346 tests), then `npm run lint`, `npm run build`.
+- [x] Confirmed intentional placeholder remains only where explicitly marked (e.g. Channels panel coming-soon surface), not in active cursor workflows.
+
+Completed in this pass (Phase 4 selection-group parity slice):
+- [x] Added `Quick Selection` and `Selection Brush` identities across tool surfaces (left rail group, tools dropdown, select menu, keyboard aliases).
+- [x] Routed `Quick Selection` through the existing wand-selection pipeline and `Selection Brush` through the existing lasso-selection pipeline with safe fallback behavior.
+- [x] Added top-options parity for selection subtool switching and wand-threshold behavior in quick-select mode.
+- [x] Synced circular right-click tool menu with new selection tools so context actions reflect current tool taxonomy.
+- [x] Added/updated regression coverage in:
+  - `ToolsDropdownMenu.test.tsx`
+  - `Toolbar.test.tsx`
+  - `TopToolOptionsBar.test.tsx`
+  - `EditorView.test.tsx`
+- [x] Validation rerun: `npm test -- --runInBand` (50 suites / 351 tests), `npm run lint`, `npm run build`.
+
+Completed in this pass (crop + picker reliability slice):
+- [x] Added crop drag-draft bounds directly in workspace canvas for crop tool (drag on canvas, apply from top bar, Enter shortcut).
+- [x] Updated crop apply flow to prioritize draft bounds when present, with helper cleanup and success messaging.
+- [x] Added true eyedropper point sampling from clicked canvas scene-point (instead of center-only fallback), preserving source/size options.
+- [x] Updated left-toolbar picker behavior to open the color wheel while eyedropper is active.
+- [x] Refreshed color wheel panel UX with hue ring + SV square interaction, harmony mode swatches (complementary/triadic/tetradic/etc), and saved swatches.
+- [x] Added/updated regression coverage in `Toolbar.test.tsx` and `EditorView.test.tsx` for picker-panel open, pointer sampling, and crop draft apply flow.
+- [x] Validation rerun: `npm test -- --runInBand` (50 suites / 354 tests), `npm run lint`, `npm run build`.
+
+Completed in this pass (picker interaction hardening + key-stability slice):
+- [x] Prevented eyedropper clicks from selecting canvas layers by disabling target-finding while picker mode is active.
+- [x] Prevented auto tool-switch fallback (`-> select`) for eyedropper/crop/zoom/hand utility tools when selection events fire.
+- [x] Added regression coverage ensuring eyedropper remains active during sampling and does not collapse to layer-select behavior.
+- [x] Fixed duplicate React key warnings in color wheel harmony/swatch lists by using stable indexed keys.
+- [x] Validation rerun: `npm test -- --runInBand src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`.
 
 ### H) Implementation Status Snapshot
 - [x] Phase 1 complete
@@ -249,16 +347,15 @@ From `feature_implementation_tracker.md`:
 ---
 
 ## Current Recommended Next Step
-Proceed with **E3 advanced raster retouch tools path (Phase 7+)**:
-- [ ] Implement `History Brush` bootstrap identity and safe no-op fallback behavior.
-- [ ] Add `Blur` and `Dodge` tool identities with top-option scaffolding.
-- [ ] Start replacing healing/clone no-op fallback with real raster sampling/mutation path on dedicated raster layers.
+Proceed with **Phase 4 left-toolbar parity completion**:
+- [ ] Continue Retouch group parity slice: add `Spot Healing`, `Remove`, `Burn`, and `Sponge` tool identities (engine-safe aliases where behavior is partial).
+- [ ] Run reference screenshot parity smoke checks for Select, Retouch, Paint, Shapes, Type, and Add Image groups.
 
 ---
 
 ## Files This Consolidates
-- `docs/imageprocessingui_upgrade_execution_checklist.md`
+- `docs/imageprocessingui_upgrade_execution_checklist.md` (archived pointer)
 - `docs/feature_implementation_tracker.md`
 - `docs/chat_continuation_handoff_2026-02-23.md`
 
-These files remain useful for detail/history, but this file is canonical for progress state.
+These files remain useful for detail/history, but all progress tracking must happen in this file.

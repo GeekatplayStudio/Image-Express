@@ -11,10 +11,16 @@ import {
     Brush,
     ShieldCheck,
     Copy,
+    History,
+    Blend,
+    Sun,
+    Sparkles,
+    Scan,
     PaintBucket,
     Crop,
     Pipette,
     Hand,
+    Search,
     Image as ImageIcon,
     LayoutTemplate,
     Box,
@@ -48,6 +54,16 @@ export default function ToolsDropdownMenu({ onTriggerTool }: ToolsDropdownMenuPr
                 <span className="flex-1">Magic Wand</span>
                 <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">W</span>
             </button>
+            <button onClick={() => onTriggerTool('quick-select')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                <Wand2 size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
+                <span className="flex-1">Quick Selection</span>
+                <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">Q</span>
+            </button>
+            <button onClick={() => onTriggerTool('selection-brush')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                <Brush size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
+                <span className="flex-1">Selection Brush</span>
+                <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">K</span>
+            </button>
             <button onClick={() => onTriggerTool('path-select')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                 <PenTool size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
                 <span className="flex-1">Path Select</span>
@@ -67,13 +83,25 @@ export default function ToolsDropdownMenu({ onTriggerTool }: ToolsDropdownMenuPr
                     <Shapes size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Shapes</span>
                 </button>
                 <button onClick={() => onTriggerTool('paint')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
-                    <Brush size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Brush</span>
+                    <Brush size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Brushes</span>
                 </button>
                 <button onClick={() => onTriggerTool('healing')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
                     <ShieldCheck size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Healing</span>
                 </button>
                 <button onClick={() => onTriggerTool('clone-stamp')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
                     <Copy size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Clone Stamp</span>
+                </button>
+                <button onClick={() => onTriggerTool('history-brush')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
+                    <History size={16} className="text-muted-foreground group-hover:text-primary"/> <span>History Brush</span>
+                </button>
+                <button onClick={() => onTriggerTool('blur')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
+                    <Blend size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Blur Tool</span>
+                </button>
+                <button onClick={() => onTriggerTool('sharpen')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
+                    <Scan size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Sharpen Tool</span>
+                </button>
+                <button onClick={() => onTriggerTool('dodge')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
+                    <Sun size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Dodge Tool</span>
                 </button>
                 <button onClick={() => onTriggerTool('pen')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
                     <PenTool size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Pen</span>
@@ -93,7 +121,7 @@ export default function ToolsDropdownMenu({ onTriggerTool }: ToolsDropdownMenuPr
                     <Pipette size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Eyedropper</span>
                 </button>
                 <button onClick={() => onTriggerTool('zoom')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
-                    <Square size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Zoom</span>
+                    <Search size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Zoom</span>
                 </button>
                 <button onClick={() => onTriggerTool('hand')} className="text-left px-3 py-2 text-sm hover:bg-secondary/50 flex items-center gap-2 rounded-lg group">
                     <Hand size={16} className="text-muted-foreground group-hover:text-primary"/> <span>Hand</span>
@@ -112,10 +140,10 @@ export default function ToolsDropdownMenu({ onTriggerTool }: ToolsDropdownMenuPr
             <div className="my-1 border-t border-border/50" />
             <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">AI & 3D</div>
             <button onClick={() => onTriggerTool('ai-zone')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                <Wand2 size={16} className="text-purple-500 group-hover:text-purple-600 transition-colors"/> <span>AI Zone</span>
+                <Sparkles size={16} className="text-primary group-hover:text-primary/90 transition-colors"/> <span>AI Zone</span>
             </button>
             <button onClick={() => onTriggerTool('3d-gen')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                <Box size={16} className="text-indigo-500 group-hover:text-indigo-600 transition-colors"/> <span>AI 3D</span>
+                <Box size={16} className="text-primary group-hover:text-primary/90 transition-colors"/> <span>AI 3D</span>
             </button>
         </div>
     );
