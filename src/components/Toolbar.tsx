@@ -1190,11 +1190,18 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         canvas.setActiveObject(text);
     };
 
-    const syncToolbarColorsToCanvas = useCallback((nextForeground: string, nextBackground: string) => {
+    const syncToolbarColorsToCanvas = useCallback((
+        nextForeground: string,
+        nextBackground: string,
+        options?: { applyToActiveObject?: boolean }
+    ) => {
         if (!canvas) return;
 
+        const applyToActiveObject = options?.applyToActiveObject ?? true;
         const activeObject = canvas.getActiveObject() as (fabric.Object & { fill?: unknown }) | null;
-        if (activeObject && 'fill' in activeObject) {
+        // Some color updates (eyedropper sampling) should update toolbar state only,
+        // not mutate the currently selected layer fill.
+        if (applyToActiveObject && activeObject && 'fill' in activeObject) {
             activeObject.set({ fill: nextForeground as never });
             activeObject.setCoords();
             canvas.requestRenderAll();
@@ -1208,6 +1215,26 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             backgroundColor: nextBackground,
         });
     }, [canvas]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        const canvasEventBus = canvas as unknown as {
+            on: (eventName: string, cb: (payload?: { color?: string }) => void) => void;
+            off: (eventName: string, cb: (payload?: { color?: string }) => void) => void;
+        };
+
+        // Keep wheel/toolbar color in sync with sampled canvas pixels while eyedropper is active.
+        const handleEyedropperSample = (payload?: { color?: string }) => {
+            if (!payload?.color) return;
+            setForegroundColor(payload.color);
+            syncToolbarColorsToCanvas(payload.color, backgroundColor, { applyToActiveObject: false });
+        };
+
+        canvasEventBus.on('eyedropper:sample', handleEyedropperSample);
+        return () => {
+            canvasEventBus.off('eyedropper:sample', handleEyedropperSample);
+        };
+    }, [backgroundColor, canvas, syncToolbarColorsToCanvas]);
 
     const handleForegroundColorChange = (nextColor: string) => {
         if (!nextColor) return;
@@ -2191,6 +2218,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     onPaletteSelect={(palette) => {
                          if (setActivePalette) setActivePalette(palette);
                     }}
+                    selectedColor={foregroundColor}
                 />
             )}
 

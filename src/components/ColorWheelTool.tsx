@@ -7,13 +7,14 @@ interface ColorWheelToolProps {
     onColorSelect: (color: string) => void;
     currentPalette: ColorPalette | null;
     onPaletteSelect: (palette: ColorPalette | null) => void;
+    selectedColor?: string;
 }
 
 type DragTarget = 'hue' | 'sv';
 
-const RING_SIZE = 220;
-const RING_THICKNESS = 28;
-const SV_SIZE = 132;
+const RING_SIZE = 240;
+const RING_THICKNESS = 30;
+const SV_SIZE = 164;
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
@@ -114,8 +115,8 @@ const getHarmonyColors = (baseHex: string, count: number) => {
     return colors;
 };
 
-export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect }: ColorWheelToolProps) => {
-    const [selectedColor, setSelectedColor] = useState('#000000');
+export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect, selectedColor: controlledColor }: ColorWheelToolProps) => {
+    const [internalSelectedColor, setInternalSelectedColor] = useState(() => normalizeHex(controlledColor ?? '#000000'));
     const [harmonyCount, setHarmonyCount] = useState(5);
     const [savedSwatches, setSavedSwatches] = useState<string[]>(() => {
         if (typeof window === 'undefined') return [];
@@ -135,6 +136,12 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect 
     const ringRef = useRef<HTMLDivElement>(null);
     const squareRef = useRef<HTMLDivElement>(null);
 
+    // Supports both local wheel interaction and external updates (e.g. eyedropper sample event).
+    const selectedColor = useMemo(
+        () => normalizeHex(typeof controlledColor === 'string' ? controlledColor : internalSelectedColor),
+        [controlledColor, internalSelectedColor]
+    );
+
     const { h, s, v } = useMemo(() => {
         const rgb = hexToRgb(selectedColor);
         return rgbToHsv(rgb.r, rgb.g, rgb.b);
@@ -150,7 +157,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect 
 
     const applyColor = useCallback((color: string) => {
         const normalized = normalizeHex(color);
-        setSelectedColor(normalized);
+        setInternalSelectedColor(normalized);
         onColorSelect(normalized);
     }, [onColorSelect]);
 
@@ -210,7 +217,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect 
     const svY = (1 - v) * SV_SIZE;
 
     return (
-        <div className="fixed left-[74px] top-16 z-[40] w-[360px] rounded-2xl border border-border/70 bg-card/95 p-4 shadow-2xl backdrop-blur-sm">
+        <div className="fixed left-[74px] top-16 z-[40] w-[430px] rounded-2xl border border-border/70 bg-card/95 p-4 shadow-2xl backdrop-blur-sm">
             <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-2xl font-semibold tracking-tight">Foreground color</h3>
                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -233,11 +240,11 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect 
                 </div>
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex gap-5">
                 <div className="flex flex-col items-center gap-3">
                     <div
                         ref={ringRef}
-                        className="relative cursor-crosshair rounded-full"
+                        className="relative cursor-crosshair rounded-full border border-border/60 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
                         style={{
                             width: `${RING_SIZE}px`,
                             height: `${RING_SIZE}px`,
@@ -260,7 +267,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect 
 
                         <div
                             ref={squareRef}
-                            className="absolute overflow-hidden rounded-xl border border-black/30"
+                            className="absolute overflow-hidden rounded-2xl border border-black/40 shadow-[0_10px_24px_rgba(0,0,0,0.3)]"
                             style={{
                                 left: `${(RING_SIZE - SV_SIZE) / 2}px`,
                                 top: `${(RING_SIZE - SV_SIZE) / 2}px`,
@@ -274,16 +281,16 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect 
                                 updateSvFromClient(event.clientX, event.clientY);
                             }}
                         >
-                            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white to-transparent" />
+                            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white via-white/70 to-transparent" />
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black to-transparent" />
                             <div
-                                className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow"
+                                className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_1px_6px_rgba(0,0,0,0.6)]"
                                 style={{ left: `${svX}px`, top: `${svY}px` }}
                             />
                         </div>
 
                         <div
-                            className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow"
+                            className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_1px_6px_rgba(0,0,0,0.6)]"
                             style={{ left: `${hueHandleX}px`, top: `${hueHandleY}px` }}
                         />
                     </div>

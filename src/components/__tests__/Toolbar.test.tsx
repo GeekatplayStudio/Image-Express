@@ -63,11 +63,14 @@ jest.mock('../ColorWheelTool', () => ({
     ColorWheelTool: ({
         onColorSelect,
         onPaletteSelect,
+        selectedColor,
     }: {
         onColorSelect: (color: string) => void;
         onPaletteSelect: (palette: { id: string; name: string; colors: string[] }) => void;
+        selectedColor?: string;
     }) => (
         <div data-testid="mock-color-wheel-tool">
+            <div data-testid="mock-wheel-selected-color">{selectedColor}</div>
             <button onClick={() => onColorSelect('#123456')}>Apply Color</button>
             <button
                 onClick={() =>
@@ -374,6 +377,31 @@ describe('Toolbar', () => {
             'toolbar:color:change',
             expect.objectContaining({
                 foregroundColor: '#123456',
+                backgroundColor: '#ffffff',
+            })
+        );
+    });
+
+    it('syncs eyedropper sampled color into the wheel selected color', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Eyedropper'));
+        expect(setActiveToolSpy).toHaveBeenCalledWith('eyedropper');
+        expect(screen.getByTestId('mock-color-wheel-tool')).toBeInTheDocument();
+
+        const eyedropperSampleHandler = canvas.on.mock.calls
+            .find((call) => call[0] === 'eyedropper:sample')?.[1] as ((payload?: { color?: string }) => void) | undefined;
+        expect(eyedropperSampleHandler).toBeDefined();
+
+        act(() => {
+            eyedropperSampleHandler?.({ color: '#abcdef' });
+        });
+
+        expect(screen.getByTestId('mock-wheel-selected-color')).toHaveTextContent('#abcdef');
+        expect(canvas.fire).toHaveBeenCalledWith(
+            'toolbar:color:change',
+            expect.objectContaining({
+                foregroundColor: '#abcdef',
                 backgroundColor: '#ffffff',
             })
         );
