@@ -228,6 +228,21 @@ type MediaOverlayPersistedState = {
     preset: MediaOverlayPreset;
     frameBounds?: RectBounds;
 };
+type EditorMenuId =
+    | 'file'
+    | 'edit'
+    | 'image'
+    | 'layer'
+    | 'select'
+    | 'filter'
+    | 'view'
+    | 'window'
+    | 'settings'
+    | 'help'
+    | 'export'
+    | 'share'
+    | 'grid'
+    | 'tools';
 const DISABLED_LAYER_ORDER_STATE: LayerOrderState = {
     enabled: false,
     canMoveUp: false,
@@ -918,6 +933,56 @@ export default function EditorView({
     const shareRef = useRef<HTMLDivElement>(null);
     const [showGridMenu, setShowGridMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
+    const closeEditorMenus = useCallback((except?: EditorMenuId) => {
+        if (except !== 'file') setShowFileMenu(false);
+        if (except !== 'edit') setShowEditMenu(false);
+        if (except !== 'image') setShowImageMenu(false);
+        if (except !== 'layer') setShowLayerMenu(false);
+        if (except !== 'select') setShowSelectMenu(false);
+        if (except !== 'filter') setShowFilterMenu(false);
+        if (except !== 'view') setShowViewMenu(false);
+        if (except !== 'window') setShowWindowMenu(false);
+        if (except !== 'settings') setShowSettingsMenu(false);
+        if (except !== 'help') setShowHelpMenu(false);
+        if (except !== 'export') setShowExportMenu(false);
+        if (except !== 'share') setShowShareMenu(false);
+        if (except !== 'grid') setShowGridMenu(false);
+        if (except !== 'tools') setShowToolsMenu(false);
+    }, []);
+    const toggleEditorMenu = useCallback((menu: EditorMenuId) => {
+        closeEditorMenus(menu);
+        if (menu === 'file') setShowFileMenu((prev) => !prev);
+        if (menu === 'edit') setShowEditMenu((prev) => !prev);
+        if (menu === 'image') setShowImageMenu((prev) => !prev);
+        if (menu === 'layer') setShowLayerMenu((prev) => !prev);
+        if (menu === 'select') setShowSelectMenu((prev) => !prev);
+        if (menu === 'filter') setShowFilterMenu((prev) => !prev);
+        if (menu === 'view') setShowViewMenu((prev) => !prev);
+        if (menu === 'window') setShowWindowMenu((prev) => !prev);
+        if (menu === 'settings') setShowSettingsMenu((prev) => !prev);
+        if (menu === 'help') setShowHelpMenu((prev) => !prev);
+        if (menu === 'export') setShowExportMenu((prev) => !prev);
+        if (menu === 'share') setShowShareMenu((prev) => !prev);
+        if (menu === 'grid') setShowGridMenu((prev) => !prev);
+        if (menu === 'tools') setShowToolsMenu((prev) => !prev);
+    }, [closeEditorMenus]);
+    const openEditorMenu = useCallback((menu: EditorMenuId) => {
+        closeEditorMenus(menu);
+        if (menu === 'file') setShowFileMenu(true);
+        if (menu === 'edit') setShowEditMenu(true);
+        if (menu === 'image') setShowImageMenu(true);
+        if (menu === 'layer') setShowLayerMenu(true);
+        if (menu === 'select') setShowSelectMenu(true);
+        if (menu === 'filter') setShowFilterMenu(true);
+        if (menu === 'view') setShowViewMenu(true);
+        if (menu === 'window') setShowWindowMenu(true);
+        if (menu === 'settings') setShowSettingsMenu(true);
+        if (menu === 'help') setShowHelpMenu(true);
+        if (menu === 'export') setShowExportMenu(true);
+        if (menu === 'share') setShowShareMenu(true);
+        if (menu === 'grid') setShowGridMenu(true);
+        if (menu === 'tools') setShowToolsMenu(true);
+    }, [closeEditorMenus]);
     const [gridType, setGridType] = useState<GridType>('none');
     const [utilityCanvasSize, setUtilityCanvasSize] = useState({ width: 1080, height: 1080 });
     const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -3489,81 +3554,31 @@ export default function EditorView({
                 setShowExportQualityModal(false);
                 return;
             }
-            if (showFileMenu) {
+            if (
+                showFileMenu
+                || showEditMenu
+                || showImageMenu
+                || showLayerMenu
+                || showSelectMenu
+                || showFilterMenu
+                || showViewMenu
+                || showWindowMenu
+                || showSettingsMenu
+                || showHelpMenu
+                || showExportMenu
+                || showShareMenu
+                || showGridMenu
+                || showToolsMenu
+            ) {
                 event.preventDefault();
-                setShowFileMenu(false);
-                return;
-            }
-            if (showEditMenu) {
-                event.preventDefault();
-                setShowEditMenu(false);
-                return;
-            }
-            if (showImageMenu) {
-                event.preventDefault();
-                setShowImageMenu(false);
-                return;
-            }
-            if (showLayerMenu) {
-                event.preventDefault();
-                setShowLayerMenu(false);
-                return;
-            }
-            if (showSelectMenu) {
-                event.preventDefault();
-                setShowSelectMenu(false);
-                return;
-            }
-            if (showFilterMenu) {
-                event.preventDefault();
-                setShowFilterMenu(false);
-                return;
-            }
-            if (showViewMenu) {
-                event.preventDefault();
-                setShowViewMenu(false);
-                return;
-            }
-            if (showWindowMenu) {
-                event.preventDefault();
-                setShowWindowMenu(false);
-                return;
-            }
-            if (showSettingsMenu) {
-                event.preventDefault();
-                setShowSettingsMenu(false);
-                return;
-            }
-            if (showHelpMenu) {
-                event.preventDefault();
-                setShowHelpMenu(false);
-                return;
-            }
-            if (showExportMenu) {
-                event.preventDefault();
-                setShowExportMenu(false);
-                return;
-            }
-            if (showShareMenu) {
-                event.preventDefault();
-                setShowShareMenu(false);
-                return;
-            }
-            if (showGridMenu) {
-                event.preventDefault();
-                setShowGridMenu(false);
-                return;
-            }
-            if (showToolsMenu) {
-                event.preventDefault();
-                setShowToolsMenu(false);
+                closeEditorMenus();
                 return;
             }
         };
 
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [showEditMenu, showExportMenu, showExportQualityModal, showFileMenu, showFilterMenu, showGridMenu, showHelpMenu, showImageMenu, showLayerMenu, showSelectMenu, showSettingsMenu, showShareMenu, showToolsMenu, showViewMenu, showWindowMenu]);
+    }, [closeEditorMenus, showEditMenu, showExportMenu, showExportQualityModal, showFileMenu, showFilterMenu, showGridMenu, showHelpMenu, showImageMenu, showLayerMenu, showSelectMenu, showSettingsMenu, showShareMenu, showToolsMenu, showViewMenu, showWindowMenu]);
 
     // --- Save Logic ---
     const handleSave = async () => {
@@ -6897,20 +6912,7 @@ document.addEventListener('DOMContentLoaded', () => {
                               const next = !showTopNavMenus;
                               setShowTopNavMenus(next);
                               if (!next) {
-                                  setShowFileMenu(false);
-                                  setShowEditMenu(false);
-                                  setShowImageMenu(false);
-                                  setShowLayerMenu(false);
-                                  setShowSelectMenu(false);
-                                  setShowFilterMenu(false);
-                                  setShowViewMenu(false);
-                                  setShowWindowMenu(false);
-                                  setShowSettingsMenu(false);
-                                  setShowHelpMenu(false);
-                                  setShowExportMenu(false);
-                                  setShowShareMenu(false);
-                                  setShowGridMenu(false);
-                                  setShowToolsMenu(false);
+                                  closeEditorMenus();
                               }
                           }}
                           className="h-8 w-8 rounded-full border border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground transition-colors inline-flex items-center justify-center"
@@ -6927,22 +6929,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
                         <div className="relative order-1">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowFileMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('file')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showFileMenu}
                             >
@@ -6962,20 +6949,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setShowFileMenu(false);
-                                            setShowEditMenu(false);
-                                            setShowImageMenu(false);
-                                            setShowLayerMenu(false);
-                                            setShowSelectMenu(false);
-                                            setShowFilterMenu(false);
-                                            setShowViewMenu(false);
-                                            setShowToolsMenu(false);
-                                            setShowGridMenu(false);
-                                            setShowShareMenu(false);
-                                            setShowWindowMenu(false);
-                                            setShowHelpMenu(false);
-                                            setShowSettingsMenu(false);
-                                            setShowExportMenu(true);
+                                            openEditorMenu('export');
                                         }}
                                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                                     >
@@ -6986,22 +6960,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-3">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowImageMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('image')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showImageMenu}
                             >
@@ -7061,22 +7020,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-4">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowLayerMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('layer')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showLayerMenu}
                             >
@@ -7160,22 +7104,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-5">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowSelectMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('select')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showSelectMenu}
                             >
@@ -7280,22 +7209,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-6">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowFilterMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('filter')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showFilterMenu}
                             >
@@ -7355,22 +7269,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-2">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowEditMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('edit')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showEditMenu}
                             >
@@ -7413,22 +7312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-7">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowViewMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('view')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showViewMenu}
                             >
@@ -7479,22 +7363,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-8">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowWindowMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('window')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showWindowMenu}
                             >
@@ -7589,22 +7458,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-9">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowHelpMenu(false);
-                                    setShowSettingsMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('settings')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showSettingsMenu}
                             >
@@ -7638,22 +7492,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div className="relative order-10">
                             <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowGridMenu(false);
-                                    setShowShareMenu(false);
-                                    setShowToolsMenu(false);
-                                    setShowFileMenu(false);
-                                    setShowEditMenu(false);
-                                    setShowImageMenu(false);
-                                    setShowLayerMenu(false);
-                                    setShowSelectMenu(false);
-                                    setShowFilterMenu(false);
-                                    setShowViewMenu(false);
-                                    setShowWindowMenu(false);
-                                    setShowSettingsMenu(false);
-                                    setShowHelpMenu((prev) => !prev);
-                                }}
+                                onClick={() => toggleEditorMenu('help')}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                                 aria-expanded={showHelpMenu}
                             >
@@ -7735,22 +7574,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      {/* Grid Menu */}
                      <div className="relative">
                         <button 
-                            onClick={() => {
-                                setShowFileMenu(false);
-                                setShowEditMenu(false);
-                                setShowImageMenu(false);
-                                setShowLayerMenu(false);
-                                setShowSelectMenu(false);
-                                setShowFilterMenu(false);
-                                setShowViewMenu(false);
-                                setShowWindowMenu(false);
-                                setShowHelpMenu(false);
-                                setShowSettingsMenu(false);
-                                setShowToolsMenu(false);
-                                setShowExportMenu(false);
-                                setShowShareMenu(false);
-                                setShowGridMenu((prev) => !prev);
-                            }}
+                            onClick={() => toggleEditorMenu('grid')}
                             className={`p-2 hover:bg-secondary rounded-full transition-colors ${gridType !== 'none' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                             title="Grid & Guides"
                         >
@@ -7782,22 +7606,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                      <div className="relative" ref={shareRef}>
                         <button 
-                          onClick={() => {
-                              setShowFileMenu(false);
-                              setShowEditMenu(false);
-                              setShowImageMenu(false);
-                              setShowLayerMenu(false);
-                              setShowSelectMenu(false);
-                              setShowFilterMenu(false);
-                              setShowViewMenu(false);
-                              setShowWindowMenu(false);
-                              setShowHelpMenu(false);
-                              setShowSettingsMenu(false);
-                              setShowToolsMenu(false);
-                              setShowGridMenu(false);
-                              setShowExportMenu(false);
-                              setShowShareMenu((prev) => !prev);
-                          }}
+                          onClick={() => toggleEditorMenu('share')}
                           className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
                           title="Share"
                         >
@@ -7813,22 +7622,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      
                      <div className="relative z-[130]" ref={exportRef}>
                         <button 
-                          onClick={() => {
-                              setShowFileMenu(false);
-                              setShowEditMenu(false);
-                              setShowImageMenu(false);
-                              setShowLayerMenu(false);
-                              setShowSelectMenu(false);
-                              setShowFilterMenu(false);
-                              setShowViewMenu(false);
-                              setShowWindowMenu(false);
-                              setShowHelpMenu(false);
-                              setShowSettingsMenu(false);
-                              setShowToolsMenu(false);
-                              setShowGridMenu(false);
-                              setShowShareMenu(false);
-                              setShowExportMenu((prev) => !prev);
-                          }}
+                          onClick={() => toggleEditorMenu('export')}
                           className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-full text-sm font-semibold shadow-lg shadow-primary/20 transition-all transform hover:scale-105 active:scale-95"
                         >
                             <Download size={16} />
