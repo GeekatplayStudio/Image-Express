@@ -244,3 +244,53 @@ const path = new fabric.Path(pathString, {
     - Updated test flow to account for the new "Custom Size" modal interaction which requires a confirmation step instead of immediate creation.
 - **File:** `src/components/AI/__tests__/StabilityGenerator.test.tsx`
     - Skipped `handles Inpainting` test case temporarily as it relies on DOM state that conflicts with recent Fabric.js canvas integration updates. Other tests pass.
+
+---
+
+## 7. Properties + Color Workflow Upgrade (Feb 25-26 2026)
+
+### Problem
+Several editor workflows were incomplete or inconsistent with the requested UX:
+- Adjustment creation controls were duplicated in right properties instead of being left-rail-first.
+- Missing adjustment layer types (`Brightness/Contrast`, `Color Balance`, `Light and Color`, `Solid Color`).
+- Right color panel did not match interactive wheel/picker behavior.
+- No grouped swatch management in the Swatches panel.
+- Text-on-path rendering could clip at the top edge; text editing lacked multiline support.
+
+### Solution
+- **Adjustment workflow realignment**
+    - Moved adjustment creation emphasis to left rail `Adjustment Layers` flyout.
+    - Removed adjustment launcher clutter from right selection properties.
+    - Added missing adjustment types + defaults + labels + controls + filter synthesis wiring.
+    - Auto-select/open adjustment properties immediately after creation.
+
+- **Color panel parity + advanced editing**
+    - Embedded `ColorWheelTool` in right color panel.
+    - Added editable channel cards for RGB/HSB/CMYK/Lab.
+    - Added profile context selector (`sRGB`, `Adobe RGB`, `CMYK (Print)`) with value-display transforms.
+    - Added preview/apply/reset behavior to avoid inert picker interactions.
+
+- **Harmony + swatches persistence workflows**
+    - Added harmony save/rename/delete and import/export JSON in `ColorWheelTool`.
+    - Added grouped swatch CRUD in Swatches panel (create/select/remove group, add/remove swatch).
+    - Persisted grouped swatches and mirrored to legacy palette storage for compatibility.
+
+- **Text and shape UX updates**
+    - Added multiline text editing via textarea in text properties.
+    - Added text-path render safety (padding/caching behavior) to reduce clipping.
+    - Added new primitives: thought bubble, cloud, hexagon, diamond.
+
+### Key Files
+- `src/components/PropertiesPanel.tsx`
+- `src/components/properties/SelectionProperties.tsx`
+- `src/components/properties/PanelUtilityViews.tsx`
+- `src/components/ColorWheelTool.tsx`
+- `src/components/properties/AdjustmentControls.tsx`
+- `src/components/properties/TextProperties.tsx`
+- `src/components/Toolbar.tsx`
+- `src/lib/fabric-utils.ts`
+- `src/types.ts`
+
+### Validation
+- Build passes after final syntax fix in swatch refactor.
+- Related tests were extended for toolbar adjustment/shape actions and text properties editing.

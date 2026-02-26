@@ -21,7 +21,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Layer Management**: Professional locking, visibility, reordering, multi-select, and folder organization with a cleaner action strip, selected-layer inspector toggle (X/Y/W/H), and explicit Arrange Layers mode.
 - **Paint Folders**: Each paint session is grouped into a single folder; switching tools starts a new paint folder automatically.
 - **Advanced Masking**: Non-destructive masking functionality. Select two objects to mask the bottom one with the top one; includes support for inverting masks.
-- **Interactive Tools**: Gradient editor, shape tools, and text manipulation.
+- **Interactive Tools**: Gradient editor, expanded shapes (including cloud/thought bubble/hexagon/diamond), and text manipulation with multiline text editing in properties.
 - **Export Options**: Export designs to PNG, JPG, SVG, PDF, JSON, and self-contained HTML bundles with all assets rewritten for offline playback.
 - **In-App Manual**: Contextual help modal with persistent chapter navigation and quick close actions.
 - **Workspace Crop & Picker Reliability**:
@@ -157,7 +157,18 @@ The Properties Panel provides comprehensive editing capabilities:
 - **Levels**: Black/Mid/White point adjustment
 - **Exposure**: Brightness and contrast control
 - **Hue/Saturation**: Color shift and intensity
+- **Brightness/Contrast**: Dedicated tonal sliders
+- **Color Balance**: RGB channel balancing with preserve-luminosity support
+- **Light and Color**: Unified temperature/tint/exposure/saturation/vibrance control
+- **Solid Color**: Blend-based color fill adjustment layer
 - **Black & White**: Grayscale conversion
+
+### Color & Swatches
+- **Right Panel Color Wheel**: Embedded color wheel in properties color panel with live preview behavior
+- **Channel Editing Modes**: Editable RGB / HSB / CMYK / Lab value cards
+- **Profile Preview Modes**: sRGB, Adobe RGB, and CMYK print-preview context
+- **Harmony Sets**: Save, rename, delete, import, and export harmony palettes
+- **Grouped Swatches**: Create, select, and remove swatch groups directly in the Swatches panel, plus add/remove swatches per group
 
 ### Shadow & Stroke
 - **Drop Shadow**: Blur (0-150px), Offset (±200px), Opacity, Blend Modes

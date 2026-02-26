@@ -13,49 +13,6 @@ import { AdjustmentControls } from './AdjustmentControls';
 import { Folder, Layers, Blend, ChevronDown, ChevronRight, Lock, Unlock, Box, Type } from 'lucide-react';
 import { ColorPicker } from './ColorPicker';
 
-type AdjustmentLauncherItem = {
-    label: string;
-    type?: AdjustmentLayerType;
-    enabled: boolean;
-};
-
-const ADJUSTMENT_LAUNCHER_GROUPS: Array<{ title: string; items: AdjustmentLauncherItem[] }> = [
-    {
-        title: 'Basic',
-        items: [
-            { label: 'Brightness/Contrast', type: 'brightness-contrast', enabled: false },
-            { label: 'Hue/Saturation', type: 'hue-saturation', enabled: true },
-            { label: 'Exposure', type: 'exposure', enabled: true },
-            { label: 'Vibrance', type: 'saturation-vibrance', enabled: true },
-        ]
-    },
-    {
-        title: 'Tonal',
-        items: [
-            { label: 'Levels', type: 'levels', enabled: true },
-            { label: 'Curves', type: 'curves', enabled: true },
-            { label: 'Black & White', type: 'black-white', enabled: true },
-        ]
-    },
-    {
-        title: 'Color',
-        items: [
-            { label: 'Color Balance', type: 'color-balance', enabled: false },
-            { label: 'Light and Color', enabled: false },
-            { label: 'Solid Color', enabled: false },
-        ]
-    },
-];
-
-const ADJUSTMENT_QUICK_TYPES: AdjustmentLayerType[] = [
-    'curves',
-    'levels',
-    'hue-saturation',
-    'exposure',
-    'saturation-vibrance',
-    'black-white',
-];
-
 const getAdjustmentTypeLabel = (type: AdjustmentLayerType) => {
     if (type === 'curves') return 'Curves';
     if (type === 'levels') return 'Levels';
@@ -65,6 +22,8 @@ const getAdjustmentTypeLabel = (type: AdjustmentLayerType) => {
     if (type === 'black-white') return 'Black & White';
     if (type === 'brightness-contrast') return 'Brightness/Contrast';
     if (type === 'color-balance') return 'Color Balance';
+    if (type === 'light-and-color') return 'Light and Color';
+    if (type === 'solid-color') return 'Solid Color';
     return 'Adjustment';
 };
 
@@ -106,7 +65,7 @@ interface SelectionPropertiesProps {
     onMake3D?: (imageUrl: string) => void;
     
     // Specific state overrides that might not be on object directly or need React state
-    textState?: { font: string; weight: string; curve: number; center: number };
+    textState?: { text: string; font: string; weight: string; curve: number; center: number };
     activeTextEffects?: string[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     textEffectConfigs?: Record<string, any>;
@@ -140,8 +99,6 @@ export function SelectionProperties({
     selectedTextPathId,
     hasAttachedTextPath,
     updateAdjustment,
-    onAdjustmentTypeChange,
-    onCreateAdjustmentLayer,
     onMake3D,
     textState,
     activeTextEffects,
@@ -176,50 +133,10 @@ export function SelectionProperties({
     const isPenObject = !!isPenGeometry && (!!extended?.penMode || !!extended?.isPenPath || looksLikePenLayer);
     const penMode = extended?.penMode || (selectedObject?.type === 'path' ? 'smooth' : 'straight');
     const penClosed = typeof extended?.penClosed === 'boolean' ? extended.penClosed : selectedObject?.type !== 'polyline';
-    const canCreateAdjustments = !!onCreateAdjustmentLayer;
-    const canSwitchAdjustmentType = !!onAdjustmentTypeChange;
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleTransform = (values: Record<string, any>) => {
         Object.entries(values).forEach(([k, v]) => onPropChange(k, v));
     };
-
-    const renderAdjustmentLauncher = (mode: 'create' | 'switch') => (
-        <div className="rounded-md border border-border/50 bg-secondary/20 p-2 space-y-2">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Adjustment launcher</div>
-            {ADJUSTMENT_LAUNCHER_GROUPS.map((group) => (
-                <div key={group.title} className="space-y-1">
-                    <div className="text-[10px] text-muted-foreground">{group.title}</div>
-                    <div className="flex flex-wrap gap-1">
-                        {group.items.map((item) => {
-                            const isInteractive = item.enabled && !!item.type && (mode === 'switch' ? canSwitchAdjustmentType : canCreateAdjustments);
-                            const isActive = mode === 'switch' && !!item.type && extended?.adjustmentType === item.type;
-                            return (
-                                <button
-                                    key={`${group.title}-${item.label}`}
-                                    type="button"
-                                    disabled={!isInteractive}
-                                    className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isActive ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/40' : isInteractive ? 'border-border/50 bg-background/80 text-foreground hover:bg-background' : 'border-border/30 bg-background/40 text-muted-foreground/70 cursor-not-allowed'}`}
-                                    onClick={() => {
-                                        if (!isInteractive || !item.type) return;
-                                        if (mode === 'switch') {
-                                            onAdjustmentTypeChange?.(item.type);
-                                            return;
-                                        }
-                                        onCreateAdjustmentLayer?.(item.type);
-                                    }}
-                                    aria-label={`Adjustment action ${item.label}`}
-                                >
-                                    {item.label}
-                                    {!item.enabled ? ' (Soon)' : ''}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
 
     if (isMultiple) {
         return (
@@ -279,20 +196,6 @@ export function SelectionProperties({
                 </div>
             </div>
 
-            {/* Global Properties: Appearance & Layout (Top Priority) */}
-            <LayerEffectsProperties 
-                opacity={selectedObject.opacity || 1}
-                blendMode={selectedObject.globalCompositeOperation || 'source-over'}
-                visible={selectedObject.visible !== false}
-                onChange={(vals) => handleTransform(vals)}
-            />
-
-            <LayoutProperties 
-                onAlign={(align) => onLayoutAction('align', align)}
-                onDistribute={() => {}} 
-                canDistribute={false}
-            />
-            
             {/* Quick Actions (Contextual) */}
             {(isGroup || isMasked) && (
                 <div className="p-2 border-b border-border/50 flex gap-2 justify-center bg-secondary/10">
@@ -319,6 +222,34 @@ export function SelectionProperties({
                         </>
                     )}
                 </div>
+            )}
+
+            {isText && textState && (
+                <TextProperties 
+                    textContent={textState.text}
+                    fontFamily={textState.font}
+                    fontWeight={textState.weight}
+                    curveStrength={textState.curve}
+                    curveCenter={textState.center}
+                    pathOptions={textPathOptions}
+                    selectedPathId={selectedTextPathId}
+                    hasAttachedPath={!!hasAttachedTextPath}
+                    onTextContentChange={(text) => onPropChange('textContent', text)}
+                    onFontFamilyChange={(f) => onPropChange('fontFamily', f)}
+                    onFontWeightChange={(w) => onPropChange('fontWeight', w)}
+                    onCurveChange={(s, c) => onPropChange('curve', { strength: s, center: c })}
+                    onAttachPath={onAttachTextToPath}
+                    onDetachPath={onDetachTextPath}
+                />
+            )}
+
+            {isText && textState && (
+                <TextEffectsProperties
+                    activePresets={activeTextEffects || []}
+                    effectConfigs={textEffectConfigs || {}}
+                    onToggleEffect={(preset, enabled) => onPropChange('toggleTextEffect', { preset, enabled })}
+                    onConfigChange={(preset, config) => onPropChange('updateTextEffectConfig', { preset, config })}
+                />
             )}
 
             {/* Transform Group (Collapsible) */}
@@ -627,39 +558,18 @@ export function SelectionProperties({
                 />
             )}
 
-            {!isAdjustment && canCreateAdjustments && (
-                <div className="p-4 border-b border-border/50 space-y-3">
-                    <h3 className="font-medium text-sm">Adjustments</h3>
-                    {renderAdjustmentLauncher('create')}
-                </div>
-            )}
+            <LayerEffectsProperties 
+                opacity={selectedObject.opacity || 1}
+                blendMode={selectedObject.globalCompositeOperation || 'source-over'}
+                visible={selectedObject.visible !== false}
+                onChange={(vals) => handleTransform(vals)}
+            />
 
-
-            {isText && textState && (
-                <TextEffectsProperties
-                    activePresets={activeTextEffects || []}
-                    effectConfigs={textEffectConfigs || {}}
-                    onToggleEffect={(preset, enabled) => onPropChange('toggleTextEffect', { preset, enabled })}
-                    onConfigChange={(preset, config) => onPropChange('updateTextEffectConfig', { preset, config })}
-                />
-            )}
-
-            {isText && textState && (
-                <TextProperties 
-                    fontFamily={textState.font}
-                    fontWeight={textState.weight}
-                    curveStrength={textState.curve}
-                    curveCenter={textState.center}
-                    pathOptions={textPathOptions}
-                    selectedPathId={selectedTextPathId}
-                    hasAttachedPath={!!hasAttachedTextPath}
-                    onFontFamilyChange={(f) => onPropChange('fontFamily', f)}
-                    onFontWeightChange={(w) => onPropChange('fontWeight', w)}
-                    onCurveChange={(s, c) => onPropChange('curve', { strength: s, center: c })}
-                    onAttachPath={onAttachTextToPath}
-                    onDetachPath={onDetachTextPath}
-                />
-            )}
+            <LayoutProperties 
+                onAlign={(align) => onLayoutAction('align', align)}
+                onDistribute={() => {}} 
+                canDistribute={false}
+            />
 
             {isImage && !isAdjustment && (
                 <ImageFilterProperties 
@@ -671,26 +581,9 @@ export function SelectionProperties({
             {isAdjustment && extended?.adjustmentType && (
                  <div className="p-4 border-b border-border/50 space-y-3">
                     <h3 className="font-medium text-sm">Adjustment Settings</h3>
-                    <div className="rounded-md border border-border/50 bg-secondary/20 p-2 space-y-2">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Quick controls</div>
-                        <div className="flex flex-wrap gap-1">
-                            {ADJUSTMENT_QUICK_TYPES.map((type) => {
-                                const isActive = extended.adjustmentType === type;
-                                return (
-                                    <button
-                                        key={type}
-                                        type="button"
-                                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isActive ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/40' : 'border-border/50 bg-background/80 text-foreground hover:bg-background'}`}
-                                        onClick={() => onAdjustmentTypeChange?.(type)}
-                                        aria-label={`Quick adjustment ${getAdjustmentTypeLabel(type)}`}
-                                    >
-                                        {getAdjustmentTypeLabel(type)}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                    <div className="text-[11px] text-muted-foreground">
+                        Type: {getAdjustmentTypeLabel(extended.adjustmentType)}
                     </div>
-                    {renderAdjustmentLauncher('switch')}
                     <AdjustmentControls 
                         type={extended.adjustmentType}
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any

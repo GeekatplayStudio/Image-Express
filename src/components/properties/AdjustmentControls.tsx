@@ -7,7 +7,11 @@ import {
     LevelsAdjustmentSettings, 
     HueSaturationSettings, 
     ExposureSettings, 
-    SaturationVibranceSettings 
+    SaturationVibranceSettings,
+    BrightnessContrastSettings,
+    ColorBalanceSettings,
+    LightAndColorSettings,
+    SolidColorSettings,
 } from '@/types';
 import { APP_THEME } from '@/lib/theme-tokens';
 
@@ -400,6 +404,172 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                         onDoubleClick={() => updateExposure({ contrast: 0 })}
                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                     />
+                </div>
+            </div>
+        );
+    }
+
+    if (type === 'brightness-contrast') {
+        const bc = settings as BrightnessContrastSettings;
+        const updateBC = (partial: Partial<BrightnessContrastSettings>) => updateSettings(partial);
+        return (
+            <div className="space-y-3">
+                <div className="space-y-2">
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Brightness</span>
+                        <span>{bc.brightness.toFixed(2)}</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.01"
+                        value={bc.brightness}
+                        onChange={(e) => updateBC({ brightness: parseFloat(e.target.value) })}
+                        onDoubleClick={() => updateBC({ brightness: 0 })}
+                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Contrast</span>
+                        <span>{bc.contrast.toFixed(2)}</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.01"
+                        value={bc.contrast}
+                        onChange={(e) => updateBC({ contrast: parseFloat(e.target.value) })}
+                        onDoubleClick={() => updateBC({ contrast: 0 })}
+                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    if (type === 'color-balance') {
+        const balance = settings as ColorBalanceSettings;
+        const updateBalance = (partial: Partial<ColorBalanceSettings>) => updateSettings(partial);
+        return (
+            <div className="space-y-3">
+                {([
+                    { key: 'red', label: 'Red / Cyan' },
+                    { key: 'green', label: 'Green / Magenta' },
+                    { key: 'blue', label: 'Blue / Yellow' },
+                ] as const).map((row) => (
+                    <div key={row.key} className="space-y-2">
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>{row.label}</span>
+                            <span>{((balance[row.key] as number) || 0).toFixed(2)}</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="-1"
+                            max="1"
+                            step="0.01"
+                            value={(balance[row.key] as number) || 0}
+                            onChange={(e) => updateBalance({ [row.key]: parseFloat(e.target.value) } as Partial<ColorBalanceSettings>)}
+                            onDoubleClick={() => updateBalance({ [row.key]: 0 } as Partial<ColorBalanceSettings>)}
+                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                        />
+                    </div>
+                ))}
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <input
+                        type="checkbox"
+                        checked={balance.preserveLuminosity !== false}
+                        onChange={(e) => updateBalance({ preserveLuminosity: e.target.checked })}
+                    />
+                    Preserve luminosity
+                </label>
+            </div>
+        );
+    }
+
+    if (type === 'light-and-color') {
+        const lac = settings as LightAndColorSettings;
+        const updateLac = (partial: Partial<LightAndColorSettings>) => updateSettings(partial);
+        return (
+            <div className="space-y-3">
+                {([
+                    { key: 'temperature', label: 'Temperature' },
+                    { key: 'tint', label: 'Tint' },
+                    { key: 'exposure', label: 'Exposure' },
+                    { key: 'saturation', label: 'Saturation' },
+                    { key: 'vibrance', label: 'Vibrance' },
+                ] as const).map((row) => (
+                    <div key={row.key} className="space-y-2">
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>{row.label}</span>
+                            <span>{((lac[row.key] as number) || 0).toFixed(2)}</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="-1"
+                            max="1"
+                            step="0.01"
+                            value={(lac[row.key] as number) || 0}
+                            onChange={(e) => updateLac({ [row.key]: parseFloat(e.target.value) } as Partial<LightAndColorSettings>)}
+                            onDoubleClick={() => updateLac({ [row.key]: 0 } as Partial<LightAndColorSettings>)}
+                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                        />
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    if (type === 'solid-color') {
+        const solid = settings as SolidColorSettings;
+        const updateSolid = (partial: Partial<SolidColorSettings>) => updateSettings(partial);
+        return (
+            <div className="space-y-3">
+                <div className="space-y-1">
+                    <div className="text-[10px] text-muted-foreground">Color</div>
+                    <input
+                        type="color"
+                        value={solid.color || '#ff8800'}
+                        onChange={(e) => updateSolid({ color: e.target.value })}
+                        className="h-8 w-full rounded border border-border bg-background"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Opacity</span>
+                        <span>{(solid.opacity ?? 0.5).toFixed(2)}</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={solid.opacity ?? 0.5}
+                        onChange={(e) => updateSolid({ opacity: parseFloat(e.target.value) })}
+                        onDoubleClick={() => updateSolid({ opacity: 0.5 })}
+                        className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <div className="text-[10px] text-muted-foreground">Blend Mode</div>
+                    <select
+                        value={solid.mode || 'tint'}
+                        onChange={(e) => updateSolid({ mode: e.target.value as SolidColorSettings['mode'] })}
+                        className="w-full bg-secondary/50 border border-border rounded-md px-2 py-1 text-[11px] text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    >
+                        <option value="tint">Tint</option>
+                        <option value="multiply">Multiply</option>
+                        <option value="screen">Screen</option>
+                        <option value="overlay">Overlay</option>
+                        <option value="add">Add</option>
+                        <option value="subtract">Subtract</option>
+                        <option value="darken">Darken</option>
+                        <option value="lighten">Lighten</option>
+                        <option value="diff">Difference</option>
+                        <option value="exclusion">Exclusion</option>
+                    </select>
                 </div>
             </div>
         );

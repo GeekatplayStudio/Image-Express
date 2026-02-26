@@ -1,6 +1,6 @@
 // src/lib/fabric-utils.ts
 import * as fabric from 'fabric';
-import { ExtendedFabricObject, AdjustmentLayerType, AdjustmentLayerSettings, CurvesAdjustmentSettings, LevelsAdjustmentSettings, SaturationVibranceSettings, HueSaturationSettings, ExposureSettings } from '@/types';
+import { ExtendedFabricObject, AdjustmentLayerType, AdjustmentLayerSettings, CurvesAdjustmentSettings, LevelsAdjustmentSettings, SaturationVibranceSettings, HueSaturationSettings, ExposureSettings, BrightnessContrastSettings, ColorBalanceSettings, LightAndColorSettings, SolidColorSettings } from '@/types';
 
 export const ensureObjectId = (obj: fabric.Object) => {
     const extendedObj = obj as ExtendedFabricObject;
@@ -134,6 +134,10 @@ export const getAdjustmentLabel = (type?: AdjustmentLayerType) => {
     if (type === 'hue-saturation') return 'Hue / Saturation';
     if (type === 'exposure') return 'Exposure';
     if (type === 'black-white') return 'Black & White';
+    if (type === 'brightness-contrast') return 'Brightness / Contrast';
+    if (type === 'color-balance') return 'Color Balance';
+    if (type === 'light-and-color') return 'Light and Color';
+    if (type === 'solid-color') return 'Solid Color';
     return 'Adjustment';
 };
 
@@ -142,6 +146,10 @@ export const getDefaultAdjustmentSettings = (type: AdjustmentLayerType): Adjustm
     if (type === 'levels') return { black: 0, mid: 1, white: 1 } as LevelsAdjustmentSettings;
     if (type === 'hue-saturation') return { hue: 0, saturation: 0, lightness: 0 } as HueSaturationSettings;
     if (type === 'exposure') return { exposure: 0, contrast: 0 } as ExposureSettings;
+    if (type === 'brightness-contrast') return { brightness: 0, contrast: 0 } as BrightnessContrastSettings;
+    if (type === 'color-balance') return { red: 0, green: 0, blue: 0, preserveLuminosity: true } as ColorBalanceSettings;
+    if (type === 'light-and-color') return { temperature: 0, tint: 0, exposure: 0, saturation: 0, vibrance: 0 } as LightAndColorSettings;
+    if (type === 'solid-color') return { color: '#ff8800', opacity: 0.5, mode: 'tint' } as SolidColorSettings;
     return { saturation: 0, vibrance: 0 } as SaturationVibranceSettings;
 };
 

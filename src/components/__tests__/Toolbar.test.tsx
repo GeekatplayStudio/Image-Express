@@ -490,12 +490,43 @@ describe('Toolbar', () => {
         expect(canvas.add.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ type: 'path' }));
     });
 
-    it('exposes a creation-focused rail without property panel tool buttons', () => {
+    it('adds a cloud from the shapes menu', () => {
+        const { canvas } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Shapes'));
+        fireEvent.click(screen.getByRole('button', { name: 'Cloud' }));
+
+        expect(canvas.add).toHaveBeenCalled();
+        expect(canvas.setActiveObject).toHaveBeenCalled();
+        expect(canvas.add.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ type: 'path' }));
+    });
+
+    it('exposes adjustment layers as a creation tool on the left rail', () => {
         renderToolbar();
 
         expect(screen.queryByTitle('Layers')).not.toBeInTheDocument();
-        expect(screen.queryByTitle('Adjustments')).not.toBeInTheDocument();
+        expect(screen.getByTitle('Adjustment Layers')).toBeInTheDocument();
         expect(screen.queryByTitle('Color')).not.toBeInTheDocument();
+    });
+
+    it('creates an adjustment layer from the left rail flyout', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Adjustment Layers'));
+        fireEvent.click(screen.getByRole('button', { name: 'Curves' }));
+
+        expect(canvas.fire).toHaveBeenCalledWith('adjustment:create', { type: 'curves' });
+        expect(setActiveToolSpy).toHaveBeenCalledWith('layers');
+    });
+
+    it('creates Light and Color adjustment layer from the flyout', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('Adjustment Layers'));
+        fireEvent.click(screen.getByRole('button', { name: 'Light and Color' }));
+
+        expect(canvas.fire).toHaveBeenCalledWith('adjustment:create', { type: 'light-and-color' });
+        expect(setActiveToolSpy).toHaveBeenCalledWith('layers');
     });
 
     it('expands and reveals tool labels on hover when enabled', () => {

@@ -33,7 +33,7 @@ export type ThreeDSettings = {
     cameraTarget?: { x: number; y: number; z: number };
 };
 
-export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white' | 'brightness-contrast' | 'color-balance';
+export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white' | 'brightness-contrast' | 'color-balance' | 'light-and-color' | 'solid-color';
 
 export type CurvesChannel = 'rgb' | 'r' | 'g' | 'b' | 'luminosity';
 
@@ -52,7 +52,22 @@ export type LevelsAdjustmentSettings = {
     white: number; // 0 - 1
 };
 
-export type AdjustmentLayerSettings = CurvesAdjustmentSettings | LevelsAdjustmentSettings | Record<string, unknown>;
+export type BrightnessContrastSettings = { brightness: number; contrast: number };
+export type ColorBalanceSettings = { red: number; green: number; blue: number; preserveLuminosity?: boolean };
+export type LightAndColorSettings = { temperature: number; tint: number; exposure: number; saturation: number; vibrance: number };
+export type SolidColorSettings = { color: string; opacity: number; mode?: 'tint' | 'multiply' | 'add' | 'diff' | 'screen' | 'subtract' | 'darken' | 'lighten' | 'overlay' | 'exclusion' };
+
+export type AdjustmentLayerSettings =
+    | CurvesAdjustmentSettings
+    | LevelsAdjustmentSettings
+    | HueSaturationSettings
+    | ExposureSettings
+    | SaturationVibranceSettings
+    | BrightnessContrastSettings
+    | ColorBalanceSettings
+    | LightAndColorSettings
+    | SolidColorSettings
+    | Record<string, unknown>;
 
 export type HueSaturationSettings = { hue: number; saturation: number; lightness: number };
 export type ExposureSettings = { exposure: number; offset: number; gamma: number; contrast: number };

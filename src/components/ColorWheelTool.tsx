@@ -8,13 +8,24 @@ interface ColorWheelToolProps {
     currentPalette: ColorPalette | null;
     onPaletteSelect: (palette: ColorPalette | null) => void;
     selectedColor?: string;
+    variant?: 'floating' | 'panel';
 }
 
 type DragTarget = 'hue' | 'sv';
 
-const RING_SIZE = 240;
-const RING_THICKNESS = 30;
-const SV_SIZE = 164;
+type HarmonyPalette = {
+    id: string;
+    name: string;
+    colors: string[];
+    createdAt: number;
+};
+
+const FLOATING_RING_SIZE = 240;
+const FLOATING_RING_THICKNESS = 30;
+const FLOATING_SV_SIZE = 164;
+const PANEL_RING_SIZE = 210;
+const PANEL_RING_THICKNESS = 26;
+const PANEL_SV_SIZE = 142;
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
@@ -115,9 +126,35 @@ const getHarmonyColors = (baseHex: string, count: number) => {
     return colors;
 };
 
-export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect, selectedColor: controlledColor }: ColorWheelToolProps) => {
+export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect, selectedColor: controlledColor, variant = 'floating' }: ColorWheelToolProps) => {
     const [internalSelectedColor, setInternalSelectedColor] = useState(() => normalizeHex(controlledColor ?? '#000000'));
     const [harmonyCount, setHarmonyCount] = useState(5);
+    const [harmonyPaletteName, setHarmonyPaletteName] = useState('');
+    const [isHarmonyListCollapsed, setIsHarmonyListCollapsed] = useState(false);
+    const [savedHarmonyPalettes, setSavedHarmonyPalettes] = useState<HarmonyPalette[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const raw = window.localStorage.getItem('saved-harmony-palettes');
+            if (!raw) return [];
+            const parsed = JSON.parse(raw) as HarmonyPalette[];
+            if (!Array.isArray(parsed)) return [];
+            return parsed
+                .filter((entry) => entry && typeof entry.name === 'string' && Array.isArray(entry.colors))
+                .map((entry) => ({
+                    id: entry.id || `harmony-${Date.now()}-${Math.random()}`,
+                    name: entry.name,
+                    createdAt: typeof entry.createdAt === 'number' ? entry.createdAt : Date.now(),
+                    colors: entry.colors.map(normalizeHex).filter((color) => /^#[0-9a-f]{6}$/i.test(color)),
+                }))
+                .filter((entry) => entry.colors.length >= 2)
+                .slice(0, 24);
+        } catch {
+            return [];
+        }
+    });
+    const [editingHarmonyId, setEditingHarmonyId] = useState<string | null>(null);
+    const [editingHarmonyName, setEditingHarmonyName] = useState('');
+    const [harmonyImportStatus, setHarmonyImportStatus] = useState<string | null>(null);
     const [savedSwatches, setSavedSwatches] = useState<string[]>(() => {
         if (typeof window === 'undefined') return [];
         try {
@@ -135,6 +172,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
     const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
     const ringRef = useRef<HTMLDivElement>(null);
     const squareRef = useRef<HTMLDivElement>(null);
+    const harmonyImportInputRef = useRef<HTMLInputElement>(null);
 
     // Supports both local wheel interaction and external updates (e.g. eyedropper sample event).
     const selectedColor = useMemo(
@@ -149,17 +187,135 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
 
     const rgb = useMemo(() => hexToRgb(selectedColor), [selectedColor]);
 
+    const ringSize = variant === 'panel' ? PANEL_RING_SIZE : FLOATING_RING_SIZE;
+    const ringThickness = variant === 'panel' ? PANEL_RING_THICKNESS : FLOATING_RING_THICKNESS;
+    const svSize = variant === 'panel' ? PANEL_SV_SIZE : FLOATING_SV_SIZE;
+
     const harmonyColors = useMemo(() => getHarmonyColors(selectedColor, harmonyCount), [selectedColor, harmonyCount]);
 
     useEffect(() => {
         localStorage.setItem('saved-color-swatches', JSON.stringify(savedSwatches));
     }, [savedSwatches]);
 
+    useEffect(() => {
+        localStorage.setItem('saved-harmony-palettes', JSON.stringify(savedHarmonyPalettes));
+    }, [savedHarmonyPalettes]);
+
     const applyColor = useCallback((color: string) => {
         const normalized = normalizeHex(color);
         setInternalSelectedColor(normalized);
         onColorSelect(normalized);
     }, [onColorSelect]);
+
+    const saveHarmonyPalette = () => {
+        const trimmed = harmonyPaletteName.trim();
+        const name = trimmed.length > 0 ? trimmed : `Harmony ${harmonyColors.length} • ${selectedColor.toUpperCase()}`;
+        const payload: HarmonyPalette = {
+            id: `harmony-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+            name,
+            colors: harmonyColors,
+            createdAt: Date.now(),
+        };
+        setSavedHarmonyPalettes((prev) => [payload, ...prev].slice(0, 24));
+        setHarmonyPaletteName('');
+        setHarmonyImportStatus(null);
+    };
+
+    const exportHarmonyPalettes = () => {
+        if (savedHarmonyPalettes.length === 0) {
+            setHarmonyImportStatus('No harmony sets to export');
+            return;
+        }
+        const payload = {
+            version: 1,
+            exportedAt: Date.now(),
+            palettes: savedHarmonyPalettes.map((palette) => ({
+                name: palette.name,
+                colors: palette.colors,
+                createdAt: palette.createdAt,
+            })),
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `harmony-palettes-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.URL.revokeObjectURL(url);
+        setHarmonyImportStatus('Harmony sets exported');
+    };
+
+    const importHarmonyPalettes = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+            const raw = await file.text();
+            const parsed = JSON.parse(raw) as unknown;
+            const candidate = Array.isArray(parsed)
+                ? parsed
+                : (parsed && typeof parsed === 'object' && Array.isArray((parsed as { palettes?: unknown }).palettes)
+                    ? (parsed as { palettes: unknown[] }).palettes
+                    : []);
+
+            const imported = (candidate as Array<{ name?: unknown; colors?: unknown; createdAt?: unknown }>)
+                .filter((entry) => typeof entry?.name === 'string' && Array.isArray(entry?.colors))
+                .map((entry, index) => {
+                    const colors = (entry.colors as unknown[])
+                        .filter((color): color is string => typeof color === 'string')
+                        .map(normalizeHex)
+                        .filter((color) => /^#[0-9a-f]{6}$/i.test(color));
+                    return {
+                        id: `harmony-import-${Date.now()}-${index}-${Math.floor(Math.random() * 100000)}`,
+                        name: (entry.name as string).trim() || `Imported Harmony ${index + 1}`,
+                        colors,
+                        createdAt: typeof entry.createdAt === 'number' ? entry.createdAt : Date.now(),
+                    } as HarmonyPalette;
+                })
+                .filter((entry) => entry.colors.length >= 2)
+                .slice(0, 24);
+
+            if (imported.length === 0) {
+                setHarmonyImportStatus('No valid harmony sets found in file');
+            } else {
+                setSavedHarmonyPalettes((prev) => {
+                    const bySignature = new Set(prev.map((entry) => `${entry.name}::${entry.colors.join(',')}`));
+                    const uniqueImported = imported.filter((entry) => !bySignature.has(`${entry.name}::${entry.colors.join(',')}`));
+                    return [...uniqueImported, ...prev].slice(0, 24);
+                });
+                setHarmonyImportStatus(`Imported ${imported.length} harmony set${imported.length === 1 ? '' : 's'}`);
+            }
+        } catch {
+            setHarmonyImportStatus('Invalid harmony JSON file');
+        } finally {
+            event.target.value = '';
+        }
+    };
+
+    const applyHarmonyPalette = (palette: HarmonyPalette) => {
+        if (palette.colors.length < 2) return;
+        setHarmonyCount(Math.max(2, Math.min(6, palette.colors.length)));
+        applyColor(palette.colors[0]);
+    };
+
+    const startRenameHarmonyPalette = (palette: HarmonyPalette) => {
+        setEditingHarmonyId(palette.id);
+        setEditingHarmonyName(palette.name);
+    };
+
+    const saveRenameHarmonyPalette = () => {
+        if (!editingHarmonyId) return;
+        const nextName = editingHarmonyName.trim();
+        if (!nextName) return;
+        setSavedHarmonyPalettes((prev) => prev.map((palette) => (
+            palette.id === editingHarmonyId
+                ? { ...palette, name: nextName }
+                : palette
+        )));
+        setEditingHarmonyId(null);
+        setEditingHarmonyName('');
+    };
 
     const updateHueFromClient = useCallback((clientX: number, clientY: number) => {
         const ring = ringRef.current;
@@ -209,45 +365,51 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
     }, [dragTarget, updateHueFromClient, updateSvFromClient]);
 
     const hueRadians = (h * Math.PI) / 180;
-    const hueHandleRadius = (RING_SIZE / 2) - (RING_THICKNESS / 2);
-    const hueHandleX = (RING_SIZE / 2) + (Math.cos(hueRadians) * hueHandleRadius);
-    const hueHandleY = (RING_SIZE / 2) + (Math.sin(hueRadians) * hueHandleRadius);
+    const hueHandleRadius = (ringSize / 2) - (ringThickness / 2);
+    const hueHandleX = (ringSize / 2) + (Math.cos(hueRadians) * hueHandleRadius);
+    const hueHandleY = (ringSize / 2) + (Math.sin(hueRadians) * hueHandleRadius);
 
-    const svX = s * SV_SIZE;
-    const svY = (1 - v) * SV_SIZE;
+    const svX = s * svSize;
+    const svY = (1 - v) * svSize;
 
     return (
-        <div className="fixed left-[74px] top-16 z-[40] w-[430px] rounded-2xl border border-border/70 bg-card/95 p-4 shadow-2xl backdrop-blur-sm">
+        <div className={cn(
+            variant === 'panel'
+                ? 'w-full rounded-xl border border-border/70 bg-card p-3 overflow-x-hidden'
+                : 'fixed left-[74px] top-16 z-[40] w-[430px] rounded-2xl border border-border/70 bg-card/95 p-4 shadow-2xl backdrop-blur-sm'
+        )}>
             <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-2xl font-semibold tracking-tight">Foreground color</h3>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                    <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary/50"
-                        title="Color wheel info"
-                        aria-label="Color wheel info"
-                    >
-                        <Info size={18} />
-                    </button>
-                    <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary/50"
-                        title="Eyedropper"
-                        aria-label="Eyedropper"
-                    >
-                        <Pipette size={18} />
-                    </button>
-                </div>
+                <h3 className={cn('font-semibold tracking-tight', variant === 'panel' ? 'text-sm' : 'text-2xl')}>Foreground color</h3>
+                {variant !== 'panel' && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                        <button
+                            type="button"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary/50"
+                            title="Color wheel info"
+                            aria-label="Color wheel info"
+                        >
+                            <Info size={18} />
+                        </button>
+                        <button
+                            type="button"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary/50"
+                            title="Eyedropper"
+                            aria-label="Eyedropper"
+                        >
+                            <Pipette size={18} />
+                        </button>
+                    </div>
+                )}
             </div>
 
-            <div className="flex gap-5">
+            <div className={cn('flex gap-5', variant === 'panel' && 'flex-col gap-4')}>
                 <div className="flex flex-col items-center gap-3">
                     <div
                         ref={ringRef}
                         className="relative cursor-crosshair rounded-full border border-border/60 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
                         style={{
-                            width: `${RING_SIZE}px`,
-                            height: `${RING_SIZE}px`,
+                            width: `${ringSize}px`,
+                            height: `${ringSize}px`,
                             background: 'conic-gradient(red, #ff0, #0f0, #0ff, #00f, #f0f, red)',
                         }}
                         onMouseDown={(event) => {
@@ -258,10 +420,10 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                         <div
                             className="absolute rounded-full bg-card"
                             style={{
-                                left: `${RING_THICKNESS}px`,
-                                top: `${RING_THICKNESS}px`,
-                                width: `${RING_SIZE - (RING_THICKNESS * 2)}px`,
-                                height: `${RING_SIZE - (RING_THICKNESS * 2)}px`,
+                                left: `${ringThickness}px`,
+                                top: `${ringThickness}px`,
+                                width: `${ringSize - (ringThickness * 2)}px`,
+                                height: `${ringSize - (ringThickness * 2)}px`,
                             }}
                         />
 
@@ -269,10 +431,10 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                             ref={squareRef}
                             className="absolute overflow-hidden rounded-2xl border border-black/40 shadow-[0_10px_24px_rgba(0,0,0,0.3)]"
                             style={{
-                                left: `${(RING_SIZE - SV_SIZE) / 2}px`,
-                                top: `${(RING_SIZE - SV_SIZE) / 2}px`,
-                                width: `${SV_SIZE}px`,
-                                height: `${SV_SIZE}px`,
+                                left: `${(ringSize - svSize) / 2}px`,
+                                top: `${(ringSize - svSize) / 2}px`,
+                                width: `${svSize}px`,
+                                height: `${svSize}px`,
                                 backgroundColor: `hsl(${h}, 100%, 50%)`,
                             }}
                             onMouseDown={(event) => {
@@ -308,7 +470,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                     </div>
                 </div>
 
-                <div className="flex min-w-[110px] flex-col gap-3">
+                <div className={cn('flex min-w-[110px] flex-col gap-3', variant === 'panel' && 'min-w-0')}>
                     <label className="text-xs text-muted-foreground">RGB</label>
                     <div className="grid grid-cols-3 gap-2 text-sm">
                         <div className="rounded-lg border border-border/60 bg-background px-2 py-1 text-center">{rgb.r}</div>
@@ -346,6 +508,146 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                             />
                         ))}
                     </div>
+
+                    <div className="space-y-2 rounded-lg border border-border/50 bg-secondary/20 p-2">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Save Harmony Set</div>
+                        <div className="flex flex-wrap gap-2">
+                            <input
+                                type="text"
+                                value={harmonyPaletteName}
+                                onChange={(event) => setHarmonyPaletteName(event.target.value)}
+                                placeholder="Palette name"
+                                className="h-8 flex-1 rounded border border-border/60 bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary"
+                                aria-label="Harmony palette name"
+                            />
+                            <button
+                                type="button"
+                                onClick={saveHarmonyPalette}
+                                className="h-8 rounded border border-border/60 bg-background px-2 text-xs hover:bg-secondary/50"
+                                aria-label="Save harmony palette"
+                            >
+                                Save
+                            </button>
+                            <button
+                                type="button"
+                                onClick={exportHarmonyPalettes}
+                                className="h-8 rounded border border-border/60 bg-background px-2 text-xs hover:bg-secondary/50"
+                                aria-label="Export harmony palettes"
+                            >
+                                Export
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => harmonyImportInputRef.current?.click()}
+                                className="h-8 rounded border border-border/60 bg-background px-2 text-xs hover:bg-secondary/50"
+                                aria-label="Import harmony palettes"
+                            >
+                                Import
+                            </button>
+                            <input
+                                ref={harmonyImportInputRef}
+                                type="file"
+                                accept="application/json,.json"
+                                className="hidden"
+                                onChange={importHarmonyPalettes}
+                                aria-label="Import harmony JSON"
+                            />
+                        </div>
+                        {harmonyImportStatus && (
+                            <div className="text-[10px] text-muted-foreground">{harmonyImportStatus}</div>
+                        )}
+                        {savedHarmonyPalettes.length > 0 && (
+                            <div className="space-y-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsHarmonyListCollapsed((prev) => !prev)}
+                                    className="w-full h-7 rounded border border-border/60 bg-background px-2 text-left text-[10px] uppercase tracking-wide text-muted-foreground hover:bg-secondary/40"
+                                >
+                                    {isHarmonyListCollapsed ? 'Show Harmony Sets' : 'Hide Harmony Sets'} ({savedHarmonyPalettes.length})
+                                </button>
+                                {!isHarmonyListCollapsed && (
+                                    <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
+                                        {savedHarmonyPalettes.map((palette) => (
+                                            <div key={palette.id} className="rounded border border-border/50 bg-background/80 p-2">
+                                                <div className="mb-1 flex items-center justify-between gap-2">
+                                                    {editingHarmonyId === palette.id ? (
+                                                        <div className="flex w-full items-center gap-1">
+                                                            <input
+                                                                type="text"
+                                                                value={editingHarmonyName}
+                                                                onChange={(event) => setEditingHarmonyName(event.target.value)}
+                                                                className="h-7 flex-1 rounded border border-border/60 bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                                                                aria-label={`Rename harmony palette ${palette.name}`}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={saveRenameHarmonyPalette}
+                                                                className="h-7 rounded border border-border/60 bg-background px-2 text-[10px] hover:bg-secondary/50"
+                                                            >
+                                                                Save
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingHarmonyId(null);
+                                                                    setEditingHarmonyName('');
+                                                                }}
+                                                                className="h-7 rounded border border-border/60 bg-background px-2 text-[10px] hover:bg-secondary/50"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => applyHarmonyPalette(palette)}
+                                                                className="truncate text-left text-[11px] font-medium hover:text-primary"
+                                                                title={palette.name}
+                                                            >
+                                                                {palette.name}
+                                                            </button>
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => startRenameHarmonyPalette(palette)}
+                                                                    className="h-6 rounded border border-border/60 bg-background px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                                                                    aria-label={`Rename harmony palette ${palette.name}`}
+                                                                >
+                                                                    Rename
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setSavedHarmonyPalettes((prev) => prev.filter((entry) => entry.id !== palette.id))}
+                                                                    className="text-muted-foreground hover:text-foreground"
+                                                                    aria-label={`Delete harmony palette ${palette.name}`}
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-6 gap-1">
+                                                    {palette.colors.map((swatch, index) => (
+                                                        <button
+                                                            key={`${palette.id}-${swatch}-${index}`}
+                                                            type="button"
+                                                            className="h-4 rounded border border-border/60"
+                                                            style={{ backgroundColor: swatch }}
+                                                            onClick={() => applyColor(swatch)}
+                                                            title={swatch.toUpperCase()}
+                                                            aria-label={`Apply harmony color ${swatch}`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -366,7 +668,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                     </button>
                 </div>
 
-                <div className="grid grid-cols-8 gap-2">
+                <div className={cn('grid gap-2', variant === 'panel' ? 'grid-cols-6' : 'grid-cols-8')}>
                     {savedSwatches.map((color, index) => (
                         <button
                             key={`${color}-${index}`}

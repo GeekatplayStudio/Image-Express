@@ -56,6 +56,7 @@ Canonical progress file: [docs/unified_progress_status.md](docs/unified_progress
 | 31 | E3 History Brush bootstrap identity + safe fallback | Done | src/components/Editor/top-tool-options/RetouchControls.tsx, src/components/Editor/TopToolOptionsBar.tsx, src/components/Editor/EditorView.tsx, src/components/Editor/ToolsDropdownMenu.tsx, src/components/Toolbar.tsx, src/components/Editor/__tests__/TopToolOptionsBar.test.tsx, src/components/Editor/__tests__/EditorView.test.tsx, src/components/Editor/__tests__/ToolsDropdownMenu.test.tsx, src/components/__tests__/Toolbar.test.tsx, docs/unified_progress_status.md | Pass | Pass | Added `history-brush` across left rail, tools menu, and keyboard alias (`Y`), added top-option controls (size/hardness/sample), and wired safe no-op canvas behavior while raster history replay engine work remains pending. Validation rerun: `npm test -- src/components/Editor/__tests__/ToolsDropdownMenu.test.tsx src/components/Editor/__tests__/TopToolOptionsBar.test.tsx src/components/Editor/__tests__/EditorView.test.tsx src/components/__tests__/Toolbar.test.tsx --watch=false`, `npm run lint`, `npm run build`. |
 | 32 | E3 Blur + Dodge bootstrap identities + safe fallback | Done | src/components/Editor/top-tool-options/RetouchControls.tsx, src/components/Editor/TopToolOptionsBar.tsx, src/components/Editor/EditorView.tsx, src/components/Editor/ToolsDropdownMenu.tsx, src/components/Toolbar.tsx, src/components/Editor/__tests__/TopToolOptionsBar.test.tsx, src/components/Editor/__tests__/EditorView.test.tsx, src/components/Editor/__tests__/ToolsDropdownMenu.test.tsx, src/components/__tests__/Toolbar.test.tsx, docs/unified_progress_status.md | Pass | Pass | Added `blur` and `dodge` tool identities across left rail/tools menu/keyboard aliases (`B`/`O`), added top-option scaffolding (blur: size/strength/sample; dodge: size/exposure/protect tones), and wired safe no-op canvas behavior while real raster mutation integration remains pending. Validation rerun: `npm test -- src/components/Editor/__tests__/ToolsDropdownMenu.test.tsx src/components/Editor/__tests__/TopToolOptionsBar.test.tsx src/components/Editor/__tests__/EditorView.test.tsx src/components/__tests__/Toolbar.test.tsx --watch=false`, `npm run lint`, `npm run build`. |
 | 33 | E3 first-pass real raster retouch mutation engine | Done | src/lib/retouch-engine.ts, src/lib/__tests__/retouch-engine.test.ts, src/components/Editor/EditorView.tsx, src/components/Editor/__tests__/EditorView.test.tsx, src/types.ts, docs/unified_progress_status.md | Pass | Pass | Added dedicated retouch-layer mutation flow (clone/healing/history/blur/dodge) with interpolated stroke stamping, soft mask brushes, clone source alignment support, and history-source capture for restoration strokes. Added custom serialization support for retouch-layer identity and regression tests for retouch-layer creation/reuse + unavailable-context behavior, plus unit coverage for retouch utility math/helpers. Validation rerun: `npm test -- src/lib/__tests__/retouch-engine.test.ts src/components/Editor/__tests__/EditorView.test.tsx src/components/Editor/__tests__/TopToolOptionsBar.test.tsx src/components/Editor/__tests__/ToolsDropdownMenu.test.tsx src/components/__tests__/Toolbar.test.tsx --watch=false`, `npm run lint`, `npm run build`. |
+| 34 | Properties + color workflow parity upgrades (text/path safety, adjustment layers expansion, color wheel/profile system, harmony/swatch management) | Done | src/components/PropertiesPanel.tsx, src/components/properties/SelectionProperties.tsx, src/components/properties/PanelUtilityViews.tsx, src/components/properties/AdjustmentControls.tsx, src/components/properties/TextProperties.tsx, src/components/ColorWheelTool.tsx, src/components/Toolbar.tsx, src/lib/fabric-utils.ts, src/types.ts, src/components/__tests__/Toolbar.test.tsx, src/components/properties/__tests__/TextProperties.test.tsx, src/lib/__tests__/fabric-utils.test.ts | Pass | Pass | Added multiline text editing in properties, safer text-on-path rendering behavior, moved adjustment creation to left rail Adjustment Layers menu, expanded adjustment types (Brightness/Contrast, Color Balance, Light and Color, Solid Color), auto-opened adjustment properties on create, upgraded right color panel with embedded wheel + RGB/HSB/CMYK/Lab editing + profile modes, added harmony set save/rename/import/export, and implemented grouped swatch CRUD in the Swatches panel with persistence. |
 
 
 ---
@@ -70,14 +71,13 @@ The following items were explicitly requested and are tracked above. Use this se
 - **Canvas artboard** locked to bottom layer, non-selectable, size/aspect only.
 - **Painter tool** rework: single paint layer per session; reuse when reselected.
 - **Undo/Redo** with history stack, header buttons, and keyboard shortcuts.
-- **More primitives**: Arrow and Speech Bubble shapes in Shapes menu.
+- **More primitives**: Arrow, Speech Bubble, Thought Bubble, Cloud, Hexagon, and Diamond in Shapes menu.
 - **Video preview + frame grab**: capture current video frame to canvas from preview modal.
 - **Photoshop-style clipping**: Clip action (top clipped to below) for 2-object selection.
+- **Properties panel parity updates**: multiline text editing, adjustment layer expansion, enhanced right color panel, harmony set management, and grouped swatches CRUD.
 
 ### Not Yet Implemented
-- Vector masks (draw shape, use as mask/clip, fill/gradient).
 - Gradient masks per layer.
-- More text effects.
 - Send canvas to AI for processing.
 - Local AI support (Ollama).
 - AI critique of image/canvas.
@@ -86,7 +86,6 @@ The following items were explicitly requested and are tracked above. Use this se
 - Reset password + change password in profile.
 - Import/export asset library.
 - Online storage integration.
-- Curves window scalable and must affect layers below or clipped.
 
 
 ## Notes

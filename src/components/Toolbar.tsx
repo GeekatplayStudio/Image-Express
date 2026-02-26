@@ -20,6 +20,10 @@ import {
     ArrowRight,
     CornerDownRight,
     MessageSquare,
+    MessageCircle,
+    Cloud,
+    Hexagon,
+    Diamond,
     PenTool,
     ShieldCheck,
     Copy,
@@ -33,6 +37,7 @@ import {
     Search,
     Hand,
     ArrowUpDown,
+    SlidersHorizontal,
     type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -250,6 +255,7 @@ const TOOL_GROUP_BY_ID: Record<ToolbarToolGroupId, ToolbarToolGroupDefinition> =
 const CREATION_PRIMARY_TOOLS: ToolbarToolDefinition[] = [
     { name: 'text', icon: Type, label: 'Text' },
     { name: 'shapes', icon: Shapes, label: 'Shapes' },
+    { name: 'adjustments', icon: SlidersHorizontal, label: 'Adjustment Layers', shortLabel: 'Adjust' },
     { name: 'pen', icon: PenTool, label: 'Pen' },
     { name: 'paint', icon: Brush, label: 'Brushes', shortLabel: 'Brush' },
     { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient', shortLabel: 'Fill' },
@@ -1639,6 +1645,91 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         canvas.setActiveObject(bubble);
     };
 
+    const addCloud = () => {
+        if (!canvas) return;
+        const pathData = [
+            'M 34 86',
+            'C 12 86 4 60 22 48',
+            'C 22 28 42 14 60 26',
+            'C 72 8 102 14 108 38',
+            'C 128 38 136 64 118 76',
+            'C 114 88 100 96 84 94',
+            'H 34',
+            'Z'
+        ].join(' ');
+        const cloud = new fabric.Path(pathData, {
+            left: 150,
+            top: 150,
+            objectCaching: false,
+        });
+        applyShapeConfig(cloud);
+        canvas.add(cloud);
+        canvas.setActiveObject(cloud);
+    };
+
+    const addThoughtBubble = () => {
+        if (!canvas) return;
+        const pathData = [
+            'M 20 54',
+            'C 20 28 42 10 72 10',
+            'C 102 10 126 28 126 54',
+            'C 126 80 102 98 72 98',
+            'C 58 98 46 94 36 88',
+            'C 30 90 26 98 24 106',
+            'C 22 98 20 92 16 86',
+            'C 16 86 20 78 20 54',
+            'Z',
+            'M 16 116 a7 7 0 1 0 14 0 a7 7 0 1 0 -14 0 Z',
+            'M 4 132 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0 Z'
+        ].join(' ');
+        const thoughtBubble = new fabric.Path(pathData, {
+            left: 150,
+            top: 140,
+            objectCaching: false,
+        });
+        applyShapeConfig(thoughtBubble);
+        canvas.add(thoughtBubble);
+        canvas.setActiveObject(thoughtBubble);
+    };
+
+    const addHexagon = () => {
+        if (!canvas) return;
+        const points = [
+            { x: 50, y: 0 },
+            { x: 100, y: 28 },
+            { x: 100, y: 84 },
+            { x: 50, y: 112 },
+            { x: 0, y: 84 },
+            { x: 0, y: 28 }
+        ];
+        const hexagon = new fabric.Polygon(points, {
+            left: 130,
+            top: 130,
+            objectCaching: false,
+        });
+        applyShapeConfig(hexagon);
+        canvas.add(hexagon);
+        canvas.setActiveObject(hexagon);
+    };
+
+    const addDiamond = () => {
+        if (!canvas) return;
+        const points = [
+            { x: 56, y: 0 },
+            { x: 112, y: 56 },
+            { x: 56, y: 112 },
+            { x: 0, y: 56 }
+        ];
+        const diamond = new fabric.Polygon(points, {
+            left: 130,
+            top: 130,
+            objectCaching: false,
+        });
+        applyShapeConfig(diamond);
+        canvas.add(diamond);
+        canvas.setActiveObject(diamond);
+    };
+
     const createAdjustmentLayer = (type: AdjustmentLayerType) => {
         if (!canvas) return;
         (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('adjustment:create', { type });
@@ -2034,7 +2125,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         <button
                             key={tool.name}
                             onClick={() => handleToolClick(tool.name)}
-                            ref={tool.name === 'shapes' ? shapesButtonRef : undefined}
+                            ref={tool.name === 'shapes' ? shapesButtonRef : tool.name === 'adjustments' ? adjustmentsButtonRef : undefined}
                             className={cn(
                                 'rounded-sm flex transition-colors z-20',
                                 isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
@@ -2311,6 +2402,22 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         <MessageSquare size={20} />
                         <span className="text-[10px]">Bubble</span>
                     </button>
+                    <button onClick={addThoughtBubble} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <MessageCircle size={20} />
+                        <span className="text-[10px]">Thought</span>
+                    </button>
+                    <button onClick={addCloud} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <Cloud size={20} />
+                        <span className="text-[10px]">Cloud</span>
+                    </button>
+                    <button onClick={addHexagon} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <Hexagon size={20} />
+                        <span className="text-[10px]">Hexagon</span>
+                    </button>
+                    <button onClick={addDiamond} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
+                        <Diamond size={20} />
+                        <span className="text-[10px]">Diamond</span>
+                    </button>
                 </div>,
                 document.body
             )}
@@ -2319,39 +2426,54 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 <div
                     ref={adjustmentMenuRef}
                     style={{ left: adjustmentMenuPos.left, top: adjustmentMenuPos.top }}
-                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[2000] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[2000] w-56 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
                     <div
                         className="-mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
                         onMouseDown={beginMenuDrag('adjustments')}
                     >
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Adjustments</span>
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Adjustment Layers</span>
                         <span className="text-[10px] text-muted-foreground/80">Drag</span>
                     </div>
-                    <button onClick={() => createAdjustmentLayer('curves')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                        Curves
-                    </button>
-                    <button onClick={() => createAdjustmentLayer('levels')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                        Levels
-                    </button>
-                    <button onClick={() => createAdjustmentLayer('saturation-vibrance')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                        Saturation / Vibrance
-                    </button>
-                    <button onClick={() => createAdjustmentLayer('hue-saturation')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                        Hue / Saturation
-                    </button>
-                    <button onClick={() => createAdjustmentLayer('exposure')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                        Exposure
-                    </button>
-                    <button onClick={() => createAdjustmentLayer('brightness-contrast')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                        Brightness / Contrast
-                    </button>
-                    <button onClick={() => createAdjustmentLayer('color-balance')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                        Color Balance
-                    </button>
-                    <button onClick={() => createAdjustmentLayer('black-white')} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                        Black & White
-                    </button>
+                    <div className="space-y-2">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">Basic</div>
+                        <button onClick={() => createAdjustmentLayer('brightness-contrast')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Brightness / Contrast
+                        </button>
+                        <button onClick={() => createAdjustmentLayer('hue-saturation')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Hue / Saturation
+                        </button>
+                        <button onClick={() => createAdjustmentLayer('exposure')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Exposure
+                        </button>
+                        <button onClick={() => createAdjustmentLayer('saturation-vibrance')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Saturation / Vibrance
+                        </button>
+                    </div>
+                    <div className="space-y-2 pt-1 border-t border-border/50">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">Tonal</div>
+                        <button onClick={() => createAdjustmentLayer('levels')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Levels
+                        </button>
+                        <button onClick={() => createAdjustmentLayer('curves')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Curves
+                        </button>
+                        <button onClick={() => createAdjustmentLayer('black-white')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Black & White
+                        </button>
+                    </div>
+                    <div className="space-y-2 pt-1 border-t border-border/50">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">Color</div>
+                        <button onClick={() => createAdjustmentLayer('color-balance')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Color Balance
+                        </button>
+                        <button onClick={() => createAdjustmentLayer('light-and-color')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Light and Color
+                        </button>
+                        <button onClick={() => createAdjustmentLayer('solid-color')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
+                            Solid Color
+                        </button>
+                    </div>
                 </div>,
                 document.body
             )}

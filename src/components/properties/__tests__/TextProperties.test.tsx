@@ -4,14 +4,32 @@ import { TextProperties } from '../TextProperties';
 
 describe('TextProperties', () => {
     const baseProps = {
+        textContent: 'Line 1',
         fontFamily: 'Arial',
         fontWeight: 'normal',
         curveStrength: 0,
         curveCenter: 0,
+        onTextContentChange: jest.fn(),
         onFontFamilyChange: jest.fn(),
         onFontWeightChange: jest.fn(),
         onCurveChange: jest.fn(),
     };
+
+    it('updates multiline text content from textarea', () => {
+        const onTextContentChange = jest.fn();
+        render(
+            <TextProperties
+                {...baseProps}
+                onTextContentChange={onTextContentChange}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('Text content'), {
+            target: { value: 'Line 1\nLine 2\nLine 3' },
+        });
+
+        expect(onTextContentChange).toHaveBeenCalledWith('Line 1\nLine 2\nLine 3');
+    });
 
     it('attaches text to selected path from dropdown', () => {
         const onAttachPath = jest.fn();

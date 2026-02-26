@@ -11,6 +11,10 @@ import {
     SaturationVibranceSettings, 
     HueSaturationSettings, 
     ExposureSettings, 
+    BrightnessContrastSettings,
+    ColorBalanceSettings,
+    LightAndColorSettings,
+    SolidColorSettings,
     FabricBaseFilter, 
     PenNode,
 } from '@/types';
@@ -299,6 +303,7 @@ export default function PropertiesPanel({
 
     const [fontFamily, setFontFamily] = useState('Arial');
     const [fontWeight, setFontWeight] = useState('normal');
+    const [textContent, setTextContent] = useState('');
 
     const [adjustmentSettings, setAdjustmentSettings] = useState<AdjustmentLayerSettings | null>(null);
 
@@ -567,6 +572,14 @@ export default function PropertiesPanel({
                 ];
             }
 
+            if (type === 'brightness-contrast') {
+                const bc = settings as BrightnessContrastSettings;
+                return [
+                    new fabric.filters.Brightness({ brightness: (bc.brightness || 0) * clampedIntensity }) as unknown as FabricBaseFilter,
+                    new fabric.filters.Contrast({ contrast: (bc.contrast || 0) * clampedIntensity }) as unknown as FabricBaseFilter
+                ];
+            }
+
             if (type === 'hue-saturation') {
                 const hueSat = settings as HueSaturationSettings;
                 const filters: FabricBaseFilter[] = [
@@ -598,6 +611,64 @@ export default function PropertiesPanel({
                 if (clampedIntensity >= 0.99) return [bw];
                 return [
                     new fabric.filters.Saturation({ saturation: -clampedIntensity }) as unknown as FabricBaseFilter
+                ];
+            }
+
+            if (type === 'color-balance') {
+                const balance = settings as ColorBalanceSettings;
+                const red = Math.max(-1, Math.min(1, balance.red || 0)) * 0.35 * clampedIntensity;
+                const green = Math.max(-1, Math.min(1, balance.green || 0)) * 0.35 * clampedIntensity;
+                const blue = Math.max(-1, Math.min(1, balance.blue || 0)) * 0.35 * clampedIntensity;
+                const matrix = [
+                    1, 0, 0, 0, red,
+                    0, 1, 0, 0, green,
+                    0, 0, 1, 0, blue,
+                    0, 0, 0, 1, 0,
+                ];
+                return [
+                    new fabric.filters.ColorMatrix({ matrix }) as unknown as FabricBaseFilter
+                ];
+            }
+
+            if (type === 'light-and-color') {
+                const lac = settings as LightAndColorSettings;
+                const filters: FabricBaseFilter[] = [];
+                const temperature = Math.max(-1, Math.min(1, lac.temperature || 0)) * 0.2 * clampedIntensity;
+                const tint = Math.max(-1, Math.min(1, lac.tint || 0)) * 0.2 * clampedIntensity;
+                const matrix = [
+                    1, 0, 0, 0, temperature,
+                    0, 1, 0, 0, tint,
+                    0, 0, 1, 0, -temperature,
+                    0, 0, 0, 1, 0,
+                ];
+                if (Math.abs(temperature) > 0.001 || Math.abs(tint) > 0.001) {
+                    filters.push(new fabric.filters.ColorMatrix({ matrix }) as unknown as FabricBaseFilter);
+                }
+
+                if (Math.abs(lac.exposure || 0) > 0.001) {
+                    filters.push(new fabric.filters.Brightness({ brightness: (lac.exposure || 0) * clampedIntensity }) as unknown as FabricBaseFilter);
+                }
+                if (Math.abs(lac.saturation || 0) > 0.001) {
+                    filters.push(new fabric.filters.Saturation({ saturation: (lac.saturation || 0) * clampedIntensity }) as unknown as FabricBaseFilter);
+                }
+                const VibranceFilter = filtersRegistry.Vibrance;
+                if (VibranceFilter && Math.abs(lac.vibrance || 0) > 0.001) {
+                    filters.push(new VibranceFilter({ vibrance: (lac.vibrance || 0) * clampedIntensity }) as unknown as FabricBaseFilter);
+                }
+                return filters;
+            }
+
+            if (type === 'solid-color') {
+                const solid = settings as SolidColorSettings;
+                const BlendColorFilter = filtersRegistry.BlendColor;
+                if (!BlendColorFilter) return [];
+                const alpha = Math.max(0, Math.min(1, solid.opacity ?? 0.5));
+                return [
+                    new BlendColorFilter({
+                        color: solid.color || '#ff8800',
+                        mode: solid.mode || 'tint',
+                        alpha: alpha * clampedIntensity,
+                    }) as unknown as FabricBaseFilter
                 ];
             }
 
@@ -885,6 +956,7 @@ export default function PropertiesPanel({
                 // Text
                 if (target.type === 'text' || target.type === 'i-text' || target.type === 'textbox') {
                     const t = target as fabric.IText;
+                    setTextContent(t.text || '');
                     setFontFamily(t.fontFamily || 'Arial');
                     setFontWeight((t.fontWeight as string) || 'normal');
                     setCurveStrength(target.curveStrength || 0);
@@ -967,6 +1039,10 @@ export default function PropertiesPanel({
              
                canvas.add(rect);
                canvas.setActiveObject(rect);
+             setSelectedObject(rect as ExtendedFabricObject);
+             setSelectedIds(new Set([ensureObjectId(rect)]));
+             setAdjustmentSettings(ext.adjustmentSettings ?? null);
+             setPanelMode('properties');
                canvas.requestRenderAll();
                updateObjects();
                applyAdjustmentLayers();
@@ -994,7 +1070,7 @@ export default function PropertiesPanel({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (canvas as any).off('adjustment:create', handleAdjustmentCreate);
         };
-    }, [canvas, updateObjects, applyAdjustmentLayers, activeTool]);
+    }, [canvas, updateObjects, applyAdjustmentLayers, activeTool, setPanelMode]);
 
 
     // --- Helper Functions ---
@@ -1119,6 +1195,23 @@ export default function PropertiesPanel({
         return path;
     }, []);
 
+    const applyTextPathRenderSafety = useCallback((textObj: fabric.IText) => {
+        const nextPadding = Math.max(20, textObj.padding || 0);
+        textObj.set('padding', nextPadding);
+        textObj.set('objectCaching', false);
+        textObj.set('dirty', true);
+    }, []);
+
+    const clearTextPathRenderSafetyIfUnused = useCallback((textObj: fabric.IText) => {
+        const activeEffects = ((textObj as unknown as { data?: { textEffects?: string[] } }).data?.textEffects) || [];
+        const hasEffects = Array.isArray(activeEffects) && activeEffects.length > 0;
+        const hasPath = !!(textObj as unknown as { path?: fabric.Path | null }).path;
+        if (!hasEffects && !hasPath) {
+            textObj.set('padding', 0);
+        }
+        textObj.set('dirty', true);
+    }, []);
+
     const alignTextToPathObject = useCallback(async (textObj: fabric.IText, sourcePathObj: fabric.Object) => {
         if (!canvas) return false;
 
@@ -1130,6 +1223,7 @@ export default function PropertiesPanel({
         if (typeof textObj.pathStartOffset !== 'number') {
             textObj.set('pathStartOffset', 0);
         }
+        applyTextPathRenderSafety(textObj);
 
         textObj.set('textPathSourceId', ensureObjectId(sourcePathObj));
         const extText = textObj as ExtendedFabricObject;
@@ -1145,7 +1239,7 @@ export default function PropertiesPanel({
         canvas.requestRenderAll();
         updateObjects();
         return true;
-    }, [canvas, createTextPathFromObject, updateObjects]);
+    }, [applyTextPathRenderSafety, canvas, createTextPathFromObject, updateObjects]);
 
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1267,7 +1361,7 @@ export default function PropertiesPanel({
             selectedObject.set('path', null);
             selectedObject.set('pathStartOffset', 0);
             selectedObject.set('textPathSourceId', undefined);
-            selectedObject.set('dirty', true);
+            clearTextPathRenderSafetyIfUnused(selectedObject as fabric.IText);
             setCurveStrength(0);
             setCurveCenter(0);
             canvas.requestRenderAll();
@@ -1364,6 +1458,13 @@ export default function PropertiesPanel({
         
         if (prop === 'fontFamily') (selectedObject as fabric.IText).set('fontFamily', value);
         if (prop === 'fontWeight') (selectedObject as fabric.IText).set('fontWeight', value);
+        if (prop === 'textContent') {
+            const textObj = selectedObject as fabric.IText;
+            const nextText = typeof value === 'string' ? value : String(value ?? '');
+            textObj.set('text', nextText);
+            setTextContent(nextText);
+            textObj.set('dirty', true);
+        }
         
         if (prop === 'curve') {
              const { strength, center } = value;
@@ -1375,6 +1476,7 @@ export default function PropertiesPanel({
              if (strength === 0) {
                  selectedObject.set('path', null);
                  (selectedObject as fabric.IText).set('pathStartOffset', 0);
+                 clearTextPathRenderSafetyIfUnused(selectedObject as fabric.IText);
              } else {
                  const textObj = selectedObject as fabric.IText;
                  const baseWidth = typeof textObj.calcTextWidth === 'function'
@@ -1405,6 +1507,7 @@ export default function PropertiesPanel({
                  const path = new fabric.Path(pathData);
                  path.set({ visible: false });
                  selectedObject.set('path', path);
+                 applyTextPathRenderSafety(textObj);
                  const pathLength = Math.max(1, arcLength);
                  const slack = Math.max(0, pathLength - textWidth);
                  const align = (textObj.textAlign || 'left').toLowerCase();
@@ -2573,6 +2676,7 @@ export default function PropertiesPanel({
         return withPanelRail(
             <SwatchesPanelView
                 hasEditableTarget={hasEditableFillTarget}
+                currentColor={color}
                 onApplySwatch={(nextColor) => handlePropChange('fill', nextColor)}
             />
         );
@@ -2609,7 +2713,10 @@ export default function PropertiesPanel({
             <AdjustmentsPanelView
                 selectedAdjustmentType={selectedAdjustmentType}
                 onCreateAdjustment={handleCreateAdjustmentLayer}
-                onSwitchAdjustmentType={selectedAdjustmentType ? handleAdjustmentTypeChange : undefined}
+                onSwitchAdjustmentType={selectedAdjustmentType ? (type) => {
+                    handleAdjustmentTypeChange(type);
+                    setPanelMode('properties');
+                } : undefined}
             />
         );
     }
@@ -2924,7 +3031,7 @@ export default function PropertiesPanel({
              updateAdjustment={updateAdjustment}
              onAdjustmentTypeChange={handleAdjustmentTypeChange}
              onCreateAdjustmentLayer={handleCreateAdjustmentLayer}
-             textState={{ font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter }}
+             textState={{ text: textContent, font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter }}
              activeTextEffects={activeTextEffects}
              textEffectConfigs={textEffectConfigs}
              effectState={{ 

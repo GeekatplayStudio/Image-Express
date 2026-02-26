@@ -6,6 +6,7 @@ type PathOption = {
 };
 
 interface TextPropertiesProps {
+    textContent: string;
     fontFamily: string;
     fontWeight: string;
     curveStrength: number;
@@ -15,12 +16,14 @@ interface TextPropertiesProps {
     hasAttachedPath?: boolean;
     onFontFamilyChange: (font: string) => void;
     onFontWeightChange: (weight: string) => void;
+    onTextContentChange: (text: string) => void;
     onCurveChange: (strength: number, center?: number) => void;
     onAttachPath?: (pathId: string) => void;
     onDetachPath?: () => void;
 }
 
 export function TextProperties({
+    textContent,
     fontFamily,
     fontWeight,
     curveStrength,
@@ -30,6 +33,7 @@ export function TextProperties({
     hasAttachedPath = false,
     onFontFamilyChange,
     onFontWeightChange,
+    onTextContentChange,
     onCurveChange,
     onAttachPath,
     onDetachPath
@@ -57,6 +61,18 @@ export function TextProperties({
             <h3 className="font-medium text-sm">Text Style</h3>
             
             <div className="space-y-3">
+                <div className="space-y-1">
+                    <label className="text-[10px] text-muted-foreground">Text</label>
+                    <textarea
+                        aria-label="Text content"
+                        value={textContent}
+                        onChange={(e) => onTextContentChange(e.target.value)}
+                        rows={4}
+                        className="w-full text-xs bg-transparent border border-border rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary resize-y min-h-[88px]"
+                        placeholder="Type text..."
+                    />
+                </div>
+
                 <div className="space-y-1">
                     <label className="text-[10px] text-muted-foreground">Font Family</label>
                     <select

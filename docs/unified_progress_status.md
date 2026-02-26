@@ -1,6 +1,6 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-02-25  
+Last updated: 2026-02-26  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 HEAD: 4dcd759
@@ -12,6 +12,21 @@ This is the single source of truth for implementation progress across:
 - continuation handoff notes.
 
 Use this file first for: what is done, what is pending, and what to do next.
+
+---
+
+## Latest Delivery (2026-02-25 to 2026-02-26)
+
+- Completed right-panel color workflow parity: embedded wheel interaction, editable RGB/HSB/CMYK/Lab channel cards, and profile-context display modes (sRGB/Adobe RGB/CMYK print preview).
+- Completed harmony management in color tooling: named save/load/delete, inline rename, import/export JSON, plus compact collapsible list behavior.
+- Completed grouped swatch management in Swatches panel: create/select/remove groups and add/remove swatches within the panel, persisted via local storage.
+- Completed adjustment layer workflow alignment: adjustment creation stays in left rail `Adjustment Layers`, added missing types (`brightness-contrast`, `color-balance`, `light-and-color`, `solid-color`), and creation now auto-focuses new adjustment properties.
+- Completed properties/text UX updates: multiline text editing in properties and text-on-path render safety to reduce clipping.
+- Completed shape library expansion in the left rail shape tool: cloud, thought bubble, hexagon, and diamond.
+
+Validation notes:
+- Build passed after latest round (`npm run build`).
+- Lint/build were rerun after syntax regression fixes during swatch panel refactor.
 
 ---
 

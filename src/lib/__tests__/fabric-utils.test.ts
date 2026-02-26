@@ -197,7 +197,12 @@ describe('fabric-utils', () => {
 
   it('returns adjustment labels and defaults', () => {
     expect(getAdjustmentLabel('curves')).toBe('Curves');
+    expect(getAdjustmentLabel('solid-color')).toBe('Solid Color');
     expect(getAdjustmentLabel()).toBe('Adjustment');
     expect(getDefaultAdjustmentSettings('levels')).toEqual({ black: 0, mid: 1, white: 1 });
+    expect(getDefaultAdjustmentSettings('brightness-contrast')).toEqual({ brightness: 0, contrast: 0 });
+    expect(getDefaultAdjustmentSettings('color-balance')).toEqual({ red: 0, green: 0, blue: 0, preserveLuminosity: true });
+    expect(getDefaultAdjustmentSettings('light-and-color')).toEqual({ temperature: 0, tint: 0, exposure: 0, saturation: 0, vibrance: 0 });
+    expect(getDefaultAdjustmentSettings('solid-color')).toEqual({ color: '#ff8800', opacity: 0.5, mode: 'tint' });
   });
 });
