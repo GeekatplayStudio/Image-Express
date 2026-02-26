@@ -6,6 +6,16 @@ import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { APP_THEME } from '@/lib/theme-tokens';
+import {
+  GENERATIVE_PROVIDER_OPTIONS,
+  getGenerativeProviderOption,
+  isGenerativeProviderReady,
+  loadGenerativePreferences,
+  resolveGenerativeLaunchState,
+  saveGenerativePreferences,
+  type GenerativeProviderId,
+  type GenerativeStabilityTab,
+} from '@/lib/generative-preferences';
 
 /**
  * ImageGeneratorModal
@@ -68,56 +78,42 @@ export default function ImageGeneratorModal({
   const [zoneHeight, setZoneHeight] = useState(initialHeight);
   const zoneObjectRef = useRef<fabric.Rect | null>(null);
 
-  // --- Configuration ---
-  const [config, setConfig] = useState({
-    provider: 'local',
-    serverUrl: 'http://127.0.0.1:8188',
-    apiKey: '',
-  });
-
   // --- Provider Selection ---
-  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState<string>('comfy'); // Default
+  const [availableProviders, setAvailableProviders] = useState<GenerativeProviderId[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<GenerativeProviderId>('comfy');
+  const [comfyServerUrl, setComfyServerUrl] = useState('http://127.0.0.1:8188');
+  const [initialStabilityTab, setInitialStabilityTab] = useState<GenerativeStabilityTab>('inpaint');
+  const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
+  const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
+
+  // --- Modal View Mode (Zone vs Generative Fill/Studio) ---
+  const [mode, setMode] = useState<'zone' | 'stability'>('zone');
 
   // Init: Synch with LocalStorage settings
   useEffect(() => {
     if (typeof window !== 'undefined') {
-        const comfyUrl = localStorage.getItem('image-express-comfy-url');
-        const savedApiKey = localStorage.getItem('image-express-gen-key');
-
         // Check for Available API Keys in storage
         const stability = localStorage.getItem('stability_api_key');
         const openai = localStorage.getItem('openai_api_key');
         const google = localStorage.getItem('google_api_key');
         const banana = localStorage.getItem('banana_api_key');
         
-        const providers = ['comfy']; // Local ComfyUI is always an option
+        const providers: GenerativeProviderId[] = ['comfy']; // Local ComfyUI is always an option
         if (stability) providers.push('stability');
         if (openai) providers.push('openai');
         if (google) providers.push('google');
         if (banana) providers.push('banana');
         
-        setAvailableProviders(providers);
+        const preferences = loadGenerativePreferences();
+        const launch = resolveGenerativeLaunchState(preferences, providers);
 
-        // Load previously selected provider
-        const savedProvider = localStorage.getItem('image-express-gen-provider');
-        if (savedProvider && providers.includes(savedProvider)) {
-            setSelectedProvider(savedProvider);
-        } else {
-             // Fallback logic
-             const legacyProvider = localStorage.getItem('image-express-provider');
-             if (legacyProvider === 'api' && providers.length > 1) {
-                  setSelectedProvider(providers[1]); 
-             } else {
-                 setSelectedProvider('comfy');
-             }
-        }
-        
-        setConfig({
-            provider: 'comfy', // Base default
-            serverUrl: comfyUrl || 'http://127.0.0.1:8188',
-            apiKey: savedApiKey || '',
-        });
+        setAvailableProviders(providers);
+        setSelectedProvider(launch.provider);
+        setMode(launch.mode);
+        setInitialStabilityTab(launch.stabilityTab);
+        setComfyServerUrl(preferences.comfyServerUrl);
+        setAutoStartInpaintMasking(preferences.autoStartInpaintMasking);
+        setShowInpaintPromptDock(preferences.showInpaintPromptDock);
     }
   }, []);
 
@@ -125,21 +121,25 @@ export default function ImageGeneratorModal({
    * Updates selected provider and persists choice.
    */
   const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const newVal = e.target.value;
+      const newVal = e.target.value as GenerativeProviderId;
       setSelectedProvider(newVal);
+      saveGenerativePreferences({ defaultProvider: newVal });
+
+      // Keep compatibility with older keys used in previous releases.
       localStorage.setItem('image-express-gen-provider', newVal);
+      localStorage.setItem('image-express-provider', newVal);
+      if (mode === 'stability' && newVal !== 'stability') {
+          setMode('zone');
+      }
   };
     
   /**
    * Retreives the API key for a specific provider from storage.
    */
-  const getProviderKey = (provider: string) => {
+  const getProviderKey = (provider: GenerativeProviderId) => {
       if (provider === 'comfy') return '';
       return localStorage.getItem(`${provider}_api_key`) || '';
-  }
-
-  // --- Modal View Mode (Local Zone vs Stability Specific UI) ---
-  const [mode, setMode] = useState<'zone' | 'stability'>('zone');
+  };
 
   useEscapeKey(onClose, { enabled: isOpen });
 
@@ -157,6 +157,14 @@ export default function ImageGeneratorModal({
   // --- Zone Logic: Create/Destroy on Canvas ---
   useEffect(() => {
     if (!canvas) return;
+    if (mode !== 'zone') {
+        if (zoneObjectRef.current && canvas.contains(zoneObjectRef.current)) {
+            canvas.remove(zoneObjectRef.current);
+            canvas.requestRenderAll();
+        }
+        zoneObjectRef.current = null;
+        return;
+    }
 
     // Check if user already selected a rect to transform into a zone
     const activeObj = canvas.getActiveObject();
@@ -202,7 +210,7 @@ export default function ImageGeneratorModal({
             canvas.requestRenderAll();
         }
     };
-  }, [canvas]);
+  }, [canvas, mode]);
 
   // --- Draggable Window Handlers ---
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -429,7 +437,7 @@ export default function ImageGeneratorModal({
           prompt,
           width: currentW,
           height: currentH,
-          serverUrl: config.serverUrl,
+          serverUrl: comfyServerUrl,
           provider: selectedProvider === 'comfy' ? 'comfy' : 'remote',
           specificProvider: selectedProvider, 
           apiKey: currentKey
@@ -444,7 +452,7 @@ export default function ImageGeneratorModal({
 
       if (selectedProvider === 'comfy') {
           setStatusMessage('Processing on ComfyUI...');
-          await pollComfyResult(data.promptId, config.serverUrl);
+          await pollComfyResult(data.promptId, comfyServerUrl);
       } else {
          // Handle Remote API Success
          if (data.imageUrl) {
@@ -464,6 +472,11 @@ export default function ImageGeneratorModal({
     }
   };
 
+  const hasStabilityAccess = availableProviders.includes('stability');
+  const selectedProviderOption = getGenerativeProviderOption(selectedProvider);
+  const isSelectedProviderReady = isGenerativeProviderReady(selectedProvider);
+  const selectedProviderLabel = selectedProviderOption?.label || selectedProvider;
+  const stabilityBadge = getGenerativeProviderOption('stability')?.label || 'Stability AI';
 
   if (!isOpen) return null;
 
@@ -484,7 +497,7 @@ export default function ImageGeneratorModal({
       >
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
            <Wand2 size={16} className="text-primary"/>
-           AI Generation Zone
+           Generative
         </div>
         <button onClick={onClose} className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors no-drag">
            <X size={16} />
@@ -499,27 +512,38 @@ export default function ImageGeneratorModal({
              onClick={() => setMode('zone')}
              className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${mode === 'zone' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
-             Local / Zone
+             Prompt + Zone
           </button>
           <button 
              onClick={() => setMode('stability')}
-             className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${mode === 'stability' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+             disabled={!hasStabilityAccess}
+             className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${mode === 'stability' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-foreground'} ${!hasStabilityAccess ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-             Stability AI
+             Generative Fill
           </button>
       </div>
 
       <div className="p-4 bg-background max-h-[70vh] overflow-y-auto no-drag">
         {mode === 'stability' ? (
              /* Stability AI Specific UI */
-             <StabilityGenerator 
-                 isOpen={true}
-                 onClose={onClose}
-                 canvas={canvas || null}
-                 apiKey={apiKey || getProviderKey('stability')}
-                 embedded={true} 
-                 onAssetSave={saveToAssets}
-             />
+             hasStabilityAccess ? (
+                 <StabilityGenerator 
+                     isOpen={true}
+                     onClose={onClose}
+                     canvas={canvas || null}
+                     apiKey={apiKey || getProviderKey('stability')}
+                     embedded={true} 
+                     onAssetSave={saveToAssets}
+                     initialTab={initialStabilityTab}
+                     autoStartInpaintMasking={autoStartInpaintMasking}
+                     showInpaintQuickDock={showInpaintPromptDock}
+                     providerLabel={stabilityBadge}
+                 />
+             ) : (
+                 <div className="text-xs border border-amber-500/30 bg-amber-500/10 rounded-lg p-3 text-amber-700 dark:text-amber-300">
+                     Add a Stability API key in Settings to use Generative Fill and inpaint workflows.
+                 </div>
+             )
         ) : (
         <>
             {/* 
@@ -550,8 +574,10 @@ export default function ImageGeneratorModal({
                          value={selectedProvider}
                          onChange={handleProviderChange}
                       >
-                         {availableProviders.map(p => (
-                             <option className="bg-zinc-950 text-white" key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                         {availableProviders.map((provider) => (
+                             <option className="bg-zinc-950 text-white" key={provider} value={provider}>
+                                 {`${GENERATIVE_PROVIDER_OPTIONS.find((item) => item.id === provider)?.label || provider}${isGenerativeProviderReady(provider) ? '' : ' (Coming soon)'}`}
+                             </option>
                          ))}
                       </select>
                    </div>
@@ -563,10 +589,26 @@ export default function ImageGeneratorModal({
                    </div>
                </div>
 
+               {selectedProvider === 'comfy' && (
+                   <div className="space-y-1">
+                       <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">ComfyUI URL</label>
+                       <input
+                           className="w-full text-xs p-2 rounded-md border bg-background font-mono"
+                           value={comfyServerUrl}
+                           onChange={(event) => {
+                               const nextUrl = event.target.value;
+                               setComfyServerUrl(nextUrl);
+                               saveGenerativePreferences({ comfyServerUrl: nextUrl });
+                           }}
+                           placeholder="http://127.0.0.1:8188"
+                       />
+                   </div>
+               )}
+
                {/* Generate Button */}
                <button 
                   onClick={handleGenerate}
-                  disabled={isGenerating || !prompt}
+                  disabled={isGenerating || !prompt || !isSelectedProviderReady}
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm"
                >
                   {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
@@ -576,6 +618,16 @@ export default function ImageGeneratorModal({
                {statusMessage && (
                   <div className={`text-xs text-center py-2 px-3 rounded-md ${statusMessage.includes('Error') ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-secondary-foreground'}`}>
                       {statusMessage}
+                  </div>
+               )}
+
+               <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
+                   Active default provider: {selectedProviderLabel}
+               </div>
+
+               {!isSelectedProviderReady && (
+                  <div className="text-[10px] text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-md px-2 py-1 bg-amber-500/10">
+                      {selectedProviderLabel} integration is configured for future support and is not active yet.
                   </div>
                )}
                

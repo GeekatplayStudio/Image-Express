@@ -11,6 +11,17 @@ import {
     saveAssetStorageSettings,
     type AssetStorageMode
 } from '@/lib/assetStorageSettings';
+import {
+    GENERATIVE_PROVIDER_OPTIONS,
+    GENERATIVE_WORKFLOW_OPTIONS,
+    isGenerativeProviderReady,
+    isWorkflowSupportedByProvider,
+    loadGenerativePreferences,
+    resolveCompatibleWorkflowForProvider,
+    saveGenerativePreferences,
+    type GenerativeProviderId,
+    type GenerativeWorkflowId
+} from '@/lib/generative-preferences';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 import { resetNumberDragHintSeen } from '@/lib/number-drag-hints';
@@ -60,6 +71,11 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [openaiKey, setOpenaiKey] = useState('');
     const [googleKey, setGoogleKey] = useState('');
     const [bananaKey, setBananaKey] = useState('');
+    const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('stability');
+    const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('stability-inpaint');
+    const [comfyServerUrl, setComfyServerUrl] = useState('http://127.0.0.1:8188');
+    const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
+    const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
 
     const [status, setStatus] = useState<'idle' | 'saved' | 'saving' | 'error'>('idle');
     const [syncStatus, setSyncStatus] = useState<'local' | 'synced' | 'syncing'>('local');
@@ -147,6 +163,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
         setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
         setBananaKey(localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
+        const generativePreferences = loadGenerativePreferences();
+        setDefaultGenerativeProvider(generativePreferences.defaultProvider);
+        setDefaultGenerativeWorkflow(generativePreferences.defaultWorkflow);
+        setComfyServerUrl(generativePreferences.comfyServerUrl);
+        setAutoStartInpaintMasking(generativePreferences.autoStartInpaintMasking);
+        setShowInpaintPromptDock(generativePreferences.showInpaintPromptDock);
 
         // If user is logged in, fetch from server
         if (userId && userId !== 'Guest') {
@@ -250,6 +272,15 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiKey);
         localStorage.setItem(STORAGE_KEYS.GOOGLE_API_KEY, googleKey);
         localStorage.setItem(STORAGE_KEYS.BANANA_API_KEY, bananaKey);
+        localStorage.setItem(STORAGE_KEYS.IMG_GEN_PROVIDER, defaultGenerativeProvider);
+        localStorage.setItem(STORAGE_KEYS.COMFY_UI_URL, comfyServerUrl.trim());
+        saveGenerativePreferences({
+            defaultProvider: defaultGenerativeProvider,
+            defaultWorkflow: defaultGenerativeWorkflow,
+            comfyServerUrl: comfyServerUrl.trim(),
+            autoStartInpaintMasking,
+            showInpaintPromptDock,
+        });
         saveAssetStorageSettings({
             mode: assetStorageMode,
             cloudProvider: 'google-drive',
@@ -429,6 +460,30 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             .split(',')
             .map((item) => item.trim())
             .filter((item) => item.length > 0);
+
+    const providerHasConfiguredKey = (provider: GenerativeProviderId): boolean => {
+        switch (provider) {
+            case 'stability':
+                return stabilityKey.trim().length > 0;
+            case 'openai':
+                return openaiKey.trim().length > 0;
+            case 'google':
+                return googleKey.trim().length > 0;
+            case 'banana':
+                return bananaKey.trim().length > 0;
+            case 'comfy':
+                return comfyServerUrl.trim().length > 0;
+            default:
+                return false;
+        }
+    };
+
+    useEffect(() => {
+        if (isWorkflowSupportedByProvider(defaultGenerativeProvider, defaultGenerativeWorkflow)) return;
+        setDefaultGenerativeWorkflow(
+            resolveCompatibleWorkflowForProvider(defaultGenerativeProvider, defaultGenerativeWorkflow)
+        );
+    }, [defaultGenerativeProvider, defaultGenerativeWorkflow]);
 
     if (!isOpen) return null;
 
@@ -622,6 +677,99 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 border border-border/50 rounded-lg p-3 bg-secondary/10">
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <h5 className="text-xs font-semibold uppercase tracking-wider text-foreground/90">
+                                    Generative Defaults
+                                </h5>
+                                <p className="text-[11px] text-muted-foreground mt-1">
+                                    Launch AI tools directly into your preferred flow so you can stay in ideation mode.
+                                </p>
+                            </div>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">
+                                Ref-style quick fill
+                            </span>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Default AI Provider</label>
+                            <select
+                                value={defaultGenerativeProvider}
+                                onChange={(event) => setDefaultGenerativeProvider(event.target.value as GenerativeProviderId)}
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs"
+                            >
+                                {GENERATIVE_PROVIDER_OPTIONS.map((provider) => (
+                                    <option key={provider.id} value={provider.id}>
+                                        {provider.label}{provider.status === 'coming-soon' ? ' (Coming soon)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[11px] text-muted-foreground">
+                                {GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === defaultGenerativeProvider)?.description}
+                            </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Default Generative Workspace</label>
+                            <select
+                                value={defaultGenerativeWorkflow}
+                                onChange={(event) => setDefaultGenerativeWorkflow(event.target.value as GenerativeWorkflowId)}
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs"
+                            >
+                                {GENERATIVE_WORKFLOW_OPTIONS
+                                    .filter((workflow) => isWorkflowSupportedByProvider(defaultGenerativeProvider, workflow.id))
+                                    .map((workflow) => (
+                                    <option key={workflow.id} value={workflow.id}>
+                                        {workflow.label}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[11px] text-muted-foreground">
+                                {GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow)?.description}
+                            </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Local ComfyUI URL</label>
+                            <input
+                                type="text"
+                                value={comfyServerUrl}
+                                onChange={(event) => setComfyServerUrl(event.target.value)}
+                                placeholder="http://127.0.0.1:8188"
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                                Local AI support follows a Krita/GIMP-like pattern: point the app to your local server endpoint.
+                            </p>
+                        </div>
+
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={autoStartInpaintMasking}
+                                onChange={(event) => setAutoStartInpaintMasking(event.target.checked)}
+                                className="rounded border-border text-primary focus:ring-primary/20"
+                            />
+                            Auto-start mask brush when opening Generative Fill
+                        </label>
+
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={showInpaintPromptDock}
+                                onChange={(event) => setShowInpaintPromptDock(event.target.checked)}
+                                className="rounded border-border text-primary focus:ring-primary/20"
+                            />
+                            Show quick prompt dock for Generative Fill
+                        </label>
+
+                        <div className="text-[11px] rounded-md border border-border/60 bg-background/70 px-2.5 py-2 text-muted-foreground">
+                            Selected provider status: {isGenerativeProviderReady(defaultGenerativeProvider) ? 'runtime ready' : 'coming soon'}
+                            {providerHasConfiguredKey(defaultGenerativeProvider) ? ' + configured' : ' + missing key/config (fallback applies)'}
                         </div>
                     </div>
 

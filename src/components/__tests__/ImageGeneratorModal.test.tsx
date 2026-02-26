@@ -190,15 +190,24 @@ describe('ImageGeneratorModal', () => {
     it('loads provider options from localStorage and persists provider selection', () => {
         localStorage.setItem('stability_api_key', 'stability-key');
         localStorage.setItem('openai_api_key', 'openai-key');
-        localStorage.setItem('image-express-gen-provider', 'openai');
+        localStorage.setItem(
+            'image-express-generative-preferences',
+            JSON.stringify({
+                defaultProvider: 'openai',
+                defaultWorkflow: 'zone',
+                comfyServerUrl: 'http://127.0.0.1:8188',
+                autoStartInpaintMasking: true,
+                showInpaintPromptDock: true,
+            })
+        );
         const canvas = createCanvasStub();
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
         const providerSelect = screen.getByRole('combobox');
         expect(providerSelect).toHaveValue('openai');
-        expect(screen.getByRole('option', { name: 'Comfy' })).toBeInTheDocument();
-        expect(screen.getByRole('option', { name: 'Stability' })).toBeInTheDocument();
-        expect(screen.getByRole('option', { name: 'Openai' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'Local ComfyUI' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'Stability AI' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'ChatGPT / OpenAI' })).toBeInTheDocument();
 
         fireEvent.change(providerSelect, { target: { value: 'comfy' } });
         expect(localStorage.getItem('image-express-gen-provider')).toBe('comfy');
@@ -341,7 +350,8 @@ describe('ImageGeneratorModal', () => {
         const canvas = createCanvasStub();
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Stability AI' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Prompt + Zone' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Generative Fill' }));
 
         expect(screen.getByTestId('stability-generator')).toBeInTheDocument();
         expect(screen.getByTestId('stability-api-key')).toHaveTextContent('stab-abc');

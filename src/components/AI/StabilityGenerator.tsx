@@ -13,6 +13,10 @@ import { useToast } from '@/providers/ToastProvider';
 import { BackgroundJob, ExtendedFabricObject } from '@/types';
 import useEscapeKey from '@/hooks/useEscapeKey';
 
+export type StabilityGeneratorTab = 'generate' | 'inpaint' | 'img2img' | 'outpaint' | 'upscale' | 'removebox';
+
+const INPAINT_MASK_BRUSH_COLOR = 'rgba(255, 84, 156, 0.38)';
+
 /**
  * Props for the Stability Generator Component
  */
@@ -31,6 +35,14 @@ interface StabilityGeneratorProps {
     embedded?: boolean;
     /** Callback to save the generated result to the backend asset library */
     onAssetSave?: (url: string) => void;
+    /** Initial active tab to prioritize workflow defaults */
+    initialTab?: StabilityGeneratorTab;
+    /** Auto-enable on-canvas mask brush when entering inpaint */
+    autoStartInpaintMasking?: boolean;
+    /** Show compact prompt dock inspired by reference generative fill flow */
+    showInpaintQuickDock?: boolean;
+    /** Label shown in quick dock provider badge */
+    providerLabel?: string;
 }
 
 type CanvasWithArtboard = fabric.Canvas & {
@@ -48,11 +60,22 @@ type CanvasWithArtboard = fabric.Canvas & {
  * - Upscaling (Conservative/Creative)
  * - Background Removal
  */
-export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, onJobCreated, onAssetSave }: StabilityGeneratorProps) {
+export default function StabilityGenerator({
+    isOpen,
+    onClose,
+    canvas,
+    apiKey,
+    onJobCreated,
+    onAssetSave,
+    initialTab = 'generate',
+    autoStartInpaintMasking = false,
+    showInpaintQuickDock = false,
+    providerLabel = 'Stability AI',
+}: StabilityGeneratorProps) {
     const { toast } = useToast();
     useEscapeKey(onClose, { enabled: isOpen });
     // --- UI State ---
-    const [activeTab, setActiveTab] = useState('generate');
+    const [activeTab, setActiveTab] = useState<StabilityGeneratorTab>(initialTab);
     const [isProcessing, setIsProcessing] = useState(false);
     
     // --- Generation Parameters ---
@@ -73,9 +96,18 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     const [brushSize, setBrushSize] = useState([40]);
     const selectionCaptureTimerRef = useRef<number | null>(null);
     const [isCanvasMasking, setIsCanvasMasking] = useState(false); // Controls main canvas painting mode
+    const hasAutoStartedMaskingRef = useRef(false);
 
     // --- Outpainting State ---
     const [outpaintDirs, setOutpaintDirs] = useState({ left: false, right: false, up: false, down: false });
+
+    useEffect(() => {
+        if (!isOpen) {
+            hasAutoStartedMaskingRef.current = false;
+            return;
+        }
+        setActiveTab(initialTab);
+    }, [isOpen, initialTab]);
 
     /**
      * Helper: Handle successful generation (Update UI + Auto-save)
@@ -252,7 +284,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
     /**
      * Toggles the main canvas into "Mask Painting" mode.
      */
-    const toggleCanvasMasking = () => {
+    const toggleCanvasMasking = useCallback(() => {
         if (!canvas) return;
         
         if (isCanvasMasking) {
@@ -267,7 +299,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
 
             canvas.isDrawingMode = true;
             const brush = new fabric.PencilBrush(canvas);
-            brush.color = 'rgba(255, 200, 200, 0.7)'; // Semitransparent reddish/white
+            brush.color = INPAINT_MASK_BRUSH_COLOR;
             brush.width = brushSize[0];
             canvas.freeDrawingBrush = brush;
             setIsCanvasMasking(true);
@@ -275,7 +307,18 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             // Tag new paths as masks
             // We rely on the global listener in useEffect to tag paths
         }
-    };
+    }, [brushSize, canvas, isCanvasMasking]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        if (!autoStartInpaintMasking) return;
+        if (activeTab !== 'inpaint') return;
+        if (!canvas) return;
+        if (isCanvasMasking) return;
+        if (hasAutoStartedMaskingRef.current) return;
+        hasAutoStartedMaskingRef.current = true;
+        toggleCanvasMasking();
+    }, [activeTab, autoStartInpaintMasking, canvas, isCanvasMasking, isOpen, toggleCanvasMasking]);
 
     // Listener for path creation to tag masks
     useEffect(() => {
@@ -370,7 +413,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
         // 4. Restore State
         masks.forEach(m => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            m.set({ stroke: (m as any)._originalStroke || 'rgba(255, 200, 200, 0.7)' });
+            m.set({ stroke: (m as any)._originalStroke || INPAINT_MASK_BRUSH_COLOR });
             m.visible = true;
         });
         nonMasks.forEach(o => o.visible = true);
@@ -739,6 +782,10 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
         });
     };
 
+    const handleTabChange = (nextTab: string) => {
+        setActiveTab(nextTab as StabilityGeneratorTab);
+    };
+
     // --- Mask Painting Logic ---
     
     /**
@@ -805,7 +852,7 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
             {/* Content Body */}
             <div className="flex-1 space-y-4">
                 {/* --- Tool Selector Tabs --- */}
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                     <TabsList className="grid w-full grid-cols-6 h-auto p-1 bg-muted/50 mb-4">
                         <TabsTrigger value="generate" title="Text to Image"><ImageIcon size={16} /></TabsTrigger>
                         <TabsTrigger value="inpaint" title="Inpaint"><Eraser size={16} /></TabsTrigger>
@@ -976,6 +1023,12 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                     {/* --- TAB: INPAINTING --- */}
                     <TabsContent value="inpaint" className="space-y-4">
                         <div className="space-y-4">
+                            <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                                <p className="text-xs font-semibold text-foreground">Generative Fill</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Paint a translucent mask and describe what should be generated in that area.
+                                </p>
+                            </div>
                             {!isCanvasMasking ? (
                                 <div className="space-y-4">
                                      <div className="p-4 bg-secondary/10 rounded-lg space-y-2 border border-border/50">
@@ -1010,8 +1063,8 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                      )}
                                 </div>
                             ) : (
-                                <div className="space-y-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg animate-in fade-in">
-                                    <h3 className="font-semibold text-sm flex items-center gap-2 text-red-500">
+                                <div className="space-y-4 p-4 bg-pink-500/10 border border-pink-500/25 rounded-lg animate-in fade-in">
+                                    <h3 className="font-semibold text-sm flex items-center gap-2 text-pink-600 dark:text-pink-300">
                                         <Wand2 size={16} /> Masking Active
                                     </h3>
                                     <p className="text-xs text-muted-foreground">Draw on the canvas to highlight areas to replace.</p>
@@ -1039,6 +1092,31 @@ export default function StabilityGenerator({ isOpen, onClose, canvas, apiKey, on
                                 {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Eraser className="mr-2" />}
                                 Generate (Inpaint)
                             </Button>
+
+                            {showInpaintQuickDock && (
+                                <div className="rounded-xl border border-primary/30 bg-background/80 backdrop-blur px-2.5 py-2">
+                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Quick Fill Dock</div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] px-2 py-1 rounded bg-secondary text-foreground whitespace-nowrap">
+                                            {providerLabel}
+                                        </span>
+                                        <Input
+                                            value={prompt}
+                                            onChange={(event) => setPrompt(event.target.value)}
+                                            placeholder="What would you like to generate? (optional)"
+                                            className="h-8 text-xs"
+                                        />
+                                        <Button
+                                            size="sm"
+                                            className="h-8 px-3"
+                                            onClick={handleInpaint}
+                                            disabled={isProcessing}
+                                        >
+                                            {isProcessing ? <Loader2 className="animate-spin h-3.5 w-3.5" /> : 'Fill'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </TabsContent>
 

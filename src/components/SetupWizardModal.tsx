@@ -5,6 +5,17 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Cloud, HardDrive, Loader2, Spa
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { connectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 import { loadAssetStorageSettings, saveAssetStorageSettings, type AssetStorageMode } from '@/lib/assetStorageSettings';
+import {
+    GENERATIVE_PROVIDER_OPTIONS,
+    GENERATIVE_WORKFLOW_OPTIONS,
+    isGenerativeProviderReady,
+    isWorkflowSupportedByProvider,
+    loadGenerativePreferences,
+    resolveCompatibleWorkflowForProvider,
+    saveGenerativePreferences,
+    type GenerativeProviderId,
+    type GenerativeWorkflowId,
+} from '@/lib/generative-preferences';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 
 interface SetupWizardModalProps {
@@ -45,6 +56,11 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     const [openaiKey, setOpenaiKey] = useState('');
     const [googleKey, setGoogleKey] = useState('');
     const [bananaKey, setBananaKey] = useState('');
+    const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('stability');
+    const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('stability-inpaint');
+    const [comfyServerUrl, setComfyServerUrl] = useState('http://127.0.0.1:8188');
+    const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
+    const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
     const [suppressNumberDragHints, setSuppressNumberDragHints] = useState(false);
     const [appOrigin, setAppOrigin] = useState('http://localhost:3000');
 
@@ -66,6 +82,12 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
 
         const uiPrefs = loadUiPreferences();
         setSuppressNumberDragHints(uiPrefs.suppressNumberDragHints);
+        const generativePreferences = loadGenerativePreferences();
+        setDefaultGenerativeProvider(generativePreferences.defaultProvider);
+        setDefaultGenerativeWorkflow(generativePreferences.defaultWorkflow);
+        setComfyServerUrl(generativePreferences.comfyServerUrl);
+        setAutoStartInpaintMasking(generativePreferences.autoStartInpaintMasking);
+        setShowInpaintPromptDock(generativePreferences.showInpaintPromptDock);
 
         if (typeof window !== 'undefined') {
             setAppOrigin(window.location.origin);
@@ -75,6 +97,13 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
             setBananaKey(window.localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (isWorkflowSupportedByProvider(defaultGenerativeProvider, defaultGenerativeWorkflow)) return;
+        setDefaultGenerativeWorkflow(
+            resolveCompatibleWorkflowForProvider(defaultGenerativeProvider, defaultGenerativeWorkflow)
+        );
+    }, [defaultGenerativeProvider, defaultGenerativeWorkflow]);
 
     const canGoBack = stepIndex > 0;
     const isLastStep = stepIndex === STEPS.length - 1;
@@ -101,6 +130,13 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
         window.localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiKey.trim());
         window.localStorage.setItem(STORAGE_KEYS.GOOGLE_API_KEY, googleKey.trim());
         window.localStorage.setItem(STORAGE_KEYS.BANANA_API_KEY, bananaKey.trim());
+        saveGenerativePreferences({
+            defaultProvider: defaultGenerativeProvider,
+            defaultWorkflow: defaultGenerativeWorkflow,
+            comfyServerUrl: comfyServerUrl.trim(),
+            autoStartInpaintMasking,
+            showInpaintPromptDock,
+        });
         saveUiPreferences({ suppressNumberDragHints });
     };
 
@@ -336,6 +372,68 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                 </div>
                             </div>
 
+                            <div className="rounded-lg border border-border/70 bg-secondary/15 p-3 space-y-3">
+                                <p className="text-xs font-semibold text-foreground">Generative Defaults</p>
+                                <div className="grid gap-2">
+                                    <label className="text-xs text-muted-foreground">Default Provider</label>
+                                    <select
+                                        value={defaultGenerativeProvider}
+                                        onChange={(event) => setDefaultGenerativeProvider(event.target.value as GenerativeProviderId)}
+                                        className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs"
+                                    >
+                                        {GENERATIVE_PROVIDER_OPTIONS.map((provider) => (
+                                            <option key={provider.id} value={provider.id}>
+                                                {provider.label}{provider.status === 'coming-soon' ? ' (Coming soon)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <label className="text-xs text-muted-foreground">Startup Workspace</label>
+                                    <select
+                                        value={defaultGenerativeWorkflow}
+                                        onChange={(event) => setDefaultGenerativeWorkflow(event.target.value as GenerativeWorkflowId)}
+                                        className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs"
+                                    >
+                                        {GENERATIVE_WORKFLOW_OPTIONS
+                                            .filter((workflow) => isWorkflowSupportedByProvider(defaultGenerativeProvider, workflow.id))
+                                            .map((workflow) => (
+                                                <option key={workflow.id} value={workflow.id}>{workflow.label}</option>
+                                            ))}
+                                    </select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <label className="text-xs text-muted-foreground">ComfyUI URL</label>
+                                    <input
+                                        value={comfyServerUrl}
+                                        onChange={(event) => setComfyServerUrl(event.target.value)}
+                                        className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs font-mono"
+                                        placeholder="http://127.0.0.1:8188"
+                                    />
+                                </div>
+                                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <input
+                                        type="checkbox"
+                                        checked={autoStartInpaintMasking}
+                                        onChange={(event) => setAutoStartInpaintMasking(event.target.checked)}
+                                        className="rounded border-border text-primary focus:ring-primary/20"
+                                    />
+                                    Auto-start Generative Fill masking
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <input
+                                        type="checkbox"
+                                        checked={showInpaintPromptDock}
+                                        onChange={(event) => setShowInpaintPromptDock(event.target.checked)}
+                                        className="rounded border-border text-primary focus:ring-primary/20"
+                                    />
+                                    Show quick fill prompt dock
+                                </label>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Provider runtime status: {isGenerativeProviderReady(defaultGenerativeProvider) ? 'ready' : 'coming soon'}
+                                </p>
+                            </div>
+
                             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                                 <input
                                     type="checkbox"
@@ -355,6 +453,8 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                 <p><span className="font-semibold">Storage mode:</span> {storageMode}</p>
                                 <p><span className="font-semibold">Google Drive:</span> {driveConnected ? 'Connected' : (storageMode === 'local' ? 'Not required (local mode)' : 'Not connected yet')}</p>
                                 <p><span className="font-semibold">AI keys set:</span> {[stabilityKey, openaiKey, googleKey, bananaKey].filter((value) => value.trim().length > 0).length}</p>
+                                <p><span className="font-semibold">Default Generative Provider:</span> {GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === defaultGenerativeProvider)?.label || defaultGenerativeProvider}</p>
+                                <p><span className="font-semibold">Default Generative Workflow:</span> {GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow)?.label || defaultGenerativeWorkflow}</p>
                             </div>
                             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 flex items-center gap-2">
                                 <CheckCircle2 size={14} />

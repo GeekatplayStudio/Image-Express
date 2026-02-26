@@ -18,6 +18,8 @@ const mockFabricCanvas = {
   width: 800,
   height: 600,
   getActiveObject: jest.fn(),
+  discardActiveObject: jest.fn(),
+  getObjects: jest.fn().mockReturnValue([]),
   add: jest.fn(),
   renderAll: jest.fn(),
   requestRenderAll: jest.fn(),
@@ -28,6 +30,8 @@ const mockFabricCanvas = {
   viewportTransform: [1, 0, 0, 1, 0, 0],
   setViewportTransform: jest.fn(),
   toDataURL: jest.fn().mockReturnValue('data:image/png;base64,mockedcanvasimage'),
+  isDrawingMode: false,
+  freeDrawingBrush: null,
 };
 
 jest.mock('fabric', () => ({
@@ -40,6 +44,7 @@ jest.mock('fabric', () => ({
     })),
   },
   Rect: jest.fn(),
+  PencilBrush: jest.fn().mockImplementation(() => ({ color: '', width: 1 })),
 }));
 
 // Mock useToast
@@ -115,6 +120,26 @@ describe('StabilityGenerator', () => {
       fireEvent.click(screen.getByTitle('Img2Img'));
       // Img2Img content
       expect(screen.getByText(/Select an object to edit/i)).toBeInTheDocument();
+  });
+
+  it('supports default inpaint startup and optional auto mask bootstrapping', async () => {
+    render(
+      <StabilityGenerator
+        isOpen={true}
+        onClose={mockOnClose}
+        canvas={mockCanvasInstance}
+        apiKey="test-api-key"
+        initialTab="inpaint"
+        autoStartInpaintMasking={true}
+      />
+    );
+
+    expect(screen.getByText('Generative Fill')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockFabricCanvas.discardActiveObject).toHaveBeenCalled();
+      expect(mockFabricCanvas.requestRenderAll).toHaveBeenCalled();
+    });
   });
 
   it('handles Text to Image generation', async () => {

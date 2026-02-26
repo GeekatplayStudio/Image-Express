@@ -15,7 +15,9 @@ import {
     LassoSelect,
     LayoutTemplate,
     Move,
+    Pointer,
     PaintBucket,
+    PaintbrushVertical,
     PenTool,
     Scan,
     Shapes,
@@ -25,6 +27,7 @@ import {
     Sun,
     Type,
     Wand2,
+    SquareMousePointer,
     type LucideIcon,
 } from 'lucide-react';
 import { APP_THEME } from '@/lib/theme-tokens';
@@ -62,9 +65,9 @@ const MENU_ITEMS: CircularMenuItem[] = [
     { id: 'marquee', icon: Square, label: 'Marquee', color: APP_THEME.circularMenuColors.marquee, group: 'select' },
     { id: 'lasso', icon: LassoSelect, label: 'Lasso', color: APP_THEME.circularMenuColors.lasso, group: 'select' },
     { id: 'wand', icon: Wand2, label: 'Magic Wand', color: APP_THEME.circularMenuColors.wand, group: 'select' },
-    { id: 'quick-select', icon: Wand2, label: 'Quick Selection', color: APP_THEME.circularMenuColors.wand, group: 'select' },
-    { id: 'selection-brush', icon: Brush, label: 'Selection Brush', color: APP_THEME.circularMenuColors.paint, group: 'select' },
-    { id: 'path-select', icon: PenTool, label: 'Path Select', color: APP_THEME.circularMenuColors.pathSelect, group: 'select' },
+    { id: 'quick-select', icon: SquareMousePointer, label: 'Quick Selection', color: APP_THEME.circularMenuColors.wand, group: 'select' },
+    { id: 'selection-brush', icon: PaintbrushVertical, label: 'Selection Brush', color: APP_THEME.circularMenuColors.paint, group: 'select' },
+    { id: 'path-select', icon: Pointer, label: 'Path Select', color: APP_THEME.circularMenuColors.pathSelect, group: 'select' },
 
     { id: 'healing', icon: ShieldCheck, label: 'Healing Brush', color: APP_THEME.circularMenuColors.healing, group: 'retouch' },
     { id: 'clone-stamp', icon: Copy, label: 'Clone Stamp', color: APP_THEME.circularMenuColors.cloneStamp, group: 'retouch' },

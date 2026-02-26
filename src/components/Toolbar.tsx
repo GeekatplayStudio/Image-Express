@@ -15,6 +15,9 @@ import {
     Move,
     Box,
     Wand2,
+    SquareMousePointer,
+    PaintbrushVertical,
+    Pointer,
     PaintBucket,
     Brush,
     ArrowRight,
@@ -227,9 +230,9 @@ const SELECTION_TOOL_GROUP: ToolbarToolGroupDefinition = {
         { name: 'marquee', icon: Square, label: 'Marquee' },
         { name: 'lasso', icon: LassoSelect, label: 'Lasso' },
         { name: 'wand', icon: Wand2, label: 'Magic Wand', shortLabel: 'Wand' },
-        { name: 'quick-select', icon: Wand2, label: 'Quick Selection', shortLabel: 'Quick' },
-        { name: 'selection-brush', icon: Brush, label: 'Selection Brush', shortLabel: 'Sel Brush' },
-        { name: 'path-select', icon: PenTool, label: 'Path Select', shortLabel: 'Path' },
+        { name: 'quick-select', icon: SquareMousePointer, label: 'Quick Selection', shortLabel: 'Quick' },
+        { name: 'selection-brush', icon: PaintbrushVertical, label: 'Selection Brush', shortLabel: 'Sel Brush' },
+        { name: 'path-select', icon: Pointer, label: 'Path Select', shortLabel: 'Path' },
     ],
 };
 

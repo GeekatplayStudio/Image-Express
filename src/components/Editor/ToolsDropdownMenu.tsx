@@ -2,6 +2,8 @@
 
 import {
     Move,
+    Pointer,
+    SquareMousePointer,
     Square,
     LassoSelect,
     Wand2,
@@ -21,6 +23,7 @@ import {
     Pipette,
     Hand,
     Search,
+    PaintbrushVertical,
     Image as ImageIcon,
     LayoutTemplate,
     Box,
@@ -55,17 +58,17 @@ export default function ToolsDropdownMenu({ onTriggerTool }: ToolsDropdownMenuPr
                 <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">W</span>
             </button>
             <button onClick={() => onTriggerTool('quick-select')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                <Wand2 size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
+                <SquareMousePointer size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
                 <span className="flex-1">Quick Selection</span>
                 <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">Q</span>
             </button>
             <button onClick={() => onTriggerTool('selection-brush')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                <Brush size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
+                <PaintbrushVertical size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
                 <span className="flex-1">Selection Brush</span>
                 <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">K</span>
             </button>
             <button onClick={() => onTriggerTool('path-select')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
-                <PenTool size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
+                <Pointer size={16} className="text-muted-foreground group-hover:text-primary transition-colors"/>
                 <span className="flex-1">Path Select</span>
                 <span className="text-xs text-muted-foreground border border-border px-1.5 rounded">A</span>
             </button>
