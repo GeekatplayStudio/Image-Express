@@ -79,6 +79,19 @@ Verification method used:
 
 ## Pending Work (Upgrade Program)
 
+### Next Active Step (Approved Direction)
+- [ ] Implement **Media Export Overlay (Phase A2)**:
+  - Add multiple overlay frames in one design.
+  - Add include/exclude toggles per frame for batch export.
+  - Export selected/all frames as ZIP outputs.
+  - Keep current single-canvas workflow and reuse existing export pipeline.
+
+### Media Export Overlay Roadmap (new)
+- [x] A1: single frame export from overlay bounds.
+- [ ] A2: multi-frame management + batch ZIP export.
+- [ ] A3: safe-area guides + naming templates.
+- [ ] B: optional bridge "convert frame to variant" for future campaign workspace.
+
 ### A) Pre-Implementation Safety Gates
 - [ ] Baseline visual + UX parity snapshots captured
 - [ ] Current editor interactions smoke-tested against checklist

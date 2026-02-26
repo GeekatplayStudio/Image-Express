@@ -506,3 +506,164 @@ Validation status for latest checkpoint:
 
 Next implementation target:
 - C4 Pen/Path family controls (path/shape mode toggles, path operations, auto add/delete, rubber band) with same test/lint/build gate.
+
+---
+
+## 15) New Option Proposal — Campaign Workspace (Multi-Canvas for Marketing Channels)
+
+### Why this is valuable
+Users often finish one master design and then need adapted outputs for multiple destinations (Instagram post/story, YouTube banner, Facebook cover, etc.).
+Instead of forcing manual resize/export loops, the editor can offer a guided adaptation flow with all outputs exported together.
+
+### Recommended strategy (lower risk than full rewrite)
+Do not replace the existing single-canvas engine immediately.
+Introduce a Campaign Workspace as a lightweight orchestration layer around the current EditorView + export pipeline.
+
+This keeps current stability while enabling multi-channel output.
+
+### Suggested UX flow
+1. User saves or exports a design.
+2. Prompt appears: “Use this design across channels?”
+3. If accepted, open Campaign Workspace with channel presets:
+   - Instagram Post (1080x1080)
+   - Instagram Story (1080x1920)
+   - YouTube Thumbnail (1280x720)
+   - YouTube Banner (2560x1440 safe-area aware)
+   - Facebook Post/Cover variants (preset set)
+4. App auto-generates variants from a master.
+5. User can tune each variant in tabs/pages.
+6. Export supports “Current” or “Export All (ZIP)”.
+
+### Architecture fit with current codebase
+Current strengths already support this direction:
+- EditorView owns a robust single-canvas state and save/export lifecycle.
+- Export pipeline already supports multiple formats and ZIP-based bundling patterns.
+- Existing artboard metadata and crop-aware export logic can be reused per variant.
+
+So the safest model is:
+- Keep one active Fabric canvas at a time.
+- Persist multiple canvas snapshots as variant entries.
+- Switch variants by loading snapshot JSON into the same editor engine.
+
+### Data model proposal (MVP)
+- CampaignWorkspace
+  - id, name, masterDesignId
+  - variants: CampaignVariant[]
+- CampaignVariant
+  - id, channelPresetKey, width, height
+  - canvasData (same JSON structure already used)
+  - thumbnailDataUrl
+  - exportProfile (png/jpg/pdf settings)
+
+### Adaptation model (smart but controlled)
+Use deterministic layout adaptation first (MVP), then optional AI assist later.
+
+MVP adaptation rules:
+1. Scale master content proportionally to target aspect ratio.
+2. Center key objects by default.
+3. Keep text readable with min/max scale guards.
+4. Flag overflow/clipping objects for quick review.
+5. Provide one-click “Fit”, “Fill”, and “Safe Area” presets per variant.
+
+Phase-2 smart assist:
+- Subject-aware recrop/reposition,
+- text reflow suggestions,
+- channel-specific safe-zone recommendations.
+
+### Export model
+- Export Current Variant: unchanged behavior, just variant-scoped.
+- Export All Variants:
+  - produce a ZIP with per-variant folders/files,
+  - include optional manifest.json with channel metadata,
+  - preserve existing quality controls (PNG/JPG/PDF/JSON/HTML where applicable).
+
+### Phased rollout recommendation
+Phase A (MVP, safest)
+- Campaign Workspace container + variant list
+- preset creation from master
+- manual per-variant editing (single active canvas engine)
+- Export All ZIP
+
+Phase B
+- deterministic auto-adaptation actions (Fit/Fill/Safe Area)
+- per-variant export presets
+
+Phase C
+- smart/AI adaptation suggestions
+- batch validation (text cutoffs, safe-zone warnings)
+
+### Risk notes
+Main risk is treating multi-canvas as multiple live Fabric engines in one screen.
+Avoid this initially; keep one live engine and swap variant snapshots.
+
+This keeps memory usage, event complexity, undo/redo semantics, and tool behavior predictable.
+
+### Decision recommendation
+Approve Campaign Workspace as an explicit roadmap option under this upgrade plan,
+with Phase A implemented first using the existing EditorView/export primitives.
+
+---
+
+## 16) Alternative Approach — Media Export Overlay Frames (Grid-Overlay Style)
+
+### Concept
+Instead of creating multiple canvases/variants, add a reusable overlay system (similar to grid overlay) where users can place one or more export frames (preset sizes) on top of the current design.
+
+Each frame is movable/scalable, and export captures only the content inside selected frame bounds.
+
+### Why this is a good approach
+1. Lower engineering risk than multi-canvas workspace.
+2. Fast to learn for users (single design surface, visual framing).
+3. Reuses current canvas/export crop pipeline directly.
+4. Very strong for social crops (story/post/banner) without duplicating full project state.
+
+### Proposed UX
+1. User toggles "Media Overlay" mode.
+2. User picks preset (Instagram Post, Story, YouTube Banner, etc.).
+3. Frame appears as overlay rectangle with label + safe zone.
+4. User drags/scales frame to desired crop.
+5. Export menu includes:
+   - Export active frame
+   - Export selected frames
+   - Export all frames (ZIP)
+
+### Technical fit with current codebase
+- Existing `GridOverlay` pattern can be mirrored for `MediaOverlay` rendering.
+- Existing export crop options (`left/top/width/height`) already match frame-bound export requirements.
+- Existing ZIP export support can bundle multi-frame output names/presets.
+
+### Data model (overlay mode)
+- `mediaFrames: ExportFrame[]`
+- `ExportFrame`:
+  - `id`
+  - `presetKey`
+  - `label`
+  - `left/top/width/height`
+  - `rotation` (optional, can defer)
+  - `safeAreaInset` (optional)
+  - `includeInBatchExport`
+
+### Limitations (important)
+Compared with Campaign Workspace, this does not create independent per-channel design edits.
+
+So:
+- Great for crop-based adaptation.
+- Not enough for channel-specific text/layout changes unless we add per-frame overrides later.
+
+### Recommended decision
+Use this as Phase A because it is faster and safer.
+
+Then, if users need channel-specific edits, evolve to Campaign Workspace (multi-variant snapshots) as Phase B/C.
+
+### Suggested rollout for this overlay approach
+Phase A1:
+- Single frame export from overlay.
+
+Phase A2:
+- Multiple frames + batch ZIP export.
+
+Phase A3:
+- Safe area presets + naming templates.
+
+Phase B:
+- Optional “convert frame to variant” action (bridge into Campaign Workspace model).

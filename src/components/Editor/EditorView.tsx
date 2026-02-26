@@ -207,6 +207,27 @@ type CursorPreviewState = {
     clientY: number;
     diameter: number;
 };
+type MediaOverlayPreset =
+    | 'canvas-original'
+    | 'instagram-square'
+    | 'instagram-story'
+    | 'facebook-post'
+    | 'linkedin-post'
+    | 'x-post'
+    | 'youtube-landscape'
+    | 'youtube-shorts'
+    | 'tiktok-vertical';
+type MediaOverlayPresetSpec = {
+    id: MediaOverlayPreset;
+    label: string;
+    width: number;
+    height: number;
+};
+type MediaOverlayPersistedState = {
+    enabled: boolean;
+    preset: MediaOverlayPreset;
+    frameBounds?: RectBounds;
+};
 const DISABLED_LAYER_ORDER_STATE: LayerOrderState = {
     enabled: false,
     canMoveUp: false,
@@ -214,6 +235,18 @@ const DISABLED_LAYER_ORDER_STATE: LayerOrderState = {
     canBringToFront: false,
     canSendToBack: false,
 };
+const MEDIA_OVERLAY_PRESETS: MediaOverlayPresetSpec[] = [
+    { id: 'canvas-original', label: 'Original Size (Canvas)', width: 1, height: 1 },
+    { id: 'instagram-square', label: 'Instagram 1:1', width: 1080, height: 1080 },
+    { id: 'instagram-story', label: 'Instagram Story 9:16', width: 1080, height: 1920 },
+    { id: 'facebook-post', label: 'Facebook Post 1200x630', width: 1200, height: 630 },
+    { id: 'linkedin-post', label: 'LinkedIn Post 1200x627', width: 1200, height: 627 },
+    { id: 'x-post', label: 'X Post 16:9', width: 1600, height: 900 },
+    { id: 'youtube-landscape', label: 'YouTube 16:9', width: 1920, height: 1080 },
+    { id: 'youtube-shorts', label: 'YouTube Shorts 9:16', width: 1080, height: 1920 },
+    { id: 'tiktok-vertical', label: 'TikTok 9:16', width: 1080, height: 1920 },
+];
+const MEDIA_OVERLAY_STORAGE_KEY_PREFIX = 'image-express-media-overlay';
 
 export default function EditorView({ 
     initialDesign, 
@@ -969,6 +1002,8 @@ export default function EditorView({
     const [cropTopDeleteOutside, setCropTopDeleteOutside] = useState(false);
     const [cropTopUseArtboardBounds, setCropTopUseArtboardBounds] = useState(true);
     const [cropTopDraftRect, setCropTopDraftRect] = useState<RectBounds | null>(null);
+    const [mediaOverlayEnabled, setMediaOverlayEnabled] = useState(true);
+    const [mediaOverlayPreset, setMediaOverlayPreset] = useState<MediaOverlayPreset>('canvas-original');
     const [eyedropperTopSampleSize, setEyedropperTopSampleSize] = useState<TopEyedropperSampleSize>(1);
     const [eyedropperTopSampleSource, setEyedropperTopSampleSource] = useState<'current-layer' | 'all-layers'>('current-layer');
     const [eyedropperTopSampledColor, setEyedropperTopSampledColor] = useState('#000000');
@@ -978,6 +1013,9 @@ export default function EditorView({
     const [cursorPreview, setCursorPreview] = useState<CursorPreviewState | null>(null);
     const eyedropperPointerRef = useRef<fabric.Point | null>(null);
     const cropDraftHelperRef = useRef<(fabric.Rect & { isSelectionOverlayHelper?: boolean }) | null>(null);
+    const mediaOverlayFrameRef = useRef<(fabric.Rect & ExtendedFabricObject & { excludeFromExport?: boolean }) | null>(null);
+    const mediaOverlayLabelRef = useRef<(fabric.Textbox & ExtendedFabricObject & { excludeFromExport?: boolean }) | null>(null);
+    const mediaOverlayPendingRestoreRef = useRef<RectBounds | null>(null);
 
     const cursorPreviewConfig = useMemo<CursorPreviewConfig | null>(() => {
         if (activeTool === 'eyedropper') {
@@ -3665,13 +3703,23 @@ export default function EditorView({
         // Allow React render cycle to process unmount of GridOverlay
         await new Promise(resolve => setTimeout(resolve, 100));
         
+        const overlayFrame = mediaOverlayFrameRef.current;
+        const overlayLabel = mediaOverlayLabelRef.current;
+        const restoreOverlayVisibility = {
+            frame: overlayFrame?.visible ?? true,
+            label: overlayLabel?.visible ?? true,
+        };
+        const overlays: fabric.Object[] = [];
+        const active = canvas.getActiveObject();
+
         try {
+            if (overlayFrame) overlayFrame.visible = false;
+            if (overlayLabel) overlayLabel.visible = false;
+
             const profile = profileSettings;
-            const overlays: fabric.Object[] = [];
             const aiUsed = isAIGeneratedUsed();
 
             const profileText = profile?.embedInfo ? buildProfileOverlayText(profile, user) : '';
-            const active = canvas.getActiveObject();
             const padding = 12;
             const canvasStack = canvas as fabric.Canvas & {
                 bringToFront?: (obj: fabric.Object) => void;
@@ -3732,13 +3780,14 @@ export default function EditorView({
 
             // Execute the export action
             await action();
-
+        } finally {
             overlays.forEach((o) => canvas.remove(o));
+            if (overlayFrame) overlayFrame.visible = restoreOverlayVisibility.frame;
+            if (overlayLabel) overlayLabel.visible = restoreOverlayVisibility.label;
             if (active) {
                 canvas.setActiveObject(active);
             }
             canvas.requestRenderAll();
-        } finally {
             // Restore grid rendering state
             setIsExporting(false);
         }
@@ -3758,7 +3807,18 @@ export default function EditorView({
 
             let cropOptions: { left: number; top: number; width: number; height: number; } | undefined;
 
-             if (rect) {
+            const mediaOverlayCropBounds = getMediaOverlayCropBounds();
+            if (mediaOverlayCropBounds) {
+                cropOptions = {
+                    left: mediaOverlayCropBounds.left,
+                    top: mediaOverlayCropBounds.top,
+                    width: mediaOverlayCropBounds.width,
+                    height: mediaOverlayCropBounds.height,
+                };
+
+            }
+
+             if (!cropOptions && rect) {
                  const rectWidth = rect.getScaledWidth?.() ?? ((rect.width || 0) * (rect.scaleX || 1));
                  const rectHeight = rect.getScaledHeight?.() ?? ((rect.height || 0) * (rect.scaleY || 1));
                  cropOptions = {
@@ -3767,7 +3827,7 @@ export default function EditorView({
                      width: rectWidth,
                      height: rectHeight
                  };
-             } else if (artboard) {
+             } else if (!cropOptions && artboard) {
                 cropOptions = {
                     left: artboard.left || 0,
                     top: artboard.top || 0,
@@ -3813,8 +3873,8 @@ export default function EditorView({
                         break;
                                         case 'pdf': {
                                             await withExportOverlays(async () => {
-                                                const pdfWidth = cropOptions?.width || canvas.width!;
-                                                const pdfHeight = cropOptions?.height || canvas.height!;
+                                                                                        const pdfWidth = cropOptions?.width || canvas.width!;
+                                                                                        const pdfHeight = cropOptions?.height || canvas.height!;
                                                 const pdf = new jsPDF({
                                                     orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
                                                     unit: 'px',
@@ -4716,6 +4776,351 @@ document.addEventListener('DOMContentLoaded', () => {
             top: sourceRect.top + (sourceRect.height - height) / 2,
             width: Math.max(1, width),
             height: Math.max(1, height),
+        };
+    }, []);
+
+    const getMediaOverlaySourceRect = useCallback((): RectBounds | null => {
+        if (!canvas) return null;
+        const activeCanvas = canvas as CanvasWithArtboard;
+        const artboard = activeCanvas.artboard;
+        if (artboard && artboard.width > 0 && artboard.height > 0) {
+            return {
+                left: artboard.left,
+                top: artboard.top,
+                width: artboard.width,
+                height: artboard.height,
+            };
+        }
+
+        const width = canvas.width || canvas.getWidth();
+        const height = canvas.height || canvas.getHeight();
+        if (!width || !height) return null;
+
+        return {
+            left: 0,
+            top: 0,
+            width,
+            height,
+        };
+    }, [canvas]);
+
+    const getCanvasFullRect = useCallback((): RectBounds | null => {
+        if (!canvas) return null;
+        const width = canvas.width || canvas.getWidth();
+        const height = canvas.height || canvas.getHeight();
+        if (!width || !height) return null;
+        return { left: 0, top: 0, width, height };
+    }, [canvas]);
+
+    const getMediaOverlayConstraintRect = useCallback((preset: MediaOverlayPreset): RectBounds | null => {
+        if (preset === 'canvas-original') {
+            return getCanvasFullRect();
+        }
+        return getCanvasFullRect();
+    }, [getCanvasFullRect]);
+
+    const getMediaOverlayStorageKey = useCallback(() => {
+        const rawId = (propDesignId || propDesignName || 'untitled').trim().toLowerCase();
+        const safeId = rawId.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled';
+        return `${MEDIA_OVERLAY_STORAGE_KEY_PREFIX}:${safeId}`;
+    }, [propDesignId, propDesignName]);
+
+    const getMediaOverlayFrameBounds = useCallback((frame: fabric.Rect): RectBounds => ({
+        left: frame.left || 0,
+        top: frame.top || 0,
+        width: Math.max(1, frame.getScaledWidth?.() ?? ((frame.width || 1) * (frame.scaleX || 1))),
+        height: Math.max(1, frame.getScaledHeight?.() ?? ((frame.height || 1) * (frame.scaleY || 1))),
+    }), []);
+
+    const constrainMediaOverlayFrame = useCallback((frame: fabric.Rect, presetOverride?: MediaOverlayPreset) => {
+        const sourceRect = getMediaOverlayConstraintRect(presetOverride ?? mediaOverlayPreset);
+        if (!sourceRect) return;
+
+        let width = Math.max(1, frame.getScaledWidth?.() ?? ((frame.width || 1) * (frame.scaleX || 1)));
+        let height = Math.max(1, frame.getScaledHeight?.() ?? ((frame.height || 1) * (frame.scaleY || 1)));
+
+        if (width > sourceRect.width || height > sourceRect.height) {
+            const fitScale = Math.min(sourceRect.width / width, sourceRect.height / height);
+            width = Math.max(1, width * fitScale);
+            height = Math.max(1, height * fitScale);
+            frame.set({ width, height, scaleX: 1, scaleY: 1 });
+        }
+
+        const maxLeft = sourceRect.left + sourceRect.width - width;
+        const maxTop = sourceRect.top + sourceRect.height - height;
+        const clampedLeft = Math.min(Math.max(sourceRect.left, frame.left || 0), Math.max(sourceRect.left, maxLeft));
+        const clampedTop = Math.min(Math.max(sourceRect.top, frame.top || 0), Math.max(sourceRect.top, maxTop));
+
+        frame.set({ left: clampedLeft, top: clampedTop });
+        frame.setCoords();
+    }, [getMediaOverlayConstraintRect, mediaOverlayPreset]);
+
+    const applyMediaOverlayPresetToFrame = useCallback((frame: fabric.Rect, preset: MediaOverlayPreset) => {
+        const sourceRect = getMediaOverlayConstraintRect(preset);
+        if (!sourceRect) return;
+
+        if (preset === 'canvas-original') {
+            frame.set({
+                left: sourceRect.left,
+                top: sourceRect.top,
+                width: Math.max(1, sourceRect.width),
+                height: Math.max(1, sourceRect.height),
+                scaleX: 1,
+                scaleY: 1,
+            });
+            frame.setCoords();
+            return;
+        }
+
+        const spec = MEDIA_OVERLAY_PRESETS.find((item) => item.id === preset) ?? MEDIA_OVERLAY_PRESETS[0];
+        const targetAspectRatio = spec.width / spec.height;
+        const fittedRect = buildAspectCropRect(sourceRect, targetAspectRatio);
+        const frameWidth = Math.max(24, fittedRect.width * 0.7);
+        const frameHeight = Math.max(24, fittedRect.height * 0.7);
+
+        frame.set({
+            left: fittedRect.left + (fittedRect.width - frameWidth) / 2,
+            top: fittedRect.top + (fittedRect.height - frameHeight) / 2,
+            width: frameWidth,
+            height: frameHeight,
+            scaleX: 1,
+            scaleY: 1,
+        });
+        frame.setCoords();
+    }, [buildAspectCropRect, getMediaOverlayConstraintRect]);
+
+    const persistMediaOverlayState = useCallback(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const frame = mediaOverlayFrameRef.current;
+            const payload: MediaOverlayPersistedState = {
+                enabled: mediaOverlayEnabled,
+                preset: mediaOverlayPreset,
+            };
+            if (frame && mediaOverlayEnabled && mediaOverlayPreset !== 'canvas-original') {
+                payload.frameBounds = getMediaOverlayFrameBounds(frame);
+            }
+            window.localStorage.setItem(getMediaOverlayStorageKey(), JSON.stringify(payload));
+        } catch {
+            // ignore storage write failures
+        }
+    }, [getMediaOverlayFrameBounds, getMediaOverlayStorageKey, mediaOverlayEnabled, mediaOverlayPreset]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const resetOverlay = () => {
+            mediaOverlayPendingRestoreRef.current = null;
+            setMediaOverlayPreset('canvas-original');
+            setMediaOverlayEnabled(true);
+        };
+
+        try {
+            const raw = window.localStorage.getItem(getMediaOverlayStorageKey());
+            if (!raw) {
+                resetOverlay();
+                return;
+            }
+
+            const parsed = JSON.parse(raw) as Partial<MediaOverlayPersistedState>;
+            const hasValidPreset = MEDIA_OVERLAY_PRESETS.some((item) => item.id === parsed.preset);
+            const nextPreset = hasValidPreset ? (parsed.preset as MediaOverlayPreset) : 'canvas-original';
+            const frameBounds = parsed.frameBounds;
+            const hasValidBounds = Boolean(
+                frameBounds
+                && Number.isFinite(frameBounds.left)
+                && Number.isFinite(frameBounds.top)
+                && Number.isFinite(frameBounds.width)
+                && Number.isFinite(frameBounds.height)
+                && frameBounds.width > 1
+                && frameBounds.height > 1
+            );
+            mediaOverlayPendingRestoreRef.current = hasValidBounds
+                ? {
+                    left: Number(frameBounds!.left),
+                    top: Number(frameBounds!.top),
+                    width: Number(frameBounds!.width),
+                    height: Number(frameBounds!.height),
+                }
+                : null;
+            setMediaOverlayPreset(nextPreset);
+            setMediaOverlayEnabled(typeof parsed.enabled === 'boolean' ? parsed.enabled : true);
+        } catch {
+            resetOverlay();
+        }
+    }, [getMediaOverlayStorageKey]);
+
+    const getMediaOverlayCropBounds = useCallback((): RectBounds | null => {
+        if (!mediaOverlayEnabled) return null;
+
+        const sourceRect = getMediaOverlayConstraintRect(mediaOverlayPreset);
+        if (!sourceRect) return null;
+
+        if (mediaOverlayPreset === 'canvas-original') {
+            return {
+                left: sourceRect.left,
+                top: sourceRect.top,
+                width: sourceRect.width,
+                height: sourceRect.height,
+            };
+        }
+
+        const frame = mediaOverlayFrameRef.current;
+        if (frame) {
+            const frameBounds = getMediaOverlayFrameBounds(frame);
+            const clampedWidth = Math.max(1, Math.min(frameBounds.width, sourceRect.width));
+            const clampedHeight = Math.max(1, Math.min(frameBounds.height, sourceRect.height));
+            const minLeft = sourceRect.left;
+            const minTop = sourceRect.top;
+            const maxLeft = sourceRect.left + sourceRect.width - clampedWidth;
+            const maxTop = sourceRect.top + sourceRect.height - clampedHeight;
+
+            return {
+                left: Math.min(Math.max(frameBounds.left, minLeft), maxLeft),
+                top: Math.min(Math.max(frameBounds.top, minTop), maxTop),
+                width: clampedWidth,
+                height: clampedHeight,
+            };
+        }
+
+        const spec = MEDIA_OVERLAY_PRESETS.find((item) => item.id === mediaOverlayPreset) ?? MEDIA_OVERLAY_PRESETS[0];
+        const targetAspectRatio = spec.width / spec.height;
+        return buildAspectCropRect(sourceRect, targetAspectRatio);
+    }, [buildAspectCropRect, getMediaOverlayConstraintRect, getMediaOverlayFrameBounds, mediaOverlayEnabled, mediaOverlayPreset]);
+
+    useEffect(() => {
+        if (!canvas) return;
+
+        const removeOverlayFrame = () => {
+            const frame = mediaOverlayFrameRef.current;
+            if (frame) {
+                canvas.remove(frame);
+                mediaOverlayFrameRef.current = null;
+            }
+            const label = mediaOverlayLabelRef.current;
+            if (label) {
+                canvas.remove(label);
+                mediaOverlayLabelRef.current = null;
+            }
+        };
+
+        if (!mediaOverlayEnabled || mediaOverlayPreset === 'canvas-original') {
+            removeOverlayFrame();
+            persistMediaOverlayState();
+            canvas.requestRenderAll();
+            return;
+        }
+
+        const existingFrame = mediaOverlayFrameRef.current;
+        if (existingFrame) {
+            existingFrame.set({
+                visible: true,
+                selectable: true,
+                evented: true,
+                hasControls: true,
+                hasBorders: true,
+            });
+            applyMediaOverlayPresetToFrame(existingFrame, mediaOverlayPreset);
+            const pending = mediaOverlayPendingRestoreRef.current;
+            if (pending) {
+                existingFrame.set({
+                    left: pending.left,
+                    top: pending.top,
+                    width: pending.width,
+                    height: pending.height,
+                    scaleX: 1,
+                    scaleY: 1,
+                });
+                mediaOverlayPendingRestoreRef.current = null;
+            }
+            canvas.setActiveObject(existingFrame);
+            const canvasWithFront = canvas as fabric.Canvas & { bringToFront?: (obj: fabric.Object) => void };
+            canvasWithFront.bringToFront?.(existingFrame);
+            persistMediaOverlayState();
+            canvas.requestRenderAll();
+            return;
+        }
+
+        const frame = new fabric.Rect({
+            left: 80,
+            top: 80,
+            width: 320,
+            height: 320,
+            fill: 'transparent',
+            stroke: '#38bdf8',
+            strokeWidth: 2,
+            strokeDashArray: [10, 8],
+            selectable: true,
+            evented: true,
+            hasBorders: true,
+            hasControls: true,
+            lockRotation: true,
+            transparentCorners: false,
+            cornerColor: '#38bdf8',
+            borderColor: '#38bdf8',
+            borderDashArray: [10, 8],
+            objectCaching: false,
+        }) as fabric.Rect & ExtendedFabricObject & { excludeFromExport?: boolean };
+        (frame as fabric.Rect & { isSelectionOverlayHelper?: boolean }).isSelectionOverlayHelper = true;
+        frame.name = 'Media Overlay Frame';
+        frame.excludeFromExport = true;
+        frame.visible = true;
+
+        applyMediaOverlayPresetToFrame(frame, mediaOverlayPreset);
+        const pending = mediaOverlayPendingRestoreRef.current;
+        if (pending) {
+            frame.set({
+                left: pending.left,
+                top: pending.top,
+                width: pending.width,
+                height: pending.height,
+                scaleX: 1,
+                scaleY: 1,
+            });
+            mediaOverlayPendingRestoreRef.current = null;
+        }
+
+        const syncBounds = () => {
+            canvas.requestRenderAll();
+        };
+        const handleModified = () => {
+            syncBounds();
+            setIsDirty(true);
+            persistMediaOverlayState();
+        };
+
+        frame.on('moving', syncBounds);
+        frame.on('scaling', syncBounds);
+        frame.on('modified', handleModified);
+
+        mediaOverlayFrameRef.current = frame;
+        canvas.add(frame);
+        canvas.setActiveObject(frame);
+        persistMediaOverlayState();
+        canvas.requestRenderAll();
+    }, [
+        applyMediaOverlayPresetToFrame,
+        canvas,
+        constrainMediaOverlayFrame,
+        mediaOverlayEnabled,
+        mediaOverlayPreset,
+        persistMediaOverlayState,
+    ]);
+
+    useEffect(() => {
+        return () => {
+            const activeCanvas = canvasRef.current;
+            const frame = mediaOverlayFrameRef.current;
+            const label = mediaOverlayLabelRef.current;
+            if (!activeCanvas) return;
+            if (frame) {
+                activeCanvas.remove(frame);
+            }
+            if (label) {
+                activeCanvas.remove(label);
+            }
+            mediaOverlayFrameRef.current = null;
+            mediaOverlayLabelRef.current = null;
         };
     }, []);
 
@@ -6296,7 +6701,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return (
         <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
             {/* Editor Header */}
-            <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-20 relative shadow-sm">
+            <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-[220] relative shadow-sm overflow-visible">
                  <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
                         <BrandIcon />
@@ -7256,7 +7661,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         )}
                      </div>
                      
-                     <div className="relative" ref={exportRef}>
+                     <div className="relative z-[130]" ref={exportRef}>
                         <button 
                           onClick={() => {
                               setShowFileMenu(false);
@@ -7281,7 +7686,30 @@ document.addEventListener('DOMContentLoaded', () => {
                             <ChevronDown size={14} className={`transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
                         </button>
                         {showExportMenu && (
-                              <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                            <div className="absolute right-0 top-full mt-2 w-[320px] bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-[170]">
+                                  <div className="px-3 py-2 border-b border-border/50 space-y-2">
+                                      <div className="flex items-center justify-between">
+                                          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Media Overlay</span>
+                                          <Switch
+                                              checked={mediaOverlayEnabled}
+                                              onCheckedChange={setMediaOverlayEnabled}
+                                              aria-label="Enable media export overlay"
+                                          />
+                                      </div>
+                                      <select
+                                          value={mediaOverlayPreset}
+                                          onChange={(event) => setMediaOverlayPreset(event.target.value as MediaOverlayPreset)}
+                                          className="w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs text-foreground"
+                                          disabled={!mediaOverlayEnabled}
+                                      >
+                                          {MEDIA_OVERLAY_PRESETS.map((preset) => (
+                                              <option key={preset.id} value={preset.id}>{preset.label}</option>
+                                          ))}
+                                      </select>
+                                      <div className="text-[10px] text-muted-foreground">
+                                          Overlay is edited on canvas and applied to PNG/JPG/SVG/PDF exports.
+                                      </div>
+                                  </div>
                                   <button onClick={() => handleExport('png')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-blue-500"/> <span className="font-medium">PNG</span></button>
                                   <button onClick={() => handleExport('jpg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-orange-500"/> <span className="font-medium">JPG</span></button>
                                   <button onClick={() => handleExport('svg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-primary"/> <span className="font-medium">SVG</span></button>
