@@ -4816,8 +4816,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (preset === 'canvas-original') {
             return getCanvasFullRect();
         }
-        return getCanvasFullRect();
-    }, [getCanvasFullRect]);
+        return getMediaOverlaySourceRect() || getCanvasFullRect();
+    }, [getCanvasFullRect, getMediaOverlaySourceRect]);
 
     const getMediaOverlayStorageKey = useCallback(() => {
         const rawId = (propDesignId || propDesignName || 'untitled').trim().toLowerCase();
@@ -4825,16 +4825,81 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${MEDIA_OVERLAY_STORAGE_KEY_PREFIX}:${safeId}`;
     }, [propDesignId, propDesignName]);
 
-    const getMediaOverlayFrameBounds = useCallback((frame: fabric.Rect): RectBounds => ({
-        left: frame.left || 0,
-        top: frame.top || 0,
-        width: Math.max(1, frame.getScaledWidth?.() ?? ((frame.width || 1) * (frame.scaleX || 1))),
-        height: Math.max(1, frame.getScaledHeight?.() ?? ((frame.height || 1) * (frame.scaleY || 1))),
-    }), []);
+    const getMediaOverlayFrameBounds = useCallback((frame: fabric.Rect): RectBounds => {
+        if (typeof frame.getCoords === 'function') {
+            const coords = frame.getCoords();
+            if (Array.isArray(coords) && coords.length > 0) {
+                const xs = coords.map((point) => point.x).filter((value) => Number.isFinite(value));
+                const ys = coords.map((point) => point.y).filter((value) => Number.isFinite(value));
+                if (xs.length > 0 && ys.length > 0) {
+                    const left = Math.min(...xs);
+                    const top = Math.min(...ys);
+                    const right = Math.max(...xs);
+                    const bottom = Math.max(...ys);
+                    return {
+                        left,
+                        top,
+                        width: Math.max(1, right - left),
+                        height: Math.max(1, bottom - top),
+                    };
+                }
+            }
+        }
+
+        return {
+            left: frame.left || 0,
+            top: frame.top || 0,
+            width: Math.max(1, frame.getScaledWidth?.() ?? ((frame.width || 1) * (frame.scaleX || 1))),
+            height: Math.max(1, frame.getScaledHeight?.() ?? ((frame.height || 1) * (frame.scaleY || 1))),
+        };
+    }, []);
+
+    const normalizeMediaOverlayFrameOrigin = useCallback((frame: fabric.Rect) => {
+        const originX = frame.originX || 'left';
+        const originY = frame.originY || 'top';
+        if (originX === 'left' && originY === 'top') return;
+        const bounds = getMediaOverlayFrameBounds(frame);
+        frame.set({
+            originX: 'left',
+            originY: 'top',
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            scaleX: 1,
+            scaleY: 1,
+        });
+        frame.setCoords();
+    }, [getMediaOverlayFrameBounds]);
+
+    const bringMediaOverlayFrameToFront = useCallback((frameOverride?: fabric.Rect): boolean => {
+        if (!canvas) return false;
+        const frame = frameOverride ?? mediaOverlayFrameRef.current;
+        if (!frame) return false;
+        const objects = canvas.getObjects();
+        if (!objects.includes(frame) || objects[objects.length - 1] === frame) {
+            return false;
+        }
+
+        const canvasStack = canvas as fabric.Canvas & {
+            bringToFront?: (obj: fabric.Object) => void;
+            moveTo?: (obj: fabric.Object, index: number) => void;
+        };
+        if (canvasStack.bringToFront) {
+            canvasStack.bringToFront(frame);
+            return true;
+        }
+        if (canvasStack.moveTo) {
+            canvasStack.moveTo(frame, objects.length - 1);
+            return true;
+        }
+        return false;
+    }, [canvas]);
 
     const constrainMediaOverlayFrame = useCallback((frame: fabric.Rect, presetOverride?: MediaOverlayPreset) => {
         const sourceRect = getMediaOverlayConstraintRect(presetOverride ?? mediaOverlayPreset);
         if (!sourceRect) return;
+        normalizeMediaOverlayFrameOrigin(frame);
 
         let width = Math.max(1, frame.getScaledWidth?.() ?? ((frame.width || 1) * (frame.scaleX || 1)));
         let height = Math.max(1, frame.getScaledHeight?.() ?? ((frame.height || 1) * (frame.scaleY || 1)));
@@ -4853,7 +4918,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         frame.set({ left: clampedLeft, top: clampedTop });
         frame.setCoords();
-    }, [getMediaOverlayConstraintRect, mediaOverlayPreset]);
+    }, [getMediaOverlayConstraintRect, mediaOverlayPreset, normalizeMediaOverlayFrameOrigin]);
 
     const applyMediaOverlayPresetToFrame = useCallback((frame: fabric.Rect, preset: MediaOverlayPreset) => {
         const sourceRect = getMediaOverlayConstraintRect(preset);
@@ -5033,9 +5098,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 mediaOverlayPendingRestoreRef.current = null;
             }
+            normalizeMediaOverlayFrameOrigin(existingFrame);
+            constrainMediaOverlayFrame(existingFrame, mediaOverlayPreset);
+            const sourceRect = getMediaOverlayConstraintRect(mediaOverlayPreset);
+            const bounds = getMediaOverlayFrameBounds(existingFrame);
+            const isPinnedTopLeft = Boolean(
+                sourceRect
+                && mediaOverlayPreset !== 'canvas-original'
+                && Math.abs(bounds.left - sourceRect.left) <= 1
+                && Math.abs(bounds.top - sourceRect.top) <= 1
+                && (sourceRect.width - bounds.width) <= 1
+                && (sourceRect.height - bounds.height) <= 1
+            );
+            if (isPinnedTopLeft) {
+                applyMediaOverlayPresetToFrame(existingFrame, mediaOverlayPreset);
+                constrainMediaOverlayFrame(existingFrame, mediaOverlayPreset);
+            }
+            existingFrame.off('moving');
+            existingFrame.off('scaling');
+            existingFrame.off('modified');
+            const syncExistingMoveBounds = () => {
+                constrainMediaOverlayFrame(existingFrame, mediaOverlayPreset);
+                if (bringMediaOverlayFrameToFront(existingFrame)) {
+                    canvas.requestRenderAll();
+                    return;
+                }
+                canvas.requestRenderAll();
+            };
+            const syncExistingScaling = () => {
+                bringMediaOverlayFrameToFront(existingFrame);
+                canvas.requestRenderAll();
+            };
+            const handleExistingModified = () => {
+                constrainMediaOverlayFrame(existingFrame, mediaOverlayPreset);
+                bringMediaOverlayFrameToFront(existingFrame);
+                canvas.requestRenderAll();
+                setIsDirty(true);
+                persistMediaOverlayState();
+            };
+            existingFrame.on('moving', syncExistingMoveBounds);
+            existingFrame.on('scaling', syncExistingScaling);
+            existingFrame.on('modified', handleExistingModified);
             canvas.setActiveObject(existingFrame);
-            const canvasWithFront = canvas as fabric.Canvas & { bringToFront?: (obj: fabric.Object) => void };
-            canvasWithFront.bringToFront?.(existingFrame);
+            bringMediaOverlayFrameToFront(existingFrame);
             persistMediaOverlayState();
             canvas.requestRenderAll();
             return;
@@ -5046,6 +5151,8 @@ document.addEventListener('DOMContentLoaded', () => {
             top: 80,
             width: 320,
             height: 320,
+            originX: 'left',
+            originY: 'top',
             fill: 'transparent',
             stroke: '#38bdf8',
             strokeWidth: 2,
@@ -5080,32 +5187,98 @@ document.addEventListener('DOMContentLoaded', () => {
             mediaOverlayPendingRestoreRef.current = null;
         }
 
-        const syncBounds = () => {
+        normalizeMediaOverlayFrameOrigin(frame);
+        constrainMediaOverlayFrame(frame, mediaOverlayPreset);
+        const sourceRect = getMediaOverlayConstraintRect(mediaOverlayPreset);
+        const bounds = getMediaOverlayFrameBounds(frame);
+        const isPinnedTopLeft = Boolean(
+            sourceRect
+            && mediaOverlayPreset !== 'canvas-original'
+            && Math.abs(bounds.left - sourceRect.left) <= 1
+            && Math.abs(bounds.top - sourceRect.top) <= 1
+            && (sourceRect.width - bounds.width) <= 1
+            && (sourceRect.height - bounds.height) <= 1
+        );
+        if (isPinnedTopLeft) {
+            applyMediaOverlayPresetToFrame(frame, mediaOverlayPreset);
+            constrainMediaOverlayFrame(frame, mediaOverlayPreset);
+        }
+        frame.off('moving');
+        frame.off('scaling');
+        frame.off('modified');
+        const syncMoveBounds = () => {
+            constrainMediaOverlayFrame(frame, mediaOverlayPreset);
+            bringMediaOverlayFrameToFront(frame);
+            canvas.requestRenderAll();
+        };
+        const syncScaling = () => {
+            bringMediaOverlayFrameToFront(frame);
             canvas.requestRenderAll();
         };
         const handleModified = () => {
-            syncBounds();
+            constrainMediaOverlayFrame(frame, mediaOverlayPreset);
+            bringMediaOverlayFrameToFront(frame);
+            canvas.requestRenderAll();
             setIsDirty(true);
             persistMediaOverlayState();
         };
 
-        frame.on('moving', syncBounds);
-        frame.on('scaling', syncBounds);
+        frame.on('moving', syncMoveBounds);
+        frame.on('scaling', syncScaling);
         frame.on('modified', handleModified);
 
         mediaOverlayFrameRef.current = frame;
         canvas.add(frame);
         canvas.setActiveObject(frame);
+        bringMediaOverlayFrameToFront(frame);
         persistMediaOverlayState();
         canvas.requestRenderAll();
     }, [
         applyMediaOverlayPresetToFrame,
+        bringMediaOverlayFrameToFront,
         canvas,
         constrainMediaOverlayFrame,
+        getMediaOverlayConstraintRect,
+        getMediaOverlayFrameBounds,
         mediaOverlayEnabled,
         mediaOverlayPreset,
+        normalizeMediaOverlayFrameOrigin,
         persistMediaOverlayState,
     ]);
+
+    useEffect(() => {
+        if (!canvas || !mediaOverlayEnabled || mediaOverlayPreset === 'canvas-original') {
+            return;
+        }
+
+        const keepOverlayFrameOnTop = (event?: fabric.IEvent) => {
+            const frame = mediaOverlayFrameRef.current;
+            if (!frame) return;
+            const target = event?.target;
+            if (target && target === frame) return;
+            if (bringMediaOverlayFrameToFront(frame)) {
+                canvas.requestRenderAll();
+            }
+        };
+
+        canvas.on('object:added', keepOverlayFrameOnTop);
+        canvas.on('object:modified', keepOverlayFrameOnTop);
+        canvas.on('object:moving', keepOverlayFrameOnTop);
+        canvas.on('object:scaling', keepOverlayFrameOnTop);
+        canvas.on('object:rotating', keepOverlayFrameOnTop);
+        canvas.on('selection:created', keepOverlayFrameOnTop);
+        canvas.on('selection:updated', keepOverlayFrameOnTop);
+        keepOverlayFrameOnTop();
+        return () => {
+            canvas.off('object:added', keepOverlayFrameOnTop);
+            canvas.off('object:modified', keepOverlayFrameOnTop);
+            canvas.off('object:moving', keepOverlayFrameOnTop);
+            canvas.off('object:scaling', keepOverlayFrameOnTop);
+            canvas.off('object:rotating', keepOverlayFrameOnTop);
+            canvas.off('selection:created', keepOverlayFrameOnTop);
+            canvas.off('selection:updated', keepOverlayFrameOnTop);
+        };
+    }, [bringMediaOverlayFrameToFront, canvas, mediaOverlayEnabled, mediaOverlayPreset]);
 
     useEffect(() => {
         return () => {
@@ -5911,27 +6084,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
     
-        const handleWheel = (opt: fabric.TPointerEventInfo<WheelEvent>) => {
-            const evt = opt.e;
-            evt.preventDefault();
-            evt.stopPropagation();
-            const delta = evt.deltaY;
-            const currentZoom = canvas.getZoom();
-            let newZoom = currentZoom * (0.999 ** delta);
-            if (newZoom > 5) newZoom = 5;
-            if (newZoom < 0.1) newZoom = 0.1;
-            
-            const width = canvas.width!;
-            const height = canvas.height!;
-            const baseWidth = width / currentZoom;
-            const baseHeight = height / currentZoom;
-    
-            canvas.setZoom(newZoom);
-            canvas.setDimensions({ width: baseWidth * newZoom, height: baseHeight * newZoom });
-            canvas.requestRenderAll();
-            setZoom(newZoom);
-        };
-    
         const handleGradientTool = () => {
             let isDown = false;
             let startPoint = { x: 0, y: 0 };
@@ -6012,14 +6164,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     
         const gradientHandlers = handleGradientTool();
-        canvas.on('mouse:wheel', handleWheel);
         canvas.on('mouse:dblclick', handleDblClick);
         canvas.on('mouse:down', gradientHandlers['mouse:down']);
         canvas.on('mouse:move', gradientHandlers['mouse:move']);
         canvas.on('mouse:up', gradientHandlers['mouse:up']);
     
         return () => {
-          canvas.off('mouse:wheel', handleWheel);
           canvas.off('mouse:dblclick', handleDblClick);
           canvas.off('mouse:down', gradientHandlers['mouse:down']);
           canvas.off('mouse:move', gradientHandlers['mouse:move']);
