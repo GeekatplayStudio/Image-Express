@@ -29,9 +29,11 @@ interface PanelModeRailProps {
     mode: PanelMode;
     onModeChange: (mode: PanelMode) => void;
     showHoverLabels?: boolean;
+    className?: string;
+    expandDirection?: 'left' | 'right';
 }
 
-export function PanelModeRail({ mode, onModeChange, showHoverLabels = true }: PanelModeRailProps) {
+export function PanelModeRail({ mode, onModeChange, showHoverLabels = true, className, expandDirection = 'right' }: PanelModeRailProps) {
     const [isHovered, setIsHovered] = React.useState(false);
     const isExpanded = showHoverLabels && isHovered;
     const items: Array<{ mode: PanelMode; label: string; text: string; title: string; icon: React.ReactNode }> = [
@@ -50,8 +52,10 @@ export function PanelModeRail({ mode, onModeChange, showHoverLabels = true }: Pa
     return (
         <div
             className={cn(
-                'absolute right-2 top-2 z-20 origin-right max-h-[calc(100%-1rem)] overflow-y-auto flex flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out',
-                isExpanded ? 'w-44 items-stretch shadow-xl' : 'w-10 items-center'
+                'min-h-[340px] max-h-[72vh] overflow-y-auto flex flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out',
+                isExpanded ? 'w-44 items-stretch shadow-xl' : 'w-10 items-center',
+                expandDirection === 'left' ? 'origin-top-right' : 'origin-top-left',
+                className
             )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}

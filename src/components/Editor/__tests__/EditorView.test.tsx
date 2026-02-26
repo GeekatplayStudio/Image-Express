@@ -612,6 +612,8 @@ describe('EditorView', () => {
             strokeWidth: 12,
         }));
 
+        expect(screen.queryByLabelText('Shape smooth angles')).not.toBeInTheDocument();
+
         fireEvent.click(screen.getByLabelText('Shape fixed size'));
         expect(activeShapeObject.set).toHaveBeenCalledWith(expect.objectContaining({
             lockScalingX: true,

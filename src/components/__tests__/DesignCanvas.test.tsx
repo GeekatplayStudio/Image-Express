@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import DesignCanvas from '../DesignCanvas';
 
 type CanvasEventPayload = {
@@ -65,6 +65,14 @@ type MockCanvasLike = {
     getPointer: jest.Mock;
     fire: jest.Mock;
     emit: (eventName: string, payload?: CanvasEventPayload) => void;
+};
+
+const dispatchCanvasWindowKey = (key: string, canvasTarget: EventTarget) => {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true });
+    Object.defineProperty(event, 'composedPath', {
+        value: () => [canvasTarget, window],
+    });
+    window.dispatchEvent(event);
 };
 
 let latestCanvas: MockCanvasLike | null = null;
@@ -413,7 +421,7 @@ describe('DesignCanvas', () => {
         latestCanvas.activeObject = a;
         latestCanvas.activeObjects = [a, b];
 
-        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+        dispatchCanvasWindowKey('Delete', latestCanvas.upperCanvasEl);
 
         expect(latestCanvas.discardActiveObject).toHaveBeenCalledTimes(1);
         expect(latestCanvas.remove).toHaveBeenCalledTimes(2);
@@ -429,7 +437,7 @@ describe('DesignCanvas', () => {
 
         latestCanvas.activeObject = { isEditing: true };
         latestCanvas.activeObjects = [{ isEditing: true }];
-        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }));
+        dispatchCanvasWindowKey('Backspace', latestCanvas.upperCanvasEl);
         expect(latestCanvas.remove).not.toHaveBeenCalled();
 
         const input = document.createElement('input');
@@ -438,9 +446,19 @@ describe('DesignCanvas', () => {
 
         latestCanvas.activeObject = { isEditing: false };
         latestCanvas.activeObjects = [{ isEditing: false }];
-        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+        dispatchCanvasWindowKey('Delete', latestCanvas.upperCanvasEl);
         expect(latestCanvas.remove).not.toHaveBeenCalled();
 
+        const contentEditable = document.createElement('div');
+        contentEditable.contentEditable = 'true';
+        contentEditable.tabIndex = -1;
+        document.body.appendChild(contentEditable);
+        latestCanvas.activeObject = { isEditing: false };
+        latestCanvas.activeObjects = [{ isEditing: false }];
+        fireEvent.keyDown(contentEditable, { key: 'Backspace' });
+        expect(latestCanvas.remove).not.toHaveBeenCalled();
+
+        contentEditable.remove();
         input.remove();
     });
 

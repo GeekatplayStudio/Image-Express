@@ -552,6 +552,7 @@ describe('TopToolOptionsBar', () => {
         const onShapeFillColorChange = jest.fn();
         const onShapeStrokeColorChange = jest.fn();
         const onShapeStrokeWidthChange = jest.fn();
+        const onShapeCornerRadiusChange = jest.fn();
         const onShapeFixedSizeChange = jest.fn();
 
         render(
@@ -562,12 +563,15 @@ describe('TopToolOptionsBar', () => {
                     fillColor: '#1f8aa5',
                     strokeColor: '#111827',
                     strokeWidth: 2,
+                    cornerRadius: 0,
+                    canSmoothAngles: true,
                     fixedSize: false,
                 }}
                 onShapeModeChange={onShapeModeChange}
                 onShapeFillColorChange={onShapeFillColorChange}
                 onShapeStrokeColorChange={onShapeStrokeColorChange}
                 onShapeStrokeWidthChange={onShapeStrokeWidthChange}
+                onShapeCornerRadiusChange={onShapeCornerRadiusChange}
                 onShapeFixedSizeChange={onShapeFixedSizeChange}
             />
         );
@@ -587,8 +591,30 @@ describe('TopToolOptionsBar', () => {
         fireEvent.change(screen.getByLabelText('Shape stroke width'), { target: { value: '11' } });
         expect(onShapeStrokeWidthChange).toHaveBeenCalledWith(11);
 
+        fireEvent.change(screen.getByLabelText('Shape smooth angles'), { target: { value: '22' } });
+        expect(onShapeCornerRadiusChange).toHaveBeenCalledWith(22);
+
         fireEvent.click(screen.getByLabelText('Shape fixed size'));
         expect(onShapeFixedSizeChange).toHaveBeenCalledWith(true);
+    });
+
+    it('hides smooth angles control when shape does not support it', () => {
+        render(
+            <TopToolOptionsBar
+                activeTool="shapes"
+                shapeOptions={{
+                    mode: 'shape',
+                    fillColor: '#1f8aa5',
+                    strokeColor: '#111827',
+                    strokeWidth: 2,
+                    cornerRadius: 0,
+                    canSmoothAngles: false,
+                    fixedSize: false,
+                }}
+            />
+        );
+
+        expect(screen.queryByLabelText('Shape smooth angles')).not.toBeInTheDocument();
     });
 
     it('renders and wires text font family selector', () => {

@@ -88,7 +88,7 @@ export default function RetouchControls({
     if (activeTool === 'healing' && healingOptions) {
         return (
             <>
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Size</span>
                     <input
                         aria-label="Healing size"
@@ -97,12 +97,12 @@ export default function RetouchControls({
                         max={200}
                         value={healingOptions.size}
                         onChange={(event) => onHealingSizeChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{healingOptions.size}</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Hardness</span>
                     <input
                         aria-label="Healing hardness"
@@ -111,12 +111,12 @@ export default function RetouchControls({
                         max={100}
                         value={healingOptions.hardness}
                         onChange={(event) => onHealingHardnessChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{healingOptions.hardness}%</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <input
                         type="checkbox"
                         checked={healingOptions.sampleAllLayers}
@@ -126,7 +126,7 @@ export default function RetouchControls({
                     <span>Sample All Layers</span>
                 </label>
 
-                <span className="shrink-0 px-2 py-1 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
+                <span className="shrink-0 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
                     Bootstrap mode
                 </span>
             </>
@@ -136,7 +136,7 @@ export default function RetouchControls({
     if (activeTool === 'clone-stamp' && cloneOptions) {
         return (
             <>
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Size</span>
                     <input
                         aria-label="Clone size"
@@ -145,12 +145,12 @@ export default function RetouchControls({
                         max={200}
                         value={cloneOptions.size}
                         onChange={(event) => onCloneSizeChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{cloneOptions.size}</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Hardness</span>
                     <input
                         aria-label="Clone hardness"
@@ -159,12 +159,12 @@ export default function RetouchControls({
                         max={100}
                         value={cloneOptions.hardness}
                         onChange={(event) => onCloneHardnessChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{cloneOptions.hardness}%</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <input
                         type="checkbox"
                         checked={cloneOptions.aligned}
@@ -174,7 +174,7 @@ export default function RetouchControls({
                     <span>Aligned</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <input
                         type="checkbox"
                         checked={cloneOptions.sampleAllLayers}
@@ -184,14 +184,14 @@ export default function RetouchControls({
                     <span>Sample All Layers</span>
                 </label>
 
-                <span className="shrink-0 px-2 py-1 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
+                <span className="shrink-0 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
                     {cloneOptions.hasSource ? 'Source: Set' : 'Source: Option-click to set'}
                 </span>
 
                 <button
                     onClick={() => onCloneClearSource?.()}
                     disabled={!cloneOptions.hasSource}
-                    className={`shrink-0 px-2.5 py-1 text-xs rounded-md border border-border/60 ${cloneOptions.hasSource ? 'text-foreground hover:bg-secondary/50' : 'text-muted-foreground/50 cursor-not-allowed'}`}
+                    className={`shrink-0 px-2 py-0.5 text-xs rounded-md border border-border/60 ${cloneOptions.hasSource ? 'text-foreground hover:bg-secondary/50' : 'text-muted-foreground/50 cursor-not-allowed'}`}
                     aria-label="Clone clear source"
                 >
                     Clear Source
@@ -203,7 +203,7 @@ export default function RetouchControls({
     if (activeTool === 'history-brush' && historyOptions) {
         return (
             <>
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Size</span>
                     <input
                         aria-label="History brush size"
@@ -212,12 +212,12 @@ export default function RetouchControls({
                         max={200}
                         value={historyOptions.size}
                         onChange={(event) => onHistorySizeChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{historyOptions.size}</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Hardness</span>
                     <input
                         aria-label="History brush hardness"
@@ -226,12 +226,12 @@ export default function RetouchControls({
                         max={100}
                         value={historyOptions.hardness}
                         onChange={(event) => onHistoryHardnessChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{historyOptions.hardness}%</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <input
                         type="checkbox"
                         checked={historyOptions.sampleAllLayers}
@@ -241,7 +241,7 @@ export default function RetouchControls({
                     <span>Sample All Layers</span>
                 </label>
 
-                <span className="shrink-0 px-2 py-1 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
+                <span className="shrink-0 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
                     Source: Latest history snapshot
                 </span>
             </>
@@ -251,7 +251,7 @@ export default function RetouchControls({
     if (activeTool === 'blur' && blurOptions) {
         return (
             <>
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Size</span>
                     <input
                         aria-label="Blur size"
@@ -260,12 +260,12 @@ export default function RetouchControls({
                         max={240}
                         value={blurOptions.size}
                         onChange={(event) => onBlurSizeChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{blurOptions.size}</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Strength</span>
                     <input
                         aria-label="Blur strength"
@@ -274,12 +274,12 @@ export default function RetouchControls({
                         max={100}
                         value={blurOptions.strength}
                         onChange={(event) => onBlurStrengthChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{blurOptions.strength}%</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <input
                         type="checkbox"
                         checked={blurOptions.sampleAllLayers}
@@ -289,7 +289,7 @@ export default function RetouchControls({
                     <span>Sample All Layers</span>
                 </label>
 
-                <span className="shrink-0 px-2 py-1 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
+                <span className="shrink-0 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
                     Blur bootstrap mode
                 </span>
             </>
@@ -299,7 +299,7 @@ export default function RetouchControls({
     if (activeTool === 'dodge' && dodgeOptions) {
         return (
             <>
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Size</span>
                     <input
                         aria-label="Dodge size"
@@ -308,12 +308,12 @@ export default function RetouchControls({
                         max={240}
                         value={dodgeOptions.size}
                         onChange={(event) => onDodgeSizeChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{dodgeOptions.size}</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Exposure</span>
                     <input
                         aria-label="Dodge exposure"
@@ -322,12 +322,12 @@ export default function RetouchControls({
                         max={100}
                         value={dodgeOptions.exposure}
                         onChange={(event) => onDodgeExposureChange?.(Number(event.target.value))}
-                        className="w-20"
+                        className="w-16"
                     />
                     <span>{dodgeOptions.exposure}%</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <input
                         type="checkbox"
                         checked={dodgeOptions.protectTones}
@@ -337,7 +337,7 @@ export default function RetouchControls({
                     <span>Protect Tones</span>
                 </label>
 
-                <span className="shrink-0 px-2 py-1 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
+                <span className="shrink-0 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
                     Dodge bootstrap mode
                 </span>
             </>

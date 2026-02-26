@@ -5,6 +5,7 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Cloud, HardDrive, Loader2, Spa
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { connectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 import { loadAssetStorageSettings, saveAssetStorageSettings, type AssetStorageMode } from '@/lib/assetStorageSettings';
+import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 
 interface SetupWizardModalProps {
     isOpen: boolean;
@@ -44,6 +45,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     const [openaiKey, setOpenaiKey] = useState('');
     const [googleKey, setGoogleKey] = useState('');
     const [bananaKey, setBananaKey] = useState('');
+    const [suppressNumberDragHints, setSuppressNumberDragHints] = useState(false);
     const [appOrigin, setAppOrigin] = useState('http://localhost:3000');
 
     useEscapeKey(onClose, { enabled: isOpen });
@@ -61,6 +63,9 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
         setDriveClientId(drive.clientId || ENV_DRIVE_CLIENT_ID || '');
         setDriveConnected(Boolean(drive.enabled));
         setDriveError(null);
+
+        const uiPrefs = loadUiPreferences();
+        setSuppressNumberDragHints(uiPrefs.suppressNumberDragHints);
 
         if (typeof window !== 'undefined') {
             setAppOrigin(window.location.origin);
@@ -96,6 +101,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
         window.localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiKey.trim());
         window.localStorage.setItem(STORAGE_KEYS.GOOGLE_API_KEY, googleKey.trim());
         window.localStorage.setItem(STORAGE_KEYS.BANANA_API_KEY, bananaKey.trim());
+        saveUiPreferences({ suppressNumberDragHints });
     };
 
     const handleConnectDrive = async () => {
@@ -329,6 +335,16 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     <input value={bananaKey} onChange={(e) => setBananaKey(e.target.value)} className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs font-mono" placeholder="..." />
                                 </div>
                             </div>
+
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={suppressNumberDragHints}
+                                    onChange={(event) => setSuppressNumberDragHints(event.target.checked)}
+                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                />
+                                Don’t remind me about number-drag tips
+                            </label>
                         </div>
                     )}
 

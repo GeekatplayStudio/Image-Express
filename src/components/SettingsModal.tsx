@@ -13,6 +13,7 @@ import {
 } from '@/lib/assetStorageSettings';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
+import { resetNumberDragHintSeen } from '@/lib/number-drag-hints';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -79,6 +80,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [hybridUploadToCloudByDefault, setHybridUploadToCloudByDefault] = useState(false);
     const [includeLegacyServerAssetsInHybrid, setIncludeLegacyServerAssetsInHybrid] = useState(true);
     const [expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover] = useState(true);
+    const [suppressNumberDragHints, setSuppressNumberDragHints] = useState(false);
     const [adminUsers, setAdminUsers] = useState<AuthUser[]>([]);
     const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
     const [adminError, setAdminError] = useState<string | null>(null);
@@ -193,6 +195,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setIncludeLegacyServerAssetsInHybrid(assetStorageSettings.includeLegacyServerAssetsInHybrid);
         const uiPreferences = loadUiPreferences();
         setExpandToolRailLabelsOnHover(uiPreferences.expandToolRailLabelsOnHover);
+        setSuppressNumberDragHints(uiPreferences.suppressNumberDragHints);
 
         return () => {
             unsubscribe?.();
@@ -255,6 +258,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         });
         saveUiPreferences({
             expandToolRailLabelsOnHover,
+            suppressNumberDragHints,
         });
 
         // 2. Save Server (if logged in)
@@ -852,6 +856,30 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 />
                                 Expand side tool rails on hover
                             </label>
+
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={suppressNumberDragHints}
+                                    onChange={(event) => setSuppressNumberDragHints(event.target.checked)}
+                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                />
+                                Don’t remind me about number-drag tips
+                            </label>
+
+                            <button
+                                onClick={() => {
+                                    resetNumberDragHintSeen();
+                                    setSuppressNumberDragHints(false);
+                                    saveUiPreferences({ suppressNumberDragHints: false });
+                                    setStatus('saved');
+                                    window.setTimeout(() => setStatus('idle'), 1500);
+                                }}
+                                className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5"
+                            >
+                                <RefreshCcw size={13} />
+                                Reset Number-Drag Hint
+                            </button>
                         </div>
 
                         {isAdmin && userId && userId !== 'Guest' && (

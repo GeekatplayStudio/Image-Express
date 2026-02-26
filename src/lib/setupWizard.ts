@@ -3,6 +3,17 @@
 const SETUP_WIZARD_STATE_KEY = 'image-express-setup-wizard-state';
 const SETUP_WIZARD_SESSION_DISMISSED_KEY = 'image-express-setup-wizard-session-dismissed';
 const SETUP_WIZARD_OPEN_EVENT = 'image-express-setup-wizard-open';
+const DRIVE_STORAGE_KEY = 'image-express-google-drive';
+const ASSET_STORAGE_SETTINGS_KEY = 'image-express-asset-storage-settings';
+const SETUP_API_KEY_STORAGE_KEYS = [
+    'stability_api_key',
+    'openai_api_key',
+    'google_api_key',
+    'banana_api_key',
+    'meshy_api_key',
+    'tripo_api_key',
+    'hitems_api_key',
+];
 
 type SetupWizardState = {
     completedAt?: string; // Legacy global completion marker.
@@ -36,6 +47,38 @@ function getSessionDismissKey(scope?: string) {
     return `${SETUP_WIZARD_SESSION_DISMISSED_KEY}:${normalizeScope(scope)}`;
 }
 
+function hasExistingSetupConfiguration() {
+    if (typeof window === 'undefined') return false;
+
+    try {
+        const hasApiKey = SETUP_API_KEY_STORAGE_KEYS.some((key) => {
+            const value = window.localStorage.getItem(key);
+            return Boolean(value && value.trim().length > 0);
+        });
+        if (hasApiKey) return true;
+
+        const rawDrive = window.localStorage.getItem(DRIVE_STORAGE_KEY);
+        if (rawDrive) {
+            const parsedDrive = JSON.parse(rawDrive) as { enabled?: boolean } | null;
+            if (parsedDrive?.enabled) {
+                return true;
+            }
+        }
+
+        const rawAssetStorage = window.localStorage.getItem(ASSET_STORAGE_SETTINGS_KEY);
+        if (rawAssetStorage) {
+            const parsedAssetStorage = JSON.parse(rawAssetStorage) as { mode?: string } | null;
+            if (parsedAssetStorage?.mode === 'local' || parsedAssetStorage?.mode === 'hybrid' || parsedAssetStorage?.mode === 'cloud') {
+                return true;
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to inspect existing setup configuration', error);
+    }
+
+    return false;
+}
+
 function migrateLegacyCompletionForScope(state: SetupWizardState, scope?: string) {
     if (!state.completedAt) return state;
     const scopeKey = normalizeScope(scope);
@@ -65,6 +108,12 @@ export function isSetupWizardCompleted(scope?: string) {
 
 export function shouldAutoOpenSetupWizard(scope?: string) {
     if (typeof window === 'undefined') return false;
+    if (hasExistingSetupConfiguration()) {
+        if (!isSetupWizardCompleted(scope)) {
+            markSetupWizardCompleted(scope);
+        }
+        return false;
+    }
     if (isSetupWizardCompleted(scope)) return false;
     const sessionDismissed = window.sessionStorage.getItem(getSessionDismissKey(scope));
     return sessionDismissed !== 'true';

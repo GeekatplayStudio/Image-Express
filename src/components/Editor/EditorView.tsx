@@ -10,6 +10,7 @@ import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import UserProfileModal from '@/components/UserProfileModal';
 import TopToolOptionsBar from '@/components/Editor/TopToolOptionsBar';
+import TextQuickBar from '@/components/Editor/TextQuickBar';
 import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
 import AssetLibrary from '@/components/AssetLibrary';
 import MissingAssetsModal from '@/components/MissingAssetsModal';
@@ -48,6 +49,7 @@ import {
     toLocalRetouchPoint,
     type RetouchBounds,
 } from '@/lib/retouch-engine';
+import { TOP_TEXT_FONT_FAMILIES, TOP_TEXT_FONT_STYLES } from '@/lib/typography';
 
 interface MissingItem {
     id: string; 
@@ -173,20 +175,6 @@ type DesignJson = {
     [key: string]: unknown;
 };
 
-const TOP_TEXT_FONT_FAMILIES = [
-    'Arial',
-    'Times New Roman',
-    'Courier New',
-    'Georgia',
-    'Verdana',
-    'Impact',
-    'Comic Sans MS',
-    'Trebuchet MS',
-    'Tahoma',
-    'Century Gothic',
-];
-
-const TOP_TEXT_FONT_STYLES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 const TOP_TEXT_DEFAULT_SIZE = 40;
 const TOP_CROP_RATIO_PRESETS = ['free', '1:1', '4:3', '16:9'] as const;
 const TOP_EYEDROPPER_SAMPLE_SIZES = [1, 3, 5, 11] as const;
@@ -286,6 +274,8 @@ export default function EditorView({
         'locked',
         'curveStrength',
         'curveCenter',
+        'curveSpan',
+        'textSpellcheck',
         'skewZ',
         'skewZBaseScale',
         'skewZBaseScaleX',
@@ -308,6 +298,7 @@ export default function EditorView({
         'penNodes',
         'penSourcePoints',
         'textPathSourceId',
+        'shapeCornerRadius',
         'isRetouchLayer',
         'gradientTypeHint',
         'gradientReversed',
@@ -517,6 +508,78 @@ export default function EditorView({
             canMoveDown,
             canBringToFront: canMoveUp,
             canSendToBack: canMoveDown,
+        };
+    }, [canvas]);
+
+    useEffect(() => {
+        if (!canvas) {
+            setTextQuickBarPos({ visible: false, left: 0, top: 0 });
+            return;
+        }
+
+        const toViewportPoint = (point: fabric.Point) => {
+            const transform = canvas.viewportTransform || [1, 0, 0, 1, 0, 0] as fabric.TMat2D;
+            return (fabric.util as unknown as { transformPoint: (p: fabric.Point, t: fabric.TMat2D) => fabric.Point }).transformPoint(point, transform);
+        };
+
+        const syncTextQuickBar = () => {
+            const active = canvas.getActiveObject() as (fabric.Object & { type?: string }) | null;
+            const isTextObject = active?.type === 'i-text' || active?.type === 'text' || active?.type === 'textbox';
+            if (!active || !isTextObject) {
+                setTextQuickBarPos({ visible: false, left: 0, top: 0 });
+                return;
+            }
+
+            const canvasElement = canvas.lowerCanvasEl;
+            if (!canvasElement) {
+                setTextQuickBarPos({ visible: false, left: 0, top: 0 });
+                return;
+            }
+
+            const coords = typeof active.getCoords === 'function' ? active.getCoords() : [];
+            if (!Array.isArray(coords) || coords.length === 0) {
+                setTextQuickBarPos({ visible: false, left: 0, top: 0 });
+                return;
+            }
+
+            const viewportPoints = coords.map((coord) => toViewportPoint(new fabric.Point(coord.x, coord.y)));
+            const minX = Math.min(...viewportPoints.map((point) => point.x));
+            const maxX = Math.max(...viewportPoints.map((point) => point.x));
+            const maxY = Math.max(...viewportPoints.map((point) => point.y));
+
+            const canvasRect = canvasElement.getBoundingClientRect();
+            const desiredLeft = canvasRect.left + ((minX + maxX) / 2);
+            const desiredTop = canvasRect.top + maxY + 16;
+            const clampedLeft = Math.max(190, Math.min(window.innerWidth - 190, desiredLeft));
+            const clampedTop = Math.max(84, Math.min(window.innerHeight - 84, desiredTop));
+
+            setTextQuickBarPos({ visible: true, left: clampedLeft, top: clampedTop });
+        };
+
+        syncTextQuickBar();
+
+        canvas.on('selection:created', syncTextQuickBar);
+        canvas.on('selection:updated', syncTextQuickBar);
+        canvas.on('selection:cleared', syncTextQuickBar);
+        canvas.on('object:modified', syncTextQuickBar);
+        canvas.on('object:moving', syncTextQuickBar);
+        canvas.on('object:scaling', syncTextQuickBar);
+        canvas.on('object:rotating', syncTextQuickBar);
+
+        const syncOnWindow = () => syncTextQuickBar();
+        window.addEventListener('resize', syncOnWindow);
+        window.addEventListener('scroll', syncOnWindow, true);
+
+        return () => {
+            canvas.off('selection:created', syncTextQuickBar);
+            canvas.off('selection:updated', syncTextQuickBar);
+            canvas.off('selection:cleared', syncTextQuickBar);
+            canvas.off('object:modified', syncTextQuickBar);
+            canvas.off('object:moving', syncTextQuickBar);
+            canvas.off('object:scaling', syncTextQuickBar);
+            canvas.off('object:rotating', syncTextQuickBar);
+            window.removeEventListener('resize', syncOnWindow);
+            window.removeEventListener('scroll', syncOnWindow, true);
         };
     }, [canvas]);
 
@@ -889,10 +952,18 @@ export default function EditorView({
     const [textTopItalic, setTextTopItalic] = useState(false);
     const [textTopUnderline, setTextTopUnderline] = useState(false);
     const [textTopAlign, setTextTopAlign] = useState<'left' | 'center' | 'right' | 'justify'>('left');
+    const [textTopSpellcheck, setTextTopSpellcheck] = useState(true);
+    const [textQuickBarPos, setTextQuickBarPos] = useState<{ visible: boolean; left: number; top: number }>({
+        visible: false,
+        left: 0,
+        top: 0,
+    });
     const [shapeTopMode, setShapeTopMode] = useState<'shape' | 'path' | 'pixels'>('shape');
     const [shapeTopFillColor, setShapeTopFillColor] = useState<string>(APP_THEME.shapeDefaultFillHex);
     const [shapeTopStrokeColor, setShapeTopStrokeColor] = useState('#111827');
     const [shapeTopStrokeWidth, setShapeTopStrokeWidth] = useState(0);
+    const [shapeTopCornerRadius, setShapeTopCornerRadius] = useState(0);
+    const [shapeTopCanSmoothAngles, setShapeTopCanSmoothAngles] = useState(false);
     const [shapeTopFixedSize, setShapeTopFixedSize] = useState(false);
     const [cropTopRatioPreset, setCropTopRatioPreset] = useState<TopCropRatioPreset>('free');
     const [cropTopDeleteOutside, setCropTopDeleteOutside] = useState(false);
@@ -2603,6 +2674,7 @@ export default function EditorView({
                 setTextTopItalic(false);
                 setTextTopUnderline(false);
                 setTextTopAlign('left');
+                setTextTopSpellcheck(true);
                 return;
             }
             const activeType = active.type;
@@ -2633,6 +2705,8 @@ export default function EditorView({
             if (active.textAlign) {
                 setTextTopAlign(active.textAlign);
             }
+            const activeExt = active as ExtendedFabricObject;
+            setTextTopSpellcheck(activeExt.textSpellcheck !== false);
         };
 
         syncTextFontFamily();
@@ -2659,6 +2733,7 @@ export default function EditorView({
         fillColor: string;
         strokeColor: string;
         strokeWidth: number;
+        cornerRadius: number;
         fixedSize: boolean;
     }>) => {
         if (!canvas) return;
@@ -2666,21 +2741,24 @@ export default function EditorView({
         const nextFillColor = overrides?.fillColor ?? shapeTopFillColor;
         const nextStrokeColor = overrides?.strokeColor ?? shapeTopStrokeColor;
         const nextStrokeWidth = overrides?.strokeWidth ?? shapeTopStrokeWidth;
+        const nextCornerRadius = overrides?.cornerRadius ?? shapeTopCornerRadius;
         const nextFixedSize = overrides?.fixedSize ?? shapeTopFixedSize;
         (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('shape:config:set', {
             mode: nextMode,
             fillColor: nextFillColor,
             strokeColor: nextStrokeColor,
             strokeWidth: Math.max(0, Math.min(40, Math.round(nextStrokeWidth))),
+            cornerRadius: Math.max(0, Math.min(100, Math.round(nextCornerRadius))),
             fixedSize: nextFixedSize,
         });
-    }, [canvas, shapeTopMode, shapeTopFillColor, shapeTopStrokeColor, shapeTopStrokeWidth, shapeTopFixedSize]);
+    }, [canvas, shapeTopMode, shapeTopFillColor, shapeTopStrokeColor, shapeTopStrokeWidth, shapeTopCornerRadius, shapeTopFixedSize]);
 
     const applyShapeTopConfigToActiveObject = useCallback((overrides?: Partial<{
         mode: 'shape' | 'path' | 'pixels';
         fillColor: string;
         strokeColor: string;
         strokeWidth: number;
+        cornerRadius: number;
         fixedSize: boolean;
     }>) => {
         if (!canvas) return;
@@ -2691,9 +2769,23 @@ export default function EditorView({
         const nextFillColor = overrides?.fillColor ?? shapeTopFillColor;
         const nextStrokeColor = overrides?.strokeColor ?? shapeTopStrokeColor;
         const normalizedStrokeWidth = Math.max(0, Math.min(40, Math.round(overrides?.strokeWidth ?? shapeTopStrokeWidth)));
+        const normalizedCornerRadius = Math.max(0, Math.min(100, Math.round(overrides?.cornerRadius ?? shapeTopCornerRadius)));
         const nextFixedSize = overrides?.fixedSize ?? shapeTopFixedSize;
         const resolvedFill = nextMode === 'path' ? 'transparent' : nextFillColor;
         const resolvedStrokeWidth = nextMode === 'path' ? Math.max(1, normalizedStrokeWidth) : normalizedStrokeWidth;
+
+        if (active.type === 'rect') {
+            (active as fabric.Rect).set({
+                rx: normalizedCornerRadius,
+                ry: normalizedCornerRadius,
+            });
+        }
+        if (['triangle', 'polygon', 'polyline', 'path', 'line'].includes(active.type || '')) {
+            active.set({
+                strokeLineJoin: normalizedCornerRadius > 0 ? 'round' : 'miter',
+                strokeLineCap: normalizedCornerRadius > 0 ? 'round' : 'butt',
+            });
+        }
 
         active.set({
             fill: resolvedFill,
@@ -2704,6 +2796,7 @@ export default function EditorView({
             dirty: true,
         });
         active.shapeDrawMode = nextMode;
+        active.shapeCornerRadius = normalizedCornerRadius;
         active.setCoords();
         canvas.requestRenderAll();
     }, [
@@ -2713,6 +2806,7 @@ export default function EditorView({
         shapeTopFillColor,
         shapeTopStrokeColor,
         shapeTopStrokeWidth,
+        shapeTopCornerRadius,
         shapeTopFixedSize,
     ]);
 
@@ -2721,7 +2815,12 @@ export default function EditorView({
 
         const syncShapeControls = () => {
             const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
-            if (!isShapeEditableObject(active)) return;
+            if (!isShapeEditableObject(active)) {
+                setShapeTopCanSmoothAngles(false);
+                return;
+            }
+
+            setShapeTopCanSmoothAngles(active.type === 'rect');
 
             let inferredMode: 'shape' | 'path' | 'pixels' = active.shapeDrawMode === 'pixels' ? 'pixels' : 'shape';
             if (typeof active.fill === 'string') {
@@ -2746,6 +2845,15 @@ export default function EditorView({
             if (typeof active.strokeWidth === 'number') {
                 setShapeTopStrokeWidth(Math.max(0, Math.min(40, Math.round(active.strokeWidth))));
             }
+
+            const rectRadius = active.type === 'rect'
+                ? Math.max(
+                    typeof (active as fabric.Rect).rx === 'number' ? (active as fabric.Rect).rx : 0,
+                    typeof (active as fabric.Rect).ry === 'number' ? (active as fabric.Rect).ry : 0,
+                )
+                : 0;
+            const extCornerRadius = typeof active.shapeCornerRadius === 'number' ? active.shapeCornerRadius : 0;
+            setShapeTopCornerRadius(Math.max(0, Math.min(100, Math.round(Math.max(rectRadius, extCornerRadius)))));
 
             setShapeTopMode(inferredMode);
             setShapeTopFixedSize(Boolean(active.lockScalingX && active.lockScalingY));
@@ -3800,7 +3908,7 @@ export default function EditorView({
         const libsFolder = zip.folder('libs');
         const scriptsFolder = zip.folder('scripts');
 
-        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId', 'isRetouchLayer', 'gradientTypeHint', 'gradientReversed', 'gradientDitherEnabled'];
+        const customProps = ['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId', 'textSpellcheck', 'curveSpan', 'isRetouchLayer', 'gradientTypeHint', 'gradientReversed', 'gradientDitherEnabled'];
         const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customProps);
 
         const metadata = {
@@ -6089,6 +6197,99 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }, []);
 
+    const withActiveTextObject = useCallback((mutate: (active: fabric.Object & ExtendedFabricObject & {
+        set: (props: unknown) => void;
+        hiddenTextarea?: HTMLTextAreaElement;
+    }) => void) => {
+        if (!canvas) return;
+        const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject & {
+            type?: string;
+            set: (props: unknown) => void;
+            hiddenTextarea?: HTMLTextAreaElement;
+        }) | null;
+        if (!active) return;
+        const isTextObject = active.type === 'i-text' || active.type === 'text' || active.type === 'textbox';
+        if (!isTextObject) return;
+        mutate(active);
+        canvas.requestRenderAll();
+        (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('object:modified', { target: active });
+    }, [canvas]);
+
+    const handleTextFontFamilyChange = useCallback((fontFamily: string) => {
+        setTextTopFontFamily(fontFamily);
+        withActiveTextObject((active) => {
+            active.set({ fontFamily });
+        });
+    }, [withActiveTextObject]);
+
+    const handleTextFontStyleChange = useCallback((fontStyle: string) => {
+        setTextTopFontStyle(fontStyle);
+        const normalizedWeight = String(fontStyle).toLowerCase();
+        const numericWeight = Number(normalizedWeight);
+        setTextTopBold(normalizedWeight === 'bold' || (!Number.isNaN(numericWeight) && numericWeight >= 600));
+        withActiveTextObject((active) => {
+            active.set({ fontWeight: fontStyle });
+        });
+    }, [withActiveTextObject]);
+
+    const handleTextFontSizeChange = useCallback((fontSize: number) => {
+        const normalizedSize = Math.max(8, Math.min(240, Math.round(fontSize)));
+        setTextTopFontSize(normalizedSize);
+        withActiveTextObject((active) => {
+            active.set({ fontSize: normalizedSize });
+        });
+    }, [withActiveTextObject]);
+
+    const handleTextColorChange = useCallback((color: string) => {
+        const normalizedColor = normalizeColorValue(color);
+        if (!normalizedColor || !normalizedColor.startsWith('#')) return;
+        setTextTopColor(normalizedColor);
+        withActiveTextObject((active) => {
+            active.set({ fill: normalizedColor });
+        });
+    }, [withActiveTextObject]);
+
+    const handleTextBoldChange = useCallback((enabled: boolean) => {
+        setTextTopBold(enabled);
+        const nextWeight = enabled ? 'bold' : 'normal';
+        setTextTopFontStyle(nextWeight);
+        withActiveTextObject((active) => {
+            active.set({ fontWeight: nextWeight });
+        });
+    }, [withActiveTextObject]);
+
+    const handleTextItalicChange = useCallback((enabled: boolean) => {
+        setTextTopItalic(enabled);
+        withActiveTextObject((active) => {
+            active.set({ fontStyle: enabled ? 'italic' : 'normal' });
+        });
+    }, [withActiveTextObject]);
+
+    const handleTextUnderlineChange = useCallback((enabled: boolean) => {
+        setTextTopUnderline(enabled);
+        withActiveTextObject((active) => {
+            active.set({ underline: enabled });
+        });
+    }, [withActiveTextObject]);
+
+    const handleTextAlignChange = useCallback((align: 'left' | 'center' | 'right' | 'justify') => {
+        setTextTopAlign(align);
+        withActiveTextObject((active) => {
+            active.set({ textAlign: align });
+        });
+    }, [withActiveTextObject]);
+
+    const handleTextSpellcheckChange = useCallback((enabled: boolean) => {
+        setTextTopSpellcheck(enabled);
+        withActiveTextObject((active) => {
+            active.textSpellcheck = enabled;
+            active.set({ textSpellcheck: enabled });
+            if (active.hiddenTextarea) {
+                active.hiddenTextarea.spellcheck = enabled;
+            }
+        });
+    }, [withActiveTextObject]);
+
     const activeLayerOrderState = getActiveLayerOrderState();
     const menuLayerTarget = getMenuLayerTarget();
 
@@ -7335,108 +7536,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     italic: textTopItalic,
                     underline: textTopUnderline,
                     align: textTopAlign,
+                    spellcheck: textTopSpellcheck,
                 }}
-                onTextFontFamilyChange={(fontFamily) => {
-                    setTextTopFontFamily(fontFamily);
-                    if (!canvas) return;
-                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
-                    if (!active) return;
-                    const activeType = active.type;
-                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
-                    if (!isTextObject) return;
-                    active.set({ fontFamily });
-                    canvas.requestRenderAll();
-                }}
-                onTextFontStyleChange={(fontStyle) => {
-                    setTextTopFontStyle(fontStyle);
-                    const normalizedWeight = String(fontStyle).toLowerCase();
-                    const numericWeight = Number(normalizedWeight);
-                    setTextTopBold(normalizedWeight === 'bold' || (!Number.isNaN(numericWeight) && numericWeight >= 600));
-                    if (!canvas) return;
-                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
-                    if (!active) return;
-                    const activeType = active.type;
-                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
-                    if (!isTextObject) return;
-                    active.set({ fontWeight: fontStyle });
-                    canvas.requestRenderAll();
-                }}
-                onTextFontSizeChange={(fontSize) => {
-                    const normalizedSize = Math.max(8, Math.min(240, Math.round(fontSize)));
-                    setTextTopFontSize(normalizedSize);
-                    if (!canvas) return;
-                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
-                    if (!active) return;
-                    const activeType = active.type;
-                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
-                    if (!isTextObject) return;
-                    active.set({ fontSize: normalizedSize });
-                    canvas.requestRenderAll();
-                }}
-                onTextColorChange={(color) => {
-                    const normalizedColor = normalizeColorValue(color);
-                    if (!normalizedColor || !normalizedColor.startsWith('#')) return;
-                    setTextTopColor(normalizedColor);
-                    if (!canvas) return;
-                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
-                    if (!active) return;
-                    const activeType = active.type;
-                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
-                    if (!isTextObject) return;
-                    active.set({ fill: normalizedColor });
-                    canvas.requestRenderAll();
-                }}
-                onTextBoldChange={(enabled) => {
-                    setTextTopBold(enabled);
-                    const nextWeight = enabled ? 'bold' : 'normal';
-                    setTextTopFontStyle(nextWeight);
-                    if (!canvas) return;
-                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
-                    if (!active) return;
-                    const activeType = active.type;
-                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
-                    if (!isTextObject) return;
-                    active.set({ fontWeight: nextWeight });
-                    canvas.requestRenderAll();
-                }}
-                onTextItalicChange={(enabled) => {
-                    setTextTopItalic(enabled);
-                    if (!canvas) return;
-                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
-                    if (!active) return;
-                    const activeType = active.type;
-                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
-                    if (!isTextObject) return;
-                    active.set({ fontStyle: enabled ? 'italic' : 'normal' });
-                    canvas.requestRenderAll();
-                }}
-                onTextUnderlineChange={(enabled) => {
-                    setTextTopUnderline(enabled);
-                    if (!canvas) return;
-                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
-                    if (!active) return;
-                    const activeType = active.type;
-                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
-                    if (!isTextObject) return;
-                    active.set({ underline: enabled });
-                    canvas.requestRenderAll();
-                }}
-                onTextAlignChange={(align) => {
-                    setTextTopAlign(align);
-                    if (!canvas) return;
-                    const active = canvas.getActiveObject() as (fabric.Object & { type?: string; set: (props: unknown) => void }) | null;
-                    if (!active) return;
-                    const activeType = active.type;
-                    const isTextObject = activeType === 'i-text' || activeType === 'text' || activeType === 'textbox';
-                    if (!isTextObject) return;
-                    active.set({ textAlign: align });
-                    canvas.requestRenderAll();
-                }}
+                onTextFontFamilyChange={handleTextFontFamilyChange}
+                onTextFontStyleChange={handleTextFontStyleChange}
+                onTextFontSizeChange={handleTextFontSizeChange}
+                onTextColorChange={handleTextColorChange}
+                onTextBoldChange={handleTextBoldChange}
+                onTextItalicChange={handleTextItalicChange}
+                onTextUnderlineChange={handleTextUnderlineChange}
+                onTextAlignChange={handleTextAlignChange}
                 shapeOptions={{
                     mode: shapeTopMode,
                     fillColor: shapeTopFillColor,
                     strokeColor: shapeTopStrokeColor,
                     strokeWidth: shapeTopStrokeWidth,
+                    cornerRadius: shapeTopCornerRadius,
+                    canSmoothAngles: shapeTopCanSmoothAngles,
                     fixedSize: shapeTopFixedSize,
                 }}
                 onShapeModeChange={(mode) => {
@@ -7463,6 +7579,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     setShapeTopStrokeWidth(normalizedWidth);
                     emitShapeTopConfig({ strokeWidth: normalizedWidth });
                     applyShapeTopConfigToActiveObject({ strokeWidth: normalizedWidth });
+                }}
+                onShapeCornerRadiusChange={(radius) => {
+                    const normalizedRadius = Math.max(0, Math.min(100, Math.round(radius)));
+                    setShapeTopCornerRadius(normalizedRadius);
+                    emitShapeTopConfig({ cornerRadius: normalizedRadius });
+                    applyShapeTopConfigToActiveObject({ cornerRadius: normalizedRadius });
                 }}
                 onShapeFixedSizeChange={(enabled) => {
                     setShapeTopFixedSize(enabled);
@@ -7915,6 +8037,33 @@ document.addEventListener('DOMContentLoaded', () => {
                             initialWidth={initialSize?.width}
                             initialHeight={initialSize?.height}
                             onRightClick={handleRightClick}
+                        />
+                        <TextQuickBar
+                            visible={textQuickBarPos.visible}
+                            left={textQuickBarPos.left}
+                            top={textQuickBarPos.top}
+                            textOptions={{
+                                fontFamily: textTopFontFamily,
+                                fontFamilies: TOP_TEXT_FONT_FAMILIES,
+                                fontStyle: textTopFontStyle,
+                                fontStyles: TOP_TEXT_FONT_STYLES,
+                                fontSize: textTopFontSize,
+                                color: textTopColor,
+                                bold: textTopBold,
+                                italic: textTopItalic,
+                                underline: textTopUnderline,
+                                align: textTopAlign,
+                                spellcheck: textTopSpellcheck,
+                            }}
+                            onTextFontFamilyChange={handleTextFontFamilyChange}
+                            onTextFontStyleChange={handleTextFontStyleChange}
+                            onTextFontSizeChange={handleTextFontSizeChange}
+                            onTextColorChange={handleTextColorChange}
+                            onTextBoldChange={handleTextBoldChange}
+                            onTextItalicChange={handleTextItalicChange}
+                            onTextUnderlineChange={handleTextUnderlineChange}
+                            onTextAlignChange={handleTextAlignChange}
+                            onTextSpellcheckChange={handleTextSpellcheckChange}
                         />
                         {(lockedLayerOverlayEntries.length > 0 || canvasLockControl) && (
                             <div className="absolute inset-0 z-20 pointer-events-none">

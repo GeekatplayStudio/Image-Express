@@ -9,26 +9,34 @@ describe('TextProperties', () => {
         fontWeight: 'normal',
         curveStrength: 0,
         curveCenter: 0,
+        spellcheckEnabled: true,
         onTextContentChange: jest.fn(),
         onFontFamilyChange: jest.fn(),
         onFontWeightChange: jest.fn(),
         onCurveChange: jest.fn(),
+        onSpellcheckChange: jest.fn(),
     };
 
-    it('updates multiline text content from textarea', () => {
-        const onTextContentChange = jest.fn();
-        render(
+    it('renders multiline text content in editor', async () => {
+        const { rerender } = render(
             <TextProperties
                 {...baseProps}
-                onTextContentChange={onTextContentChange}
             />
         );
 
-        fireEvent.change(screen.getByLabelText('Text content'), {
-            target: { value: 'Line 1\nLine 2\nLine 3' },
-        });
+        const editor = await screen.findByLabelText('Text content');
+        expect(editor).toHaveTextContent('Line 1');
 
-        expect(onTextContentChange).toHaveBeenCalledWith('Line 1\nLine 2\nLine 3');
+        rerender(
+            <TextProperties
+                {...baseProps}
+                textContent={'Line 1\nLine 2\nLine 3'}
+            />
+        );
+
+        expect(editor).toHaveTextContent('Line 1');
+        expect(editor).toHaveTextContent('Line 2');
+        expect(editor).toHaveTextContent('Line 3');
     });
 
     it('attaches text to selected path from dropdown', () => {

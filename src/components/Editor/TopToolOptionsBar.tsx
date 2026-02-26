@@ -6,6 +6,13 @@ import PaintControls from '@/components/Editor/top-tool-options/PaintControls';
 import RetouchControls from '@/components/Editor/top-tool-options/RetouchControls';
 import GradientControls from '@/components/Editor/top-tool-options/GradientControls';
 import { Redo2, Save, Undo2 } from 'lucide-react';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 interface TopToolOptionsBarProps {
     activeTool: string;
@@ -139,6 +146,7 @@ interface TopToolOptionsBarProps {
         italic: boolean;
         underline: boolean;
         align: 'left' | 'center' | 'right' | 'justify';
+        spellcheck?: boolean;
     };
     onTextFontFamilyChange?: (fontFamily: string) => void;
     onTextFontStyleChange?: (fontStyle: string) => void;
@@ -153,12 +161,15 @@ interface TopToolOptionsBarProps {
         fillColor: string;
         strokeColor: string;
         strokeWidth: number;
+        cornerRadius: number;
+        canSmoothAngles: boolean;
         fixedSize: boolean;
     };
     onShapeModeChange?: (mode: 'shape' | 'path' | 'pixels') => void;
     onShapeFillColorChange?: (color: string) => void;
     onShapeStrokeColorChange?: (color: string) => void;
     onShapeStrokeWidthChange?: (width: number) => void;
+    onShapeCornerRadiusChange?: (radius: number) => void;
     onShapeFixedSizeChange?: (enabled: boolean) => void;
     cropOptions?: {
         ratioPreset: 'free' | '1:1' | '4:3' | '16:9';
@@ -270,6 +281,7 @@ export default function TopToolOptionsBar({
     onShapeFillColorChange,
     onShapeStrokeColorChange,
     onShapeStrokeWidthChange,
+    onShapeCornerRadiusChange,
     onShapeFixedSizeChange,
     cropOptions,
     onCropRatioPresetChange,
@@ -343,9 +355,9 @@ export default function TopToolOptionsBar({
     return (
         <div
             data-testid="top-tool-options-bar"
-            className="h-12 border-b border-border/50 bg-card/60 backdrop-blur-sm px-4 flex items-center justify-between gap-4"
+            className="h-11 border-b border-border/50 bg-card/60 backdrop-blur-sm px-3 flex items-center justify-between gap-3"
         >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
                 {showToolbarActions && (
                     <>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -390,7 +402,7 @@ export default function TopToolOptionsBar({
                 </div>
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
                 {(activeTool === 'select' || activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush') && selectOptions && (
                     <SelectionControls
                         activeTool={activeTool}
@@ -534,16 +546,16 @@ export default function TopToolOptionsBar({
                     <>
                         <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
                             <span className="text-muted-foreground">Font</span>
-                            <select
-                                aria-label="Text font family"
-                                value={textOptions.fontFamily}
-                                onChange={(event) => onTextFontFamilyChange?.(event.target.value)}
-                                className="bg-transparent outline-none"
-                            >
-                                {textOptions.fontFamilies.map((font) => (
-                                    <option key={font} value={font}>{font}</option>
-                                ))}
-                            </select>
+                            <Select value={textOptions.fontFamily} onValueChange={(value) => onTextFontFamilyChange?.(value)}>
+                                <SelectTrigger aria-label="Text font family" className="h-7 min-w-[150px] border-0 bg-transparent px-1 text-xs shadow-none focus:ring-0" style={{ fontFamily: textOptions.fontFamily }}>
+                                    <SelectValue placeholder="Font" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {textOptions.fontFamilies.map((font) => (
+                                        <SelectItem key={font} value={font}>{font}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </label>
 
                         <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
@@ -703,6 +715,22 @@ export default function TopToolOptionsBar({
                             />
                             <span>{shapeOptions.strokeWidth}px</span>
                         </label>
+
+                        {shapeOptions.canSmoothAngles && (
+                            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                                <span className="text-muted-foreground">Smooth Angles</span>
+                                <input
+                                    aria-label="Shape smooth angles"
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    value={shapeOptions.cornerRadius}
+                                    onChange={(event) => onShapeCornerRadiusChange?.(Number(event.target.value))}
+                                    className="w-20"
+                                />
+                                <span>{shapeOptions.cornerRadius}px</span>
+                            </label>
+                        )}
 
                         <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
                             <input

@@ -135,8 +135,11 @@ export type ExtendedFabricObject = fabric.Object & {
     taperDirection?: number;
     curveStrength?: number;
     curveCenter?: number;
+    curveSpan?: number;
+    textSpellcheck?: boolean;
     textPathSourceId?: string;
     shapeDrawMode?: 'shape' | 'path' | 'pixels';
+    shapeCornerRadius?: number;
     isRetouchLayer?: boolean;
     gradientTypeHint?: 'linear' | 'radial' | 'angle';
     gradientReversed?: boolean;

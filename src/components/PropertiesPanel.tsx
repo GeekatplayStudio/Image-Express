@@ -1,6 +1,8 @@
 'use client';
-import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
+import { GripVertical, Link2, Link2Off } from 'lucide-react';
 import { 
     ExtendedFabricObject, 
     AdjustmentLayerType, 
@@ -62,6 +64,7 @@ import {
     ColorPanelMode,
     NavigatorSceneRect,
 } from './properties/PanelUtilityViews';
+import { cn } from '@/lib/utils';
 
 interface CustomObjectState {
     _strokeEnabled?: boolean;
@@ -135,8 +138,6 @@ const PANEL_MODE_VALUES: PanelMode[] = [
     'navigator',
     'info',
 ];
-
-
 
 export default function PropertiesPanel({
     canvas,
@@ -214,10 +215,187 @@ export default function PropertiesPanel({
         }
     }, [activeTool, panelMode, setPanelMode]);
 
+    const panelRailHostRef = useRef<HTMLDivElement | null>(null);
+    const railDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
+    const [isRailDetached, setIsRailDetached] = useState(false);
+    const [isRailDragging, setIsRailDragging] = useState(false);
+    const [detachedRailPosition, setDetachedRailPosition] = useState({ x: 8, y: 8 });
+    const [isClient, setIsClient] = useState(false);
+    const [dockedRailAnchor, setDockedRailAnchor] = useState<{ left: number; top: number } | null>(null);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
+
+    const updateDockedRailAnchor = useCallback(() => {
+        const host = panelRailHostRef.current;
+        if (!host) {
+            setDockedRailAnchor(null);
+            return;
+        }
+        const rect = host.getBoundingClientRect();
+        setDockedRailAnchor({
+            left: Math.max(8, rect.left - 52),
+            top: Math.max(8, rect.top + 8),
+        });
+    }, []);
+
+    useEffect(() => {
+        updateDockedRailAnchor();
+        const host = panelRailHostRef.current;
+        if (!host) return;
+
+        const resizeObserver = new ResizeObserver(() => {
+            updateDockedRailAnchor();
+        });
+        resizeObserver.observe(host);
+
+        const handleWindowChange = () => updateDockedRailAnchor();
+        window.addEventListener('resize', handleWindowChange);
+        window.addEventListener('scroll', handleWindowChange, true);
+
+        return () => {
+            resizeObserver.disconnect();
+            window.removeEventListener('resize', handleWindowChange);
+            window.removeEventListener('scroll', handleWindowChange, true);
+        };
+    }, [updateDockedRailAnchor]);
+
+    const dockRail = useCallback(() => {
+        setIsRailDetached(false);
+        setIsRailDragging(false);
+        railDragOffsetRef.current = null;
+        setDetachedRailPosition({ x: 8, y: 8 });
+    }, []);
+
+    const handleDetachRail = useCallback(() => {
+        if (isRailDetached) {
+            dockRail();
+            return;
+        }
+        setIsRailDetached(true);
+    }, [dockRail, isRailDetached]);
+
+    const handleRailDragStart = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+        if (!isRailDetached) return;
+        const host = panelRailHostRef.current;
+        if (!host) return;
+
+        const hostRect = host.getBoundingClientRect();
+        railDragOffsetRef.current = {
+            x: event.clientX - hostRect.left - detachedRailPosition.x,
+            y: event.clientY - hostRect.top - detachedRailPosition.y,
+        };
+        setIsRailDragging(true);
+        event.preventDefault();
+        event.stopPropagation();
+    }, [detachedRailPosition.x, detachedRailPosition.y, isRailDetached]);
+
+    useEffect(() => {
+        if (!isRailDragging) return;
+
+        const handleMouseMove = (event: MouseEvent) => {
+            const host = panelRailHostRef.current;
+            const dragOffset = railDragOffsetRef.current;
+            if (!host || !dragOffset) return;
+
+            const hostRect = host.getBoundingClientRect();
+            const railWidth = enablePanelRailHoverLabels ? 176 : 44;
+            const railHeight = 360;
+
+            let nextX = event.clientX - hostRect.left - dragOffset.x;
+            let nextY = event.clientY - hostRect.top - dragOffset.y;
+
+            nextX = Math.max(8, Math.min(nextX, Math.max(8, hostRect.width - railWidth - 8)));
+            nextY = Math.max(8, Math.min(nextY, Math.max(8, hostRect.height - railHeight - 8)));
+
+            if (nextX <= 24) {
+                nextX = 8;
+            }
+
+            setDetachedRailPosition({ x: nextX, y: nextY });
+        };
+
+        const handleMouseUp = () => {
+            setIsRailDragging(false);
+            railDragOffsetRef.current = null;
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [enablePanelRailHoverLabels, isRailDragging]);
+
     const withPanelRail = (content: ReactNode) => (
-        <div className="h-full relative">
-            <PanelModeRail mode={panelMode} onModeChange={setPanelMode} showHoverLabels={enablePanelRailHoverLabels} />
+        <div
+            ref={panelRailHostRef}
+            className="h-full relative"
+        >
+            {isRailDetached && (
+                <div
+                    className={cn('absolute z-20', isRailDragging ? 'cursor-grabbing' : 'cursor-grab')}
+                    style={{ left: detachedRailPosition.x, top: detachedRailPosition.y }}
+                >
+                    <div className="mb-1 flex w-10 flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm">
+                        <button
+                            type="button"
+                            onClick={handleDetachRail}
+                            className="h-6 w-full inline-flex items-center justify-center rounded text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                            title="Dock rail to panel"
+                            aria-label="Dock rail to panel"
+                        >
+                            <Link2 size={13} />
+                        </button>
+                        <button
+                            type="button"
+                            onMouseDown={handleRailDragStart}
+                            className="h-6 w-full inline-flex items-center justify-center rounded text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                            title="Drag rail"
+                            aria-label="Drag rail"
+                        >
+                            <GripVertical size={13} />
+                        </button>
+                    </div>
+                    <PanelModeRail
+                        mode={panelMode}
+                        onModeChange={setPanelMode}
+                        showHoverLabels={enablePanelRailHoverLabels}
+                        expandDirection="right"
+                        className="absolute top-16 left-0"
+                    />
+                </div>
+            )}
             {content}
+            {isClient && !isRailDetached && dockedRailAnchor && createPortal(
+                <div
+                    className="fixed z-[140]"
+                    style={{ left: dockedRailAnchor.left, top: dockedRailAnchor.top }}
+                >
+                    <div className="mb-1 flex w-10 flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm">
+                        <button
+                            type="button"
+                            onClick={handleDetachRail}
+                            className="h-6 w-full inline-flex items-center justify-center rounded text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                            title="Detach rail"
+                            aria-label="Detach rail"
+                        >
+                            <Link2Off size={13} />
+                        </button>
+                    </div>
+                    <PanelModeRail
+                        mode={panelMode}
+                        onModeChange={setPanelMode}
+                        showHoverLabels={enablePanelRailHoverLabels}
+                        expandDirection="left"
+                        className="absolute top-8 right-0"
+                    />
+                </div>,
+                document.body
+            )}
         </div>
     );
 
@@ -299,11 +477,13 @@ export default function PropertiesPanel({
 
     const [curveStrength, setCurveStrength] = useState(0);
     const [curveCenter, setCurveCenter] = useState(0);
+    const [curveSpan, setCurveSpan] = useState(180);
 
 
     const [fontFamily, setFontFamily] = useState('Arial');
     const [fontWeight, setFontWeight] = useState('normal');
     const [textContent, setTextContent] = useState('');
+    const [textSpellcheck, setTextSpellcheck] = useState(true);
 
     const [adjustmentSettings, setAdjustmentSettings] = useState<AdjustmentLayerSettings | null>(null);
 
@@ -961,6 +1141,8 @@ export default function PropertiesPanel({
                     setFontWeight((t.fontWeight as string) || 'normal');
                     setCurveStrength(target.curveStrength || 0);
                     setCurveCenter(target.curveCenter || 0);
+                    setCurveSpan(target.curveSpan || 180);
+                    setTextSpellcheck(target.textSpellcheck !== false);
                     
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const d = (target as any).data || {};
@@ -1229,6 +1411,7 @@ export default function PropertiesPanel({
         const extText = textObj as ExtendedFabricObject;
         extText.curveStrength = 0;
         extText.curveCenter = 0;
+        extText.curveSpan = 180;
 
         textObj.setPositionByOrigin(currentCenter, 'center', 'center');
         textObj.setCoords();
@@ -1236,6 +1419,7 @@ export default function PropertiesPanel({
 
         setCurveStrength(0);
         setCurveCenter(0);
+        setCurveSpan(180);
         canvas.requestRenderAll();
         updateObjects();
         return true;
@@ -1245,6 +1429,7 @@ export default function PropertiesPanel({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handlePropChange = (prop: string, value: any) => {
         if (!selectedObject || !canvas) return;
+        let shouldEmitObjectModified = true;
 
         if (prop === 'penPathUpdate') {
             const updates = value as { mode?: PenModeSetting; closed?: boolean };
@@ -1364,7 +1549,9 @@ export default function PropertiesPanel({
             clearTextPathRenderSafetyIfUnused(selectedObject as fabric.IText);
             setCurveStrength(0);
             setCurveCenter(0);
+            setCurveSpan(180);
             canvas.requestRenderAll();
+            canvas.fire('object:modified', { target: selectedObject });
             updateObjects();
             return;
         }
@@ -1456,22 +1643,44 @@ export default function PropertiesPanel({
              applyTaper(skewZ, taperDirection);
          }
         
-        if (prop === 'fontFamily') (selectedObject as fabric.IText).set('fontFamily', value);
-        if (prop === 'fontWeight') (selectedObject as fabric.IText).set('fontWeight', value);
+        if (prop === 'fontFamily') {
+            (selectedObject as fabric.IText).set('fontFamily', value);
+            setFontFamily(String(value));
+        }
+        if (prop === 'fontWeight') {
+            (selectedObject as fabric.IText).set('fontWeight', value);
+            setFontWeight(String(value));
+        }
+        if (prop === 'textSpellcheck') {
+            const enabled = Boolean(value);
+            const textObj = selectedObject as fabric.IText & { hiddenTextarea?: HTMLTextAreaElement } & ExtendedFabricObject;
+            textObj.set('textSpellcheck', enabled);
+            setTextSpellcheck(enabled);
+            if (textObj.hiddenTextarea) {
+                textObj.hiddenTextarea.spellcheck = enabled;
+            }
+            textObj.set('dirty', true);
+        }
         if (prop === 'textContent') {
             const textObj = selectedObject as fabric.IText;
             const nextText = typeof value === 'string' ? value : String(value ?? '');
             textObj.set('text', nextText);
             setTextContent(nextText);
             textObj.set('dirty', true);
+            canvas.requestRenderAll();
+            return;
         }
         
         if (prop === 'curve') {
-             const { strength, center } = value;
+             const { strength, center, span } = value as { strength: number; center?: number; span?: number };
              const extended = selectedObject as ExtendedFabricObject;
-             extended.set({ curveStrength: strength, curveCenter: center, textPathSourceId: undefined });
+             const nextCenter = center ?? 0;
+             const nextSpan = Math.max(15, Math.min(359, Math.round(span ?? curveSpan ?? 180)));
+               const normalizedStrength = Math.max(0, Math.min(1, Math.abs(strength) / 100));
+             extended.set({ curveStrength: strength, curveCenter: nextCenter, curveSpan: nextSpan, textPathSourceId: undefined });
              setCurveStrength(strength);
-             setCurveCenter(center ?? 0);
+             setCurveCenter(nextCenter);
+             setCurveSpan(nextSpan);
              
              if (strength === 0) {
                  selectedObject.set('path', null);
@@ -1483,26 +1692,25 @@ export default function PropertiesPanel({
                      ? textObj.calcTextWidth()
                      : (textObj.width ?? 0);
                  const textWidth = Math.max(baseWidth || 0, 1);
-                 const strengthAbs = Math.min(Math.abs(strength), 100);
-                 const t = strengthAbs / 100;
-                 const minAngle = Math.PI / 180; // 1 degree
-                 // Avoid a fully closed path to prevent glyph overlap at max.
-                 const maxAngle = (Math.PI * 2) - 0.001;
-                 const angle = minAngle + (maxAngle - minAngle) * t;
+                 const angle = (Math.max(15, Math.min(359, nextSpan)) * Math.PI) / 180;
                  // Add a generous length buffer at stronger curves to keep text from wrapping on itself or clipping end characters.
                  // Glyphs on curve edges often need more room.
                  const fontSize = typeof textObj.fontSize === 'number' ? textObj.fontSize : 16;
                  const padding = Math.max(24, fontSize * 1.5, textWidth * 0.25); 
                  const arcLength = textWidth + padding;
-                 const radius = arcLength / angle;
-                 const chord = 2 * radius * Math.sin(angle / 2);
-                 const startX = -chord / 2;
-                 const endX = chord / 2;
-                 const largeArcFlag = angle > Math.PI ? 1 : 0;
-                 const sweepFlag = strength >= 0 ? 0 : 1;
-                 const currentCenter = selectedObject.getCenterPoint();
-                 
-                 const pathData = `M ${startX} 0 A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${endX} 0`;
+                 const startX = -(arcLength / 2);
+                 const endX = arcLength / 2;
+                 const baseRadius = arcLength / angle;
+                 const maxSagitta = Math.max(fontSize * 0.35, baseRadius * (1 - Math.cos(angle / 2)));
+                 const easedStrength = Math.pow(normalizedStrength, 1.4);
+                 const curveDepth = maxSagitta * easedStrength;
+                 const direction = strength >= 0 ? -1 : 1;
+                 const controlY = direction * curveDepth;
+                 const originX = (selectedObject.originX ?? 'center') as 'left' | 'center' | 'right';
+                 const originY = (selectedObject.originY ?? 'center') as 'top' | 'center' | 'bottom';
+                 const anchorPoint = selectedObject.getPointByOrigin(originX, originY);
+
+                 const pathData = `M ${startX} 0 Q 0 ${controlY} ${endX} 0`;
 
                  const path = new fabric.Path(pathData);
                  path.set({ visible: false });
@@ -1514,9 +1722,9 @@ export default function PropertiesPanel({
                  let baseOffset = 0;
                  if (align.includes('left')) baseOffset = slack / 2;
                  else if (align.includes('right')) baseOffset = -(slack / 2);
-                 const centerShift = ((center ?? 0) / 100) * (pathLength * 0.5);
+                 const centerShift = (nextCenter / 100) * (pathLength * 0.5);
                  textObj.set('pathStartOffset', baseOffset + centerShift);
-                 selectedObject.setPositionByOrigin(currentCenter, 'center', 'center');
+                 selectedObject.setPositionByOrigin(anchorPoint, originX, originY);
                  selectedObject.setCoords();
              }
         }
@@ -2092,6 +2300,9 @@ export default function PropertiesPanel({
 
         
         canvas.requestRenderAll();
+        if (shouldEmitObjectModified) {
+            canvas.fire('object:modified', { target: selectedObject });
+        }
         // Force re-render for transform props that don't have their own state
         updateObjects();
     };
@@ -2931,7 +3142,7 @@ export default function PropertiesPanel({
 
     if (!selectedObject && selectedIds.size === 0) {
          return withPanelRail(
-             <div className="h-full bg-card overflow-y-auto pr-12">
+             <div className="h-full bg-card overflow-y-auto">
                  <CanvasSettingsPanel 
                      width={canvasWidth}
                      height={canvasHeight}
@@ -3031,7 +3242,7 @@ export default function PropertiesPanel({
              updateAdjustment={updateAdjustment}
              onAdjustmentTypeChange={handleAdjustmentTypeChange}
              onCreateAdjustmentLayer={handleCreateAdjustmentLayer}
-             textState={{ text: textContent, font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter }}
+             textState={{ text: textContent, font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter, span: curveSpan, spellcheck: textSpellcheck }}
              activeTextEffects={activeTextEffects}
              textEffectConfigs={textEffectConfigs}
              effectState={{ 

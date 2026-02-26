@@ -407,16 +407,78 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
         attachTextDistortControls();
 
+        const isEditableElement = (element: Element | null): boolean => {
+            if (!element || !(element instanceof HTMLElement)) return false;
+            if (element.isContentEditable) return true;
+            const tagName = element.tagName;
+            if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return true;
+            if (element.getAttribute('role') === 'textbox') return true;
+            return Boolean(element.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]'));
+        };
+
+        let suppressDeleteHotkeysUntilCanvas = false;
+
+        const handleFocusIn = (event: FocusEvent) => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (isEditableElement(target)) {
+                suppressDeleteHotkeysUntilCanvas = true;
+            }
+        };
+
+        const handleCanvasMouseDown = () => {
+            suppressDeleteHotkeysUntilCanvas = false;
+        };
+
          // Keyboard event listener for Delete/Backspace
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
-                // Ignore if an input is focused
-                const activeElement = document.activeElement;
-                if (activeElement && (
-                    activeElement.tagName === 'INPUT' || 
-                    activeElement.tagName === 'TEXTAREA' || 
-                    (activeElement as HTMLElement).isContentEditable
-                )) {
+                const hasEditableInPath = (event: KeyboardEvent): boolean => {
+                    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+                    return path.some((node) => node instanceof HTMLElement && isEditableElement(node));
+                };
+
+                const hasEditableSelectionAnchor = (): boolean => {
+                    const selection = window.getSelection();
+                    if (!selection || selection.rangeCount === 0) return false;
+                    const anchorNode = selection.anchorNode;
+                    if (!anchorNode) return false;
+                    const anchorElement = anchorNode instanceof Element
+                        ? anchorNode
+                        : anchorNode.parentElement;
+                    return isEditableElement(anchorElement);
+                };
+
+                const isCanvasInteractionContext = (): boolean => {
+                    const eventTarget = e.target instanceof Element ? e.target : null;
+                    if (eventTarget === canvas.upperCanvasEl || eventTarget === canvas.lowerCanvasEl) {
+                        return true;
+                    }
+                    if (eventTarget instanceof HTMLElement && container.contains(eventTarget) && eventTarget.tagName === 'CANVAS') {
+                        return true;
+                    }
+                    const activeElement = document.activeElement instanceof Element ? document.activeElement : null;
+                    if (activeElement === canvas.upperCanvasEl || activeElement === canvas.lowerCanvasEl) {
+                        return true;
+                    }
+                    if (activeElement instanceof HTMLElement && container.contains(activeElement) && activeElement.tagName === 'CANVAS') {
+                        return true;
+                    }
+                    const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+                    return path.some((node) => node === canvas.upperCanvasEl || node === canvas.lowerCanvasEl);
+                };
+
+                const eventTarget = e.target instanceof Element ? e.target : null;
+                const activeElement = document.activeElement instanceof Element ? document.activeElement : null;
+                if (
+                    isEditableElement(eventTarget)
+                    || isEditableElement(activeElement)
+                    || hasEditableInPath(e)
+                    || hasEditableSelectionAnchor()
+                ) {
+                    suppressDeleteHotkeysUntilCanvas = true;
+                    return;
+                }
+                if (suppressDeleteHotkeysUntilCanvas) {
                     return;
                 }
 
@@ -439,6 +501,8 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
             }
         };
         window.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('focusin', handleFocusIn, true);
+        canvas.on('mouse:down', handleCanvasMouseDown);
 
         // Attach custom property to canvas for other components to know the "Page" dimensions
         extendedCanvas.artboard = { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
@@ -727,6 +791,21 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     canvas.on('object:scaling', updateSelectionDims);
     canvas.on('object:resizing', updateSelectionDims);
 
+    const enableTextSpellcheck = (event?: { target?: fabric.Object }) => {
+        const target = event?.target as (fabric.IText & { hiddenTextarea?: HTMLTextAreaElement; textSpellcheck?: boolean }) | undefined;
+        if (!target) return;
+        if (!(target.type === 'text' || target.type === 'i-text' || target.type === 'textbox')) return;
+        const textarea = target.hiddenTextarea;
+        if (textarea) {
+            textarea.spellcheck = target.textSpellcheck !== false;
+            textarea.autocapitalize = 'sentences';
+            textarea.autocomplete = 'off';
+            textarea.autocorrect = true;
+        }
+    };
+
+    canvas.on('text:editing:entered', enableTextSpellcheck);
+
     // Double Click to Center Artboard on Mouse Position
     canvas.on('mouse:dblclick', (opt) => {
         if (opt.target) return; // Ignore if user clicked an object
@@ -793,7 +872,10 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     canvas.off('object:modified', keepArtboardAtBack);
     canvas.off('object:removed', keepArtboardAtBack);
     canvas.off('object:modified', handleArtboardModified);
+            canvas.off('text:editing:entered', enableTextSpellcheck);
       window.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('focusin', handleFocusIn, true);
+        canvas.off('mouse:down', handleCanvasMouseDown);
       window.removeEventListener('keydown', handlePanKeyDown);
       window.removeEventListener('keyup', handlePanKeyUp);
       window.removeEventListener('blur', handlePanWindowBlur);

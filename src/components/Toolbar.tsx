@@ -60,6 +60,7 @@ import ImageGeneratorModal from './ImageGeneratorModal';
 import { ColorWheelTool } from './ColorWheelTool';
 import { useToast } from '@/providers/ToastProvider';
 import { loadProfileSettings } from '@/lib/profile-utils';
+import { TOP_TEXT_FONT_FAMILIES } from '@/lib/typography';
 
 /**
  * Toolbar
@@ -192,6 +193,7 @@ type ShapeConfigPayload = {
     fillColor: string;
     strokeColor: string;
     strokeWidth: number;
+    cornerRadius: number;
     fixedSize: boolean;
 };
 
@@ -284,6 +286,7 @@ const DEFAULT_SHAPE_CONFIG: ShapeConfigPayload = {
     fillColor: APP_THEME.shapeDefaultFillHex,
     strokeColor: '#111827',
     strokeWidth: 0,
+    cornerRadius: 0,
     fixedSize: false,
 };
 let isPenSpacePressed = false;
@@ -1028,6 +1031,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 const nextStrokeWidth = typeof payload?.strokeWidth === 'number'
                     ? Math.max(0, Math.min(40, Math.round(payload.strokeWidth)))
                     : prev.strokeWidth;
+                const nextCornerRadius = typeof payload?.cornerRadius === 'number'
+                    ? Math.max(0, Math.min(100, Math.round(payload.cornerRadius)))
+                    : prev.cornerRadius;
                 const nextFixedSize = typeof payload?.fixedSize === 'boolean'
                     ? payload.fixedSize
                     : prev.fixedSize;
@@ -1037,6 +1043,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     fillColor: nextFillColor,
                     strokeColor: nextStrokeColor,
                     strokeWidth: nextStrokeWidth,
+                    cornerRadius: nextCornerRadius,
                     fixedSize: nextFixedSize,
                 };
             });
@@ -1187,11 +1194,12 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         const text = new fabric.IText('Tap to edit', {
             left: 100,
             top: 250,
-            fontFamily: 'Arial',
+            fontFamily: TOP_TEXT_FONT_FAMILIES[0],
             fill: '#1f2937',
             fontSize: 40,
-            fontWeight: 'bold'
+            fontWeight: 'bold',
         });
+        (text as ExtendedFabricObject).textSpellcheck = true;
         canvas.add(text);
         canvas.setActiveObject(text);
     };
@@ -1500,6 +1508,22 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         const resolvedStrokeWidth = shapeConfig.mode === 'path'
             ? Math.max(1, shapeConfig.strokeWidth)
             : shapeConfig.strokeWidth;
+        const normalizedCornerRadius = Math.max(0, Math.min(100, Math.round(shapeConfig.cornerRadius)));
+
+        if (obj.type === 'rect') {
+            (obj as fabric.Rect).set({
+                rx: normalizedCornerRadius,
+                ry: normalizedCornerRadius,
+            });
+        }
+
+        if (['triangle', 'polygon', 'polyline', 'path', 'line'].includes(obj.type || '')) {
+            obj.set({
+                strokeLineJoin: normalizedCornerRadius > 0 ? 'round' : 'miter',
+                strokeLineCap: normalizedCornerRadius > 0 ? 'round' : 'butt',
+            });
+        }
+
         obj.set({
             fill: shapeConfig.mode === 'path' ? 'transparent' : shapeConfig.fillColor,
             stroke: shapeConfig.strokeColor,
@@ -1509,6 +1533,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             dirty: true,
         });
         (obj as ExtendedFabricObject).shapeDrawMode = shapeConfig.mode;
+        (obj as ExtendedFabricObject).shapeCornerRadius = normalizedCornerRadius;
         obj.setCoords();
     }, [shapeConfig]);
 

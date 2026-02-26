@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud } from 'lucide-react';
+import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
 import { AssetDescriptor, AssetType, AssetCategory } from '@/types';
@@ -133,12 +133,86 @@ interface AssetLibraryProps {
 
 type AssetScopeTab = 'personal' | 'shared';
 type VisibilityFilter = 'all' | 'public' | 'private';
-type AssetStorageProvider = 'server' | 'local' | 'google-drive';
+type AssetStorageProvider = 'server' | 'local' | 'google-drive' | 'merged';
 
 type LibraryAsset = AssetDescriptor & {
     storageProvider: AssetStorageProvider;
     storageId?: string;
     previewPath?: string;
+    sourceAssets?: LibraryAsset[];
+};
+
+type ModelPreviewPopupState = {
+    key: string;
+    name: string;
+    url: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+};
+
+const SOURCE_PRIORITY: Record<Exclude<AssetStorageProvider, 'merged'>, number> = {
+    local: 0,
+    'google-drive': 1,
+    server: 2,
+};
+
+const getAssetMergeKey = (asset: LibraryAsset) => [
+    asset.type,
+    asset.category,
+    (asset.owner || '').toLowerCase(),
+    asset.isPublic ? 'public' : 'private',
+    asset.name.trim().toLowerCase(),
+].join('|');
+
+const getSourceAssets = (asset: LibraryAsset): LibraryAsset[] => (
+    Array.isArray(asset.sourceAssets) && asset.sourceAssets.length > 0
+        ? asset.sourceAssets
+        : [asset]
+);
+
+const pickRepresentativeAsset = (asset: LibraryAsset): LibraryAsset => {
+    const sourceAssets = getSourceAssets(asset).filter((entry) => entry.storageProvider !== 'merged');
+    if (sourceAssets.length === 0) return asset;
+    return [...sourceAssets].sort((a, b) => {
+        const aPriority = SOURCE_PRIORITY[a.storageProvider as Exclude<AssetStorageProvider, 'merged'>] ?? 99;
+        const bPriority = SOURCE_PRIORITY[b.storageProvider as Exclude<AssetStorageProvider, 'merged'>] ?? 99;
+        return aPriority - bPriority;
+    })[0];
+};
+
+const mergeDuplicateAssets = (items: LibraryAsset[]): LibraryAsset[] => {
+    const groups = new Map<string, LibraryAsset[]>();
+
+    items.forEach((item) => {
+        const key = getAssetMergeKey(item);
+        const bucket = groups.get(key);
+        if (bucket) {
+            bucket.push(item);
+        } else {
+            groups.set(key, [item]);
+        }
+    });
+
+    const merged = Array.from(groups.entries()).map(([key, grouped]) => {
+        if (grouped.length === 1) {
+            return grouped[0];
+        }
+        const representative = pickRepresentativeAsset({
+            ...grouped[0],
+            storageProvider: 'merged',
+            sourceAssets: grouped,
+        } as LibraryAsset);
+        return {
+            ...representative,
+            path: `merged://${encodeURIComponent(key)}`,
+            storageProvider: 'merged',
+            sourceAssets: grouped,
+        } as LibraryAsset;
+    });
+
+    return merged.sort((a, b) => Date.parse(b.updatedAt || '') - Date.parse(a.updatedAt || ''));
 };
 
 /**
@@ -179,14 +253,18 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     const [editName, setEditName] = useState('');
     
     // Preview popup state
-    const [hoveredAsset, setHoveredAsset] = useState<string | null>(null);
-    const [updatingVisibilityPath, setUpdatingVisibilityPath] = useState<string | null>(null);
+    const [modelPreviewPopup, setModelPreviewPopup] = useState<ModelPreviewPopupState | null>(null);
+    const [loadingModelPreviewKey, setLoadingModelPreviewKey] = useState<string | null>(null);
+    const [previewHoverKey, setPreviewHoverKey] = useState<string | null>(null);
+    const [playingMediaKey, setPlayingMediaKey] = useState<string | null>(null);
+    const [updatingVisibilityKey, setUpdatingVisibilityKey] = useState<string | null>(null);
 
     const dialog = useDialog();
     const { toast } = useToast();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const objectUrlsRef = useRef<string[]>([]);
+    const mediaPreviewRefs = useRef<Map<string, HTMLMediaElement>>(new Map());
 
     const registerObjectUrl = useCallback((url: string) => {
         objectUrlsRef.current.push(url);
@@ -200,7 +278,61 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         objectUrlsRef.current = [];
     }, []);
 
+    const bindMediaPreviewRef = useCallback((assetKey: string) => (element: HTMLMediaElement | null) => {
+        if (!element) {
+            mediaPreviewRefs.current.delete(assetKey);
+            return;
+        }
+        mediaPreviewRefs.current.set(assetKey, element);
+    }, []);
+
+    const handleMediaPreviewAction = useCallback((assetKey: string, action: 'play' | 'pause' | 'stop', event: React.MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const target = mediaPreviewRefs.current.get(assetKey);
+        if (!target) return;
+
+        if (action === 'play') {
+            if (playingMediaKey && playingMediaKey !== assetKey) {
+                const previous = mediaPreviewRefs.current.get(playingMediaKey);
+                if (previous) {
+                    previous.pause();
+                    previous.currentTime = 0;
+                }
+            }
+            void target.play();
+            setPlayingMediaKey(assetKey);
+            return;
+        }
+
+        if (action === 'pause') {
+            target.pause();
+            if (playingMediaKey === assetKey) {
+                setPlayingMediaKey(null);
+            }
+            return;
+        }
+
+        target.pause();
+        target.currentTime = 0;
+        if (playingMediaKey === assetKey) {
+            setPlayingMediaKey(null);
+        }
+    }, [playingMediaKey]);
+
+    useEffect(() => {
+        return () => {
+            mediaPreviewRefs.current.forEach((media) => {
+                media.pause();
+            });
+            mediaPreviewRefs.current.clear();
+        };
+    }, []);
+
     const getAssetKey = useCallback((asset: LibraryAsset) => {
+        if (asset.storageProvider === 'merged') {
+            return `merged:${getAssetMergeKey(asset)}`;
+        }
         return `${asset.storageProvider}:${asset.storageId || asset.path}`;
     }, []);
 
@@ -310,7 +442,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 storageProvider: 'server',
             }));
 
-            setAssets([...localNormalized, ...cloudNormalized, ...serverNormalized]);
+            setAssets(mergeDuplicateAssets([...localNormalized, ...cloudNormalized, ...serverNormalized]));
         } catch (error) {
             console.error('Failed to load assets', error);
         } finally {
@@ -427,20 +559,28 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         }
 
         try {
-            if (asset.storageProvider === 'local') {
-                if (!asset.storageId) throw new Error('Missing local asset id.');
-                await renameLocalAsset(asset.storageId, nextName);
-                await fetchAssets();
-            } else if (asset.storageProvider === 'google-drive') {
-                if (!asset.storageId) throw new Error('Missing Google Drive asset id.');
-                const driveConfig = loadDriveConfig();
-                const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
-                if (!driveConfig.enabled || !resolvedDriveClientId) {
-                    throw new Error('Google Drive is not connected.');
+            const targetSources = getSourceAssets(asset).filter(canManageSingleAsset);
+            if (targetSources.length === 0) {
+                throw new Error('No writable source available for rename.');
+            }
+
+            const driveConfig = loadDriveConfig();
+            const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
+
+            const results = await Promise.allSettled(targetSources.map(async (entry) => {
+                if (entry.storageProvider === 'local') {
+                    if (!entry.storageId) throw new Error('Missing local asset id.');
+                    await renameLocalAsset(entry.storageId, nextName);
+                    return;
                 }
-                await renameDriveAsset(resolvedDriveClientId, asset.storageId, nextName);
-                await fetchAssets();
-            } else {
+                if (entry.storageProvider === 'google-drive') {
+                    if (!entry.storageId) throw new Error('Missing Google Drive asset id.');
+                    if (!driveConfig.enabled || !resolvedDriveClientId) {
+                        throw new Error('Google Drive is not connected.');
+                    }
+                    await renameDriveAsset(resolvedDriveClientId, entry.storageId, nextName);
+                    return;
+                }
                 const config = TAB_CONFIG[activeTab];
                 const res = await fetch('/api/assets/rename', {
                     method: 'POST',
@@ -448,7 +588,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     body: JSON.stringify({
                         type: config.type,
                         category: config.category,
-                        oldName: asset.name,
+                        oldName: entry.name,
                         newName: nextName,
                         owner: normalizedUser
                     })
@@ -457,7 +597,21 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 if (!data.success) {
                     throw new Error(data.message || 'Unknown error');
                 }
-                await fetchAssets();
+            }));
+
+            const successCount = results.filter((result) => result.status === 'fulfilled').length;
+            if (successCount === 0) {
+                throw new Error('Rename failed for all linked sources.');
+            }
+
+            await fetchAssets();
+
+            if (successCount !== targetSources.length) {
+                toast({
+                    title: 'Rename partially applied',
+                    description: 'Some linked storage sources could not be renamed.',
+                    variant: 'warning'
+                });
             }
         } catch (error) {
             console.error('Rename error:', error);
@@ -472,42 +626,58 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
      * Works for local, cloud, and legacy server providers.
      * @param e Event to stop propagation
      */
-    const deleteAsset = async (asset: LibraryAsset, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent selection when clicking delete
+    const deleteAsset = async (asset: LibraryAsset, e?: React.MouseEvent) => {
+        e?.stopPropagation(); // Prevent selection when clicking delete
         const confirmed = await dialog.confirm('Are you sure you want to delete this asset?', { title: 'Delete Asset', variant: 'destructive' });
         if (!confirmed) return;
 
         try {
-            if (asset.storageProvider === 'local') {
-                if (!asset.storageId) throw new Error('Missing local asset id.');
-                await deleteLocalAsset(asset.storageId);
-                await fetchAssets();
-            } else if (asset.storageProvider === 'google-drive') {
-                if (!asset.storageId) throw new Error('Missing Google Drive asset id.');
-                const driveConfig = loadDriveConfig();
-                const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
-                if (!driveConfig.enabled || !resolvedDriveClientId) {
-                    throw new Error('Google Drive is not connected.');
+            const targetSources = getSourceAssets(asset).filter(canManageSingleAsset);
+            if (targetSources.length === 0) {
+                throw new Error('No writable source available for delete.');
+            }
+
+            const driveConfig = loadDriveConfig();
+            const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
+
+            const results = await Promise.allSettled(targetSources.map(async (entry) => {
+                if (entry.storageProvider === 'local') {
+                    if (!entry.storageId) throw new Error('Missing local asset id.');
+                    await deleteLocalAsset(entry.storageId);
+                    return;
                 }
-                await deleteDriveAsset(resolvedDriveClientId, asset.storageId);
-                await fetchAssets();
-            } else {
+                if (entry.storageProvider === 'google-drive') {
+                    if (!entry.storageId) throw new Error('Missing Google Drive asset id.');
+                    if (!driveConfig.enabled || !resolvedDriveClientId) {
+                        throw new Error('Google Drive is not connected.');
+                    }
+                    await deleteDriveAsset(resolvedDriveClientId, entry.storageId);
+                    return;
+                }
                 const res = await fetch('/api/assets/delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filePath: asset.path, owner: normalizedUser }),
+                    body: JSON.stringify({ filePath: entry.path, owner: normalizedUser }),
                 });
-
                 const data = await res.json();
-                if (data.success || res.ok) {
-                    await fetchAssets();
-                } else {
-                    toast({
-                        title: 'Delete failed',
-                        description: data.message || 'Unknown error',
-                        variant: 'destructive'
-                    });
+                if (!(data.success || res.ok)) {
+                    throw new Error(data.message || 'Unknown error');
                 }
+            }));
+
+            const successCount = results.filter((result) => result.status === 'fulfilled').length;
+            if (successCount === 0) {
+                throw new Error('Delete failed for all linked sources.');
+            }
+
+            await fetchAssets();
+
+            if (successCount !== targetSources.length) {
+                toast({
+                    title: 'Delete partially applied',
+                    description: 'Some linked storage sources could not be deleted.',
+                    variant: 'warning'
+                });
             }
         } catch (error) {
             console.error('Error deleting asset:', error);
@@ -516,13 +686,20 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     };
 
     const canManageAsset = useCallback((asset: LibraryAsset) => {
+        return getSourceAssets(asset).some((entry) => {
+            if (!entry.owner) return true;
+            return entry.owner === normalizedUser;
+        });
+    }, [normalizedUser]);
+
+    const canManageSingleAsset = useCallback((asset: LibraryAsset) => {
         if (!asset.owner) return true;
         return asset.owner === normalizedUser;
     }, [normalizedUser]);
 
-    const toggleAssetVisibility = async (asset: LibraryAsset, e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
+    const toggleAssetVisibility = async (asset: LibraryAsset, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        e?.preventDefault();
 
         if (!canManageAsset(asset)) {
             toast({
@@ -534,50 +711,58 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         }
 
         const nextPublicState = !Boolean(asset.isPublic);
-        setUpdatingVisibilityPath(asset.path);
+        const targetSources = getSourceAssets(asset).filter(canManageSingleAsset);
+        if (targetSources.length === 0) {
+            toast({
+                title: 'Read only asset',
+                description: 'Only the asset owner can change visibility.',
+                variant: 'warning'
+            });
+            return;
+        }
+
+        setUpdatingVisibilityKey(getAssetKey(asset));
         try {
-            if (asset.storageProvider === 'local') {
-                if (!asset.storageId) throw new Error('Missing local asset id.');
-                await setLocalAssetVisibility(asset.storageId, nextPublicState);
-                await fetchAssets();
-            } else if (asset.storageProvider === 'google-drive') {
-                if (!asset.storageId) throw new Error('Missing Google Drive asset id.');
-                const driveConfig = loadDriveConfig();
-                const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
-                if (!driveConfig.enabled || !resolvedDriveClientId) {
-                    throw new Error('Google Drive is not connected.');
+            const driveConfig = loadDriveConfig();
+            const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
+
+            const results = await Promise.allSettled(targetSources.map(async (entry) => {
+                if (entry.storageProvider === 'local') {
+                    if (!entry.storageId) throw new Error('Missing local asset id.');
+                    await setLocalAssetVisibility(entry.storageId, nextPublicState);
+                    return;
                 }
-                await setDriveAssetVisibility(resolvedDriveClientId, asset.storageId, nextPublicState);
-                await fetchAssets();
-            } else {
+                if (entry.storageProvider === 'google-drive') {
+                    if (!entry.storageId) throw new Error('Missing Google Drive asset id.');
+                    if (!driveConfig.enabled || !resolvedDriveClientId) {
+                        throw new Error('Google Drive is not connected.');
+                    }
+                    await setDriveAssetVisibility(resolvedDriveClientId, entry.storageId, nextPublicState);
+                    return;
+                }
                 const res = await fetch('/api/assets/visibility', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        type: asset.type,
-                        category: asset.category,
-                        name: asset.name,
+                        type: entry.type,
+                        category: entry.category,
+                        name: entry.name,
                         isPublic: nextPublicState,
                         owner: normalizedUser
                     })
                 });
-
                 const data = await res.json();
                 if (!data.success) {
-                    toast({
-                        title: 'Visibility update failed',
-                        description: data.message || 'Unknown error',
-                        variant: 'destructive'
-                    });
-                    return;
+                    throw new Error(data.message || 'Unknown error');
                 }
+            }));
 
-                setAssets((prev) => prev.map((item) => (
-                    item.path === asset.path
-                        ? { ...item, isPublic: nextPublicState, owner: item.owner || normalizedUser }
-                        : item
-                )));
+            const successCount = results.filter((result) => result.status === 'fulfilled').length;
+            if (successCount === 0) {
+                throw new Error('Could not update any linked source.');
             }
+
+            await fetchAssets();
 
             toast({
                 title: nextPublicState ? 'Asset is now public' : 'Asset is now private',
@@ -591,7 +776,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 variant: 'destructive'
             });
         } finally {
-            setUpdatingVisibilityPath(null);
+            setUpdatingVisibilityKey(null);
         }
     };
 
@@ -619,9 +804,75 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         return asset.path;
     }, [driveClientId]);
 
+    const resolveModelPreviewUrl = useCallback(async (asset: LibraryAsset) => {
+        const representative = pickRepresentativeAsset(asset);
+        if (representative.previewPath) {
+            return representative.previewPath;
+        }
+
+        if (representative.storageProvider === 'server') {
+            return representative.path;
+        }
+
+        if (representative.storageProvider === 'local') {
+            if (!representative.storageId) return null;
+            const blob = await getLocalAssetBlob(representative.storageId);
+            return registerObjectUrl(URL.createObjectURL(blob));
+        }
+
+        if (representative.storageProvider === 'google-drive') {
+            if (!representative.storageId) return null;
+            const driveConfig = loadDriveConfig();
+            const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
+            if (!driveConfig.enabled || !resolvedDriveClientId) {
+                return null;
+            }
+            const blob = await downloadDriveAssetBlob(resolvedDriveClientId, representative.storageId);
+            return registerObjectUrl(URL.createObjectURL(blob));
+        }
+
+        return null;
+    }, [driveClientId, registerObjectUrl]);
+
+    const openModelPreviewPopup = useCallback(async (asset: LibraryAsset, assetKey: string, anchorRect: DOMRect) => {
+        if (loadingModelPreviewKey === assetKey) return;
+        if (modelPreviewPopup?.key === assetKey) return;
+        try {
+            setLoadingModelPreviewKey(assetKey);
+            const previewUrl = await resolveModelPreviewUrl(asset);
+            if (!previewUrl) return;
+
+            const previewWidth = Math.max(240, Math.round(anchorRect.width * 2));
+            const previewHeight = Math.max(240, Math.round(anchorRect.height * 2));
+            const viewportPadding = 12;
+            const maxX = Math.max(viewportPadding, window.innerWidth - previewWidth - viewportPadding);
+            const maxY = Math.max(viewportPadding, window.innerHeight - previewHeight - viewportPadding);
+
+            const x = Math.min(maxX, anchorRect.right + 12);
+            const y = Math.max(
+                viewportPadding,
+                Math.min(maxY, anchorRect.top + Math.round((anchorRect.height - previewHeight) / 2))
+            );
+
+            setModelPreviewPopup({
+                key: assetKey,
+                name: asset.name,
+                url: previewUrl,
+                x,
+                y,
+                width: previewWidth,
+                height: previewHeight,
+            });
+        } catch (error) {
+            console.error('Failed to open model preview', error);
+        } finally {
+            setLoadingModelPreviewKey((current) => (current === assetKey ? null : current));
+        }
+    }, [loadingModelPreviewKey, modelPreviewPopup?.key, resolveModelPreviewUrl]);
+
     const handleAssetSelect = useCallback(async (asset: LibraryAsset) => {
         try {
-            const path = await resolveAssetSelectionPath(asset);
+            const path = await resolveAssetSelectionPath(pickRepresentativeAsset(asset));
             onSelect(path, asset.type, asset.name);
             onClose();
         } catch (error) {
@@ -634,26 +885,27 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         }
     }, [onClose, onSelect, resolveAssetSelectionPath, toast]);
 
-    const downloadAsset = async (asset: LibraryAsset, e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
+    const downloadAsset = async (asset: LibraryAsset, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        e?.preventDefault();
 
         try {
+            const selectedAsset = pickRepresentativeAsset(asset);
             let blob: Blob;
 
-            if (asset.storageProvider === 'local') {
-                if (!asset.storageId) throw new Error('Missing local asset id.');
-                blob = await getLocalAssetBlob(asset.storageId);
-            } else if (asset.storageProvider === 'google-drive') {
-                if (!asset.storageId) throw new Error('Missing Google Drive asset id.');
+            if (selectedAsset.storageProvider === 'local') {
+                if (!selectedAsset.storageId) throw new Error('Missing local asset id.');
+                blob = await getLocalAssetBlob(selectedAsset.storageId);
+            } else if (selectedAsset.storageProvider === 'google-drive') {
+                if (!selectedAsset.storageId) throw new Error('Missing Google Drive asset id.');
                 const driveConfig = loadDriveConfig();
                 const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
                 if (!driveConfig.enabled || !resolvedDriveClientId) {
                     throw new Error('Google Drive is not connected.');
                 }
-                blob = await downloadDriveAssetBlob(resolvedDriveClientId, asset.storageId);
+                blob = await downloadDriveAssetBlob(resolvedDriveClientId, selectedAsset.storageId);
             } else {
-                const response = await fetch(asset.path);
+                const response = await fetch(selectedAsset.path);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
@@ -663,7 +915,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             const objectUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = objectUrl;
-            link.download = asset.name || 'asset';
+            link.download = selectedAsset.name || 'asset';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -679,6 +931,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     };
 
     return (
+        <>
         <DraggableResizablePanel
             className="bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-4 duration-200"
             initialPosition={{ x: 80, y: 140 }}
@@ -687,8 +940,11 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             minHeight={460}
         >
             {/* Header Section */}
-            <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg draggable-handle cursor-move">
-                <h3 className="font-semibold text-sm">Asset Library</h3>
+            <div className="p-2.5 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg draggable-handle cursor-move">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <ImageIcon size={14} className="text-primary" />
+                    Asset Library
+                </h3>
                 <div className="flex items-center gap-1">
                      <button 
                         onClick={() => fetchAssets()}
@@ -697,61 +953,70 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                      >
                         <RotateCw size={14} className={isLoading ? "animate-spin" : ""} />
                     </button>
-                    <button onClick={onClose} className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground">✕</button>
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground"
+                        aria-label="Close asset library"
+                    >
+                        <X size={14} />
+                    </button>
                 </div>
             </div>
 
-            {/* Ownership Area Tabs */}
-            <div className="p-3 border-b border-border/50 space-y-3 bg-secondary/5">
-                <div className="grid grid-cols-2 gap-2">
-                    <button
-                        onClick={() => setScopeTab('personal')}
-                        className={cn(
-                            "flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md border transition-colors",
-                            scopeTab === 'personal'
-                                ? "bg-primary/10 border-primary/40 text-primary"
-                                : "bg-background border-border text-muted-foreground hover:bg-secondary"
-                        )}
-                    >
-                        <User size={14} />
-                        Personal
-                    </button>
-                    <button
-                        onClick={() => setScopeTab('shared')}
-                        className={cn(
-                            "flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md border transition-colors",
-                            scopeTab === 'shared'
-                                ? "bg-primary/10 border-primary/40 text-primary"
-                                : "bg-background border-border text-muted-foreground hover:bg-secondary"
-                        )}
-                    >
-                        <Users size={14} />
-                        Shared
-                    </button>
+            {/* Compact Control Bar */}
+            <div className="p-2 border-b border-border/50 space-y-1.5 bg-secondary/5">
+                <div className="flex items-center gap-1.5">
+                    <div className="grid grid-cols-2 gap-1.5 w-[220px] shrink-0">
+                        <button
+                            onClick={() => setScopeTab('personal')}
+                            className={cn(
+                                "flex items-center justify-center gap-1.5 h-7 text-[11px] font-semibold rounded-md border transition-colors",
+                                scopeTab === 'personal'
+                                    ? "bg-primary/10 border-primary/40 text-primary"
+                                    : "bg-background border-border text-muted-foreground hover:bg-secondary"
+                            )}
+                        >
+                            <User size={13} />
+                            Personal
+                        </button>
+                        <button
+                            onClick={() => setScopeTab('shared')}
+                            className={cn(
+                                "flex items-center justify-center gap-1.5 h-7 text-[11px] font-semibold rounded-md border transition-colors",
+                                scopeTab === 'shared'
+                                    ? "bg-primary/10 border-primary/40 text-primary"
+                                    : "bg-background border-border text-muted-foreground hover:bg-secondary"
+                            )}
+                        >
+                            <Users size={13} />
+                            Shared
+                        </button>
+                    </div>
+
+                    <div className="relative flex-1 min-w-0">
+                        <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search assets or owner..."
+                            className="w-full h-7 rounded-md border border-border bg-background pl-7 pr-2 text-[11px] outline-none focus:border-primary/50"
+                        />
+                    </div>
                 </div>
 
-                <div className="relative">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search assets or owner..."
-                        className="w-full h-8 rounded-md border border-border bg-background pl-8 pr-2 text-xs outline-none focus:border-primary/50"
-                    />
-                </div>
-
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
                     <select
                         value={visibilityFilter}
                         onChange={(e) => setVisibilityFilter(e.target.value as VisibilityFilter)}
-                        className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary/50"
+                        className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:border-primary/50 shrink-0"
                     >
                         <option value="all">All Visibility</option>
                         <option value="public">Public Only</option>
                         <option value="private">Private Only</option>
                     </select>
+
                     {scopeTab === 'personal' && (
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                        <label className="h-7 px-2 flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none rounded-md border border-border/50 bg-background/70 shrink-0">
                             <input
                                 type="checkbox"
                                 checked={showPublicAssets}
@@ -761,11 +1026,20 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             Show public assets
                         </label>
                     )}
+
+                    <span className="h-7 px-2 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
+                        <HardDrive size={12} className="text-primary" />
+                        Storage: <span className="font-semibold text-foreground/90 capitalize">{storageSettings.mode}</span>
+                    </span>
+
+                    <span className="h-7 px-2 inline-flex items-center rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
+                        Signed in as <span className="font-semibold text-foreground/80 ml-1">{normalizedUser}</span>
+                    </span>
                 </div>
             </div>
 
             {/* Media Type Tabs */}
-            <div className="flex p-2 gap-1 border-b border-border/50 overflow-x-auto">
+            <div className="flex p-1.5 gap-1 border-b border-border/50 overflow-x-auto bg-card/50">
                 {LIBRARY_TABS.map((tab) => {
                     const Icon = tab.icon;
                     return (
@@ -773,7 +1047,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
                             className={cn(
-                                "flex-1 min-w-20 flex items-center justify-center gap-1 py-1.5 text-xs font-medium rounded-md transition-colors",
+                                "flex-1 min-w-20 flex items-center justify-center gap-1 py-1 text-[11px] font-medium rounded-md transition-colors",
                                 activeTab === tab.key ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"
                             )}
                         >
@@ -783,38 +1057,31 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 })}
             </div>
 
-            {/* Upload Controls */}
-            <div className="p-3 border-b border-border/50 space-y-3 bg-secondary/5">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <HardDrive size={13} className="text-primary" />
-                    <span>Storage mode: <span className="font-semibold text-foreground/90 capitalize">{storageSettings.mode}</span></span>
-                </div>
+            {/* Upload Row */}
+            <div className="p-2 border-b border-border/50 bg-secondary/5">
+                <div className="flex items-center gap-2 flex-wrap">
                 {storageSettings.mode === 'hybrid' && (
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                    <label className="h-7 px-2 rounded-md border border-border/50 bg-background/70 flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none shrink-0">
                         <input
                             type="checkbox"
                             checked={uploadToCloud}
                             onChange={(event) => setUploadToCloud(event.target.checked)}
                             className="rounded border-border text-primary focus:ring-primary/20"
                         />
-                        Also upload this file to Google Drive
+                        Also upload to Google Drive
                     </label>
                 )}
                 {storageSettings.mode === 'cloud' && (
-                    <div className="text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md px-3 py-2 flex items-center gap-2">
+                    <div className="h-7 px-2 text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md inline-flex items-center gap-1.5 shrink-0">
                         <Cloud size={12} className="text-primary" />
-                        Uploads are sent to Google Drive only.
+                        Uploads go to Google Drive only.
                     </div>
                 )}
                 {storageSettings.mode !== 'local' && !loadDriveConfig().enabled && (
-                    <div className="text-[11px] text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                        Google Drive is not connected. Open Settings to connect before cloud uploads.
+                    <div className="h-7 px-2 text-[11px] text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-md inline-flex items-center shrink-0">
+                        Google Drive not connected.
                     </div>
                 )}
-                <p className="text-[11px] text-muted-foreground">
-                    Signed in as <span className="font-semibold text-foreground/80">{normalizedUser}</span>
-                </p>
-                
                 <input 
                     type="file" 
                     ref={fileInputRef}
@@ -827,11 +1094,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 <button 
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
-                    className="w-full py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-md flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-50 transition-all"
+                    className="ml-auto h-8 px-4 bg-primary text-primary-foreground text-xs font-semibold rounded-md inline-flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-50 transition-all shrink-0"
                 >
                     {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                     {isUploading ? 'Uploading...' : 'Upload Asset'}
                 </button>
+                </div>
             </div>
 
             {/* Asset Grid Display */}
@@ -845,30 +1113,49 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         No assets found. Upload one to get started.
                     </div>
                 ) : (
-                    <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                         {assets.map((asset, index) => {
                             const assetKey = getAssetKey(asset);
+                            const sourceAssets = getSourceAssets(asset);
+                            const representative = pickRepresentativeAsset(asset);
                             const managedByUser = canManageAsset(asset);
-                            const isUpdatingVisibility = updatingVisibilityPath === asset.path;
-                            const imagePreviewUrl = asset.previewPath || (asset.storageProvider === 'server' ? asset.path : undefined);
-                            const modelPreviewUrl = asset.previewPath || (asset.storageProvider === 'server' ? asset.path : undefined);
-                            const storageLabel = asset.storageProvider === 'local'
-                                ? 'Local'
-                                : asset.storageProvider === 'google-drive'
-                                ? 'Drive'
-                                : 'Server';
+                            const isUpdatingVisibility = updatingVisibilityKey === assetKey;
+                            const imagePreviewUrl = representative.previewPath || (representative.storageProvider === 'server' ? representative.path : undefined);
+                            const sourceLabels = Array.from(new Set(sourceAssets.map((entry) => (
+                                entry.storageProvider === 'local'
+                                    ? 'Local'
+                                    : entry.storageProvider === 'google-drive'
+                                        ? 'Drive'
+                                        : 'Server'
+                            ))));
+                            const ownerShort = (asset.owner || 'Unknown').trim();
+                            const sourceCountLabel = sourceLabels.length > 1 ? `${sourceLabels.length} sources` : null;
 
                             return (
                                 <div
-                                    key={`${assetKey}-${index}`}
-                                    className="group relative aspect-square bg-secondary/30 rounded-md overflow-hidden border border-border/50 hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer"
+                                    key={assetKey || `${asset.path}-${index}`}
+                                    className="group relative aspect-square bg-secondary/25 rounded-lg overflow-hidden border border-border/60 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
                                     title={asset.name}
-                                    onMouseEnter={() => {
-                                        if (asset.type === 'models' && modelPreviewUrl) {
-                                            setHoveredAsset(assetKey);
+                                    onMouseEnter={(event) => {
+                                        if (asset.type === 'models') {
+                                            void openModelPreviewPopup(asset, assetKey, event.currentTarget.getBoundingClientRect());
                                         }
                                     }}
-                                    onMouseLeave={() => setHoveredAsset(null)}
+                                    onMouseLeave={() => {
+                                        if (asset.type !== 'models') return;
+                                        window.setTimeout(() => {
+                                            setModelPreviewPopup((current) => {
+                                                if (!current || current.key !== assetKey) return current;
+                                                if (previewHoverKey === assetKey) return current;
+                                                return null;
+                                            });
+                                        }, 60);
+                                    }}
+                                    onClick={() => {
+                                        if (editingAsset !== assetKey) {
+                                            void handleAssetSelect(asset);
+                                        }
+                                    }}
                                     onDoubleClick={(e) => {
                                         if (!managedByUser) return;
                                         e.stopPropagation();
@@ -911,32 +1198,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                         </div>
                                     ) : (
                                         <>
-                                            <div className="absolute left-1 top-1 z-20 flex flex-col gap-1 pointer-events-none">
-                                                <span className={cn(
-                                                    "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold",
-                                                    asset.isPublic ? 'bg-emerald-500/80 text-white' : 'bg-zinc-800/80 text-zinc-100'
-                                                )}>
-                                                    {asset.isPublic ? <Globe size={9} /> : <Lock size={9} />}
-                                                    {asset.isPublic ? 'Public' : 'Private'}
-                                                </span>
-                                                {asset.owner && (
-                                                    <span className="inline-flex items-center rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-white max-w-[90px] truncate">
-                                                        {asset.owner}
-                                                    </span>
-                                                )}
-                                                <span className="inline-flex items-center rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-white">
-                                                    {storageLabel}
-                                                </span>
-                                            </div>
-
-                                            <div
-                                                className="w-full h-full"
-                                                onClick={() => {
-                                                    if (editingAsset !== assetKey) {
-                                                        void handleAssetSelect(asset);
-                                                    }
-                                                }}
-                                            >
+                                            <div className="w-full h-full">
                                                 {asset.type === 'images' && (
                                                     imagePreviewUrl ? (
                                                         <div className="w-full h-full relative">
@@ -959,12 +1221,43 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                         <div className="w-full h-full relative flex items-center justify-center bg-black/60">
                                                             <video
                                                                 src={imagePreviewUrl}
+                                                                ref={bindMediaPreviewRef(assetKey)}
                                                                 className="w-full h-full object-cover"
-                                                                muted
-                                                                loop
+                                                                onPlay={() => setPlayingMediaKey(assetKey)}
+                                                                onPause={() => setPlayingMediaKey((current) => (current === assetKey ? null : current))}
+                                                                onEnded={() => setPlayingMediaKey((current) => (current === assetKey ? null : current))}
                                                                 playsInline
                                                                 preload="metadata"
                                                             />
+                                                            <div className="absolute left-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md bg-black/65 p-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(event) => handleMediaPreviewAction(assetKey, 'play', event)}
+                                                                    className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center"
+                                                                    title="Play preview"
+                                                                    aria-label="Play preview"
+                                                                >
+                                                                    <Play size={12} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(event) => handleMediaPreviewAction(assetKey, 'pause', event)}
+                                                                    className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center"
+                                                                    title="Pause preview"
+                                                                    aria-label="Pause preview"
+                                                                >
+                                                                    <Pause size={12} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(event) => handleMediaPreviewAction(assetKey, 'stop', event)}
+                                                                    className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center"
+                                                                    title="Stop preview"
+                                                                    aria-label="Stop preview"
+                                                                >
+                                                                    <Square size={11} />
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     ) : (
                                                         <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -973,75 +1266,156 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                     )
                                                 )}
                                                 {asset.type === 'audio' && (
-                                                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                                    <div className="relative w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                                        <audio
+                                                            ref={bindMediaPreviewRef(assetKey)}
+                                                            src={imagePreviewUrl}
+                                                            preload="metadata"
+                                                            onPlay={() => setPlayingMediaKey(assetKey)}
+                                                            onPause={() => setPlayingMediaKey((current) => (current === assetKey ? null : current))}
+                                                            onEnded={() => setPlayingMediaKey((current) => (current === assetKey ? null : current))}
+                                                        />
+                                                        <div className="absolute left-1.5 top-1.5 z-30 flex items-center gap-1 rounded-md bg-black/65 p-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={(event) => handleMediaPreviewAction(assetKey, 'play', event)}
+                                                                disabled={!imagePreviewUrl}
+                                                                className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                                                                title="Play preview"
+                                                                aria-label="Play preview"
+                                                            >
+                                                                <Play size={12} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(event) => handleMediaPreviewAction(assetKey, 'pause', event)}
+                                                                disabled={!imagePreviewUrl}
+                                                                className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                                                                title="Pause preview"
+                                                                aria-label="Pause preview"
+                                                            >
+                                                                <Pause size={12} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(event) => handleMediaPreviewAction(assetKey, 'stop', event)}
+                                                                disabled={!imagePreviewUrl}
+                                                                className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                                                                title="Stop preview"
+                                                                aria-label="Stop preview"
+                                                            >
+                                                                <Square size={11} />
+                                                            </button>
+                                                        </div>
                                                         <Music size={24} />
+                                                        {!imagePreviewUrl && (
+                                                            <span className="text-[10px] text-muted-foreground/80">Preview unavailable</span>
+                                                        )}
                                                     </div>
                                                 )}
                                                 {asset.type === 'models' && (
                                                     <div className="relative w-full h-full flex items-center justify-center">
-                                                        {hoveredAsset === assetKey && modelPreviewUrl ? (
-                                                            <Asset3DPreview url={modelPreviewUrl} />
-                                                        ) : (
-                                                            <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full w-full">
-                                                                <Box size={20} />
-                                                            </div>
-                                                        )}
+                                                        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full w-full">
+                                                            <Box size={22} />
+                                                            {loadingModelPreviewKey === assetKey ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80">
+                                                                    <Loader2 size={10} className="animate-spin" />
+                                                                    Loading preview
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[10px] text-muted-foreground/80">Hover to preview</span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
 
-                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] truncate px-1.5 py-1 text-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                {asset.name}
-                                            </div>
-
-                                            <div className="absolute inset-x-0 top-0 p-1 flex justify-between items-start opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-                                                <button
-                                                    onClick={(e) => toggleAssetVisibility(asset, e)}
-                                                    className="pointer-events-auto p-1.5 bg-background/80 hover:bg-background text-foreground rounded-md shadow-sm transition-colors border border-border/50"
-                                                    title={asset.isPublic ? 'Set private' : 'Set public'}
+                                            <div className="absolute inset-x-0 bottom-0 z-20 h-2/3 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
+                                                <div
+                                                    className="h-full bg-zinc-900/90 text-white p-2 flex flex-col gap-2"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                    }}
                                                 >
-                                                    {isUpdatingVisibility ? (
-                                                        <Loader2 size={10} className="animate-spin" />
-                                                    ) : asset.isPublic ? (
-                                                        <Globe size={10} />
-                                                    ) : (
-                                                        <Lock size={10} />
-                                                    )}
-                                                </button>
+                                                    <div className="space-y-1 text-[10px] leading-tight">
+                                                        <div className="font-semibold text-[11px] truncate" title={asset.name}>{asset.name}</div>
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="text-white/70">Visibility</span>
+                                                            <span className="inline-flex items-center gap-1 font-medium">
+                                                                {isUpdatingVisibility ? <Loader2 size={10} className="animate-spin" /> : (asset.isPublic ? <Globe size={10} /> : <Lock size={10} />)}
+                                                                {asset.isPublic ? 'Public' : 'Private'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <span className="text-white/70">Owner</span>
+                                                            <span className="font-medium text-right break-all whitespace-normal max-w-[65%]" title={ownerShort}>{ownerShort}</span>
+                                                        </div>
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <span className="text-white/70">Sources</span>
+                                                            <span className="font-medium text-right break-words whitespace-normal max-w-[65%]" title={sourceLabels.join(', ')}>{sourceLabels.join(', ')}</span>
+                                                        </div>
+                                                        {sourceCountLabel && (
+                                                            <div className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[9px]">
+                                                                <Cloud size={9} />
+                                                                {sourceCountLabel}
+                                                            </div>
+                                                        )}
+                                                    </div>
 
-                                                <div className="flex items-center gap-1 pointer-events-auto">
-                                                    <button
-                                                        onClick={(e) => downloadAsset(asset, e)}
-                                                        className="p-1.5 bg-background/80 hover:bg-background text-foreground rounded-md shadow-sm transition-colors border border-border/50"
-                                                        title="Download Asset"
-                                                    >
-                                                        <Download size={10} />
-                                                    </button>
-                                                    {managedByUser && (
-                                                        <>
+                                                    <div className="mt-auto grid grid-cols-2 gap-1">
                                                         <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                e.preventDefault();
-                                                                setEditingAsset(assetKey);
-                                                                setEditName(asset.name);
-                                                            }}
-                                                            className="p-1.5 bg-background/80 hover:bg-background text-foreground rounded-md shadow-sm transition-colors border border-border/50"
-                                                            title="Rename Asset"
+                                                            onClick={() => void toggleAssetVisibility(asset)}
+                                                            className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
                                                         >
-                                                            <Pen size={10} />
+                                                            {asset.isPublic ? <Lock size={10} /> : <Globe size={10} />}
+                                                            {asset.isPublic ? 'Private' : 'Public'}
                                                         </button>
                                                         <button
-                                                            onClick={(e) => void deleteAsset(asset, e)}
-                                                            className="p-1.5 bg-red-500/90 hover:bg-red-600 text-white rounded-md shadow-sm transition-colors border border-red-600/50"
-                                                            title="Delete Asset"
+                                                            onClick={() => void downloadAsset(asset)}
+                                                            className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
                                                         >
-                                                            <Trash2 size={10} />
+                                                            <Download size={10} />
+                                                            Download
                                                         </button>
-                                                        </>
-                                                    )}
+                                                        {managedByUser && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setEditingAsset(assetKey);
+                                                                        setEditName(asset.name);
+                                                                    }}
+                                                                    className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
+                                                                >
+                                                                    <Pen size={10} />
+                                                                    Rename
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => void deleteAsset(asset)}
+                                                                    className="h-7 rounded-md bg-red-500/25 hover:bg-red-500/35 text-[10px] font-medium inline-flex items-center justify-center gap-1"
+                                                                >
+                                                                    <Trash2 size={10} />
+                                                                    Delete
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
+
+                                            <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/65 via-black/25 to-transparent text-white px-2 py-1 pointer-events-none">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] truncate flex-1" title={asset.name}>{asset.name}</span>
+                                                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50" title={sourceCountLabel || sourceLabels.join(', ')}>
+                                                        {sourceLabels.length > 1 ? <Cloud size={8} /> : <HardDrive size={8} />}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {(asset.type === 'videos' || asset.type === 'audio') && playingMediaKey === assetKey && (
+                                                <div className="absolute right-1.5 bottom-6 z-20 rounded-full bg-emerald-500/90 text-white text-[9px] font-semibold px-2 py-0.5 pointer-events-none">
+                                                    Now Playing
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -1051,5 +1425,39 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 )}
             </div>
         </DraggableResizablePanel>
+        {modelPreviewPopup && (
+            <div
+                className="fixed z-[120] bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                style={{
+                    left: modelPreviewPopup.x,
+                    top: modelPreviewPopup.y,
+                    width: modelPreviewPopup.width,
+                    height: modelPreviewPopup.height,
+                }}
+                onMouseEnter={() => setPreviewHoverKey(modelPreviewPopup.key)}
+                onMouseLeave={() => {
+                    setPreviewHoverKey(null);
+                    setModelPreviewPopup(null);
+                }}
+            >
+                <div className="p-2 border-b border-border flex items-center justify-between bg-secondary/10">
+                    <h3 className="font-semibold text-xs flex items-center gap-2 min-w-0">
+                        <Box size={14} className="text-primary shrink-0" />
+                        <span className="truncate" title={modelPreviewPopup.name}>{modelPreviewPopup.name}</span>
+                    </h3>
+                    <button
+                        onClick={() => setModelPreviewPopup(null)}
+                        className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground"
+                        aria-label="Close model preview"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+                <div className="h-[calc(100%-41px)] p-2 bg-secondary/10">
+                    <Asset3DPreview url={modelPreviewPopup.url} />
+                </div>
+            </div>
+        )}
+        </>
     );
 }

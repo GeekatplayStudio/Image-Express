@@ -65,7 +65,7 @@ interface SelectionPropertiesProps {
     onMake3D?: (imageUrl: string) => void;
     
     // Specific state overrides that might not be on object directly or need React state
-    textState?: { text: string; font: string; weight: string; curve: number; center: number };
+    textState?: { text: string; font: string; weight: string; curve: number; center: number; span: number; spellcheck: boolean };
     activeTextEffects?: string[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     textEffectConfigs?: Record<string, any>;
@@ -231,13 +231,16 @@ export function SelectionProperties({
                     fontWeight={textState.weight}
                     curveStrength={textState.curve}
                     curveCenter={textState.center}
+                    curveSpan={textState.span}
+                    spellcheckEnabled={textState.spellcheck}
                     pathOptions={textPathOptions}
                     selectedPathId={selectedTextPathId}
                     hasAttachedPath={!!hasAttachedTextPath}
                     onTextContentChange={(text) => onPropChange('textContent', text)}
                     onFontFamilyChange={(f) => onPropChange('fontFamily', f)}
                     onFontWeightChange={(w) => onPropChange('fontWeight', w)}
-                    onCurveChange={(s, c) => onPropChange('curve', { strength: s, center: c })}
+                    onCurveChange={(s, c, sp) => onPropChange('curve', { strength: s, center: c, span: sp })}
+                    onSpellcheckChange={(enabled) => onPropChange('textSpellcheck', enabled)}
                     onAttachPath={onAttachTextToPath}
                     onDetachPath={onDetachTextPath}
                 />

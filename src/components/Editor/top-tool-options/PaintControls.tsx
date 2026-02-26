@@ -33,7 +33,7 @@ export default function PaintControls({
 }: PaintControlsProps) {
     return (
         <>
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Preset</span>
                 <select
                     aria-label="Paint preset"
@@ -48,7 +48,7 @@ export default function PaintControls({
                 </select>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Size</span>
                 <input
                     aria-label="Paint size"
@@ -57,12 +57,12 @@ export default function PaintControls({
                     max={100}
                     value={paintOptions.size}
                     onChange={(event) => onPaintSizeChange?.(Number(event.target.value))}
-                    className="w-20"
+                    className="w-16"
                 />
                 <span>{paintOptions.size}</span>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Hardness</span>
                 <input
                     aria-label="Paint hardness"
@@ -71,12 +71,12 @@ export default function PaintControls({
                     max={100}
                     value={paintOptions.hardness}
                     onChange={(event) => onPaintHardnessChange?.(Number(event.target.value))}
-                    className="w-20"
+                    className="w-16"
                 />
                 <span>{paintOptions.hardness}%</span>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Opacity</span>
                 <input
                     aria-label="Paint opacity"
@@ -85,12 +85,12 @@ export default function PaintControls({
                     max={100}
                     value={paintOptions.opacity}
                     onChange={(event) => onPaintOpacityChange?.(Number(event.target.value))}
-                    className="w-20"
+                    className="w-16"
                 />
                 <span>{paintOptions.opacity}%</span>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Flow</span>
                 <input
                     aria-label="Paint flow"
@@ -99,12 +99,12 @@ export default function PaintControls({
                     max={100}
                     value={paintOptions.flow}
                     onChange={(event) => onPaintFlowChange?.(Number(event.target.value))}
-                    className="w-20"
+                    className="w-16"
                 />
                 <span>{paintOptions.flow}%</span>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Smoothing</span>
                 <input
                     aria-label="Paint smoothing"
@@ -113,12 +113,12 @@ export default function PaintControls({
                     max={100}
                     value={paintOptions.smoothing}
                     onChange={(event) => onPaintSmoothingChange?.(Number(event.target.value))}
-                    className="w-20"
+                    className="w-16"
                 />
                 <span>{paintOptions.smoothing}%</span>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Blend</span>
                 <select
                     aria-label="Paint blend mode"

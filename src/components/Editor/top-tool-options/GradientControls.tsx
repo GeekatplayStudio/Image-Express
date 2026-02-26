@@ -28,28 +28,28 @@ export default function GradientControls({
             <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                 <button
                     onClick={() => onGradientTypeChange?.('linear')}
-                    className={`px-2.5 py-1 text-xs ${gradientOptions.type === 'linear' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                    className={`px-2 py-1 text-xs ${gradientOptions.type === 'linear' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                     aria-label="Gradient type linear"
                 >
                     Linear
                 </button>
                 <button
                     onClick={() => onGradientTypeChange?.('radial')}
-                    className={`px-2.5 py-1 text-xs border-l border-border/50 ${gradientOptions.type === 'radial' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                    className={`px-2 py-1 text-xs border-l border-border/50 ${gradientOptions.type === 'radial' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                     aria-label="Gradient type radial"
                 >
                     Radial
                 </button>
                 <button
                     onClick={() => onGradientTypeChange?.('angle')}
-                    className={`px-2.5 py-1 text-xs border-l border-border/50 ${gradientOptions.type === 'angle' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                    className={`px-2 py-1 text-xs border-l border-border/50 ${gradientOptions.type === 'angle' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                     aria-label="Gradient type angle"
                 >
                     Angle
                 </button>
             </div>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Blend</span>
                 <select
                     aria-label="Gradient blend mode"
@@ -66,7 +66,7 @@ export default function GradientControls({
                 </select>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <span className="text-muted-foreground">Opacity</span>
                 <input
                     aria-label="Gradient opacity"
@@ -75,12 +75,12 @@ export default function GradientControls({
                     max={100}
                     value={gradientOptions.opacity}
                     onChange={(event) => onGradientOpacityChange?.(Number(event.target.value))}
-                    className="w-20"
+                    className="w-16"
                 />
                 <span>{gradientOptions.opacity}%</span>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <input
                     type="checkbox"
                     checked={gradientOptions.reverse}
@@ -90,7 +90,7 @@ export default function GradientControls({
                 <span>Reverse</span>
             </label>
 
-            <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
+            <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                 <input
                     type="checkbox"
                     checked={gradientOptions.dither}
