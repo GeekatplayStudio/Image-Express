@@ -32,12 +32,70 @@ const imageExtFromType = (mimeType: string) => {
   return 'png';
 };
 
+const hasUsableAuthorizationHeader = (rawHeader: string | null) => {
+  if (!rawHeader) return false;
+  const trimmed = rawHeader.trim();
+  if (!trimmed) return false;
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'bearer' || lowered === 'undefined' || lowered === 'null' || lowered === 'nan') {
+    return false;
+  }
+  if (lowered.startsWith('bearer ')) {
+    const token = trimmed.slice(7).trim().toLowerCase();
+    if (!token || token === 'undefined' || token === 'null' || token === 'nan') {
+      return false;
+    }
+  }
+  return true;
+};
+
+const classifyHitemsProxyError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : 'Hitem3D request failed.';
+  const lowered = message.toLowerCase();
+
+  if (/appid|app id|app_id/.test(lowered) && /missing|required|empty|invalid/.test(lowered)) {
+    return {
+      status: 400,
+      message: 'Hitem App ID is missing or invalid. Set `hitems_appid` in Settings and retry.',
+      detail: message,
+    };
+  }
+
+  if (
+    /unauthorized|forbidden|invalid token|token request failed|access token|credential|auth|appid|app id/.test(lowered)
+  ) {
+    return {
+      status: 401,
+      message: 'Hitem3D authorization failed. Verify `hitems_api_key` and, if required for your account, `hitems_appid` in Settings.',
+      detail: message,
+    };
+  }
+
+  if (/fetch failed|network|econn|enotfound|timeout|socket/.test(lowered)) {
+    return {
+      status: 502,
+      message: 'Unable to reach Hitem3D service. Please retry shortly.',
+      detail: message,
+    };
+  }
+
+  return {
+    status: 500,
+    message: 'Internal Server Error',
+    detail: message,
+  };
+};
+
 export async function POST(req: NextRequest) {
   try {
-    const rawAuthHeader = req.headers.get('authorization');
-    if (!rawAuthHeader) {
-      return NextResponse.json({ message: 'Missing Authorization header' }, { status: 401 });
+    const rawAuthHeaderValue = req.headers.get('authorization');
+    if (!hasUsableAuthorizationHeader(rawAuthHeaderValue)) {
+      return NextResponse.json(
+        { message: 'Missing or invalid Authorization header. Configure `hitems_api_key` in Settings.' },
+        { status: 401 }
+      );
     }
+    const rawAuthHeader = rawAuthHeaderValue as string;
     const appIdHeader = req.headers.get('appid') || req.headers.get('x-hitems-appid');
     const debugEnabled = req.headers.get('x-hitem-debug') === '1';
 
@@ -142,14 +200,6 @@ export async function POST(req: NextRequest) {
     let auth = await resolveHitem3dAuth(rawAuthHeader);
     let res = await sendRequest(auth.authorization);
     let responseText = await res.text();
-    
-    console.log('[Hitem3D Debug] Raw Response:', {
-        status: res.status,
-        statusText: res.statusText,
-        headers: Object.fromEntries(res.headers.entries()),
-        bodyLength: responseText.length,
-        bodyPreview: responseText.substring(0, 500)
-    });
 
     let jsonPayload: unknown = null;
     try {
@@ -200,9 +250,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const taskId = (() => {
+      const topLevelTaskId = spreadPayload.task_id;
+      if (typeof topLevelTaskId === 'string' && topLevelTaskId.trim().length > 0) return topLevelTaskId;
+      const data = spreadPayload.data;
+      if (!data || typeof data !== 'object') return null;
+      const nestedTaskId = (data as Record<string, unknown>).task_id;
+      return typeof nestedTaskId === 'string' && nestedTaskId.trim().length > 0 ? nestedTaskId : null;
+    })();
+
+    if (!taskId) {
+      return NextResponse.json(
+        {
+          message: 'Hitem3D returned no task_id. Verify API key/Appid and account permissions.',
+          detail: responseText ? responseText.slice(0, 400) : 'Empty upstream response body.',
+          ...(debugInfo ? { _debug: debugInfo } : {}),
+        },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json(debugInfo ? { ...spreadPayload, _debug: debugInfo } : spreadPayload);
   } catch (error) {
-    console.error('Hitem3D Proxy Error:', error);
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+    const classified = classifyHitemsProxyError(error);
+    console.error('Hitem3D Proxy Error:', classified.detail);
+    return NextResponse.json(
+      { message: classified.message, detail: classified.detail },
+      { status: classified.status }
+    );
   }
 }

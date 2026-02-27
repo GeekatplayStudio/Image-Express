@@ -51,6 +51,11 @@ export const STORAGE_KEYS = {
     COMFY_UI_URL: 'image-express-comfy-url',
 };
 
+type ValidationProvider = 'meshy' | 'tripo' | 'hitems' | 'google';
+type ValidationState = 'idle' | 'checking' | 'valid' | 'invalid';
+
+const sanitizeHeaderValue = (value: string) => value.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+
 const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
 
 export default function SettingsModal({ isOpen, onClose, userId, userRoles }: SettingsModalProps) {
@@ -103,6 +108,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [adminDraftRoles, setAdminDraftRoles] = useState<Record<string, string>>({});
     const [adminDraftRights, setAdminDraftRights] = useState<Record<string, string>>({});
     const [adminBusyUser, setAdminBusyUser] = useState<string | null>(null);
+    const [validationStatus, setValidationStatus] = useState<Record<ValidationProvider, { state: ValidationState; message: string }>>({
+        meshy: { state: 'idle', message: '' },
+        tripo: { state: 'idle', message: '' },
+        hitems: { state: 'idle', message: '' },
+        google: { state: 'idle', message: '' },
+    });
 
     const isAdmin = !!userRoles?.includes('admin') && !!userId && userId.includes('@');
 
@@ -259,13 +270,107 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         void loadAdminUsers();
     }, [isOpen, isAdmin, userId, loadAdminUsers]);
 
+    const setProviderValidation = useCallback((provider: ValidationProvider, state: ValidationState, message: string) => {
+        setValidationStatus((prev) => ({
+            ...prev,
+            [provider]: { state, message },
+        }));
+    }, []);
+
+    const clearProviderValidation = useCallback((provider: ValidationProvider) => {
+        setProviderValidation(provider, 'idle', '');
+    }, [setProviderValidation]);
+
+    const getEffectiveHitemsKey = useCallback(() => {
+        if (hitemsMode === 'ak_sk') {
+            const ak = hitemsAk.trim();
+            const sk = hitemsSk.trim();
+            return ak && sk ? `${ak}:${sk}` : '';
+        }
+        return hitemsKey.trim();
+    }, [hitemsAk, hitemsKey, hitemsMode, hitemsSk]);
+
+    const validateProviderKey = useCallback(async (provider: ValidationProvider) => {
+        if (provider === 'meshy') {
+            const key = meshyKey.trim();
+            if (!key) {
+                setProviderValidation('meshy', 'invalid', 'Meshy key is empty.');
+                return;
+            }
+            if (key.length < 20) {
+                setProviderValidation('meshy', 'invalid', 'Meshy key looks too short.');
+                return;
+            }
+            setProviderValidation('meshy', 'valid', 'Meshy key format looks valid (preflight check).');
+            return;
+        }
+
+        if (provider === 'tripo') {
+            const key = tripoKey.trim();
+            if (!key) {
+                setProviderValidation('tripo', 'invalid', 'Tripo key is empty.');
+                return;
+            }
+            if (key.length < 20) {
+                setProviderValidation('tripo', 'invalid', 'Tripo key looks too short.');
+                return;
+            }
+            setProviderValidation('tripo', 'valid', 'Tripo key format looks valid (preflight check).');
+            return;
+        }
+
+        if (provider === 'google') {
+            const key = googleKey.trim();
+            if (!key) {
+                setProviderValidation('google', 'invalid', 'Google key is empty.');
+                return;
+            }
+            if (!/^AIza[\w-]{20,}$/.test(key)) {
+                setProviderValidation('google', 'invalid', 'Google key format looks invalid.');
+                return;
+            }
+            setProviderValidation('google', 'valid', 'Google key format looks valid (preflight check).');
+            return;
+        }
+
+        const effectiveHitemsKey = sanitizeHeaderValue(getEffectiveHitemsKey());
+        const appId = sanitizeHeaderValue(hitemsAppId);
+        if (!effectiveHitemsKey) {
+            setProviderValidation('hitems', 'invalid', 'Hitem key is empty.');
+            return;
+        }
+
+        setProviderValidation('hitems', 'checking', 'Validating Hitem credentials...');
+        try {
+            const authHeader = effectiveHitemsKey.includes(':') ? effectiveHitemsKey : `Bearer ${effectiveHitemsKey}`;
+            const headers: Record<string, string> = { Authorization: authHeader };
+            if (appId) headers.Appid = appId;
+
+            const res = await fetch('/api/ai/hitems/validate', { method: 'GET', headers });
+            const data = (await res.json().catch(() => ({}))) as { valid?: boolean; message?: string; detail?: string };
+            const message = data.message || data.detail || `Validation returned HTTP ${res.status}.`;
+
+            if (res.ok && data.valid) {
+                localStorage.setItem(STORAGE_KEYS.HITEMS_API_KEY, effectiveHitemsKey);
+                localStorage.setItem(STORAGE_KEYS.HITEMS_APP_ID, appId);
+                setProviderValidation('hitems', 'valid', message);
+            } else {
+                setProviderValidation('hitems', 'invalid', message);
+            }
+        } catch (error) {
+            setProviderValidation('hitems', 'invalid', error instanceof Error ? error.message : 'Validation failed.');
+        }
+    }, [getEffectiveHitemsKey, googleKey, hitemsAppId, meshyKey, setProviderValidation, tripoKey]);
+
     const handleSave = async () => {
         setStatus('saving');
+
+        const effectiveHitemsKey = getEffectiveHitemsKey();
 
         // 1. Save Local
         localStorage.setItem(STORAGE_KEYS.MESHY_API_KEY, meshyKey);
         localStorage.setItem(STORAGE_KEYS.TRIPO_API_KEY, tripoKey);
-        localStorage.setItem(STORAGE_KEYS.HITEMS_API_KEY, hitemsKey);
+        localStorage.setItem(STORAGE_KEYS.HITEMS_API_KEY, effectiveHitemsKey);
         localStorage.setItem(STORAGE_KEYS.HITEMS_APP_ID, hitemsAppId);
         
         localStorage.setItem(STORAGE_KEYS.STABILITY_API_KEY, stabilityKey);
@@ -298,6 +403,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 const keysToSave = {
                     meshy: meshyKey,
                     tripo: tripoKey,
+                    hitems: effectiveHitemsKey,
                     stability: stabilityKey,
                     openai: openaiKey,
                     google: googleKey,
@@ -530,10 +636,28 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 <input 
                                     type="password"
                                     value={meshyKey}
-                                    onChange={(e) => setMeshyKey(e.target.value)}
+                                    onChange={(e) => {
+                                        setMeshyKey(e.target.value);
+                                        clearProviderValidation('meshy');
+                                    }}
                                     placeholder="Enter Meshy API Key"
                                     className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
+                                <div className="mt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => void validateProviderKey('meshy')}
+                                        className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
+                                    >
+                                        Validate
+                                    </button>
+                                    {validationStatus.meshy.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
+                                    {validationStatus.meshy.message ? (
+                                        <span className={`text-[10px] ${validationStatus.meshy.state === 'valid' ? 'text-green-500' : 'text-amber-500'}`}>
+                                            {validationStatus.meshy.message}
+                                        </span>
+                                    ) : null}
+                                </div>
                             </div>
 
                             {/* Tripo */}
@@ -542,10 +666,28 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 <input 
                                     type="password"
                                     value={tripoKey}
-                                    onChange={(e) => setTripoKey(e.target.value)}
+                                    onChange={(e) => {
+                                        setTripoKey(e.target.value);
+                                        clearProviderValidation('tripo');
+                                    }}
                                     placeholder="Enter Tripo API Key"
                                     className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
+                                <div className="mt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => void validateProviderKey('tripo')}
+                                        className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
+                                    >
+                                        Validate
+                                    </button>
+                                    {validationStatus.tripo.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
+                                    {validationStatus.tripo.message ? (
+                                        <span className={`text-[10px] ${validationStatus.tripo.state === 'valid' ? 'text-green-500' : 'text-amber-500'}`}>
+                                            {validationStatus.tripo.message}
+                                        </span>
+                                    ) : null}
+                                </div>
                             </div>
 
                             {/* Hitem3D */}
@@ -575,14 +717,20 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         <input 
                                             type="text"
                                             value={hitemsAk}
-                                            onChange={(e) => setHitemsAk(e.target.value)}
-                                            placeholder="App ID (ak_...)"
+                                            onChange={(e) => {
+                                                setHitemsAk(e.target.value);
+                                                clearProviderValidation('hitems');
+                                            }}
+                                            placeholder="Access Key (ak_...)"
                                             className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                         />
                                         <input 
                                             type="password"
                                             value={hitemsSk}
-                                            onChange={(e) => setHitemsSk(e.target.value)}
+                                            onChange={(e) => {
+                                                setHitemsSk(e.target.value);
+                                                clearProviderValidation('hitems');
+                                            }}
                                             placeholder="Secret Key (sk_...)"
                                             className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                         />
@@ -591,7 +739,10 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <input 
                                         type="password"
                                         value={hitemsKey}
-                                        onChange={(e) => setHitemsKey(e.target.value)}
+                                        onChange={(e) => {
+                                            setHitemsKey(e.target.value);
+                                            clearProviderValidation('hitems');
+                                        }}
                                         placeholder="Access Token (Bearer ...)"
                                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                     />
@@ -600,10 +751,29 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 <input 
                                     type="text"
                                     value={hitemsAppId}
-                                    onChange={(e) => setHitemsAppId(e.target.value)}
+                                    onChange={(e) => {
+                                        setHitemsAppId(e.target.value);
+                                        clearProviderValidation('hitems');
+                                    }}
                                     placeholder="Optional Appid (if required)"
                                     className="mt-2 w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
+                                <div className="mt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => void validateProviderKey('hitems')}
+                                        className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
+                                        disabled={validationStatus.hitems.state === 'checking'}
+                                    >
+                                        Validate Setup
+                                    </button>
+                                    {validationStatus.hitems.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
+                                    {validationStatus.hitems.message ? (
+                                        <span className={`text-[10px] ${validationStatus.hitems.state === 'valid' ? 'text-green-500' : 'text-amber-500'}`}>
+                                            {validationStatus.hitems.message}
+                                        </span>
+                                    ) : null}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -657,10 +827,28 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 <input 
                                     type="password"
                                     value={googleKey}
-                                    onChange={(e) => setGoogleKey(e.target.value)}
+                                    onChange={(e) => {
+                                        setGoogleKey(e.target.value);
+                                        clearProviderValidation('google');
+                                    }}
                                     placeholder="Enter API Key"
                                     className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
+                                <div className="mt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => void validateProviderKey('google')}
+                                        className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
+                                    >
+                                        Validate
+                                    </button>
+                                    {validationStatus.google.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
+                                    {validationStatus.google.message ? (
+                                        <span className={`text-[10px] ${validationStatus.google.state === 'valid' ? 'text-green-500' : 'text-amber-500'}`}>
+                                            {validationStatus.google.message}
+                                        </span>
+                                    ) : null}
+                                </div>
                             </div>
 
                              {/* Banana.dev */}

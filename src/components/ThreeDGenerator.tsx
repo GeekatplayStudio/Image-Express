@@ -10,6 +10,7 @@ import { BackgroundJob } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import { extractApiErrorMessage, parseApiResponse } from '@/lib/apiErrorParsing';
 import {
     DEFAULT_HITEMS_FORMAT,
     DEFAULT_HITEMS_MODEL,
@@ -32,6 +33,13 @@ import {
 } from '@/lib/hitemsOptions';
 
 const SUPPORTED_PROVIDERS = ['meshy', 'tripo', 'hitems'];
+
+const isMissingSanitizedKey = (value: string) => {
+    const normalized = value.trim().toLowerCase();
+    return normalized.length === 0 || normalized === 'bearer' || normalized === 'undefined' || normalized === 'null' || normalized === 'nan';
+};
+
+const sanitizeHeaderValue = (value: string) => value.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
 
 interface ThreeDGeneratorProps {
     onAddToCanvas: (dataUrl: string, modelUrl?: string) => void;
@@ -279,11 +287,16 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
          // Need to match STORAGE_KEYS from SettingsModal:
          // MESHY_API_KEY: 'meshy_api_key'
          // TRIPO_API_KEY: 'tripo_api_key'
+         if (selectedProvider === 'hitems') {
+             const ak = hitemsAk.trim();
+             const sk = hitemsSk.trim();
+             if (ak && sk) return `${ak}:${sk}`;
+         }
+
          const stored = localStorage.getItem(`${selectedProvider}_api_key`);
          if (stored) return stored;
          
          if (selectedProvider === 'hitems') {
-             if (hitemsAk && hitemsSk) return `${hitemsAk}:${hitemsSk}`;
              return apiKey; // Fallback if they pasted full string in one box (hidden now but maybe historical)
          }
          return apiKey;
@@ -381,8 +394,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             return;
         }
 
-        key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
-        const appId = (localStorage.getItem('hitems_appid') || '').trim();
+        key = sanitizeHeaderValue(key);
+        const appId = sanitizeHeaderValue(localStorage.getItem('hitems_appid') || '');
         const localHints: string[] = [];
 
         if (key.includes(':')) {
@@ -400,7 +413,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
 
         setIsValidatingHitems(true);
         try {
-            const authHeader = key.includes(':') && !key.startsWith('Bearer') ? key : `Bearer ${key}`;
+            const authHeader = key.includes(':') ? key : `Bearer ${key}`;
             const headers: Record<string, string> = { Authorization: authHeader };
             if (appId) headers.Appid = appId;
 
@@ -496,6 +509,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
 
         // Sanitize Globally: Remove 'Bearer', quotes, and surrounding whitespace
         key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+        if (isMissingSanitizedKey(key)) {
+            toast({
+                title: 'Missing API key',
+                description: `Configure a valid API key for ${selectedProvider} in Settings.`,
+                variant: 'warning'
+            });
+            return;
+        }
         
         console.log(`[ThreeDGenerator] Generating with provider: ${selectedProvider}`);
 
@@ -572,10 +593,11 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 },
                 body: JSON.stringify(body)
             });
-            // ... (rest of fetch logic)
-            const data = await res.json();
+            const { data, responseText } = await parseApiResponse(res);
              // V2 returns 'result': 'id' string on creation often, or check 'id'
-             const taskId = data.result || data.id;
+             const taskId =
+                (typeof data?.result === 'string' && data.result.trim().length > 0 ? data.result : null)
+                || (typeof data?.id === 'string' && data.id.trim().length > 0 ? data.id : null);
 
              if (taskId) {
                 if (onStartBackgroundJob) {
@@ -590,10 +612,24 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     });
                 }
             } else {
-                console.error("Meshy Error", data);
+                console.error('Meshy Start Error Response:', {
+                    status: res.status,
+                    statusText: res.statusText,
+                    payload: data,
+                    bodyPreview: responseText ? responseText.slice(0, 300) : '<empty body>',
+                });
+                const reason = extractApiErrorMessage({
+                    data,
+                    responseText,
+                    status: res.status,
+                    statusText: res.statusText,
+                    fallback: res.ok
+                        ? 'Meshy request succeeded but did not return a task id'
+                        : 'Meshy request failed',
+                });
                 toast({
                     title: 'Generation failed',
-                    description: data.message || 'Unknown error',
+                    description: reason,
                     variant: 'destructive'
                 });
                 setIsLoading(false);
@@ -643,21 +679,34 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                         body: formData
                     });
 
-                    const uploadJson = await uploadRes.json();
+                    const { data: uploadJson, responseText: uploadResponseText } = await parseApiResponse(uploadRes);
                     
-                    if (uploadJson.code === 0 && uploadJson.data?.image_token) {
+                    if (uploadJson?.code === 0 && typeof uploadJson?.data === 'object' && uploadJson.data && 'image_token' in uploadJson.data) {
+                        const uploadData = uploadJson.data as { image_token?: string };
                          body = {
                             type: "image_to_model",
                             file: {
                                 type: fileExt,
-                                file_token: uploadJson.data.image_token
+                                file_token: uploadData.image_token
                             }
                         };
                     } else {
-                        console.error("Tripo Upload fail:", uploadJson);
+                        console.error('Tripo Upload Error Response:', {
+                            status: uploadRes.status,
+                            statusText: uploadRes.statusText,
+                            payload: uploadJson,
+                            bodyPreview: uploadResponseText ? uploadResponseText.slice(0, 300) : '<empty body>',
+                        });
+                        const uploadReason = extractApiErrorMessage({
+                            data: uploadJson,
+                            responseText: uploadResponseText,
+                            status: uploadRes.status,
+                            statusText: uploadRes.statusText,
+                            fallback: 'Failed to upload image to Tripo',
+                        });
                         toast({
                             title: 'Upload failed',
-                            description: uploadJson.message || 'Failed to upload image to Tripo.',
+                            description: uploadReason,
                             variant: 'destructive'
                         });
                         setIsLoading(false);
@@ -699,12 +748,13 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             body: JSON.stringify(body)
         });
 
-        const data = await res.json();
+        const { data, responseText } = await parseApiResponse(res);
         
-        if (data.code === 0 && data.data?.task_id) {
-            if (onStartBackgroundJob) {
+        if (data?.code === 0 && typeof data?.data === 'object' && data.data && 'task_id' in data.data) {
+            const tripoData = data.data as { task_id?: string };
+            if (onStartBackgroundJob && typeof tripoData.task_id === 'string' && tripoData.task_id.trim().length > 0) {
                 onStartBackgroundJob({
-                    id: data.data.task_id,
+                    id: tripoData.task_id,
                     type: mode === 'text' ? 'text-to-3d' : 'image-to-3d',
                     provider: 'tripo',
                     status: 'IN_PROGRESS',
@@ -714,10 +764,22 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 });
             }
         } else {
-             console.error("Tripo Start Error Response:", JSON.stringify(data, null, 2));
-             // Fallback error extraction
-             const errorMsg = data.message || (data.data?.code ? `Code: ${data.data.code}` : null) || data.error || 'Unknown error';
-               toast({ title: 'Generation failed', description: errorMsg || 'Error starting Tripo generation.', variant: 'destructive' });
+                 console.error('Tripo Start Error Response:', {
+                     status: res.status,
+                     statusText: res.statusText,
+                     payload: data,
+                     bodyPreview: responseText ? responseText.slice(0, 300) : '<empty body>',
+                 });
+                 const errorMsg = extractApiErrorMessage({
+                     data,
+                     responseText,
+                     status: res.status,
+                     statusText: res.statusText,
+                     fallback: res.ok
+                          ? 'Tripo request succeeded but did not return a task id'
+                          : 'Error starting Tripo generation',
+                 });
+                 toast({ title: 'Generation failed', description: errorMsg, variant: 'destructive' });
              setIsLoading(false);
         }
     };
@@ -790,8 +852,19 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 meshUrl: hitemsRequiresMeshUrl(normalizedSelection.requestType) ? normalizedSelection.meshUrl : undefined
             });
 
-            const authHeader = key.includes(':') && !key.startsWith('Bearer') ? key : `Bearer ${key}`;
-            const appId = localStorage.getItem('hitems_appid');
+            const sanitizedKey = sanitizeHeaderValue(key);
+            if (isMissingSanitizedKey(sanitizedKey)) {
+                toast({
+                    title: 'Missing API key',
+                    description: 'Configure a valid Hitem key/token in Settings, then retry.',
+                    variant: 'warning'
+                });
+                setIsLoading(false);
+                return;
+            }
+
+            const authHeader = sanitizedKey.includes(':') ? sanitizedKey : `Bearer ${sanitizedKey}`;
+            const appId = sanitizeHeaderValue(localStorage.getItem('hitems_appid') || '');
 
             const headers: Record<string, string> = {
                 'Authorization': authHeader
@@ -806,8 +879,15 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 body: formData
             });
 
-            const data = await res.json().catch(() => ({}));
-            const taskId = data?.data?.task_id || data?.task_id;
+            const { data, responseText } = await parseApiResponse(res);
+            const nestedTaskId = (() => {
+                if (!data?.data || typeof data.data !== 'object') return null;
+                const taskIdCandidate = (data.data as Record<string, unknown>).task_id;
+                return typeof taskIdCandidate === 'string' && taskIdCandidate.trim().length > 0 ? taskIdCandidate : null;
+            })();
+            const taskId =
+                nestedTaskId
+                || (typeof data?.task_id === 'string' && data.task_id.trim().length > 0 ? data.task_id : null);
 
             if (res.ok && taskId) {
                 if (onStartBackgroundJob) {
@@ -822,25 +902,40 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     });
                 }
             } else {
-                console.error('Hitem3D Start Error Response:', data || 'Empty Response');
-                const reason =
-                    data?.message ||
-                    data?.msg ||
-                    data?.detail ||
-                    (data?.code ? `Hitem code ${data.code}.` : null) ||
-                    `Hitem request failed (${res.status}).`;
-                const setupHint = /auth|token|appid|unauthorized|forbidden|credential|login/i.test(String(reason))
+                if (typeof window !== 'undefined' && window.localStorage.getItem('hitems_debug') === '1') {
+                    console.warn('Hitem3D Start Warning Response:', {
+                        status: res.status,
+                        statusText: res.statusText,
+                        payload: data,
+                        bodyPreview: responseText ? responseText.slice(0, 300) : '<empty body>',
+                    });
+                }
+                const reason = extractApiErrorMessage({
+                    data,
+                    responseText,
+                    status: res.status,
+                    statusText: res.statusText,
+                    fallback: res.ok
+                        ? 'Hitem request succeeded but did not return a task_id. Try Validate Setup and retry.'
+                        : 'Hitem request failed',
+                });
+                const reasonText = String(reason || '').trim();
+                const isAuthIssue = /auth|token|appid|unauthorized|forbidden|credential|login/i.test(reasonText);
+                const alreadyHasSetupGuidance = /hitems_api_key|hitems_appid|validate setup/i.test(reasonText);
+                const setupHint = isAuthIssue && !alreadyHasSetupGuidance
                     ? ' Check `hitems_api_key` and `hitems_appid` in Settings, then use Validate Setup.'
                     : '';
                 toast({
                     title: 'Generation failed',
-                    description: `${reason}${setupHint}`,
+                    description: `${reasonText || 'Hitem request failed'}${setupHint}`,
                     variant: 'destructive'
                 });
                 setIsLoading(false);
             }
         } catch (e) {
-            console.error('Hitem3D request failed', e);
+            if (typeof window !== 'undefined' && window.localStorage.getItem('hitems_debug') === '1') {
+                console.warn('Hitem3D request failed', e);
+            }
             toast({
                 title: 'Generation failed',
                 description: `${e instanceof Error ? e.message : 'Failed to send image to Hitem3D.'} Check setup with Validate Setup.`,
@@ -874,6 +969,25 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     };
 
     const activeHitemsPreset = HITEMS_PRESET_OPTIONS.find((preset) => preset.key === hitemsPreset) || null;
+    const hitemsSetupStatus = (() => {
+        if (typeof window === 'undefined') {
+            return { label: 'Check setup', isReady: false };
+        }
+
+        const storedKey = (localStorage.getItem('hitems_api_key') || '').trim();
+        const typedKey = [hitemsAk.trim(), hitemsSk.trim()].every(Boolean) ? `${hitemsAk.trim()}:${hitemsSk.trim()}` : '';
+        const effectiveKey = (storedKey || typedKey).replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+        if (isMissingSanitizedKey(effectiveKey)) {
+            return { label: 'Missing API key', isReady: false };
+        }
+
+        const appId = (localStorage.getItem('hitems_appid') || '').trim();
+        if (!appId) {
+            return { label: 'Ready (App ID optional)', isReady: true };
+        }
+
+        return { label: 'Ready', isReady: true };
+    })();
 
     // Need to import Sparkles if I use it
     return (
@@ -971,6 +1085,13 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             <div className="flex items-center justify-between">
                                 <p className="text-[10px] font-medium uppercase text-muted-foreground">Setup Checklist</p>
                                 <div className="flex items-center gap-1">
+                                    <span
+                                        className={`px-2 py-1 text-[10px] rounded border ${hitemsSetupStatus.isReady
+                                            ? 'border-border bg-secondary/50 text-foreground'
+                                            : 'border-border bg-secondary/50 text-destructive'}`}
+                                    >
+                                        {hitemsSetupStatus.label}
+                                    </span>
                                     {onOpenSettings && (
                                         <button
                                             onClick={onOpenSettings}

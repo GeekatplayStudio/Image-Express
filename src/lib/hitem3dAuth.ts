@@ -51,20 +51,51 @@ const fetchToken = async (basicHeader: string) => {
     data = null;
   }
 
-  if (!res.ok) {
-    const errorPayload = data as { msg?: string; message?: string } | null;
-    const message = errorPayload?.msg || errorPayload?.message || text || `Token request failed (${res.status})`;
+  const payload = (data && typeof data === 'object') ? (data as Record<string, unknown>) : null;
+  const nestedData = (payload?.data && typeof payload.data === 'object')
+    ? (payload.data as Record<string, unknown>)
+    : null;
+  const codeValue = payload?.code;
+  const isSuccessCode =
+    codeValue === undefined ||
+    codeValue === null ||
+    codeValue === 200 ||
+    codeValue === '200' ||
+    codeValue === 0 ||
+    codeValue === '0';
+
+  if (!res.ok || !isSuccessCode) {
+    const message =
+      (typeof payload?.msg === 'string' ? payload.msg : null) ||
+      (typeof payload?.message === 'string' ? payload.message : null) ||
+      text ||
+      `Token request failed (${res.status})`;
     throw new Error(message);
   }
 
-  const payload = data as { data?: { accessToken?: string; tokenType?: string } } | null;
-  const token = payload?.data?.accessToken;
-  const tokenType = payload?.data?.tokenType || 'Bearer';
+  const tokenCandidates = [
+    nestedData?.accessToken,
+    nestedData?.access_token,
+    nestedData?.token,
+    payload?.accessToken,
+    payload?.access_token,
+    payload?.token,
+  ];
+  const token = tokenCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) as string | undefined;
+
+  const tokenTypeCandidates = [
+    nestedData?.tokenType,
+    nestedData?.token_type,
+    payload?.tokenType,
+    payload?.token_type,
+  ];
+  const tokenTypeValue = tokenTypeCandidates.find((value) => typeof value === 'string' && value.trim().length > 0);
+  const tokenType = typeof tokenTypeValue === 'string' ? tokenTypeValue.trim() : 'Bearer';
   if (!token) {
     throw new Error('Missing access token in response.');
   }
 
-  return { token, tokenType };
+  return { token: token.trim(), tokenType };
 };
 
 export const resolveHitem3dAuth = async (rawHeader: string, forceRefresh = false): Promise<ResolvedAuth> => {

@@ -54,6 +54,11 @@ The `hitems` provider in this project maps to **Hitem3D** (Hitem3D.ai), not Huny
 - Client sends a single image to `/api/ai/hitems` (proxy) and polls `/api/ai/hitems/<taskId>`.
 - The proxy enforces defaults (`request_type=3`, `model=hitem3dv1.5`, `resolution=1024`, `format=2`) unless overridden.
 - In Settings, `hitems_api_key` can be either a raw access token or `client_id:client_secret` (the proxy will fetch and refresh tokens automatically).
+- In Settings (3D Services), Hitem supports **AK/SK mode** and **Token mode**, with a built-in **Validate Setup** action.
+- In AK/SK mode, the first field is Access Key (`ak_...`) and the second is Secret Key (`sk_...`).
+- The proxy now rejects placeholder/missing auth values (`Bearer`, `undefined`, `null`) with HTTP `401` and a clear setup message.
+- The token resolver now handles Hitem business errors (`code`/`msg`) even when HTTP status is `200`, so invalid credentials return actionable messages (for example, `client credentials are invalid`) instead of ambiguous token parsing errors.
+- If upstream responds `200` but omits `task_id` (or returns an empty body), the proxy returns HTTP `502` with `message`/`detail` so UI shows actionable setup guidance instead of ambiguous empty payloads.
 
 ## Quality Presets (UI)
 - 512: Eco / fastest

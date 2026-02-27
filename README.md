@@ -102,11 +102,20 @@ To unlock full AI capabilities, you need to configure your API keys in the **Set
 **3D Generation (Text-to-3D):**
 - **[Meshy AI](https://www.meshy.ai/)**: Get your key from the Meshy Dashboard.
 - **[Tripo AI](https://www.tripo3d.ai/)**: Sign up and generate an API key.
-- **[Hy3D / Hitems](https://www.hitems.com/)**: Professional text-to-3D service. Requires App ID + Key.
+- **[Hy3D / Hitems](https://www.hitems.com/)**: Professional text-to-3D service. Supports either bearer token or `access_key:secret_key`. `hitems_appid` is optional and only required for some accounts.
 
 **2D Generation (Text-to-Image):**
 - **[Stability AI](https://platform.stability.ai/)**: For Stable Diffusion generation.
 - **[OpenAI](https://platform.openai.com/)**: For DALL-E 3 integration.
+
+### Provider Key Validation (Settings)
+
+The Settings modal now includes built-in key validation before generation:
+
+- **Hitem3D**: server-side validation through `/api/ai/hitems/validate`.
+- **Meshy / Tripo / Google**: local preflight format checks to catch obvious key mistakes early.
+
+For Hitem3D, use **AK/SK mode** with `ak_...` + `sk_...` or **Token mode** with a bearer token. Successful Hitem validation stores normalized values for immediate use by the generator.
 
 ### Optional: Google Drive Backups
 
