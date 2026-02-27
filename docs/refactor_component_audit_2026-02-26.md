@@ -8,7 +8,7 @@
 
 | Priority | Component | Lines | Signals | Refactor Target |
 |---|---|---:|---|---|
-| P0 | `src/components/Editor/EditorView.tsx` | 8935 | 86 `useState`, 48 `useEffect`, 76 `useCallback`, mixed UI + canvas + export + AI jobs | Split into feature hooks + service modules |
+| P0 | `src/components/Editor/EditorView.tsx` | 1337 | 80+ `useState`, high `useEffect`/`useCallback` density, mixed UI + canvas + export + AI jobs | Continue splitting into feature hooks + service modules |
 | P0 | `src/components/PropertiesPanel.tsx` | 3272 | broad UI/control orchestration in one file | Split into panel controller + section containers |
 | P0 | `src/components/Toolbar.tsx` | 2536 | tool config + behavior + UI tied together | Move tool definitions/commands into registry modules |
 | P1 | `src/components/ThreeDGenerator.tsx` | 1484 | provider workflow + polling + UI coupling | Shared async job hook + provider adapters |
@@ -51,7 +51,36 @@
 - Extract from `EditorView`:
   - `useEditorMenus`
   - `useExportQualityModal`
-  - `useMediaOverlayFrame` (current frame logic)
+  - `useMediaOverlay` (A2 multi-frame overlay + persistence + frame lifecycle) ✅ Completed 2026-02-27
+  - `useEditorExport` + `EditorExportQualityModal` (export/share/batch ZIP handlers + quality modal UI extraction) ✅ Completed 2026-02-27
+  - `useEditorPersistence` (save/back guard/template load + missing-asset resolution extraction) ✅ Completed 2026-02-27
+  - Adopted existing `useEditorMenuActions` + `useEditorMediaPreview` hooks in `EditorView` (menu actions + media frame-capture extraction) ✅ Completed 2026-02-27
+  - `useEditorKeyboardShortcuts` + `useEditorDesignTitle` (keyboard effect cluster + design-title rename workflow extraction) ✅ Completed 2026-02-27
+  - Adopted `useEditorMenus` in `EditorView` (menu state/setters/open-close handlers extraction) ✅ Completed 2026-02-27
+  - Extended `useEditorMenuActions` for layer reorder state/action extraction from `EditorView` ✅ Completed 2026-02-27
+  - `useEditorTextControls` (text top-bar/quick-bar state + selection sync + text mutation handlers) ✅ Completed 2026-02-27
+  - `useEditorHistory` (history stack/undo/redo/duplicate + history-ready ref) ✅ Completed 2026-02-27
+  - Adopted `useEditorPanelState` for panel dock/float/collapse/resize state and handlers ✅ Completed 2026-02-27
+  - `useEditorCanvasAssetActions` (asset select/drop + canvas modified/right-click handlers) ✅ Completed 2026-02-27
+  - `useEditorTopCanvasControls` (crop/eyedropper/zoom + viewport/utility-canvas sizing effects) ✅ Completed 2026-02-27
+  - Adopted existing `useEditorCanvasInteractionEffects` (gradient-drag + media/3D double-click canvas interactions) ✅ Completed 2026-02-27
+  - `useEditorShapeGradientControls` (shape/gradient top-control state sync + mutation handlers) ✅ Completed 2026-02-27
+  - `useEditorSelectionModify` (selection expand/contract top-control logic extraction) ✅ Completed 2026-02-27
+  - Adopted existing `useBackgroundJobsStore` + `useBackgroundJobPolling` to remove in-file background job persistence/polling effects ✅ Completed 2026-02-27
+  - `EditorHeaderActions` (header action cluster extraction: palette/grid/share/export/profile menus) ✅ Completed 2026-02-27
+  - `EditorViewOverlays` (overlay/modal composition extraction: grid/gradient/profile/missing-assets/media-preview/export-quality) ✅ Completed 2026-02-27
+  - `EditorHeaderMenus` (top-nav menus extraction: File/Edit/Image/Layer/Select/Filter/View/Window/Settings/Help) ✅ Completed 2026-02-27
+  - `EditorHeaderPrimary` (brand/title+hub+top-menu-toggle extraction) ✅ Completed 2026-02-27
+  - `EditorTopToolOptionsBridge` (grouped top-bar prop bridge + normalization/event wiring for `TopToolOptionsBar`) ✅ Completed 2026-02-27
+  - `EditorPropertiesPanels` (docked/collapsed/floating panel shell + shared `PropertiesPanel` composition) ✅ Completed 2026-02-27
+  - `EditorCanvasWorkspace` (main workspace render extraction: canvas stage, 3D overlays, cursor/lock overlays, utility cluster) ✅ Completed 2026-02-27
+  - `EditorWorkspaceShell` (outer workspace shell extraction: tool rail, footer, context menu, panel slots) ✅ Completed 2026-02-27
+  - `useEditorThreeDWorkspace` (3D state + generator/editor handler extraction) ✅ Completed 2026-02-27
+  - `useEditorCanvasOverlayState` (context menu + lock overlays + cursor preview extraction) ✅ Completed 2026-02-27
+  - `useEditorCanvasSelectionInteractions` (marquee/lasso/wand/quick-select/selection-brush canvas selection interaction extraction) ✅ Completed 2026-02-27
+  - `useEditorCanvasRetouchInteractions` (retouch-layer bootstrap/reuse + healing/clone/history/blur/sharpen/dodge stroke interaction extraction) ✅ Completed 2026-02-27
+  - `useEditorCanvasExportSupport` (export background detection + viewport reset + resilient `toDataURL` fallback extraction) ✅ Completed 2026-02-27
+  - `useEditorShellEffects` (initial-tool + canvas-shell effect cluster extraction) ✅ Completed 2026-02-27
 - Split `PanelUtilityViews.tsx` into one file per panel view.
 - Add `src/lib/api/client.ts` (`requestJson`, typed error handling).
 
@@ -72,4 +101,3 @@
 - Existing tests pass; add focused tests where behavior was untested.
 - New modules expose typed interfaces and avoid component-level `fetch`/`localStorage` directly.
 - Reduced file size and effect count in target file after each phase.
-

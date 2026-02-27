@@ -1,9 +1,9 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-02-26  
+Last updated: 2026-02-27  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
-HEAD: 4dcd759
+HEAD: 9b54543
 
 ## Purpose
 This is the single source of truth for implementation progress across:
@@ -15,7 +15,62 @@ Use this file first for: what is done, what is pending, and what to do next.
 
 ---
 
-## Latest Delivery (2026-02-25 to 2026-02-26)
+## Latest Delivery (2026-02-27)
+
+- Completed Media Export Overlay Phase A2 in `EditorView`: multi-frame frame-list management, active-frame switching, per-frame include/exclude toggles, and persisted frame collections (`frames` + `activeFrameId`) in local storage.
+- Added batch frame export actions in Export menu: `ZIP Selected Frames` and `ZIP All Frames`, reusing existing crop/export pipeline and generating PNG ZIP archives.
+- Refactored media overlay orchestration out of `EditorView` into dedicated hook `src/components/Editor/useMediaOverlay.ts` to reduce integration-file bloat and centralize overlay behavior.
+- Added focused export regression coverage in `src/components/Editor/__tests__/EditorView.test.tsx` for batch ZIP export flow.
+- Added refactor slice: extracted crop/eyedropper/zoom top utility state and effects from `EditorView` into `src/components/Editor/useEditorTopCanvasControls.ts`.
+- Moved viewport-size and utility-canvas-size synchronization effects into `useEditorTopCanvasControls` and rewired top-bar callbacks to hook handlers.
+- Adopted existing `src/components/Editor/useEditorCanvasInteractionEffects.ts` from `EditorView` for gradient drag handlers and media/3D double-click interaction effects.
+- Added refactor slice: extracted shape/gradient top-control state-sync and apply handlers from `EditorView` into `src/components/Editor/useEditorShapeGradientControls.ts`.
+- Added refactor slice: extracted selection expand/contract top-control handler from `EditorView` into `src/components/Editor/useEditorSelectionModify.ts`.
+- Adopted existing `src/components/Editor/useBackgroundJobsStore.ts` + `src/components/Editor/useBackgroundJobPolling.ts` from `EditorView` and removed in-file background-job storage/polling orchestration.
+- Added refactor slice: extracted marquee/lasso/wand plus quick-select and selection-brush canvas selection interactions from `EditorView` into `src/components/Editor/useEditorCanvasSelectionInteractions.ts`.
+- Added refactor slice: extracted retouch-layer bootstrap/reuse plus healing/clone/history/blur/sharpen/dodge stroke interactions from `EditorView` into `src/components/Editor/useEditorCanvasRetouchInteractions.ts`.
+- Added refactor slice: extracted export background detection, viewport reset, and resilient `toDataURL` fallback helpers from `EditorView` into `src/components/Editor/useEditorCanvasExportSupport.ts`.
+- Replaced two effect-driven derived states in `EditorView` (`profileSettings`, `apiKeys`) with direct derivation to satisfy current hook lint rules and trim the integration shell further.
+- Added refactor slice: extracted shell-level side effects (initial tool, canvas selection/control sync, export outside-click, zoom/hand sync, preview escape, UI preferences) from `EditorView` into `src/components/Editor/useEditorShellEffects.ts`.
+- Reduced `src/components/Editor/EditorView.tsx` from 5764 lines to 1337 lines across these refactor slices.
+
+Validation notes:
+- Focused export/menu tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|exports PNG without canvas background when toggle is off|exports JSON and HTML bundle from export menu|exports batch ZIP from media overlay menu"`
+- Focused crop/eyedropper/zoom tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "applies crop using drag-draft bounds from the workspace|wires crop/eyedropper/zoom/hand top utility controls|samples eyedropper color from clicked scene point"`
+- Focused gradient/top-utility regression tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "wires top gradient controls and applies gradient config with angle fallback|wires crop/eyedropper/zoom/hand top utility controls|applies crop using drag-draft bounds from the workspace|samples eyedropper color from clicked scene point|handles grid selection, context menu tool trigger, and zoom controls"`
+- Focused shape+gradient+utility regression tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "wires top shape controls and applies shape style to active shape object|wires top gradient controls and applies gradient config with angle fallback|wires crop/eyedropper/zoom/hand top utility controls|applies crop using drag-draft bounds from the workspace|samples eyedropper color from clicked scene point"`
+- Focused shape+gradient+selection-modify run status:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "applies selection expand and contract operations from top controls|wires top shape controls and applies shape style to active shape object|wires top gradient controls and applies gradient config with angle fallback"` -> selection-modify test still fails with the existing missing label query (`Selection modify pixels`), while shape/gradient tests pass.
+- Focused background-job-adjacent regression tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "supports admin actions, server rename fallback, and dirty-design back confirmation|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|opens share flow, launches export quality modal, and downloads export"`
+- Focused selection interaction regression tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "uses marquee drag bounds to select the top-most intersecting object|uses lasso path bounds to select the top-most object inside polygon|routes selection brush interactions through the lasso selection pipeline|uses wand threshold matching and falls back to pointer-hit target when direct target is missing|routes quick selection interactions through the wand selection pipeline"`
+- Focused retouch interaction regression tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "captures clone source point on option-click and updates clone source status|creates and reuses a dedicated retouch layer during retouch strokes|shows retouch unavailable warning when canvas 2D context is not available|falls back to lower-canvas sampling when all-layer snapshot export is unavailable|captures a fresh history source snapshot at each history-brush stroke start"`
+- Focused export/save regression tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "saves successfully when canvas toDataURL throws with missing upper ctx|opens share flow, launches export quality modal, and downloads export|exports PNG without canvas background when toggle is off|exports JSON and HTML bundle from export menu|exports batch ZIP from media overlay menu"`
+- Focused shell-side-effect regression tests passed:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "wires crop/eyedropper/zoom/hand top utility controls|opens share flow, launches export quality modal, and downloads export"`
+- Lint passed for extracted slice:
+  - `npm run lint -- --max-warnings=0 src/components/Editor/EditorView.tsx src/components/Editor/useEditorTopCanvasControls.ts src/components/Editor/useEditorCanvasInteractionEffects.ts src/components/Editor/useEditorShapeGradientControls.ts src/components/Editor/useEditorSelectionModify.ts src/components/Editor/useBackgroundJobsStore.ts src/components/Editor/useBackgroundJobPolling.ts`
+- Lint passed for latest extraction slice:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useEditorCanvasSelectionInteractions.ts`
+- Lint passed for latest retouch extraction slice:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useEditorCanvasRetouchInteractions.ts`
+- Lint passed for latest export-support extraction slice:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useEditorCanvasExportSupport.ts`
+- Lint passed for latest shell-effects extraction slice:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useEditorShellEffects.ts`
+- Build passed:
+  - `npm run build`
+
+---
+
+## Previous Delivery (2026-02-25 to 2026-02-26)
 
 - Completed right-panel color workflow parity: embedded wheel interaction, editable RGB/HSB/CMYK/Lab channel cards, and profile-context display modes (sRGB/Adobe RGB/CMYK print preview).
 - Completed harmony management in color tooling: named save/load/delete, inline rename, import/export JSON, plus compact collapsible list behavior.
@@ -80,15 +135,14 @@ Verification method used:
 ## Pending Work (Upgrade Program)
 
 ### Next Active Step (Approved Direction)
-- [ ] Implement **Media Export Overlay (Phase A2)**:
-  - Add multiple overlay frames in one design.
-  - Add include/exclude toggles per frame for batch export.
-  - Export selected/all frames as ZIP outputs.
-  - Keep current single-canvas workflow and reuse existing export pipeline.
+- [ ] Implement **Media Export Overlay (Phase A3)**:
+  - Add safe-area guide presets per frame.
+  - Add naming templates for frame export outputs.
+  - Keep A2 batch ZIP flow as the canonical export path.
 
 ### Media Export Overlay Roadmap (new)
 - [x] A1: single frame export from overlay bounds.
-- [ ] A2: multi-frame management + batch ZIP export.
+- [x] A2: multi-frame management + batch ZIP export.
 - [ ] A3: safe-area guides + naming templates.
 - [ ] B: optional bridge "convert frame to variant" for future campaign workspace.
 
@@ -346,6 +400,224 @@ Completed in this pass (picker interaction hardening + key-stability slice):
 - [x] Added regression coverage ensuring eyedropper remains active during sampling and does not collapse to layer-select behavior.
 - [x] Fixed duplicate React key warnings in color wheel harmony/swatch lists by using stable indexed keys.
 - [x] Validation rerun: `npm test -- --runInBand src/components/Editor/__tests__/EditorView.test.tsx`, `npm run lint`.
+
+Completed in this pass (EditorView export extraction slice):
+- [x] Extracted export/share/batch ZIP orchestration from `EditorView.tsx` into `useEditorExport`.
+- [x] Extracted export quality modal JSX into `EditorExportQualityModal`.
+- [x] Preserved existing export menu behavior (PNG/JPG modal, SVG/PDF/JSON/HTML, ZIP selected/all frames, share flow).
+- [x] Reduced `EditorView.tsx` from `7453` to `7081` lines.
+- [x] Validation rerun:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "exports batch ZIP from media overlay menu|exports JSON and HTML bundle from export menu|exports PNG without canvas background when toggle is off|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions"`
+  - `npm run build`
+  - `npm run lint` (same pre-existing unrelated errors remain in `ThreeDLayerEditor.tsx` and `PanelUtilityViews.tsx`).
+
+Completed in this pass (EditorView persistence extraction slice):
+- [x] Extracted save/back/template logic from `EditorView.tsx` into `useEditorPersistence`.
+- [x] Moved missing-assets load/resolve state management into `useEditorPersistence` while keeping existing replacement browser flow in `EditorView`.
+- [x] Preserved save + Drive backup behavior, unsaved-change back guard, initial design/template loading, and missing-assets resolution behavior.
+- [x] Reduced `EditorView.tsx` from `7081` to `6834` lines.
+- [x] Validation rerun:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "supports admin actions, server rename fallback, and dirty-design back confirmation|saves a new design and uploads a Drive backup when Drive is connected|stops save when prompt is cancelled for untitled design|shows save failure message when server save fails|saves successfully when canvas toDataURL throws with missing upper ctx|loads initial design from URL and handles load errors|loads template missing assets, replaces with library selection, and resolves"`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "exports batch ZIP from media overlay menu|exports JSON and HTML bundle from export menu|exports PNG without canvas background when toggle is off|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions"`
+  - `npm run build`
+  - `npm run lint` (same pre-existing unrelated errors remain in `ThreeDLayerEditor.tsx` and `PanelUtilityViews.tsx`).
+
+Completed in this pass (EditorView menu/media hook adoption slice):
+- [x] Replaced in-file menu action handlers with `useEditorMenuActions`.
+- [x] Replaced in-file media frame-capture handler with `useEditorMediaPreview`.
+- [x] Preserved existing top-menu action wiring, layer lock/delete/select menu commands, and media preview capture behavior.
+- [x] Reduced `EditorView.tsx` from `6834` to `6703` lines.
+- [x] Validation rerun:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|reorders active layer from context menu move-up and send-to-back actions|handles grid selection, context menu tool trigger, and zoom controls"`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "supports admin actions, server rename fallback, and dirty-design back confirmation|saves a new design and uploads a Drive backup when Drive is connected|stops save when prompt is cancelled for untitled design|shows save failure message when server save fails|saves successfully when canvas toDataURL throws with missing upper ctx|loads initial design from URL and handles load errors|loads template missing assets, replaces with library selection, and resolves|exports batch ZIP from media overlay menu|exports JSON and HTML bundle from export menu|exports PNG without canvas background when toggle is off|opens share flow, launches export quality modal, and downloads export"`
+  - `npm run build`
+  - `npm run lint` (same pre-existing unrelated errors remain in `ThreeDLayerEditor.tsx` and `PanelUtilityViews.tsx`).
+
+Completed in this pass (Editor architecture map + keyboard/title extraction slice):
+- [x] Added `docs/component_responsibility_map.md` as the living ownership map for runtime modules across app shell, editor, properties, shared components, libraries, and API routes.
+- [x] Added update rules to require map updates on every refactor/new runtime file.
+- [x] Extracted keyboard shortcut effect cluster from `EditorView.tsx` into `useEditorKeyboardShortcuts`.
+- [x] Extracted design title rename/draft workflow from `EditorView.tsx` into `useEditorDesignTitle`.
+- [x] Reduced `EditorView.tsx` from `6703` to `6549` lines.
+- [x] Validation rerun:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "closes open menus on Escape|supports move, wand, quick-select, selection brush, healing, history brush, blur, dodge, clone stamp, marquee, lasso, and path-select keyboard aliases|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|reorders active layer from context menu move-up and send-to-back actions|handles grid selection, context menu tool trigger, and zoom controls|supports admin actions, server rename fallback, and dirty-design back confirmation|supports server-backed rename success flow"`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "saves a new design and uploads a Drive backup when Drive is connected|stops save when prompt is cancelled for untitled design|shows save failure message when server save fails|saves successfully when canvas toDataURL throws with missing upper ctx|opens share flow, launches export quality modal, and downloads export|exports PNG without canvas background when toggle is off|exports JSON and HTML bundle from export menu|exports batch ZIP from media overlay menu|loads initial design from URL and handles load errors|loads template missing assets, replaces with library selection, and resolves"`
+  - `npm run build`
+  - `npm run lint` (same pre-existing unrelated errors remain in `ThreeDLayerEditor.tsx` and `PanelUtilityViews.tsx`).
+
+Completed in this pass (Editor menu-state hook adoption follow-up):
+- [x] Replaced in-file menu boolean state + menu open/close/toggle callbacks in `EditorView.tsx` with `useEditorMenus`.
+- [x] Preserved top-nav menu interactions, export/share/grid menu behavior, and Escape close behavior via `useEditorKeyboardShortcuts`.
+- [x] Reduced `EditorView.tsx` from `6549` to `6503` lines.
+- [x] Validation rerun:
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "closes open menus on Escape|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|supports move, wand, quick-select, selection brush, healing, history brush, blur, dodge, clone stamp, marquee, lasso, and path-select keyboard aliases|supports admin actions, server rename fallback, and dirty-design back confirmation|supports server-backed rename success flow|opens share flow, launches export quality modal, and downloads export"`
+  - `npm run build`
+  - `npm run lint` (same pre-existing unrelated errors remain in `ThreeDLayerEditor.tsx` and `PanelUtilityViews.tsx`).
+
+Completed in this pass (Editor layer-order + text-controls extraction slice):
+- [x] Moved layer reorder state/action logic out of `EditorView.tsx` into `useEditorMenuActions` (`getActiveLayerOrderState`, `handleLayerOrderAction`).
+- [x] Added `useEditorTextControls` and moved text top-bar/quick-bar state, selection sync effects, and text mutation handlers out of `EditorView.tsx`.
+- [x] Rewired `EditorView` consumers (`TopToolOptionsBar`, `TextQuickBar`, eyedropper sampled-color sync) to use the new text-controls hook.
+- [x] Reduced `EditorView.tsx` from `6503` to `6128` lines.
+- [x] Validation rerun:
+  - `npm run lint -- --max-warnings=0 src/components/Editor/EditorView.tsx src/components/Editor/useEditorMenuActions.ts src/components/Editor/useEditorTextControls.ts`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "reorders active layer from context menu move-up and send-to-back actions|closes open menus on Escape|supports move, wand, quick-select, selection brush, healing, history brush, blur, dodge, clone stamp, marquee, lasso, and path-select keyboard aliases"`
+  - `npm run build`
+  - Note: full `EditorView.test.tsx` run currently reports 3 unrelated top-control interaction failures (`Select feather`, `Selection modify pixels`, `Text font family`) plus expected jsdom `canvas.getContext` console noise in sampled-color tests.
+
+Completed in this pass (Editor history hook extraction follow-up):
+- [x] Added `useEditorHistory` and moved snapshot/history stack management (`pushHistory`, `resetHistory`, undo/redo, duplicate) out of `EditorView.tsx`.
+- [x] Removed in-file history refs/state (`undoStackRef`, `redoStackRef`, `historyReadyRef`, `historyState`) from `EditorView` and rewired consumers to hook outputs.
+- [x] Preserved existing keyboard/menu/history command wiring and persistence integration (`useEditorPersistence` continues consuming `resetHistory` + `historyReadyRef`).
+- [x] Reduced `EditorView.tsx` from `6128` to `6021` lines.
+- [x] Validation rerun:
+  - `npm run lint -- --max-warnings=0 src/components/Editor/EditorView.tsx src/components/Editor/useEditorMenuActions.ts src/components/Editor/useEditorTextControls.ts src/components/Editor/useEditorHistory.ts`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|supports move, wand, quick-select, selection brush, healing, history brush, blur, dodge, clone stamp, marquee, lasso, and path-select keyboard aliases|closes open menus on Escape"`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx` (still shows the same 3 top-control test failures: `Select feather`, `Selection modify pixels`, `Text font family`, plus expected jsdom `canvas.getContext` console noise in sampled-color flow)
+  - `npm run build`
+
+Completed in this pass (Editor panel-state hook adoption slice):
+- [x] Replaced in-file panel state/handler block in `EditorView.tsx` with `useEditorPanelState` (`dock`, `collapse`, `float`, `resize`, `window panel toggle`).
+- [x] Preserved window menu panel controls, dock-mode switching, floating panel drag behavior, and panel resize interactions.
+- [x] Reduced `EditorView.tsx` from `6021` to `5888` lines.
+- [x] Validation rerun:
+  - `npm run lint -- --max-warnings=0 src/components/Editor/EditorView.tsx src/components/Editor/useEditorPanelState.ts`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|closes open menus on Escape|reorders active layer from context menu move-up and send-to-back actions"`
+  - `npm run build`
+
+Completed in this pass (Editor asset/canvas action hook adoption slice):
+- [x] Added `useEditorCanvasAssetActions` and moved in-file handlers from `EditorView.tsx`:
+  - `handleAssetSelect`
+  - `handleFileDrop`
+  - `handleCanvasModified`
+  - `handleRightClick`
+- [x] Preserved existing asset library insert behavior, drag-drop upload-to-canvas flow, canvas dirty/history update, and context-menu open behavior.
+- [x] Reduced `EditorView.tsx` from `5888` to `5781` lines.
+- [x] Validation rerun:
+  - `npm run lint -- --max-warnings=0 src/components/Editor/EditorView.tsx src/components/Editor/useEditorCanvasAssetActions.ts`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|reorders active layer from context menu move-up and send-to-back actions|supports admin actions, server rename fallback, and dirty-design back confirmation|loads template missing assets, replaces with library selection, and resolves|opens share flow, launches export quality modal, and downloads export"`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx` (still the same known 3 failures: `Select feather`, `Selection modify pixels`, `Text font family`, plus expected jsdom `canvas.getContext` console noise)
+  - `npm run build`
+
+Completed in this pass (Editor menu-open state simplification follow-up):
+- [x] Replaced manual `hasOpenMenu` boolean aggregation in `EditorView` with `isAnyEditorMenuOpen` from `useEditorMenus`.
+- [x] Removed one unused `showToolsMenu` destructure path in `EditorView`.
+- [x] Reduced `EditorView.tsx` from `5781` to `5764` lines.
+- [x] Validation rerun:
+  - `npm run lint -- --max-warnings=0 src/components/Editor/EditorView.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "closes open menus on Escape|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions"`
+  - `npm run build`
+
+Completed in this pass (Editor header actions component extraction slice):
+- [x] Added `src/components/Editor/EditorHeaderActions.tsx` to own header action UI concerns previously embedded in `EditorView`:
+  - Active palette color chips
+  - Grid menu
+  - Share menu
+  - Export menu + media-overlay frame controls
+  - Profile button trigger/avatar
+- [x] Replaced in-file header action JSX block in `EditorView.tsx` with `EditorHeaderActions` component wiring.
+- [x] Reduced `EditorView.tsx` from `4235` to `4063` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/EditorHeaderActions.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "supports admin actions, server rename fallback, and dirty-design back confirmation|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|opens share flow, launches export quality modal, and downloads export"`
+  - `npm run build`
+
+Completed in this pass (Editor overlays/modals component extraction slice):
+- [x] Added `src/components/Editor/EditorViewOverlays.tsx` to own overlay/modal composition concerns previously embedded in `EditorView`:
+  - `GridOverlay` + `GradientControls`
+  - `UserProfileModal`
+  - Missing-assets replacement flow (`AssetLibrary` + `MissingAssetsModal`)
+  - Media preview player modal
+  - `EditorExportQualityModal`
+- [x] Replaced in-file overlay/modal JSX block in `EditorView.tsx` with `EditorViewOverlays` component wiring.
+- [x] Reduced `EditorView.tsx` from `4063` to `3987` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/EditorHeaderActions.tsx src/components/Editor/EditorViewOverlays.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "supports admin actions, server rename fallback, and dirty-design back confirmation|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|opens share flow, launches export quality modal, and downloads export|exports batch ZIP from media overlay menu|loads template missing assets, replaces with library selection, and resolves"`
+  - `npm run build`
+
+Completed in this pass (Editor top-nav menus component extraction slice):
+- [x] Added `src/components/Editor/EditorHeaderMenus.tsx` to own top header menu cluster concerns previously embedded in `EditorView`:
+  - File, Edit, Image, Layer, Select, Filter, View, Window, Settings, Help menus
+  - Window panel dock/float/collapse toggles
+  - Existing layer order, selection modify, zoom/view, and settings/help menu commands
+- [x] Replaced in-file top-nav menu JSX block in `EditorView.tsx` with `EditorHeaderMenus` component wiring.
+- [x] Reduced `EditorView.tsx` from `3987` to `3437` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/EditorHeaderMenus.tsx src/components/Editor/EditorHeaderActions.tsx src/components/Editor/EditorViewOverlays.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|supports admin actions, server rename fallback, and dirty-design back confirmation|opens share flow, launches export quality modal, and downloads export|exports batch ZIP from media overlay menu|loads template missing assets, replaces with library selection, and resolves"`
+  - `npm run build`
+
+Completed in this pass (Editor header primary component extraction slice):
+- [x] Added `src/components/Editor/EditorHeaderPrimary.tsx` to own the remaining left header cluster previously embedded in `EditorView`:
+  - Brand mark + editable document title
+  - Hub/back action
+  - Top-menu expand/collapse toggle button
+- [x] Replaced in-file header primary JSX block in `EditorView.tsx` with `EditorHeaderPrimary` component wiring.
+- [x] Reduced `EditorView.tsx` from `3437` to `3400` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/EditorHeaderPrimary.tsx src/components/Editor/EditorHeaderMenus.tsx src/components/Editor/EditorHeaderActions.tsx src/components/Editor/EditorViewOverlays.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx -t "wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|supports admin actions, server rename fallback, and dirty-design back confirmation|opens share flow, launches export quality modal, and downloads export|exports batch ZIP from media overlay menu|loads template missing assets, replaces with library selection, and resolves"`
+  - `npm run build`
+
+Completed in this pass (Editor top tool options bridge extraction slice):
+- [x] Added `src/components/Editor/EditorTopToolOptionsBridge.tsx` to own the large grouped `TopToolOptionsBar` wiring previously embedded in `EditorView`.
+- [x] Moved top-bar prop grouping, value normalization, and tool-trigger/event bridging into the new component while preserving the existing `TopToolOptionsBar` render surface.
+- [x] Reduced `EditorView.tsx` from `3400` to `3308` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/EditorTopToolOptionsBridge.tsx src/components/Editor/EditorHeaderPrimary.tsx src/components/Editor/EditorHeaderMenus.tsx src/components/Editor/EditorHeaderActions.tsx src/components/Editor/EditorViewOverlays.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "wires top pen path/shape toggle to pen config events|wires top shape controls and applies shape style to active shape object|wires top gradient controls and applies gradient config with angle fallback|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|supports admin actions, server rename fallback, and dirty-design back confirmation|opens share flow, launches export quality modal, and downloads export|loads template missing assets, replaces with library selection, and resolves"`
+  - `npm run build`
+
+Completed in this pass (Editor properties panels extraction slice):
+- [x] Added `src/components/Editor/EditorPropertiesPanels.tsx` to own docked/collapsed/floating panel chrome and shared `PropertiesPanel` composition previously embedded in `EditorView`.
+- [x] Replaced the in-file left/right/floating properties panel JSX in `EditorView.tsx` with `EditorPropertiesPanels` placements around the main canvas.
+- [x] Reduced `EditorView.tsx` from `3308` to `3190` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/EditorPropertiesPanels.tsx src/components/Editor/EditorTopToolOptionsBridge.tsx src/components/Editor/EditorHeaderPrimary.tsx src/components/Editor/EditorHeaderMenus.tsx src/components/Editor/EditorHeaderActions.tsx src/components/Editor/EditorViewOverlays.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "wires top pen path/shape toggle to pen config events|wires top shape controls and applies shape style to active shape object|wires top gradient controls and applies gradient config with angle fallback|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|supports admin actions, server rename fallback, and dirty-design back confirmation|opens share flow, launches export quality modal, and downloads export|loads template missing assets, replaces with library selection, and resolves"`
+  - `npm run build`
+
+Completed in this pass (Editor canvas workspace extraction slice):
+- [x] Added `src/components/Editor/EditorCanvasWorkspace.tsx` to own the central workspace render tree previously embedded in `EditorView`.
+- [x] Moved the main canvas stage, drag/drop dock zones, 3D overlays, text quick bar, lock overlays, cursor preview, and bottom-right utility cluster out of `EditorView.tsx`.
+- [x] Kept canvas/3D state ownership in `EditorView` and replaced inline workspace callbacks with named handlers before passing them into `EditorCanvasWorkspace`.
+- [x] Reduced `EditorView.tsx` from `3190` to `3101` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/EditorCanvasWorkspace.tsx src/components/Editor/EditorPropertiesPanels.tsx src/components/Editor/EditorTopToolOptionsBridge.tsx src/components/Editor/EditorHeaderPrimary.tsx src/components/Editor/EditorHeaderMenus.tsx src/components/Editor/EditorHeaderActions.tsx src/components/Editor/EditorViewOverlays.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "handles grid selection, context menu tool trigger, and zoom controls|renders brush cursor preview for paint-size tools and clears on mouse out|renders eyedropper target cursor preview when eyedropper is active|shows a corner lock badge for locked layers and unlocks from canvas|shows only one unlock lock control when selected layer is locked|unlocks a locked child layer inside a group from the canvas lock badge click|opens share flow, launches export quality modal, and downloads export|loads template missing assets, replaces with library selection, and resolves"`
+  - `npm run build`
+
+Completed in this pass (Editor workspace shell + 3D hook extraction slice):
+- [x] Added `src/components/Editor/EditorWorkspaceShell.tsx` to own the outer workspace composition previously embedded in `EditorView`:
+  - left tool rail
+  - before/after workspace panel slots
+  - `JobStatusFooter`
+  - `CircularContextMenu`
+- [x] Added `src/components/Editor/useEditorThreeDWorkspace.ts` to own 3D workspace state and handlers previously embedded in `EditorView`:
+  - 3D generator/editor launch state
+  - serializable layer-preview derivation for 3D source picking
+  - insert/save/recover background-job flows
+  - toolbar and panel entry handlers for 3D mode
+- [x] Rewired `EditorView.tsx` to consume `EditorWorkspaceShell` and `useEditorThreeDWorkspace` while preserving existing panel, menu, lock-badge, and export behavior.
+- [x] Reduced `EditorView.tsx` from `3101` to `2934` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useEditorThreeDWorkspace.ts src/components/Editor/EditorWorkspaceShell.tsx src/components/Editor/EditorCanvasWorkspace.tsx src/components/Editor/EditorPropertiesPanels.tsx src/components/Editor/EditorTopToolOptionsBridge.tsx src/components/Editor/EditorHeaderPrimary.tsx src/components/Editor/EditorHeaderMenus.tsx src/components/Editor/EditorHeaderActions.tsx src/components/Editor/EditorViewOverlays.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "handles grid selection, context menu tool trigger, and zoom controls|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|supports admin actions, server rename fallback, and dirty-design back confirmation|opens share flow, launches export quality modal, and downloads export|loads template missing assets, replaces with library selection, and resolves|shows a corner lock badge for locked layers and unlocks from canvas"`
+  - `npm run build`
+
+Completed in this pass (Editor canvas overlay hook extraction slice):
+- [x] Added `src/components/Editor/useEditorCanvasOverlayState.ts` to own canvas overlay state and effects previously embedded in `EditorView`:
+  - context menu open/close state
+  - lock-badge overlay state and canvas sync
+  - cursor-preview state and pointer tracking
+  - canvas lock/unlock mutation helper used by menus and overlays
+- [x] Rewired `EditorView.tsx` to consume `useEditorCanvasOverlayState` and removed the in-file context-menu, lock-badge, and cursor-preview state/effect blocks.
+- [x] Reduced `EditorView.tsx` from `2934` to `2553` lines.
+- [x] Validation rerun:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useEditorCanvasOverlayState.ts src/components/Editor/useEditorThreeDWorkspace.ts src/components/Editor/EditorWorkspaceShell.tsx src/components/Editor/EditorCanvasWorkspace.tsx src/components/Editor/EditorPropertiesPanels.tsx src/components/Editor/EditorTopToolOptionsBridge.tsx src/components/Editor/EditorHeaderPrimary.tsx src/components/Editor/EditorHeaderMenus.tsx src/components/Editor/EditorHeaderActions.tsx src/components/Editor/EditorViewOverlays.tsx`
+  - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --runInBand -t "renders brush cursor preview for paint-size tools and clears on mouse out|renders eyedropper target cursor preview when eyedropper is active|shows a corner lock badge for locked layers and unlocks from canvas|shows only one unlock lock control when selected layer is locked|unlocks a locked child layer inside a group from the canvas lock badge click|handles grid selection, context menu tool trigger, and zoom controls|wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions"`
+  - `npm run build`
 
 ### H) Implementation Status Snapshot
 - [x] Phase 1 complete

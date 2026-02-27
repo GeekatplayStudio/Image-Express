@@ -2271,6 +2271,25 @@ describe('EditorView', () => {
         ))).toBe(true);
     });
 
+    it('exports batch ZIP from media overlay menu', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+        fireEvent.click(screen.getByRole('button', { name: /ZIP All Frames/i }));
+
+        await waitFor(() => {
+            expect(anchorClickSpy).toHaveBeenCalled();
+        });
+
+        const calls = latestCanvasStub?.toDataURL.mock.calls ?? [];
+        const pngCall = [...calls].reverse().find((call) => {
+            const options = call[0] as { format?: string } | undefined;
+            return options?.format === 'png';
+        });
+        expect(pngCall).toBeDefined();
+    });
+
     it('loads initial design from URL and handles load errors', async () => {
         const successProps = createDefaultProps();
         const { unmount } = render(

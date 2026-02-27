@@ -9,6 +9,8 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
 ### Session Updates
 | Date | Component | Change | Status |
 |------|-----------|--------|--------|
+| Feb 27 2026 | `EditorView.tsx` + extracted `src/components/Editor/*` modules | Continued modularization of editor integration shell; header/workspace/export/selection/retouch/shell effects moved to dedicated modules | ✅ Done |
+| Feb 27 2026 | Build + focused `EditorView` regressions | Revalidated export/share, top utility controls, selection, and retouch behavior after refactor slices | ✅ Verified |
 | Feb 1 2026 | `ShadowStrokeProperties.tsx` | Increased shadow offset range from ±50 to ±200 | ✅ Done |
 | Feb 1 2026 | `ShadowStrokeProperties.tsx` | Increased shadow blur max from 100 to 150 | ✅ Done |
 | Feb 1 2026 | `TextProperties.tsx` | Enhanced UI with presets (Flat, Arc↑, Arc↓, Circle) | ✅ Done |

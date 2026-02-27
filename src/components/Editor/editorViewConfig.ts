@@ -48,6 +48,18 @@ export type MediaOverlayPersistedState = {
         width: number;
         height: number;
     };
+    activeFrameId?: string;
+    frames?: Array<{
+        id: string;
+        preset: MediaOverlayPreset;
+        includeInBatchExport: boolean;
+        bounds?: {
+            left: number;
+            top: number;
+            width: number;
+            height: number;
+        };
+    }>;
 };
 
 export const MEDIA_OVERLAY_PRESETS: MediaOverlayPresetSpec[] = [

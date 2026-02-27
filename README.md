@@ -205,3 +205,16 @@ The Properties Panel provides comprehensive editing capabilities:
 ## 📚 Documentation
 
 - HTML export details, asset coverage, and QA guidance: [docs/html-export-notes.md](docs/html-export-notes.md)
+- Current implementation status and handoff checkpoint: [docs/unified_progress_status.md](docs/unified_progress_status.md)
+- Editor ownership map for ongoing refactors: [docs/component_responsibility_map.md](docs/component_responsibility_map.md)
+- Current large-component audit and extraction plan: [docs/refactor_component_audit_2026-02-26.md](docs/refactor_component_audit_2026-02-26.md)
+
+## Editor Refactor Status
+
+- `src/components/Editor/EditorView.tsx` has been reduced from 7,453 lines to 1,337 lines through progressive hook and component extraction.
+- Header, menu, overlay, workspace shell, workspace canvas, panel shell, export support, selection interactions, retouch interactions, and shell side-effects are now owned by dedicated modules under `src/components/Editor/`.
+- The canonical refactor handoff documents are:
+  - `docs/component_responsibility_map.md`
+  - `docs/refactor_component_audit_2026-02-26.md`
+  - `docs/feature_implementation_tracker.md`
+  - `docs/unified_progress_status.md`
