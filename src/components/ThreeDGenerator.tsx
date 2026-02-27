@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
@@ -40,12 +40,21 @@ const isMissingSanitizedKey = (value: string) => {
 };
 
 const sanitizeHeaderValue = (value: string) => value.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+type HitemsImageViewMode = 'single' | 'multi';
+
+const HITEMS_RESOLUTION_LABELS: Record<string, string> = {
+    '512': '512³ · Eco',
+    '1024': '1024³ · Balanced',
+    '1536': '1536P³ · High precision · Complex topology · Fine detail',
+    '1536pro': '1536P³pro · Flagship · Commercial · Print-ready',
+};
 
 interface ThreeDGeneratorProps {
     onAddToCanvas: (dataUrl: string, modelUrl?: string) => void;
     onClose: () => void;
     onOpenSettings?: () => void;
     initialImage?: string; 
+    layerImageOptions?: Array<{ id: string; label: string; imageUrl: string }>;
     onStartBackgroundJob?: (job: Partial<BackgroundJob>) => void; // Parent handles logic
     onRecoverBackgroundJob?: (job: Partial<BackgroundJob>) => void;
     activeJob?: BackgroundJob | null; // Pass active job if it exists
@@ -163,7 +172,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 };
 
 
-export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, onStartBackgroundJob, onRecoverBackgroundJob, activeJob, currentUser }: ThreeDGeneratorProps) {
+export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, layerImageOptions, onStartBackgroundJob, onRecoverBackgroundJob, activeJob, currentUser }: ThreeDGeneratorProps) {
     const dialog = useDialog();
     const { toast } = useToast();
     const [prompt, setPrompt] = useState('');
@@ -193,7 +202,30 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     const [hitemsFormat, setHitemsFormat] = useState(DEFAULT_HITEMS_FORMAT);
     const [hitemsFace, setHitemsFace] = useState('');
     const [hitemsMeshUrl, setHitemsMeshUrl] = useState('');
+    const [hitemsImageViewMode, setHitemsImageViewMode] = useState<HitemsImageViewMode>('single');
+    const [hitemsFrontLayerId, setHitemsFrontLayerId] = useState('__initial__');
+    const [hitemsBackLayerId, setHitemsBackLayerId] = useState('');
+    const [hitemsLeftLayerId, setHitemsLeftLayerId] = useState('');
+    const [hitemsRightLayerId, setHitemsRightLayerId] = useState('');
     const [hitemsPreset, setHitemsPreset] = useState<HitemsPresetKey | 'custom'>('balanced');
+        const normalizedLayerImageOptions = useMemo(() => {
+            const options = [...(layerImageOptions || [])];
+            if (initialImage) {
+                const hasInitial = options.some((option) => option.imageUrl === initialImage);
+                if (!hasInitial) {
+                    options.unshift({ id: '__initial__', label: 'Current Source Image', imageUrl: initialImage });
+                }
+            }
+            return options;
+        }, [initialImage, layerImageOptions]);
+
+        const resolveLayerImageUrl = (layerId: string) => {
+            if (layerId === '__initial__') return initialImage || '';
+            const match = normalizedLayerImageOptions.find((option) => option.id === layerId);
+            return match?.imageUrl || '';
+        };
+
+        const frontImageUrl = resolveLayerImageUrl(hitemsFrontLayerId);
     const [isValidatingHitems, setIsValidatingHitems] = useState(false);
     const [recoverJobId, setRecoverJobId] = useState('');
 
@@ -248,6 +280,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         setHitemsFormat(savedSelection.format);
         setHitemsFace(savedSelection.face);
         setHitemsMeshUrl(savedSelection.meshUrl);
+        const savedImageViewMode = localStorage.getItem('hitems_image_view_mode');
+        if (savedImageViewMode === 'single' || savedImageViewMode === 'multi') {
+            setHitemsImageViewMode(savedImageViewMode);
+        }
+        setHitemsFrontLayerId(localStorage.getItem('hitems_front_layer_id') || '__initial__');
+        setHitemsBackLayerId(localStorage.getItem('hitems_back_layer_id') || '');
+        setHitemsLeftLayerId(localStorage.getItem('hitems_left_layer_id') || '');
+        setHitemsRightLayerId(localStorage.getItem('hitems_right_layer_id') || '');
 
         const savedPreset = localStorage.getItem('hitems_preset');
         if (isHitemsPresetKey(savedPreset)) {
@@ -266,12 +306,35 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         localStorage.setItem('hitems_format', hitemsFormat);
         localStorage.setItem('hitems_face', hitemsFace);
         localStorage.setItem('hitems_mesh_url', hitemsMeshUrl);
+        localStorage.setItem('hitems_image_view_mode', hitemsImageViewMode);
+        localStorage.setItem('hitems_front_layer_id', hitemsFrontLayerId);
+        localStorage.setItem('hitems_back_layer_id', hitemsBackLayerId);
+        localStorage.setItem('hitems_left_layer_id', hitemsLeftLayerId);
+        localStorage.setItem('hitems_right_layer_id', hitemsRightLayerId);
         if (hitemsPreset !== 'custom') {
             localStorage.setItem('hitems_preset', hitemsPreset);
         } else {
             localStorage.removeItem('hitems_preset');
         }
-    }, [hitemsModel, hitemsRequestType, hitemsResolution, hitemsFormat, hitemsFace, hitemsMeshUrl, hitemsPreset]);
+    }, [hitemsModel, hitemsRequestType, hitemsResolution, hitemsFormat, hitemsFace, hitemsMeshUrl, hitemsPreset, hitemsImageViewMode, hitemsFrontLayerId, hitemsBackLayerId, hitemsLeftLayerId, hitemsRightLayerId]);
+
+    useEffect(() => {
+        if (!normalizedLayerImageOptions.length) return;
+        const validIds = new Set(normalizedLayerImageOptions.map((option) => option.id));
+
+        if (!validIds.has(hitemsFrontLayerId)) {
+            setHitemsFrontLayerId(normalizedLayerImageOptions[0].id);
+        }
+        if (hitemsBackLayerId && !validIds.has(hitemsBackLayerId)) {
+            setHitemsBackLayerId('');
+        }
+        if (hitemsLeftLayerId && !validIds.has(hitemsLeftLayerId)) {
+            setHitemsLeftLayerId('');
+        }
+        if (hitemsRightLayerId && !validIds.has(hitemsRightLayerId)) {
+            setHitemsRightLayerId('');
+        }
+    }, [normalizedLayerImageOptions, hitemsFrontLayerId, hitemsBackLayerId, hitemsLeftLayerId, hitemsRightLayerId]);
 
     // Check for key when provider changes
     useEffect(() => {
@@ -381,6 +444,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             meshUrl: nextMeshUrl,
         });
         setHitemsPreset(matchedPreset || 'custom');
+    };
+
+    const handleHitemsImageViewModeChange = (nextMode: HitemsImageViewMode) => {
+        setHitemsImageViewMode(nextMode);
     };
 
     const validateHitemsSetup = async () => {
@@ -785,7 +852,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     };
 
     const generateHitems = async (key: string) => {
-        if (!initialImage) {
+        if (!frontImageUrl) {
+            toast({
+                title: 'Missing front layer',
+                description: 'Select a front layer/image for Hitem generation.',
+                variant: 'warning'
+            });
             setIsLoading(false);
             return;
         }
@@ -823,15 +895,47 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         const normalizedFace = normalizeHitemsFace(normalizedSelection.face);
 
         try {
-            const imageRes = await fetch(initialImage);
-            const blob = await imageRes.blob();
-            const mimeType = blob.type || 'image/png';
-            let fileExt = 'png';
-            if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') fileExt = 'jpg';
-            else if (mimeType === 'image/webp') fileExt = 'webp';
-
             const formData = new FormData();
-            formData.append('images', blob, `image.${fileExt}`);
+            const appendImageAs = async (url: string, fieldName: 'images' | 'multi_images', filenamePrefix: string) => {
+                const imageRes = await fetch(url);
+                if (!imageRes.ok) {
+                    throw new Error('Failed to load one of the selected view images. Ensure URLs are public and reachable.');
+                }
+                const blob = await imageRes.blob();
+                const mimeType = blob.type || 'image/png';
+                let fileExt = 'png';
+                if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') fileExt = 'jpg';
+                else if (mimeType === 'image/webp') fileExt = 'webp';
+                formData.append(fieldName, blob, `${filenamePrefix}.${fileExt}`);
+            };
+
+            const optionalViews = [
+                resolveLayerImageUrl(hitemsBackLayerId),
+                resolveLayerImageUrl(hitemsLeftLayerId),
+                resolveLayerImageUrl(hitemsRightLayerId),
+            ].filter(Boolean);
+
+            if (hitemsImageViewMode === 'multi') {
+                await appendImageAs(frontImageUrl, 'multi_images', 'front-view');
+                for (let index = 0; index < optionalViews.length; index += 1) {
+                    await appendImageAs(optionalViews[index], 'multi_images', `extra-view-${index + 1}`);
+                }
+
+                if (optionalViews.length === 0) {
+                    throw new Error('Multi-view requires at least one additional view URL (back, left, or right).');
+                }
+
+                const bitFlags = [
+                    '1',
+                    resolveLayerImageUrl(hitemsBackLayerId) ? '1' : '0',
+                    resolveLayerImageUrl(hitemsLeftLayerId) ? '1' : '0',
+                    resolveLayerImageUrl(hitemsRightLayerId) ? '1' : '0',
+                ].join('');
+                formData.append('multi_images_bit', bitFlags);
+            } else {
+                await appendImageAs(frontImageUrl, 'images', 'image');
+            }
+
             formData.append('model', normalizedSelection.model);
             formData.append('request_type', normalizedSelection.requestType);
             formData.append('resolution', normalizedSelection.resolution);
@@ -842,14 +946,16 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             }
 
             console.log('Sending Hitem3D request with params:', {
-                contentType: mimeType,
-                fileExt,
+                imageMode: hitemsImageViewMode,
                 model: normalizedSelection.model,
                 requestType: normalizedSelection.requestType,
                 resolution: normalizedSelection.resolution,
                 format: normalizedSelection.format,
                 face: normalizedFace || undefined,
-                meshUrl: hitemsRequiresMeshUrl(normalizedSelection.requestType) ? normalizedSelection.meshUrl : undefined
+                meshUrl: hitemsRequiresMeshUrl(normalizedSelection.requestType) ? normalizedSelection.meshUrl : undefined,
+                multiImagesBit: hitemsImageViewMode === 'multi'
+                    ? ['1', resolveLayerImageUrl(hitemsBackLayerId) ? '1' : '0', resolveLayerImageUrl(hitemsLeftLayerId) ? '1' : '0', resolveLayerImageUrl(hitemsRightLayerId) ? '1' : '0'].join('')
+                    : undefined,
             });
 
             const sanitizedKey = sanitizeHeaderValue(key);
@@ -1056,12 +1162,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                         </div>
                     )}
 
-                {initialImage && (
+                {(selectedProvider === 'hitems' ? Boolean(frontImageUrl || initialImage) : Boolean(initialImage)) && (
                     <div className="space-y-2">
                          <div className="flex justify-center bg-black/10 p-2 rounded">
                             <div className="relative w-full h-24">
                                 <Image
-                                    src={initialImage}
+                                    src={selectedProvider === 'hitems' ? (frontImageUrl || initialImage || '') : (initialImage || '')}
                                     alt="Source"
                                     fill
                                     sizes="256px"
@@ -1177,10 +1283,130 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                 >
                                     {getHitemsAllowedResolutions(hitemsModel).map((value) => (
-                                        <option key={value} value={value}>{value}</option>
+                                        <option key={value} value={value}>{HITEMS_RESOLUTION_LABELS[value] || value}</option>
                                     ))}
                                 </select>
                             </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase">Image View Mode</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleHitemsImageViewModeChange('single')}
+                                    className={`px-2 py-2 rounded text-[10px] border transition-colors ${
+                                        hitemsImageViewMode === 'single'
+                                            ? 'bg-primary text-primary-foreground border-primary'
+                                            : 'bg-secondary/50 border-border hover:bg-secondary'
+                                    }`}
+                                >
+                                    Single Image
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleHitemsImageViewModeChange('multi')}
+                                    className={`px-2 py-2 rounded text-[10px] border transition-colors ${
+                                        hitemsImageViewMode === 'multi'
+                                            ? 'bg-primary text-primary-foreground border-primary'
+                                            : 'bg-secondary/50 border-border hover:bg-secondary'
+                                    }`}
+                                >
+                                    Multi-view (Front/Back/Sides)
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] text-muted-foreground">Front Preview</p>
+                                    <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
+                                        {frontImageUrl ? (
+                                            <Image src={frontImageUrl} alt="Front layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">No front layer</div>
+                                        )}
+                                    </div>
+                                </div>
+                                {hitemsImageViewMode === 'multi' && (
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-muted-foreground">Back Preview</p>
+                                        <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
+                                            {resolveLayerImageUrl(hitemsBackLayerId) ? (
+                                                <Image src={resolveLayerImageUrl(hitemsBackLayerId)} alt="Back layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                            ) : (
+                                                <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">Not set</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="grid grid-cols-1 gap-1 pt-1">
+                                <label className="text-[10px] text-muted-foreground">Front Layer</label>
+                                <select
+                                    value={hitemsFrontLayerId}
+                                    onChange={(e) => setHitemsFrontLayerId(e.target.value)}
+                                    className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                >
+                                    {normalizedLayerImageOptions.map((option) => (
+                                        <option key={option.id} value={option.id}>{option.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {hitemsImageViewMode === 'multi' && (
+                                <div className="grid grid-cols-1 gap-1 pt-1">
+                                    <p className="text-[10px] text-muted-foreground">Assign document layers for Back / Left / Right views. At least one extra view is required.</p>
+                                    <div className="grid grid-cols-2 gap-2 pb-1">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-muted-foreground">Left Preview</p>
+                                            <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
+                                                {resolveLayerImageUrl(hitemsLeftLayerId) ? (
+                                                    <Image src={resolveLayerImageUrl(hitemsLeftLayerId)} alt="Left layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                                ) : (
+                                                    <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">Not set</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-muted-foreground">Right Preview</p>
+                                            <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
+                                                {resolveLayerImageUrl(hitemsRightLayerId) ? (
+                                                    <Image src={resolveLayerImageUrl(hitemsRightLayerId)} alt="Right layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                                ) : (
+                                                    <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">Not set</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <select
+                                        value={hitemsBackLayerId}
+                                        onChange={(e) => setHitemsBackLayerId(e.target.value)}
+                                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                    >
+                                        <option value="">Back: Not set</option>
+                                        {normalizedLayerImageOptions.map((option) => (
+                                            <option key={`back-${option.id}`} value={option.id}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={hitemsLeftLayerId}
+                                        onChange={(e) => setHitemsLeftLayerId(e.target.value)}
+                                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                    >
+                                        <option value="">Left: Not set</option>
+                                        {normalizedLayerImageOptions.map((option) => (
+                                            <option key={`left-${option.id}`} value={option.id}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={hitemsRightLayerId}
+                                        onChange={(e) => setHitemsRightLayerId(e.target.value)}
+                                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                    >
+                                        <option value="">Right: Not set</option>
+                                        {normalizedLayerImageOptions.map((option) => (
+                                            <option key={`right-${option.id}`} value={option.id}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">

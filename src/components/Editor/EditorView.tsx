@@ -138,6 +138,12 @@ const DISABLED_LAYER_ORDER_STATE: LayerOrderState = {
     canSendToBack: false,
 };
 
+type ThreeDLayerImageOption = {
+    id: string;
+    label: string;
+    imageUrl: string;
+};
+
 export default function EditorView({ 
     initialDesign, 
     initialTemplateJsonUrl,
@@ -3010,6 +3016,7 @@ export default function EditorView({
     // 3D & AI States
     const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
     const [sourceObjectFor3D, setSourceObjectFor3D] = useState<fabric.Object | null>(null);
+    const [threeDLayerImageOptions, setThreeDLayerImageOptions] = useState<ThreeDLayerImageOption[]>([]);
     const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJob[]>([]);
     const [jobsHydrated, setJobsHydrated] = useState(false);
     const backgroundJobsRef = useRef<BackgroundJob[]>([]);
@@ -3060,6 +3067,37 @@ export default function EditorView({
         if (kb < 1024) return `${kb.toFixed(1)} KB`;
         return `${(kb / 1024).toFixed(2)} MB`;
     };
+
+    const collectThreeDLayerImageOptions = useCallback((): ThreeDLayerImageOption[] => {
+        if (!canvas) return [];
+        const objects = canvas.getObjects() as (fabric.Object & ExtendedFabricObject)[];
+        const options: ThreeDLayerImageOption[] = [];
+
+        objects.forEach((object, index) => {
+            if (object.visible === false) return;
+            if (object.mediaType === 'audio') return;
+            if (object.isRetouchLayer) return;
+            if (object.name === 'Artboard') return;
+            if (object.excludeFromExport) return;
+
+            try {
+                const imageUrl = object.toDataURL({ format: 'png', multiplier: 1 });
+                if (!imageUrl) return;
+                const objectId = object.id || `layer-${index}`;
+                const label = object.name?.trim() || `Layer ${index + 1}`;
+                options.push({ id: objectId, label, imageUrl });
+            } catch {
+                // Ignore layers that cannot be serialized to image preview.
+            }
+        });
+
+        return options.reverse();
+    }, [canvas]);
+
+    useEffect(() => {
+        if (!canvas || activeTool !== '3d-gen') return;
+        setThreeDLayerImageOptions(collectThreeDLayerImageOptions());
+    }, [canvas, activeTool, collectThreeDLayerImageOptions]);
 
     const getCanvasBackgroundSettings = useCallback(() => {
         const activeCanvas = canvas as CanvasWithArtboard | null;
@@ -7492,6 +7530,7 @@ export default function EditorView({
                         {activeTool === '3d-gen' && (
                             <ThreeDGenerator 
                                 initialImage={initialImageFor3D}
+                                layerImageOptions={threeDLayerImageOptions}
                                 currentUser={user}
                                 onOpenSettings={onOpenSettings}
                                 activeJob={backgroundJobs.find(j => j.status === 'IN_PROGRESS' || j.status === 'PENDING')}

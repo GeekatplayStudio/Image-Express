@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
 
     const contentType = req.headers.get('content-type') ?? '';
     const images: File[] = [];
+    const multiImages: File[] = [];
     const fields: Record<string, string> = {};
 
     if (contentType.includes('multipart/form-data')) {
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
         ...form.getAll('images'),
         ...form.getAll('image'),
       ];
+      const incomingMultiImages = form.getAll('multi_images');
 
       let hasImage = false;
       for (const entry of incomingImages) {
@@ -117,8 +119,15 @@ export async function POST(req: NextRequest) {
           hasImage = true;
         }
       }
+      for (const entry of incomingMultiImages) {
+        if (entry instanceof File) {
+          multiImages.push(entry);
+          hasImage = true;
+        }
+      }
 
       const imageUrl = getString(form.get('imageUrl')) || getString(form.get('image_url'));
+      const rawMultiImageUrls = getString(form.get('multiImageUrls')) || getString(form.get('multi_image_urls'));
       if (!hasImage && imageUrl) {
         const imageRes = await fetch(imageUrl);
         if (!imageRes.ok) {
@@ -128,6 +137,23 @@ export async function POST(req: NextRequest) {
         const fileExt = imageExtFromType(blob.type || 'image/png');
         images.push(blobToFile(blob, `image.${fileExt}`));
         hasImage = true;
+      }
+
+      if (!hasImage && rawMultiImageUrls) {
+        const urls = rawMultiImageUrls
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
+        for (let index = 0; index < urls.length; index += 1) {
+          const imageRes = await fetch(urls[index]);
+          if (!imageRes.ok) {
+            return NextResponse.json({ message: 'Failed to fetch one or more multi-view image URLs.' }, { status: 400 });
+          }
+          const blob = await imageRes.blob();
+          const fileExt = imageExtFromType(blob.type || 'image/png');
+          multiImages.push(blobToFile(blob, `multi-image-${index + 1}.${fileExt}`));
+        }
+        hasImage = multiImages.length > 0;
       }
 
       if (!hasImage) {
@@ -143,28 +169,52 @@ export async function POST(req: NextRequest) {
       const face = normalizeHitemsFace(getString(form.get('face')));
       const meshUrl = getString(form.get('mesh_url'));
       const callbackUrl = getString(form.get('callback_url'));
+      const multiImagesBit = getString(form.get('multi_images_bit'));
       if (face) fields.face = face;
       if (meshUrl) fields.mesh_url = meshUrl;
       if (callbackUrl) fields.callback_url = callbackUrl;
+      if (multiImagesBit) fields.multi_images_bit = multiImagesBit;
       if (hitemsRequiresMeshUrl(requestType) && !meshUrl) {
         return NextResponse.json({ message: 'mesh_url is required when request_type=2.' }, { status: 400 });
       }
     } else {
       const body = await req.json().catch(() => null);
       const imageUrl = body?.imageUrl || body?.image_url;
-      if (!imageUrl) {
+      const multiImageUrlsRaw = Array.isArray(body?.multiImageUrls)
+        ? body.multiImageUrls
+        : (Array.isArray(body?.multi_image_urls) ? body.multi_image_urls : []);
+      const multiImageUrls = (multiImageUrlsRaw as unknown[])
+        .map((value) => getBodyString(value))
+        .filter((value): value is string => Boolean(value));
+
+      if (!imageUrl && multiImageUrls.length === 0) {
         return NextResponse.json({ message: 'Missing image payload' }, { status: 400 });
       }
-      const imageRes = await fetch(imageUrl);
-      if (!imageRes.ok) {
-        return NextResponse.json({ message: 'Failed to fetch image URL.' }, { status: 400 });
+
+      if (multiImageUrls.length > 0) {
+        for (let index = 0; index < multiImageUrls.length; index += 1) {
+          const imageRes = await fetch(multiImageUrls[index]);
+          if (!imageRes.ok) {
+            return NextResponse.json({ message: 'Failed to fetch one or more multi-view image URLs.' }, { status: 400 });
+          }
+          const blob = await imageRes.blob();
+          const fileExt = imageExtFromType(blob.type || 'image/png');
+          multiImages.push(blobToFile(blob, `multi-image-${index + 1}.${fileExt}`));
+        }
+      } else if (imageUrl) {
+        const imageRes = await fetch(imageUrl);
+        if (!imageRes.ok) {
+          return NextResponse.json({ message: 'Failed to fetch image URL.' }, { status: 400 });
+        }
+        const blob = await imageRes.blob();
+        const fileExt = imageExtFromType(blob.type || 'image/png');
+        images.push(blobToFile(blob, `image.${fileExt}`));
       }
-      const blob = await imageRes.blob();
-      const fileExt = imageExtFromType(blob.type || 'image/png');
-      images.push(blobToFile(blob, `image.${fileExt}`));
+
       const model = normalizeHitemsModel(getBodyString(body?.model));
       const requestType = normalizeHitemsRequestType(model, getBodyString(body?.request_type));
       const meshUrl = getBodyString(body?.mesh_url);
+      const multiImagesBit = getBodyString(body?.multi_images_bit);
       fields.request_type = requestType;
       fields.model = model;
       fields.resolution = normalizeHitemsResolution(model, getBodyString(body?.resolution));
@@ -172,6 +222,7 @@ export async function POST(req: NextRequest) {
       const face = normalizeHitemsFace(getBodyString(body?.face));
       if (face) fields.face = face;
       if (meshUrl) fields.mesh_url = meshUrl;
+      if (multiImagesBit) fields.multi_images_bit = multiImagesBit;
       const callbackUrl = getBodyString(body?.callback_url);
       if (callbackUrl) fields.callback_url = callbackUrl;
       if (hitemsRequiresMeshUrl(requestType) && !meshUrl) {
@@ -181,7 +232,11 @@ export async function POST(req: NextRequest) {
 
     const buildForm = () => {
       const formData = new FormData();
-      images.forEach((file) => formData.append('images', file));
+      if (multiImages.length > 0) {
+        multiImages.forEach((file) => formData.append('multi_images', file));
+      } else {
+        images.forEach((file) => formData.append('images', file));
+      }
       Object.entries(fields).forEach(([key, value]) => formData.append(key, value));
       return formData;
     };
@@ -224,7 +279,8 @@ export async function POST(req: NextRequest) {
           endpoint: `${BASE_URL}/submit-task`,
           authType: auth.source,
           appId: Boolean(appIdHeader),
-          imageCount: images.length,
+          imageCount: multiImages.length > 0 ? multiImages.length : images.length,
+          imageMode: multiImages.length > 0 ? 'multi' : 'single',
           fields,
           status: res.status,
         }
