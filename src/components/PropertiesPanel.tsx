@@ -1429,7 +1429,7 @@ export default function PropertiesPanel({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handlePropChange = (prop: string, value: any) => {
         if (!selectedObject || !canvas) return;
-        let shouldEmitObjectModified = true;
+        const shouldEmitObjectModified = true;
 
         if (prop === 'penPathUpdate') {
             const updates = value as { mode?: PenModeSetting; closed?: boolean };
@@ -1656,9 +1656,6 @@ export default function PropertiesPanel({
             const textObj = selectedObject as fabric.IText & { hiddenTextarea?: HTMLTextAreaElement } & ExtendedFabricObject;
             textObj.set('textSpellcheck', enabled);
             setTextSpellcheck(enabled);
-            if (textObj.hiddenTextarea) {
-                textObj.hiddenTextarea.spellcheck = enabled;
-            }
             textObj.set('dirty', true);
         }
         if (prop === 'textContent') {

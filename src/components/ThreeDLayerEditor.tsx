@@ -12,7 +12,7 @@ import useEscapeKey from '@/hooks/useEscapeKey';
 
 interface ThreeDLayerEditorProps {
     modelUrl: string;
-    existingObject?: fabric.Object; // The fabric object if editing an existing one
+    existingObject?: fabric.Object;
     onSave: (dataUrl: string, modelUrl: string, settings: ThreeDSettings) => void;
     onClose: () => void;
 }
@@ -27,7 +27,6 @@ type CaptureGL = {
 
 const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) => void }) => {
     const { scene } = useGLTF(url);
-    // Clone scene to avoid reusing same primitive if multiple viewers exist (though here unique)
     const clone = scene.clone();
     useEffect(() => {
         clone.traverse((child) => {
@@ -47,7 +46,6 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
     return <primitive object={clone} />;
 };
 
-
 export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, onClose }: ThreeDLayerEditorProps) {
     const [gl, setGl] = useState<CaptureGL | null>(null);
     const [resolution, setResolution] = useState<{width: number, height: number}>({ width: 2048, height: 2048 });
@@ -63,8 +61,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
     const [contactShadowBlur, setContactShadowBlur] = useState(8);
     const [contactShadowIntensity, setContactShadowIntensity] = useState(0.6);
     const [groundY, setGroundY] = useState(-1);
-
-
     const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
     useEscapeKey(onClose);
@@ -86,8 +82,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
             setContactShadowIntensity(settings.contactShadowIntensity);
             setResolution(settings.resolution);
         } else {
-            // Try to infer desired resolution from the object on canvas
-            // Use 2x scale factor for Retina/HighDPI quality by default
             const scaleX = existingObject.scaleX || 1;
             const scaleY = existingObject.scaleY || 1;
             const width = existingObject.width || 512;
@@ -116,7 +110,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
         controlsRef.current.update();
     }, [existingObject, gl]);
 
-    // Preload
     useEffect(() => {
         useGLTF.preload(modelUrl);
     }, [modelUrl]);
@@ -125,30 +118,23 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
         if (gl && gl.glInstance) {
              const { glInstance: renderer, scene, camera } = gl;
              try {
-                // Save original state
                 const originalSize = new THREE.Vector2();
                 renderer.getSize(originalSize);
                 const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
                 
-                // Resize for high-res capture
                 renderer.setSize(resolution.width, resolution.height, false);
-                // eslint-disable-next-line
                 (camera as THREE.PerspectiveCamera).aspect = resolution.width / resolution.height;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
                 
-                // Render
                 renderer.render(scene, camera);
                 
-                // Capture
                 const dataUrl = renderer.domElement.toDataURL('image/png', 1.0);
                 
-                // Restore
                 renderer.setSize(originalSize.x, originalSize.y, false);
                  
                 (camera as THREE.PerspectiveCamera).aspect = originalAspect;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
                 
-                // Force sync render to restore view
                 renderer.render(scene, camera);
 
                 const controls = controlsRef.current;
@@ -173,7 +159,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                 onSave(dataUrl, modelUrl, settings);
              } catch (e) {
                  console.error("High-res capture failed", e);
-                 // Fallback
                  gl.render();
                  const dataUrl = gl.domElement.toDataURL('image/png', 1.0);
                  const controls = controlsRef.current;
@@ -209,7 +194,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                 minWidth={420}
                 minHeight={520}
             >
-                {/* Header */}
                 <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30 draggable-handle cursor-move">
                     <h3 className="font-semibold flex items-center gap-2">
                         <RotateCw size={18} className="text-primary" />
@@ -220,7 +204,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                     </button>
                 </div>
 
-                {/* 3D Viewport */}
                 <div className="flex-1 relative bg-secondary/20 checkerboard-bg">
                     
                     <div className="absolute top-2 right-2 z-10 flex flex-col items-end pointer-events-none">
@@ -434,7 +417,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                         </div>
                     </div>
 
-                    {/* Background Pattern */}
                     <div className="absolute inset-0 opacity-10 pointer-events-none" 
                          style={{ backgroundImage: 'radial-gradient(#888 1px, transparent 1px)', backgroundSize: '20px 20px' }}
                     ></div>
@@ -500,7 +482,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                     </div>
                 </div>
 
-                {/* Footer Controls */}
                 <div className="p-4 border-t border-border flex justify-end gap-3 bg-card">
                     <button 
                         onClick={onClose}

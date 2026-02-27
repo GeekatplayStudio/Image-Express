@@ -50,6 +50,10 @@ import {
     type RetouchBounds,
 } from '@/lib/retouch-engine';
 import { TOP_TEXT_FONT_FAMILIES, TOP_TEXT_FONT_STYLES } from '@/lib/typography';
+import {
+    sampleColorAtCanvasCenter,
+    sampleColorAtScenePoint,
+} from '@/components/Editor/editorColorSampling';
 
 interface MissingItem {
     id: string; 
@@ -5119,7 +5123,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const bounds = getMediaOverlayFrameBounds(existingFrame);
             const isPinnedTopLeft = Boolean(
                 sourceRect
-                && mediaOverlayPreset !== 'canvas-original'
                 && Math.abs(bounds.left - sourceRect.left) <= 1
                 && Math.abs(bounds.top - sourceRect.top) <= 1
                 && (sourceRect.width - bounds.width) <= 1
@@ -5208,7 +5211,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const bounds = getMediaOverlayFrameBounds(frame);
         const isPinnedTopLeft = Boolean(
             sourceRect
-            && mediaOverlayPreset !== 'canvas-original'
             && Math.abs(bounds.left - sourceRect.left) <= 1
             && Math.abs(bounds.top - sourceRect.top) <= 1
             && (sourceRect.width - bounds.width) <= 1
@@ -5266,11 +5268,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const keepOverlayFrameOnTop = (event?: fabric.IEvent) => {
+        const keepOverlayFrameOnTop = () => {
             const frame = mediaOverlayFrameRef.current;
             if (!frame) return;
-            const target = event?.target;
-            if (target && target === frame) return;
             if (bringMediaOverlayFrameToFront(frame)) {
                 canvas.requestRenderAll();
             }
@@ -5444,88 +5444,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const readColorFromCanvasPoint = useCallback((point: fabric.Point, sampleSize: TopEyedropperSampleSize): string | null => {
         if (!canvas) return null;
-        const exportCanvas = canvas as CanvasWithExportInternals;
-        const sourceCanvas = exportCanvas.lowerCanvasEl || exportCanvas.getElement?.();
-        if (!sourceCanvas) return null;
-        const context = sourceCanvas.getContext('2d');
-        if (!context) return null;
-
-        const canvasWidth = Math.max(1, canvas.getWidth?.() || sourceCanvas.width);
-        const canvasHeight = Math.max(1, canvas.getHeight?.() || sourceCanvas.height);
-        const vt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
-        const viewportX = (point.x * vt[0]) + (point.y * vt[2]) + vt[4];
-        const viewportY = (point.x * vt[1]) + (point.y * vt[3]) + vt[5];
-        const pixelCenterX = Math.round((viewportX / canvasWidth) * sourceCanvas.width);
-        const pixelCenterY = Math.round((viewportY / canvasHeight) * sourceCanvas.height);
-
-        const pixelWindow = Math.max(1, sampleSize);
-        const halfWindow = Math.floor(pixelWindow / 2);
-        const startX = Math.max(0, pixelCenterX - halfWindow);
-        const startY = Math.max(0, pixelCenterY - halfWindow);
-        const width = Math.min(pixelWindow, sourceCanvas.width - startX);
-        const height = Math.min(pixelWindow, sourceCanvas.height - startY);
-        if (width <= 0 || height <= 0) return null;
-
-        try {
-            const imageData = context.getImageData(startX, startY, width, height).data;
-            let red = 0;
-            let green = 0;
-            let blue = 0;
-            let count = 0;
-            for (let index = 0; index < imageData.length; index += 4) {
-                const alpha = imageData[index + 3];
-                if (alpha === 0) continue;
-                red += imageData[index];
-                green += imageData[index + 1];
-                blue += imageData[index + 2];
-                count += 1;
-            }
-            if (count === 0) return null;
-            const toHex = (value: number) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0');
-            return `#${toHex(red / count)}${toHex(green / count)}${toHex(blue / count)}`;
-        } catch {
-            return null;
-        }
+        return sampleColorAtScenePoint(canvas, point, sampleSize);
     }, [canvas]);
 
     const readColorFromCanvasCenter = useCallback((sampleSize: TopEyedropperSampleSize): string | null => {
         if (!canvas) return null;
-        const exportCanvas = canvas as CanvasWithExportInternals;
-        const sourceCanvas = exportCanvas.lowerCanvasEl || exportCanvas.getElement?.();
-        if (!sourceCanvas) return null;
-        const context = sourceCanvas.getContext('2d');
-        if (!context) return null;
-
-        const pixelWindow = Math.max(1, sampleSize);
-        const centerX = Math.floor(sourceCanvas.width / 2);
-        const centerY = Math.floor(sourceCanvas.height / 2);
-        const halfWindow = Math.floor(pixelWindow / 2);
-        const startX = Math.max(0, centerX - halfWindow);
-        const startY = Math.max(0, centerY - halfWindow);
-        const width = Math.min(pixelWindow, sourceCanvas.width - startX);
-        const height = Math.min(pixelWindow, sourceCanvas.height - startY);
-        if (width <= 0 || height <= 0) return null;
-
-        try {
-            const imageData = context.getImageData(startX, startY, width, height).data;
-            let red = 0;
-            let green = 0;
-            let blue = 0;
-            let count = 0;
-            for (let index = 0; index < imageData.length; index += 4) {
-                const alpha = imageData[index + 3];
-                if (alpha === 0) continue;
-                red += imageData[index];
-                green += imageData[index + 1];
-                blue += imageData[index + 2];
-                count += 1;
-            }
-            if (count === 0) return null;
-            const toHex = (value: number) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0');
-            return `#${toHex(red / count)}${toHex(green / count)}${toHex(blue / count)}`;
-        } catch {
-            return null;
-        }
+        return sampleColorAtCanvasCenter(canvas, sampleSize);
     }, [canvas]);
 
     const resolveEyedropperSample = useCallback((preferredPoint?: fabric.Point | null): string | null => {

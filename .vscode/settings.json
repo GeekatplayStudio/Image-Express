@@ -15,7 +15,28 @@
         "npm.cmd": true,
         "git commit": true,
         "git push": true,
-        "git rev-parse": true
+        "git rev-parse": true,
+        "ForEach-Object": true,
+        "/^cmd /c npm run build$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmd /c npm\\.cmd run build$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmd /c set CI=true; npm\\.cmd test -- --runInBand --watch=false$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmd /c set CI=true && npm\\.cmd test -- --runInBand --watch=false$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmd /c \"set CI=true & npm\\.cmd test -- --runInBand --watch=false\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     },
     "chat.agent.maxRequests": 50
 }
