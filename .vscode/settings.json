@@ -36,7 +36,12 @@
         "/^cmd /c \"set CI=true & npm\\.cmd test -- --runInBand --watch=false\"$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "/^cmd /c npm\\.cmd run dev$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "applies": true
     },
     "chat.agent.maxRequests": 50
 }

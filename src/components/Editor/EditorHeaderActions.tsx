@@ -21,8 +21,12 @@ import {
 
 import { Switch } from '@/components/ui/switch';
 import {
+    MEDIA_OVERLAY_NAMING_TEMPLATES,
     MEDIA_OVERLAY_PRESETS,
+    MEDIA_OVERLAY_SAFE_AREA_PRESETS,
+    type MediaOverlayNamingTemplate,
     type MediaOverlayPreset,
+    type MediaOverlaySafeAreaPreset,
 } from '@/components/Editor/editorViewConfig';
 import type { EditorMenuId } from '@/components/Editor/useEditorMenus';
 import type { MediaOverlayFrameConfig } from '@/components/Editor/useMediaOverlay';
@@ -57,6 +61,9 @@ type EditorHeaderActionsProps = {
     mediaOverlayFrames: MediaOverlayFrameConfig[];
     handleSelectMediaOverlayFrame: (frameId: string) => void;
     handleToggleMediaOverlayFrameInclude: (frameId: string, includeInBatchExport: boolean) => void;
+    handleActiveMediaOverlayFrameSafeAreaPresetChange: (preset: MediaOverlaySafeAreaPreset) => void;
+    mediaOverlayNamingTemplate: MediaOverlayNamingTemplate;
+    setMediaOverlayNamingTemplate: (template: MediaOverlayNamingTemplate) => void;
     handleExport: (format: ExportFormat) => void | Promise<void>;
     exportMediaOverlayFramesZip: (scope: 'selected' | 'all') => void | Promise<void>;
     setShowProfileModal: (show: boolean) => void;
@@ -87,11 +94,18 @@ export default function EditorHeaderActions({
     mediaOverlayFrames,
     handleSelectMediaOverlayFrame,
     handleToggleMediaOverlayFrameInclude,
+    handleActiveMediaOverlayFrameSafeAreaPresetChange,
+    mediaOverlayNamingTemplate,
+    setMediaOverlayNamingTemplate,
     handleExport,
     exportMediaOverlayFramesZip,
     setShowProfileModal,
     profileSettings,
 }: EditorHeaderActionsProps) {
+    const activeFrame = activeMediaOverlayFrameId
+        ? mediaOverlayFrames.find((frame) => frame.id === activeMediaOverlayFrameId) ?? null
+        : mediaOverlayFrames[0] ?? null;
+
     return (
         <div className="flex items-center gap-3">
             {/* Active Palette Bar */}
@@ -195,11 +209,23 @@ export default function EditorHeaderActions({
                             <select
                                 value={mediaOverlayPreset}
                                 onChange={(event) => handleMediaOverlayPresetChange(event.target.value as MediaOverlayPreset)}
+                                aria-label="Media overlay preset"
                                 className="w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs text-foreground"
                                 disabled={!mediaOverlayEnabled}
                             >
                                 {MEDIA_OVERLAY_PRESETS.map((preset) => (
                                     <option key={preset.id} value={preset.id}>{preset.label}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={mediaOverlayNamingTemplate}
+                                onChange={(event) => setMediaOverlayNamingTemplate(event.target.value as MediaOverlayNamingTemplate)}
+                                aria-label="Frame naming template"
+                                className="w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs text-foreground"
+                                disabled={!mediaOverlayEnabled}
+                            >
+                                {MEDIA_OVERLAY_NAMING_TEMPLATES.map((template) => (
+                                    <option key={template.id} value={template.id}>{template.label}</option>
                                 ))}
                             </select>
                             <div className="grid grid-cols-2 gap-2">
@@ -219,36 +245,49 @@ export default function EditorHeaderActions({
                                 </button>
                             </div>
                             {mediaOverlayFrames.length > 0 && (
-                                <div className="max-h-36 overflow-y-auto rounded-md border border-border/60 bg-background/40">
-                                    {mediaOverlayFrames.map((frame, index) => {
-                                        const preset = MEDIA_OVERLAY_PRESETS.find((item) => item.id === frame.preset);
-                                        const isActive = frame.id === activeMediaOverlayFrameId;
-                                        return (
-                                            <div key={frame.id} className={`flex items-center justify-between px-2 py-1.5 text-[11px] ${isActive ? 'bg-secondary/35' : ''}`}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleSelectMediaOverlayFrame(frame.id)}
-                                                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                                                >
-                                                    <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
-                                                    <span className="truncate font-medium">{`Frame ${index + 1}`}</span>
-                                                    <span className="truncate text-muted-foreground">{preset?.label || frame.preset}</span>
-                                                </button>
-                                                <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={frame.includeInBatchExport}
-                                                        onChange={(event) => handleToggleMediaOverlayFrameInclude(frame.id, event.target.checked)}
-                                                    />
-                                                    Batch
-                                                </label>
-                                            </div>
-                                        );
-                                    })}
+                                <div className="space-y-2">
+                                    <div className="max-h-36 overflow-y-auto rounded-md border border-border/60 bg-background/40">
+                                        {mediaOverlayFrames.map((frame, index) => {
+                                            const preset = MEDIA_OVERLAY_PRESETS.find((item) => item.id === frame.preset);
+                                            const isActive = frame.id === activeMediaOverlayFrameId;
+                                            return (
+                                                <div key={frame.id} className={`flex items-center justify-between px-2 py-1.5 text-[11px] ${isActive ? 'bg-secondary/35' : ''}`}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSelectMediaOverlayFrame(frame.id)}
+                                                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                                    >
+                                                        <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
+                                                        <span className="truncate font-medium">{`Frame ${index + 1}`}</span>
+                                                        <span className="truncate text-muted-foreground">{preset?.label || frame.preset}</span>
+                                                    </button>
+                                                    <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={frame.includeInBatchExport}
+                                                            onChange={(event) => handleToggleMediaOverlayFrameInclude(frame.id, event.target.checked)}
+                                                        />
+                                                        Batch
+                                                    </label>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <select
+                                        value={activeFrame?.safeAreaPreset ?? 'none'}
+                                        onChange={(event) => handleActiveMediaOverlayFrameSafeAreaPresetChange(event.target.value as MediaOverlaySafeAreaPreset)}
+                                        aria-label="Active frame safe area"
+                                        className="w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs text-foreground"
+                                        disabled={!mediaOverlayEnabled || !activeFrame}
+                                    >
+                                        {MEDIA_OVERLAY_SAFE_AREA_PRESETS.map((preset) => (
+                                            <option key={preset.id} value={preset.id}>{preset.label}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             )}
                             <div className="text-[10px] text-muted-foreground">
-                                Active frame exports to PNG/JPG/SVG/PDF. Batch exports create PNG ZIP files.
+                                Active frame exports to PNG/JPG/SVG/PDF. Batch exports create PNG ZIP files using the selected naming template.
                             </div>
                         </div>
                         <button onClick={() => handleExport('png')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-blue-500" /> <span className="font-medium">PNG</span></button>

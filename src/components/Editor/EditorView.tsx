@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import EditorCanvasWorkspace from '@/components/Editor/EditorCanvasWorkspace';
 import EditorHeaderPrimary from '@/components/Editor/EditorHeaderPrimary';
 import EditorHeaderMenus from '@/components/Editor/EditorHeaderMenus';
@@ -17,14 +17,6 @@ import { ColorPalette } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { APP_THEME } from '@/lib/theme-tokens';
-import { loadUiPreferences } from '@/lib/ui-preferences';
-import {
-    applyRasterBrushToCanvas,
-    disableRasterDrawingMode,
-    type RasterBlendMode,
-    type RasterBrushPreset
-} from '@/lib/raster-engine';
-import { WINDOW_PANEL_ITEMS } from '@/components/Editor/editorViewConfig';
 import { useMediaOverlay } from '@/components/Editor/useMediaOverlay';
 import { useEditorExport } from '@/components/Editor/useEditorExport';
 import { useEditorPersistence } from '@/components/Editor/useEditorPersistence';
@@ -49,6 +41,11 @@ import { useEditorSelectionModify } from '@/components/Editor/useEditorSelection
 import { useEditorThreeDWorkspace } from '@/components/Editor/useEditorThreeDWorkspace';
 import { useBackgroundJobsStore } from '@/components/Editor/useBackgroundJobsStore';
 import { useBackgroundJobPolling } from '@/components/Editor/useBackgroundJobPolling';
+import { useEditorTopToolState } from '@/components/Editor/useEditorTopToolState';
+import { useEditorUtilityOverlayLayout } from '@/components/Editor/useEditorUtilityOverlayLayout';
+import { useEditorPaintPenEffects } from '@/components/Editor/useEditorPaintPenEffects';
+import { useEditorPanelModePersistence } from '@/components/Editor/useEditorPanelModePersistence';
+import { useEditorWorkspaceCompositionProps } from '@/components/Editor/useEditorWorkspaceCompositionProps';
 
 interface EditorViewProps {
     initialDesign: { data?: unknown } | null;
@@ -217,48 +214,33 @@ export default function EditorView({
     const shareRef = useRef<HTMLDivElement>(null);
     const [gridType, setGridType] = useState<GridType>('none');
     const [showProfileModal, setShowProfileModal] = useState(false);
-    const [autoSelectEnabled, setAutoSelectEnabled] = useState(true);
-    const [selectionMode, setSelectionMode] = useState<'layer' | 'group'>('layer');
-    const [showTransformControls, setShowTransformControls] = useState(true);
-    const [selectFeather, setSelectFeather] = useState(0);
-    const [selectAntiAlias, setSelectAntiAlias] = useState(true);
-    const [selectionModifyPixels, setSelectionModifyPixels] = useState(12);
-    const [wandTopThreshold, setWandTopThreshold] = useState(48);
-    const [healingTopSize, setHealingTopSize] = useState(24);
-    const [healingTopHardness, setHealingTopHardness] = useState(70);
-    const [healingTopSampleAllLayers, setHealingTopSampleAllLayers] = useState(true);
-    const [historyBrushTopSize, setHistoryBrushTopSize] = useState(24);
-    const [historyBrushTopHardness, setHistoryBrushTopHardness] = useState(70);
-    const [historyBrushTopSampleAllLayers, setHistoryBrushTopSampleAllLayers] = useState(true);
-    const [blurTopSize, setBlurTopSize] = useState(28);
-    const [blurTopStrength, setBlurTopStrength] = useState(45);
-    const [blurTopSampleAllLayers, setBlurTopSampleAllLayers] = useState(true);
-    const [sharpenTopSize, setSharpenTopSize] = useState(28);
-    const [sharpenTopStrength, setSharpenTopStrength] = useState(42);
-    const [sharpenTopSampleAllLayers, setSharpenTopSampleAllLayers] = useState(true);
-    const [dodgeTopSize, setDodgeTopSize] = useState(28);
-    const [dodgeTopExposure, setDodgeTopExposure] = useState(30);
-    const [dodgeTopProtectTones, setDodgeTopProtectTones] = useState(true);
-    const [cloneTopSize, setCloneTopSize] = useState(24);
-    const [cloneTopHardness, setCloneTopHardness] = useState(70);
-    const [cloneTopAligned, setCloneTopAligned] = useState(true);
-    const [cloneTopSampleAllLayers, setCloneTopSampleAllLayers] = useState(true);
-    const [cloneSourcePoint, setCloneSourcePoint] = useState<fabric.Point | null>(null);
-    const [expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover] = useState(() => (
-        loadUiPreferences().expandToolRailLabelsOnHover
-    ));
-    const [paintBrushPreset, setPaintBrushPreset] = useState<RasterBrushPreset>('Pencil');
-    const [paintBrushSize, setPaintBrushSize] = useState(10);
-    const [paintBrushHardness, setPaintBrushHardness] = useState(80);
-    const [paintBrushOpacity, setPaintBrushOpacity] = useState(100);
-    const [paintBrushFlow, setPaintBrushFlow] = useState(100);
-    const [paintBrushSmoothing, setPaintBrushSmoothing] = useState(50);
-    const [paintBlendMode, setPaintBlendMode] = useState<RasterBlendMode>('source-over');
-    const [penTopMode, setPenTopMode] = useState<'path' | 'shape'>('path');
-    const [penTopPathOperation, setPenTopPathOperation] = useState<'add' | 'subtract' | 'intersect'>('add');
-    const [penTopAutoAddDelete, setPenTopAutoAddDelete] = useState(true);
-    const [penTopRubberBand, setPenTopRubberBand] = useState(true);
-    const [handTopLockPan, setHandTopLockPan] = useState(true);
+    const {
+        autoSelectEnabled, setAutoSelectEnabled, selectionMode, setSelectionMode,
+        showTransformControls, setShowTransformControls, selectFeather, setSelectFeather,
+        selectAntiAlias, setSelectAntiAlias, selectionModifyPixels, setSelectionModifyPixels,
+        wandTopThreshold, setWandTopThreshold,
+        healingTopSize, setHealingTopSize, healingTopHardness, setHealingTopHardness,
+        healingTopSampleAllLayers, setHealingTopSampleAllLayers,
+        historyBrushTopSize, setHistoryBrushTopSize, historyBrushTopHardness, setHistoryBrushTopHardness,
+        historyBrushTopSampleAllLayers, setHistoryBrushTopSampleAllLayers,
+        blurTopSize, setBlurTopSize, blurTopStrength, setBlurTopStrength,
+        blurTopSampleAllLayers, setBlurTopSampleAllLayers,
+        sharpenTopSize, setSharpenTopSize, sharpenTopStrength, setSharpenTopStrength,
+        sharpenTopSampleAllLayers, setSharpenTopSampleAllLayers,
+        dodgeTopSize, setDodgeTopSize, dodgeTopExposure, setDodgeTopExposure,
+        dodgeTopProtectTones, setDodgeTopProtectTones,
+        cloneTopSize, setCloneTopSize, cloneTopHardness, setCloneTopHardness,
+        cloneTopAligned, setCloneTopAligned, cloneTopSampleAllLayers, setCloneTopSampleAllLayers,
+        cloneSourcePoint, setCloneSourcePoint,
+        expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover,
+        paintBrushPreset, setPaintBrushPreset, paintBrushSize, setPaintBrushSize,
+        paintBrushHardness, setPaintBrushHardness, paintBrushOpacity, setPaintBrushOpacity,
+        paintBrushFlow, setPaintBrushFlow, paintBrushSmoothing, setPaintBrushSmoothing,
+        paintBlendMode, setPaintBlendMode,
+        penTopMode, setPenTopMode, penTopPathOperation, setPenTopPathOperation,
+        penTopAutoAddDelete, setPenTopAutoAddDelete, penTopRubberBand, setPenTopRubberBand,
+        handTopLockPan, setHandTopLockPan,
+    } = useEditorTopToolState();
     const {
         mediaOverlayEnabled,
         setMediaOverlayEnabled,
@@ -273,6 +255,9 @@ export default function EditorView({
         handleAddMediaOverlayFrame,
         handleRemoveActiveMediaOverlayFrame,
         handleToggleMediaOverlayFrameInclude,
+        mediaOverlayNamingTemplate,
+        setMediaOverlayNamingTemplate,
+        handleActiveMediaOverlayFrameSafeAreaPresetChange,
         handleSelectMediaOverlayFrame,
     } = useMediaOverlay({
         canvas,
@@ -452,49 +437,18 @@ export default function EditorView({
         canvas,
     });
 
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const persistedMode = window.localStorage.getItem(PANEL_MODE_STORAGE_KEY);
-        if (persistedMode) {
-            const matched = WINDOW_PANEL_ITEMS.find((item) => item.mode === persistedMode);
-            if (matched) {
-                setPropertiesPanelMode(matched.mode);
-            }
-        }
-    }, [setPropertiesPanelMode]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        window.localStorage.setItem(PANEL_MODE_STORAGE_KEY, propertiesPanelMode);
-    }, [propertiesPanelMode]);
+    useEditorPanelModePersistence({
+        storageKey: PANEL_MODE_STORAGE_KEY,
+        propertiesPanelMode,
+        setPropertiesPanelMode,
+    });
     const [profileSettings, setProfileSettings] = useState<UserProfileSettings | null>(() => loadProfileSettings());
     // Assets & Missing Items
     const [showAssetBrowserForMissing, setShowAssetBrowserForMissing] = useState(false);
     const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
     const [replacementMap, setReplacementMap] = useState<Record<string, string>>({});
 
-    useEffect(() => {
-        if (!canvas) return;
-        if (activeTool !== 'paint') {
-            disableRasterDrawingMode(canvas);
-            return;
-        }
-
-        try {
-            applyRasterBrushToCanvas(canvas, {
-                preset: paintBrushPreset,
-                size: paintBrushSize,
-                hardness: paintBrushHardness,
-                opacity: paintBrushOpacity,
-                flow: paintBrushFlow,
-                smoothing: paintBrushSmoothing,
-                color: '#000000',
-            });
-            canvas.requestRenderAll();
-        } catch {
-            return;
-        }
-    }, [
+    useEditorPaintPenEffects({
         canvas,
         activeTool,
         paintBrushPreset,
@@ -503,55 +457,12 @@ export default function EditorView({
         paintBrushOpacity,
         paintBrushFlow,
         paintBrushSmoothing,
-    ]);
-
-    useEffect(() => {
-        if (!canvas || activeTool !== 'paint') return;
-
-        const handlePathBlendMode = (event: { path?: fabric.Object }) => {
-            if (!event.path) return;
-            window.setTimeout(() => {
-                if (!event.path) return;
-                event.path.set({ globalCompositeOperation: paintBlendMode });
-                event.path.setCoords();
-                canvas.requestRenderAll();
-            }, 0);
-        };
-
-        canvas.on('path:created', handlePathBlendMode);
-        return () => {
-            canvas.off('path:created', handlePathBlendMode);
-        };
-    }, [canvas, activeTool, paintBlendMode]);
-
-    useEffect(() => {
-        if (!canvas) return;
-
-        const canvasWithEvents = canvas as unknown as {
-            on: (eventName: string, cb: (payload?: { closure?: 'open' | 'closed'; pathOperation?: 'add' | 'subtract' | 'intersect'; autoAddDelete?: boolean; rubberBand?: boolean }) => void) => void;
-            off: (eventName: string, cb: (payload?: { closure?: 'open' | 'closed'; pathOperation?: 'add' | 'subtract' | 'intersect'; autoAddDelete?: boolean; rubberBand?: boolean }) => void) => void;
-        };
-
-        const syncPenMode = (payload?: { closure?: 'open' | 'closed'; pathOperation?: 'add' | 'subtract' | 'intersect'; autoAddDelete?: boolean; rubberBand?: boolean }) => {
-            if (payload?.closure) {
-                setPenTopMode(payload.closure === 'closed' ? 'shape' : 'path');
-            }
-            if (payload?.pathOperation) {
-                setPenTopPathOperation(payload.pathOperation);
-            }
-            if (typeof payload?.autoAddDelete === 'boolean') {
-                setPenTopAutoAddDelete(payload.autoAddDelete);
-            }
-            if (typeof payload?.rubberBand === 'boolean') {
-                setPenTopRubberBand(payload.rubberBand);
-            }
-        };
-
-        canvasWithEvents.on('pen:draft:update', syncPenMode);
-        return () => {
-            canvasWithEvents.off('pen:draft:update', syncPenMode);
-        };
-    }, [canvas]);
+        paintBlendMode,
+        setPenTopMode,
+        setPenTopPathOperation,
+        setPenTopAutoAddDelete,
+        setPenTopRubberBand,
+    });
 
     // 3D & AI States
     const { backgroundJobs, setBackgroundJobs, upsertBackgroundJob } = useBackgroundJobsStore();
@@ -658,6 +569,8 @@ export default function EditorView({
         safeCanvasToDataURL,
         getMediaOverlayCropBounds,
         getMediaOverlayBatchTargets,
+        mediaOverlayNamingTemplate,
+        designName: propDesignName || 'Untitled Design',
         getDisplayName,
         toast,
         closeExportMenu,
@@ -719,75 +632,13 @@ export default function EditorView({
         onDuplicate: handleDuplicate,
     });
 
-    const gridStatusLabel = useMemo(() => {
-        const labels: Record<GridType, string> = {
-            none: 'Off',
-            'rule-of-thirds': 'Thirds',
-            'golden-ratio': 'Golden',
-            cross: 'Cross',
-            'grid-4x4': '4x4',
-            'canvas-border': 'Border',
-        };
-        return labels[gridType];
-    }, [gridType]);
-
-    const bottomRightUtilityStyle = useMemo(() => {
-        const clusterWidth = 260;
-        const clusterHeight = 68;
-        let right = 16;
-        let bottom = backgroundJobs.length > 0 ? 176 : 16;
-
-        const activeViewportWidth = viewportSize.width || 0;
-        const activeViewportHeight = viewportSize.height || 0;
-        const intersects = (
-            a: { left: number; top: number; right: number; bottom: number },
-            b: { left: number; top: number; right: number; bottom: number }
-        ) => (
-            a.left < b.right
-            && a.right > b.left
-            && a.top < b.bottom
-            && a.bottom > b.top
-        );
-
-        if (activeViewportWidth > 0 && activeViewportHeight > 0) {
-            const createClusterRect = (nextRight: number, nextBottom: number) => ({
-                left: activeViewportWidth - nextRight - clusterWidth,
-                top: activeViewportHeight - nextBottom - clusterHeight,
-                right: activeViewportWidth - nextRight,
-                bottom: activeViewportHeight - nextBottom,
-            });
-
-            if (contextMenu.isOpen) {
-                const contextRect = {
-                    left: contextMenu.x - 90,
-                    top: contextMenu.y - 90,
-                    right: contextMenu.x + 90,
-                    bottom: contextMenu.y + 90,
-                };
-                if (intersects(createClusterRect(right, bottom), contextRect)) {
-                    bottom += 96;
-                }
-            }
-
-            if (panelState.mode === 'floating') {
-                const floatingHeight = Math.round(activeViewportHeight * 0.7);
-                const floatingRect = {
-                    left: panelState.position.x,
-                    top: panelState.position.y,
-                    right: panelState.position.x + panelState.width,
-                    bottom: panelState.position.y + floatingHeight,
-                };
-                if (intersects(createClusterRect(right, bottom), floatingRect)) {
-                    right = Math.max(16, activeViewportWidth - floatingRect.left + 16);
-                }
-            }
-        }
-
-        return {
-            right: `${right}px`,
-            bottom: `${bottom}px`,
-        };
-    }, [backgroundJobs.length, contextMenu, panelState, viewportSize]);
+    const { gridStatusLabel, bottomRightUtilityStyle } = useEditorUtilityOverlayLayout({
+        gridType,
+        backgroundJobsCount: backgroundJobs.length,
+        contextMenu,
+        panelState,
+        viewportSize,
+    });
 
     const triggerToolbarTool = useCallback((toolName: string) => {
         toolbarRef.current?.triggerTool(toolName);
@@ -882,7 +733,65 @@ export default function EditorView({
             return next;
         });
     }, [closeEditorMenus]);
-    const propertiesPanelChromeControls = {
+
+    const {
+        propertiesPanelChromeControls,
+        propertiesPanelContentControls,
+        propertiesPanelBrushControls,
+        canvasWorkspaceCanvasControls,
+        canvasWorkspaceTextControls,
+        canvasWorkspaceLockOverlayControls,
+        canvasWorkspaceUtilityControls,
+        workspaceShellToolbarProps,
+        workspaceShellJobFooterProps,
+        workspaceShellContextMenuProps,
+    } = useEditorWorkspaceCompositionProps({
+        canvas,
+        activeTool,
+        user,
+        activePalette,
+        setActivePalette,
+        handleToolbarToolChange,
+        handleOpenThreeDEditor,
+        apiKeys,
+        zoomTopMode,
+        expandToolRailLabelsOnHover,
+        backgroundJobs,
+        setBackgroundJobs,
+        contextMenu,
+        handleCloseContextMenu,
+        triggerToolbarTool,
+        handleLayerOrderAction,
+        activeLayerOrderState,
+        bottomRightUtilityStyle,
+        zoom,
+        utilityCanvasSize,
+        gridStatusLabel,
+        handleZoom,
+        handleFitToScreen,
+        handleResetZoomFromWorkspace,
+        lockedLayerOverlayEntries,
+        canvasLockControl,
+        hoveredLockedLayerId,
+        setHoveredLockedLayerId,
+        setObjectLockedFromCanvasOverlay,
+        textQuickBarPos,
+        textOptions,
+        handleTextFontFamilyChange,
+        handleTextFontStyleChange,
+        handleTextFontSizeChange,
+        handleTextColorChange,
+        handleTextBoldChange,
+        handleTextItalicChange,
+        handleTextUnderlineChange,
+        handleTextAlignChange,
+        handleTextSpellcheckChange,
+        handleFileDrop,
+        handleOpenWorkspaceContextMenu,
+        setCanvas,
+        handleCanvasModified,
+        initialSize,
+        handleRightClick,
         panelState,
         propertiesPanelMode,
         setPropertiesPanelMode,
@@ -890,103 +799,27 @@ export default function EditorView({
         startPanelResize,
         toggleCollapse,
         toggleFloat,
-    };
-    const propertiesPanelContentControls = {
         handleDuplicate,
         handleAssetSelect,
         historyState,
         handleUndo,
         handleRedo,
-        zoom,
-        enablePanelRailHoverLabels: expandToolRailLabelsOnHover,
-        onOpenThreeDFromSelection: handleOpenThreeDFromPanel,
-    };
-    const propertiesPanelBrushControls = {
-        brushOptions: {
-            brushPreset: paintBrushPreset,
-            size: paintBrushSize,
-            hardness: paintBrushHardness,
-            opacity: paintBrushOpacity,
-            flow: paintBrushFlow,
-            smoothing: paintBrushSmoothing,
-            blendMode: paintBlendMode,
-        },
-        onBrushPresetChange: setPaintBrushPreset,
-        onBrushSizeChange: setPaintBrushSize,
-        onBrushHardnessChange: setPaintBrushHardness,
-        onBrushOpacityChange: setPaintBrushOpacity,
-        onBrushFlowChange: setPaintBrushFlow,
-        onBrushSmoothingChange: setPaintBrushSmoothing,
-        onBrushBlendModeChange: setPaintBlendMode,
-    };
-    const canvasWorkspaceCanvasControls = {
-        onFileDrop: handleFileDrop,
-        onOpenWorkspaceContextMenu: handleOpenWorkspaceContextMenu,
-        onCanvasReady: setCanvas,
-        onModified: handleCanvasModified,
-        initialWidth: initialSize?.width,
-        initialHeight: initialSize?.height,
-        onRightClick: handleRightClick,
-    };
-    const canvasWorkspaceTextControls = {
-        visible: textQuickBarPos.visible,
-        left: textQuickBarPos.left,
-        top: textQuickBarPos.top,
-        textOptions,
-        onTextFontFamilyChange: handleTextFontFamilyChange,
-        onTextFontStyleChange: handleTextFontStyleChange,
-        onTextFontSizeChange: handleTextFontSizeChange,
-        onTextColorChange: handleTextColorChange,
-        onTextBoldChange: handleTextBoldChange,
-        onTextItalicChange: handleTextItalicChange,
-        onTextUnderlineChange: handleTextUnderlineChange,
-        onTextAlignChange: handleTextAlignChange,
-        onTextSpellcheckChange: handleTextSpellcheckChange,
-    };
-    const canvasWorkspaceLockOverlayControls = {
-        lockedLayerOverlayEntries,
-        canvasLockControl,
-        hoveredLockedLayerId,
-        setHoveredLockedLayerId,
-        onSetObjectLocked: setObjectLockedFromCanvasOverlay,
-    };
-    const canvasWorkspaceUtilityControls = {
-        bottomRightUtilityStyle,
-        zoom,
-        utilityCanvasSize,
-        gridStatusLabel,
-        onZoomOut: () => handleZoom(-0.1),
-        onZoomIn: () => handleZoom(0.1),
-        onFitToScreen: handleFitToScreen,
-        onResetZoom: handleResetZoomFromWorkspace,
-    };
-    const workspaceShellToolbarProps = {
-        canvas,
-        activeTool,
-        currentUser: user,
-        activePalette,
-        setActivePalette,
-        setActiveTool: handleToolbarToolChange,
-        onOpen3DEditor: handleOpenThreeDEditor,
-        apiKeys,
-        zoomCursorMode: zoomTopMode,
-        enableHoverLabels: expandToolRailLabelsOnHover,
-    };
-    const workspaceShellJobFooterProps = {
-        jobs: backgroundJobs,
-        onClear: (jobId: string) => {
-            setBackgroundJobs((prev) => prev.filter((job) => job.id !== jobId));
-        },
-    };
-    const workspaceShellContextMenuProps = {
-        x: contextMenu.x,
-        y: contextMenu.y,
-        isOpen: contextMenu.isOpen,
-        onClose: handleCloseContextMenu,
-        onSelectTool: triggerToolbarTool,
-        onLayerOrderAction: handleLayerOrderAction,
-        layerOrderState: activeLayerOrderState,
-    };
+        handleOpenThreeDFromPanel,
+        paintBrushPreset,
+        paintBrushSize,
+        paintBrushHardness,
+        paintBrushOpacity,
+        paintBrushFlow,
+        paintBrushSmoothing,
+        paintBlendMode,
+        setPaintBrushPreset,
+        setPaintBrushSize,
+        setPaintBrushHardness,
+        setPaintBrushOpacity,
+        setPaintBrushFlow,
+        setPaintBrushSmoothing,
+        setPaintBlendMode,
+    });
 
     return (
         <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
@@ -1088,6 +921,9 @@ export default function EditorView({
                     mediaOverlayFrames={mediaOverlayFrames}
                     handleSelectMediaOverlayFrame={handleSelectMediaOverlayFrame}
                     handleToggleMediaOverlayFrameInclude={handleToggleMediaOverlayFrameInclude}
+                    handleActiveMediaOverlayFrameSafeAreaPresetChange={handleActiveMediaOverlayFrameSafeAreaPresetChange}
+                    mediaOverlayNamingTemplate={mediaOverlayNamingTemplate}
+                    setMediaOverlayNamingTemplate={setMediaOverlayNamingTemplate}
                     handleExport={handleExport}
                     exportMediaOverlayFramesZip={exportMediaOverlayFramesZip}
                     setShowProfileModal={setShowProfileModal}

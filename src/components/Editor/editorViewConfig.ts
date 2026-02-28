@@ -39,9 +39,31 @@ export type MediaOverlayPresetSpec = {
     height: number;
 };
 
+export type MediaOverlaySafeAreaPreset =
+    | 'none'
+    | 'title-safe-10'
+    | 'action-safe-20';
+
+export type MediaOverlaySafeAreaPresetSpec = {
+    id: MediaOverlaySafeAreaPreset;
+    label: string;
+    insetRatio: number;
+};
+
+export type MediaOverlayNamingTemplate =
+    | 'frame-preset'
+    | 'design-frame-preset'
+    | 'design-preset-date-frame';
+
+export type MediaOverlayNamingTemplateSpec = {
+    id: MediaOverlayNamingTemplate;
+    label: string;
+};
+
 export type MediaOverlayPersistedState = {
     enabled: boolean;
     preset: MediaOverlayPreset;
+    namingTemplate?: MediaOverlayNamingTemplate;
     frameBounds?: {
         left: number;
         top: number;
@@ -53,6 +75,7 @@ export type MediaOverlayPersistedState = {
         id: string;
         preset: MediaOverlayPreset;
         includeInBatchExport: boolean;
+        safeAreaPreset?: MediaOverlaySafeAreaPreset;
         bounds?: {
             left: number;
             top: number;
@@ -72,6 +95,18 @@ export const MEDIA_OVERLAY_PRESETS: MediaOverlayPresetSpec[] = [
     { id: 'youtube-landscape', label: 'YouTube 16:9', width: 1920, height: 1080 },
     { id: 'youtube-shorts', label: 'YouTube Shorts 9:16', width: 1080, height: 1920 },
     { id: 'tiktok-vertical', label: 'TikTok 9:16', width: 1080, height: 1920 },
+];
+
+export const MEDIA_OVERLAY_SAFE_AREA_PRESETS: MediaOverlaySafeAreaPresetSpec[] = [
+    { id: 'none', label: 'None', insetRatio: 0 },
+    { id: 'title-safe-10', label: 'Title Safe (10%)', insetRatio: 0.1 },
+    { id: 'action-safe-20', label: 'Action Safe (20%)', insetRatio: 0.2 },
+];
+
+export const MEDIA_OVERLAY_NAMING_TEMPLATES: MediaOverlayNamingTemplateSpec[] = [
+    { id: 'frame-preset', label: 'Frame + Preset' },
+    { id: 'design-frame-preset', label: 'Design + Frame + Preset' },
+    { id: 'design-preset-date-frame', label: 'Design + Preset + Date + Frame' },
 ];
 
 export const MEDIA_OVERLAY_STORAGE_KEY_PREFIX = 'image-express-media-overlay';

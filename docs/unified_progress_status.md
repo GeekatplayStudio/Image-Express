@@ -17,6 +17,8 @@ Use this file first for: what is done, what is pending, and what to do next.
 
 ## Latest Delivery (2026-02-27)
 
+- Completed Media Export Overlay Phase A3: per-frame safe-area guide presets in Export menu, persisted safe-area metadata per frame, and active-frame safe-area guide rendering on canvas overlay.
+- Added frame ZIP naming templates (`Frame + Preset`, `Design + Frame + Preset`, `Design + Preset + Date + Frame`) with persisted template preference and template-driven batch export filenames.
 - Completed Media Export Overlay Phase A2 in `EditorView`: multi-frame frame-list management, active-frame switching, per-frame include/exclude toggles, and persisted frame collections (`frames` + `activeFrameId`) in local storage.
 - Added batch frame export actions in Export menu: `ZIP Selected Frames` and `ZIP All Frames`, reusing existing crop/export pipeline and generating PNG ZIP archives.
 - Refactored media overlay orchestration out of `EditorView` into dedicated hook `src/components/Editor/useMediaOverlay.ts` to reduce integration-file bloat and centralize overlay behavior.
@@ -35,6 +37,8 @@ Use this file first for: what is done, what is pending, and what to do next.
 - Reduced `src/components/Editor/EditorView.tsx` from 5764 lines to 1337 lines across these refactor slices.
 
 Validation notes:
+- Focused A3 export tests passed:
+  - `npm test -- --runInBand src/components/Editor/__tests__/EditorView.test.tsx -t "exports batch ZIP from media overlay menu|applies media overlay naming template and active-frame safe area controls"`
 - Focused export/menu tests passed:
   - `npm test -- src/components/Editor/__tests__/EditorView.test.tsx --watch=false -t "wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions|exports PNG without canvas background when toggle is off|exports JSON and HTML bundle from export menu|exports batch ZIP from media overlay menu"`
 - Focused crop/eyedropper/zoom tests passed:
@@ -65,6 +69,8 @@ Validation notes:
   - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useEditorCanvasExportSupport.ts`
 - Lint passed for latest shell-effects extraction slice:
   - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useEditorShellEffects.ts`
+- Lint passed for A3 slice:
+  - `npx eslint src/components/Editor/EditorView.tsx src/components/Editor/useMediaOverlay.ts src/components/Editor/useEditorExport.ts src/components/Editor/EditorHeaderActions.tsx src/components/Editor/editorViewConfig.ts src/components/Editor/__tests__/EditorView.test.tsx`
 - Build passed:
   - `npm run build`
 
@@ -135,15 +141,14 @@ Verification method used:
 ## Pending Work (Upgrade Program)
 
 ### Next Active Step (Approved Direction)
-- [ ] Implement **Media Export Overlay (Phase A3)**:
-  - Add safe-area guide presets per frame.
-  - Add naming templates for frame export outputs.
-  - Keep A2 batch ZIP flow as the canonical export path.
+- [ ] Implement **Media Export Overlay (Phase B)**:
+  - Add optional `convert frame to variant` bridge action for campaign workflow handoff.
+  - Keep A1/A2/A3 overlay export path as the canonical lightweight adaptation workflow.
 
 ### Media Export Overlay Roadmap (new)
 - [x] A1: single frame export from overlay bounds.
 - [x] A2: multi-frame management + batch ZIP export.
-- [ ] A3: safe-area guides + naming templates.
+- [x] A3: safe-area guides + naming templates.
 - [ ] B: optional bridge "convert frame to variant" for future campaign workspace.
 
 ### A) Pre-Implementation Safety Gates

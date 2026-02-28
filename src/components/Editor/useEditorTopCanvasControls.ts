@@ -2,10 +2,8 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import * as fabric from 'fabric';
 
 import { normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
-import {
-    sampleColorAtCanvasCenter,
-    sampleColorAtScenePoint,
-} from '@/components/Editor/editorColorSampling';
+import { sampleColorAtCanvasCenter, sampleColorAtScenePoint } from '@/components/Editor/editorColorSampling';
+import { buildAspectCropRect, getCanvasCenterPoint, parseCropAspectRatio, rectsIntersect, resolveUtilityCanvasSize } from '@/components/Editor/editorTopCanvasUtils';
 import {
     TOP_CROP_RATIO_PRESETS,
     TOP_EYEDROPPER_SAMPLE_SIZES,
@@ -43,12 +41,7 @@ export function useEditorTopCanvasControls({
     const [cropTopRatioPreset, setCropTopRatioPreset] = useState<TopCropRatioPreset>('free');
     const [cropTopDeleteOutside, setCropTopDeleteOutside] = useState(false);
     const [cropTopUseArtboardBounds, setCropTopUseArtboardBounds] = useState(true);
-    const cropTopDraftRectRef = useRef<{
-        left: number;
-        top: number;
-        width: number;
-        height: number;
-    } | null>(null);
+    const cropTopDraftRectRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
     const [eyedropperTopSampleSize, setEyedropperTopSampleSize] = useState<TopEyedropperSampleSize>(1);
     const [eyedropperTopSampleSource, setEyedropperTopSampleSource] = useState<'current-layer' | 'all-layers'>('current-layer');
     const [eyedropperTopSampledColor, setEyedropperTopSampledColor] = useState('#000000');
@@ -74,10 +67,7 @@ export function useEditorTopCanvasControls({
         let nextZoom = currentZoom + factor;
         nextZoom = Math.max(0.05, Math.min(nextZoom, 20));
 
-        const centerPoint = new fabric.Point(
-            (canvas.width || canvas.getWidth()) / 2,
-            (canvas.height || canvas.getHeight()) / 2
-        );
+        const centerPoint = getCanvasCenterPoint(canvas);
         canvas.zoomToPoint(centerPoint, nextZoom);
         canvas.requestRenderAll();
         setZoom(nextZoom);
@@ -91,10 +81,7 @@ export function useEditorTopCanvasControls({
             setZoom(canvas.getZoom());
             return;
         }
-        const centerPoint = new fabric.Point(
-            (canvas.width || canvas.getWidth()) / 2,
-            (canvas.height || canvas.getHeight()) / 2
-        );
+        const centerPoint = getCanvasCenterPoint(canvas);
         canvas.zoomToPoint(centerPoint, 1);
         canvas.requestRenderAll();
         setZoom(1);
@@ -102,54 +89,11 @@ export function useEditorTopCanvasControls({
 
     const handleZoomReset = useCallback(() => {
         if (!canvas) return;
-        const centerPoint = new fabric.Point(
-            (canvas.width || canvas.getWidth()) / 2,
-            (canvas.height || canvas.getHeight()) / 2
-        );
+        const centerPoint = getCanvasCenterPoint(canvas);
         canvas.zoomToPoint(centerPoint, 1);
         canvas.requestRenderAll();
         setZoom(1);
     }, [canvas, setZoom]);
-
-    const parseCropAspectRatio = useCallback((preset: TopCropRatioPreset): number | null => {
-        if (preset === 'free') return null;
-        const [widthToken, heightToken] = preset.split(':');
-        const width = Number(widthToken);
-        const height = Number(heightToken);
-        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-            return null;
-        }
-        return width / height;
-    }, []);
-
-    const buildAspectCropRect = useCallback((
-        sourceRect: { left: number; top: number; width: number; height: number },
-        aspectRatio: number | null
-    ) => {
-        if (!aspectRatio) {
-            return {
-                left: sourceRect.left,
-                top: sourceRect.top,
-                width: Math.max(1, sourceRect.width),
-                height: Math.max(1, sourceRect.height),
-            };
-        }
-
-        const sourceRatio = sourceRect.width / sourceRect.height;
-        let width = sourceRect.width;
-        let height = sourceRect.height;
-        if (sourceRatio > aspectRatio) {
-            width = sourceRect.height * aspectRatio;
-        } else {
-            height = sourceRect.width / aspectRatio;
-        }
-        return {
-            left: sourceRect.left + (sourceRect.width - width) / 2,
-            top: sourceRect.top + (sourceRect.height - height) / 2,
-            width: Math.max(1, width),
-            height: Math.max(1, height),
-        };
-    }, []);
 
     const applyTopCropSettings = useCallback(() => {
         if (!canvas) return;
@@ -203,21 +147,11 @@ export function useEditorTopCanvasControls({
 
         let removedCount = 0;
         if (cropTopDeleteOutside) {
-            const intersects = (
-                a: { left: number; top: number; width: number; height: number },
-                b: { left: number; top: number; width: number; height: number }
-            ) => (
-                a.left < b.left + b.width
-                && a.left + a.width > b.left
-                && a.top < b.top + b.height
-                && a.top + a.height > b.top
-            );
-
             const objects = [...canvas.getObjects()];
             for (const obj of objects) {
                 if (obj === activeCanvas.artboardRect) continue;
                 const bounds = obj.getBoundingRect();
-                if (!intersects(bounds, cropRect)) {
+                if (!rectsIntersect(bounds, cropRect)) {
                     canvas.remove(obj);
                     removedCount += 1;
                 }
@@ -247,8 +181,6 @@ export function useEditorTopCanvasControls({
         cropTopDeleteOutside,
         cropTopRatioPreset,
         cropTopUseArtboardBounds,
-        buildAspectCropRect,
-        parseCropAspectRatio,
         setActiveTool,
         setIsDirty,
         toast,
@@ -489,26 +421,7 @@ export function useEditorTopCanvasControls({
         if (!canvas) return;
 
         const syncUtilityCanvasSize = () => {
-            const activeCanvas = canvas as CanvasWithArtboard;
-            if (activeCanvas.artboardRect) {
-                const width = Math.max(1, Math.round((activeCanvas.artboardRect.width || 0) * (activeCanvas.artboardRect.scaleX || 1)));
-                const height = Math.max(1, Math.round((activeCanvas.artboardRect.height || 0) * (activeCanvas.artboardRect.scaleY || 1)));
-                setUtilityCanvasSize({ width, height });
-                return;
-            }
-
-            if (activeCanvas.artboard) {
-                setUtilityCanvasSize({
-                    width: Math.max(1, Math.round(activeCanvas.artboard.width)),
-                    height: Math.max(1, Math.round(activeCanvas.artboard.height)),
-                });
-                return;
-            }
-
-            const canvasZoom = canvas.getZoom() || 1;
-            const width = Math.max(1, Math.round((canvas.width || canvas.getWidth() || 1080) / canvasZoom));
-            const height = Math.max(1, Math.round((canvas.height || canvas.getHeight() || 1080) / canvasZoom));
-            setUtilityCanvasSize({ width, height });
+            setUtilityCanvasSize(resolveUtilityCanvasSize(canvas));
         };
 
         const canvasWithEvents = canvas as unknown as {

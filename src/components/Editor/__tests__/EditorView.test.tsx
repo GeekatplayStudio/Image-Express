@@ -2290,6 +2290,29 @@ describe('EditorView', () => {
         expect(pngCall).toBeDefined();
     });
 
+    it('applies media overlay naming template and active-frame safe area controls', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+
+        const namingTemplateSelect = screen.getByLabelText('Frame naming template') as HTMLSelectElement;
+        fireEvent.change(namingTemplateSelect, { target: { value: 'design-preset-date-frame' } });
+        expect(namingTemplateSelect.value).toBe('design-preset-date-frame');
+
+        fireEvent.click(screen.getByRole('button', { name: /Add Frame/i }));
+
+        const safeAreaSelect = await screen.findByLabelText('Active frame safe area') as HTMLSelectElement;
+        fireEvent.change(safeAreaSelect, { target: { value: 'title-safe-10' } });
+        expect(safeAreaSelect.value).toBe('title-safe-10');
+
+        fireEvent.click(screen.getByRole('button', { name: /ZIP All Frames/i }));
+
+        await waitFor(() => {
+            expect(anchorClickSpy).toHaveBeenCalled();
+        });
+    });
+
     it('loads initial design from URL and handles load errors', async () => {
         const successProps = createDefaultProps();
         const { unmount } = render(

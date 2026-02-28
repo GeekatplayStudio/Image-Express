@@ -1,12 +1,8 @@
 import { useEffect } from 'react';
 import * as fabric from 'fabric';
-
 import { normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
 import type { ExtendedFabricObject } from '@/types';
-import type {
-    LassoSelectionHelper,
-    MarqueeSelectionHelper,
-} from '@/components/Editor/editorView.types';
+import type { LassoSelectionHelper, MarqueeSelectionHelper } from '@/components/Editor/editorView.types';
 
 type SelectionMode = 'layer' | 'group';
 
@@ -57,7 +53,6 @@ export function useEditorCanvasSelectionInteractions({
 
         const pointInPolygon = (point: fabric.Point, polygon: fabric.Point[]) => {
             if (polygon.length < 3) return false;
-
             let inside = false;
             for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
                 const xi = polygon[i].x;
@@ -68,7 +63,6 @@ export function useEditorCanvasSelectionInteractions({
                     && (point.x < (((xj - xi) * (point.y - yi)) / ((yj - yi) || Number.EPSILON)) + xi);
                 if (intersects) inside = !inside;
             }
-
             return inside;
         };
 
@@ -95,23 +89,19 @@ export function useEditorCanvasSelectionInteractions({
 
         const buildLassoPathData = (points: fabric.Point[], closed = false) => {
             if (points.length === 0) return '';
-
             const start = points[0];
             let pathData = `M ${start.x} ${start.y}`;
             for (let i = 1; i < points.length; i += 1) {
                 pathData += ` L ${points[i].x} ${points[i].y}`;
             }
-
             if (closed && points.length > 2) {
                 pathData += ' Z';
             }
-
             return pathData;
         };
 
         const updateLassoHelperPath = (points: fabric.Point[], closed = false) => {
             if (!lassoHelper || points.length === 0) return;
-
             const nextPath = new fabric.Path(buildLassoPathData(points, closed));
             lassoHelper.set({
                 path: nextPath.path,
@@ -128,12 +118,10 @@ export function useEditorCanvasSelectionInteractions({
                 canvas.remove(marqueeHelper);
                 marqueeHelper = null;
             }
-
             if (lassoHelper) {
                 canvas.remove(lassoHelper);
                 lassoHelper = null;
             }
-
             lassoPoints = [];
         };
 
@@ -147,7 +135,6 @@ export function useEditorCanvasSelectionInteractions({
             if (opt.e && typeof canvasWithScene.getScenePoint === 'function') {
                 return canvasWithScene.getScenePoint(opt.e);
             }
-
             return null;
         };
 

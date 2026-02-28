@@ -3,19 +3,20 @@ import * as fabric from 'fabric';
 
 import type { ExtendedFabricObject } from '@/types';
 import {
-    computeRetouchBrushProfile,
     createSoftBrushMask,
     interpolateStrokePoints,
-    isLocalPointInsideBounds,
     resolveNextCloneSourcePoint,
-    stampDodge,
-    stampFromSource,
-    stampSharpen,
-    toLocalRetouchPoint,
     type RetouchBounds,
 } from '@/lib/retouch-engine';
+import {
+    buildHistorySourceCanvas,
+    buildSceneSourceCanvas,
+    getRetouchBoundsFromCanvas,
+    getScenePointerFromEvent,
+    resolveRetouchBrushProfile,
+    stampRetouchAtPoint,
+} from '@/components/Editor/editorRetouchUtils';
 import type {
-    CanvasWithArtboard,
     RetouchLayerState,
 } from '@/components/Editor/editorView.types';
 
@@ -94,27 +95,8 @@ export function useEditorCanvasRetouchInteractions({
 
     const getRetouchBounds = useCallback((): RetouchBounds | null => {
         if (!canvas) return null;
-
-        const withArtboard = canvas as CanvasWithArtboard;
-        const artboard = withArtboard.artboard;
-        if (artboard && artboard.width > 0 && artboard.height > 0) {
-            return {
-                left: artboard.left,
-                top: artboard.top,
-                width: Math.max(1, Math.round(artboard.width)),
-                height: Math.max(1, Math.round(artboard.height)),
-            };
-        }
-
-        const fallbackWidth = Number(canvas.getWidth?.() || utilityCanvasSize.width || 1);
-        const fallbackHeight = Number(canvas.getHeight?.() || utilityCanvasSize.height || 1);
-        return {
-            left: 0,
-            top: 0,
-            width: Math.max(1, Math.round(fallbackWidth)),
-            height: Math.max(1, Math.round(fallbackHeight)),
-        };
-    }, [canvas, utilityCanvasSize.height, utilityCanvasSize.width]);
+        return getRetouchBoundsFromCanvas(canvas, utilityCanvasSize);
+    }, [canvas, utilityCanvasSize]);
 
     const ensureRetouchLayer = useCallback((): RetouchLayerState | null => {
         if (!canvas) return null;
@@ -286,159 +268,23 @@ export function useEditorCanvasRetouchInteractions({
             });
         };
 
-        const getScenePointer = (opt: fabric.TPointerEventInfo): fabric.Point | null => {
-            const optWithScene = opt as unknown as { scenePoint?: fabric.Point };
-            if (optWithScene.scenePoint) return optWithScene.scenePoint;
+        const getScenePointer = (opt: fabric.TPointerEventInfo): fabric.Point | null => getScenePointerFromEvent(canvas, opt);
 
-            const canvasWithScene = canvas as unknown as {
-                getScenePoint?: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point;
-            };
-            if (opt.e && typeof canvasWithScene.getScenePoint === 'function') {
-                return canvasWithScene.getScenePoint(opt.e);
-            }
-
-            return null;
-        };
-
-        const buildSceneSourceCanvas = (layer: RetouchLayerState, useAllLayers: boolean) => {
-            if (!useAllLayers) {
-                return layer.layerCanvas;
-            }
-
-            const source = document.createElement('canvas');
-            source.width = layer.bounds.width;
-            source.height = layer.bounds.height;
-            const sourceCtx = source.getContext('2d');
-            if (!sourceCtx) return null;
-
-            const canvasAny = canvas as unknown as {
-                toCanvasElement?: (options?: Record<string, unknown>) => HTMLCanvasElement;
-                lowerCanvasEl?: HTMLCanvasElement;
-                getElement?: () => HTMLCanvasElement | null;
-            };
-
-            if (typeof canvasAny.toCanvasElement === 'function') {
-                try {
-                    const snapshot = canvasAny.toCanvasElement({
-                        left: layer.bounds.left,
-                        top: layer.bounds.top,
-                        width: layer.bounds.width,
-                        height: layer.bounds.height,
-                        multiplier: 1,
-                        enableRetinaScaling: false,
-                        withoutTransform: true,
-                    });
-                    sourceCtx.drawImage(snapshot, 0, 0, layer.bounds.width, layer.bounds.height);
-                    return source;
-                } catch {
-                    // fall through to lower-canvas sampling
-                }
-            }
-
-            const lowerCanvas = canvasAny.lowerCanvasEl || canvasAny.getElement?.();
-            if (lowerCanvas) {
-                try {
-                    const vt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
-                    const mapSceneToViewport = (point: fabric.Point) => {
-                        return new fabric.Point(
-                            (point.x * vt[0]) + (point.y * vt[2]) + vt[4],
-                            (point.x * vt[1]) + (point.y * vt[3]) + vt[5]
-                        );
-                    };
-
-                    const topLeft = mapSceneToViewport(new fabric.Point(layer.bounds.left, layer.bounds.top));
-                    const bottomRight = mapSceneToViewport(new fabric.Point(
-                        layer.bounds.left + layer.bounds.width,
-                        layer.bounds.top + layer.bounds.height
-                    ));
-                    const logicalWidth = Number(canvas.getWidth?.() || layer.bounds.width || 1);
-                    const logicalHeight = Number(canvas.getHeight?.() || layer.bounds.height || 1);
-                    const pixelScaleX = lowerCanvas.width / Math.max(1, logicalWidth);
-                    const pixelScaleY = lowerCanvas.height / Math.max(1, logicalHeight);
-
-                    let sx = Math.floor(Math.min(topLeft.x, bottomRight.x) * pixelScaleX);
-                    let sy = Math.floor(Math.min(topLeft.y, bottomRight.y) * pixelScaleY);
-                    let sw = Math.ceil(Math.abs(bottomRight.x - topLeft.x) * pixelScaleX);
-                    let sh = Math.ceil(Math.abs(bottomRight.y - topLeft.y) * pixelScaleY);
-
-                    sx = Math.max(0, Math.min(lowerCanvas.width - 1, sx));
-                    sy = Math.max(0, Math.min(lowerCanvas.height - 1, sy));
-                    sw = Math.max(1, Math.min(lowerCanvas.width - sx, sw));
-                    sh = Math.max(1, Math.min(lowerCanvas.height - sy, sh));
-
-                    sourceCtx.drawImage(lowerCanvas, sx, sy, sw, sh, 0, 0, layer.bounds.width, layer.bounds.height);
-                    return source;
-                } catch {
-                    // fallback to retouch-layer-only sampling
-                }
-            }
-
-            try {
-                sourceCtx.drawImage(layer.layerCanvas, 0, 0);
-            } catch {
-                return null;
-            }
-
-            return source;
-        };
-
-        const buildHistorySourceCanvas = (layer: RetouchLayerState) => {
-            const historyImageData = retouchHistorySourceRef.current;
-            if (!historyImageData) return layer.layerCanvas;
-
-            const historyCanvas = document.createElement('canvas');
-            historyCanvas.width = historyImageData.width;
-            historyCanvas.height = historyImageData.height;
-            const historyCtx = historyCanvas.getContext('2d');
-            if (!historyCtx) return layer.layerCanvas;
-
-            historyCtx.putImageData(historyImageData, 0, 0);
-            return historyCanvas;
-        };
-
-        const getBrushProfile = () => {
-            if (isCloneStamp) {
-                return computeRetouchBrushProfile({
-                    mode: 'clone',
-                    size: cloneTopSize,
-                    hardness: cloneTopHardness,
-                });
-            }
-            if (isHealing) {
-                return computeRetouchBrushProfile({
-                    mode: 'healing',
-                    size: healingTopSize,
-                    hardness: healingTopHardness,
-                });
-            }
-            if (isHistoryBrush) {
-                return computeRetouchBrushProfile({
-                    mode: 'history',
-                    size: historyBrushTopSize,
-                    hardness: historyBrushTopHardness,
-                });
-            }
-            if (isBlur) {
-                return computeRetouchBrushProfile({
-                    mode: 'blur',
-                    size: blurTopSize,
-                    strength: blurTopStrength,
-                });
-            }
-            if (isSharpen) {
-                return computeRetouchBrushProfile({
-                    mode: 'sharpen',
-                    size: sharpenTopSize,
-                    strength: sharpenTopStrength,
-                });
-            }
-            return computeRetouchBrushProfile({
-                mode: 'dodge',
-                size: dodgeTopSize,
-                exposure: dodgeTopExposure,
-                protectTones: dodgeTopProtectTones,
-            });
-        };
+        const getBrushProfile = () => resolveRetouchBrushProfile(activeTool, {
+            healingTopSize,
+            healingTopHardness,
+            historyBrushTopSize,
+            historyBrushTopHardness,
+            blurTopSize,
+            blurTopStrength,
+            sharpenTopSize,
+            sharpenTopStrength,
+            dodgeTopSize,
+            dodgeTopExposure,
+            dodgeTopProtectTones,
+            cloneTopSize,
+            cloneTopHardness,
+        });
 
         const markLayerMutated = (layer: RetouchLayerState) => {
             layer.image.set({ dirty: true });
@@ -448,89 +294,21 @@ export function useEditorCanvasRetouchInteractions({
         };
 
         const stampAtPoint = (scenePoint: fabric.Point, layer: RetouchLayerState) => {
-            const localDestination = toLocalRetouchPoint(scenePoint, layer.bounds);
-            if (!isLocalPointInsideBounds(localDestination, layer.bounds)) return;
-
             const profile = getBrushProfile();
-            const size = profile.size;
-            const opacity = profile.opacity;
-
-            if (isDodge) {
-                const didStampDodge = stampDodge({
-                    destinationCtx: layer.ctx,
-                    destinationPoint: localDestination,
-                    size,
-                    opacity,
-                    protectTones: dodgeTopProtectTones,
-                    maskCanvas,
-                });
-                if (didStampDodge) {
-                    markLayerMutated(layer);
-                }
-                return;
-            }
-
-            if (!sourceCanvas) return;
-
-            const localSource = isCloneStamp
-                ? new fabric.Point(
-                    localDestination.x + (cloneOffset?.x || 0),
-                    localDestination.y + (cloneOffset?.y || 0)
-                )
-                : localDestination;
-
-            if (!isLocalPointInsideBounds(localSource, layer.bounds)) return;
-
-            const blurPx = profile.blurPx;
-
-            if (isSharpen) {
-                const didSharpen = stampSharpen({
-                    sourceCanvas,
-                    destinationCtx: layer.ctx,
-                    sourcePoint: localSource,
-                    destinationPoint: localDestination,
-                    size,
-                    opacity,
-                    amount: profile.sharpenAmount,
-                    maskCanvas,
-                });
-                if (didSharpen) {
-                    markLayerMutated(layer);
-                }
-                return;
-            }
-
-            const didStamp = stampFromSource({
+            stampRetouchAtPoint({
+                scenePoint,
+                layer,
+                profile,
+                isDodge,
+                isSharpen,
+                isHealing,
+                isCloneStamp,
+                dodgeTopProtectTones,
                 sourceCanvas,
-                destinationCtx: layer.ctx,
-                sourcePoint: localSource,
-                destinationPoint: localDestination,
-                size,
-                opacity,
-                blurPx,
                 maskCanvas,
-                compositeOperation: profile.compositeOperation,
+                cloneOffset,
+                onMutated: () => markLayerMutated(layer),
             });
-            let didMutate = didStamp;
-
-            if (isHealing && didStamp && profile.secondaryPass) {
-                const didSecondaryStamp = stampFromSource({
-                    sourceCanvas,
-                    destinationCtx: layer.ctx,
-                    sourcePoint: localSource,
-                    destinationPoint: localDestination,
-                    size,
-                    opacity: profile.secondaryPass.opacity,
-                    blurPx: profile.secondaryPass.blurPx,
-                    maskCanvas,
-                    compositeOperation: profile.secondaryPass.compositeOperation,
-                });
-                didMutate = didMutate || didSecondaryStamp;
-            }
-
-            if (didMutate) {
-                markLayerMutated(layer);
-            }
         };
 
         const finishStroke = () => {
@@ -608,15 +386,15 @@ export function useEditorCanvasRetouchInteractions({
                     (cloneSourcePoint?.x || 0) - pointer.x,
                     (cloneSourcePoint?.y || 0) - pointer.y
                 );
-                sourceCanvas = buildSceneSourceCanvas(layer, cloneTopSampleAllLayers);
+                sourceCanvas = buildSceneSourceCanvas(canvas, layer, cloneTopSampleAllLayers);
             } else if (isHealing) {
-                sourceCanvas = buildSceneSourceCanvas(layer, healingTopSampleAllLayers);
+                sourceCanvas = buildSceneSourceCanvas(canvas, layer, healingTopSampleAllLayers);
             } else if (isHistoryBrush) {
-                sourceCanvas = buildHistorySourceCanvas(layer);
+                sourceCanvas = buildHistorySourceCanvas(retouchHistorySourceRef.current, layer);
             } else if (isBlur) {
-                sourceCanvas = buildSceneSourceCanvas(layer, blurTopSampleAllLayers);
+                sourceCanvas = buildSceneSourceCanvas(canvas, layer, blurTopSampleAllLayers);
             } else if (isSharpen) {
-                sourceCanvas = buildSceneSourceCanvas(layer, sharpenTopSampleAllLayers);
+                sourceCanvas = buildSceneSourceCanvas(canvas, layer, sharpenTopSampleAllLayers);
             } else {
                 sourceCanvas = null;
             }
