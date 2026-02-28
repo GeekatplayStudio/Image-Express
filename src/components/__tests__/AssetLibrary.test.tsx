@@ -267,6 +267,8 @@ describe('AssetLibrary', () => {
             includePublic: true,
             visibility: 'all',
             search: '',
+        }), expect.objectContaining({
+            allowInteractiveAuth: false,
         }));
         expect(hasFetchCall(fetchMock, (url) => url.startsWith('/api/assets/list?'))).toBe(true);
 

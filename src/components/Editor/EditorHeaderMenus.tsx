@@ -2,25 +2,18 @@ import type { Dispatch, SetStateAction } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 import type { GridType } from '@/components/GridOverlay';
-import { WINDOW_PANEL_ITEMS } from '@/components/Editor/editorViewConfig';
 import type { EditorMenuId } from '@/components/Editor/useEditorMenus';
 import type { PanelDockMode } from '@/components/Editor/editorView.types';
 import type { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
-
+import EditorHeaderSelectMenu from '@/components/Editor/EditorHeaderSelectMenu';
+import EditorHeaderWindowMenu from '@/components/Editor/EditorHeaderWindowMenu';
+import EditorHeaderSettingsMenu from '@/components/Editor/EditorHeaderSettingsMenu';
+import EditorHeaderHelpMenu from '@/components/Editor/EditorHeaderHelpMenu';
 type BooleanStateSetter = (next: boolean | ((prev: boolean) => boolean)) => void;
 type GridStateSetter = (next: GridType | ((prev: GridType) => GridType)) => void;
 type LayerOrderAction = 'move-up' | 'move-down' | 'to-front' | 'to-back';
-type LayerOrderState = {
-    canMoveUp: boolean;
-    canMoveDown: boolean;
-    canBringToFront: boolean;
-    canSendToBack: boolean;
-};
-type PanelState = {
-    mode: PanelDockMode;
-    position: { x: number; y: number };
-    width: number;
-};
+type LayerOrderState = { canMoveUp: boolean; canMoveDown: boolean; canBringToFront: boolean; canSendToBack: boolean };
+type PanelState = { mode: PanelDockMode; position: { x: number; y: number }; width: number };
 
 type EditorHeaderMenusProps = {
     showFileMenu: boolean;
@@ -80,60 +73,15 @@ type EditorHeaderMenusProps = {
 };
 
 export default function EditorHeaderMenus({
-    showFileMenu,
-    showEditMenu,
-    showImageMenu,
-    showLayerMenu,
-    showSelectMenu,
-    showFilterMenu,
-    showViewMenu,
-    showWindowMenu,
-    showSettingsMenu,
-    showHelpMenu,
-    toggleEditorMenu,
-    openEditorMenu,
-    setShowFileMenu,
-    setShowEditMenu,
-    setShowImageMenu,
-    setShowLayerMenu,
-    setShowSelectMenu,
-    setShowFilterMenu,
-    setShowViewMenu,
-    setShowWindowMenu,
-    setShowSettingsMenu,
-    setShowHelpMenu,
-    handleSave,
-    handleFitToScreen,
-    handleResetZoomFromMenu,
-    openPanelModeFromMenu,
-    triggerToolbarTool,
-    handleDuplicate,
-    handleLayerDeleteFromMenu,
-    handleLayerToggleLockFromMenu,
-    menuLayerTarget,
-    activeLayerOrderState,
-    handleLayerOrderAction,
-    handleSelectAllFromMenu,
-    handleDeselectFromMenu,
-    handleSelectionModify,
-    handleUndo,
-    handleRedo,
-    historyState,
-    handleZoom,
-    gridType,
-    setGridType,
-    isPropertiesPanelVisible,
-    propertiesPanelMode,
-    handleWindowPanelToggle,
-    setPanelState,
-    panelState,
-    handleWindowDockMode,
-    onOpenSettings,
-    isAdminUser,
-    onOpenAdminArea,
-    onOpenDocumentation,
-    handleShowShortcutsFromMenu,
-    handleShowAboutFromMenu,
+    showFileMenu, showEditMenu, showImageMenu, showLayerMenu, showSelectMenu, showFilterMenu, showViewMenu, showWindowMenu,
+    showSettingsMenu, showHelpMenu, toggleEditorMenu, openEditorMenu, setShowFileMenu, setShowEditMenu, setShowImageMenu,
+    setShowLayerMenu, setShowSelectMenu, setShowFilterMenu, setShowViewMenu, setShowWindowMenu, setShowSettingsMenu,
+    setShowHelpMenu, handleSave, handleFitToScreen, handleResetZoomFromMenu, openPanelModeFromMenu, triggerToolbarTool,
+    handleDuplicate, handleLayerDeleteFromMenu, handleLayerToggleLockFromMenu, menuLayerTarget, activeLayerOrderState,
+    handleLayerOrderAction, handleSelectAllFromMenu, handleDeselectFromMenu, handleSelectionModify, handleUndo, handleRedo,
+    historyState, handleZoom, gridType, setGridType, isPropertiesPanelVisible, propertiesPanelMode, handleWindowPanelToggle,
+    setPanelState, panelState, handleWindowDockMode, onOpenSettings, isAdminUser, onOpenAdminArea, onOpenDocumentation,
+    handleShowShortcutsFromMenu, handleShowAboutFromMenu,
 }: EditorHeaderMenusProps) {
     return (
         <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
@@ -312,111 +260,15 @@ export default function EditorHeaderMenus({
                     </div>
                 )}
             </div>
-            <div className="relative order-5">
-                <button
-                    onClick={() => toggleEditorMenu('select')}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                    aria-expanded={showSelectMenu}
-                >
-                    <span>Select</span>
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${showSelectMenu ? 'rotate-180' : ''}`} />
-                </button>
-                {showSelectMenu && (
-                    <div data-testid="menu-select" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                handleSelectAllFromMenu();
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Select All
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                handleDeselectFromMenu();
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Deselect
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                handleSelectionModify('expand');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Expand Selection
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                handleSelectionModify('contract');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Contract Selection
-                        </button>
-                        <div className="my-1 border-t border-border/50" />
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                triggerToolbarTool('select');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Move Tool
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                triggerToolbarTool('marquee');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Marquee Tool
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                triggerToolbarTool('lasso');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Lasso Tool
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                triggerToolbarTool('wand');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Magic Wand Tool
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                triggerToolbarTool('quick-select');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Quick Selection Tool
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowSelectMenu(false);
-                                triggerToolbarTool('selection-brush');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Selection Brush Tool
-                        </button>
-                    </div>
-                )}
-            </div>
+            <EditorHeaderSelectMenu
+                showSelectMenu={showSelectMenu}
+                toggleEditorMenu={() => toggleEditorMenu('select')}
+                setShowSelectMenu={setShowSelectMenu}
+                handleSelectAllFromMenu={handleSelectAllFromMenu}
+                handleDeselectFromMenu={handleDeselectFromMenu}
+                handleSelectionModify={handleSelectionModify}
+                triggerToolbarTool={triggerToolbarTool}
+            />
             <div className="relative order-6">
                 <button
                     onClick={() => toggleEditorMenu('filter')}
@@ -571,177 +423,33 @@ export default function EditorHeaderMenus({
                     </div>
                 )}
             </div>
-            <div className="relative order-8">
-                <button
-                    onClick={() => toggleEditorMenu('window')}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                    aria-expanded={showWindowMenu}
-                >
-                    <span>Window</span>
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${showWindowMenu ? 'rotate-180' : ''}`} />
-                </button>
-                {showWindowMenu && (
-                    <div data-testid="menu-window" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
-                        {WINDOW_PANEL_ITEMS.map((item) => {
-                            const checked = isPropertiesPanelVisible && propertiesPanelMode === item.mode;
-                            return (
-                                <button
-                                    key={item.mode}
-                                    role="menuitemcheckbox"
-                                    aria-checked={checked}
-                                    onClick={() => {
-                                        handleWindowPanelToggle(item.mode);
-                                        setShowWindowMenu(false);
-                                    }}
-                                    className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${checked ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
-                                >
-                                    <span>{item.label}</span>
-                                    <span className={`text-xs ${checked ? 'text-primary' : 'text-transparent'}`}>✓</span>
-                                </button>
-                            );
-                        })}
-                        <div className="my-1 border-t border-border/50" />
-                        <button
-                            role="menuitemcheckbox"
-                            aria-checked={isPropertiesPanelVisible}
-                            onClick={() => {
-                                if (isPropertiesPanelVisible) {
-                                    setPanelState((prev) => {
-                                        if (prev.mode === 'docked-left') return { ...prev, mode: 'collapsed-left' };
-                                        if (prev.mode === 'docked-right') return { ...prev, mode: 'collapsed-right' };
-                                        if (prev.mode === 'floating') return { ...prev, mode: 'collapsed-right', position: { x: 0, y: 0 } };
-                                        return prev;
-                                    });
-                                } else {
-                                    setPanelState((prev) => {
-                                        if (prev.mode === 'collapsed-left') return { ...prev, mode: 'docked-left' };
-                                        if (prev.mode === 'collapsed-right') return { ...prev, mode: 'docked-right' };
-                                        return { ...prev, mode: 'docked-right' };
-                                    });
-                                }
-                                setShowWindowMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${isPropertiesPanelVisible ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
-                        >
-                            <span>Show Properties Panel</span>
-                            <span className={`text-xs ${isPropertiesPanelVisible ? 'text-primary' : 'text-transparent'}`}>✓</span>
-                        </button>
-                        <div className="my-1 border-t border-border/50" />
-                        <button
-                            role="menuitemcheckbox"
-                            aria-checked={panelState.mode === 'docked-left'}
-                            onClick={() => {
-                                handleWindowDockMode('docked-left');
-                                setShowWindowMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'docked-left') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
-                        >
-                            <span>Dock Left</span>
-                            <span className={`text-xs ${(panelState.mode === 'docked-left') ? 'text-primary' : 'text-transparent'}`}>✓</span>
-                        </button>
-                        <button
-                            role="menuitemcheckbox"
-                            aria-checked={panelState.mode === 'docked-right'}
-                            onClick={() => {
-                                handleWindowDockMode('docked-right');
-                                setShowWindowMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'docked-right') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
-                        >
-                            <span>Dock Right</span>
-                            <span className={`text-xs ${(panelState.mode === 'docked-right') ? 'text-primary' : 'text-transparent'}`}>✓</span>
-                        </button>
-                        <button
-                            role="menuitemcheckbox"
-                            aria-checked={panelState.mode === 'floating'}
-                            onClick={() => {
-                                handleWindowDockMode('floating');
-                                setShowWindowMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'floating') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
-                        >
-                            <span>Float Panel</span>
-                            <span className={`text-xs ${(panelState.mode === 'floating') ? 'text-primary' : 'text-transparent'}`}>✓</span>
-                        </button>
-                    </div>
-                )}
-            </div>
-            <div className="relative order-9">
-                <button
-                    onClick={() => toggleEditorMenu('settings')}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                    aria-expanded={showSettingsMenu}
-                >
-                    <span>Settings</span>
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${showSettingsMenu ? 'rotate-180' : ''}`} />
-                </button>
-                {showSettingsMenu && (
-                    <div data-testid="menu-settings" className="absolute left-0 top-full mt-2 w-52 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
-                        <button
-                            onClick={() => {
-                                setShowSettingsMenu(false);
-                                onOpenSettings();
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Preferences...
-                        </button>
-                        {isAdminUser && (
-                            <button
-                                onClick={() => {
-                                    setShowSettingsMenu(false);
-                                    onOpenAdminArea?.();
-                                }}
-                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                            >
-                                Admin Area
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-            <div className="relative order-10">
-                <button
-                    onClick={() => toggleEditorMenu('help')}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                    aria-expanded={showHelpMenu}
-                >
-                    <span>Help</span>
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${showHelpMenu ? 'rotate-180' : ''}`} />
-                </button>
-                {showHelpMenu && (
-                    <div data-testid="menu-help" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
-                        <button
-                            onClick={() => {
-                                setShowHelpMenu(false);
-                                onOpenDocumentation?.();
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Documentation
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowHelpMenu(false);
-                                handleShowShortcutsFromMenu();
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            Keyboard Shortcuts
-                        </button>
-                        <div className="my-1 border-t border-border/50" />
-                        <button
-                            onClick={() => {
-                                setShowHelpMenu(false);
-                                void handleShowAboutFromMenu();
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            About Image Express
-                        </button>
-                    </div>
-                )}
-            </div>
+            <EditorHeaderWindowMenu
+                showWindowMenu={showWindowMenu}
+                toggleEditorMenu={() => toggleEditorMenu('window')}
+                setShowWindowMenu={setShowWindowMenu}
+                isPropertiesPanelVisible={isPropertiesPanelVisible}
+                propertiesPanelMode={propertiesPanelMode}
+                handleWindowPanelToggle={handleWindowPanelToggle}
+                setPanelState={setPanelState}
+                panelState={panelState}
+                handleWindowDockMode={handleWindowDockMode}
+            />
+            <EditorHeaderSettingsMenu
+                showSettingsMenu={showSettingsMenu}
+                toggleEditorMenu={() => toggleEditorMenu('settings')}
+                setShowSettingsMenu={setShowSettingsMenu}
+                onOpenSettings={onOpenSettings}
+                isAdminUser={isAdminUser}
+                onOpenAdminArea={onOpenAdminArea}
+            />
+            <EditorHeaderHelpMenu
+                showHelpMenu={showHelpMenu}
+                toggleEditorMenu={() => toggleEditorMenu('help')}
+                setShowHelpMenu={setShowHelpMenu}
+                onOpenDocumentation={onOpenDocumentation}
+                handleShowShortcutsFromMenu={handleShowShortcutsFromMenu}
+                handleShowAboutFromMenu={handleShowAboutFromMenu}
+            />
         </div>
     );
 }

@@ -149,6 +149,9 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
   const containerRef = useRef<HTMLDivElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const centerArtboardRef = useRef<(() => void) | null>(null);
+        const onCanvasReadyRef = useRef(onCanvasReady);
+        const onModifiedRef = useRef(onModified);
+        const onRightClickRef = useRef(onRightClick);
     const workspaceColorRef = useRef('#1E1E1E');
     const dialog = useDialog();
     const { toast } = useToast();
@@ -157,6 +160,12 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
   const [selectionDims, setSelectionDims] = useState<{ width: number, height: number } | null>(null);
     const [workspaceColor, setWorkspaceColor] = useState('#1E1E1E');
+
+    useEffect(() => {
+        onCanvasReadyRef.current = onCanvasReady;
+        onModifiedRef.current = onModified;
+        onRightClickRef.current = onRightClick;
+    }, [onCanvasReady, onModified, onRightClick]);
 
     useEffect(() => {
         dialogRef.current = dialog;
@@ -838,7 +847,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
 
     // Modification Listeners
     const notifyModified = () => {
-         if (onModified) onModified();
+            if (onModifiedRef.current) onModifiedRef.current();
     };
 
     canvas.on('object:modified', notifyModified);
@@ -849,7 +858,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     const upperCanvas = canvas.lowerCanvasEl.parentElement?.querySelector('.upper-canvas');
     const handleContextMenu = (e: Event) => {
          e.preventDefault();
-         if (onRightClick) onRightClick(e as MouseEvent);
+            if (onRightClickRef.current) onRightClickRef.current(e as MouseEvent);
     };
     
     if (upperCanvas) {
@@ -857,7 +866,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     }
 
     fabricRef.current = canvas;
-    onCanvasReady(canvas);
+    onCanvasReadyRef.current(canvas);
 
     return () => {
             extendedCanvas.hostContainer = undefined;
@@ -883,7 +892,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
       canvas.dispose();
       resizeObserver.disconnect();
     };
-    }, [onRightClick, onCanvasReady, onModified, initialWidth, initialHeight, dialog, toast]);
+    }, [initialWidth, initialHeight]);
 
     useEffect(() => {
         workspaceColorRef.current = workspaceColor;

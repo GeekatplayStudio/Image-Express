@@ -134,6 +134,10 @@ interface ListDriveAssetsParams {
   category?: AssetCategory;
 }
 
+interface DriveSessionOptions {
+  allowInteractiveAuth?: boolean;
+}
+
 export function loadDriveConfig(): StoredConfig {
   if (typeof window === 'undefined') {
     return { enabled: false };
@@ -631,7 +635,8 @@ async function ensureProjectFolders(gapi: GapiClient, config: StoredConfig) {
   ]);
 }
 
-async function ensureDriveSession(clientId?: string) {
+async function ensureDriveSession(clientId?: string, options?: DriveSessionOptions) {
+  const allowInteractiveAuth = options?.allowInteractiveAuth ?? true;
   const config = loadDriveConfig();
   if (!config.enabled) {
     throw new Error('Google Drive is not connected.');
@@ -646,7 +651,7 @@ async function ensureDriveSession(clientId?: string) {
   if (!drive) {
     throw new Error('Google Drive API client is unavailable.');
   }
-  await refreshAccessToken(gapi, config);
+  await refreshAccessToken(gapi, config, { allowInteractiveAuth });
 
   const accessToken = config.accessToken;
   if (!accessToken) {
@@ -746,7 +751,8 @@ export async function disconnectGoogleDrive() {
   resetDriveConfig();
 }
 
-async function refreshAccessToken(gapi: GapiClient, config: StoredConfig) {
+async function refreshAccessToken(gapi: GapiClient, config: StoredConfig, options?: DriveSessionOptions) {
+  const allowInteractiveAuth = options?.allowInteractiveAuth ?? true;
   if (config.tokenExpiry && Date.now() < config.tokenExpiry - 60000) {
     if (config.accessToken) {
       gapi.client.setToken?.({ access_token: config.accessToken });
@@ -757,6 +763,10 @@ async function refreshAccessToken(gapi: GapiClient, config: StoredConfig) {
   const resolvedClientId = (config.clientId || '').trim();
   if (!resolvedClientId) {
     throw new Error('Google Drive client ID is missing.');
+  }
+
+  if (!allowInteractiveAuth) {
+    throw new Error('Google Drive authentication requires user interaction. Reconnect from Settings to continue.');
   }
 
   let token: { accessToken: string; expiresIn: number };
@@ -881,8 +891,9 @@ export async function uploadDriveAsset(
   return mapped;
 }
 
-export async function listDriveAssets(clientId: string, params: ListDriveAssetsParams) {
-  const { gapi, config, accessToken } = await ensureDriveSession(clientId);
+export async function listDriveAssets(clientId: string, params: ListDriveAssetsParams, options?: DriveSessionOptions) {
+  const allowInteractiveAuth = options?.allowInteractiveAuth ?? false;
+  const { gapi, config, accessToken } = await ensureDriveSession(clientId, { allowInteractiveAuth });
   const assetsFolderId = await ensureAssetsFolder(gapi, config);
   const generatedFolderId = await ensureGeneratedFolder(gapi, config);
   const modelsFolderId = await ensureModelsFolder(gapi, config);

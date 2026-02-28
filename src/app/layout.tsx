@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter } from 'next/font/google';
 import "./globals.css";
 import "./ui-theme.css";
 import '@fontsource/inter/400.css';
@@ -25,12 +24,6 @@ import { DialogProvider } from "@/providers/DialogProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
 import RangeResetListener from "@/components/ui/RangeResetListener";
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} antialiased`}
+        className="antialiased"
         suppressHydrationWarning
       >
         <DialogProvider>

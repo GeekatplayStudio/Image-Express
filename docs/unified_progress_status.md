@@ -17,6 +17,12 @@ Use this file first for: what is done, what is pending, and what to do next.
 
 ## Latest Delivery (2026-02-27)
 
+- Stabilized canvas initialization in `DesignCanvas`: switched canvas-ready/modified/right-click handlers to ref-backed callbacks and narrowed init-effect dependencies to canvas size inputs, preventing re-init loops and max-update-depth flicker.
+- Hardened Google Drive asset listing auth flow: passive `AssetLibrary` fetch now uses non-interactive Drive session refresh and gracefully falls back to local/server assets when user interaction is required.
+- Updated `googleDrive` listing default to non-interactive auth for safety, preventing unintended popup-based token requests from background effects.
+- Reduced noisy console churn for expected blocked-popup/passive-auth cases during cloud listing attempts in background fetch paths.
+- Continued editor modular refactor slices (menu-shell extraction + top-tool-options bridge prop composition) to keep integration files on track for <=500-line goals.
+
 - Completed Media Export Overlay Phase A3: per-frame safe-area guide presets in Export menu, persisted safe-area metadata per frame, and active-frame safe-area guide rendering on canvas overlay.
 - Added frame ZIP naming templates (`Frame + Preset`, `Design + Frame + Preset`, `Design + Preset + Date + Frame`) with persisted template preference and template-driven batch export filenames.
 - Completed Media Export Overlay Phase A2 in `EditorView`: multi-frame frame-list management, active-frame switching, per-frame include/exclude toggles, and persisted frame collections (`frames` + `activeFrameId`) in local storage.
@@ -37,6 +43,8 @@ Use this file first for: what is done, what is pending, and what to do next.
 - Reduced `src/components/Editor/EditorView.tsx` from 5764 lines to 1337 lines across these refactor slices.
 
 Validation notes:
+- Build passed after latest stability/auth fixes:
+  - `npm.cmd run build`
 - Focused A3 export tests passed:
   - `npm test -- --runInBand src/components/Editor/__tests__/EditorView.test.tsx -t "exports batch ZIP from media overlay menu|applies media overlay naming template and active-frame safe area controls"`
 - Focused export/menu tests passed:

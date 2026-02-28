@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 
 import type { ExtendedFabricObject } from '@/types';
@@ -59,6 +59,21 @@ export function useEditorCanvasOverlayState({
     const [hoveredLockedLayerId, setHoveredLockedLayerId] = useState<string | null>(null);
     const [canvasLockControl, setCanvasLockControl] = useState<CanvasLockControl | null>(null);
     const [cursorPreview, setCursorPreview] = useState<CursorPreviewState | null>(null);
+    const lockedLayerOverlayEntriesRef = useRef<LockedLayerOverlayEntry[]>([]);
+    const hoveredLockedLayerIdRef = useRef<string | null>(null);
+    const canvasLockControlRef = useRef<CanvasLockControl | null>(null);
+
+    useEffect(() => {
+        lockedLayerOverlayEntriesRef.current = lockedLayerOverlayEntries;
+    }, [lockedLayerOverlayEntries]);
+
+    useEffect(() => {
+        hoveredLockedLayerIdRef.current = hoveredLockedLayerId;
+    }, [hoveredLockedLayerId]);
+
+    useEffect(() => {
+        canvasLockControlRef.current = canvasLockControl;
+    }, [canvasLockControl]);
 
     const cursorPreviewConfig = useMemo<CursorPreviewConfig | null>(() => {
         if (activeTool === 'eyedropper') {
@@ -279,42 +294,75 @@ export function useEditorCanvasOverlayState({
             entries: LockedLayerOverlayEntry[],
             nextEntries: LockedLayerOverlayEntry[]
         ) => {
+            const nearlyEqual = (a: number, b: number) => Math.abs(a - b) <= 0.5;
             if (entries.length !== nextEntries.length) return false;
             for (let index = 0; index < entries.length; index += 1) {
                 const current = entries[index];
                 const next = nextEntries[index];
                 if (current.id !== next.id) return false;
                 if (current.paintOrder !== next.paintOrder) return false;
-                if (current.viewportBounds.left !== next.viewportBounds.left) return false;
-                if (current.viewportBounds.top !== next.viewportBounds.top) return false;
-                if (current.viewportBounds.width !== next.viewportBounds.width) return false;
-                if (current.viewportBounds.height !== next.viewportBounds.height) return false;
-                if (current.iconBounds.left !== next.iconBounds.left) return false;
-                if (current.iconBounds.top !== next.iconBounds.top) return false;
-                if (current.iconBounds.width !== next.iconBounds.width) return false;
-                if (current.iconBounds.height !== next.iconBounds.height) return false;
+                if (!nearlyEqual(current.viewportBounds.left, next.viewportBounds.left)) return false;
+                if (!nearlyEqual(current.viewportBounds.top, next.viewportBounds.top)) return false;
+                if (!nearlyEqual(current.viewportBounds.width, next.viewportBounds.width)) return false;
+                if (!nearlyEqual(current.viewportBounds.height, next.viewportBounds.height)) return false;
+                if (!nearlyEqual(current.iconBounds.left, next.iconBounds.left)) return false;
+                if (!nearlyEqual(current.iconBounds.top, next.iconBounds.top)) return false;
+                if (!nearlyEqual(current.iconBounds.width, next.iconBounds.width)) return false;
+                if (!nearlyEqual(current.iconBounds.height, next.iconBounds.height)) return false;
             }
             return true;
         };
 
+        const areCanvasLockControlsEqual = (
+            current: CanvasLockControl | null,
+            next: CanvasLockControl | null,
+        ) => {
+            if (current === next) return true;
+            if (!current || !next) return false;
+            const nearlyEqual = (a: number, b: number) => Math.abs(a - b) <= 0.5;
+            return (
+                current.id === next.id
+                && current.object === next.object
+                && current.locked === next.locked
+                && current.label === next.label
+                && nearlyEqual(current.buttonBounds.left, next.buttonBounds.left)
+                && nearlyEqual(current.buttonBounds.top, next.buttonBounds.top)
+                && nearlyEqual(current.buttonBounds.width, next.buttonBounds.width)
+                && nearlyEqual(current.buttonBounds.height, next.buttonBounds.height)
+            );
+        };
+
         const syncLockedLayerOverlayEntries = () => {
             const nextEntries = buildLockedOverlayEntries();
-            setLockedLayerOverlayEntries((current) => (
-                areEntriesEqual(current, nextEntries) ? current : nextEntries
-            ));
-            setHoveredLockedLayerId((current) => (
-                current && nextEntries.some((entry) => entry.id === current) ? current : null
-            ));
+            if (!areEntriesEqual(lockedLayerOverlayEntriesRef.current, nextEntries)) {
+                lockedLayerOverlayEntriesRef.current = nextEntries;
+                setLockedLayerOverlayEntries(nextEntries);
+            }
+
+            const nextHoveredLockedLayerId = hoveredLockedLayerIdRef.current
+                && nextEntries.some((entry) => entry.id === hoveredLockedLayerIdRef.current)
+                ? hoveredLockedLayerIdRef.current
+                : null;
+            if (nextHoveredLockedLayerId !== hoveredLockedLayerIdRef.current) {
+                hoveredLockedLayerIdRef.current = nextHoveredLockedLayerId;
+                setHoveredLockedLayerId(nextHoveredLockedLayerId);
+            }
 
             const activeObject = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
             if (!isCanvasLockControlCandidate(activeObject)) {
-                setCanvasLockControl(null);
+                if (canvasLockControlRef.current) {
+                    canvasLockControlRef.current = null;
+                    setCanvasLockControl(null);
+                }
                 return;
             }
 
             const activeSceneBounds = getObjectSceneBounds(activeObject);
             if (!activeSceneBounds) {
-                setCanvasLockControl(null);
+                if (canvasLockControlRef.current) {
+                    canvasLockControlRef.current = null;
+                    setCanvasLockControl(null);
+                }
                 return;
             }
 
@@ -339,30 +387,37 @@ export function useEditorCanvasOverlayState({
             const activeId = ensureObjectId(activeObject);
             const locked = Boolean(activeObject.locked);
             const label = `${locked ? 'Unlock' : 'Lock'} layer ${activeObject.name || activeId}`;
-            setCanvasLockControl({
+            const nextControl: CanvasLockControl = {
                 id: activeId,
                 object: activeObject,
                 locked,
                 buttonBounds,
                 label,
-            });
+            };
+            if (!areCanvasLockControlsEqual(canvasLockControlRef.current, nextControl)) {
+                canvasLockControlRef.current = nextControl;
+                setCanvasLockControl(nextControl);
+            }
         };
 
-        canvas.on('after:render', syncLockedLayerOverlayEntries);
         canvas.on('object:added', syncLockedLayerOverlayEntries);
         canvas.on('object:removed', syncLockedLayerOverlayEntries);
         canvas.on('object:modified', syncLockedLayerOverlayEntries);
+        canvas.on('object:moving', syncLockedLayerOverlayEntries);
+        canvas.on('object:scaling', syncLockedLayerOverlayEntries);
+        canvas.on('object:rotating', syncLockedLayerOverlayEntries);
         canvas.on('selection:created', syncLockedLayerOverlayEntries);
         canvas.on('selection:updated', syncLockedLayerOverlayEntries);
         canvas.on('selection:cleared', syncLockedLayerOverlayEntries);
-        canvas.requestRenderAll();
         syncLockedLayerOverlayEntries();
 
         return () => {
-            canvas.off('after:render', syncLockedLayerOverlayEntries);
             canvas.off('object:added', syncLockedLayerOverlayEntries);
             canvas.off('object:removed', syncLockedLayerOverlayEntries);
             canvas.off('object:modified', syncLockedLayerOverlayEntries);
+            canvas.off('object:moving', syncLockedLayerOverlayEntries);
+            canvas.off('object:scaling', syncLockedLayerOverlayEntries);
+            canvas.off('object:rotating', syncLockedLayerOverlayEntries);
             canvas.off('selection:created', syncLockedLayerOverlayEntries);
             canvas.off('selection:updated', syncLockedLayerOverlayEntries);
             canvas.off('selection:cleared', syncLockedLayerOverlayEntries);

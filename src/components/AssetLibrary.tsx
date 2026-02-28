@@ -102,6 +102,15 @@ const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.oga']);
 const MODEL_EXTENSIONS = new Set(['.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply']);
 
+const isDrivePassiveAuthError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    const normalized = message.toLowerCase();
+    return normalized.includes('requires user interaction')
+        || normalized.includes('failed to open popup window')
+        || normalized.includes('popup_failed_to_open')
+        || normalized.includes('cross-origin-opener-policy');
+};
+
 const inferAssetType = (filename: string, mimeType?: string): AssetType => {
     const lowerName = filename.toLowerCase();
     const dotIndex = lowerName.lastIndexOf('.');
@@ -376,6 +385,13 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     search,
                     type: config.type,
                     category: config.category,
+                }, {
+                    allowInteractiveAuth: false,
+                }).catch((error) => {
+                    if (!isDrivePassiveAuthError(error)) {
+                        console.error('Failed loading Google Drive assets', error);
+                    }
+                    return [];
                 })
                 : Promise.resolve([]);
 

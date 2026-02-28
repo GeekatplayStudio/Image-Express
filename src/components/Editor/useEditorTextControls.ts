@@ -32,6 +32,19 @@ export function useEditorTextControls({ canvas }: UseEditorTextControlsArgs) {
     useEffect(() => {
         if (!canvas) return;
 
+        const setQuickBarPos = (next: { visible: boolean; left: number; top: number }) => {
+            setTextQuickBarPos((current) => {
+                if (
+                    current.visible === next.visible
+                    && Math.abs(current.left - next.left) <= 0.5
+                    && Math.abs(current.top - next.top) <= 0.5
+                ) {
+                    return current;
+                }
+                return next;
+            });
+        };
+
         const toViewportPoint = (point: fabric.Point) => {
             const transform = canvas.viewportTransform || [1, 0, 0, 1, 0, 0] as fabric.TMat2D;
             return (fabric.util as unknown as { transformPoint: (p: fabric.Point, t: fabric.TMat2D) => fabric.Point }).transformPoint(point, transform);
@@ -41,19 +54,19 @@ export function useEditorTextControls({ canvas }: UseEditorTextControlsArgs) {
             const active = canvas.getActiveObject() as (fabric.Object & { type?: string }) | null;
             const isTextObject = active?.type === 'i-text' || active?.type === 'text' || active?.type === 'textbox';
             if (!active || !isTextObject) {
-                setTextQuickBarPos({ visible: false, left: 0, top: 0 });
+                setQuickBarPos({ visible: false, left: 0, top: 0 });
                 return;
             }
 
             const canvasElement = canvas.lowerCanvasEl;
             if (!canvasElement) {
-                setTextQuickBarPos({ visible: false, left: 0, top: 0 });
+                setQuickBarPos({ visible: false, left: 0, top: 0 });
                 return;
             }
 
             const coords = typeof active.getCoords === 'function' ? active.getCoords() : [];
             if (!Array.isArray(coords) || coords.length === 0) {
-                setTextQuickBarPos({ visible: false, left: 0, top: 0 });
+                setQuickBarPos({ visible: false, left: 0, top: 0 });
                 return;
             }
 
@@ -68,7 +81,7 @@ export function useEditorTextControls({ canvas }: UseEditorTextControlsArgs) {
             const clampedLeft = Math.max(190, Math.min(window.innerWidth - 190, desiredLeft));
             const clampedTop = Math.max(84, Math.min(window.innerHeight - 84, desiredTop));
 
-            setTextQuickBarPos({ visible: true, left: clampedLeft, top: clampedTop });
+            setQuickBarPos({ visible: true, left: clampedLeft, top: clampedTop });
         };
 
         syncTextQuickBar();
@@ -95,7 +108,6 @@ export function useEditorTextControls({ canvas }: UseEditorTextControlsArgs) {
             canvas.off('object:rotating', syncTextQuickBar);
             window.removeEventListener('resize', syncOnWindow);
             window.removeEventListener('scroll', syncOnWindow, true);
-            setTextQuickBarPos({ visible: false, left: 0, top: 0 });
         };
     }, [canvas]);
 
