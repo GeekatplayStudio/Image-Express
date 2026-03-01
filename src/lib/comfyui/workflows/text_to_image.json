@@ -1,0 +1,45 @@
+{
+    "nodes": {
+        "1": {
+            "class_type": "LoadImage",
+            "inputs": {}
+        },
+        "2": {
+            "class_type": "KSampler",
+            "inputs": {
+                "seed": 12345,
+                "steps": 20,
+                "cfg": 7,
+                "sampler_name": "euler",
+                "model": "model_path",
+                "positive": "A beautiful landscape",
+                "negative": "",
+                "latent_image": "1"
+            }
+        },
+        "3": {
+            "class_type": "SaveImage",
+            "inputs": {
+                "filename_prefix": "output",
+                "images": "2"
+            }
+        }
+    },
+    "connections": {
+        "1": {
+            "output": [
+                "2",
+                "latent_image"
+            ]
+        },
+        "2": {
+            "output": [
+                "3",
+                "images"
+            ]
+        }
+    },
+    "output": [
+        "3"
+    ]
+}

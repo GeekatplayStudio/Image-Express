@@ -199,13 +199,13 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <DraggableResizablePanel
-                className="bg-card rounded-xl shadow-2xl overflow-hidden border border-border"
+                className="bg-card rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col"
                 initialPosition={{ x: 140, y: 100 }}
                 initialSize={{ width: 520, height: 620 }}
                 minWidth={420}
                 minHeight={520}
             >
-                <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30 draggable-handle cursor-move">
+                <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30 draggable-handle cursor-move shrink-0">
                     <h3 className="font-semibold flex items-center gap-2">
                         <RotateCw size={18} className="text-primary" />
                         3D View Editor
@@ -217,7 +217,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
 
                 <div
                     ref={canvasWrapperRef}
-                    className="flex-1 relative bg-secondary/20 checkerboard-bg pointer-events-auto select-none"
+                    className="flex-1 relative bg-secondary/20 checkerboard-bg pointer-events-auto select-none min-h-0 overflow-hidden"
                     style={{ touchAction: 'none' }}
                     onPointerDown={(e) => e.stopPropagation()}
                     onWheel={(e) => e.stopPropagation()}
@@ -502,7 +502,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-border flex justify-end gap-3 bg-card">
+                <div className="p-4 border-t border-border flex justify-end gap-3 bg-card shrink-0">
                     <button
                         onClick={onClose}
                         className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"

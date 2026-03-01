@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud, HardDrive, Loader2, HelpCircle } from 'lucide-react';
 import HelpPopup from './HelpPopup';
+import { ComfyUIWorkflowRunner } from '@/components/ComfyUIWorkflowRunner';
 import type { AuthUser, DesktopUpdatePayload, DesktopUpdateStatus, GoogleDriveConfig } from '@/types';
 import { connectGoogleDrive, disconnectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 import useEscapeKey from '@/hooks/useEscapeKey';
@@ -39,13 +40,13 @@ export const STORAGE_KEYS = {
     TRIPO_API_KEY: 'tripo_api_key',
     HITEMS_API_KEY: 'hitems_api_key',
     HITEMS_APP_ID: 'hitems_appid',
-    
+
     // Image Services
     STABILITY_API_KEY: 'stability_api_key',
     OPENAI_API_KEY: 'openai_api_key',
     GOOGLE_API_KEY: 'google_api_key', // Google Nano/Gemini
     BANANA_API_KEY: 'banana_api_key', // Banana.dev
-    
+
     // Legacy / Others
     IMG_GEN_PROVIDER: 'image-express-provider',
     COMFY_UI_URL: 'image-express-comfy-url',
@@ -63,12 +64,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [meshyKey, setMeshyKey] = useState('');
     const [tripoKey, setTripoKey] = useState('');
     const [hitemsKey, setHitemsKey] = useState(''); // Stores either "token" or "ak:sk"
-    
+
     // UI state for splitting Hitems key
     const [hitemsMode, setHitemsMode] = useState<'token' | 'ak_sk'>('ak_sk');
     const [hitemsAk, setHitemsAk] = useState('');
     const [hitemsSk, setHitemsSk] = useState('');
-    
+
     const [hitemsAppId, setHitemsAppId] = useState('');
 
     // Image Keys
@@ -154,11 +155,11 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setTripoKey(localStorage.getItem(STORAGE_KEYS.TRIPO_API_KEY) || '');
         setHitemsKey(localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '');
         setHitemsAppId(localStorage.getItem(STORAGE_KEYS.HITEMS_APP_ID) || '');
-        
+
         // Parse Hitem Key
         const rawHitemKey = localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '';
         setHitemsKey(rawHitemKey);
-        
+
         if (rawHitemKey.includes(':') && !rawHitemKey.startsWith('Bearer')) {
             setHitemsMode('ak_sk');
             const [ak, sk] = rawHitemKey.split(':');
@@ -169,7 +170,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             if (!rawHitemKey) setHitemsMode('ak_sk');
             else setHitemsMode('token');
         }
-        
+
         setStabilityKey(localStorage.getItem(STORAGE_KEYS.STABILITY_API_KEY) || '');
         setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
         setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
@@ -194,16 +195,16 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                         if (data.keys.meshy) setMeshyKey(data.keys.meshy);
                         if (data.keys.tripo) setTripoKey(data.keys.tripo);
                         if (data.keys.hitems) {
-                             const raw = data.keys.hitems;
-                             setHitemsKey(raw);
-                             if (raw.includes(':') && !raw.startsWith('Bearer')) {
+                            const raw = data.keys.hitems;
+                            setHitemsKey(raw);
+                            if (raw.includes(':') && !raw.startsWith('Bearer')) {
                                 setHitemsMode('ak_sk');
                                 const [ak, sk] = raw.split(':');
                                 setHitemsAk(ak || '');
                                 setHitemsSk(sk || '');
-                             } else {
+                            } else {
                                 setHitemsMode(raw ? 'token' : 'ak_sk');
-                             }
+                            }
                         }
                         if (data.keys.stability) setStabilityKey(data.keys.stability);
                         if (data.keys.openai) setOpenaiKey(data.keys.openai);
@@ -211,7 +212,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                         if (data.keys.banana) setBananaKey(data.keys.banana);
                         setSyncStatus('synced');
                     } else {
-                         setSyncStatus('local'); // No keys on server yet
+                        setSyncStatus('local'); // No keys on server yet
                     }
                 })
                 .catch(err => {
@@ -372,7 +373,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         localStorage.setItem(STORAGE_KEYS.TRIPO_API_KEY, tripoKey);
         localStorage.setItem(STORAGE_KEYS.HITEMS_API_KEY, effectiveHitemsKey);
         localStorage.setItem(STORAGE_KEYS.HITEMS_APP_ID, hitemsAppId);
-        
+
         localStorage.setItem(STORAGE_KEYS.STABILITY_API_KEY, stabilityKey);
         localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiKey);
         localStorage.setItem(STORAGE_KEYS.GOOGLE_API_KEY, googleKey);
@@ -430,7 +431,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 setSyncStatus('local');
             }
         }
-        
+
         setStatus('saved');
         setTimeout(() => setStatus('idle'), 2000);
     };
@@ -596,7 +597,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-card w-full max-w-md max-h-[85vh] rounded-xl border border-border shadow-2xl p-6 relative animate-in zoom-in-95 duration-200 flex flex-col">
-                <button 
+                <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
                 >
@@ -610,13 +611,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                     <div>
                         <h2 className="text-lg font-bold">API Configurations</h2>
                         <div className="flex flex-col">
-                             <p className="text-xs text-muted-foreground">Manage your keys for external AI services</p>
-                             {userId && userId !== 'Guest' && (
-                                 <span className={`text-[10px] flex items-center gap-1 mt-1 ${syncStatus === 'synced' ? 'text-green-500' : 'text-amber-500'}`}>
-                                     <Server size={10} />
-                                     {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'synced' ? 'Synced with Account' : 'Local Storage Only'}
-                                 </span>
-                             )}
+                            <p className="text-xs text-muted-foreground">Manage your keys for external AI services</p>
+                            {userId && userId !== 'Guest' && (
+                                <span className={`text-[10px] flex items-center gap-1 mt-1 ${syncStatus === 'synced' ? 'text-green-500' : 'text-amber-500'}`}>
+                                    <Server size={10} />
+                                    {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'synced' ? 'Synced with Account' : 'Local Storage Only'}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -624,16 +625,16 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 <div className="flex-1 overflow-y-auto pr-2 space-y-6">
                     {/* 3D Generation Section */}
                     <div className="space-y-4">
-                         <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
-                             <Box size={16} className="text-primary"/>
-                             3D Services
+                        <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
+                            <Box size={16} className="text-primary" />
+                            3D Services
                         </h4>
-                        
+
                         <div className="grid gap-3">
                             {/* Meshy */}
                             <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
                                 <label className="text-xs font-semibold mb-1.5 block">Meshy AI</label>
-                                <input 
+                                <input
                                     type="password"
                                     value={meshyKey}
                                     onChange={(e) => {
@@ -663,7 +664,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             {/* Tripo */}
                             <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
                                 <label className="text-xs font-semibold mb-1.5 block">Tripo AI</label>
-                                <input 
+                                <input
                                     type="password"
                                     value={tripoKey}
                                     onChange={(e) => {
@@ -691,18 +692,18 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
 
                             {/* Hitem3D */}
-                             <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
                                 <div className="flex justify-between mb-1.5 items-center">
                                     <label className="text-xs font-semibold">Hitem3D</label>
                                     <div className="flex gap-2 text-[10px] bg-secondary rounded p-0.5">
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => setHitemsMode('ak_sk')}
                                             className={`px-2 py-0.5 rounded transition-colors ${hitemsMode === 'ak_sk' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
                                         >
                                             AK/SK
                                         </button>
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => setHitemsMode('token')}
                                             className={`px-2 py-0.5 rounded transition-colors ${hitemsMode === 'token' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
@@ -711,10 +712,10 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         </button>
                                     </div>
                                 </div>
-                                
+
                                 {hitemsMode === 'ak_sk' ? (
                                     <div className="space-y-2">
-                                        <input 
+                                        <input
                                             type="text"
                                             value={hitemsAk}
                                             onChange={(e) => {
@@ -724,7 +725,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                             placeholder="Access Key (ak_...)"
                                             className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                         />
-                                        <input 
+                                        <input
                                             type="password"
                                             value={hitemsSk}
                                             onChange={(e) => {
@@ -736,7 +737,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         />
                                     </div>
                                 ) : (
-                                    <input 
+                                    <input
                                         type="password"
                                         value={hitemsKey}
                                         onChange={(e) => {
@@ -748,7 +749,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     />
                                 )}
 
-                                <input 
+                                <input
                                     type="text"
                                     value={hitemsAppId}
                                     onChange={(e) => {
@@ -783,10 +784,10 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                     {/* Image Generation Config */}
                     <div className="space-y-4">
                         <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
-                             <Cloud size={16} className="text-primary"/> 
-                             Image & Vision
+                            <Cloud size={16} className="text-primary" />
+                            Image & Vision
                         </h4>
-                        
+
                         <div className="grid gap-3">
                             {/* Stability AI */}
                             <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
@@ -794,7 +795,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <label className="text-xs font-semibold">Stability AI</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">SD3 / Core</span>
                                 </div>
-                                <input 
+                                <input
                                     type="password"
                                     value={stabilityKey}
                                     onChange={(e) => setStabilityKey(e.target.value)}
@@ -804,12 +805,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
 
                             {/* OpenAI */}
-                             <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
                                 <div className="flex justify-between mb-1.5">
                                     <label className="text-xs font-semibold">OpenAI</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">DALL-E 3</span>
                                 </div>
-                                <input 
+                                <input
                                     type="password"
                                     value={openaiKey}
                                     onChange={(e) => setOpenaiKey(e.target.value)}
@@ -824,7 +825,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <label className="text-xs font-semibold">Google Gemini / Vertex</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">Nano / Imagen</span>
                                 </div>
-                                <input 
+                                <input
                                     type="password"
                                     value={googleKey}
                                     onChange={(e) => {
@@ -851,13 +852,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 </div>
                             </div>
 
-                             {/* Banana.dev */}
+                            {/* Banana.dev */}
                             <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
                                 <div className="flex justify-between mb-1.5">
                                     <label className="text-xs font-semibold">Banana.dev</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">GPU Cloud</span>
                                 </div>
-                                <input 
+                                <input
                                     type="password"
                                     value={bananaKey}
                                     onChange={(e) => setBananaKey(e.target.value)}
@@ -911,10 +912,10 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 {GENERATIVE_WORKFLOW_OPTIONS
                                     .filter((workflow) => isWorkflowSupportedByProvider(defaultGenerativeProvider, workflow.id))
                                     .map((workflow) => (
-                                    <option key={workflow.id} value={workflow.id}>
-                                        {workflow.label}
-                                    </option>
-                                ))}
+                                        <option key={workflow.id} value={workflow.id}>
+                                            {workflow.label}
+                                        </option>
+                                    ))}
                             </select>
                             <p className="text-[11px] text-muted-foreground">
                                 {GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow)?.description}
@@ -1025,37 +1026,37 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <HelpCircle size={14} />
                                     Help
                                 </button>
-                            {driveConfig.enabled ? (
-                                <button
-                                    onClick={handleDisconnectDrive}
-                                    className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
-                                    disabled={isDriveBusy}
-                                >
-                                    {isDriveBusy ? (
-                                        <>
-                                            <Loader2 size={14} className="animate-spin" />
-                                            Disconnecting...
-                                        </>
-                                    ) : (
-                                        'Disconnect'
-                                    )}
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleConnectDrive}
-                                    className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
-                                    disabled={isDriveBusy}
-                                >
-                                    {isDriveBusy ? (
-                                        <>
-                                            <Loader2 size={14} className="animate-spin" />
-                                            Connecting...
-                                        </>
-                                    ) : (
-                                        'Connect'
-                                    )}
-                                </button>
-                            )}
+                                {driveConfig.enabled ? (
+                                    <button
+                                        onClick={handleDisconnectDrive}
+                                        className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
+                                        disabled={isDriveBusy}
+                                    >
+                                        {isDriveBusy ? (
+                                            <>
+                                                <Loader2 size={14} className="animate-spin" />
+                                                Disconnecting...
+                                            </>
+                                        ) : (
+                                            'Disconnect'
+                                        )}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleConnectDrive}
+                                        className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
+                                        disabled={isDriveBusy}
+                                    >
+                                        {isDriveBusy ? (
+                                            <>
+                                                <Loader2 size={14} className="animate-spin" />
+                                                Connecting...
+                                            </>
+                                        ) : (
+                                            'Connect'
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         </div>
                         {showDriveHelp && (
@@ -1264,13 +1265,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                                             <p className="text-xs font-semibold text-foreground truncate">{user.displayName}</p>
                                                             <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
                                                         </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded ${
-                                                            user.status === 'approved'
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded ${user.status === 'approved'
                                                                 ? 'bg-emerald-500/15 text-emerald-600'
                                                                 : user.status === 'pending'
-                                                                ? 'bg-amber-500/15 text-amber-600'
-                                                                : 'bg-red-500/15 text-red-600'
-                                                        }`}>
+                                                                    ? 'bg-amber-500/15 text-amber-600'
+                                                                    : 'bg-red-500/15 text-red-600'
+                                                            }`}>
                                                             {user.status}
                                                         </span>
                                                     </div>
@@ -1333,7 +1333,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
                         )}
 
-                        <button 
+                        <button
                             onClick={handleToggleLog}
                             className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
                         >
@@ -1355,13 +1355,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 </div>
 
                 <div className="mt-8 flex justify-end gap-3">
-                    <button 
+                    <button
                         onClick={onClose}
                         className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
                     >
                         Cancel
                     </button>
-                    <button 
+                    <button
                         onClick={handleSave}
                         className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-lg shadow-primary/20 flex items-center gap-2 transition-all"
                     >
@@ -1369,11 +1369,11 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                         {status !== 'saved' && <Save size={16} />}
                     </button>
                 </div>
-                
-                <HelpPopup 
-                    isOpen={!!helpType} 
-                    onClose={() => setHelpType(null)} 
-                    type={helpType || 'comfy'} 
+
+                <HelpPopup
+                    isOpen={!!helpType}
+                    onClose={() => setHelpType(null)}
+                    type={helpType || 'comfy'}
                 />
             </div>
         </div>
@@ -1383,14 +1383,14 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
 // Utility to get the key from anywhere
 export const getApiKey = (provider: 'meshy' | 'tripo' | 'hitems') => {
     if (typeof window === 'undefined') return '';
-    
+
     switch (provider) {
         case 'meshy':
-             return localStorage.getItem(STORAGE_KEYS.MESHY_API_KEY) || process.env.NEXT_PUBLIC_MESHY_API_KEY || '';
+            return localStorage.getItem(STORAGE_KEYS.MESHY_API_KEY) || process.env.NEXT_PUBLIC_MESHY_API_KEY || '';
         case 'tripo':
-             return localStorage.getItem(STORAGE_KEYS.TRIPO_API_KEY) || '';
+            return localStorage.getItem(STORAGE_KEYS.TRIPO_API_KEY) || '';
         case 'hitems':
-             return localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '';
+            return localStorage.getItem(STORAGE_KEYS.HITEMS_API_KEY) || '';
         default:
             return '';
     }
