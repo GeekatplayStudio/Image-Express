@@ -108,25 +108,33 @@ export default function TopToolOptionsBar({
     const normalizedActiveTool = activeTool || 'select';
     const displayToolName = normalizedActiveTool === 'select'
         ? 'move'
-            : normalizedActiveTool === 'path-select'
-                ? 'path select'
+        : normalizedActiveTool === 'path-select'
+            ? 'path select'
             : normalizedActiveTool === 'clone-stamp'
                 ? 'clone stamp'
-                : normalizedActiveTool === 'blur'
-                    ? 'blur tool'
-                : normalizedActiveTool === 'sharpen'
-                    ? 'sharpen tool'
-                : normalizedActiveTool === 'dodge'
-                    ? 'dodge tool'
-                : normalizedActiveTool === 'history-brush'
-                    ? 'history brush'
-                : normalizedActiveTool === 'healing'
-                    ? 'healing brush'
-                : normalizedActiveTool === 'quick-select'
-                    ? 'quick selection'
-                : normalizedActiveTool === 'selection-brush'
-                    ? 'selection brush'
-            : normalizedActiveTool;
+                : normalizedActiveTool === 'spot-healing'
+                    ? 'spot healing'
+                    : normalizedActiveTool === 'remove'
+                        ? 'remove'
+                        : normalizedActiveTool === 'blur'
+                            ? 'blur tool'
+                            : normalizedActiveTool === 'sharpen'
+                                ? 'sharpen tool'
+                                : normalizedActiveTool === 'dodge'
+                                    ? 'dodge tool'
+                                    : normalizedActiveTool === 'burn'
+                                        ? 'burn tool'
+                                        : normalizedActiveTool === 'sponge'
+                                            ? 'sponge tool'
+                                            : normalizedActiveTool === 'history-brush'
+                                                ? 'history brush'
+                                                : normalizedActiveTool === 'healing'
+                                                    ? 'healing brush'
+                                                    : normalizedActiveTool === 'quick-select'
+                                                        ? 'quick selection'
+                                                        : normalizedActiveTool === 'selection-brush'
+                                                            ? 'selection brush'
+                                                            : normalizedActiveTool;
 
     const hasQuickControls = Boolean(
         (activeTool === 'select' && selectOptions)
@@ -136,10 +144,14 @@ export default function TopToolOptionsBar({
         || (activeTool === 'quick-select' && selectOptions)
         || (activeTool === 'selection-brush' && selectOptions)
         || (activeTool === 'healing' && healingOptions)
+        || (activeTool === 'spot-healing' && healingOptions)
+        || (activeTool === 'remove' && healingOptions)
         || (activeTool === 'history-brush' && historyOptions)
         || (activeTool === 'blur' && blurOptions)
         || (activeTool === 'sharpen' && sharpenOptions)
         || (activeTool === 'dodge' && dodgeOptions)
+        || (activeTool === 'burn' && dodgeOptions)
+        || (activeTool === 'sponge' && dodgeOptions)
         || (activeTool === 'clone-stamp' && cloneOptions)
         || (activeTool === 'paint' && paintOptions)
         || (activeTool === 'gradient' && gradientOptions)
@@ -238,7 +250,7 @@ export default function TopToolOptionsBar({
                     />
                 )}
 
-                {(activeTool === 'healing' || activeTool === 'history-brush' || activeTool === 'clone-stamp' || activeTool === 'blur' || activeTool === 'sharpen' || activeTool === 'dodge') && (
+                {(activeTool === 'healing' || activeTool === 'spot-healing' || activeTool === 'remove' || activeTool === 'history-brush' || activeTool === 'clone-stamp' || activeTool === 'blur' || activeTool === 'sharpen' || activeTool === 'dodge' || activeTool === 'burn' || activeTool === 'sponge') && (
                     <RetouchControls
                         activeTool={activeTool}
                         healingOptions={healingOptions}

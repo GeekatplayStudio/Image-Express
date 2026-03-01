@@ -187,9 +187,9 @@ export const resolveRetouchBrushProfile = (
             hardness: values.cloneTopHardness,
         });
     }
-    if (activeTool === 'healing') {
+    if (activeTool === 'healing' || activeTool === 'spot-healing' || activeTool === 'remove') {
         return computeRetouchBrushProfile({
-            mode: 'healing',
+            mode: activeTool as 'healing' | 'spot-healing' | 'remove',
             size: values.healingTopSize,
             hardness: values.healingTopHardness,
         });
@@ -216,7 +216,7 @@ export const resolveRetouchBrushProfile = (
         });
     }
     return computeRetouchBrushProfile({
-        mode: 'dodge',
+        mode: activeTool as 'dodge' | 'burn' | 'sponge',
         size: values.dodgeTopSize,
         exposure: values.dodgeTopExposure,
         protectTones: values.dodgeTopProtectTones,

@@ -12,10 +12,14 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 export type RetouchProfileMode =
     | 'clone'
     | 'healing'
+    | 'spot-healing'
+    | 'remove'
     | 'history'
     | 'blur'
     | 'sharpen'
-    | 'dodge';
+    | 'dodge'
+    | 'burn'
+    | 'sponge';
 
 type RetouchBrushProfileInput = {
     mode: RetouchProfileMode;
@@ -74,7 +78,7 @@ export const computeRetouchBrushProfile = ({
         };
     }
 
-    if (mode === 'healing') {
+    if (mode === 'healing' || mode === 'spot-healing' || mode === 'remove') {
         const sizeSoftening = clamp((normalizedSize - 24) / 180, 0, 0.35);
         const opacity = (0.22 + (0.66 * Math.pow(normalizedHardness, 0.7))) * (1 - (sizeSoftening * 0.28));
         const softness = 1 - normalizedHardness;
@@ -155,7 +159,7 @@ export const computeRetouchBrushProfile = ({
         spacing: Math.max(1, normalizedSize * (protectTones ? 0.28 : 0.22)),
         blurPx: 0,
         sharpenAmount: 0,
-        compositeOperation: 'screen',
+        compositeOperation: mode === 'burn' ? 'multiply' : (mode === 'sponge' ? 'source-over' : 'screen'),
         secondaryPass: null,
     };
 };

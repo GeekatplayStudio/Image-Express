@@ -22,6 +22,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Paint Folders**: Each paint session is grouped into a single folder; switching tools starts a new paint folder automatically.
 - **Advanced Masking**: Non-destructive masking functionality. Select two objects to mask the bottom one with the top one; includes support for inverting masks.
 - **Interactive Tools**: Gradient editor, expanded shapes (including cloud/thought bubble/hexagon/diamond), and text manipulation with multiline text editing in properties.
+- **Retouching Suite**: Comprehensive canvas manipulation tools including Spot Healing, Remove, Clone Stamp, Blur, Sharpen, Dodge, Burn, Sponge, and History Brush.
 - **Export Options**: Export designs to PNG, JPG, SVG, PDF, JSON, and self-contained HTML bundles with all assets rewritten for offline playback.
 - **In-App Manual**: Contextual help modal with persistent chapter navigation and quick close actions.
 - **Workspace Crop & Picker Reliability**:
@@ -32,6 +33,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 ### AI Capabilities
 - **Advanced 3D Generation**: 
   - Integrated **Meshy**, **Tripo**, and **Hitem3D** AI for high-quality 3D models.
+  - **Interactive 3D Layer Editor**: Rotate, pan, and arrange 3D models seamlessly on the canvas with customizable environment lighting, shadows, and resolution.
   - **Textured Models**: Enforced PBR texture generation for realistic results.
   - **Background Processing**: Robust polling system for long-running AI tasks.
 - **Image Generation**: (Coming Soon) Text-to-Image support.

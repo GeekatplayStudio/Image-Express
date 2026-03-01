@@ -85,7 +85,7 @@ export default function RetouchControls({
     onCloneSampleAllLayersChange,
     onCloneClearSource,
 }: RetouchControlsProps) {
-    if (activeTool === 'healing' && healingOptions) {
+    if ((activeTool === 'healing' || activeTool === 'spot-healing' || activeTool === 'remove') && healingOptions) {
         return (
             <>
                 <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
@@ -296,7 +296,7 @@ export default function RetouchControls({
         );
     }
 
-    if (activeTool === 'dodge' && dodgeOptions) {
+    if ((activeTool === 'dodge' || activeTool === 'burn' || activeTool === 'sponge') && dodgeOptions) {
         return (
             <>
                 <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
@@ -314,7 +314,7 @@ export default function RetouchControls({
                 </label>
 
                 <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                    <span className="text-muted-foreground">Exposure</span>
+                    <span className="text-muted-foreground">{activeTool === 'sponge' ? 'Strength' : 'Exposure'}</span>
                     <input
                         aria-label="Dodge exposure"
                         type="range"
@@ -327,15 +327,17 @@ export default function RetouchControls({
                     <span>{dodgeOptions.exposure}%</span>
                 </label>
 
-                <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                    <input
-                        type="checkbox"
-                        checked={dodgeOptions.protectTones}
-                        onChange={(event) => onDodgeProtectTonesChange?.(event.target.checked)}
-                        aria-label="Dodge protect tones"
-                    />
-                    <span>Protect Tones</span>
-                </label>
+                {activeTool !== 'sponge' && (
+                    <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                        <input
+                            type="checkbox"
+                            checked={dodgeOptions.protectTones}
+                            onChange={(event) => onDodgeProtectTonesChange?.(event.target.checked)}
+                            aria-label="Dodge protect tones"
+                        />
+                        <span>Protect Tones</span>
+                    </label>
+                )}
 
                 <span className="shrink-0 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
                     Dodge bootstrap mode

@@ -5,6 +5,7 @@ import type { RasterBlendMode, RasterBrushPreset } from '@/lib/raster-engine';
 import { APP_THEME } from '@/lib/theme-tokens';
 import { ColorWheelTool } from '../ColorWheelTool';
 
+
 export interface NavigatorSceneRect {
     left: number;
     top: number;
@@ -636,7 +637,7 @@ export function ColorPanelView({
                     variant="panel"
                     selectedColor={effectivePreviewColor}
                     currentPalette={null}
-                    onPaletteSelect={() => {}}
+                    onPaletteSelect={() => { }}
                     onColorSelect={(nextColor) => {
                         applyColorHex(nextColor);
                     }}
@@ -716,6 +717,7 @@ export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwat
 
     useEffect(() => {
         if (!activeGroup && swatchGroups.length > 0) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setActiveGroupId(swatchGroups[0].id);
         }
     }, [activeGroup, swatchGroups]);

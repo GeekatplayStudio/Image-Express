@@ -82,7 +82,7 @@ export function useEditorCanvasOverlayState({
         if (activeTool === 'paint') {
             return { kind: 'brush', diameter: paintBrushSize };
         }
-        if (activeTool === 'healing') {
+        if (activeTool === 'healing' || activeTool === 'spot-healing' || activeTool === 'remove') {
             return { kind: 'brush', diameter: healingTopSize };
         }
         if (activeTool === 'clone-stamp') {
@@ -97,7 +97,7 @@ export function useEditorCanvasOverlayState({
         if (activeTool === 'sharpen') {
             return { kind: 'brush', diameter: sharpenTopSize };
         }
-        if (activeTool === 'dodge') {
+        if (activeTool === 'dodge' || activeTool === 'burn' || activeTool === 'sponge') {
             return { kind: 'brush', diameter: dodgeTopSize };
         }
         return null;

@@ -15,7 +15,13 @@ Use this file first for: what is done, what is pending, and what to do next.
 
 ---
 
-## Latest Delivery (2026-02-27)
+## Latest Delivery (2026-03-01)
+
+- Completed Phase 4 Left-Toolbar Parity: Retouch Group. Added Spot Healing, Remove, Burn, and Sponge tool identities.
+- Extended `retouch-engine.ts` base typings and dummy/fallback calibration for new modes.
+- Integrated new tools into `Toolbar.tsx`, `CircularContextMenu.tsx`, and `ToolsDropdownMenu.tsx` with proper icons.
+- Updated tool checks and UI state handling in `TopToolOptionsBar.tsx`, `RetouchControls.tsx`, `useEditorCanvasRetouchInteractions.ts`, and `editorRetouchUtils.ts` via aliasing to existing logic (dodge/healing base templates).
+- Wired top header filter menu shortcuts in `EditorHeaderMenus.tsx` and updated interaction logic to recognize the new modes natively.
 
 - Stabilized canvas initialization in `DesignCanvas`: switched canvas-ready/modified/right-click handlers to ref-backed callbacks and narrowed init-effect dependencies to canvas size inputs, preventing re-init loops and max-update-depth flicker.
 - Hardened Google Drive asset listing auth flow: passive `AssetLibrary` fetch now uses non-interactive Drive session refresh and gracefully falls back to local/server assets when user interaction is required.
@@ -42,7 +48,11 @@ Use this file first for: what is done, what is pending, and what to do next.
 - Added refactor slice: extracted shell-level side effects (initial tool, canvas selection/control sync, export outside-click, zoom/hand sync, preview escape, UI preferences) from `EditorView` into `src/components/Editor/useEditorShellEffects.ts`.
 - Reduced `src/components/Editor/EditorView.tsx` from 5764 lines to 1337 lines across these refactor slices.
 
-Validation notes:
+Validation notes (2026-03-01):
+- Unit/Integration tests updated to cover dropdown selection checks and top-tool layout validation for new tools.
+- Validation rerun: `npm test`, `npm run lint`, and `npm run build` executed successfully tracking zero fatal issues or test failures.
+
+Validation notes (2026-02-27):
 - Build passed after latest stability/auth fixes:
   - `npm.cmd run build`
 - Focused A3 export tests passed:

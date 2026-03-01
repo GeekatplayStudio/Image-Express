@@ -1,0 +1,55 @@
+
+> creative-flow@0.1.0 lint
+> eslint
+
+
+D:\Adobe-Express-Remake\src\components\AssetLibrary.tsx
+  337:30  warning  The ref value 'mediaPreviewRefs.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'mediaPreviewRefs.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+D:\Adobe-Express-Remake\src\components\DesignCanvas.tsx
+  460:23  warning  'isCanvasInteractionContext' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Adobe-Express-Remake\src\components\LoginModal.tsx
+  156:33  warning  'provider' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Adobe-Express-Remake\src\components\ThreeDLayerEditor.tsx
+  126:18  error  Error: This value cannot be modified
+
+Modifying a value returned from 'useState()', which should not be modified directly. Use the setter function to update instead.
+
+D:\Adobe-Express-Remake\src\components\ThreeDLayerEditor.tsx:126:18
+  124 |                 
+  125 |                 renderer.setSize(resolution.width, resolution.height, false);
+> 126 |                 (camera as THREE.PerspectiveCamera).aspect = resolution.width / resolution.height;
+      |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `gl` cannot be modified
+  127 |                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+  128 |                 
+  129 |                 renderer.render(scene, camera);  react-hooks/immutability
+
+D:\Adobe-Express-Remake\src\components\properties\PanelUtilityViews.tsx
+  719:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\Adobe-Express-Remake\src\components\properties\PanelUtilityViews.tsx:719:13
+  717 |     useEffect(() => {
+  718 |         if (!activeGroup && swatchGroups.length > 0) {
+> 719 |             setActiveGroupId(swatchGroups[0].id);
+      |             ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  720 |         }
+  721 |     }, [activeGroup, swatchGroups]);
+  722 |  react-hooks/set-state-in-effect
+
+D:\Adobe-Express-Remake\src\components\ui\DraggableResizablePanel.tsx
+  146:8  warning  React Hook useEffect has a missing dependency: 'clampFrameToViewport'. Either include it or remove the dependency array                                                                                                                                                                               react-hooks/exhaustive-deps
+  167:8  warning  React Hook useEffect has missing dependencies: 'clampFrameToViewport', 'minHeight', and 'minWidth'. Either include them or remove the dependency array. If 'setSize' needs the current value of 'minWidth', you can also switch to useReducer instead of useState and read 'minWidth' in the reducer  react-hooks/exhaustive-deps
+
+D:\Adobe-Express-Remake\src\lib\googleDrive.ts
+  341:31  warning  'clientId' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 8 problems (2 errors, 6 warnings)
+

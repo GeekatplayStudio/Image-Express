@@ -45,7 +45,7 @@ describe('LoginModal', () => {
     it('submits login and calls onLogin when credentials are valid', async () => {
         const onLogin = jest.fn();
         const user = { email: 'artist@example.com', displayName: 'Artist', role: 'user' };
-        (global.fetch as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
+        (global.fetch as unknown as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ success: true, user }),
         });
@@ -66,12 +66,12 @@ describe('LoginModal', () => {
             expect(onLogin).toHaveBeenCalledWith(user);
         });
 
-        const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body as string);
+        const body = JSON.parse((global.fetch as unknown as jest.Mock).mock.calls[0][1].body as string);
         expect(body).toEqual({ identifier: 'artist@example.com', password: 'secret123' });
     });
 
     it('shows server error for failed login', async () => {
-        (global.fetch as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
+        (global.fetch as unknown as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
             ok: false,
             json: async () => ({ success: false, message: 'Invalid credentials.' }),
         });
@@ -85,7 +85,7 @@ describe('LoginModal', () => {
     });
 
     it('shows fallback error when login request throws', async () => {
-        (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('network'));
+        (global.fetch as unknown as jest.Mock).mockRejectedValueOnce(new Error('network'));
 
         render(<LoginModal isOpen onLogin={jest.fn()} />);
 
@@ -110,7 +110,7 @@ describe('LoginModal', () => {
     });
 
     it('submits registration and returns to login state with success message', async () => {
-        (global.fetch as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
+        (global.fetch as unknown as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ success: true }),
         });
@@ -128,7 +128,7 @@ describe('LoginModal', () => {
         expect(screen.getByPlaceholderText('Enter password')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('you@example.com')).toHaveValue('new@example.com');
 
-        const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body as string);
+        const body = JSON.parse((global.fetch as unknown as jest.Mock).mock.calls[0][1].body as string);
         expect(body).toEqual({
             email: 'new@example.com',
             displayName: 'New User',
@@ -137,7 +137,7 @@ describe('LoginModal', () => {
     });
 
     it('handles reset-request success and transitions to reset-confirm mode', async () => {
-        (global.fetch as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
+        (global.fetch as unknown as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ success: true, debugToken: 'DEV-1234' }),
         });
@@ -154,7 +154,7 @@ describe('LoginModal', () => {
     });
 
     it('submits password reset confirmation and returns to login mode', async () => {
-        (global.fetch as jest.Mock<Promise<MockFetchResponse>>)
+        (global.fetch as unknown as jest.Mock<Promise<MockFetchResponse>>)
             .mockResolvedValueOnce({
                 ok: true,
                 json: async () => ({ success: true, debugToken: 'DEV-1234' }),
@@ -178,7 +178,7 @@ describe('LoginModal', () => {
         expect(await screen.findByText('Password updated. You can sign in now.')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('Enter password')).toBeInTheDocument();
 
-        const body = JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body as string);
+        const body = JSON.parse((global.fetch as unknown as jest.Mock).mock.calls[1][1].body as string);
         expect(body).toEqual({
             email: 'reset@example.com',
             token: 'DEV-1234',

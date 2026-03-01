@@ -310,11 +310,47 @@ export default function EditorHeaderMenus({
                         <button
                             onClick={() => {
                                 setShowFilterMenu(false);
+                                triggerToolbarTool('burn');
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                        >
+                            Burn Tool
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowFilterMenu(false);
+                                triggerToolbarTool('sponge');
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                        >
+                            Sponge Tool
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowFilterMenu(false);
                                 triggerToolbarTool('healing');
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
                             Healing Brush
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowFilterMenu(false);
+                                triggerToolbarTool('spot-healing');
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                        >
+                            Spot Healing Tool
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowFilterMenu(false);
+                                triggerToolbarTool('remove');
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                        >
+                            Remove Tool
                         </button>
                         <div className="my-1 border-t border-border/50" />
                         <button

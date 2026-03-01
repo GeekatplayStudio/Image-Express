@@ -4,12 +4,16 @@ import React, { useEffect, useRef } from 'react';
 import {
     ArrowDown,
     ArrowUp,
+    Bandage,
     Blend,
     Box,
     Brush,
     ChevronsDown,
     ChevronsUp,
     Copy,
+    Droplets,
+    Eraser,
+    Flame,
     History,
     Image as ImageIcon,
     LassoSelect,
@@ -69,12 +73,16 @@ const MENU_ITEMS: CircularMenuItem[] = [
     { id: 'selection-brush', icon: PaintbrushVertical, label: 'Selection Brush', color: APP_THEME.circularMenuColors.paint, group: 'select' },
     { id: 'path-select', icon: Pointer, label: 'Path Select', color: APP_THEME.circularMenuColors.pathSelect, group: 'select' },
 
+    { id: 'spot-healing', icon: Bandage, label: 'Spot Healing', color: APP_THEME.circularMenuColors.healing, group: 'retouch' },
+    { id: 'remove', icon: Eraser, label: 'Remove Tool', color: APP_THEME.circularMenuColors.healing, group: 'retouch' },
     { id: 'healing', icon: ShieldCheck, label: 'Healing Brush', color: APP_THEME.circularMenuColors.healing, group: 'retouch' },
     { id: 'clone-stamp', icon: Copy, label: 'Clone Stamp', color: APP_THEME.circularMenuColors.cloneStamp, group: 'retouch' },
     { id: 'history-brush', icon: History, label: 'History Brush', color: APP_THEME.circularMenuColors.historyBrush, group: 'retouch' },
     { id: 'blur', icon: Blend, label: 'Blur Tool', color: APP_THEME.circularMenuColors.blur, group: 'retouch' },
     { id: 'sharpen', icon: Scan, label: 'Sharpen Tool', color: APP_THEME.circularMenuColors.sharpen, group: 'retouch' },
     { id: 'dodge', icon: Sun, label: 'Dodge Tool', color: APP_THEME.circularMenuColors.dodge, group: 'retouch' },
+    { id: 'burn', icon: Flame, label: 'Burn Tool', color: APP_THEME.circularMenuColors.dodge, group: 'retouch' },
+    { id: 'sponge', icon: Droplets, label: 'Sponge Tool', color: APP_THEME.circularMenuColors.dodge, group: 'retouch' },
 
     { id: 'text', icon: Type, label: 'Text', color: APP_THEME.circularMenuColors.text, group: 'create' },
     { id: 'shapes', icon: Shapes, label: 'Shapes', color: APP_THEME.circularMenuColors.shapes, group: 'create' },
@@ -96,11 +104,11 @@ const LAYER_ORDER_ITEMS: Array<{
     label: string;
     canUse: (state: LayerOrderState | undefined) => boolean;
 }> = [
-    { id: 'to-front', icon: ChevronsUp, label: 'Bring layer to front', canUse: (state) => Boolean(state?.enabled && state?.canBringToFront) },
-    { id: 'move-up', icon: ArrowUp, label: 'Move layer up', canUse: (state) => Boolean(state?.enabled && state?.canMoveUp) },
-    { id: 'move-down', icon: ArrowDown, label: 'Move layer down', canUse: (state) => Boolean(state?.enabled && state?.canMoveDown) },
-    { id: 'to-back', icon: ChevronsDown, label: 'Send layer to back', canUse: (state) => Boolean(state?.enabled && state?.canSendToBack) },
-];
+        { id: 'to-front', icon: ChevronsUp, label: 'Bring layer to front', canUse: (state) => Boolean(state?.enabled && state?.canBringToFront) },
+        { id: 'move-up', icon: ArrowUp, label: 'Move layer up', canUse: (state) => Boolean(state?.enabled && state?.canMoveUp) },
+        { id: 'move-down', icon: ArrowDown, label: 'Move layer down', canUse: (state) => Boolean(state?.enabled && state?.canMoveDown) },
+        { id: 'to-back', icon: ChevronsDown, label: 'Send layer to back', canUse: (state) => Boolean(state?.enabled && state?.canSendToBack) },
+    ];
 
 export default function CircularContextMenu({
     x,
@@ -172,7 +180,7 @@ export default function CircularContextMenu({
     const layerActionStart = -90;
 
     return (
-        <div 
+        <div
             ref={menuRef}
             className="fixed z-[100] w-0 h-0"
             style={{ left: menuX, top: menuY }}
@@ -186,12 +194,12 @@ export default function CircularContextMenu({
                     }}
                 />
                 {/* Center Button (Close/Cancel) */}
-                 <button 
+                <button
                     onClick={onClose}
                     className="absolute -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white dark:bg-zinc-800 rounded-full shadow-lg border border-zinc-200 dark:border-zinc-700 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors z-20"
-                 >
-                     <div className="w-2 h-2 rounded-full bg-zinc-400" />
-                 </button>
+                >
+                    <div className="w-2 h-2 rounded-full bg-zinc-400" />
+                </button>
 
                 {/* Layer Order Inner Ring */}
                 {LAYER_ORDER_ITEMS.map((item, index) => {
@@ -212,11 +220,10 @@ export default function CircularContextMenu({
                                 onLayerOrderAction(item.id);
                                 onClose();
                             }}
-                            className={`absolute w-7 h-7 rounded-full border flex items-center justify-center transition-colors z-20 ${
-                                isEnabled
+                            className={`absolute w-7 h-7 rounded-full border flex items-center justify-center transition-colors z-20 ${isEnabled
                                     ? 'bg-white/95 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-100 hover:bg-primary hover:text-white hover:border-primary'
                                     : 'bg-zinc-100/90 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
-                            }`}
+                                }`}
                             style={{
                                 left: bx,
                                 top: by,
@@ -244,16 +251,16 @@ export default function CircularContextMenu({
                                 onClose();
                             }}
                             className="absolute w-10 h-10 bg-white dark:bg-zinc-800 rounded-full shadow-md border border-zinc-200 dark:border-zinc-700 flex items-center justify-center hover:bg-primary hover:text-white hover:border-primary transition-colors hover:scale-110 duration-200 z-10 group"
-                            style={{ 
-                                left: bx, 
+                            style={{
+                                left: bx,
                                 top: by,
-                                transform: 'translate(-50%, -50%)' 
+                                transform: 'translate(-50%, -50%)'
                             }}
                             title={item.label}
                         >
-                            <item.icon 
-                                size={18} 
-                                style={{ color: item.color }} 
+                            <item.icon
+                                size={18}
+                                style={{ color: item.color }}
                                 className="transition-colors group-hover:!text-white"
                             />
                             {/* Tooltip */}

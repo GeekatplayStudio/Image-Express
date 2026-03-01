@@ -1,0 +1,161 @@
+src/components/Editor/__tests__/EditorView.test.tsx(1,8): error TS1259: Module '"D:/Adobe-Express-Remake/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+src/components/Editor/__tests__/EditorView.test.tsx(83,56): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(102,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(103,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(116,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(138,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(139,21): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(140,21): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(149,21): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(158,20): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(163,20): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(168,20): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(173,20): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(180,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(181,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(190,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(191,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(214,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(215,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(216,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(217,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(225,24): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(230,29): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(254,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(255,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(256,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(262,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(268,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(274,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(280,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(288,20): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(333,35): error TS6142: Module '../EditorView' was resolved to 'D:/Adobe-Express-Remake/src/components/Editor/EditorView.tsx', but '--jsx' is not set.
+src/components/Editor/__tests__/EditorView.test.tsx(340,49): error TS6142: Module '../EditorView' was resolved to 'D:/Adobe-Express-Remake/src/components/Editor/EditorView.tsx', but '--jsx' is not set.
+src/components/Editor/__tests__/EditorView.test.tsx(455,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(461,50): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(462,47): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(463,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(464,60): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(496,59): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(506,44): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(509,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(516,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(519,75): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(572,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(575,78): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(615,68): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Matchers<void, HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(663,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(666,82): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(704,37): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(707,72): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(749,18): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(752,79): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(771,18): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(774,72): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(791,18): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(794,60): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(812,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(815,72): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(866,19): error TS2739: Type 'CanvasRenderingContext2D' is missing the following properties from type 'GPUCanvasContext': __brand, configure, unconfigure, getConfiguration, getCurrentTexture
+src/components/Editor/__tests__/EditorView.test.tsx(871,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(874,79): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(910,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(913,79): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(934,75): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(939,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(958,30): error TS2339: Property 'toHaveStyle' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(965,71): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Matchers<void, HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(971,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(989,79): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1006,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1009,63): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1053,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1090,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1113,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1117,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1128,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1165,69): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1169,72): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1170,88): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Matchers<void, HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1209,49): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1214,36): error TS2339: Property 'toHaveAttribute' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1219,105): error TS2339: Property 'toHaveAttribute' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1224,107): error TS2339: Property 'toHaveAttribute' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1237,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1278,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1318,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1360,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1386,82): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1393,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1442,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1445,49): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1484,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1487,47): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1548,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1551,57): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1612,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1615,46): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1675,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1678,57): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1729,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1732,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1734,65): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1750,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1776,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1779,55): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1821,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1824,55): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1869,19): error TS2739: Type 'CanvasRenderingContext2D' is missing the following properties from type 'GPUCanvasContext': __brand, configure, unconfigure, getConfiguration, getCurrentTexture
+src/components/Editor/__tests__/EditorView.test.tsx(1872,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1875,51): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1947,19): error TS2739: Type 'CanvasRenderingContext2D' is missing the following properties from type 'GPUCanvasContext': __brand, configure, unconfigure, getConfiguration, getCurrentTexture
+src/components/Editor/__tests__/EditorView.test.tsx(1950,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1953,55): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1986,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(1989,54): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1992,55): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1993,59): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1994,68): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(1999,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2002,54): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2005,55): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2006,62): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2007,59): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2012,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2015,51): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2018,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2019,57): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2020,62): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2025,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2028,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2031,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2032,57): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2037,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2040,49): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2075,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2082,52): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2086,62): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2087,49): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2088,53): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2100,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2127,52): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2152,62): error TS2353: Object literal may only specify known properties, and 'clientId' does not exist in type '{ enabled: boolean; }'.
+src/components/Editor/__tests__/EditorView.test.tsx(2155,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2182,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2196,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2212,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2243,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2254,52): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2265,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2271,56): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2283,34): error TS2493: Tuple type '[]' of length '0' has no element at index '0'.
+src/components/Editor/__tests__/EditorView.test.tsx(2287,27): error TS2493: Tuple type '[]' of length '0' has no element at index '0'.
+src/components/Editor/__tests__/EditorView.test.tsx(2292,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2314,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2325,34): error TS2493: Tuple type '[]' of length '0' has no element at index '0'.
+src/components/Editor/__tests__/EditorView.test.tsx(2333,16): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2357,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2376,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2413,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/components/Editor/__tests__/EditorView.test.tsx(2420,68): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.
+src/components/Editor/__tests__/EditorView.test.tsx(2425,61): error TS2339: Property 'toBeInTheDocument' does not exist on type 'JestMatchers<HTMLElement>'.

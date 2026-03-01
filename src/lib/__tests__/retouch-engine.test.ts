@@ -149,4 +149,21 @@ describe('retouch-engine', () => {
         expect(protectedTones.spacing).toBeGreaterThan(regular.spacing);
         expect(protectedTones.compositeOperation).toBe('screen');
     });
+
+    it('calibrates spot-healing and remove mirroring healing logic', () => {
+        const spotHealing = computeRetouchBrushProfile({ mode: 'spot-healing', size: 36, hardness: 50 });
+        const removeTool = computeRetouchBrushProfile({ mode: 'remove', size: 36, hardness: 50 });
+        const healing = computeRetouchBrushProfile({ mode: 'healing', size: 36, hardness: 50 });
+
+        expect(spotHealing).toEqual(healing);
+        expect(removeTool).toEqual(healing);
+    });
+
+    it('calibrates burn and sponge mirroring dodge logic with composite tweaks', () => {
+        const burn = computeRetouchBrushProfile({ mode: 'burn', size: 42, exposure: 60, protectTones: false });
+        const sponge = computeRetouchBrushProfile({ mode: 'sponge', size: 42, exposure: 60, protectTones: false });
+
+        expect(burn.compositeOperation).toBe('multiply');
+        expect(sponge.compositeOperation).toBe('source-over');
+    });
 });

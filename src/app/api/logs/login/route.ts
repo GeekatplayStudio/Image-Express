@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -43,8 +43,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: 'Failed to write log' }, { status: 500 });
     }
 }
+export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
         await ensureLogDir();
         let content = '';

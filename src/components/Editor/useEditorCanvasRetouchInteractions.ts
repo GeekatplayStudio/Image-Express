@@ -241,12 +241,12 @@ export function useEditorCanvasRetouchInteractions({
     useEffect(() => {
         if (!canvas) return;
 
-        const isHealing = activeTool === 'healing';
+        const isHealing = activeTool === 'healing' || activeTool === 'spot-healing' || activeTool === 'remove';
         const isCloneStamp = activeTool === 'clone-stamp';
         const isHistoryBrush = activeTool === 'history-brush';
         const isBlur = activeTool === 'blur';
         const isSharpen = activeTool === 'sharpen';
-        const isDodge = activeTool === 'dodge';
+        const isDodge = activeTool === 'dodge' || activeTool === 'burn' || activeTool === 'sponge';
         if (!isHealing && !isCloneStamp && !isHistoryBrush && !isBlur && !isSharpen && !isDodge) return;
 
         let isDrawing = false;

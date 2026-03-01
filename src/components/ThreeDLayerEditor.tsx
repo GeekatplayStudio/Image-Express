@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls as DreiOrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
 import { Check, X, RotateCw, Settings2, Sun } from 'lucide-react';
@@ -27,7 +27,7 @@ type CaptureGL = {
 
 const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) => void }) => {
     const { scene } = useGLTF(url);
-    const clone = scene.clone();
+    const clone = useMemo(() => scene.clone(), [scene]);
     useEffect(() => {
         clone.traverse((child) => {
             if (child instanceof THREE.Mesh) {
@@ -46,9 +46,9 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
     return <primitive object={clone} />;
 };
 
-export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, onClose }: ThreeDLayerEditorProps) {
+const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeDLayerEditorProps) => {
     const [gl, setGl] = useState<CaptureGL | null>(null);
-    const [resolution, setResolution] = useState<{width: number, height: number}>({ width: 2048, height: 2048 });
+    const [resolution, setResolution] = useState<{ width: number, height: number }>({ width: 2048, height: 2048 });
     const [showResSettings, setShowResSettings] = useState(false);
     const [showLightSettings, setShowLightSettings] = useState(false);
     const [lightPosition, setLightPosition] = useState<{ x: number; y: number; z: number }>({ x: 5, y: 5, z: 5 });
@@ -62,6 +62,8 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
     const [contactShadowIntensity, setContactShadowIntensity] = useState(0.6);
     const [groundY, setGroundY] = useState(-1);
     const controlsRef = useRef<OrbitControlsImpl | null>(null);
+    const canvasWrapperRef = useRef<HTMLDivElement>(null);
+    const cameraInitializedRef = useRef(false);
 
     useEscapeKey(onClose);
 
@@ -86,16 +88,16 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
             const scaleY = existingObject.scaleY || 1;
             const width = existingObject.width || 512;
             const height = existingObject.height || 512;
-            
+
             const targetW = Math.max(Math.round(width * scaleX * 2), 1024);
             const targetH = Math.max(Math.round(height * scaleY * 2), 1024);
-            
+
             setResolution({ width: targetW, height: targetH });
         }
     }, [existingObject]);
 
     useEffect(() => {
-        if (!existingObject) return;
+        if (!existingObject || cameraInitializedRef.current) return;
         const extended = existingObject as ExtendedFabricObject;
         const settings = extended.threeDSettings;
         if (!settings || !gl || !controlsRef.current) return;
@@ -108,33 +110,42 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
             controlsRef.current.target.set(cameraTarget.x, cameraTarget.y, cameraTarget.z);
         }
         controlsRef.current.update();
+        cameraInitializedRef.current = true;
     }, [existingObject, gl]);
 
     useEffect(() => {
         useGLTF.preload(modelUrl);
     }, [modelUrl]);
 
+    const stageContent = useMemo(() => (
+        <Stage environment="city" intensity={0.6} adjustCamera={false} shadows={false}>
+            <ModelViewer url={modelUrl} onGroundY={setGroundY} />
+        </Stage>
+    ), [modelUrl]);
+
     const handleCapture = () => {
         if (gl && gl.glInstance) {
-             const { glInstance: renderer, scene, camera } = gl;
-             try {
+            const { glInstance: renderer, scene, camera } = gl;
+            try {
                 const originalSize = new THREE.Vector2();
                 renderer.getSize(originalSize);
                 const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
-                
+
                 renderer.setSize(resolution.width, resolution.height, false);
+                // eslint-disable-next-line react-hooks/immutability
                 (camera as THREE.PerspectiveCamera).aspect = resolution.width / resolution.height;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-                
+
                 renderer.render(scene, camera);
-                
+
                 const dataUrl = renderer.domElement.toDataURL('image/png', 1.0);
-                
+
                 renderer.setSize(originalSize.x, originalSize.y, false);
-                 
+
+                // eslint-disable-next-line react-hooks/immutability
                 (camera as THREE.PerspectiveCamera).aspect = originalAspect;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-                
+
                 renderer.render(scene, camera);
 
                 const controls = controlsRef.current;
@@ -157,12 +168,12 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                         : undefined
                 };
                 onSave(dataUrl, modelUrl, settings);
-             } catch (e) {
-                 console.error("High-res capture failed", e);
-                 gl.render();
-                 const dataUrl = gl.domElement.toDataURL('image/png', 1.0);
-                 const controls = controlsRef.current;
-                 const settings: ThreeDSettings = {
+            } catch (e) {
+                console.error("High-res capture failed", e);
+                gl.render();
+                const dataUrl = gl.domElement.toDataURL('image/png', 1.0);
+                const controls = controlsRef.current;
+                const settings: ThreeDSettings = {
                     lightPosition,
                     lightIntensity,
                     lightColor,
@@ -179,9 +190,9 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                     cameraTarget: controls
                         ? { x: controls.target.x, y: controls.target.y, z: controls.target.z }
                         : undefined
-                 };
-                 onSave(dataUrl, modelUrl, settings);
-             }
+                };
+                onSave(dataUrl, modelUrl, settings);
+            }
         }
     };
 
@@ -204,11 +215,17 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                     </button>
                 </div>
 
-                <div className="flex-1 relative bg-secondary/20 checkerboard-bg">
-                    
+                <div
+                    ref={canvasWrapperRef}
+                    className="flex-1 relative bg-secondary/20 checkerboard-bg pointer-events-auto select-none"
+                    style={{ touchAction: 'none' }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onWheel={(e) => e.stopPropagation()}
+                >
+
                     <div className="absolute top-2 right-2 z-10 flex flex-col items-end pointer-events-none">
                         <div className="pointer-events-auto flex flex-col items-end gap-1">
-                            <button 
+                            <button
                                 onClick={() => setShowResSettings(!showResSettings)}
                                 className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
                                 title="Export Resolution Settings"
@@ -222,31 +239,31 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                                     <div className="grid grid-cols-2 gap-2 mb-3">
                                         <div>
                                             <label className="text-muted-foreground block mb-1 text-[10px] uppercase">Width</label>
-                                            <input 
-                                                type="number" 
-                                                value={resolution.width} 
+                                            <input
+                                                type="number"
+                                                value={resolution.width}
                                                 onChange={e => {
                                                     const val = parseInt(e.target.value);
-                                                    setResolution(p => ({...p, width: val, height: val}))
+                                                    setResolution(p => ({ ...p, width: val, height: val }))
                                                 }}
-                                                className="w-full bg-muted px-2 py-1 rounded border border-border/50 text-right" 
+                                                className="w-full bg-muted px-2 py-1 rounded border border-border/50 text-right"
                                             />
                                         </div>
                                         <div>
                                             <label className="text-muted-foreground block mb-1 text-[10px] uppercase">Height</label>
-                                            <input 
-                                                type="number" 
-                                                value={resolution.height} 
-                                                onChange={e => setResolution(p => ({...p, height: parseInt(e.target.value)}))}
-                                                className="w-full bg-muted px-2 py-1 rounded border border-border/50 text-right" 
+                                            <input
+                                                type="number"
+                                                value={resolution.height}
+                                                onChange={e => setResolution(p => ({ ...p, height: parseInt(e.target.value) }))}
+                                                className="w-full bg-muted px-2 py-1 rounded border border-border/50 text-right"
                                             />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-3 gap-1">
                                         {[512, 1024, 2048, 4096].map(size => (
-                                            <button 
+                                            <button
                                                 key={size}
-                                                onClick={() => setResolution({width: size, height: size})} 
+                                                onClick={() => setResolution({ width: size, height: size })}
                                                 className={`px-2 py-1 rounded text-[10px] border transition-colors ${resolution.width === size ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted hover:bg-muted/80 border-transparent'}`}
                                             >
                                                 {size}px
@@ -417,13 +434,13 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                         </div>
                     </div>
 
-                    <div className="absolute inset-0 opacity-10 pointer-events-none" 
-                         style={{ backgroundImage: 'radial-gradient(#888 1px, transparent 1px)', backgroundSize: '20px 20px' }}
+                    <div className="absolute inset-0 opacity-10 pointer-events-none"
+                        style={{ backgroundImage: 'radial-gradient(#888 1px, transparent 1px)', backgroundSize: '20px 20px' }}
                     ></div>
 
-                    <Canvas 
+                    <Canvas
                         shadows
-                        gl={{ preserveDrawingBuffer: true, alpha: true }} 
+                        gl={{ preserveDrawingBuffer: true, alpha: true }}
                         camera={{ position: [0, 0, 4], fov: 45 }}
                         onCreated={({ gl, scene, camera }) => {
                             gl.shadowMap.enabled = true;
@@ -471,25 +488,28 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
                                 color="#000000"
                             />
                         )}
-                        <Stage environment="city" intensity={0.6} adjustCamera={true} shadows={false}>
-                            <ModelViewer url={modelUrl} onGroundY={setGroundY} />
-                        </Stage>
-                        <DreiOrbitControls ref={controlsRef} makeDefault autoRotate={false} />
+                        {stageContent}
+                        <DreiOrbitControls
+                            ref={controlsRef}
+                            makeDefault
+                            autoRotate={false}
+                            enableDamping={false}
+                        />
                     </Canvas>
-                    
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted-foreground bg-background/80 px-3 py-1 rounded-full backdrop-blur">
-                        Drag to Rotate • Scroll to Zoom
+
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted-foreground bg-background/80 px-3 py-1 rounded-full backdrop-blur pointer-events-none">
+                        Drag to Rotate • Right-click to Pan • Scroll to Zoom
                     </div>
                 </div>
 
                 <div className="p-4 border-t border-border flex justify-end gap-3 bg-card">
-                    <button 
+                    <button
                         onClick={onClose}
                         className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
                     >
                         Cancel
                     </button>
-                    <button 
+                    <button
                         onClick={handleCapture}
                         className="px-6 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 shadow-lg shadow-primary/20 flex items-center gap-2"
                     >
@@ -500,4 +520,6 @@ export default function ThreeDLayerEditor({ modelUrl, existingObject, onSave, on
             </DraggableResizablePanel>
         </div>
     );
-}
+};
+
+export default React.memo(ThreeDLayerEditor);

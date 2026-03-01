@@ -1,0 +1,1128 @@
+
+> creative-flow@0.1.0 test
+> jest --runInBand src/components/Editor/__tests__/EditorView.test.tsx
+
+  console.error
+    Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+        at sampleCanvasWindow (D:\Adobe-Express-Remake\src\components\Editor\editorColorSampling.ts:37:34)
+        at sampleColorAtCanvasCenter (D:\Adobe-Express-Remake\src\components\Editor\editorColorSampling.ts:79:12)
+        at <unknown> (D:\Adobe-Express-Remake\src\components\Editor\useEditorTopCanvasControls.ts:248:67)
+        at <unknown> (D:\Adobe-Express-Remake\src\components\Editor\useEditorTopCanvasControls.ts:254:43)
+        at <unknown> (D:\Adobe-Express-Remake\src\components\Editor\useEditorTopCanvasControls.ts:268:30)
+        at onClick (D:\Adobe-Express-Remake\src\components\Editor\top-tool-options\AdvancedToolControls.tsx:506:54)
+        at Object.<anonymous> (D:\Adobe-Express-Remake\src\components\Editor\__tests__\EditorView.test.tsx:866:27) {
+      type: 'not implemented'
+    }
+
+    [0m [90m 35 |[39m     [36mconst[39m startY [33m=[39m [33mMath[39m[33m.[39mmax([35m0[39m[33m,[39m centerY [33m-[39m halfWindow)[33m;[39m
+     [90m 36 |[39m     [36mconst[39m width [33m=[39m [33mMath[39m[33m.[39mmin(pixelWindow[33m,[39m sourceCanvas[33m.[39mwidth [33m-[39m startX)[33m;[39m
+    [31m[1m>[22m[39m[90m 37 |[39m     [36mconst[39m height [33m=[39m [33mMath[39m[33m.[39mmin(pixelWindow[33m,[39m sourceCanvas[33m.[39mheight [33m-[39m startY)[33m;[39m
+     [90m    |[39m                                  [31m[1m^[22m[39m
+     [90m 38 |[39m     [36mif[39m (width [33m<=[39m [35m0[39m [33m||[39m height [33m<=[39m [35m0[39m) [36mreturn[39m [36mnull[39m[33m;[39m
+     [90m 39 |[39m
+     [90m 40 |[39m     [36mtry[39m {[0m
+
+      at VirtualConsole.<anonymous> (node_modules/@jest/environment-jsdom-abstract/build/index.js:87:23)
+      at sampleCanvasWindow (src/components/Editor/editorColorSampling.ts:37:34)
+      at sampleColorAtCanvasCenter (src/components/Editor/editorColorSampling.ts:79:12)
+      at src/components/Editor/useEditorTopCanvasControls.ts:248:67
+      at src/components/Editor/useEditorTopCanvasControls.ts:254:43
+      at src/components/Editor/useEditorTopCanvasControls.ts:268:30
+      at onClick (src/components/Editor/top-tool-options/AdvancedToolControls.tsx:506:54)
+      at executeDispatch (node_modules/react-dom/cjs/react-dom-client.development.js:19116:9)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at processDispatchQueue (node_modules/react-dom/cjs/react-dom-client.development.js:19166:19)
+      at node_modules/react-dom/cjs/react-dom-client.development.js:19767:9
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3255:40)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+      at node_modules/@testing-library/dom/dist/events.js:19:20
+      at node_modules/@testing-library/react/dist/pure.js:107:16
+      at node_modules/@testing-library/react/dist/act-compat.js:47:24
+      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:814:22)
+      at node_modules/@testing-library/react/dist/act-compat.js:46:25
+      at Object.eventWrapper (node_modules/@testing-library/react/dist/pure.js:106:28)
+      at fireEvent (node_modules/@testing-library/dom/dist/events.js:12:35)
+      at fireEvent.<computed> [as click] (node_modules/@testing-library/dom/dist/events.js:110:36)
+      at fireEvent.<computed> [as click] (node_modules/@testing-library/react/dist/fire-event.js:15:52)
+      at Object.<anonymous> (src/components/Editor/__tests__/EditorView.test.tsx:866:27)
+
+  console.error
+    Design rename failed Error: Rename failed.
+        at D:\Adobe-Express-Remake\src\components\Editor\useEditorDesignTitle.ts:59:23
+
+    [0m [90m 62 |[39m             onUpdateDesignInfo(data[33m.[39mdesign[33m.[39mid[33m,[39m data[33m.[39mdesign[33m.[39mname [33m||[39m nextName)[33m;[39m
+     [90m 63 |[39m             setDesignTitleDraft(data[33m.[39mdesign[33m.[39mname [33m||[39m nextName)[33m;[39m
+    [31m[1m>[22m[39m[90m 64 |[39m             toast({
+     [90m    |[39m                    [31m[1m^[22m[39m
+     [90m 65 |[39m                 title[33m:[39m [32m'Design renamed'[39m[33m,[39m
+     [90m 66 |[39m                 description[33m:[39m [32m`Now editing "${data.design.name || nextName}".`[39m[33m,[39m
+     [90m 67 |[39m                 variant[33m:[39m [32m'success'[39m[33m,[39m[0m
+
+      at src/components/Editor/useEditorDesignTitle.ts:64:21
+
+  console.error
+    Error loading design data Error: Failed to fetch design data
+        at D:\Adobe-Express-Remake\src\components\Editor\useEditorPersistence.ts:82:36
+
+    [0m [90m 29 |[39m     customHistoryProps[33m:[39m string[][33m;[39m
+     [90m 30 |[39m     driveClientId[33m:[39m string[33m;[39m
+    [31m[1m>[22m[39m[90m 31 |[39m     isDirty[33m:[39m boolean[33m;[39m
+     [90m    |[39m                         [31m[1m^[22m[39m
+     [90m 32 |[39m     dialog[33m:[39m [33mDialogApi[39m[33m;[39m
+     [90m 33 |[39m     toast[33m:[39m [33mToast[39m[33m;[39m
+     [90m 34 |[39m     onBack[33m:[39m () [33m=>[39m [36mvoid[39m[33m;[39m[0m
+
+      at src/components/Editor/useEditorPersistence.ts:31:25
+
+FAIL src/components/Editor/__tests__/EditorView.test.tsx (10.54 s)
+  EditorView
+    × renders core editor UI and wires header actions (141 ms)
+    √ wires top pen path/shape toggle to pen config events (200 ms)
+    √ wires top shape controls and applies shape style to active shape object (194 ms)
+    √ wires top gradient controls and applies gradient config with angle fallback (188 ms)
+    √ wires crop/eyedropper/zoom/hand top utility controls (685 ms)
+    √ applies crop using drag-draft bounds from the workspace (144 ms)
+    √ samples eyedropper color from clicked scene point (157 ms)
+    √ keeps eyedropper active and blocks target-finding selection while sampling (157 ms)
+    √ renders brush cursor preview for paint-size tools and clears on mouse out (246 ms)
+    √ renders eyedropper target cursor preview when eyedropper is active (221 ms)
+    × applies top text font family changes to active text object (148 ms)
+    √ supports admin actions, server rename fallback, and dirty-design back confirmation (128 ms)
+    √ supports server-backed rename success flow (47 ms)
+    √ closes open menus on Escape (53 ms)
+    √ wires file/edit/image/layer/select/filter/view/window/help menu shells to existing editor actions (469 ms)
+    √ supports move, wand, quick-select, selection brush, healing, history brush, blur, dodge, clone stamp, marquee, lasso, and path-select keyboard aliases (7 ms)
+    × unlocks a locked layer from the canvas lock badge click (1016 ms)
+    × shows a corner lock badge for locked layers and unlocks from canvas (1031 ms)
+    × shows only one unlock lock control when selected layer is locked (17 ms)
+    × unlocks a locked child layer inside a group from the canvas lock badge click (1029 ms)
+    √ uses marquee drag bounds to select the top-most intersecting object (140 ms)
+    √ uses lasso path bounds to select the top-most object inside polygon (142 ms)
+    √ routes selection brush interactions through the lasso selection pipeline (154 ms)
+    √ uses wand threshold matching and falls back to pointer-hit target when direct target is missing (150 ms)
+    √ routes quick selection interactions through the wand selection pipeline (151 ms)
+    √ captures clone source point on option-click and updates clone source status (166 ms)
+    √ creates and reuses a dedicated retouch layer during retouch strokes (146 ms)
+    √ shows retouch unavailable warning when canvas 2D context is not available (147 ms)
+    √ falls back to lower-canvas sampling when all-layer snapshot export is unavailable (134 ms)
+    √ captures a fresh history source snapshot at each history-brush stroke start (147 ms)
+    √ shows sharpen controls when sharpen tool is active (152 ms)
+    × shows Healing controls when spot-healing is active (143 ms)
+    √ shows Dodge controls when burn is active (140 ms)
+    √ shows modified Sponge controls when sponge is active (141 ms)
+    √ applies selection expand and contract operations from top controls (161 ms)
+    √ handles grid selection, context menu tool trigger, and zoom controls (71 ms)
+    √ reorders active layer from context menu move-up and send-to-back actions (41 ms)
+    √ saves a new design and uploads a Drive backup when Drive is connected (36 ms)
+    √ stops save when prompt is cancelled for untitled design (31 ms)
+    √ shows save failure message when server save fails (95 ms)
+    √ saves successfully when canvas toDataURL throws with missing upper ctx (93 ms)
+    √ opens share flow, launches export quality modal, and downloads export (187 ms)
+    √ exports PNG without canvas background when toggle is off (187 ms)
+    √ exports JSON and HTML bundle from export menu (93 ms)
+    √ exports batch ZIP from media overlay menu (173 ms)
+    √ applies media overlay naming template and active-frame safe area controls (202 ms)
+    √ loads initial design from URL and handles load errors (76 ms)
+    √ loads template missing assets, replaces with library selection, and resolves (138 ms)
+
+  ● EditorView › renders core editor UI and wires header actions
+
+    TestingLibraryElementError: Unable to find a label with the text of: Select feather
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex h-screen w-full flex-col bg-background text-foreground overflow-hidden"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-[220] relative shadow-sm overflow-visible"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-6"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mdata-testid[39m=[32m"brand-icon"[39m
+                [36m>[39m
+                  [0mBrand[0m
+                [36m</div>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"hidden md:block font-bold text-lg ui-brand-gradient-text max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"[39m
+                  [33mtitle[39m=[32m"Click to rename document"[39m
+                [36m>[39m
+                  [0mUntitled Design[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<nav[39m
+                [33mclass[39m=[32m"flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Back to Hub"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-house"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"16"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"16"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [36m<span>[39m
+                    [0mHub[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-label[39m=[32m"Toggle top menu bar"[39m
+                  [33mclass[39m=[32m"h-8 w-8 rounded-full border border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground transition-colors inline-flex items-center justify-center"[39m
+                  [33mtitle[39m=[32m"Collapse menus"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-chevron-right transition-transform duration-200 rotate-180"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"14"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"14"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"m9 18 6-6-6-6"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</nav>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"relative order-1"[39m
+                [36m>[39m
+                  [36m<button[39m
+                    [33maria-expanded[39m=[32m"false"[39m
+                    [33mclass[39m=[32m"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"[39m
+                  [36m>[39m
+                    [36m<span>[39m
+                      [0mFile[0m
+                    [36m</span>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"lucide lucide-chevron-down transition-transform duration-200"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mheight[39m=[32m"14"[39m
+                      [33mstroke[39m=[32m"currentColor"[39m
+                      [33mstroke-linecap[39m=[32m"round"[39m
+                      [33mstroke-linejoin[39m=[32m"round"[39m
+                      [33mstroke-width[39m=[32m"2"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mwidth[39m=[32m"14"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m
+                      [36m<path[39m
+                        [33md[39m=[32m"m6 9 6 6 6-6"[39m
+                      [36m/>[39m
+                    [36m</svg>[39m
+                  [36m</button>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"relative order-3"[39m
+                [36m>[39m
+                  [36m<button[39m
+                    [33maria-expanded[39m=[32m"false"[39m
+                    [33mclass[39m=[32m"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"[39m
+                  [36m>[39m
+                    [36m<span>[39m
+                      [0mImage[0m
+                    [36m</span>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"lucide lucide-chevron-down transition-transform duration-200"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mheight[39m=[32m"14"[39m
+                      [33mstroke[39m=[32m"currentColor"[39m
+                      [33mstroke-linecap[39m=[32m"round"[39m
+                      [33mstroke-linejoin[39m=[32m"round"[39m
+                      [33mstroke-width[39m=[32m"2"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mwidth[39m=[32m"14"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m...
+
+    [0m [90m 469 |[39m         fireEvent[33m.[39mclick(screen[33m.[39mgetByLabelText([32m'Show Transform Controls'[39m))[33m;[39m
+     [90m 470 |[39m
+    [31m[1m>[22m[39m[90m 471 |[39m         fireEvent[33m.[39mchange(screen[33m.[39mgetByLabelText([32m'Select feather'[39m)[33m,[39m { target[33m:[39m { value[33m:[39m [32m'18'[39m } })[33m;[39m
+     [90m     |[39m                                 [31m[1m^[22m[39m
+     [90m 472 |[39m         expect(activeObject[33m.[39m[36mset[39m)[33m.[39mtoHaveBeenCalledWith(expect[33m.[39mobjectContaining({ shadow[33m:[39m expect[33m.[39manything() }))[33m;[39m
+     [90m 473 |[39m
+     [90m 474 |[39m         fireEvent[33m.[39mclick(screen[33m.[39mgetByLabelText([32m'Select anti-alias'[39m))[33m;[39m[0m
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at getAllByLabelText (node_modules/@testing-library/dom/dist/queries/label-text.js:111:38)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByLabelText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/components/Editor/__tests__/EditorView.test.tsx:471:33)
+
+  ● EditorView › applies top text font family changes to active text object
+
+    The given element does not have a value setter
+
+    [0m [90m 1012 |[39m         latestCanvasStub[33m?[39m[33m.[39mgetActiveObject[33m.[39mmockReturnValue(activeTextObject [36mas[39m any)[33m;[39m
+     [90m 1013 |[39m
+    [31m[1m>[22m[39m[90m 1014 |[39m         fireEvent[33m.[39mchange(screen[33m.[39mgetByLabelText([32m'Text font family'[39m)[33m,[39m {
+     [90m      |[39m                   [31m[1m^[22m[39m
+     [90m 1015 |[39m             target[33m:[39m { value[33m:[39m [32m'Georgia'[39m }[33m,[39m
+     [90m 1016 |[39m         })[33m;[39m
+     [90m 1017 |[39m[0m
+
+      at setNativeValue (node_modules/@testing-library/dom/dist/events.js:131:13)
+      at createEvent (node_modules/@testing-library/dom/dist/events.js:41:5)
+      at Function.createEvent.<computed> [as change] (node_modules/@testing-library/dom/dist/events.js:106:38)
+      at Function.fireEvent.<computed> [as change] (node_modules/@testing-library/dom/dist/events.js:110:68)
+      at Function.change (node_modules/@testing-library/react/dist/fire-event.js:15:52)
+      at Object.<anonymous> (src/components/Editor/__tests__/EditorView.test.tsx:1014:19)
+
+  ● EditorView › unlocks a locked layer from the canvas lock badge click
+
+    Unable to find role="button" and name "Unlock layer Locked layer"
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex h-screen w-full flex-col bg-background text-foreground overflow-hidden"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-[220] relative shadow-sm overflow-visible"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-6"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mdata-testid[39m=[32m"brand-icon"[39m
+                [36m>[39m
+                  [0mBrand[0m
+                [36m</div>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"hidden md:block font-bold text-lg ui-brand-gradient-text max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"[39m
+                  [33mtitle[39m=[32m"Click to rename document"[39m
+                [36m>[39m
+                  [0mUntitled Design[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<nav[39m
+                [33mclass[39m=[32m"flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Back to Hub"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-house"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"16"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"16"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [36m<span>[39m
+                    [0mHub[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-label[39m=[32m"Toggle top menu bar"[39m
+                  [33mclass[39m=[32m"h-8 w-8 rounded-full border border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground transition-colors inline-flex items-center justify-center"[39m
+                  [33mtitle[39m=[32m"Expand menus"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-chevron-right transition-transform duration-200"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"14"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"14"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"m9 18 6-6-6-6"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</nav>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-3"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Grid & Guides"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-grid3x3 lucide-grid-3x3"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"20"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<rect[39m
+                      [33mheight[39m=[32m"18"[39m
+                      [33mrx[39m=[32m"2"[39m
+                      [33mwidth[39m=[32m"18"[39m
+                      [33mx[39m=[32m"3"[39m
+                      [33my[39m=[32m"3"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 9h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 15h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 3v18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 3v18"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Share"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-share2 lucide-share-2"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                   ...
+
+    [0m [90m 1300 |[39m             getHandlers([32m'after:render'[39m)[33m.[39mforEach((handler) [33m=>[39m handler({}))[33m;[39m
+     [90m 1301 |[39m         })[33m;[39m
+    [31m[1m>[22m[39m[90m 1302 |[39m         [36mconst[39m unlockButton [33m=[39m [36mawait[39m screen[33m.[39mfindByRole([32m'button'[39m[33m,[39m { name[33m:[39m [32m'Unlock layer Locked layer'[39m })[33m;[39m
+     [90m      |[39m                                           [31m[1m^[22m[39m
+     [90m 1303 |[39m         fireEvent[33m.[39mclick(unlockButton)[33m;[39m
+     [90m 1304 |[39m
+     [90m 1305 |[39m         expect(lockedObject[33m.[39mlocked)[33m.[39mtoBe([36mfalse[39m)[33m;[39m[0m
+
+      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
+      at findByRole (node_modules/@testing-library/dom/dist/query-helpers.js:86:33)
+      at Object.<anonymous> (src/components/Editor/__tests__/EditorView.test.tsx:1302:43)
+
+  ● EditorView › shows a corner lock badge for locked layers and unlocks from canvas
+
+    Unable to find an element by: [data-testid="locked-layer-hover-unlock-locked-hover"]
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex h-screen w-full flex-col bg-background text-foreground overflow-hidden"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-[220] relative shadow-sm overflow-visible"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-6"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mdata-testid[39m=[32m"brand-icon"[39m
+                [36m>[39m
+                  [0mBrand[0m
+                [36m</div>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"hidden md:block font-bold text-lg ui-brand-gradient-text max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"[39m
+                  [33mtitle[39m=[32m"Click to rename document"[39m
+                [36m>[39m
+                  [0mUntitled Design[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<nav[39m
+                [33mclass[39m=[32m"flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Back to Hub"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-house"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"16"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"16"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [36m<span>[39m
+                    [0mHub[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-label[39m=[32m"Toggle top menu bar"[39m
+                  [33mclass[39m=[32m"h-8 w-8 rounded-full border border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground transition-colors inline-flex items-center justify-center"[39m
+                  [33mtitle[39m=[32m"Expand menus"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-chevron-right transition-transform duration-200"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"14"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"14"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"m9 18 6-6-6-6"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</nav>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-3"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Grid & Guides"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-grid3x3 lucide-grid-3x3"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"20"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<rect[39m
+                      [33mheight[39m=[32m"18"[39m
+                      [33mrx[39m=[32m"2"[39m
+                      [33mwidth[39m=[32m"18"[39m
+                      [33mx[39m=[32m"3"[39m
+                      [33my[39m=[32m"3"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 9h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 15h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 3v18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 3v18"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Share"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-share2 lucide-share-2"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                   ...
+
+    [0m [90m 1342 |[39m         })[33m;[39m
+     [90m 1343 |[39m
+    [31m[1m>[22m[39m[90m 1344 |[39m         [36mconst[39m unlockButton [33m=[39m [36mawait[39m screen[33m.[39mfindByTestId([32m'locked-layer-hover-unlock-locked-hover'[39m)[33m;[39m
+     [90m      |[39m                                           [31m[1m^[22m[39m
+     [90m 1345 |[39m         fireEvent[33m.[39mclick(unlockButton)[33m;[39m
+     [90m 1346 |[39m
+     [90m 1347 |[39m         expect(lockedObject[33m.[39mlocked)[33m.[39mtoBe([36mfalse[39m)[33m;[39m[0m
+
+      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
+      at findByTestId (node_modules/@testing-library/dom/dist/query-helpers.js:86:33)
+      at Object.<anonymous> (src/components/Editor/__tests__/EditorView.test.tsx:1344:43)
+
+  ● EditorView › shows only one unlock lock control when selected layer is locked
+
+    TestingLibraryElementError: Unable to find an element by: [data-testid="locked-layer-hover-unlock-locked-single-ui"]
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex h-screen w-full flex-col bg-background text-foreground overflow-hidden"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-[220] relative shadow-sm overflow-visible"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-6"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mdata-testid[39m=[32m"brand-icon"[39m
+                [36m>[39m
+                  [0mBrand[0m
+                [36m</div>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"hidden md:block font-bold text-lg ui-brand-gradient-text max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"[39m
+                  [33mtitle[39m=[32m"Click to rename document"[39m
+                [36m>[39m
+                  [0mUntitled Design[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<nav[39m
+                [33mclass[39m=[32m"flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Back to Hub"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-house"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"16"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"16"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [36m<span>[39m
+                    [0mHub[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-label[39m=[32m"Toggle top menu bar"[39m
+                  [33mclass[39m=[32m"h-8 w-8 rounded-full border border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground transition-colors inline-flex items-center justify-center"[39m
+                  [33mtitle[39m=[32m"Expand menus"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-chevron-right transition-transform duration-200"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"14"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"14"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"m9 18 6-6-6-6"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</nav>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-3"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Grid & Guides"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-grid3x3 lucide-grid-3x3"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"20"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<rect[39m
+                      [33mheight[39m=[32m"18"[39m
+                      [33mrx[39m=[32m"2"[39m
+                      [33mwidth[39m=[32m"18"[39m
+                      [33mx[39m=[32m"3"[39m
+                      [33my[39m=[32m"3"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 9h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 15h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 3v18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 3v18"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Share"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-share2 lucide-share-2"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                   ...
+
+    [0m [90m 1384 |[39m         })[33m;[39m
+     [90m 1385 |[39m
+    [31m[1m>[22m[39m[90m 1386 |[39m         expect(screen[33m.[39mgetByTestId([32m'locked-layer-hover-unlock-locked-single-ui'[39m))[33m.[39mtoBeInTheDocument()[33m;[39m
+     [90m      |[39m                       [31m[1m^[22m[39m
+     [90m 1387 |[39m         [36mconst[39m unlockControls [33m=[39m [36mawait[39m screen[33m.[39mfindAllByRole([32m'button'[39m[33m,[39m { name[33m:[39m [32m'Unlock layer Locked single layer'[39m })[33m;[39m
+     [90m 1388 |[39m         expect(unlockControls)[33m.[39mtoHaveLength([35m1[39m)[33m;[39m
+     [90m 1389 |[39m     })[33m;[39m[0m
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByTestId (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/components/Editor/__tests__/EditorView.test.tsx:1386:23)
+
+  ● EditorView › unlocks a locked child layer inside a group from the canvas lock badge click
+
+    Unable to find role="button" and name "Unlock layer Locked child layer"
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex h-screen w-full flex-col bg-background text-foreground overflow-hidden"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-[220] relative shadow-sm overflow-visible"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-6"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mdata-testid[39m=[32m"brand-icon"[39m
+                [36m>[39m
+                  [0mBrand[0m
+                [36m</div>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"hidden md:block font-bold text-lg ui-brand-gradient-text max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"[39m
+                  [33mtitle[39m=[32m"Click to rename document"[39m
+                [36m>[39m
+                  [0mUntitled Design[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<nav[39m
+                [33mclass[39m=[32m"flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Back to Hub"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-house"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"16"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"16"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [36m<span>[39m
+                    [0mHub[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-label[39m=[32m"Toggle top menu bar"[39m
+                  [33mclass[39m=[32m"h-8 w-8 rounded-full border border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground transition-colors inline-flex items-center justify-center"[39m
+                  [33mtitle[39m=[32m"Expand menus"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-chevron-right transition-transform duration-200"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"14"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"14"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"m9 18 6-6-6-6"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</nav>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-3"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Grid & Guides"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-grid3x3 lucide-grid-3x3"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"20"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<rect[39m
+                      [33mheight[39m=[32m"18"[39m
+                      [33mrx[39m=[32m"2"[39m
+                      [33mwidth[39m=[32m"18"[39m
+                      [33mx[39m=[32m"3"[39m
+                      [33my[39m=[32m"3"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 9h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 15h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 3v18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 3v18"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Share"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-share2 lucide-share-2"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                   ...
+
+    [0m [90m 1424 |[39m             getHandlers([32m'after:render'[39m)[33m.[39mforEach((handler) [33m=>[39m handler({}))[33m;[39m
+     [90m 1425 |[39m         })[33m;[39m
+    [31m[1m>[22m[39m[90m 1426 |[39m         [36mconst[39m unlockButton [33m=[39m [36mawait[39m screen[33m.[39mfindByRole([32m'button'[39m[33m,[39m { name[33m:[39m [32m'Unlock layer Locked child layer'[39m })[33m;[39m
+     [90m      |[39m                                           [31m[1m^[22m[39m
+     [90m 1427 |[39m         fireEvent[33m.[39mclick(unlockButton)[33m;[39m
+     [90m 1428 |[39m
+     [90m 1429 |[39m         expect(lockedChildObject[33m.[39mlocked)[33m.[39mtoBe([36mfalse[39m)[33m;[39m[0m
+
+      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
+      at findByRole (node_modules/@testing-library/dom/dist/query-helpers.js:86:33)
+      at Object.<anonymous> (src/components/Editor/__tests__/EditorView.test.tsx:1426:43)
+
+  ● EditorView › shows Healing controls when spot-healing is active
+
+    TestingLibraryElementError: Unable to find a label with the text of: Healing source mode
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex h-screen w-full flex-col bg-background text-foreground overflow-hidden"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-[220] relative shadow-sm overflow-visible"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-6"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mdata-testid[39m=[32m"brand-icon"[39m
+                [36m>[39m
+                  [0mBrand[0m
+                [36m</div>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"hidden md:block font-bold text-lg ui-brand-gradient-text max-w-[360px] truncate text-left hover:opacity-90 transition-opacity"[39m
+                  [33mtitle[39m=[32m"Click to rename document"[39m
+                [36m>[39m
+                  [0mUntitled Design[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<nav[39m
+                [33mclass[39m=[32m"flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Back to Hub"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-house"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"16"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"16"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [36m<span>[39m
+                    [0mHub[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-label[39m=[32m"Toggle top menu bar"[39m
+                  [33mclass[39m=[32m"h-8 w-8 rounded-full border border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground transition-colors inline-flex items-center justify-center"[39m
+                  [33mtitle[39m=[32m"Expand menus"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-chevron-right transition-transform duration-200"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"14"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"14"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"m9 18 6-6-6-6"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</nav>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-3"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Grid & Guides"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-grid3x3 lucide-grid-3x3"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"20"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<rect[39m
+                      [33mheight[39m=[32m"18"[39m
+                      [33mrx[39m=[32m"2"[39m
+                      [33mwidth[39m=[32m"18"[39m
+                      [33mx[39m=[32m"3"[39m
+                      [33my[39m=[32m"3"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 9h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M3 15h18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 3v18"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 3v18"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"relative"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"[39m
+                  [33mtitle[39m=[32m"Share"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-share2 lucide-share-2"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"20"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                   ...
+
+    [0m [90m 2004 |[39m
+     [90m 2005 |[39m         expect(screen[33m.[39mgetByLabelText([32m'Healing size'[39m))[33m.[39mtoBeInTheDocument()[33m;[39m
+    [31m[1m>[22m[39m[90m 2006 |[39m         expect(screen[33m.[39mgetByLabelText([32m'Healing source mode'[39m))[33m.[39mtoBeInTheDocument()[33m;[39m
+     [90m      |[39m                       [31m[1m^[22m[39m
+     [90m 2007 |[39m         expect(screen[33m.[39mgetByLabelText([32m'Healing hardness'[39m))[33m.[39mtoBeInTheDocument()[33m;[39m
+     [90m 2008 |[39m     })[33m;[39m
+     [90m 2009 |[39m[0m
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at getAllByLabelText (node_modules/@testing-library/dom/dist/queries/label-text.js:111:38)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByLabelText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/components/Editor/__tests__/EditorView.test.tsx:2006:23)
+
+Test Suites: 1 failed, 1 total
+Tests:       7 failed, 41 passed, 48 total
+Snapshots:   0 total
+Time:        10.868 s, estimated 11 s
+Ran all test suites matching /src\\components\\Editor\\__tests__\\EditorView.test.tsx/i.

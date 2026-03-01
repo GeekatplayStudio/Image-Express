@@ -41,14 +41,18 @@ import {
     Hand,
     ArrowUpDown,
     SlidersHorizontal,
+    Bandage,
+    Eraser,
+    Flame,
+    Droplets,
     type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
 import { APP_THEME } from '@/lib/theme-tokens';
-import { 
-    PenPoint, 
-    PenModeSetting, 
+import {
+    PenPoint,
+    PenModeSetting,
     PEN_DEFAULT_STROKE,
     PEN_DEFAULT_FILL,
     buildAutoBezierNodes,
@@ -103,12 +107,16 @@ const CROSSHAIR_TOOLS = new Set([
     'wand',
     'quick-select',
     'selection-brush',
+    'spot-healing',
+    'remove',
     'healing',
     'clone-stamp',
     'history-brush',
     'blur',
     'sharpen',
     'dodge',
+    'burn',
+    'sponge',
     'paint',
     'gradient',
     'pen',
@@ -241,12 +249,16 @@ const RETOUCH_TOOL_GROUP: ToolbarToolGroupDefinition = {
     label: 'Retouch Tools',
     defaultTool: 'healing',
     tools: [
+        { name: 'spot-healing', icon: Bandage, label: 'Spot Healing', shortLabel: 'Spot' },
+        { name: 'remove', icon: Eraser, label: 'Remove Tool', shortLabel: 'Remove' },
         { name: 'healing', icon: ShieldCheck, label: 'Healing Brush', shortLabel: 'Healing' },
         { name: 'clone-stamp', icon: Copy, label: 'Clone Stamp', shortLabel: 'Clone' },
         { name: 'history-brush', icon: History, label: 'History Brush', shortLabel: 'History' },
         { name: 'blur', icon: Blend, label: 'Blur Tool', shortLabel: 'Blur' },
         { name: 'sharpen', icon: Scan, label: 'Sharpen Tool', shortLabel: 'Sharpen' },
         { name: 'dodge', icon: Sun, label: 'Dodge Tool', shortLabel: 'Dodge' },
+        { name: 'burn', icon: Flame, label: 'Burn Tool', shortLabel: 'Burn' },
+        { name: 'sponge', icon: Droplets, label: 'Sponge Tool', shortLabel: 'Sponge' },
     ],
 };
 
@@ -748,7 +760,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             penNodes: nodes, // Stored as relative
             penSourcePoints: nodes.map((node) => ({ x: node.x, y: node.y }))
         });
-        
+
         attachBezierControls(bezierPath);
         const createdObject = bezierPath;
 
@@ -763,11 +775,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         // Set properties redundant with bezierPath set call but ensuring extended object compliance
         namedObject.penClosed = isClosed;
         namedObject.penMode = 'bezier'; // Converted
-        namedObject.isPenPath = true; 
-        
+        namedObject.isPenPath = true;
+
         canvas.add(createdObject);
         canvas.setActiveObject(createdObject);
-        
+
         // Ensure new layer is clearly visible and editable
         canvas.requestRenderAll();
 
@@ -893,8 +905,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         };
 
         const handleDblClick = () => {
-             if (activeTool !== 'pen') return;
-             finishPenPath();
+            if (activeTool !== 'pen') return;
+            finishPenPath();
         };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1003,17 +1015,17 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
 
         return () => {
-             canvas.off('mouse:down', handleMouseDown);
-             canvas.off('mouse:move', handleMouseMove);
-             canvas.off('mouse:dblclick', handleDblClick);
-             canvas.off('object:moving', handleObjectMoving);
-             canvas.off('selection:created', handleSelection);
-             canvas.off('selection:updated', handleSelection);
-             canvas.off('object:added', handleObjectAdded);
-             (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:config:set', handlePenConfigSet);
-             (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:finish-request', handlePenFinishRequest);
-             (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:clear-request', handlePenClearRequest);
-             window.removeEventListener('keydown', handleKeyDown);
+            canvas.off('mouse:down', handleMouseDown);
+            canvas.off('mouse:move', handleMouseMove);
+            canvas.off('mouse:dblclick', handleDblClick);
+            canvas.off('object:moving', handleObjectMoving);
+            canvas.off('selection:created', handleSelection);
+            canvas.off('selection:updated', handleSelection);
+            canvas.off('object:added', handleObjectAdded);
+            (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:config:set', handlePenConfigSet);
+            (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:finish-request', handlePenFinishRequest);
+            (canvas as unknown as { off: (eventName: string, cb: (...args: unknown[]) => void) => void }).off('pen:clear-request', handlePenClearRequest);
+            window.removeEventListener('keydown', handleKeyDown);
         };
     }, [activeTool, canvas, clearPenDraft, finishPenPath, penAutoAddDelete, penClosure, penPoints, penRubberBand]);
 
@@ -1274,50 +1286,50 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     };
 
     const handleToolClick = (toolName: string) => {
-           const normalizedToolName = TOOL_ALIAS_MAP[toolName] || toolName;
-           if (toolName === 'extra') {
-                setShowExtraMenu((prev) => {
-                    const next = !prev;
-                    if (next) {
-                        setExtraMenuPos(positionMenu(extraButtonRef, 176, 120));
-                    }
-                    return next;
-                });
-                setShowShapesMenu(false);
-                setShowAdjustmentMenu(false);
-                setOpenToolGroup(null);
-                setToolGroupMenuPos(null);
-                setActiveTool('extra');
-                return;
-           }
-           if (toolName === 'shapes') {
-                setShowShapesMenu((prev) => {
-                    const next = !prev;
-                    if (next) {
-                        setShapesMenuPos(positionMenu(shapesButtonRef, 176, 240));
-                    }
-                    return next;
-                });
-                setShowAdjustmentMenu(false);
-                setOpenToolGroup(null);
-                setToolGroupMenuPos(null);
-                setActiveTool('shapes');
-                return;
+        const normalizedToolName = TOOL_ALIAS_MAP[toolName] || toolName;
+        if (toolName === 'extra') {
+            setShowExtraMenu((prev) => {
+                const next = !prev;
+                if (next) {
+                    setExtraMenuPos(positionMenu(extraButtonRef, 176, 120));
+                }
+                return next;
+            });
+            setShowShapesMenu(false);
+            setShowAdjustmentMenu(false);
+            setOpenToolGroup(null);
+            setToolGroupMenuPos(null);
+            setActiveTool('extra');
+            return;
         }
-           if (toolName === 'adjustments') {
-                setShowAdjustmentMenu((prev) => {
-                    const next = !prev;
-                    if (next) {
-                        setAdjustmentMenuPos(positionMenu(adjustmentsButtonRef, 176, 320));
-                    }
-                    return next;
-                });
-               setShowShapesMenu(false);
-               setOpenToolGroup(null);
-               setToolGroupMenuPos(null);
-               setActiveTool('layers');
-               return;
-           }
+        if (toolName === 'shapes') {
+            setShowShapesMenu((prev) => {
+                const next = !prev;
+                if (next) {
+                    setShapesMenuPos(positionMenu(shapesButtonRef, 176, 240));
+                }
+                return next;
+            });
+            setShowAdjustmentMenu(false);
+            setOpenToolGroup(null);
+            setToolGroupMenuPos(null);
+            setActiveTool('shapes');
+            return;
+        }
+        if (toolName === 'adjustments') {
+            setShowAdjustmentMenu((prev) => {
+                const next = !prev;
+                if (next) {
+                    setAdjustmentMenuPos(positionMenu(adjustmentsButtonRef, 176, 320));
+                }
+                return next;
+            });
+            setShowShapesMenu(false);
+            setOpenToolGroup(null);
+            setToolGroupMenuPos(null);
+            setActiveTool('layers');
+            return;
+        }
 
         // Toggle behavior: Close tool if clicking standard panel icons again
         if (activeTool === normalizedToolName) {
@@ -1347,9 +1359,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     : { ...prev, [owningGroup.id]: resolvedPrimaryTool }
             ));
         }
-        
+
         // Handle single-action tools
-        switch(normalizedToolName) {
+        switch (normalizedToolName) {
             case 'select':
                 if (canvas) {
                     configureCanvasForTool(canvas, 'select');
@@ -1380,7 +1392,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     configureCanvasForTool(canvas, 'selection-brush');
                 }
                 break;
-            case 'gradient': 
+            case 'gradient':
                 if (canvas) {
                     // Enable gradient mode
                     // Disable normal selection for canvas (but allow object selection? No, usually tool takes over)
@@ -1547,7 +1559,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             top: 100,
             width: 100,
             height: 100,
-            rx: 0, 
+            rx: 0,
             ry: 0,
         });
         applyShapeConfig(rect);
@@ -1582,14 +1594,14 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
     const addStar = () => {
         if (!canvas) return;
-        
+
         const points = getStarPoints(5, 25, 50);
         const star = new fabric.Polygon(points, {
             left: 250,
             top: 250,
             objectCaching: false,
         }) as StarPolygon;
-        
+
         // Attach custom properties for the star
         star.isStar = true;
         star.starPoints = 5;
@@ -1767,12 +1779,12 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
     const add3DPlaceholder = (url: string, nameOverride?: string) => {
         if (!canvas) return;
-        
+
         const group = new fabric.Group([], {
             left: 150,
             top: 150,
             subTargetCheck: true,
-            interactive: true 
+            interactive: true
         });
 
         const box = new fabric.Rect({
@@ -1793,10 +1805,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             fontWeight: 'bold',
             selectable: false
         });
-        
+
         group.add(box);
         group.add(text);
-        
+
         // Attach metadata
         (group as ThreeDGroup).is3DModel = true;
         (group as ThreeDGroup).modelUrl = url;
@@ -1845,38 +1857,38 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const loadDataUrlToCanvas = (data: string, nameOverride?: string) => {
         if (!canvas) return;
         fabric.Image.fromURL(data, {
-             crossOrigin: 'anonymous'
+            crossOrigin: 'anonymous'
         }).then((img) => {
-             const isDataUrl = data.startsWith('data:');
-             const displayName = nameOverride || (!isDataUrl ? getFileDisplayName(data) : undefined);
-             const ext = img as ExtendedFabricObject;
-             if (displayName) {
-                 ext.name = displayName;
-             }
-             if (!isDataUrl && data.includes('/assets/generated/')) {
-                 ext.aiGenerated = true;
-             }
-             // Use Artboard dimensions if available, else fallback to canvas or default
-             const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
-             const targetWidth = artboard.width;
-             const targetHeight = artboard.height;
-             
-             // Scale down if larger than 80% of canvas/artboard to ensure visibility
-             if (img.width! > targetWidth * 0.8 || img.height! > targetHeight * 0.8) {
-                 const scaleX = (targetWidth * 0.8) / img.width!;
-                 const scaleY = (targetHeight * 0.8) / img.height!;
-                 const finalScale = Math.min(scaleX, scaleY);
-                 img.scale(finalScale);
-             }
-             
-             // Center it (this centers in the Viewport, which is aligned with Artboard center)
-             canvas.centerObject(img);
-             
-             canvas.add(img);
-             canvas.setActiveObject(img);
-             canvas.requestRenderAll();
+            const isDataUrl = data.startsWith('data:');
+            const displayName = nameOverride || (!isDataUrl ? getFileDisplayName(data) : undefined);
+            const ext = img as ExtendedFabricObject;
+            if (displayName) {
+                ext.name = displayName;
+            }
+            if (!isDataUrl && data.includes('/assets/generated/')) {
+                ext.aiGenerated = true;
+            }
+            // Use Artboard dimensions if available, else fallback to canvas or default
+            const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
+            const targetWidth = artboard.width;
+            const targetHeight = artboard.height;
+
+            // Scale down if larger than 80% of canvas/artboard to ensure visibility
+            if (img.width! > targetWidth * 0.8 || img.height! > targetHeight * 0.8) {
+                const scaleX = (targetWidth * 0.8) / img.width!;
+                const scaleY = (targetHeight * 0.8) / img.height!;
+                const finalScale = Math.min(scaleX, scaleY);
+                img.scale(finalScale);
+            }
+
+            // Center it (this centers in the Viewport, which is aligned with Artboard center)
+            canvas.centerObject(img);
+
+            canvas.add(img);
+            canvas.setActiveObject(img);
+            canvas.requestRenderAll();
         }).catch((err) => {
-             console.error("Error loading image:", err);
+            console.error("Error loading image:", err);
         });
     }
 
@@ -1976,7 +1988,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
         try {
             // Include custom properties in serialization
-            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId']); 
+            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId']);
             const profile = loadProfileSettings();
             if (profile?.embedInfo) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2053,8 +2065,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     };
 
     const handleLoadTemplate = (url: string) => {
-         if (!canvas) return;
-         fetch(url)
+        if (!canvas) return;
+        fetch(url)
             .then(res => res.json())
             .then(json => {
                 canvas.clear();
@@ -2076,10 +2088,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             onMouseEnter={() => setIsRailHovered(true)}
             onMouseLeave={() => setIsRailHovered(false)}
         >
-            <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
+            <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
                 accept="image/jpeg,image/png,image/webp,image/svg+xml"
                 onChange={handleFileChange}
             />
@@ -2319,7 +2331,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
             {/* Template Library */}
             {activeTool === 'templates' && (
-                <TemplateLibrary 
+                <TemplateLibrary
                     key={refreshTemplatesTrigger}
                     onClose={() => setActiveTool('select')}
                     onSelect={handleLoadTemplate}
@@ -2328,14 +2340,14 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             )}
 
             {(activeTool === 'color-wheel' || activeTool === 'eyedropper') && (
-                <ColorWheelTool 
+                <ColorWheelTool
                     onColorSelect={(color) => {
                         setForegroundColor(color);
                         syncToolbarColorsToCanvas(color, backgroundColor);
                     }}
                     currentPalette={activePalette || null}
                     onPaletteSelect={(palette) => {
-                         if (setActivePalette) setActivePalette(palette);
+                        if (setActivePalette) setActivePalette(palette);
                     }}
                     selectedColor={foregroundColor}
                 />
@@ -2343,16 +2355,16 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
             {/* AI Image Generation (Zone Selector Overlay) */}
             {activeTool === 'ai-zone' && canvas && (
-                 <ImageGeneratorModal 
+                <ImageGeneratorModal
                     canvas={canvas}
                     onClose={() => setActiveTool('select')}
                     apiKey={apiKeys?.stability}
                     currentUser={currentUser}
-                 />
+                />
             )}
 
             {showSaveModal && (
-                <InputModal  
+                <InputModal
                     isOpen={showSaveModal}
                     title="Save Template"
                     description="Enter a name for your custom template."
@@ -2365,7 +2377,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
             {/* Asset Library */}
             {activeTool === 'assets' && (
-                <AssetLibrary 
+                <AssetLibrary
                     currentUser={currentUser}
                     onClose={() => setActiveTool('select')}
                     onSelect={(path, type, name) => {
@@ -2390,7 +2402,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             )}
 
             {showShapesMenu && shapesMenuPos && typeof document !== 'undefined' && createPortal(
-                <div 
+                <div
                     ref={shapesMenuRef}
                     style={{ left: shapesMenuPos.left, top: shapesMenuPos.top }}
                     className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-[2000] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
@@ -2524,8 +2536,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         AI Zone
                     </button>
                     <button onClick={() => { setActiveTool('3d-gen'); setShowExtraMenu(false); }} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
-                         <Box size={16} />
-                         AI 3D
+                        <Box size={16} />
+                        AI 3D
                     </button>
                 </div>,
                 document.body

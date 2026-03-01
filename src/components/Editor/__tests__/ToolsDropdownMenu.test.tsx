@@ -16,6 +16,10 @@ describe('ToolsDropdownMenu', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Blur Tool' }));
         fireEvent.click(screen.getByRole('button', { name: 'Sharpen Tool' }));
         fireEvent.click(screen.getByRole('button', { name: 'Dodge Tool' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Burn Tool' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Sponge Tool' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Spot Healing' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Tool' }));
         fireEvent.click(screen.getByRole('button', { name: 'AI Zone' }));
 
         expect(onTriggerTool).toHaveBeenNthCalledWith(1, 'select');
@@ -27,6 +31,10 @@ describe('ToolsDropdownMenu', () => {
         expect(onTriggerTool).toHaveBeenNthCalledWith(7, 'blur');
         expect(onTriggerTool).toHaveBeenNthCalledWith(8, 'sharpen');
         expect(onTriggerTool).toHaveBeenNthCalledWith(9, 'dodge');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(10, 'ai-zone');
+        expect(onTriggerTool).toHaveBeenNthCalledWith(10, 'burn');
+        expect(onTriggerTool).toHaveBeenNthCalledWith(11, 'sponge');
+        expect(onTriggerTool).toHaveBeenNthCalledWith(12, 'spot-healing');
+        expect(onTriggerTool).toHaveBeenNthCalledWith(13, 'remove');
+        expect(onTriggerTool).toHaveBeenNthCalledWith(14, 'ai-zone');
     });
 });

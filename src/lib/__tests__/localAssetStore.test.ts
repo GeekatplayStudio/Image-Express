@@ -18,7 +18,7 @@ class FakeObjectStore {
     constructor(
         private readonly records: Map<string, unknown>,
         private readonly requestFactory: <T>(executor: () => T) => IDBRequest<T>
-    ) {}
+    ) { }
 
     createIndex() {
         return undefined;
@@ -55,7 +55,7 @@ class FakeTransaction {
     error: Error | null = null;
     private pendingRequests = 0;
 
-    constructor(private readonly records: Map<string, unknown>) {}
+    constructor(private readonly records: Map<string, unknown>) { }
 
     private scheduleComplete() {
         if (this.pendingRequests !== 0 || this.error) return;
@@ -80,8 +80,8 @@ class FakeTransaction {
                 request.result = executor();
                 request.onsuccess?.(new Event('success'));
             } catch (error) {
-                request.error = error as Error;
-                this.error = request.error;
+                request.error = error as any;
+                this.error = request.error || null;
                 request.onerror?.(new Event('error'));
                 this.onerror?.(new Event('error'));
             } finally {
@@ -146,7 +146,7 @@ class FakeIndexedDb {
                 }
                 request.onsuccess?.(new Event('success'));
             } catch (error) {
-                request.error = error as Error;
+                request.error = error as any;
                 request.onerror?.(new Event('error'));
             }
         }, 0);
