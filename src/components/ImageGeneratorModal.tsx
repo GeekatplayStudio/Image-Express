@@ -7,6 +7,16 @@ import StabilityGenerator from './AI/StabilityGenerator';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { APP_THEME } from '@/lib/theme-tokens';
 import {
+  DEFAULT_COMFY_LOCAL_URL,
+  loadComfyCloudApiKey,
+  saveComfyCloudApiKey,
+  type ComfyConnectionMode,
+} from '@/lib/comfyui/connection';
+import { comfyWorkflowRegistry } from '@/lib/comfyui/registry';
+import { getComfyTaskPreference, saveComfyTaskPreference } from '@/lib/comfyui/preferences';
+import { executeComfyTask } from '@/lib/comfyui/runner';
+import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
+import {
   GENERATIVE_PROVIDER_OPTIONS,
   getGenerativeProviderOption,
   isGenerativeProviderReady,
@@ -81,7 +91,13 @@ export default function ImageGeneratorModal({
   // --- Provider Selection ---
   const [availableProviders, setAvailableProviders] = useState<GenerativeProviderId[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<GenerativeProviderId>('comfy');
-  const [comfyServerUrl, setComfyServerUrl] = useState('http://127.0.0.1:8188');
+  const [comfyServerUrl, setComfyServerUrl] = useState(DEFAULT_COMFY_LOCAL_URL);
+  const [comfyConnectionMode, setComfyConnectionMode] = useState<ComfyConnectionMode>('auto');
+  const [comfyCloudUrl, setComfyCloudUrl] = useState('https://cloud.comfy.org');
+  const [comfyCloudApiKey, setComfyCloudApiKey] = useState('');
+  const [availableComfyWorkflowIds, setAvailableComfyWorkflowIds] = useState<string[]>([]);
+  const [selectedComfyWorkflowId, setSelectedComfyWorkflowId] = useState('');
+  const [selectedComfyModelPresetId, setSelectedComfyModelPresetId] = useState('');
   const [initialStabilityTab, setInitialStabilityTab] = useState<GenerativeStabilityTab>('inpaint');
   const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
   const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
@@ -92,6 +108,8 @@ export default function ImageGeneratorModal({
   // Init: Synch with LocalStorage settings
   useEffect(() => {
     if (typeof window !== 'undefined') {
+        ensureComfyWorkflowCatalogRegistered();
+
         // Check for Available API Keys in storage
         const stability = localStorage.getItem('stability_api_key');
         const openai = localStorage.getItem('openai_api_key');
@@ -112,8 +130,42 @@ export default function ImageGeneratorModal({
         setMode(launch.mode);
         setInitialStabilityTab(launch.stabilityTab);
         setComfyServerUrl(preferences.comfyServerUrl);
+        setComfyConnectionMode(preferences.comfyConnectionMode);
+        setComfyCloudUrl(preferences.comfyCloudUrl);
+        setComfyCloudApiKey(loadComfyCloudApiKey());
         setAutoStartInpaintMasking(preferences.autoStartInpaintMasking);
         setShowInpaintPromptDock(preferences.showInpaintPromptDock);
+
+        const comfyTaskPreference = getComfyTaskPreference('generate');
+        const generateWorkflows = comfyWorkflowRegistry.getWorkflowsForTask('generate');
+        const workflowIds = generateWorkflows.map((workflow) => workflow.id);
+        const preferredWorkflow = generateWorkflows.find((workflow) => workflow.id === comfyTaskPreference.workflowId);
+        const preferredModelPresetId = comfyTaskPreference.modelPresetId || '';
+        const preferredWorkflowSupportsModel = Boolean(
+            preferredWorkflow && (!preferredModelPresetId || preferredWorkflow.modelPresetIds.includes(preferredModelPresetId))
+        );
+        const initialWorkflowId = preferredWorkflowSupportsModel
+            ? preferredWorkflow!.id
+            : (
+                (preferredModelPresetId
+                    ? generateWorkflows.find((workflow) => workflow.modelPresetIds.includes(preferredModelPresetId))?.id
+                    : undefined)
+                || preferredWorkflow?.id
+                || workflowIds[0]
+                || ''
+            );
+
+        setAvailableComfyWorkflowIds(workflowIds);
+        setSelectedComfyWorkflowId(initialWorkflowId);
+
+        if (initialWorkflowId) {
+            const modelPresets = comfyWorkflowRegistry.getModelPresetsForWorkflow(initialWorkflowId);
+            const initialModelPresetId = modelPresets.some((preset) => preset.id === comfyTaskPreference.modelPresetId)
+                ? (comfyTaskPreference.modelPresetId as string)
+                : (modelPresets[0]?.id || '');
+
+            setSelectedComfyModelPresetId(initialModelPresetId);
+        }
     }
   }, []);
 
@@ -131,6 +183,32 @@ export default function ImageGeneratorModal({
       if (mode === 'stability' && newVal !== 'stability') {
           setMode('zone');
       }
+  };
+
+  const handleComfyWorkflowChange = (workflowId: string) => {
+      setSelectedComfyWorkflowId(workflowId);
+      saveComfyTaskPreference('generate', { workflowId });
+
+      const workflow = comfyWorkflowRegistry.getWorkflow(workflowId);
+      const modelPresets = comfyWorkflowRegistry.getModelPresetsForWorkflow(workflowId);
+      const nextModelPresetId = (
+          modelPresets.find((preset) => preset.id === workflow?.defaultModelPresetId)?.id
+          || modelPresets[0]?.id
+          || ''
+      );
+      setSelectedComfyModelPresetId(nextModelPresetId);
+      saveComfyTaskPreference('generate', {
+          workflowId,
+          modelPresetId: nextModelPresetId || undefined,
+      });
+  };
+
+  const handleComfyModelPresetChange = (modelPresetId: string) => {
+      setSelectedComfyModelPresetId(modelPresetId);
+      saveComfyTaskPreference('generate', {
+          workflowId: selectedComfyWorkflowId || undefined,
+          modelPresetId,
+      });
   };
     
   /**
@@ -252,53 +330,6 @@ export default function ImageGeneratorModal({
 
 
   // --- Helper Functions ---
-
-  /**
-   * Polls a local ComfyUI instance for generation results.
-   * @param promptId The ID of the queued job
-   * @param host The base URL of the ComfyUI server
-   */
-  const pollComfyResult = async (promptId: string, host: string) => {
-      const maxRetries = 60; // Wait up to 60 seconds
-      let attempts = 0;
-
-      const interval = setInterval(async () => {
-          attempts++;
-          try {
-              const res = await fetch(`${host}/history/${promptId}`);
-              const history = await res.json();
-              
-              // Check if output is ready
-              if (history && history[promptId] && history[promptId].outputs) {
-                  clearInterval(interval);
-                  const outputs = history[promptId].outputs;
-                  let imageName = null;
-                  
-                  // Find first image output from any node
-                  for (const nodeId in outputs) {
-                      if (outputs[nodeId].images && outputs[nodeId].images.length > 0) {
-                          imageName = outputs[nodeId].images[0];
-                          break;
-                      }
-                  }
-
-                  if (imageName) {
-                      // Construct URL for ComfyUI view endpoint
-                      const imgUrl = `${host}/view?filename=${imageName.filename}&subfolder=${imageName.subfolder}&type=${imageName.type}`;
-                      setGeneratedImage(imgUrl);
-                      setStatusMessage('Generation complete!');
-                  }
-                  setIsGenerating(false);
-              } else if (attempts >= maxRetries) {
-                  clearInterval(interval);
-                  setStatusMessage('Timeout waiting for ComfyUI.');
-                  setIsGenerating(false);
-              }
-          } catch {
-              // ignore errors during polling
-          }
-      }, 1000);
-  };
 
   /**
    * Saves a generated image (URL or Data URI) to the persistent workspace assets.
@@ -428,8 +459,47 @@ export default function ImageGeneratorModal({
     const currentH = zoneObjectRef.current ? Math.round(zoneObjectRef.current.height! * zoneObjectRef.current.scaleY!) : zoneHeight;
 
     try {
+      if (selectedProvider === 'comfy') {
+          if (!selectedComfyWorkflowId) {
+              throw new Error('No ComfyUI workflow is selected.');
+          }
+
+          if (!selectedComfyModelPresetId) {
+              throw new Error('No ComfyUI model preset is selected.');
+          }
+
+          setStatusMessage('Sending workflow to ComfyUI...');
+
+          const execution = await executeComfyTask({
+              connection: {
+                  mode: comfyConnectionMode,
+                  localUrl: comfyServerUrl,
+                  cloudUrl: comfyCloudUrl,
+                  cloudApiKey: comfyCloudApiKey,
+              },
+              task: 'generate',
+              workflowId: selectedComfyWorkflowId,
+              modelPresetId: selectedComfyModelPresetId,
+              params: {
+                  prompt,
+                  width: currentW,
+                  height: currentH,
+              },
+          });
+
+          if (execution.result.dataUrl) {
+              setGeneratedImage(execution.result.dataUrl);
+              setStatusMessage(`Generation complete via ${execution.workflow.name}.`);
+          } else {
+              setStatusMessage('ComfyUI finished, but no image output was returned.');
+          }
+
+          setIsGenerating(false);
+          return;
+      }
+
       const currentKey = getProviderKey(selectedProvider);
-      
+
       const response = await fetch('/api/ai/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -438,7 +508,7 @@ export default function ImageGeneratorModal({
           width: currentW,
           height: currentH,
           serverUrl: comfyServerUrl,
-          provider: selectedProvider === 'comfy' ? 'comfy' : 'remote',
+          provider: 'remote',
           specificProvider: selectedProvider, 
           apiKey: currentKey
         }),
@@ -450,19 +520,14 @@ export default function ImageGeneratorModal({
         throw new Error(data.message || 'Generation failed');
       }
 
-      if (selectedProvider === 'comfy') {
-          setStatusMessage('Processing on ComfyUI...');
-          await pollComfyResult(data.promptId, comfyServerUrl);
+      if (data.imageUrl) {
+          setGeneratedImage(data.imageUrl);
+          setStatusMessage('Generation complete!');
       } else {
-         // Handle Remote API Success
-         if (data.imageUrl) {
-             setGeneratedImage(data.imageUrl);
-             setStatusMessage('Generation complete!');
-         } else {
-             setStatusMessage('Finished, but no image returned.');
-         }
-         setIsGenerating(false);
+          setStatusMessage('Finished, but no image returned.');
       }
+
+      setIsGenerating(false);
 
     } catch (error) {
       console.error(error);
@@ -473,8 +538,20 @@ export default function ImageGeneratorModal({
   };
 
   const hasStabilityAccess = availableProviders.includes('stability');
+  const selectedComfyWorkflow = selectedComfyWorkflowId
+      ? comfyWorkflowRegistry.getWorkflow(selectedComfyWorkflowId)
+      : null;
+  const availableComfyModelPresets = selectedComfyWorkflow
+      ? comfyWorkflowRegistry.getModelPresetsForWorkflow(selectedComfyWorkflow.id)
+      : [];
   const selectedProviderOption = getGenerativeProviderOption(selectedProvider);
   const isSelectedProviderReady = isGenerativeProviderReady(selectedProvider);
+  const isComfyConnectionConfigured = comfyConnectionMode === 'local'
+      ? comfyServerUrl.trim().length > 0
+      : comfyConnectionMode === 'cloud'
+          ? comfyCloudUrl.trim().length > 0 && comfyCloudApiKey.trim().length > 0
+          : comfyServerUrl.trim().length > 0 || (comfyCloudUrl.trim().length > 0 && comfyCloudApiKey.trim().length > 0);
+  const canRunComfyGeneration = Boolean(selectedComfyWorkflow && selectedComfyModelPresetId && isComfyConnectionConfigured);
   const selectedProviderLabel = selectedProviderOption?.label || selectedProvider;
   const stabilityBadge = getGenerativeProviderOption('stability')?.label || 'Stability AI';
 
@@ -589,26 +666,119 @@ export default function ImageGeneratorModal({
                    </div>
                </div>
 
-               {selectedProvider === 'comfy' && (
-                   <div className="space-y-1">
-                       <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">ComfyUI URL</label>
-                       <input
-                           className="w-full text-xs p-2 rounded-md border bg-background font-mono"
-                           value={comfyServerUrl}
-                           onChange={(event) => {
-                               const nextUrl = event.target.value;
-                               setComfyServerUrl(nextUrl);
-                               saveGenerativePreferences({ comfyServerUrl: nextUrl });
-                           }}
-                           placeholder="http://127.0.0.1:8188"
-                       />
+              {selectedProvider === 'comfy' && (
+                   <div className="space-y-2">
+                       <div className="space-y-1">
+                           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Connection</label>
+                           <select
+                               className="w-full text-xs p-2 rounded-md border bg-background"
+                               value={comfyConnectionMode}
+                               onChange={(event) => {
+                                   const nextMode = event.target.value as ComfyConnectionMode;
+                                   setComfyConnectionMode(nextMode);
+                                   saveGenerativePreferences({ comfyConnectionMode: nextMode });
+                               }}
+                           >
+                               <option value="auto">Auto (Local, then Cloud)</option>
+                               <option value="local">Local only</option>
+                               <option value="cloud">Cloud only</option>
+                           </select>
+                       </div>
+
+                       <div className="space-y-1">
+                           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">ComfyUI URL</label>
+                           <input
+                               className="w-full text-xs p-2 rounded-md border bg-background font-mono"
+                               value={comfyServerUrl}
+                               onChange={(event) => {
+                                   const nextUrl = event.target.value;
+                                   setComfyServerUrl(nextUrl);
+                                   saveGenerativePreferences({ comfyServerUrl: nextUrl });
+                               }}
+                               placeholder={DEFAULT_COMFY_LOCAL_URL}
+                           />
+                       </div>
+
+                       {comfyConnectionMode !== 'local' && (
+                           <>
+                               <div className="space-y-1">
+                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Comfy Cloud URL</label>
+                                   <input
+                                       className="w-full text-xs p-2 rounded-md border bg-background font-mono"
+                                       value={comfyCloudUrl}
+                                       onChange={(event) => {
+                                           const nextUrl = event.target.value;
+                                           setComfyCloudUrl(nextUrl);
+                                           saveGenerativePreferences({ comfyCloudUrl: nextUrl });
+                                       }}
+                                       placeholder="https://cloud.comfy.org"
+                                   />
+                               </div>
+
+                               <div className="space-y-1">
+                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Comfy Cloud API Key</label>
+                                   <input
+                                       type="password"
+                                       className="w-full text-xs p-2 rounded-md border bg-background font-mono"
+                                       value={comfyCloudApiKey}
+                                       onChange={(event) => {
+                                           const nextKey = event.target.value;
+                                           setComfyCloudApiKey(nextKey);
+                                           saveComfyCloudApiKey(nextKey);
+                                       }}
+                                       placeholder="ck-..."
+                                   />
+                               </div>
+                           </>
+                       )}
+
+                       <div className="grid grid-cols-2 gap-2">
+                           <div className="space-y-1">
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Workflow</label>
+                               <select
+                                   className="w-full text-xs p-2 rounded-md border bg-background"
+                                   value={selectedComfyWorkflowId}
+                                   onChange={(event) => handleComfyWorkflowChange(event.target.value)}
+                               >
+                                   {availableComfyWorkflowIds.map((workflowId) => {
+                                       const workflow = comfyWorkflowRegistry.getWorkflow(workflowId);
+                                       return (
+                                           <option key={workflowId} value={workflowId}>
+                                               {workflow?.name || workflowId}
+                                           </option>
+                                       );
+                                   })}
+                               </select>
+                           </div>
+
+                           <div className="space-y-1">
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Model</label>
+                               <select
+                                   className="w-full text-xs p-2 rounded-md border bg-background"
+                                   value={selectedComfyModelPresetId}
+                                   onChange={(event) => handleComfyModelPresetChange(event.target.value)}
+                               >
+                                   {availableComfyModelPresets.map((modelPreset) => (
+                                       <option key={modelPreset.id} value={modelPreset.id}>
+                                           {modelPreset.name}
+                                       </option>
+                                   ))}
+                               </select>
+                           </div>
+                       </div>
+
+                       {selectedComfyWorkflow && (
+                           <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
+                               {selectedComfyWorkflow.description}
+                           </div>
+                       )}
                    </div>
                )}
 
                {/* Generate Button */}
                <button 
                   onClick={handleGenerate}
-                  disabled={isGenerating || !prompt || !isSelectedProviderReady}
+                  disabled={isGenerating || !prompt || !isSelectedProviderReady || (selectedProvider === 'comfy' && !canRunComfyGeneration)}
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm"
                >
                   {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}

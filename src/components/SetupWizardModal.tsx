@@ -17,6 +17,7 @@ import {
     type GenerativeWorkflowId,
 } from '@/lib/generative-preferences';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
+import { DEFAULT_COMFY_LOCAL_URL } from '@/lib/comfyui/connection';
 
 interface SetupWizardModalProps {
     isOpen: boolean;
@@ -58,7 +59,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     const [bananaKey, setBananaKey] = useState('');
     const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('stability');
     const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('stability-inpaint');
-    const [comfyServerUrl, setComfyServerUrl] = useState('http://127.0.0.1:8188');
+    const [comfyServerUrl, setComfyServerUrl] = useState(DEFAULT_COMFY_LOCAL_URL);
     const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
     const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
     const [suppressNumberDragHints, setSuppressNumberDragHints] = useState(false);
@@ -408,7 +409,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         value={comfyServerUrl}
                                         onChange={(event) => setComfyServerUrl(event.target.value)}
                                         className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs font-mono"
-                                        placeholder="http://127.0.0.1:8188"
+                                        placeholder={DEFAULT_COMFY_LOCAL_URL}
                                     />
                                 </div>
                                 <label className="flex items-center gap-2 text-xs text-muted-foreground">

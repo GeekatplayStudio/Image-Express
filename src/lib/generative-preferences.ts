@@ -1,5 +1,7 @@
 'use client';
 
+import { DEFAULT_COMFY_LOCAL_URL, type ComfyConnectionMode } from '@/lib/comfyui/connection';
+
 export type GenerativeProviderId = 'comfy' | 'stability' | 'openai' | 'google' | 'banana';
 
 export type GenerativeWorkflowId =
@@ -19,6 +21,8 @@ export type GenerativePreferences = {
     defaultProvider: GenerativeProviderId;
     defaultWorkflow: GenerativeWorkflowId;
     comfyServerUrl: string;
+    comfyConnectionMode: ComfyConnectionMode;
+    comfyCloudUrl: string;
     autoStartInpaintMasking: boolean;
     showInpaintPromptDock: boolean;
 };
@@ -28,6 +32,7 @@ export const GENERATIVE_PREFERENCES_CHANGED_EVENT = 'image-express:generative-pr
 
 const LEGACY_PROVIDER_STORAGE_KEYS = ['image-express-gen-provider', 'image-express-provider'] as const;
 const LEGACY_COMFY_URL_STORAGE_KEY = 'image-express-comfy-url';
+const LEGACY_DEFAULT_COMFY_URL = 'http://127.0.0.1:8188';
 
 const GENERATIVE_PROVIDER_SET = new Set<GenerativeProviderId>(['comfy', 'stability', 'openai', 'google', 'banana']);
 const GENERATIVE_WORKFLOW_SET = new Set<GenerativeWorkflowId>([
@@ -85,8 +90,8 @@ export const GENERATIVE_PROVIDER_OPTIONS: Array<{
     },
     {
         id: 'comfy',
-        label: 'Local ComfyUI',
-        description: 'Local-first workflow via your ComfyUI server.',
+        label: 'ComfyUI',
+        description: 'Local or Comfy Cloud workflows via your selected Comfy endpoint.',
         status: 'ready',
         supportedWorkflows: ['zone'],
     },
@@ -105,7 +110,9 @@ export const GENERATIVE_WORKFLOW_OPTIONS: Array<{ id: GenerativeWorkflowId; labe
 const DEFAULT_GENERATIVE_PREFERENCES: GenerativePreferences = {
     defaultProvider: 'stability',
     defaultWorkflow: 'stability-inpaint',
-    comfyServerUrl: 'http://127.0.0.1:8188',
+    comfyServerUrl: DEFAULT_COMFY_LOCAL_URL,
+    comfyConnectionMode: 'auto',
+    comfyCloudUrl: 'https://cloud.comfy.org',
     autoStartInpaintMasking: true,
     showInpaintPromptDock: true,
 };
@@ -124,6 +131,12 @@ const coerceWorkflow = (value: unknown): GenerativeWorkflowId | null => (
 
 const coerceBoolean = (value: unknown, fallback: boolean): boolean => (
     typeof value === 'boolean' ? value : fallback
+);
+
+const coerceComfyConnectionMode = (value: unknown): ComfyConnectionMode | null => (
+    value === 'auto' || value === 'local' || value === 'cloud'
+        ? value
+        : null
 );
 
 const resolveLegacyProvider = (): GenerativeProviderId | null => {
@@ -146,7 +159,8 @@ const resolveLegacyComfyUrl = (): string | null => {
     const raw = window.localStorage.getItem(LEGACY_COMFY_URL_STORAGE_KEY);
     if (!raw) return null;
     const trimmed = raw.trim();
-    return trimmed.length > 0 ? trimmed : null;
+    if (!trimmed) return null;
+    return trimmed === LEGACY_DEFAULT_COMFY_URL ? DEFAULT_COMFY_LOCAL_URL : trimmed;
 };
 
 export const loadGenerativePreferences = (): GenerativePreferences => {
@@ -162,13 +176,20 @@ export const loadGenerativePreferences = (): GenerativePreferences => {
         const workflow = coerceWorkflow(parsed.defaultWorkflow)
             || DEFAULT_GENERATIVE_PREFERENCES.defaultWorkflow;
         const comfyServerUrl = typeof parsed.comfyServerUrl === 'string' && parsed.comfyServerUrl.trim().length > 0
-            ? parsed.comfyServerUrl.trim()
+            ? (parsed.comfyServerUrl.trim() === LEGACY_DEFAULT_COMFY_URL ? DEFAULT_COMFY_LOCAL_URL : parsed.comfyServerUrl.trim())
             : (resolveLegacyComfyUrl() || DEFAULT_GENERATIVE_PREFERENCES.comfyServerUrl);
+        const comfyConnectionMode = coerceComfyConnectionMode(parsed.comfyConnectionMode)
+            || DEFAULT_GENERATIVE_PREFERENCES.comfyConnectionMode;
+        const comfyCloudUrl = typeof parsed.comfyCloudUrl === 'string' && parsed.comfyCloudUrl.trim().length > 0
+            ? parsed.comfyCloudUrl.trim()
+            : DEFAULT_GENERATIVE_PREFERENCES.comfyCloudUrl;
 
         return {
             defaultProvider: provider,
             defaultWorkflow: workflow,
             comfyServerUrl,
+            comfyConnectionMode,
+            comfyCloudUrl,
             autoStartInpaintMasking: coerceBoolean(
                 parsed.autoStartInpaintMasking,
                 DEFAULT_GENERATIVE_PREFERENCES.autoStartInpaintMasking
@@ -193,10 +214,16 @@ export const saveGenerativePreferences = (updates: Partial<GenerativePreferences
     }
 
     const current = loadGenerativePreferences();
+    const normalizedComfyServerUrl = (updates.comfyServerUrl ?? current.comfyServerUrl).trim();
     const next: GenerativePreferences = {
         ...current,
         ...updates,
-        comfyServerUrl: (updates.comfyServerUrl ?? current.comfyServerUrl).trim() || DEFAULT_GENERATIVE_PREFERENCES.comfyServerUrl,
+        comfyServerUrl: (
+            (normalizedComfyServerUrl === LEGACY_DEFAULT_COMFY_URL ? DEFAULT_COMFY_LOCAL_URL : normalizedComfyServerUrl)
+            || DEFAULT_GENERATIVE_PREFERENCES.comfyServerUrl
+        ),
+        comfyCloudUrl: (updates.comfyCloudUrl ?? current.comfyCloudUrl).trim() || DEFAULT_GENERATIVE_PREFERENCES.comfyCloudUrl,
+        comfyConnectionMode: coerceComfyConnectionMode(updates.comfyConnectionMode) || current.comfyConnectionMode,
     };
 
     window.localStorage.setItem(GENERATIVE_PREFERENCES_STORAGE_KEY, JSON.stringify(next));

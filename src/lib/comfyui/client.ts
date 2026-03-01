@@ -1,6 +1,12 @@
+import {
+    DEFAULT_COMFY_LOCAL_URL,
+    createLocalComfyTransport,
+    type ResolvedComfyTransport,
+} from '@/lib/comfyui/connection';
+
 export interface ComfyExecutionProgress {
     nodeId: string | null;
-    progress: number; // 0 to 1
+    progress: number;
     max: number;
     value: number;
 }
@@ -11,37 +17,44 @@ export interface ComfyExecutionResult {
     error?: string;
 }
 
+interface ComfyHistoryImage {
+    filename: string;
+    subfolder?: string;
+    type?: string;
+}
+
+interface PromptHandler {
+    resolve: (result: ComfyExecutionResult) => void;
+    reject: (error: Error) => void;
+    onProgress?: (progress: ComfyExecutionProgress) => void;
+    outputNodeIds: string[];
+    settled: boolean;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export class ComfyUIClient {
-    private baseUrl: string;
-    private wsUrl: string;
+    private transport: ResolvedComfyTransport;
+    private wsUrl!: string;
     private clientId: string;
     private ws: WebSocket | null = null;
-    private promptIdHandlers: Map<string, {
-        resolve: (result: ComfyExecutionResult) => void;
-        reject: (error: any) => void;
-        onProgress?: (progress: ComfyExecutionProgress) => void;
-        outputNodeIds: string[];
-    }> = new Map();
+    private promptIdHandlers: Map<string, PromptHandler> = new Map();
 
-    constructor(serverUrl: string = 'http://127.0.0.1:8188') {
-        this.setServerUrl(serverUrl);
-        // Generate a simple UUID for this client
-        this.clientId = Math.random().toString(36).substring(2, 15);
+    constructor(connection: string | ResolvedComfyTransport = DEFAULT_COMFY_LOCAL_URL) {
+        this.transport = typeof connection === 'string'
+            ? createLocalComfyTransport(connection)
+            : connection;
+        this.setTransport(this.transport);
+        this.clientId = Math.random().toString(36).slice(2);
     }
 
     public setServerUrl(url: string) {
-        // Ensure no trailing slash
-        this.baseUrl = url.trim().replace(/\/$/, '');
+        this.setTransport(createLocalComfyTransport(url));
+    }
 
-        // Convert http(s) to ws(s)
-        if (this.baseUrl.startsWith('https://')) {
-            this.wsUrl = this.baseUrl.replace('https://', 'wss://') + '/ws';
-        } else if (this.baseUrl.startsWith('http://')) {
-            this.wsUrl = this.baseUrl.replace('http://', 'ws://') + '/ws';
-        } else {
-            this.wsUrl = `ws://${this.baseUrl}/ws`;
-            this.baseUrl = `http://${this.baseUrl}`;
-        }
+    public setTransport(transport: ResolvedComfyTransport) {
+        this.transport = transport;
+        this.wsUrl = this.buildWebSocketUrl(transport);
     }
 
     public connect() {
@@ -50,16 +63,18 @@ export class ComfyUIClient {
         }
 
         try {
-            this.ws = new WebSocket(`${this.wsUrl}?clientId=${this.clientId}`);
+            this.ws = new WebSocket(this.buildWebSocketConnectionUrl());
 
             this.ws.onmessage = (event) => {
-                if (typeof event.data === 'string') {
-                    try {
-                        const msg = JSON.parse(event.data);
-                        this.handleMessage(msg);
-                    } catch (e) {
-                        console.error('Failed to parse ComfyUI WS message', e);
-                    }
+                if (typeof event.data !== 'string') {
+                    return;
+                }
+
+                try {
+                    const message = JSON.parse(event.data) as { type?: string; data?: Record<string, unknown> };
+                    this.handleMessage(message);
+                } catch (error) {
+                    console.error('Failed to parse ComfyUI WS message', error);
                 }
             };
 
@@ -70,133 +85,327 @@ export class ComfyUIClient {
             this.ws.onclose = () => {
                 this.ws = null;
             };
-        } catch (e) {
-            console.error('Failed to connect to ComfyUI websocket', e);
+        } catch (error) {
+            console.error('Failed to connect to ComfyUI websocket', error);
         }
     }
 
     public disconnect() {
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
+        if (!this.ws) {
+            return;
         }
-    }
 
-    private handleMessage(msg: any) {
-        if (msg.type === 'progress') {
-            const data = msg.data;
-            const handler = this.findHandlerByPromptId(data.prompt_id);
-            if (handler && handler.onProgress) {
-                handler.onProgress({
-                    nodeId: data.node,
-                    max: data.max,
-                    value: data.value,
-                    progress: data.value / data.max
-                });
-            }
-        } else if (msg.type === 'executed') {
-            const data = msg.data;
-            // data.node is the output node ID
-            // data.output has the resulting images/files
-            const handler = this.findHandlerByPromptId(data.prompt_id);
-            if (handler && handler.outputNodeIds.includes(data.node)) {
-                if (data.output && data.output.images && data.output.images.length > 0) {
-                    const imageInfo = data.output.images[0];
-                    this.fetchImage(imageInfo.filename, imageInfo.subfolder, imageInfo.type)
-                        .then(dataUrl => handler.resolve({ dataUrl, filename: imageInfo.filename }))
-                        .catch(handler.reject);
-                } else {
-                    handler.resolve({}); // No image output
-                }
-                this.promptIdHandlers.delete(data.prompt_id);
-            }
-        } else if (msg.type === 'execution_error') {
-            const data = msg.data;
-            const handler = this.findHandlerByPromptId(data.prompt_id);
-            if (handler) {
-                handler.reject(new Error(`ComfyUI Execution Error in node ${data.node_id}: ${data.exception_type}`));
-                this.promptIdHandlers.delete(data.prompt_id);
-            }
-        }
-    }
-
-    private findHandlerByPromptId(promptId: string) {
-        return this.promptIdHandlers.get(promptId);
+        this.ws.close();
+        this.ws = null;
     }
 
     public async uploadImage(base64Image: string, filename: string = 'upload.png'): Promise<string> {
-        // Convert base64 to blob
-        const res = await fetch(base64Image);
-        const blob = await res.blob();
+        const responseFromDataUri = await fetch(base64Image);
+        const blob = await responseFromDataUri.blob();
 
         const formData = new FormData();
         formData.append('image', blob, filename);
         formData.append('overwrite', 'true');
 
-        const response = await fetch(`${this.baseUrl}/upload/image`, {
+        const response = await fetch(this.buildApiUrl('/upload/image'), {
             method: 'POST',
-            body: formData
+            headers: this.transport.defaultHeaders,
+            body: formData,
         });
 
         if (!response.ok) {
             throw new Error(`Failed to upload image to ComfyUI: ${response.statusText}`);
         }
 
-        const result = await response.json();
-        return result.name; // Return the filename stored on the server
+        const result = await response.json() as { name?: string };
+        if (!result.name) {
+            throw new Error('ComfyUI did not return an uploaded filename.');
+        }
+
+        return result.name;
     }
 
-    private async fetchImage(filename: string, subfolder: string = '', type: string = 'output'): Promise<string> {
-        const params = new URLSearchParams({
-            filename,
-            subfolder,
-            type
+    public async getHistory(promptId: string): Promise<Record<string, unknown>> {
+        const response = await fetch(`${this.transport.baseUrl}${this.transport.historyPathBase}/${promptId}`, {
+            headers: this.transport.defaultHeaders,
         });
-        const response = await fetch(`${this.baseUrl}/view?${params.toString()}`);
+
         if (!response.ok) {
-            throw new Error(`Failed to fetch image from ComfyUI: ${response.statusText}`);
+            throw new Error(`Failed to fetch ComfyUI history: ${response.statusText}`);
         }
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
+
+        return await response.json() as Record<string, unknown>;
+    }
+
+    public findImageResultInHistory(
+        history: Record<string, unknown>,
+        promptId: string,
+        outputNodeIds: string[] = []
+    ): ComfyHistoryImage | null {
+        const promptEntry = history[promptId];
+        if (!promptEntry || typeof promptEntry !== 'object') {
+            return null;
+        }
+
+        const outputs = (promptEntry as { outputs?: Record<string, { images?: ComfyHistoryImage[] }> }).outputs;
+        if (!outputs) {
+            return null;
+        }
+
+        const preferredNodeIds = outputNodeIds.length > 0 ? outputNodeIds : Object.keys(outputs);
+        for (const nodeId of preferredNodeIds) {
+            const images = outputs[nodeId]?.images;
+            if (images && images.length > 0) {
+                return images[0];
+            }
+        }
+
+        for (const output of Object.values(outputs)) {
+            if (output.images && output.images.length > 0) {
+                return output.images[0];
+            }
+        }
+
+        return null;
+    }
+
+    public async waitForHistoryOutput(
+        promptId: string,
+        outputNodeIds: string[],
+        timeoutMs: number = 120000,
+        pollIntervalMs: number = 1000
+    ): Promise<ComfyExecutionResult> {
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < timeoutMs) {
+            const history = await this.getHistory(promptId);
+            const image = this.findImageResultInHistory(history, promptId, outputNodeIds);
+
+            if (image) {
+                const dataUrl = await this.fetchImage(image.filename, image.subfolder, image.type);
+                return {
+                    dataUrl,
+                    filename: image.filename,
+                };
+            }
+
+            await sleep(pollIntervalMs);
+        }
+
+        throw new Error('Timed out waiting for ComfyUI output.');
     }
 
     public async executeWorkflow(
-        workflowJson: any,
+        workflowJson: Record<string, unknown>,
         outputNodeIds: string[],
         onProgress?: (progress: ComfyExecutionProgress) => void
     ): Promise<ComfyExecutionResult> {
-        this.connect(); // Ensure we are connected
+        this.connect();
 
-        const response = await fetch(`${this.baseUrl}/prompt`, {
+        const response = await fetch(this.buildApiUrl('/prompt'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                ...this.transport.defaultHeaders,
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
                 prompt: workflowJson,
-                client_id: this.clientId
-            })
+                client_id: this.clientId,
+            }),
         });
 
         if (!response.ok) {
             throw new Error(`Failed to queue prompt: ${response.statusText}`);
         }
 
-        const { prompt_id } = await response.json();
+        const payload = await response.json() as { prompt_id?: string };
+        if (!payload.prompt_id) {
+            throw new Error('ComfyUI did not return a prompt ID.');
+        }
 
-        return new Promise((resolve, reject) => {
-            this.promptIdHandlers.set(prompt_id, {
+        const promptId = payload.prompt_id;
+
+        return await new Promise<ComfyExecutionResult>((resolve, reject) => {
+            this.promptIdHandlers.set(promptId, {
                 resolve,
                 reject,
                 onProgress,
-                outputNodeIds
+                outputNodeIds,
+                settled: false,
             });
+
+            void this.waitForHistoryOutput(promptId, outputNodeIds)
+                .then((result) => {
+                    this.resolveHandler(promptId, result);
+                })
+                .catch((error) => {
+                    this.rejectHandler(promptId, error instanceof Error ? error : new Error(String(error)));
+                });
+        });
+    }
+
+    private buildApiUrl(path: string): string {
+        return `${this.transport.baseUrl}${this.transport.apiBasePath}${path}`;
+    }
+
+    private buildWebSocketUrl(transport: ResolvedComfyTransport): string {
+        if (transport.baseUrl.startsWith('https://')) {
+            return transport.baseUrl.replace('https://', 'wss://') + '/ws';
+        }
+
+        if (transport.baseUrl.startsWith('http://')) {
+            return transport.baseUrl.replace('http://', 'ws://') + '/ws';
+        }
+
+        return `ws://${transport.baseUrl}/ws`;
+    }
+
+    private buildWebSocketConnectionUrl(): string {
+        const params = new URLSearchParams({
+            clientId: this.clientId,
+        });
+
+        if (this.transport.websocketToken) {
+            params.set('token', this.transport.websocketToken);
+        }
+
+        return `${this.wsUrl}?${params.toString()}`;
+    }
+
+    private handleMessage(message: { type?: string; data?: Record<string, unknown> }) {
+        const promptId = typeof message.data?.prompt_id === 'string' ? message.data.prompt_id : null;
+        if (!promptId) {
+            return;
+        }
+
+        const handler = this.findHandler(promptId);
+        if (!handler) {
+            return;
+        }
+
+        if (message.type === 'progress') {
+            if (!handler.onProgress) {
+                return;
+            }
+
+            const max = typeof message.data?.max === 'number' ? message.data.max : 0;
+            const value = typeof message.data?.value === 'number' ? message.data.value : 0;
+            const nodeId = typeof message.data?.node === 'string' ? message.data.node : null;
+
+            handler.onProgress({
+                nodeId,
+                max,
+                value,
+                progress: max > 0 ? value / max : 0,
+            });
+            return;
+        }
+
+        if (message.type === 'executed') {
+            const nodeId = typeof message.data?.node === 'string' ? message.data.node : null;
+            if (!nodeId || !handler.outputNodeIds.includes(nodeId)) {
+                return;
+            }
+
+            const output = message.data?.output as { images?: ComfyHistoryImage[] } | undefined;
+            const image = output?.images?.[0];
+
+            if (!image) {
+                this.resolveHandler(promptId, {});
+                return;
+            }
+
+            void this.fetchImage(image.filename, image.subfolder, image.type)
+                .then((dataUrl) => {
+                    this.resolveHandler(promptId, {
+                        dataUrl,
+                        filename: image.filename,
+                    });
+                })
+                .catch((error) => {
+                    this.rejectHandler(promptId, error instanceof Error ? error : new Error(String(error)));
+                });
+            return;
+        }
+
+        if (message.type === 'execution_success') {
+            void this.resolveFromHistory(promptId, handler.outputNodeIds);
+            return;
+        }
+
+        if (message.type === 'execution_error') {
+            const nodeId = typeof message.data?.node_id === 'string' ? message.data.node_id : 'unknown';
+            const exceptionType = typeof message.data?.exception_type === 'string'
+                ? message.data.exception_type
+                : 'Unknown error';
+
+            this.rejectHandler(promptId, new Error(`ComfyUI execution error in node ${nodeId}: ${exceptionType}`));
+        }
+    }
+
+    private findHandler(promptId: string): PromptHandler | null {
+        return this.promptIdHandlers.get(promptId) || null;
+    }
+
+    private resolveHandler(promptId: string, result: ComfyExecutionResult) {
+        const handler = this.findHandler(promptId);
+        if (!handler || handler.settled) {
+            return;
+        }
+
+        handler.settled = true;
+        this.promptIdHandlers.delete(promptId);
+        handler.resolve(result);
+    }
+
+    private rejectHandler(promptId: string, error: Error) {
+        const handler = this.findHandler(promptId);
+        if (!handler || handler.settled) {
+            return;
+        }
+
+        handler.settled = true;
+        this.promptIdHandlers.delete(promptId);
+        handler.reject(error);
+    }
+
+    private async resolveFromHistory(promptId: string, outputNodeIds: string[]) {
+        try {
+            const result = await this.waitForHistoryOutput(promptId, outputNodeIds, 5000, 500);
+            this.resolveHandler(promptId, result);
+        } catch (error) {
+            this.rejectHandler(promptId, error instanceof Error ? error : new Error(String(error)));
+        }
+    }
+
+    private async fetchImage(
+        filename: string,
+        subfolder: string = '',
+        type: string = 'output'
+    ): Promise<string> {
+        const params = new URLSearchParams({
+            filename,
+            subfolder,
+            type,
+        });
+
+        const response = await fetch(`${this.buildApiUrl('/view')}?${params.toString()}`, {
+            headers: this.transport.defaultHeaders,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image from ComfyUI: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+
+        return await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('Failed to read ComfyUI image blob.'));
+            reader.readAsDataURL(blob);
         });
     }
 }
 
-// Global instance 
 export const comfyUIClient = new ComfyUIClient();

@@ -23,6 +23,13 @@ import {
     type GenerativeProviderId,
     type GenerativeWorkflowId
 } from '@/lib/generative-preferences';
+import {
+    DEFAULT_COMFY_LOCAL_URL,
+    loadComfyCloudApiKey,
+    saveComfyCloudApiKey,
+    verifyAvailableComfyConnection,
+    type ComfyConnectionMode
+} from '@/lib/comfyui/connection';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 import { resetNumberDragHintSeen } from '@/lib/number-drag-hints';
@@ -79,7 +86,17 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [bananaKey, setBananaKey] = useState('');
     const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('stability');
     const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('stability-inpaint');
-    const [comfyServerUrl, setComfyServerUrl] = useState('http://127.0.0.1:8188');
+    const [comfyServerUrl, setComfyServerUrl] = useState(DEFAULT_COMFY_LOCAL_URL);
+    const [comfyConnectionMode, setComfyConnectionMode] = useState<ComfyConnectionMode>('auto');
+    const [comfyCloudUrl, setComfyCloudUrl] = useState('https://cloud.comfy.org');
+    const [comfyCloudApiKey, setComfyCloudApiKey] = useState('');
+    const [comfyConnectionCheck, setComfyConnectionCheck] = useState<{
+        state: 'idle' | 'checking' | 'success' | 'error';
+        message: string;
+    }>({
+        state: 'idle',
+        message: '',
+    });
     const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
     const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
 
@@ -179,6 +196,9 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setDefaultGenerativeProvider(generativePreferences.defaultProvider);
         setDefaultGenerativeWorkflow(generativePreferences.defaultWorkflow);
         setComfyServerUrl(generativePreferences.comfyServerUrl);
+        setComfyConnectionMode(generativePreferences.comfyConnectionMode);
+        setComfyCloudUrl(generativePreferences.comfyCloudUrl);
+        setComfyCloudApiKey(loadComfyCloudApiKey());
         setAutoStartInpaintMasking(generativePreferences.autoStartInpaintMasking);
         setShowInpaintPromptDock(generativePreferences.showInpaintPromptDock);
 
@@ -270,6 +290,14 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         if (!isAdmin || !userId || userId === 'Guest') return;
         void loadAdminUsers();
     }, [isOpen, isAdmin, userId, loadAdminUsers]);
+
+    useEffect(() => {
+        setComfyConnectionCheck((current) => (
+            current.state === 'idle' && !current.message
+                ? current
+                : { state: 'idle', message: '' }
+        ));
+    }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl]);
 
     const setProviderValidation = useCallback((provider: ValidationProvider, state: ValidationState, message: string) => {
         setValidationStatus((prev) => ({
@@ -363,6 +391,32 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         }
     }, [getEffectiveHitemsKey, googleKey, hitemsAppId, meshyKey, setProviderValidation, tripoKey]);
 
+    const handleVerifyComfyConnection = useCallback(async () => {
+        setComfyConnectionCheck({
+            state: 'checking',
+            message: 'Checking Comfy connection...',
+        });
+
+        try {
+            const result = await verifyAvailableComfyConnection({
+                mode: comfyConnectionMode,
+                localUrl: comfyServerUrl,
+                cloudUrl: comfyCloudUrl,
+                cloudApiKey: comfyCloudApiKey,
+            });
+
+            setComfyConnectionCheck({
+                state: result.ok ? 'success' : 'error',
+                message: result.message,
+            });
+        } catch (error) {
+            setComfyConnectionCheck({
+                state: 'error',
+                message: error instanceof Error ? error.message : 'Failed to verify Comfy connection.',
+            });
+        }
+    }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl]);
+
     const handleSave = async () => {
         setStatus('saving');
 
@@ -380,10 +434,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         localStorage.setItem(STORAGE_KEYS.BANANA_API_KEY, bananaKey);
         localStorage.setItem(STORAGE_KEYS.IMG_GEN_PROVIDER, defaultGenerativeProvider);
         localStorage.setItem(STORAGE_KEYS.COMFY_UI_URL, comfyServerUrl.trim());
+        saveComfyCloudApiKey(comfyCloudApiKey);
         saveGenerativePreferences({
             defaultProvider: defaultGenerativeProvider,
             defaultWorkflow: defaultGenerativeWorkflow,
             comfyServerUrl: comfyServerUrl.trim(),
+            comfyConnectionMode,
+            comfyCloudUrl: comfyCloudUrl.trim(),
             autoStartInpaintMasking,
             showInpaintPromptDock,
         });
@@ -579,7 +636,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             case 'banana':
                 return bananaKey.trim().length > 0;
             case 'comfy':
-                return comfyServerUrl.trim().length > 0;
+                if (comfyConnectionMode === 'local') {
+                    return comfyServerUrl.trim().length > 0;
+                }
+                if (comfyConnectionMode === 'cloud') {
+                    return comfyCloudUrl.trim().length > 0 && comfyCloudApiKey.trim().length > 0;
+                }
+                return comfyServerUrl.trim().length > 0 || (comfyCloudUrl.trim().length > 0 && comfyCloudApiKey.trim().length > 0);
             default:
                 return false;
         }
@@ -923,17 +986,87 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                         </div>
 
                         <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Comfy Connection Mode</label>
+                            <select
+                                value={comfyConnectionMode}
+                                onChange={(event) => setComfyConnectionMode(event.target.value as ComfyConnectionMode)}
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs"
+                            >
+                                <option value="auto">Auto (Local, then Cloud)</option>
+                                <option value="local">Local only</option>
+                                <option value="cloud">Cloud only</option>
+                            </select>
+                            <p className="text-[11px] text-muted-foreground">
+                                Auto first probes local ComfyUI, then falls back to Comfy Cloud if local is unavailable.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1.5">
                             <label className="text-xs font-semibold">Local ComfyUI URL</label>
                             <input
                                 type="text"
                                 value={comfyServerUrl}
                                 onChange={(event) => setComfyServerUrl(event.target.value)}
-                                placeholder="http://127.0.0.1:8188"
+                                placeholder={DEFAULT_COMFY_LOCAL_URL}
                                 className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                             />
                             <p className="text-[11px] text-muted-foreground">
                                 Local AI support follows a Krita/GIMP-like pattern: point the app to your local server endpoint.
                             </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Comfy Cloud URL</label>
+                            <input
+                                type="text"
+                                value={comfyCloudUrl}
+                                onChange={(event) => setComfyCloudUrl(event.target.value)}
+                                placeholder="https://cloud.comfy.org"
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Comfy Cloud API Key</label>
+                            <input
+                                type="password"
+                                value={comfyCloudApiKey}
+                                onChange={(event) => setComfyCloudApiKey(event.target.value)}
+                                placeholder="ck-..."
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                                Cloud requests use the <code className="font-mono">X-API-Key</code> header and websocket token auth.
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <button
+                                onClick={() => void handleVerifyComfyConnection()}
+                                disabled={comfyConnectionCheck.state === 'checking'}
+                                className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {comfyConnectionCheck.state === 'checking' ? (
+                                    <Loader2 size={13} className="animate-spin" />
+                                ) : (
+                                    <Server size={13} />
+                                )}
+                                Verify Comfy Connection
+                            </button>
+
+                            {comfyConnectionCheck.message && (
+                                <div
+                                    className={`text-[11px] rounded-md border px-2.5 py-2 ${
+                                        comfyConnectionCheck.state === 'success'
+                                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+                                            : comfyConnectionCheck.state === 'error'
+                                                ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                                                : 'border-border/60 bg-background/70 text-muted-foreground'
+                                    }`}
+                                >
+                                    {comfyConnectionCheck.message}
+                                </div>
+                            )}
                         </div>
 
                         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">

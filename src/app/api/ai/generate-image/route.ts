@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const { prompt, width, height, serverUrl, provider, apiKey, specificProvider } = await request.json();
 
     if (provider === 'comfy') {
-        const comfyHost = serverUrl || 'http://127.0.0.1:8188';
+        const comfyHost = serverUrl || 'http://localhost:8188';
         
         // 1. Get a Client ID (UUID)
         const clientId = crypto.randomUUID();

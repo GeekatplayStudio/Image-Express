@@ -16,7 +16,9 @@ describe('generative-preferences', () => {
         expect(loadGenerativePreferences()).toEqual({
             defaultProvider: 'stability',
             defaultWorkflow: 'stability-inpaint',
-            comfyServerUrl: 'http://127.0.0.1:8188',
+            comfyServerUrl: 'http://localhost:8188',
+            comfyConnectionMode: 'auto',
+            comfyCloudUrl: 'https://cloud.comfy.org',
             autoStartInpaintMasking: true,
             showInpaintPromptDock: true,
         });
@@ -38,6 +40,8 @@ describe('generative-preferences', () => {
             defaultProvider: 'comfy',
             defaultWorkflow: 'zone',
             comfyServerUrl: 'http://localhost:9999',
+            comfyConnectionMode: 'auto',
+            comfyCloudUrl: 'https://cloud.comfy.org',
             autoStartInpaintMasking: false,
             showInpaintPromptDock: false,
         });
@@ -56,13 +60,26 @@ describe('generative-preferences', () => {
         expect(loaded.comfyServerUrl).toBe('http://127.0.0.1:8288');
     });
 
+    it('normalizes the legacy default comfy URL to localhost', () => {
+        window.localStorage.setItem(
+            GENERATIVE_PREFERENCES_STORAGE_KEY,
+            JSON.stringify({
+                comfyServerUrl: 'http://127.0.0.1:8188',
+            })
+        );
+
+        expect(loadGenerativePreferences().comfyServerUrl).toBe('http://localhost:8188');
+    });
+
     it('handles malformed storage values gracefully', () => {
         window.localStorage.setItem(GENERATIVE_PREFERENCES_STORAGE_KEY, '{bad');
 
         expect(loadGenerativePreferences()).toEqual({
             defaultProvider: 'stability',
             defaultWorkflow: 'stability-inpaint',
-            comfyServerUrl: 'http://127.0.0.1:8188',
+            comfyServerUrl: 'http://localhost:8188',
+            comfyConnectionMode: 'auto',
+            comfyCloudUrl: 'https://cloud.comfy.org',
             autoStartInpaintMasking: true,
             showInpaintPromptDock: true,
         });
@@ -72,7 +89,9 @@ describe('generative-preferences', () => {
         const launch = resolveGenerativeLaunchState({
             defaultProvider: 'openai',
             defaultWorkflow: 'stability-outpaint',
-            comfyServerUrl: 'http://127.0.0.1:8188',
+            comfyServerUrl: 'http://localhost:8188',
+            comfyConnectionMode: 'auto',
+            comfyCloudUrl: 'https://cloud.comfy.org',
             autoStartInpaintMasking: true,
             showInpaintPromptDock: true,
         }, ['comfy', 'stability', 'openai']);
@@ -88,7 +107,9 @@ describe('generative-preferences', () => {
         const launch = resolveGenerativeLaunchState({
             defaultProvider: 'stability',
             defaultWorkflow: 'stability-inpaint',
-            comfyServerUrl: 'http://127.0.0.1:8188',
+            comfyServerUrl: 'http://localhost:8188',
+            comfyConnectionMode: 'auto',
+            comfyCloudUrl: 'https://cloud.comfy.org',
             autoStartInpaintMasking: true,
             showInpaintPromptDock: true,
         }, ['comfy', 'openai']);
@@ -101,7 +122,9 @@ describe('generative-preferences', () => {
         const launch = resolveGenerativeLaunchState({
             defaultProvider: 'google',
             defaultWorkflow: 'zone',
-            comfyServerUrl: 'http://127.0.0.1:8188',
+            comfyServerUrl: 'http://localhost:8188',
+            comfyConnectionMode: 'auto',
+            comfyCloudUrl: 'https://cloud.comfy.org',
             autoStartInpaintMasking: true,
             showInpaintPromptDock: true,
         }, ['google', 'openai']);

@@ -45,7 +45,7 @@ export default function HelpPopup({ isOpen, onClose, type }: HelpPopupProps) {
                                     <strong>Run It:</strong> Execute <code className="bg-secondary px-1 py-0.5 rounded">run_nvidia_gpu.bat</code> (Windows) or the appropriate script for your system.
                                 </li>
                                 <li>
-                                    <strong>Connect:</strong> By default, it runs at <code className="bg-secondary px-1 py-0.5 rounded text-primary">http://127.0.0.1:8188</code>. Copy this URL into the settings field.
+                                    <strong>Connect:</strong> By default, it runs at <code className="bg-secondary px-1 py-0.5 rounded text-primary">http://localhost:8188</code>. Copy this URL into the settings field.
                                 </li>
                                 <li>
                                     <strong>CORS Issues:</strong> If you see connection errors, launch ComfyUI with the <code className="bg-secondary px-1 py-0.5 rounded">--enable-cors-header</code> argument to allow the browser to talk to it.

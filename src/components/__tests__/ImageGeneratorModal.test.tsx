@@ -195,7 +195,7 @@ describe('ImageGeneratorModal', () => {
             JSON.stringify({
                 defaultProvider: 'openai',
                 defaultWorkflow: 'zone',
-                comfyServerUrl: 'http://127.0.0.1:8188',
+                comfyServerUrl: 'http://localhost:8188',
                 autoStartInpaintMasking: true,
                 showInpaintPromptDock: true,
             })
@@ -203,9 +203,9 @@ describe('ImageGeneratorModal', () => {
         const canvas = createCanvasStub();
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
-        const providerSelect = screen.getByRole('combobox');
+        const providerSelect = screen.getAllByRole('combobox')[0];
         expect(providerSelect).toHaveValue('openai');
-        expect(screen.getByRole('option', { name: 'Local ComfyUI' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'ComfyUI' })).toBeInTheDocument();
         expect(screen.getByRole('option', { name: 'Stability AI' })).toBeInTheDocument();
         expect(screen.getByRole('option', { name: 'ChatGPT / OpenAI' })).toBeInTheDocument();
 
@@ -248,6 +248,8 @@ describe('ImageGeneratorModal', () => {
     });
 
     it('shows error message when generation fails', async () => {
+        localStorage.setItem('openai_api_key', 'openai-123');
+        localStorage.setItem('image-express-gen-provider', 'openai');
         (global.fetch as jest.Mock).mockResolvedValueOnce({
             json: async () => ({ success: false, message: 'Generation failed upstream' }),
         });
