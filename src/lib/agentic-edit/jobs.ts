@@ -43,6 +43,7 @@ const jobsDir = path.join(dataRoot, 'ai-jobs');
 const uploadsDir = path.join(jobsDir, 'uploads');
 const revisionsDir = path.join(dataRoot, 'ai-revisions');
 const outputDir = path.join(process.cwd(), 'public', 'assets', 'generated', 'images');
+const DEFAULT_OLD_JOB_RETENTION_MS = 6 * 60 * 60 * 1000;
 
 const ensureDirs = async () => {
     await fs.mkdir(jobsDir, { recursive: true });
@@ -95,6 +96,21 @@ const saveBuffer = async (targetPath: string, buffer: Buffer) => {
     await fs.writeFile(targetPath, buffer);
 };
 
+const removeFileIfExists = async (targetPath?: string) => {
+    if (!targetPath) {
+        return;
+    }
+
+    try {
+        await fs.unlink(targetPath);
+    } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException;
+        if (nodeError?.code !== 'ENOENT') {
+            throw error;
+        }
+    }
+};
+
 const toBuffer = async (file: File): Promise<Buffer> => {
     const arrayBuffer = await file.arrayBuffer();
     return Buffer.from(arrayBuffer);
@@ -105,6 +121,10 @@ const safeExt = (filename: string, fallback = '.bin'): string => {
     if (!ext || ext.length > 12) return fallback;
     return ext;
 };
+
+const isTerminalJobStatus = (status: GenerateJobState['status']): boolean => (
+    status === 'succeeded' || status === 'failed'
+);
 
 const createRevisionRecord = async (job: StoredGenerateJob) => {
     if (!job.output) return;
@@ -146,8 +166,95 @@ export interface CreateGenerateJobInput {
     references: Array<{ id: string; role: string; file: File }>;
 }
 
+export const cleanupOldGenerateJobs = async (retentionMs = DEFAULT_OLD_JOB_RETENTION_MS): Promise<number> => {
+    await ensureDirs();
+
+    const now = Date.now();
+    const removedIds: string[] = [];
+    const jobFiles = await fs.readdir(jobsDir);
+
+    for (const entry of jobFiles) {
+        const jobMatch = /^job_[0-9a-f-]+\.json$/i.test(entry);
+        if (!jobMatch) {
+            continue;
+        }
+
+        const fullPath = path.join(jobsDir, entry);
+        let shouldDeleteRecordOnly = false;
+        let parsedJob: StoredGenerateJob | null = null;
+
+        try {
+            const raw = await fs.readFile(fullPath, 'utf-8');
+            parsedJob = JSON.parse(raw) as StoredGenerateJob;
+        } catch {
+            shouldDeleteRecordOnly = true;
+        }
+
+        if (shouldDeleteRecordOnly) {
+            await removeFileIfExists(fullPath);
+            continue;
+        }
+
+        if (!parsedJob) {
+            continue;
+        }
+
+        const updatedAt = Date.parse(parsedJob.state.updatedAt || parsedJob.state.createdAt || '');
+        const ageMs = Number.isFinite(updatedAt) ? Math.max(0, now - updatedAt) : Number.MAX_SAFE_INTEGER;
+
+        if (!isTerminalJobStatus(parsedJob.state.status) || ageMs < retentionMs) {
+            continue;
+        }
+
+        const jobId = parsedJob.state.id;
+        await cleanupGenerateJobArtifacts(jobId, {
+            removeJobRecord: true,
+            removeUploads: true,
+            removeRevisionRecord: true,
+        });
+        removedIds.push(jobId);
+    }
+
+    const remainingJobJson = await fs.readdir(jobsDir);
+    const remainingIds = new Set(
+        remainingJobJson
+            .filter((entry) => /^job_[0-9a-f-]+\.json$/i.test(entry))
+            .map((entry) => entry.replace(/\.json$/i, ''))
+    );
+
+    const uploadEntries = await fs.readdir(uploadsDir);
+    for (const uploadEntry of uploadEntries) {
+        const idMatch = uploadEntry.match(/^(job_[0-9a-f-]+)-/i);
+        if (!idMatch) {
+            continue;
+        }
+
+        const jobId = idMatch[1];
+        if (remainingIds.has(jobId)) {
+            continue;
+        }
+
+        const uploadPath = path.join(uploadsDir, uploadEntry);
+        let shouldDelete = true;
+        try {
+            const stats = await fs.stat(uploadPath);
+            const ageMs = now - stats.mtimeMs;
+            shouldDelete = ageMs >= retentionMs;
+        } catch {
+            shouldDelete = true;
+        }
+
+        if (shouldDelete) {
+            await removeFileIfExists(uploadPath);
+        }
+    }
+
+    return removedIds.length;
+};
+
 export const createGenerateJob = async (input: CreateGenerateJobInput): Promise<GenerateJobState> => {
     await ensureDirs();
+    await cleanupOldGenerateJobs();
 
     const jobId = `job_${crypto.randomUUID()}`;
     const createdAt = nowIso();
@@ -298,6 +405,10 @@ export const processGenerateJob = async (jobId: string): Promise<void> => {
 
         await persistGenerateJob(latest);
         await createRevisionRecord(latest);
+        await cleanupGenerateJobArtifacts(jobId, {
+            removeJobRecord: false,
+            removeUploads: true,
+        });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown job error';
         await updateState(jobId, {
@@ -306,5 +417,48 @@ export const processGenerateJob = async (jobId: string): Promise<void> => {
             message: 'Failed',
             error: message,
         });
+        await cleanupGenerateJobArtifacts(jobId, {
+            removeJobRecord: false,
+            removeUploads: true,
+        });
+    }
+};
+
+export const cleanupGenerateJobArtifacts = async (
+    jobId: string,
+    options?: {
+        removeJobRecord?: boolean;
+        removeUploads?: boolean;
+        removeOutput?: boolean;
+        removeRevisionRecord?: boolean;
+    }
+): Promise<void> => {
+    const removeJobRecord = options?.removeJobRecord ?? true;
+    const removeUploads = options?.removeUploads ?? true;
+    const removeOutput = options?.removeOutput ?? false;
+    const removeRevisionRecord = options?.removeRevisionRecord ?? false;
+
+    const job = await readGenerateJob(jobId);
+
+    if (removeUploads && job) {
+        await removeFileIfExists(job.files.originalPath);
+        await removeFileIfExists(job.files.combinedMaskPath);
+        await removeFileIfExists(job.files.poseHintPath);
+        await removeFileIfExists(job.files.notesOverlayPath);
+        await removeFileIfExists(job.files.annotationJsonPath);
+        await removeFileIfExists(job.files.promptPath);
+        await Promise.all(job.files.references.map((reference) => removeFileIfExists(reference.path)));
+    }
+
+    if (removeOutput && job?.output?.imagePath) {
+        await removeFileIfExists(job.output.imagePath);
+    }
+
+    if (removeRevisionRecord) {
+        await removeFileIfExists(path.join(revisionsDir, `${jobId}.json`));
+    }
+
+    if (removeJobRecord) {
+        await removeFileIfExists(jobFilePath(jobId));
     }
 };

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readGenerateJob } from '@/lib/agentic-edit/jobs';
+import { cleanupGenerateJobArtifacts, readGenerateJob } from '@/lib/agentic-edit/jobs';
 
 export const runtime = 'nodejs';
 
@@ -17,8 +17,19 @@ export async function GET(
         return NextResponse.json({ message: 'Job is not completed yet' }, { status: 409 });
     }
 
-    return NextResponse.json({
+    const responsePayload = {
         imageUrl: job.output.imageUrl,
         meta: job.output.meta,
-    });
+    };
+
+    try {
+        await cleanupGenerateJobArtifacts(id, {
+            removeJobRecord: true,
+            removeUploads: true,
+        });
+    } catch {
+        // best-effort cleanup
+    }
+
+    return NextResponse.json(responsePayload);
 }

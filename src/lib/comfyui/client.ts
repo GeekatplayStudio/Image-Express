@@ -44,6 +44,8 @@ interface ComfyObjectInfoNode {
 
 type ComfyObjectInfoResponse = Record<string, ComfyObjectInfoNode>;
 
+type GenericJsonRecord = Record<string, unknown>;
+
 interface MissingComfyModelInput {
     nodeId: string;
     classType: string;
@@ -446,6 +448,42 @@ export class ComfyUIClient {
         return `${this.transport.baseUrl}${this.transport.apiBasePath}${path}`;
     }
 
+    public async getFeaturesSnapshot(): Promise<GenericJsonRecord | null> {
+        try {
+            const response = await fetch(this.buildApiUrl('/features'), {
+                headers: this.transport.defaultHeaders,
+            });
+
+            if (!response.ok) {
+                return null;
+            }
+
+            return await response.json() as GenericJsonRecord;
+        } catch {
+            return null;
+        }
+    }
+
+    public async getSystemStatsSnapshot(): Promise<GenericJsonRecord | null> {
+        try {
+            const response = await fetch(this.buildApiUrl('/system_stats'), {
+                headers: this.transport.defaultHeaders,
+            });
+
+            if (!response.ok) {
+                return null;
+            }
+
+            return await response.json() as GenericJsonRecord;
+        } catch {
+            return null;
+        }
+    }
+
+    public async getObjectInfoSnapshot(): Promise<Record<string, unknown> | null> {
+        return await this.getObjectInfo();
+    }
+
     private async getObjectInfo(): Promise<ComfyObjectInfoResponse | null> {
         try {
             const response = await fetch(this.buildApiUrl('/object_info'), {
@@ -805,12 +843,19 @@ export class ComfyUIClient {
 
         const blob = await response.blob();
 
-        return await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('Failed to read ComfyUI image blob.'));
-            reader.readAsDataURL(blob);
-        });
+        if (typeof FileReader !== 'undefined') {
+            return await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = () => reject(new Error('Failed to read ComfyUI image blob.'));
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        const arrayBuffer = await blob.arrayBuffer();
+        const contentType = response.headers.get('content-type') || blob.type || 'image/png';
+        const nodeBuffer = Buffer.from(arrayBuffer);
+        return `data:${contentType};base64,${nodeBuffer.toString('base64')}`;
     }
 }
 

@@ -42,6 +42,9 @@ Image Express is a professional content creation platform built with Next.js 16,
    - Annotate with a large notes workspace using point/manual notes.
    - Remove point notes quickly with right-click and restore with Undo.
    - Save a flattened reference-notes layer back to canvas with embedded instruction metadata (`aiEditPlanData`) for downstream ComfyUI handoff.
+   - Long-running jobs support manual abort and extended wait windows for heavy Comfy/Flux runs.
+   - Comfy recovery now supports explicit cancellation and avoids auto-resuming canceled prompt IDs.
+   - Aspect controls support a free custom primary value with model-adapted sizing guidance for render-time bucket alignment.
 
 ### Storage & Management
 - **Server-Side Design Storage**: Designs are saved securely on the server (via filesystem in this edition), bypassing browser storage limits.
@@ -212,10 +215,12 @@ The Properties Panel provides comprehensive editing capabilities:
 
 ## 📚 Documentation
 
+- Easy install guide (PC/Mac + optional ComfyUI/Ollama): [docs/INSTALLATION.md](docs/INSTALLATION.md)
 - HTML export details, asset coverage, and QA guidance: [docs/html-export-notes.md](docs/html-export-notes.md)
 - Current implementation status and handoff checkpoint: [docs/unified_progress_status.md](docs/unified_progress_status.md)
 - Editor ownership map for ongoing refactors: [docs/component_responsibility_map.md](docs/component_responsibility_map.md)
 - Current large-component audit and extraction plan: [docs/refactor_component_audit_2026-02-26.md](docs/refactor_component_audit_2026-02-26.md)
+- Latest release notes (Mar 1 2026): [docs/release_notes_2026-03-01.md](docs/release_notes_2026-03-01.md)
 
 ## Editor Refactor Status
 

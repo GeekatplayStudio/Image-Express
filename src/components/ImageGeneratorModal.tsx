@@ -4,19 +4,20 @@ import { X, Wand2, Loader2 } from 'lucide-react';
 import * as fabric from 'fabric';
 import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
+import ComfyWorkflowLibraryPanel from './ComfyWorkflowLibraryPanel';
 import useEscapeKey from '@/hooks/useEscapeKey';
-import useSingleFlight from '@/hooks/useSingleFlight';
 import { APP_THEME } from '@/lib/theme-tokens';
 import {
   DEFAULT_COMFY_LOCAL_URL,
   loadComfyCloudApiKey,
   saveComfyCloudApiKey,
-    verifyAvailableComfyConnection,
+  verifyAvailableComfyConnection,
   type ComfyConnectionMode,
 } from '@/lib/comfyui/connection';
 import { comfyWorkflowRegistry, type ComfyTask } from '@/lib/comfyui/registry';
+import { registerSerializedComfyWorkflow, type SerializedComfyWorkflowRegistration } from '@/lib/comfyui/libraryTypes';
 import { getComfyTaskPreference, saveComfyTaskPreference } from '@/lib/comfyui/preferences';
-import { executeComfyTask, recoverComfyTaskByPromptId } from '@/lib/comfyui/runner';
+import { executeComfyTask, inspectComfyServerCatalog, recoverComfyTaskByPromptId } from '@/lib/comfyui/runner';
 import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
 import {
   GENERATIVE_PROVIDER_OPTIONS,
@@ -67,6 +68,7 @@ type CanvasWithArtboard = fabric.Canvas & {
 
 const COMFY_TASK_STORAGE_KEY = 'image-express-comfy-task';
 const COMFY_PENDING_JOB_STORAGE_KEY = 'image-express-comfy-pending-job';
+const COMFY_CANCELLED_PROMPTS_STORAGE_KEY = 'image-express-comfy-cancelled-prompts';
 
 interface PendingComfyJobRecord {
     promptId: string;
@@ -110,6 +112,117 @@ const COMFY_TASK_OPTIONS: Array<{ id: ComfyTask; label: string }> = [
     { id: 'outpaint', label: 'Outpaint' },
     { id: 'upscale', label: 'Upscale' },
 ];
+
+const COMFY_AGENTIC_EDIT_WORKFLOW_9B = 'image_flux2_klein_image_edit_9b_base';
+const COMFY_AGENTIC_EDIT_WORKFLOW_4B = 'image_flux2_klein_image_edit_4b_base';
+
+interface ComfyQualityProfile {
+    width: number;
+    height: number;
+    steps: number;
+    cfg: number;
+    strength: number;
+    seed: number;
+}
+
+const snapToComfyGrid = (value: number): number => Math.max(64, Math.round(value / 64) * 64);
+
+const resolveAdaptiveComfyDimensions = (
+    baseWidth: number,
+    baseHeight: number,
+    maxSide: number,
+    minSide = 512
+): { width: number; height: number } => {
+    const safeBaseWidth = Math.max(64, Math.round(baseWidth || 1024));
+    const safeBaseHeight = Math.max(64, Math.round(baseHeight || 1024));
+    const safeMaxSide = Math.max(minSide, Math.round(maxSide));
+
+    const longest = Math.max(safeBaseWidth, safeBaseHeight);
+    const scaleFromLongest = Math.max(minSide, Math.min(safeMaxSide, longest)) / longest;
+
+    let width = safeBaseWidth * scaleFromLongest;
+    let height = safeBaseHeight * scaleFromLongest;
+
+    const shortest = Math.min(width, height);
+    if (shortest < minSide) {
+        const scaleFromShortest = minSide / shortest;
+        width *= scaleFromShortest;
+        height *= scaleFromShortest;
+    }
+
+    width = snapToComfyGrid(width);
+    height = snapToComfyGrid(height);
+
+    const normalizedLongest = Math.max(width, height);
+    if (normalizedLongest > safeMaxSide) {
+        const downScale = safeMaxSide / normalizedLongest;
+        width = snapToComfyGrid(width * downScale);
+        height = snapToComfyGrid(height * downScale);
+    }
+
+    return {
+        width: Math.max(64, width),
+        height: Math.max(64, height),
+    };
+};
+
+const resolveComfyQualityProfile = (
+    workflowId: string,
+    modelPresetId: string,
+    baseWidth: number,
+    baseHeight: number,
+    task: ComfyTask
+): ComfyQualityProfile => {
+    const lowerWorkflowId = workflowId.toLowerCase();
+    const lowerModelPreset = modelPresetId.toLowerCase();
+
+    let maxSide = 1344;
+    let steps = task === 'generate' ? 36 : 30;
+    let cfg = 6.5;
+    let strength = task === 'img2img' ? 0.68 : 0.75;
+
+    if (lowerWorkflowId.includes('flux2_klein') || lowerWorkflowId.includes('flux2') || lowerModelPreset.includes('flux')) {
+        maxSide = 1024;
+        steps = lowerWorkflowId.includes('9b') ? 42 : 34;
+        cfg = 3.5;
+        strength = task === 'img2img' ? 0.72 : 0.8;
+    }
+
+    if (task === 'upscale') {
+        maxSide = 2048;
+        steps = 16;
+        cfg = 4.5;
+        strength = 0.5;
+    }
+
+    const adaptiveDimensions = resolveAdaptiveComfyDimensions(baseWidth, baseHeight, maxSide, 512);
+
+    return {
+        width: adaptiveDimensions.width,
+        height: adaptiveDimensions.height,
+        steps,
+        cfg,
+        strength,
+        seed: Math.floor(Math.random() * 2147483647),
+    };
+};
+
+const getPreferredComfyAgenticWorkflow = (workflowIds: string[]): string => (
+    workflowIds.find((workflowId) => workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_9B)
+    || workflowIds.find((workflowId) => workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_4B)
+    || workflowIds[0]
+    || ''
+);
+
+const resolveFluxModelFromWorkflowId = (workflowId: string): string => {
+    if (workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_4B) {
+        return 'flux.2-klein-4b';
+    }
+    if (workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_9B) {
+        return 'flux.2-klein-9b';
+    }
+    return 'flux-kontext';
+};
 
 const readImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => (
     new Promise((resolve, reject) => {
@@ -185,21 +298,71 @@ const dataUrlToFile = async (dataUrl: string, filename: string): Promise<File> =
     return new File([blob], filename, { type: blob.type || 'image/png' });
 };
 
-const wait = (ms: number): Promise<void> => new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
+const AI_EDIT_NOTES_MAX_WAIT_MS = 30 * 60 * 1000;
+const AI_EDIT_NOTES_POLL_INTERVAL_MS = 1500;
+
+const waitWithAbort = (ms: number, signal?: AbortSignal): Promise<void> => new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'));
+        return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+    }, ms);
+
+    const onAbort = () => {
+        window.clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onAbort);
+        reject(new DOMException('Aborted', 'AbortError'));
+    };
+
+    signal?.addEventListener('abort', onAbort, { once: true });
 });
 
 const mapGenerativeProviderToAgenticProvider = (provider: GenerativeProviderId): 'mock' | 'flux' | 'nanobanana' => {
     if (provider === 'banana') {
         return 'nanobanana';
     }
-    if (provider === 'openai' || provider === 'google' || provider === 'stability') {
+    if (provider === 'comfy' || provider === 'openai' || provider === 'google' || provider === 'stability') {
         return 'flux';
     }
     return 'mock';
 };
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+
+const wrapCanvasText = (
+    context: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number
+): string[] => {
+    const rawLines = text.split(/\r?\n/);
+    const wrapped: string[] = [];
+
+    for (const rawLine of rawLines) {
+        const words = rawLine.trim().split(/\s+/).filter(Boolean);
+        if (words.length === 0) {
+            wrapped.push('');
+            continue;
+        }
+
+        let current = words[0];
+        for (let index = 1; index < words.length; index += 1) {
+            const next = `${current} ${words[index]}`;
+            if (context.measureText(next).width <= maxWidth) {
+                current = next;
+            } else {
+                wrapped.push(current);
+                current = words[index];
+            }
+        }
+        wrapped.push(current);
+    }
+
+    return wrapped.length > 0 ? wrapped : [''];
+};
 
 const readBoxGeometry = (geometry: AnnotationRecord['geometry']): { x: number; y: number; w: number; h: number } => {
     if ('w' in geometry && 'h' in geometry) {
@@ -421,17 +584,26 @@ const buildAnnotatedReferenceLayerDataUrl = async (
 
         const box = readBoxGeometry(annotation.geometry);
         const labelX = Math.max(10, Math.round(box.x * safeWidth) + 6);
-        const labelY = Math.max(16, Math.round(box.y * safeHeight) + 16);
+        const labelY = Math.max(18, Math.round(box.y * safeHeight) + 18);
         const noteTitle = `${index + 1}. ${annotation.instruction.trim() || annotation.type}`;
 
         context.font = '12px sans-serif';
+        const maxLabelWidth = Math.max(140, Math.round(safeWidth * 0.42));
+        const wrappedLines = wrapCanvasText(context, noteTitle, maxLabelWidth);
+        const longestLineWidth = wrappedLines.reduce((max, line) => Math.max(max, context.measureText(line).width), 0);
+        const lineHeight = 14;
+        const paddingX = 6;
+        const paddingY = 5;
+        const boxWidth = Math.max(32, Math.min(safeWidth - 12, Math.round(longestLineWidth + paddingX * 2)));
+        const boxHeight = Math.max(20, wrappedLines.length * lineHeight + paddingY * 2);
+
         context.fillStyle = 'rgba(12, 15, 26, 0.82)';
-        const textWidth = Math.min(safeWidth - 20, context.measureText(noteTitle).width + 10);
-        const boxWidth = Math.max(28, textWidth);
-        context.fillRect(labelX - 4, labelY - 12, boxWidth, 18);
+        context.fillRect(labelX - 4, labelY - 14, boxWidth, boxHeight);
 
         context.fillStyle = 'rgba(255, 255, 255, 0.98)';
-        context.fillText(noteTitle.slice(0, 80), labelX, labelY);
+        wrappedLines.forEach((line, lineIndex) => {
+            context.fillText(line, labelX, labelY + lineIndex * lineHeight);
+        });
     });
 
     return canvas.toDataURL('image/png');
@@ -453,7 +625,6 @@ export default function ImageGeneratorModal({
             }
             return `${Math.max(1, Math.round(elapsedMs / 1000))}s`;
     };
-    const runSingleFlight = useSingleFlight();
 
   const owner = currentUser?.trim() || 'Guest';
   // --- Generation State ---
@@ -474,6 +645,8 @@ export default function ImageGeneratorModal({
     const [isPointNoteMode, setIsPointNoteMode] = useState(false);
     const [lastRemovedAnnotation, setLastRemovedAnnotation] = useState<RemovedAnnotationSnapshot | null>(null);
     const lastRemovedAnnotationTimeoutRef = useRef<number | null>(null);
+    const aiEditNotesAbortControllerRef = useRef<AbortController | null>(null);
+    const aiEditNotesAbortRequestedRef = useRef(false);
   
   // --- UI State (Draggable Window) ---
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -486,6 +659,28 @@ export default function ImageGeneratorModal({
   const [zoneHeight, setZoneHeight] = useState(initialHeight);
   const zoneObjectRef = useRef<fabric.Rect | null>(null);
 
+  const currentAspectRatio = zoneHeight > 0 ? zoneWidth / zoneHeight : (16 / 9);
+
+  const applyManualZoneDimensions = useCallback((nextWidth: number, nextHeight: number) => {
+      const safeWidth = Math.max(1, Math.round(nextWidth));
+      const safeHeight = Math.max(1, Math.round(nextHeight));
+
+      setZoneWidth(safeWidth);
+      setZoneHeight(safeHeight);
+
+      const zone = zoneObjectRef.current;
+      if (zone) {
+          zone.set({
+              width: safeWidth,
+              height: safeHeight,
+              scaleX: 1,
+              scaleY: 1,
+          });
+          zone.setCoords();
+          canvas?.requestRenderAll();
+      }
+  }, [canvas]);
+
   // --- Provider Selection ---
   const [availableProviders, setAvailableProviders] = useState<GenerativeProviderId[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<GenerativeProviderId>('comfy');
@@ -493,16 +688,62 @@ export default function ImageGeneratorModal({
   const [comfyConnectionMode, setComfyConnectionMode] = useState<ComfyConnectionMode>('auto');
   const [comfyCloudUrl, setComfyCloudUrl] = useState('https://cloud.comfy.org');
   const [comfyCloudApiKey, setComfyCloudApiKey] = useState('');
+  const [comfyInstallPath, setComfyInstallPath] = useState('');
+  const [comfyCustomNodesPath, setComfyCustomNodesPath] = useState('');
+  const [comfyWorkflowLibraryPath, setComfyWorkflowLibraryPath] = useState('');
   const [availableComfyWorkflowIds, setAvailableComfyWorkflowIds] = useState<string[]>([]);
     const [selectedComfyTask, setSelectedComfyTask] = useState<ComfyTask>('generate');
   const [selectedComfyWorkflowId, setSelectedComfyWorkflowId] = useState('');
   const [selectedComfyModelPresetId, setSelectedComfyModelPresetId] = useState('');
+  const adaptManualSizeToSelectedModel = useCallback((rawWidth: number, rawHeight: number) => {
+      const normalizedWidth = Math.max(1, Math.round(rawWidth));
+      const normalizedHeight = Math.max(1, Math.round(rawHeight));
+
+      if (selectedProvider !== 'comfy') {
+          return {
+              width: normalizedWidth,
+              height: normalizedHeight,
+          };
+      }
+
+      const workflowId = selectedComfyWorkflowId || getPreferredComfyAgenticWorkflow(availableComfyWorkflowIds);
+      const quality = resolveComfyQualityProfile(
+          workflowId,
+          selectedComfyModelPresetId || 'default',
+          normalizedWidth,
+          normalizedHeight,
+          selectedComfyTask
+      );
+
+      return {
+          width: quality.width,
+          height: quality.height,
+      };
+  }, [
+      selectedProvider,
+      selectedComfyWorkflowId,
+      selectedComfyModelPresetId,
+      selectedComfyTask,
+      availableComfyWorkflowIds,
+  ]);
+
+  const applyManualZoneWidthLocked = useCallback((nextWidth: number) => {
+      const safeWidth = Math.max(1, Math.round(nextWidth));
+      const safeHeight = Math.max(1, Math.round(safeWidth / currentAspectRatio));
+      applyManualZoneDimensions(safeWidth, safeHeight);
+  }, [applyManualZoneDimensions, currentAspectRatio]);
+
     const [initialStabilityTab, setInitialStabilityTab] = useState<GenerativeStabilityTab>('generate');
   const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
   const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
   const [isCheckingComfyConnection, setIsCheckingComfyConnection] = useState(false);
   const [comfyConnectionStatusMessage, setComfyConnectionStatusMessage] = useState('');
+    const [comfyCatalogStatusMessage, setComfyCatalogStatusMessage] = useState('');
   const hasAttemptedComfyRecoveryRef = useRef(false);
+    const warmedComfyProfilesRef = useRef<Set<string>>(new Set());
+    const comfyCancelRequestedRef = useRef(false);
+    const comfyRunTokenRef = useRef(0);
+    const currentComfyPromptIdRef = useRef<string>('');
     const annotationCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const activeAnnotationLayerIdRef = useRef<string>('');
     const canvasLayerIdMapRef = useRef<WeakMap<fabric.Object, string>>(new WeakMap());
@@ -552,6 +793,63 @@ export default function ImageGeneratorModal({
 
       window.localStorage.removeItem(COMFY_PENDING_JOB_STORAGE_KEY);
   }, []);
+
+  const readCancelledComfyPrompts = useCallback((): string[] => {
+      if (typeof window === 'undefined') {
+          return [];
+      }
+
+      try {
+          const raw = window.localStorage.getItem(COMFY_CANCELLED_PROMPTS_STORAGE_KEY);
+          if (!raw) {
+              return [];
+          }
+
+          const parsed = JSON.parse(raw) as string[];
+          return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+      } catch {
+          return [];
+      }
+  }, []);
+
+  const writeCancelledComfyPrompts = useCallback((promptIds: string[]) => {
+      if (typeof window === 'undefined') {
+          return;
+      }
+
+      window.localStorage.setItem(COMFY_CANCELLED_PROMPTS_STORAGE_KEY, JSON.stringify(promptIds.slice(-40)));
+  }, []);
+
+  const rememberCancelledComfyPrompt = useCallback((promptId: string) => {
+      if (!promptId) {
+          return;
+      }
+
+      const current = readCancelledComfyPrompts();
+      if (current.includes(promptId)) {
+          return;
+      }
+
+      writeCancelledComfyPrompts([...current, promptId]);
+  }, [readCancelledComfyPrompts, writeCancelledComfyPrompts]);
+
+  const isComfyPromptCancelled = useCallback((promptId: string): boolean => {
+      if (!promptId) {
+          return false;
+      }
+
+      return readCancelledComfyPrompts().includes(promptId);
+  }, [readCancelledComfyPrompts]);
+
+  const handleCancelComfyRun = useCallback(() => {
+      comfyCancelRequestedRef.current = true;
+      comfyRunTokenRef.current += 1;
+      rememberCancelledComfyPrompt(currentComfyPromptIdRef.current);
+      clearPendingComfyJob();
+      currentComfyPromptIdRef.current = '';
+      setStatusMessage('ComfyUI job cancelled by user.');
+      setIsGenerating(false);
+  }, [clearPendingComfyJob, rememberCancelledComfyPrompt]);
 
   const syncComfyTaskSelections = useCallback((task: ComfyTask) => {
       const taskPreference = getComfyTaskPreference(task);
@@ -619,6 +917,9 @@ export default function ImageGeneratorModal({
         setComfyConnectionMode(preferences.comfyConnectionMode);
         setComfyCloudUrl(preferences.comfyCloudUrl);
         setComfyCloudApiKey(loadComfyCloudApiKey());
+        setComfyInstallPath(preferences.comfyInstallPath);
+        setComfyCustomNodesPath(preferences.comfyCustomNodesPath);
+        setComfyWorkflowLibraryPath(preferences.comfyWorkflowLibraryPath);
         setAutoStartInpaintMasking(preferences.autoStartInpaintMasking);
         setShowInpaintPromptDock(preferences.showInpaintPromptDock);
 
@@ -634,6 +935,62 @@ export default function ImageGeneratorModal({
   useEffect(() => {
       syncComfyTaskSelections(selectedComfyTask);
   }, [selectedComfyTask, syncComfyTaskSelections]);
+
+  useEffect(() => {
+      if (!useAgenticEditNotes || selectedProvider !== 'comfy') {
+          return;
+      }
+
+      if (selectedComfyTask !== 'img2img') {
+          setSelectedComfyTask('img2img');
+          if (typeof window !== 'undefined') {
+              window.localStorage.setItem(COMFY_TASK_STORAGE_KEY, 'img2img');
+          }
+      }
+  }, [useAgenticEditNotes, selectedProvider, selectedComfyTask]);
+
+  useEffect(() => {
+      if (!useAgenticEditNotes || selectedProvider !== 'comfy' || selectedComfyTask !== 'img2img') {
+          return;
+      }
+
+      const preferredWorkflowId = getPreferredComfyAgenticWorkflow(availableComfyWorkflowIds);
+      if (!preferredWorkflowId) {
+          return;
+      }
+
+      const modelPresets = comfyWorkflowRegistry.getModelPresetsForWorkflow(preferredWorkflowId);
+      const nextModelPresetId = (
+          modelPresets.find((preset) => preset.id === 'default')?.id
+          || modelPresets[0]?.id
+          || ''
+      );
+
+      if (selectedComfyWorkflowId !== preferredWorkflowId) {
+          setSelectedComfyWorkflowId(preferredWorkflowId);
+          setSelectedComfyModelPresetId(nextModelPresetId);
+          saveComfyTaskPreference('img2img', {
+              workflowId: preferredWorkflowId,
+              modelPresetId: nextModelPresetId || undefined,
+          });
+          return;
+      }
+
+      if (!selectedComfyModelPresetId && nextModelPresetId) {
+          setSelectedComfyModelPresetId(nextModelPresetId);
+          saveComfyTaskPreference('img2img', {
+              workflowId: preferredWorkflowId,
+              modelPresetId: nextModelPresetId,
+          });
+      }
+  }, [
+      useAgenticEditNotes,
+      selectedProvider,
+      selectedComfyTask,
+      availableComfyWorkflowIds,
+      selectedComfyWorkflowId,
+      selectedComfyModelPresetId,
+  ]);
 
   /**
    * Updates selected provider and persists choice.
@@ -681,6 +1038,32 @@ export default function ImageGeneratorModal({
           modelPresetId,
       });
   };
+
+  const handleUseComfyLibraryWorkflow = useCallback((registration: SerializedComfyWorkflowRegistration) => {
+      registerSerializedComfyWorkflow(registration);
+
+      const workflowIds = comfyWorkflowRegistry.getWorkflowsForTask(registration.task).map((workflow) => workflow.id);
+      const workflow = comfyWorkflowRegistry.getWorkflow(registration.id);
+      const modelPresets = comfyWorkflowRegistry.getModelPresetsForWorkflow(registration.id);
+      const nextModelPresetId = (
+          modelPresets.find((preset) => preset.id === workflow?.defaultModelPresetId)?.id
+          || modelPresets[0]?.id
+          || ''
+      );
+
+      setSelectedComfyTask(registration.task);
+      if (typeof window !== 'undefined') {
+          window.localStorage.setItem(COMFY_TASK_STORAGE_KEY, registration.task);
+      }
+      setAvailableComfyWorkflowIds(workflowIds);
+      setSelectedComfyWorkflowId(registration.id);
+      setSelectedComfyModelPresetId(nextModelPresetId);
+      saveComfyTaskPreference(registration.task, {
+          workflowId: registration.id,
+          modelPresetId: nextModelPresetId || undefined,
+      });
+      setStatusMessage(`Comfy workflow "${registration.name}" is ready.`);
+  }, []);
 
   const captureComfySourceImage = useCallback((): string | null => {
       if (!canvas) {
@@ -755,13 +1138,81 @@ export default function ImageGeneratorModal({
           });
 
           setComfyConnectionStatusMessage(verification.message);
+
+          if (verification.ok) {
+              try {
+                  const catalogSnapshot = await inspectComfyServerCatalog({
+                      connection: {
+                          mode: comfyConnectionMode,
+                          localUrl: comfyServerUrl,
+                          cloudUrl: comfyCloudUrl,
+                          cloudApiKey: comfyCloudApiKey,
+                      },
+                  });
+
+                  const fluxKleinRecords = catalogSnapshot.records.filter((record) => (
+                      record.workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_9B || record.workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_4B
+                  ));
+                  const fluxReady = fluxKleinRecords.some((record) => record.compatible);
+                  const details = fluxKleinRecords
+                      .map((record) => `${record.workflowId}:${record.compatible ? 'ok' : `missing ${record.missingNodeTypes.slice(0, 3).join(', ') || 'nodes'}`}`)
+                      .join(' | ');
+
+                  setComfyCatalogStatusMessage(
+                      `ComfyUI ${catalogSnapshot.detectedVersion} @ ${catalogSnapshot.serverUrl} — workflows ${catalogSnapshot.compatibleWorkflowCount}/${catalogSnapshot.workflowCount} compatible. Flux Klein edit: ${fluxReady ? 'ready' : 'not ready (missing custom nodes/models)'}${details ? ` (${details})` : ''}.`
+                  );
+              } catch (catalogError) {
+                  const catalogMessage = catalogError instanceof Error ? catalogError.message : 'Failed to inspect Comfy workflow catalog.';
+                  setComfyCatalogStatusMessage(`Catalog sync warning: ${catalogMessage}`);
+              }
+          }
       } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to verify ComfyUI connection.';
           setComfyConnectionStatusMessage(message);
+          setComfyCatalogStatusMessage('');
       } finally {
           setIsCheckingComfyConnection(false);
       }
   };
+
+  const hasComfyConfigForCatalogSync = comfyConnectionMode === 'local'
+      ? comfyServerUrl.trim().length > 0
+      : comfyConnectionMode === 'cloud'
+          ? comfyCloudUrl.trim().length > 0 && comfyCloudApiKey.trim().length > 0
+          : comfyServerUrl.trim().length > 0 || (comfyCloudUrl.trim().length > 0 && comfyCloudApiKey.trim().length > 0);
+
+  useEffect(() => {
+      if (!isOpen || selectedProvider !== 'comfy' || !hasComfyConfigForCatalogSync) {
+          return;
+      }
+
+      void (async () => {
+          try {
+              const catalogSnapshot = await inspectComfyServerCatalog({
+                  connection: {
+                      mode: comfyConnectionMode,
+                      localUrl: comfyServerUrl,
+                      cloudUrl: comfyCloudUrl,
+                      cloudApiKey: comfyCloudApiKey,
+                  },
+              });
+
+              setComfyCatalogStatusMessage(
+                  `ComfyUI ${catalogSnapshot.detectedVersion} @ ${catalogSnapshot.serverUrl} — workflows ${catalogSnapshot.compatibleWorkflowCount}/${catalogSnapshot.workflowCount} compatible.`
+              );
+          } catch {
+              setComfyCatalogStatusMessage('');
+          }
+      })();
+  }, [
+      isOpen,
+      selectedProvider,
+    hasComfyConfigForCatalogSync,
+      comfyConnectionMode,
+      comfyServerUrl,
+      comfyCloudUrl,
+      comfyCloudApiKey,
+  ]);
     
   /**
    * Retreives the API key for a specific provider from storage.
@@ -1069,7 +1520,7 @@ export default function ImageGeneratorModal({
       setStatusMessage(`Added layer reference: ${label}`);
   }, [captureCanvasLayerDataUrl, canvasLayerOptions, selectedCanvasLayerId, markLayerAsReference]);
 
-  const useSelectedLayerForNotes = useCallback(async () => {
+    const applySelectedLayerForNotes = useCallback(async () => {
       const dataUrl = captureCanvasLayerDataUrl(selectedCanvasLayerId);
       if (!dataUrl) {
           setStatusMessage('Unable to load selected layer for notes.');
@@ -1083,7 +1534,7 @@ export default function ImageGeneratorModal({
       setAnnotationNotes(layerAnnotationNotesMap[selectedCanvasLayerId] || []);
       setSelectedAnnotationId(null);
       setStatusMessage('Notes are now scoped to the selected layer.');
-  }, [captureCanvasLayerDataUrl, selectedCanvasLayerId, layerAnnotationNotesMap]);
+    }, [captureCanvasLayerDataUrl, selectedCanvasLayerId, layerAnnotationNotesMap]);
 
   const createReferenceLayerForNotes = useCallback(async () => {
       if (!selectedCanvasLayerId) {
@@ -1092,35 +1543,46 @@ export default function ImageGeneratorModal({
       }
 
       await addSelectedCanvasLayerAsReference();
-      await useSelectedLayerForNotes();
+      await applySelectedLayerForNotes();
       setIsPointNoteMode(true);
       setSelectedAnnotationId(null);
       setStatusMessage('Reference layer ready. Click on the image to place point notes with text.');
-  }, [addSelectedCanvasLayerAsReference, selectedCanvasLayerId, useSelectedLayerForNotes]);
+  }, [addSelectedCanvasLayerAsReference, applySelectedLayerForNotes, selectedCanvasLayerId]);
 
-  const saveReferenceNotesLayerToCanvas = useCallback(async () => {
+  const saveReferenceNotesLayerToCanvas = useCallback(async (
+      notesOverride?: AnnotationRecord[],
+      silent = false
+  ) => {
       if (!canvas) {
-          setStatusMessage('Canvas is not available.');
+          if (!silent) {
+              setStatusMessage('Canvas is not available.');
+          }
           return;
       }
 
       if (!annotationBaseImage || !annotationBaseDimensions) {
-          setStatusMessage('Load or create a reference layer first.');
+          if (!silent) {
+              setStatusMessage('Load or create a reference layer first.');
+          }
           return;
       }
 
       const activeLayerId = activeAnnotationLayerIdRef.current || selectedCanvasLayerId;
       if (!activeLayerId) {
-          setStatusMessage('Select a source layer before saving reference notes.');
+          if (!silent) {
+              setStatusMessage('Select a source layer before saving reference notes.');
+          }
           return;
       }
 
-      const effectiveNotes = (layerAnnotationNotesMap[activeLayerId] || annotationNotes)
+      const effectiveNotes = (notesOverride || layerAnnotationNotesMap[activeLayerId] || annotationNotes)
           .filter((note) => note.enabled)
           .map((note, index) => ({ ...note, priority: index + 1 }));
 
       if (effectiveNotes.length === 0) {
-          setStatusMessage('Add at least one note before saving the reference notes layer.');
+          if (!silent) {
+              setStatusMessage('Add at least one note before saving the reference notes layer.');
+          }
           return;
       }
 
@@ -1204,7 +1666,9 @@ export default function ImageGeneratorModal({
 
       canvas.requestRenderAll();
       refreshCanvasLayerOptions();
-      setStatusMessage('Saved notes as embedded reference layer on canvas. You can now send this layer through ComfyUI.');
+      if (!silent) {
+          setStatusMessage('Saved notes as embedded reference layer on canvas. You can now send this layer through ComfyUI.');
+      }
   }, [
       annotationBaseDimensions,
       annotationBaseImage,
@@ -1569,7 +2033,16 @@ export default function ImageGeneratorModal({
           return;
       }
 
+      if (isComfyPromptCancelled(pending.promptId)) {
+          clearPendingComfyJob();
+          setStatusMessage('Skipped a previously cancelled ComfyUI recovery job.');
+          return;
+      }
+
       hasAttemptedComfyRecoveryRef.current = true;
+    comfyCancelRequestedRef.current = false;
+    const recoveryToken = ++comfyRunTokenRef.current;
+      currentComfyPromptIdRef.current = pending.promptId;
       setIsGenerating(true);
       setStatusMessage(`Resuming pending ComfyUI run (${pending.promptId.slice(0, 8)}...)`);
 
@@ -1583,6 +2056,10 @@ export default function ImageGeneratorModal({
               cloudApiKey: pending.connection.cloudApiKey,
           },
           onProgress: (progress) => {
+              if (comfyCancelRequestedRef.current || recoveryToken !== comfyRunTokenRef.current) {
+                  return;
+              }
+
               if (progress.message && progress.message.trim().length > 0) {
                   setStatusMessage(`ComfyUI recovery: ${progress.message} • ${formatElapsedSeconds(progress.elapsedMs)}`);
                   return;
@@ -1592,27 +2069,52 @@ export default function ImageGeneratorModal({
               setStatusMessage(`ComfyUI recovery running (${percent}%) • ${formatElapsedSeconds(progress.elapsedMs)}`);
           },
       }).then((result) => {
+          if (comfyCancelRequestedRef.current || recoveryToken !== comfyRunTokenRef.current) {
+              return;
+          }
+
           if (result.dataUrl) {
               setGeneratedImage(result.dataUrl);
               setStatusMessage('Recovered pending ComfyUI result.');
               clearPendingComfyJob();
+              currentComfyPromptIdRef.current = '';
           } else {
               setStatusMessage('ComfyUI recovery finished, but no image output was found yet.');
           }
       }).catch((error) => {
+          if (comfyCancelRequestedRef.current || recoveryToken !== comfyRunTokenRef.current) {
+              return;
+          }
+
           const message = error instanceof Error ? error.message : 'Failed to recover pending ComfyUI result.';
           setStatusMessage(`ComfyUI recovery pending: ${message}`);
       }).finally(() => {
-          setIsGenerating(false);
+          if (recoveryToken === comfyRunTokenRef.current) {
+              currentComfyPromptIdRef.current = '';
+              setIsGenerating(false);
+          }
       });
   }, [
       isOpen,
       isGenerating,
       readPendingComfyJob,
       clearPendingComfyJob,
+      isComfyPromptCancelled,
   ]);
 
   // Initial Window Position
+  useEffect(() => {
+    if (!isOpen || !canvas) {
+        return;
+    }
+
+    canvas.isDrawingMode = false;
+    canvas.selection = true;
+    canvas.defaultCursor = 'default';
+    canvas.hoverCursor = 'move';
+    canvas.requestRenderAll();
+  }, [canvas, isOpen]);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && !hasMoved) {
        // Position next to the AI Zone icon (approx 5th item in toolbar)
@@ -1830,309 +2332,496 @@ export default function ImageGeneratorModal({
    * Routes request to appropriate provider (Comfy, Stability, etc).
    */
   const handleGenerate = async () => {
-        await runSingleFlight(async () => {
-            if (!prompt && !(selectedProvider === 'comfy' && selectedComfyTask === 'upscale')) return;
+        if (!prompt && !(selectedProvider === 'comfy' && selectedComfyTask === 'upscale')) return;
 
-            setIsGenerating(true);
-            setStatusMessage('Queueing generation...');
-            setGeneratedImage(null);
+    setIsGenerating(true);
+    setStatusMessage('Queueing generation...');
+    setGeneratedImage(null);
 
-            if (zoneObjectRef.current) {
-                const z = zoneObjectRef.current;
-                const w = Math.round(z.width! * z.scaleX!);
-                const h = Math.round(z.height! * z.scaleY!);
-                setZoneWidth(w);
-                setZoneHeight(h);
-            }
+    // Update zone dims from current object state just in case
+    if (zoneObjectRef.current) {
+        const z = zoneObjectRef.current;
+        const w = Math.round(z.width! * z.scaleX!);
+        const h = Math.round(z.height! * z.scaleY!);
+        setZoneWidth(w);
+        setZoneHeight(h);
+    }
+    
+    // Use current state for API call
+    const currentW = zoneObjectRef.current ? Math.round(zoneObjectRef.current.width! * zoneObjectRef.current.scaleX!) : zoneWidth;
+    const currentH = zoneObjectRef.current ? Math.round(zoneObjectRef.current.height! * zoneObjectRef.current.scaleY!) : zoneHeight;
 
-            const currentW = zoneObjectRef.current ? Math.round(zoneObjectRef.current.width! * zoneObjectRef.current.scaleX!) : zoneWidth;
-            const currentH = zoneObjectRef.current ? Math.round(zoneObjectRef.current.height! * zoneObjectRef.current.scaleY!) : zoneHeight;
+    try {
+      if (useAgenticEditNotes) {
+          aiEditNotesAbortRequestedRef.current = false;
+          const aiAbortController = new AbortController();
+          aiEditNotesAbortControllerRef.current = aiAbortController;
 
-            try {
-                if (selectedProvider === 'comfy') {
-                    if (!selectedComfyWorkflowId) {
-                        throw new Error('No ComfyUI workflow is selected.');
-                    }
+          const resolvedAgenticProvider = mapGenerativeProviderToAgenticProvider(selectedProvider);
+          const sourceImage = captureComfySourceImage();
+          if (!sourceImage) {
+              throw new Error('Select an image or zone on the canvas before using AI Edit Notes.');
+          }
 
-                    if (!selectedComfyModelPresetId) {
-                        throw new Error('No ComfyUI model preset is selected.');
-                    }
+          setStatusMessage('Preparing AI Edit Notes payload...');
+          const imageDimensions = await readImageDimensions(sourceImage);
+          const originalFile = await dataUrlToFile(sourceImage, `agentic-original-${Date.now()}.png`);
 
-                    const params: Record<string, unknown> = {
-                        prompt,
-                        width: currentW,
-                        height: currentH,
-                    };
+          const activeLayerId = activeAnnotationLayerIdRef.current;
+          const scopedNotes = activeLayerId
+              ? (layerAnnotationNotesMap[activeLayerId] || annotationNotes)
+              : annotationNotes;
 
-                    if (selectedComfyTask !== 'generate') {
-                        const sourceImage = captureComfySourceImage();
-                        if (!sourceImage) {
-                            throw new Error('Select an image or zone on the canvas before running this ComfyUI task.');
+          const nonEmptyNotes = scopedNotes
+              .filter((note) => note.enabled && note.instruction.trim().length > 0)
+              .map((note, index) => ({ ...note, priority: index + 1 }));
+
+          const fallbackNotes: AnnotationRecord[] = nonEmptyNotes.length > 0
+              ? nonEmptyNotes
+              : [{
+                  id: `note_prompt_${Date.now()}`,
+                  type: 'text',
+                  enabled: true,
+                  priority: 1,
+                  geometry: { x: 0, y: 0, w: 1, h: 1 },
+                  instruction: prompt,
+                  mode: 'auto',
+                  strength: 0.8,
+              }];
+
+          await saveReferenceNotesLayerToCanvas(fallbackNotes, true);
+
+          const extractedNotes = fallbackNotes.map((note) => ({
+              id: note.id,
+              instruction: note.instruction,
+              type: note.type,
+              mode: note.mode || 'auto',
+              strength: typeof note.strength === 'number' ? note.strength : 0.8,
+          }));
+          const extractedNotesText = extractedNotes
+              .map((note, index) => `${index + 1}. ${note.instruction}`)
+              .join('\n');
+
+          const referenceDocument = referenceItems
+              .filter((reference) => reference.file)
+              .map((reference) => ({ id: reference.id, role: reference.role }));
+
+          const comfyAgenticWorkflowId = selectedProvider === 'comfy'
+              ? (selectedComfyWorkflowId || getPreferredComfyAgenticWorkflow(availableComfyWorkflowIds))
+              : '';
+          const providerModel = resolvedAgenticProvider === 'nanobanana'
+              ? 'nanobanana-2'
+              : selectedProvider === 'comfy'
+                  ? resolveFluxModelFromWorkflowId(comfyAgenticWorkflowId)
+                  : 'flux-kontext';
+
+          const providerParams: Record<string, unknown> = {
+              extractedNotes,
+              extractedNotesText,
+          };
+
+          if (selectedProvider === 'comfy') {
+              const qualityProfile = resolveComfyQualityProfile(
+                  comfyAgenticWorkflowId || COMFY_AGENTIC_EDIT_WORKFLOW_9B,
+                  selectedComfyModelPresetId || 'default',
+                  imageDimensions.width,
+                  imageDimensions.height,
+                  'img2img'
+              );
+
+              providerParams.connection = {
+                  mode: comfyConnectionMode,
+                  localUrl: comfyServerUrl,
+                  cloudUrl: comfyCloudUrl,
+                  cloudApiKey: comfyCloudApiKey,
+              };
+              providerParams.comfyTask = 'img2img';
+              providerParams.workflowId = comfyAgenticWorkflowId || COMFY_AGENTIC_EDIT_WORKFLOW_9B;
+              providerParams.modelPresetId = selectedComfyModelPresetId || 'default';
+              providerParams.width = qualityProfile.width;
+              providerParams.height = qualityProfile.height;
+              providerParams.steps = qualityProfile.steps;
+              providerParams.cfg = qualityProfile.cfg;
+              providerParams.strength = qualityProfile.strength;
+              providerParams.seed = qualityProfile.seed;
+              providerParams.referenceRoles = referenceDocument.map((reference) => reference.role);
+              providerParams.referenceCount = referenceDocument.length;
+          }
+
+          const annotationDocument: AnnotationDocument = {
+              image: {
+                  id: `img_${Date.now()}`,
+                  width: imageDimensions.width,
+                  height: imageDimensions.height,
+              },
+              annotations: fallbackNotes,
+              globalPrompt: {
+                  positive: prompt,
+                  negative: globalNegativePrompt,
+              },
+              references: referenceDocument,
+              provider: {
+                  name: resolvedAgenticProvider,
+                  model: providerModel,
+                  params: providerParams,
+              },
+          };
+
+          const layerArtifacts = await buildAnnotationLayerArtifacts(
+              annotationDocument.annotations,
+              imageDimensions.width,
+              imageDimensions.height
+          );
+
+          const compiledPrompts = compileAnnotationPrompts(annotationDocument);
+          const formData = new FormData();
+          formData.append('original', originalFile);
+          formData.append('notes_overlay', layerArtifacts.notesOverlayFile);
+          formData.append('embedded_notes_image', layerArtifacts.notesOverlayFile);
+          formData.append('combined_mask', layerArtifacts.combinedMaskFile);
+          formData.append('annotations_json', JSON.stringify(annotationDocument));
+          formData.append('prompt_positive', compiledPrompts.positive);
+          formData.append('prompt_negative', compiledPrompts.negative);
+          formData.append('provider_name', annotationDocument.provider.name);
+          formData.append('provider_model', annotationDocument.provider.model);
+          formData.append('provider_params', JSON.stringify(annotationDocument.provider.params));
+          formData.append('additional_notes_text', extractedNotesText);
+          formData.append('additional_notes_json', JSON.stringify(extractedNotes));
+
+          const referenceMeta: Array<{ id: string; role: string }> = [];
+          for (const reference of referenceItems) {
+              if (!reference.file) continue;
+              referenceMeta.push({ id: reference.id, role: reference.role });
+              formData.append('references[]', reference.file);
+          }
+          formData.append('references_meta', JSON.stringify(referenceMeta));
+
+          const queueResponse = await fetch('/api/generate', {
+              method: 'POST',
+              body: formData,
+              signal: aiAbortController.signal,
+          });
+
+          const queueData = await queueResponse.json();
+          if (!queueResponse.ok || !queueData.job_id) {
+              throw new Error(queueData.message || 'Failed to queue AI Edit Notes job.');
+          }
+
+          const jobId = queueData.job_id as string;
+          setStatusMessage(`Job queued (${jobId.slice(-8)}). Waiting for worker...`);
+
+          let completedResultUrl = '';
+          const startedAt = Date.now();
+          while (Date.now() - startedAt < AI_EDIT_NOTES_MAX_WAIT_MS) {
+              if (aiEditNotesAbortRequestedRef.current) {
+                  throw new DOMException('Aborted', 'AbortError');
+              }
+
+              await waitWithAbort(AI_EDIT_NOTES_POLL_INTERVAL_MS, aiAbortController.signal);
+
+              const statusResponse = await fetch(`/api/jobs/${jobId}`, {
+                  signal: aiAbortController.signal,
+              });
+              const statusData = await statusResponse.json();
+              if (!statusResponse.ok) {
+                  throw new Error(statusData.message || 'Failed to poll job status.');
+              }
+
+              const percent = Math.max(0, Math.min(100, Math.round((statusData.progress || 0) * 100)));
+              setStatusMessage(`AI Edit Notes: ${statusData.message || statusData.status} (${percent}%)`);
+
+              if (statusData.status === 'failed') {
+                  throw new Error(statusData.error || 'AI Edit Notes generation failed.');
+              }
+
+              if (statusData.status === 'succeeded') {
+                  const resultResponse = await fetch(`/api/jobs/${jobId}/result`, {
+                      signal: aiAbortController.signal,
+                  });
+                  const resultData = await resultResponse.json();
+                  if (!resultResponse.ok || !resultData.imageUrl) {
+                      throw new Error(resultData.message || 'Job completed but result image is unavailable.');
+                  }
+                  completedResultUrl = resultData.imageUrl as string;
+                  break;
+              }
+          }
+
+          if (!completedResultUrl) {
+              throw new Error('Timed out waiting for AI Edit Notes result after 30 minutes.');
+          }
+
+          setGeneratedImage(completedResultUrl);
+          setStatusMessage('AI Edit Notes generation complete!');
+          aiEditNotesAbortControllerRef.current = null;
+          setIsGenerating(false);
+          return;
+      }
+
+      if (selectedProvider === 'comfy') {
+          comfyCancelRequestedRef.current = false;
+          const comfyRunToken = ++comfyRunTokenRef.current;
+
+          if (!selectedComfyWorkflowId) {
+              throw new Error('No ComfyUI workflow is selected.');
+          }
+
+          if (!selectedComfyModelPresetId) {
+              throw new Error('No ComfyUI model preset is selected.');
+          }
+
+          const referenceBlendHint = referenceItems
+              .filter((reference) => reference.file)
+              .map((reference, index) => `Ref ${index + 1} (${reference.role})`)
+              .slice(0, 12)
+              .join(', ');
+
+          const comfyPrompt = referenceBlendHint
+              ? `${prompt}\n\nReference blending guidance: combine or replace target objects using ${referenceBlendHint}. Preserve composition and lighting consistency.`
+              : prompt;
+
+          const params: Record<string, unknown> = {
+              prompt: comfyPrompt,
+              width: currentW,
+              height: currentH,
+          };
+
+          if (selectedComfyTask !== 'generate') {
+              const sourceImage = captureComfySourceImage();
+              if (!sourceImage) {
+                  throw new Error('Select an image or zone on the canvas before running this ComfyUI task.');
+              }
+
+              const sourceDimensions = await readImageDimensions(sourceImage);
+              params.image = sourceImage;
+
+              if (selectedComfyTask === 'img2img') {
+                  params.width = sourceDimensions.width;
+                  params.height = sourceDimensions.height;
+              }
+
+              if (selectedComfyTask === 'inpaint') {
+                  params.mask = createSolidMaskDataUrl(sourceDimensions.width, sourceDimensions.height);
+                  params.width = sourceDimensions.width;
+                  params.height = sourceDimensions.height;
+              }
+
+              if (selectedComfyTask === 'outpaint') {
+                  const outpaintPayload = await buildOutpaintPayload(sourceImage, 128);
+                  params.image = outpaintPayload.imageDataUrl;
+                  params.mask = outpaintPayload.maskDataUrl;
+                  params.width = outpaintPayload.width;
+                  params.height = outpaintPayload.height;
+              }
+
+              if (selectedComfyTask === 'upscale') {
+                  params.width = Math.max(64, Math.round(sourceDimensions.width * 2));
+                  params.height = Math.max(64, Math.round(sourceDimensions.height * 2));
+              }
+          }
+
+          const qualityProfile = resolveComfyQualityProfile(
+              selectedComfyWorkflowId,
+              selectedComfyModelPresetId,
+              Number(params.width) || currentW,
+              Number(params.height) || currentH,
+              selectedComfyTask
+          );
+
+          params.width = qualityProfile.width;
+          params.height = qualityProfile.height;
+          params.steps = qualityProfile.steps;
+          params.cfg = qualityProfile.cfg;
+          params.seed = qualityProfile.seed;
+
+          if (selectedComfyTask === 'img2img' || selectedComfyTask === 'inpaint' || selectedComfyTask === 'outpaint') {
+              params.strength = qualityProfile.strength;
+          }
+
+          const comfyProfileKey = `${selectedComfyTask}::${selectedComfyWorkflowId}::${selectedComfyModelPresetId}`;
+          if (!warmedComfyProfilesRef.current.has(comfyProfileKey)) {
+              setStatusMessage('Preloading ComfyUI model/workflow (one-time for this selection)...');
+
+              const warmupParams: Record<string, unknown> = {
+                  ...params,
+                  prompt: 'warmup pass',
+                  negativePrompt: '',
+                  width: Math.max(512, Math.min(768, Number(params.width) || 512)),
+                  height: Math.max(512, Math.min(768, Number(params.height) || 512)),
+                  steps: 1,
+                  cfg: 1,
+                  strength: selectedComfyTask === 'img2img' || selectedComfyTask === 'inpaint' || selectedComfyTask === 'outpaint'
+                      ? Math.min(0.4, Number(params.strength) || 0.35)
+                      : params.strength,
+              };
+
+              await executeComfyTask({
+                  connection: {
+                      mode: comfyConnectionMode,
+                      localUrl: comfyServerUrl,
+                      cloudUrl: comfyCloudUrl,
+                      cloudApiKey: comfyCloudApiKey,
+                  },
+                  task: selectedComfyTask,
+                  workflowId: selectedComfyWorkflowId,
+                  modelPresetId: selectedComfyModelPresetId,
+                  params: warmupParams,
+                  onProgress: (progress) => {
+                      if (comfyCancelRequestedRef.current || comfyRunToken !== comfyRunTokenRef.current) {
+                          return;
+                      }
+
+                      const elapsedMs = progress.elapsedMs || 0;
+                      const seconds = Math.max(1, Math.round(elapsedMs / 1000));
+                      if (progress.stage === 'waiting-history' && elapsedMs >= 30000) {
+                          setStatusMessage(`ComfyUI warmup: loading model weights into VRAM (${seconds}s)...`);
+                          return;
+                      }
+                      if (progress.message && progress.message.trim().length > 0) {
+                          setStatusMessage(`ComfyUI warmup: ${progress.message} • ${seconds}s`);
+                      }
+                  },
+              });
+
+              if (comfyCancelRequestedRef.current || comfyRunToken !== comfyRunTokenRef.current) {
+                  setIsGenerating(false);
+                  return;
+              }
+
+              warmedComfyProfilesRef.current.add(comfyProfileKey);
+              setStatusMessage('ComfyUI warmup complete. Starting full-quality render...');
+          }
+
+          setStatusMessage('Sending workflow to ComfyUI...');
+
+          let queuedPromptId: string | null = null;
+
+          const execution = await executeComfyTask({
+              connection: {
+                  mode: comfyConnectionMode,
+                  localUrl: comfyServerUrl,
+                  cloudUrl: comfyCloudUrl,
+                  cloudApiKey: comfyCloudApiKey,
+              },
+              task: selectedComfyTask,
+              workflowId: selectedComfyWorkflowId,
+              modelPresetId: selectedComfyModelPresetId,
+              params,
+              onQueued: (promptId) => {
+                  queuedPromptId = promptId;
+                  currentComfyPromptIdRef.current = promptId;
+                  writePendingComfyJob({
+                      promptId,
+                      task: selectedComfyTask,
+                      workflowId: selectedComfyWorkflowId,
+                      modelPresetId: selectedComfyModelPresetId,
+                      connection: {
+                          mode: comfyConnectionMode,
+                          localUrl: comfyServerUrl,
+                          cloudUrl: comfyCloudUrl,
+                          cloudApiKey: comfyCloudApiKey,
+                      },
+                      queuedAt: new Date().toISOString(),
+                  });
+              },
+              onProgress: (progress) => {
+                  if (comfyCancelRequestedRef.current || comfyRunToken !== comfyRunTokenRef.current) {
+                      return;
+                  }
+
+                  if (progress.message && progress.message.trim().length > 0) {
+                      setStatusMessage(`ComfyUI: ${progress.message} • ${formatElapsedSeconds(progress.elapsedMs)}`);
+                      return;
+                  }
+
+                  if (progress.stage === 'waiting-history') {
+                      const elapsedMs = progress.elapsedMs || 0;
+                      if (elapsedMs >= 45000) {
+                          setStatusMessage(`ComfyUI is loading models or waiting on queue (first runs can take longer) • ${formatElapsedSeconds(elapsedMs)}`);
+                          return;
+                      }
+                      setStatusMessage(`ComfyUI is still processing (loading models or running queue) • ${formatElapsedSeconds(elapsedMs)}`);
+                      return;
+                  }
+
+                  const percent = Math.max(0, Math.min(100, Math.round(progress.progress * 100)));
+                  const nodeLabel = progress.nodeId ? `node ${progress.nodeId}` : 'current node';
+                  setStatusMessage(`ComfyUI running: ${nodeLabel} (${percent}%) • ${formatElapsedSeconds(progress.elapsedMs)}`);
+              },
+          });
+
+          if (comfyCancelRequestedRef.current || comfyRunToken !== comfyRunTokenRef.current) {
+              setIsGenerating(false);
+              return;
+          }
+
+          if (execution.result.dataUrl) {
+              setGeneratedImage(execution.result.dataUrl);
+              setStatusMessage(`Generation complete via ${execution.workflow.name}.`);
+              clearPendingComfyJob();
+              currentComfyPromptIdRef.current = '';
+          } else {
+              setStatusMessage('ComfyUI finished, but no image output was returned.');
+              if (queuedPromptId) {
+                  setStatusMessage('ComfyUI finished without direct image response. You can reload; recovery will continue from history.');
+              }
+          }
+
+          setIsGenerating(false);
+          return;
+      }
+
+      const currentKey = getProviderKey(selectedProvider);
+
+      const response = await fetch('/api/ai/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          width: currentW,
+          height: currentH,
+          serverUrl: comfyServerUrl,
+          provider: 'remote',
+          specificProvider: selectedProvider, 
+          apiKey: currentKey
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.message || 'Generation failed');
+      }
+
+      if (data.imageUrl) {
+          setGeneratedImage(data.imageUrl);
+          setStatusMessage('Generation complete!');
+      } else {
+          setStatusMessage('Finished, but no image returned.');
+      }
+
+      setIsGenerating(false);
+
+    } catch (error) {
+      console.error(error);
+                        const isAbortError = error instanceof DOMException && error.name === 'AbortError';
+                        if (isAbortError) {
+                                setStatusMessage('AI Edit Notes request was aborted by user.');
+                        } else {
+                                const message = error instanceof Error ? error.message : 'Unknown error';
+                                setStatusMessage(`Error: ${message}`);
                         }
-
-                        const sourceDimensions = await readImageDimensions(sourceImage);
-                        params.image = sourceImage;
-
-                        if (selectedComfyTask === 'img2img') {
-                            params.strength = 0.65;
-                            params.width = sourceDimensions.width;
-                            params.height = sourceDimensions.height;
-                        }
-
-                        if (selectedComfyTask === 'inpaint') {
-                            params.mask = createSolidMaskDataUrl(sourceDimensions.width, sourceDimensions.height);
-                            params.width = sourceDimensions.width;
-                            params.height = sourceDimensions.height;
-                        }
-
-                        if (selectedComfyTask === 'outpaint') {
-                            const outpaintPayload = await buildOutpaintPayload(sourceImage, 128);
-                            params.image = outpaintPayload.imageDataUrl;
-                            params.mask = outpaintPayload.maskDataUrl;
-                            params.width = outpaintPayload.width;
-                            params.height = outpaintPayload.height;
-                        }
-
-                        if (selectedComfyTask === 'upscale') {
-                            params.width = Math.max(64, Math.round(sourceDimensions.width * 2));
-                            params.height = Math.max(64, Math.round(sourceDimensions.height * 2));
-                        }
-                    }
-
-                    setStatusMessage('Sending workflow to ComfyUI...');
-
-                    let queuedPromptId: string | null = null;
-
-                    const execution = await executeComfyTask({
-                        connection: {
-                            mode: comfyConnectionMode,
-                            localUrl: comfyServerUrl,
-                            cloudUrl: comfyCloudUrl,
-                            cloudApiKey: comfyCloudApiKey,
-                        },
-                        task: selectedComfyTask,
-                        workflowId: selectedComfyWorkflowId,
-                        modelPresetId: selectedComfyModelPresetId,
-                        params,
-                        onQueued: (promptId) => {
-                            queuedPromptId = promptId;
-                            writePendingComfyJob({
-                                promptId,
-                                task: selectedComfyTask,
-                                workflowId: selectedComfyWorkflowId,
-                                modelPresetId: selectedComfyModelPresetId,
-                                connection: {
-                                    mode: comfyConnectionMode,
-                                    localUrl: comfyServerUrl,
-                                    cloudUrl: comfyCloudUrl,
-                                    cloudApiKey: comfyCloudApiKey,
-                                },
-                                queuedAt: new Date().toISOString(),
-                            });
-                        },
-                        onProgress: (progress) => {
-                            if (progress.message && progress.message.trim().length > 0) {
-                                setStatusMessage(`ComfyUI: ${progress.message} • ${formatElapsedSeconds(progress.elapsedMs)}`);
-                                return;
-                            }
-
-                            if (progress.stage === 'waiting-history') {
-                                setStatusMessage(`ComfyUI is still processing (loading models or running queue) • ${formatElapsedSeconds(progress.elapsedMs)}`);
-                                return;
-                            }
-
-                            const percent = Math.max(0, Math.min(100, Math.round(progress.progress * 100)));
-                            const nodeLabel = progress.nodeId ? `node ${progress.nodeId}` : 'current node';
-                            setStatusMessage(`ComfyUI running: ${nodeLabel} (${percent}%) • ${formatElapsedSeconds(progress.elapsedMs)}`);
-                        },
-                    });
-
-                    if (execution.result.dataUrl) {
-                        setGeneratedImage(execution.result.dataUrl);
-                        setStatusMessage(`Generation complete via ${execution.workflow.name}.`);
-                        clearPendingComfyJob();
-                    } else {
-                        setStatusMessage('ComfyUI finished, but no image output was returned.');
-                        if (queuedPromptId) {
-                            setStatusMessage('ComfyUI finished without direct image response. You can reload; recovery will continue from history.');
-                        }
-                    }
-
-                    setIsGenerating(false);
-                    return;
-                }
-
-                const currentKey = getProviderKey(selectedProvider);
-
-                if (useAgenticEditNotes) {
-                    const resolvedAgenticProvider = mapGenerativeProviderToAgenticProvider(selectedProvider);
-                    const sourceImage = captureComfySourceImage();
-                    if (!sourceImage) {
-                        throw new Error('Select an image or zone on the canvas before using AI Edit Notes.');
-                    }
-
-                    setStatusMessage('Preparing AI Edit Notes payload...');
-                    const imageDimensions = await readImageDimensions(sourceImage);
-                    const originalFile = await dataUrlToFile(sourceImage, `agentic-original-${Date.now()}.png`);
-
-                    const activeLayerId = activeAnnotationLayerIdRef.current;
-                    const scopedNotes = activeLayerId
-                        ? (layerAnnotationNotesMap[activeLayerId] || annotationNotes)
-                        : annotationNotes;
-
-                    const nonEmptyNotes = scopedNotes
-                        .filter((note) => note.enabled && note.instruction.trim().length > 0)
-                        .map((note, index) => ({ ...note, priority: index + 1 }));
-
-                    const fallbackNotes: AnnotationRecord[] = nonEmptyNotes.length > 0
-                        ? nonEmptyNotes
-                        : [{
-                            id: `note_prompt_${Date.now()}`,
-                            type: 'text',
-                            enabled: true,
-                            priority: 1,
-                            geometry: { x: 0, y: 0, w: 1, h: 1 },
-                            instruction: prompt,
-                            mode: 'auto',
-                            strength: 0.8,
-                        }];
-
-                    const referenceDocument = referenceItems
-                        .filter((reference) => reference.file)
-                        .map((reference) => ({ id: reference.id, role: reference.role }));
-
-                    const annotationDocument: AnnotationDocument = {
-                        image: {
-                            id: `img_${Date.now()}`,
-                            width: imageDimensions.width,
-                            height: imageDimensions.height,
-                        },
-                        annotations: fallbackNotes,
-                        globalPrompt: {
-                            positive: prompt,
-                            negative: globalNegativePrompt,
-                        },
-                        references: referenceDocument,
-                        provider: {
-                            name: resolvedAgenticProvider,
-                            model: resolvedAgenticProvider === 'flux' ? 'flux-kontext' : resolvedAgenticProvider === 'nanobanana' ? 'nanobanana-v1' : 'mock-v1',
-                            params: {},
-                        },
-                    };
-
-                    const layerArtifacts = await buildAnnotationLayerArtifacts(
-                        annotationDocument.annotations,
-                        imageDimensions.width,
-                        imageDimensions.height
-                    );
-
-                    const compiledPrompts = compileAnnotationPrompts(annotationDocument);
-                    const formData = new FormData();
-                    formData.append('original', originalFile);
-                    formData.append('notes_overlay', layerArtifacts.notesOverlayFile);
-                    formData.append('combined_mask', layerArtifacts.combinedMaskFile);
-                    formData.append('annotations_json', JSON.stringify(annotationDocument));
-                    formData.append('prompt_positive', compiledPrompts.positive);
-                    formData.append('prompt_negative', compiledPrompts.negative);
-                    formData.append('provider_name', annotationDocument.provider.name);
-                    formData.append('provider_model', annotationDocument.provider.model);
-                    formData.append('provider_params', JSON.stringify(annotationDocument.provider.params));
-
-                    const referenceMeta: Array<{ id: string; role: string }> = [];
-                    for (const reference of referenceItems) {
-                        if (!reference.file) continue;
-                        referenceMeta.push({ id: reference.id, role: reference.role });
-                        formData.append('references[]', reference.file);
-                    }
-                    formData.append('references_meta', JSON.stringify(referenceMeta));
-
-                    const queueResponse = await fetch('/api/generate', {
-                        method: 'POST',
-                        body: formData,
-                    });
-
-                    const queueData = await queueResponse.json();
-                    if (!queueResponse.ok || !queueData.job_id) {
-                        throw new Error(queueData.message || 'Failed to queue AI Edit Notes job.');
-                    }
-
-                    const jobId = queueData.job_id as string;
-                    setStatusMessage(`Job queued (${jobId.slice(-8)}). Waiting for worker...`);
-
-                    let completedResultUrl = '';
-                    for (let attempt = 0; attempt < 120; attempt += 1) {
-                        await wait(1500);
-
-                        const statusResponse = await fetch(`/api/jobs/${jobId}`);
-                        const statusData = await statusResponse.json();
-                        if (!statusResponse.ok) {
-                            throw new Error(statusData.message || 'Failed to poll job status.');
-                        }
-
-                        const percent = Math.max(0, Math.min(100, Math.round((statusData.progress || 0) * 100)));
-                        setStatusMessage(`AI Edit Notes: ${statusData.message || statusData.status} (${percent}%)`);
-
-                        if (statusData.status === 'failed') {
-                            throw new Error(statusData.error || 'AI Edit Notes generation failed.');
-                        }
-
-                        if (statusData.status === 'succeeded') {
-                            const resultResponse = await fetch(`/api/jobs/${jobId}/result`);
-                            const resultData = await resultResponse.json();
-                            if (!resultResponse.ok || !resultData.imageUrl) {
-                                throw new Error(resultData.message || 'Job completed but result image is unavailable.');
-                            }
-                            completedResultUrl = resultData.imageUrl as string;
-                            break;
-                        }
-                    }
-
-                    if (!completedResultUrl) {
-                        throw new Error('Timed out waiting for AI Edit Notes result.');
-                    }
-
-                    setGeneratedImage(completedResultUrl);
-                    setStatusMessage('AI Edit Notes generation complete!');
-                    setIsGenerating(false);
-                    return;
-                }
-
-                const response = await fetch('/api/ai/generate-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        prompt,
-                        width: currentW,
-                        height: currentH,
-                        serverUrl: comfyServerUrl,
-                        provider: 'remote',
-                        specificProvider: selectedProvider,
-                        apiKey: currentKey
-                    }),
-                });
-
-                const data = await response.json();
-
-                if (!data.success) {
-                    throw new Error(data.message || 'Generation failed');
-                }
-
-                if (data.imageUrl) {
-                    setGeneratedImage(data.imageUrl);
-                    setStatusMessage('Generation complete!');
-                } else {
-                    setStatusMessage('Finished, but no image returned.');
-                }
-
-                setIsGenerating(false);
-            } catch (error) {
-                console.error(error);
-                const message = error instanceof Error ? error.message : 'Unknown error';
-                setStatusMessage(`Error: ${message}`);
-                setIsGenerating(false);
-            }
-        });
+            aiEditNotesAbortControllerRef.current = null;
+            aiEditNotesAbortRequestedRef.current = false;
+      setIsGenerating(false);
+    }
   };
+
+    const handleAbortAiEditNotes = useCallback(() => {
+            aiEditNotesAbortRequestedRef.current = true;
+            aiEditNotesAbortControllerRef.current?.abort();
+            setStatusMessage('Aborting AI Edit Notes request...');
+    }, []);
 
   const hasStabilityAccess = availableProviders.includes('stability');
   const selectedComfyWorkflow = selectedComfyWorkflowId
@@ -2160,6 +2849,19 @@ export default function ImageGeneratorModal({
     const annotationAspectRatio = annotationBaseDimensions
             ? `${Math.max(1, Math.round(annotationBaseDimensions.width))} / ${Math.max(1, Math.round(annotationBaseDimensions.height))}`
             : '1 / 1';
+    const selectedComfyWorkflowForPreview = selectedComfyWorkflowId || getPreferredComfyAgenticWorkflow(availableComfyWorkflowIds);
+    const adaptiveQualityPreview = resolveComfyQualityProfile(
+        selectedComfyWorkflowForPreview,
+        selectedComfyModelPresetId || 'default',
+        zoneWidth,
+        zoneHeight,
+        selectedProvider === 'comfy' ? selectedComfyTask : 'generate'
+    );
+    const autoAdjustedZoneHeight = selectedProvider === 'comfy'
+        ? adaptManualSizeToSelectedModel(zoneWidth, zoneHeight).height
+        : zoneHeight;
+    const isCurrentSizeModelPerfect = zoneWidth === adaptiveQualityPreview.width
+        && zoneHeight === adaptiveQualityPreview.height;
 
   if (!isOpen) return null;
 
@@ -2622,8 +3324,41 @@ export default function ImageGeneratorModal({
                <div className="grid grid-cols-2 gap-2">
                    <div className="space-y-1">
                       <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Aspect</label>
-                      <div className="w-full text-xs p-2 rounded-md border bg-secondary/20 text-muted-foreground truncate" title="Resize zone on canvas to change">
-                          Custom ({zoneWidth}x{zoneHeight})
+                      <div className="space-y-1 rounded-md border bg-secondary/20 p-2">
+                          <div className="grid grid-cols-2 gap-1">
+                              <input
+                                  type="number"
+                                  min={1}
+                                  className="w-full rounded border bg-background p-1 text-xs"
+                                  value={zoneWidth}
+                                  onChange={(event) => {
+                                      const parsed = Number(event.target.value);
+                                      if (Number.isFinite(parsed)) {
+                                          applyManualZoneWidthLocked(parsed);
+                                      }
+                                  }}
+                                  title="Custom width (free input)"
+                              />
+                              <input
+                                  type="number"
+                                  min={1}
+                                  className="w-full rounded border bg-secondary/40 p-1 text-xs text-muted-foreground"
+                                  value={autoAdjustedZoneHeight}
+                                  readOnly
+                                  title="Auto-adjusted model-optimized height"
+                              />
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                              Custom aspect: {zoneWidth}×{zoneHeight}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                              Model-adapted: {adaptiveQualityPreview.width}×{adaptiveQualityPreview.height}
+                          </div>
+                          {selectedProvider === 'comfy' && !isCurrentSizeModelPerfect && (
+                              <div className="text-[10px] text-amber-400">
+                                  Size is not perfect for selected model; render will snap to {adaptiveQualityPreview.width}×{adaptiveQualityPreview.height}.
+                              </div>
+                          )}
                       </div>
                    </div>
                    <div className="space-y-1">
@@ -2759,9 +3494,25 @@ export default function ImageGeneratorModal({
                            {isCheckingComfyConnection ? 'Checking connection...' : 'Verify ComfyUI Connection'}
                        </button>
 
+                       {isGenerating && selectedProvider === 'comfy' && !useAgenticEditNotes && (
+                           <button
+                               type="button"
+                               onClick={handleCancelComfyRun}
+                               className="w-full rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary"
+                           >
+                               Cancel Active Comfy Job
+                           </button>
+                       )}
+
                        {comfyConnectionStatusMessage && (
                            <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
                                {comfyConnectionStatusMessage}
+                           </div>
+                       )}
+
+                       {comfyCatalogStatusMessage && (
+                           <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
+                               {comfyCatalogStatusMessage}
                            </div>
                        )}
 
@@ -2774,6 +3525,18 @@ export default function ImageGeneratorModal({
                        <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
                            Task chooses operation type; workflow is the pipeline graph; model selects checkpoint preset.
                        </div>
+
+                       <ComfyWorkflowLibraryPanel
+                           connectionMode={comfyConnectionMode}
+                           comfyServerUrl={comfyServerUrl}
+                           comfyCloudUrl={comfyCloudUrl}
+                           comfyCloudApiKey={comfyCloudApiKey}
+                           installPath={comfyInstallPath}
+                           customNodesPath={comfyCustomNodesPath}
+                           workflowLibraryPath={comfyWorkflowLibraryPath}
+                           selectedTask={selectedComfyTask}
+                           onUseWorkflow={handleUseComfyLibraryWorkflow}
+                       />
                    </div>
                )}
 
@@ -2787,6 +3550,12 @@ export default function ImageGeneratorModal({
                   {isGenerating ? 'Dreaming...' : 'Generate Image'}
                </button>
 
+                    {useAgenticEditNotes && (
+                         <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
+                              AI Edit Notes jobs may take up to 30+ minutes. Use <span className="font-medium text-foreground">Abort</span> in status to stop a running request.
+                         </div>
+                    )}
+
                {statusMessage && (
                   <div className={`text-xs py-2 px-3 rounded-md ${statusMessage.includes('Error') ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-secondary-foreground'}`}>
                       <div className="flex items-center justify-between gap-2">
@@ -2798,6 +3567,24 @@ export default function ImageGeneratorModal({
                                   className="rounded border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-medium hover:bg-background"
                               >
                                   Undo
+                              </button>
+                          )}
+                          {isGenerating && useAgenticEditNotes && (
+                              <button
+                                  type="button"
+                                  onClick={handleAbortAiEditNotes}
+                                  className="rounded border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-medium hover:bg-background"
+                              >
+                                  Abort
+                              </button>
+                          )}
+                          {isGenerating && !useAgenticEditNotes && selectedProvider === 'comfy' && (
+                              <button
+                                  type="button"
+                                  onClick={handleCancelComfyRun}
+                                  className="rounded border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-medium hover:bg-background"
+                              >
+                                  Cancel Job
                               </button>
                           )}
                       </div>

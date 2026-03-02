@@ -71,6 +71,145 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
     typeof value === 'object' && value !== null
 );
 
+interface EditorGraphInput {
+    name?: unknown;
+    link?: unknown;
+    widget?: {
+        name?: unknown;
+    };
+}
+
+interface EditorGraphNode {
+    id?: unknown;
+    type?: unknown;
+    title?: unknown;
+    inputs?: unknown;
+    widgets_values?: unknown;
+}
+
+interface ParsedEditorGraphLink {
+    id: number;
+    fromNodeId: string;
+    fromOutputSlot: number;
+    toNodeId: string;
+    toInputSlot: number;
+}
+
+const parseEditorGraphLink = (link: unknown): ParsedEditorGraphLink | null => {
+    if (Array.isArray(link) && link.length >= 5) {
+        const [idRaw, fromNodeRaw, fromSlotRaw, toNodeRaw, toSlotRaw] = link;
+        const id = Number(idRaw);
+        const fromOutputSlot = Number(fromSlotRaw);
+        const toInputSlot = Number(toSlotRaw);
+        if (!Number.isFinite(id) || !Number.isFinite(fromOutputSlot) || !Number.isFinite(toInputSlot)) {
+            return null;
+        }
+
+        return {
+            id,
+            fromNodeId: String(fromNodeRaw),
+            fromOutputSlot,
+            toNodeId: String(toNodeRaw),
+            toInputSlot,
+        };
+    }
+
+    if (!isRecord(link)) {
+        return null;
+    }
+
+    const id = Number(link.id);
+    const fromNodeId = String(link.origin_id ?? link.from_id ?? '');
+    const fromOutputSlot = Number(link.origin_slot ?? link.from_slot ?? 0);
+    const toNodeId = String(link.target_id ?? link.to_id ?? '');
+    const toInputSlot = Number(link.target_slot ?? link.to_slot ?? 0);
+
+    if (!Number.isFinite(id) || !fromNodeId || !toNodeId || !Number.isFinite(fromOutputSlot) || !Number.isFinite(toInputSlot)) {
+        return null;
+    }
+
+    return {
+        id,
+        fromNodeId,
+        fromOutputSlot,
+        toNodeId,
+        toInputSlot,
+    };
+};
+
+const convertEditorGraphToPromptBlueprint = (workflowId: string, blueprint: Record<string, unknown>): ComfyPromptBlueprint => {
+    const rawNodes = (blueprint as { nodes?: unknown }).nodes;
+    const rawLinks = (blueprint as { links?: unknown }).links;
+    if (!Array.isArray(rawNodes)) {
+        throw new Error(`ComfyUI workflow "${workflowId}" graph is invalid: missing nodes array.`);
+    }
+
+    const parsedLinks = Array.isArray(rawLinks)
+        ? rawLinks.map(parseEditorGraphLink).filter((item): item is ParsedEditorGraphLink => Boolean(item))
+        : [];
+    const linkMap = new Map<number, ParsedEditorGraphLink>(parsedLinks.map((link) => [link.id, link]));
+
+    const prompt: ComfyPromptBlueprint = {};
+
+    for (const rawNode of rawNodes) {
+        const node = rawNode as EditorGraphNode;
+        const nodeId = node.id;
+        const classType = node.type;
+        if ((typeof nodeId !== 'number' && typeof nodeId !== 'string') || typeof classType !== 'string' || !classType.trim()) {
+            continue;
+        }
+
+        if (classType === 'MarkdownNote') {
+            continue;
+        }
+
+        const nodeInputs = Array.isArray(node.inputs) ? node.inputs as EditorGraphInput[] : [];
+        const widgetValues = Array.isArray(node.widgets_values) ? node.widgets_values : [];
+        let widgetValueIndex = 0;
+        const inputs: Record<string, unknown> = {};
+
+        for (const input of nodeInputs) {
+            const inputName = typeof input.name === 'string' ? input.name : null;
+            if (!inputName) {
+                continue;
+            }
+
+            const linkId = Number(input.link);
+            if (Number.isFinite(linkId) && linkMap.has(linkId)) {
+                const connection = linkMap.get(linkId) as ParsedEditorGraphLink;
+                inputs[inputName] = [connection.fromNodeId, connection.fromOutputSlot];
+                continue;
+            }
+
+            const widgetName = typeof input.widget?.name === 'string' ? input.widget.name : null;
+            if (widgetName) {
+                const widgetValue = widgetValues[widgetValueIndex];
+                widgetValueIndex += 1;
+                if (widgetValue !== undefined) {
+                    inputs[inputName] = widgetValue;
+                }
+            }
+        }
+
+        prompt[String(nodeId)] = {
+            class_type: classType,
+            inputs,
+            _meta: {
+                title: typeof node.title === 'string' ? node.title : classType,
+            },
+        };
+    }
+
+    if (Object.keys(prompt).length === 0) {
+        throw new Error(
+            `ComfyUI workflow "${workflowId}" graph conversion failed: no executable nodes were produced. `
+            + 'Export the workflow in API format, or remove UI-only graph nodes.'
+        );
+    }
+
+    return prompt;
+};
+
 const assertPromptBlueprintShape: (
     workflowId: string,
     blueprint: unknown
@@ -105,6 +244,24 @@ const assertPromptBlueprintShape: (
             );
         }
     }
+};
+
+const normalizePromptBlueprint = (workflowId: string, blueprint: unknown): ComfyPromptBlueprint => {
+    if (!isRecord(blueprint)) {
+        throw new Error(`ComfyUI workflow "${workflowId}" is invalid: blueprint must be an object.`);
+    }
+
+    const hasGraphShape = Array.isArray((blueprint as { nodes?: unknown }).nodes)
+        && Array.isArray((blueprint as { links?: unknown }).links);
+
+    if (hasGraphShape) {
+        const converted = convertEditorGraphToPromptBlueprint(workflowId, blueprint);
+        assertPromptBlueprintShape(workflowId, converted);
+        return converted;
+    }
+
+    assertPromptBlueprintShape(workflowId, blueprint);
+    return blueprint;
 };
 
 class WorkflowRegistry {
@@ -240,8 +397,8 @@ export const prepareWorkflowBlueprint = async (
     modelPreset: ComfyModelPreset
 ): Promise<ComfyPromptBlueprint> => {
     const rawBlueprint = await workflow.loadBlueprint();
-    assertPromptBlueprintShape(workflow.id, rawBlueprint);
-    const blueprint = cloneComfyPromptBlueprint(rawBlueprint);
+    const normalizedBlueprint = normalizePromptBlueprint(workflow.id, rawBlueprint);
+    const blueprint = cloneComfyPromptBlueprint(normalizedBlueprint);
 
     applyWorkflowInputBindings(blueprint, workflow.inputBindings, params);
     applyModelPresetToBlueprint(blueprint, modelPreset);

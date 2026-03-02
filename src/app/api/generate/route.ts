@@ -38,15 +38,25 @@ export async function POST(request: Request) {
         const promptNegative = asString(form.get('prompt_negative'));
         const providerName = asString(form.get('provider_name')) || annotationsJson.provider.name || 'mock';
         const providerModel = asString(form.get('provider_model')) || annotationsJson.provider.model || 'mock-v1';
-        const providerParams = parseJson<Record<string, unknown>>(asString(form.get('provider_params')), annotationsJson.provider.params || {});
+        const parsedProviderParams = parseJson<Record<string, unknown>>(asString(form.get('provider_params')), annotationsJson.provider.params || {});
+        const additionalNotesText = asString(form.get('additional_notes_text'));
+        const additionalNotesJson = parseJson<Array<Record<string, unknown>>>(asString(form.get('additional_notes_json')), []);
 
         const combinedMask = form.get('combined_mask');
         const poseHint = form.get('pose_hint');
         const notesOverlay = form.get('notes_overlay');
+        const embeddedNotesImage = form.get('embedded_notes_image');
+
+        const providerParams: Record<string, unknown> = {
+            ...parsedProviderParams,
+            additionalNotesText,
+            additionalNotes: additionalNotesJson,
+        };
 
         const hasAnnotationNotes = Array.isArray(annotationsJson.annotations) && annotationsJson.annotations.length > 0;
         if (hasAnnotationNotes) {
-            if (!(notesOverlay instanceof File)) {
+            const hasNotesOverlayFile = notesOverlay instanceof File || embeddedNotesImage instanceof File;
+            if (!hasNotesOverlayFile) {
                 return NextResponse.json({ message: 'Missing notes_overlay file for annotated edit request' }, { status: 400 });
             }
 
@@ -77,7 +87,9 @@ export async function POST(request: Request) {
             providerParams,
             combinedMask: combinedMask instanceof File ? combinedMask : null,
             poseHint: poseHint instanceof File ? poseHint : null,
-            notesOverlay: notesOverlay instanceof File ? notesOverlay : null,
+            notesOverlay: notesOverlay instanceof File
+                ? notesOverlay
+                : (embeddedNotesImage instanceof File ? embeddedNotesImage : null),
             references,
         });
 

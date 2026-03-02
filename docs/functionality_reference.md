@@ -169,3 +169,7 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
 - [x] **Point Note Removal**: Right-click removes point notes from marker/inline note targets.
 - [x] **Undo Removal**: Recently removed note can be restored through the status Undo action window.
 - [x] **Canvas Persistence**: “Save Ref Notes Layer to Canvas” creates a flattened layer and embeds metadata payload for workflow forwarding (`aiEditPlanData`).
+- [x] **Long-Run Control**: AI Edit Notes requests support extended polling windows and manual abort control.
+- [x] **Comfy Recovery Cancel**: Canceled Comfy prompt IDs are persisted to prevent unwanted auto-resume on reload.
+- [x] **Model-Adaptive Sizing**: Aspect workflow preserves custom entry while surfacing model-adapted render bucket dimensions.
+- [x] **Job Artifact Cleanup**: Temporary `job_*` files are cleaned after processing/result retrieval; old terminal jobs are auto-pruned.
