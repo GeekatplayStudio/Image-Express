@@ -9,6 +9,9 @@ export interface ComfyExecutionProgress {
     progress: number;
     max: number;
     value: number;
+    stage?: 'connecting' | 'validating' | 'queueing' | 'queued' | 'running' | 'waiting-history' | 'fetching-image' | 'completed' | 'error';
+    message?: string;
+    elapsedMs?: number;
 }
 
 export interface ComfyExecutionResult {
@@ -29,9 +32,91 @@ interface PromptHandler {
     onProgress?: (progress: ComfyExecutionProgress) => void;
     outputNodeIds: string[];
     settled: boolean;
+    startedAt: number;
+}
+
+interface ComfyObjectInfoNode {
+    input?: {
+        required?: Record<string, unknown>;
+        optional?: Record<string, unknown>;
+    };
+}
+
+type ComfyObjectInfoResponse = Record<string, ComfyObjectInfoNode>;
+
+interface MissingComfyModelInput {
+    nodeId: string;
+    classType: string;
+    inputName: string;
+    configuredValue: string;
+    availableValues: string[];
+}
+
+interface ComfyHistoryErrorPayload {
+    exception_type?: string;
+    exception_message?: string;
+    node_id?: string;
+    node_type?: string;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const MODEL_INPUT_NAME_PATTERN = /(?:^|_)(?:ckpt|checkpoint|model|unet|clip|vae|lora|controlnet|text_encoder|diffusion_model)(?:_|$)|name$/i;
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+    typeof value === 'object' && value !== null
+);
+
+const extractStringChoices = (inputDefinition: unknown): string[] => {
+    if (!Array.isArray(inputDefinition)) {
+        return [];
+    }
+
+    const directChoices = inputDefinition.find((entry) => (
+        Array.isArray(entry) && entry.every((item) => typeof item === 'string')
+    )) as string[] | undefined;
+    if (directChoices && directChoices.length > 0) {
+        return directChoices;
+    }
+
+    const objectEntry = inputDefinition.find((entry) => isRecord(entry));
+    if (!objectEntry || !isRecord(objectEntry)) {
+        return [];
+    }
+
+    const candidate = objectEntry.choices
+        || objectEntry.options
+        || objectEntry.values
+        || objectEntry.items;
+
+    if (Array.isArray(candidate) && candidate.every((item) => typeof item === 'string')) {
+        return candidate;
+    }
+
+    return [];
+};
+
+const parseHistoryStatusSummary = (promptEntry: unknown): string | null => {
+    if (!isRecord(promptEntry)) {
+        return null;
+    }
+
+    const status = isRecord(promptEntry.status) ? promptEntry.status : null;
+    if (!status) {
+        return null;
+    }
+
+    const statusStr = typeof status.status_str === 'string' ? status.status_str : '';
+    const completed = typeof status.completed === 'boolean' ? status.completed : null;
+    const queueRemaining = typeof status.queue_remaining === 'number' ? status.queue_remaining : null;
+    const parts = [
+        statusStr ? `status=${statusStr}` : '',
+        completed === null ? '' : `completed=${completed ? 'yes' : 'no'}`,
+        queueRemaining === null ? '' : `queue=${queueRemaining}`,
+    ].filter(Boolean);
+
+    return parts.length > 0 ? parts.join(', ') : null;
+};
 
 export class ComfyUIClient {
     private transport: ResolvedComfyTransport;
@@ -172,16 +257,59 @@ export class ComfyUIClient {
     public async waitForHistoryOutput(
         promptId: string,
         outputNodeIds: string[],
-        timeoutMs: number = 120000,
-        pollIntervalMs: number = 1000
+        timeoutMs: number = 1800000,
+        pollIntervalMs: number = 1000,
+        onProgress?: (progress: ComfyExecutionProgress) => void,
+        startedAt?: number
     ): Promise<ComfyExecutionResult> {
         const startTime = Date.now();
+        const progressStart = startedAt || startTime;
+        let pollCount = 0;
 
         while (Date.now() - startTime < timeoutMs) {
             const history = await this.getHistory(promptId);
+            const promptEntry = history[promptId];
+            pollCount += 1;
+
+            if (onProgress) {
+                const elapsedMs = Date.now() - progressStart;
+                const summary = parseHistoryStatusSummary(promptEntry);
+                const heartbeat = summary
+                    ? `Waiting for image output (${summary})`
+                    : 'Waiting for image output...';
+
+                if (pollCount === 1 || pollCount % 2 === 0) {
+                    onProgress({
+                        nodeId: null,
+                        progress: 0,
+                        max: 0,
+                        value: 0,
+                        stage: 'waiting-history',
+                        message: heartbeat,
+                        elapsedMs,
+                    });
+                }
+            }
+
+            const historyError = this.extractHistoryExecutionError(history, promptId);
+            if (historyError) {
+                throw new Error(historyError);
+            }
+
             const image = this.findImageResultInHistory(history, promptId, outputNodeIds);
 
             if (image) {
+                if (onProgress) {
+                    onProgress({
+                        nodeId: null,
+                        progress: 1,
+                        max: 1,
+                        value: 1,
+                        stage: 'fetching-image',
+                        message: `Fetching output image (${image.filename})...`,
+                        elapsedMs: Date.now() - progressStart,
+                    });
+                }
                 const dataUrl = await this.fetchImage(image.filename, image.subfolder, image.type);
                 return {
                     dataUrl,
@@ -192,15 +320,62 @@ export class ComfyUIClient {
             await sleep(pollIntervalMs);
         }
 
-        throw new Error('Timed out waiting for ComfyUI output.');
+        const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+        throw new Error(
+            `Timed out waiting for ComfyUI output after ${elapsedSeconds}s. `
+            + 'ComfyUI may still be processing, disconnected, or blocked by missing model components (e.g. VAE/CLIP).'
+        );
     }
 
     public async executeWorkflow(
         workflowJson: Record<string, unknown>,
         outputNodeIds: string[],
-        onProgress?: (progress: ComfyExecutionProgress) => void
+        onProgress?: (progress: ComfyExecutionProgress) => void,
+        onQueued?: (promptId: string) => void
     ): Promise<ComfyExecutionResult> {
-        this.connect();
+        const startedAt = Date.now();
+
+        if (onProgress) {
+            onProgress({
+                nodeId: null,
+                progress: 0,
+                max: 0,
+                value: 0,
+                stage: 'connecting',
+                message: 'Connecting to ComfyUI websocket...',
+                elapsedMs: 0,
+            });
+        }
+
+        if (onProgress) {
+            this.connect();
+        }
+
+        if (onProgress) {
+            onProgress({
+                nodeId: null,
+                progress: 0,
+                max: 0,
+                value: 0,
+                stage: 'validating',
+                message: 'Validating workflow and required models...',
+                elapsedMs: Date.now() - startedAt,
+            });
+        }
+
+        await this.validateWorkflowModelAvailability(workflowJson);
+
+        if (onProgress) {
+            onProgress({
+                nodeId: null,
+                progress: 0,
+                max: 0,
+                value: 0,
+                stage: 'queueing',
+                message: 'Queueing workflow on ComfyUI...',
+                elapsedMs: Date.now() - startedAt,
+            });
+        }
 
         const response = await fetch(this.buildApiUrl('/prompt'), {
             method: 'POST',
@@ -215,7 +390,9 @@ export class ComfyUIClient {
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to queue prompt: ${response.statusText}`);
+            const detail = await response.text().catch(() => '');
+            const detailSuffix = detail ? ` (${detail.slice(0, 280)})` : '';
+            throw new Error(`Failed to queue prompt: ${response.status} ${response.statusText}${detailSuffix}`);
         }
 
         const payload = await response.json() as { prompt_id?: string };
@@ -225,6 +402,26 @@ export class ComfyUIClient {
 
         const promptId = payload.prompt_id;
 
+        if (onQueued) {
+            try {
+                onQueued(promptId);
+            } catch (error) {
+                console.warn('Comfy onQueued callback failed', error);
+            }
+        }
+
+        if (onProgress) {
+            onProgress({
+                nodeId: null,
+                progress: 0,
+                max: 0,
+                value: 0,
+                stage: 'queued',
+                message: `Workflow queued (prompt ${promptId.slice(0, 8)}...). Waiting for execution...`,
+                elapsedMs: Date.now() - startedAt,
+            });
+        }
+
         return await new Promise<ComfyExecutionResult>((resolve, reject) => {
             this.promptIdHandlers.set(promptId, {
                 resolve,
@@ -232,9 +429,10 @@ export class ComfyUIClient {
                 onProgress,
                 outputNodeIds,
                 settled: false,
+                startedAt,
             });
 
-            void this.waitForHistoryOutput(promptId, outputNodeIds)
+            void this.waitForHistoryOutput(promptId, outputNodeIds, 1800000, 1000, onProgress, startedAt)
                 .then((result) => {
                     this.resolveHandler(promptId, result);
                 })
@@ -246,6 +444,107 @@ export class ComfyUIClient {
 
     private buildApiUrl(path: string): string {
         return `${this.transport.baseUrl}${this.transport.apiBasePath}${path}`;
+    }
+
+    private async getObjectInfo(): Promise<ComfyObjectInfoResponse | null> {
+        try {
+            const response = await fetch(this.buildApiUrl('/object_info'), {
+                headers: this.transport.defaultHeaders,
+            });
+
+            if (!response.ok) {
+                return null;
+            }
+
+            return await response.json() as ComfyObjectInfoResponse;
+        } catch {
+            return null;
+        }
+    }
+
+    private findMissingModelInputs(
+        workflowJson: Record<string, unknown>,
+        objectInfo: ComfyObjectInfoResponse
+    ): MissingComfyModelInput[] {
+        const missing: MissingComfyModelInput[] = [];
+
+        for (const [nodeId, rawNode] of Object.entries(workflowJson)) {
+            if (!isRecord(rawNode)) {
+                continue;
+            }
+
+            const classType = typeof rawNode.class_type === 'string' ? rawNode.class_type : '';
+            const inputs = isRecord(rawNode.inputs) ? rawNode.inputs : null;
+            if (!classType || !inputs) {
+                continue;
+            }
+
+            const nodeInfo = objectInfo[classType];
+            if (!nodeInfo?.input) {
+                continue;
+            }
+
+            const allInputDefs: Record<string, unknown> = {
+                ...(nodeInfo.input.required || {}),
+                ...(nodeInfo.input.optional || {}),
+            };
+
+            for (const [inputName, configuredValue] of Object.entries(inputs)) {
+                if (typeof configuredValue !== 'string' || configuredValue.length === 0) {
+                    continue;
+                }
+
+                if (configuredValue.startsWith('http://') || configuredValue.startsWith('https://') || configuredValue.startsWith('data:')) {
+                    continue;
+                }
+
+                const inputDefinition = allInputDefs[inputName];
+                const choices = extractStringChoices(inputDefinition);
+                if (choices.length === 0) {
+                    continue;
+                }
+
+                if (!MODEL_INPUT_NAME_PATTERN.test(inputName)) {
+                    continue;
+                }
+
+                if (!choices.includes(configuredValue)) {
+                    missing.push({
+                        nodeId,
+                        classType,
+                        inputName,
+                        configuredValue,
+                        availableValues: choices,
+                    });
+                }
+            }
+        }
+
+        return missing;
+    }
+
+    private async validateWorkflowModelAvailability(workflowJson: Record<string, unknown>): Promise<void> {
+        const objectInfo = await this.getObjectInfo();
+        if (!objectInfo) {
+            return;
+        }
+
+        const missing = this.findMissingModelInputs(workflowJson, objectInfo);
+        if (missing.length === 0) {
+            return;
+        }
+
+        const preview = missing
+            .slice(0, 4)
+            .map((issue) => `${issue.classType}.${issue.inputName} in node ${issue.nodeId} = "${issue.configuredValue}"`)
+            .join('; ');
+
+        const remainder = missing.length > 4 ? ` (+${missing.length - 4} more)` : '';
+
+        throw new Error(
+            `ComfyUI model check failed: required models are not available on this server (${preview}${remainder}). `
+            + 'Install the missing models or switch to a compatible model preset.'
+        );
     }
 
     private buildWebSocketUrl(transport: ResolvedComfyTransport): string {
@@ -297,6 +596,11 @@ export class ComfyUIClient {
                 max,
                 value,
                 progress: max > 0 ? value / max : 0,
+                stage: 'running',
+                message: nodeId
+                    ? `Running node ${nodeId}${max > 0 ? ` (${value}/${max})` : ''}`
+                    : 'Running workflow node...',
+                elapsedMs: Date.now() - handler.startedAt,
             });
             return;
         }
@@ -311,12 +615,34 @@ export class ComfyUIClient {
             const image = output?.images?.[0];
 
             if (!image) {
+                if (handler.onProgress) {
+                    handler.onProgress({
+                        nodeId,
+                        max: 1,
+                        value: 1,
+                        progress: 1,
+                        stage: 'completed',
+                        message: 'Execution completed.',
+                        elapsedMs: Date.now() - handler.startedAt,
+                    });
+                }
                 this.resolveHandler(promptId, {});
                 return;
             }
 
             void this.fetchImage(image.filename, image.subfolder, image.type)
                 .then((dataUrl) => {
+                    if (handler.onProgress) {
+                        handler.onProgress({
+                            nodeId,
+                            max: 1,
+                            value: 1,
+                            progress: 1,
+                            stage: 'completed',
+                            message: `Output image ready (${image.filename}).`,
+                            elapsedMs: Date.now() - handler.startedAt,
+                        });
+                    }
                     this.resolveHandler(promptId, {
                         dataUrl,
                         filename: image.filename,
@@ -338,9 +664,81 @@ export class ComfyUIClient {
             const exceptionType = typeof message.data?.exception_type === 'string'
                 ? message.data.exception_type
                 : 'Unknown error';
+            const exceptionMessage = typeof message.data?.exception_message === 'string'
+                ? message.data.exception_message.trim()
+                : '';
+            const nodeType = typeof message.data?.node_type === 'string'
+                ? message.data.node_type
+                : '';
 
-            this.rejectHandler(promptId, new Error(`ComfyUI execution error in node ${nodeId}: ${exceptionType}`));
+            const details = [
+                nodeType ? `type=${nodeType}` : '',
+                exceptionType ? `reason=${exceptionType}` : '',
+                exceptionMessage,
+            ].filter(Boolean).join(' | ');
+
+            if (handler.onProgress) {
+                handler.onProgress({
+                    nodeId,
+                    max: 1,
+                    value: 1,
+                    progress: 1,
+                    stage: 'error',
+                    message: `Execution error in node ${nodeId}${details ? ` (${details})` : ''}`,
+                    elapsedMs: Date.now() - handler.startedAt,
+                });
+            }
+
+            this.rejectHandler(
+                promptId,
+                new Error(`ComfyUI execution error in node ${nodeId}${details ? ` (${details})` : ''}`)
+            );
         }
+    }
+
+    private extractHistoryExecutionError(
+        history: Record<string, unknown>,
+        promptId: string
+    ): string | null {
+        const promptEntry = history[promptId];
+        if (!isRecord(promptEntry)) {
+            return null;
+        }
+
+        const status = isRecord(promptEntry.status) ? promptEntry.status : null;
+        if (!status) {
+            return null;
+        }
+
+        const statusStr = typeof status.status_str === 'string' ? status.status_str : '';
+        const messages = Array.isArray(status.messages) ? status.messages : [];
+
+        for (const messageEntry of messages) {
+            if (!Array.isArray(messageEntry) || messageEntry.length < 2) {
+                continue;
+            }
+
+            const kind = typeof messageEntry[0] === 'string' ? messageEntry[0] : '';
+            const payload = isRecord(messageEntry[1])
+                ? messageEntry[1] as ComfyHistoryErrorPayload
+                : null;
+
+            if (kind !== 'execution_error' || !payload) {
+                continue;
+            }
+
+            const nodeId = payload.node_id || 'unknown';
+            const nodeType = payload.node_type ? ` type=${payload.node_type}` : '';
+            const exceptionType = payload.exception_type ? ` reason=${payload.exception_type}` : '';
+            const exceptionMessage = payload.exception_message || 'Unknown execution error';
+            return `ComfyUI execution error in node ${nodeId}${nodeType}${exceptionType}: ${exceptionMessage}`;
+        }
+
+        if (statusStr.toLowerCase() === 'error') {
+            return 'ComfyUI reported an execution error for this prompt.';
+        }
+
+        return null;
     }
 
     private findHandler(promptId: string): PromptHandler | null {
@@ -371,7 +769,15 @@ export class ComfyUIClient {
 
     private async resolveFromHistory(promptId: string, outputNodeIds: string[]) {
         try {
-            const result = await this.waitForHistoryOutput(promptId, outputNodeIds, 5000, 500);
+            const handler = this.findHandler(promptId);
+            const result = await this.waitForHistoryOutput(
+                promptId,
+                outputNodeIds,
+                5000,
+                500,
+                handler?.onProgress,
+                handler?.startedAt
+            );
             this.resolveHandler(promptId, result);
         } catch (error) {
             this.rejectHandler(promptId, error instanceof Error ? error : new Error(String(error)));

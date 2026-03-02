@@ -1,0 +1,310 @@
+import { promises as fs } from 'fs';
+import path from 'path';
+import { resolveModelProvider } from '@/lib/agentic-edit/providers';
+import type { AnnotationDocument, GenerateJobState } from '@/lib/agentic-edit/types';
+
+interface StoredReferenceFile {
+    id: string;
+    role: string;
+    path: string;
+    name: string;
+}
+
+interface StoredGenerateJob {
+    state: GenerateJobState;
+    files: {
+        originalPath: string;
+        combinedMaskPath?: string;
+        poseHintPath?: string;
+        notesOverlayPath?: string;
+        annotationJsonPath: string;
+        promptPath: string;
+        references: StoredReferenceFile[];
+    };
+    provider: {
+        name: string;
+        model: string;
+        params: Record<string, unknown>;
+    };
+    prompts: {
+        positive: string;
+        negative: string;
+    };
+    annotationDocument: AnnotationDocument;
+    output?: {
+        imagePath: string;
+        imageUrl: string;
+        meta: Record<string, unknown>;
+    };
+}
+
+const dataRoot = path.join(process.cwd(), 'data');
+const jobsDir = path.join(dataRoot, 'ai-jobs');
+const uploadsDir = path.join(jobsDir, 'uploads');
+const revisionsDir = path.join(dataRoot, 'ai-revisions');
+const outputDir = path.join(process.cwd(), 'public', 'assets', 'generated', 'images');
+
+const ensureDirs = async () => {
+    await fs.mkdir(jobsDir, { recursive: true });
+    await fs.mkdir(uploadsDir, { recursive: true });
+    await fs.mkdir(revisionsDir, { recursive: true });
+    await fs.mkdir(outputDir, { recursive: true });
+};
+
+const jobFilePath = (jobId: string) => path.join(jobsDir, `${jobId}.json`);
+
+const nowIso = () => new Date().toISOString();
+
+const writeJson = async (targetPath: string, value: unknown) => {
+    await fs.writeFile(targetPath, JSON.stringify(value, null, 2), 'utf-8');
+};
+
+export const readGenerateJob = async (jobId: string): Promise<StoredGenerateJob | null> => {
+    try {
+        const raw = await fs.readFile(jobFilePath(jobId), 'utf-8');
+        return JSON.parse(raw) as StoredGenerateJob;
+    } catch {
+        return null;
+    }
+};
+
+const persistGenerateJob = async (job: StoredGenerateJob): Promise<void> => {
+    await writeJson(jobFilePath(job.state.id), job);
+};
+
+const updateState = async (
+    jobId: string,
+    patch: Partial<GenerateJobState>
+): Promise<StoredGenerateJob | null> => {
+    const job = await readGenerateJob(jobId);
+    if (!job) {
+        return null;
+    }
+
+    job.state = {
+        ...job.state,
+        ...patch,
+        updatedAt: nowIso(),
+    };
+    await persistGenerateJob(job);
+    return job;
+};
+
+const saveBuffer = async (targetPath: string, buffer: Buffer) => {
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, buffer);
+};
+
+const toBuffer = async (file: File): Promise<Buffer> => {
+    const arrayBuffer = await file.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+};
+
+const safeExt = (filename: string, fallback = '.bin'): string => {
+    const ext = path.extname(filename || '').toLowerCase();
+    if (!ext || ext.length > 12) return fallback;
+    return ext;
+};
+
+const createRevisionRecord = async (job: StoredGenerateJob) => {
+    if (!job.output) return;
+
+    const revision = {
+        id: `rev_${job.state.id}`,
+        originalImageId: job.annotationDocument.image.id,
+        annotationJson: job.annotationDocument,
+        derivedPrompt: {
+            positive: job.prompts.positive,
+            negative: job.prompts.negative,
+        },
+        provider: {
+            ...job.provider,
+            meta: job.output.meta,
+        },
+        outputImageId: path.basename(job.output.imagePath),
+        outputImageUrl: job.output.imageUrl,
+        timestamps: {
+            createdAt: job.state.createdAt,
+            completedAt: job.state.updatedAt,
+        },
+    };
+
+    await writeJson(path.join(revisionsDir, `${job.state.id}.json`), revision);
+};
+
+export interface CreateGenerateJobInput {
+    original: File;
+    annotationsJson: AnnotationDocument;
+    promptPositive: string;
+    promptNegative: string;
+    providerName: string;
+    providerModel: string;
+    providerParams: Record<string, unknown>;
+    combinedMask?: File | null;
+    poseHint?: File | null;
+    notesOverlay?: File | null;
+    references: Array<{ id: string; role: string; file: File }>;
+}
+
+export const createGenerateJob = async (input: CreateGenerateJobInput): Promise<GenerateJobState> => {
+    await ensureDirs();
+
+    const jobId = `job_${crypto.randomUUID()}`;
+    const createdAt = nowIso();
+
+    const originalExt = safeExt(input.original.name, '.png');
+    const originalPath = path.join(uploadsDir, `${jobId}-original${originalExt}`);
+    await saveBuffer(originalPath, await toBuffer(input.original));
+
+    let combinedMaskPath: string | undefined;
+    if (input.combinedMask) {
+        const maskExt = safeExt(input.combinedMask.name, '.png');
+        combinedMaskPath = path.join(uploadsDir, `${jobId}-combined-mask${maskExt}`);
+        await saveBuffer(combinedMaskPath, await toBuffer(input.combinedMask));
+    }
+
+    let poseHintPath: string | undefined;
+    if (input.poseHint) {
+        const poseExt = safeExt(input.poseHint.name, '.png');
+        poseHintPath = path.join(uploadsDir, `${jobId}-pose-hint${poseExt}`);
+        await saveBuffer(poseHintPath, await toBuffer(input.poseHint));
+    }
+
+    let notesOverlayPath: string | undefined;
+    if (input.notesOverlay) {
+        const overlayExt = safeExt(input.notesOverlay.name, '.png');
+        notesOverlayPath = path.join(uploadsDir, `${jobId}-notes-overlay${overlayExt}`);
+        await saveBuffer(notesOverlayPath, await toBuffer(input.notesOverlay));
+    }
+
+    const refs: StoredReferenceFile[] = [];
+    for (const reference of input.references) {
+        const ext = safeExt(reference.file.name, '.png');
+        const refPath = path.join(uploadsDir, `${jobId}-ref-${reference.id}${ext}`);
+        await saveBuffer(refPath, await toBuffer(reference.file));
+        refs.push({
+            id: reference.id,
+            role: reference.role,
+            path: refPath,
+            name: reference.file.name,
+        });
+    }
+
+    const annotationJsonPath = path.join(uploadsDir, `${jobId}-annotations.json`);
+    const promptPath = path.join(uploadsDir, `${jobId}-prompt.txt`);
+    await writeJson(annotationJsonPath, input.annotationsJson);
+    await fs.writeFile(
+        promptPath,
+        `POSITIVE\n${input.promptPositive}\n\nNEGATIVE\n${input.promptNegative}\n`,
+        'utf-8'
+    );
+
+    const state: GenerateJobState = {
+        id: jobId,
+        status: 'queued',
+        progress: 0,
+        message: 'Queued',
+        createdAt,
+        updatedAt: createdAt,
+    };
+
+    const job: StoredGenerateJob = {
+        state,
+        files: {
+            originalPath,
+            combinedMaskPath,
+            poseHintPath,
+            notesOverlayPath,
+            annotationJsonPath,
+            promptPath,
+            references: refs,
+        },
+        provider: {
+            name: input.providerName,
+            model: input.providerModel,
+            params: input.providerParams,
+        },
+        prompts: {
+            positive: input.promptPositive,
+            negative: input.promptNegative,
+        },
+        annotationDocument: input.annotationsJson,
+    };
+
+    await persistGenerateJob(job);
+    return state;
+};
+
+export const processGenerateJob = async (jobId: string): Promise<void> => {
+    const existing = await readGenerateJob(jobId);
+    if (!existing) {
+        return;
+    }
+
+    try {
+        await updateState(jobId, { status: 'running', progress: 0.12, message: 'Loading input assets...' });
+        const job = await readGenerateJob(jobId);
+        if (!job) return;
+
+        const originalImage = await fs.readFile(job.files.originalPath);
+        const notesOverlay = job.files.notesOverlayPath ? await fs.readFile(job.files.notesOverlayPath) : undefined;
+        const maskImage = job.files.combinedMaskPath ? await fs.readFile(job.files.combinedMaskPath) : undefined;
+        const poseHint = job.files.poseHintPath ? await fs.readFile(job.files.poseHintPath) : undefined;
+        const references = await Promise.all(job.files.references.map(async (reference) => ({
+            role: reference.role,
+            image: await fs.readFile(reference.path),
+        })));
+
+        await updateState(jobId, { progress: 0.42, message: 'Running model provider...' });
+        const provider = resolveModelProvider(job.provider.name);
+
+        const providerResult = await provider.generate({
+            originalImage,
+            notesOverlay,
+            maskImage,
+            poseHint,
+            references,
+            promptPositive: job.prompts.positive,
+            promptNegative: job.prompts.negative,
+            params: {
+                ...job.provider.params,
+                model: job.provider.model,
+            },
+        });
+
+        await updateState(jobId, { progress: 0.82, message: 'Saving output revision...' });
+
+        const outputName = `${jobId}-output.png`;
+        const outputPath = path.join(outputDir, outputName);
+        await saveBuffer(outputPath, providerResult.outputImage);
+
+        const imageUrl = `/assets/generated/images/${outputName}`;
+        const latest = await readGenerateJob(jobId);
+        if (!latest) return;
+
+        latest.output = {
+            imagePath: outputPath,
+            imageUrl,
+            meta: providerResult.meta,
+        };
+        latest.state = {
+            ...latest.state,
+            status: 'succeeded',
+            progress: 1,
+            message: 'Completed',
+            updatedAt: nowIso(),
+            resultImageUrl: imageUrl,
+        };
+
+        await persistGenerateJob(latest);
+        await createRevisionRecord(latest);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown job error';
+        await updateState(jobId, {
+            status: 'failed',
+            progress: 1,
+            message: 'Failed',
+            error: message,
+        });
+    }
+};

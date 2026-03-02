@@ -35,6 +35,7 @@ export interface PreparedComfyTaskExecution {
 
 export interface ExecuteComfyTaskOptions extends PrepareComfyTaskOptions {
     onProgress?: (progress: ComfyExecutionProgress) => void;
+    onQueued?: (promptId: string) => void;
 }
 
 export interface ExecuteComfyTaskResult {
@@ -93,7 +94,8 @@ export const executeComfyTask = async (options: ExecuteComfyTaskOptions): Promis
     const result = await prepared.client.executeWorkflow(
         prepared.workflowJson,
         prepared.workflow.outputNodeIds,
-        options.onProgress
+        options.onProgress,
+        options.onQueued
     );
 
     return {
@@ -101,4 +103,40 @@ export const executeComfyTask = async (options: ExecuteComfyTaskOptions): Promis
         modelPreset: prepared.modelPreset,
         result,
     };
+};
+
+export interface RecoverComfyTaskOptions {
+    connection?: ComfyConnectionOptions;
+    serverUrl?: string;
+    promptId: string;
+    workflowId?: string;
+    onProgress?: (progress: ComfyExecutionProgress) => void;
+}
+
+export const recoverComfyTaskByPromptId = async (
+    options: RecoverComfyTaskOptions
+): Promise<ComfyExecutionResult> => {
+    ensureComfyWorkflowCatalogRegistered();
+
+    const resolvedTransport = await resolveAvailableComfyTransport(
+        options.connection || {
+            mode: 'local',
+            localUrl: options.serverUrl,
+        }
+    );
+
+    const client = new ComfyUIClient(resolvedTransport);
+    const workflow = options.workflowId
+        ? comfyWorkflowRegistry.getWorkflow(options.workflowId)
+        : null;
+    const outputNodeIds = workflow?.outputNodeIds || [];
+
+    return client.waitForHistoryOutput(
+        options.promptId,
+        outputNodeIds,
+        1800000,
+        1000,
+        options.onProgress,
+        Date.now()
+    );
 };

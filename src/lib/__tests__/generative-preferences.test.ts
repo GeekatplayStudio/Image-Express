@@ -14,12 +14,12 @@ describe('generative-preferences', () => {
 
     it('loads defaults when no settings exist', () => {
         expect(loadGenerativePreferences()).toEqual({
-            defaultProvider: 'stability',
-            defaultWorkflow: 'stability-inpaint',
+            defaultProvider: 'comfy',
+            defaultWorkflow: 'zone',
             comfyServerUrl: 'http://localhost:8188',
             comfyConnectionMode: 'auto',
             comfyCloudUrl: 'https://cloud.comfy.org',
-            autoStartInpaintMasking: true,
+            autoStartInpaintMasking: false,
             showInpaintPromptDock: true,
         });
     });
@@ -75,19 +75,19 @@ describe('generative-preferences', () => {
         window.localStorage.setItem(GENERATIVE_PREFERENCES_STORAGE_KEY, '{bad');
 
         expect(loadGenerativePreferences()).toEqual({
-            defaultProvider: 'stability',
-            defaultWorkflow: 'stability-inpaint',
+            defaultProvider: 'comfy',
+            defaultWorkflow: 'zone',
             comfyServerUrl: 'http://localhost:8188',
             comfyConnectionMode: 'auto',
             comfyCloudUrl: 'https://cloud.comfy.org',
-            autoStartInpaintMasking: true,
+            autoStartInpaintMasking: false,
             showInpaintPromptDock: true,
         });
     });
 
     it('resolves stability workflow launch when provider is available', () => {
         const launch = resolveGenerativeLaunchState({
-            defaultProvider: 'openai',
+            defaultProvider: 'stability',
             defaultWorkflow: 'stability-outpaint',
             comfyServerUrl: 'http://localhost:8188',
             comfyConnectionMode: 'auto',

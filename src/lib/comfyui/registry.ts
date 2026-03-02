@@ -22,6 +22,7 @@ export interface ComfyWorkflowVariableParams {
     mask?: string;
     width?: number;
     height?: number;
+    strength?: number;
     seed?: number;
     steps?: number;
     cfg?: number;
@@ -65,6 +66,46 @@ export interface ResolvedWorkflowSelection {
     workflow: RegisteredWorkflow;
     modelPreset: ComfyModelPreset;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+    typeof value === 'object' && value !== null
+);
+
+const assertPromptBlueprintShape: (
+    workflowId: string,
+    blueprint: unknown
+) => asserts blueprint is ComfyPromptBlueprint = (
+    workflowId: string,
+    blueprint: unknown
+): asserts blueprint is ComfyPromptBlueprint => {
+    if (!isRecord(blueprint)) {
+        throw new Error(`ComfyUI workflow "${workflowId}" is invalid: blueprint must be an object.`);
+    }
+
+    const hasGraphShape = Array.isArray((blueprint as { nodes?: unknown }).nodes)
+        && Array.isArray((blueprint as { links?: unknown }).links);
+
+    if (hasGraphShape) {
+        throw new Error(
+            `ComfyUI workflow "${workflowId}" is in editor graph format, not API prompt format. `
+            + 'Export the workflow in API format before registering it in this app.'
+        );
+    }
+
+    const entries = Object.entries(blueprint);
+    if (entries.length === 0) {
+        throw new Error(`ComfyUI workflow "${workflowId}" is empty.`);
+    }
+
+    for (const [nodeId, node] of entries) {
+        if (!isRecord(node) || typeof node.class_type !== 'string' || !isRecord(node.inputs)) {
+            throw new Error(
+                `ComfyUI workflow "${workflowId}" has an invalid node shape at "${nodeId}". `
+                + 'Each node must include class_type and inputs.'
+            );
+        }
+    }
+};
 
 class WorkflowRegistry {
     private workflows: Map<string, RegisteredWorkflow> = new Map();
@@ -199,6 +240,7 @@ export const prepareWorkflowBlueprint = async (
     modelPreset: ComfyModelPreset
 ): Promise<ComfyPromptBlueprint> => {
     const rawBlueprint = await workflow.loadBlueprint();
+    assertPromptBlueprintShape(workflow.id, rawBlueprint);
     const blueprint = cloneComfyPromptBlueprint(rawBlueprint);
 
     applyWorkflowInputBindings(blueprint, workflow.inputBindings, params);

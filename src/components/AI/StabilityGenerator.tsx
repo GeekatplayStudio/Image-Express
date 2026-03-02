@@ -362,66 +362,85 @@ export default function StabilityGenerator({
     const captureCanvasAndMask = async (): Promise<{ imageBlob: Blob, maskBlob: Blob } | null> => {
         if (!canvas) return null;
         
-        // 1. Get dimensions (Artboard or Canvas)
-        const artboard = (canvas as CanvasWithArtboard).artboardRect;
-        const width = artboard ? artboard.width : canvas.width || 1024;
-        const height = artboard ? artboard.height : canvas.height || 1024;
-        const left = artboard ? artboard.left : 0;
-        const top = artboard ? artboard.top : 0;
+        // 1. Get dimensions (Artboard or Canvas) in world coordinates
+        const extCanvas = canvas as CanvasWithArtboard;
+        const artboardRect = extCanvas.artboardRect;
+        const artboardMeta = extCanvas.artboard;
+        const width = artboardMeta?.width
+            || (artboardRect ? (artboardRect.width ?? 0) * (artboardRect.scaleX ?? 1) : 0)
+            || canvas.width
+            || 1024;
+        const height = artboardMeta?.height
+            || (artboardRect ? (artboardRect.height ?? 0) * (artboardRect.scaleY ?? 1) : 0)
+            || canvas.height
+            || 1024;
+        const left = artboardMeta?.left
+            || artboardRect?.left
+            || 0;
+        const top = artboardMeta?.top
+            || artboardRect?.top
+            || 0;
+
+        const originalVpt = canvas.viewportTransform;
+        canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+        canvas.requestRenderAll();
         
         // 2. Hide Mask objects to capture "Clean Image"
         const objects = canvas.getObjects();
         const masks = objects.filter(obj => (obj as ExtendedFabricObject).isMask);
-        
-        masks.forEach(m => m.visible = false);
-        // Also hide overlay/grid if needed (handled by EditorView usually, but here manual)
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const imageParams: any = {
-            format: 'png',
-            multiplier: 1,
-            left, top, width, height
-        };
-        
-        const imageDataUrl = canvas.toDataURL(imageParams);
-        const imageBlob = await fetch(imageDataUrl).then(r => r.blob());
-        
-        // 3. Capture Mask (Black background, White shapes)
-        // Hide non-mask objects
         const nonMasks = objects.filter(obj => !(obj as ExtendedFabricObject).isMask);
-        nonMasks.forEach(o => o.visible = false);
-        // Show masks, make them White
-        masks.forEach(m => {
-            m.visible = true;
-            const originalStroke = m.stroke;
-            m.set({ stroke: '#ffffff', fill: null }); // Ensure stroke is white
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (m as any)._originalStroke = originalStroke;
-        });
-        
-        // Set background black
+        const originalMaskVisibility = masks.map((mask) => mask.visible);
+        const originalNonMaskVisibility = nonMasks.map((item) => item.visible);
+        const originalMaskStroke = masks.map((mask) => mask.stroke);
         const originalBg = canvas.backgroundColor;
-        canvas.backgroundColor = '#000000';
-        // Artboard might be white
-        if (artboard) artboard.visible = false;
+        const originalArtboardVisible = artboardRect ? artboardRect.visible : true;
         
-        canvas.renderAll();
-        
-        const maskOutputUrl = canvas.toDataURL(imageParams);
-        const maskBlob = await fetch(maskOutputUrl).then(r => r.blob());
-        
-        // 4. Restore State
-        masks.forEach(m => {
+        try {
+            masks.forEach(m => m.visible = false);
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            m.set({ stroke: (m as any)._originalStroke || INPAINT_MASK_BRUSH_COLOR });
-            m.visible = true;
-        });
-        nonMasks.forEach(o => o.visible = true);
-        canvas.backgroundColor = originalBg;
-        if (artboard) artboard.visible = true;
-        canvas.renderAll();
-        
-        return { imageBlob, maskBlob };
+            const imageParams: any = {
+                format: 'png',
+                multiplier: 1,
+                left, top, width, height
+            };
+
+            const imageDataUrl = canvas.toDataURL(imageParams);
+            const imageBlob = await fetch(imageDataUrl).then(r => r.blob());
+
+            // 3. Capture Mask (Black background, White shapes)
+            nonMasks.forEach(o => o.visible = false);
+            masks.forEach(m => {
+                m.visible = true;
+                m.set({ stroke: '#ffffff', fill: null });
+            });
+
+            canvas.backgroundColor = '#000000';
+            if (artboardRect) artboardRect.visible = false;
+
+            canvas.renderAll();
+
+            const maskOutputUrl = canvas.toDataURL(imageParams);
+            const maskBlob = await fetch(maskOutputUrl).then(r => r.blob());
+
+            return { imageBlob, maskBlob };
+        } finally {
+            masks.forEach((mask, index) => {
+                mask.set({ stroke: originalMaskStroke[index] || INPAINT_MASK_BRUSH_COLOR });
+                mask.visible = originalMaskVisibility[index];
+            });
+            nonMasks.forEach((item, index) => {
+                item.visible = originalNonMaskVisibility[index];
+            });
+            canvas.backgroundColor = originalBg;
+            if (artboardRect) {
+                artboardRect.visible = originalArtboardVisible;
+            }
+            if (originalVpt) {
+                canvas.setViewportTransform(originalVpt);
+            }
+            canvas.renderAll();
+        }
     };
 
     // --- API Handlers ---

@@ -108,12 +108,12 @@ export const GENERATIVE_WORKFLOW_OPTIONS: Array<{ id: GenerativeWorkflowId; labe
 ];
 
 const DEFAULT_GENERATIVE_PREFERENCES: GenerativePreferences = {
-    defaultProvider: 'stability',
-    defaultWorkflow: 'stability-inpaint',
+    defaultProvider: 'comfy',
+    defaultWorkflow: 'zone',
     comfyServerUrl: DEFAULT_COMFY_LOCAL_URL,
     comfyConnectionMode: 'auto',
     comfyCloudUrl: 'https://cloud.comfy.org',
-    autoStartInpaintMasking: true,
+    autoStartInpaintMasking: false,
     showInpaintPromptDock: true,
 };
 
@@ -277,7 +277,7 @@ export const workflowToStabilityTab = (workflow: GenerativeWorkflowId): Generati
         case 'stability-removebg':
             return 'removebox';
         default:
-            return 'inpaint';
+            return 'generate';
     }
 };
 
@@ -300,7 +300,11 @@ export const resolveGenerativeLaunchState = (
         ? preferredProvider
         : fallbackProvider;
 
-    if (isStabilityWorkflow(preferences.defaultWorkflow) && availableProviders.includes('stability')) {
+    if (
+        resolvedProvider === 'stability'
+        && isStabilityWorkflow(preferences.defaultWorkflow)
+        && availableProviders.includes('stability')
+    ) {
         return {
             provider: 'stability',
             mode: 'stability',
@@ -311,6 +315,6 @@ export const resolveGenerativeLaunchState = (
     return {
         provider: resolvedProvider,
         mode: 'zone',
-        stabilityTab: 'inpaint',
+        stabilityTab: 'generate',
     };
 };

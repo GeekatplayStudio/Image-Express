@@ -84,8 +84,8 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [openaiKey, setOpenaiKey] = useState('');
     const [googleKey, setGoogleKey] = useState('');
     const [bananaKey, setBananaKey] = useState('');
-    const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('stability');
-    const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('stability-inpaint');
+    const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('comfy');
+    const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('zone');
     const [comfyServerUrl, setComfyServerUrl] = useState(DEFAULT_COMFY_LOCAL_URL);
     const [comfyConnectionMode, setComfyConnectionMode] = useState<ComfyConnectionMode>('auto');
     const [comfyCloudUrl, setComfyCloudUrl] = useState('https://cloud.comfy.org');
@@ -97,7 +97,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         state: 'idle',
         message: '',
     });
-    const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
+    const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(false);
     const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
 
     const [status, setStatus] = useState<'idle' | 'saved' | 'saving' | 'error'>('idle');

@@ -57,10 +57,10 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     const [openaiKey, setOpenaiKey] = useState('');
     const [googleKey, setGoogleKey] = useState('');
     const [bananaKey, setBananaKey] = useState('');
-    const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('stability');
-    const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('stability-inpaint');
+    const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('comfy');
+    const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('zone');
     const [comfyServerUrl, setComfyServerUrl] = useState(DEFAULT_COMFY_LOCAL_URL);
-    const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
+    const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(false);
     const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
     const [suppressNumberDragHints, setSuppressNumberDragHints] = useState(false);
     const [appOrigin, setAppOrigin] = useState('http://localhost:3000');
