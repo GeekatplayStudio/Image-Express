@@ -36,7 +36,12 @@ Image Express is a professional content creation platform built with Next.js 16,
   - **Interactive 3D Layer Editor**: Rotate, pan, and arrange 3D models seamlessly on the canvas with customizable environment lighting, shadows, and resolution.
   - **Textured Models**: Enforced PBR texture generation for realistic results.
   - **Background Processing**: Robust polling system for long-running AI tasks.
-- **Image Generation**: (Coming Soon) Text-to-Image support.
+- **Image Generation**: Provider-routed generation via ComfyUI, Stability, and OpenAI pathways.
+- **AI Edit Notes (Beta)**:
+   - Create a reference layer directly from the currently selected canvas layer.
+   - Annotate with a large notes workspace using point/manual notes.
+   - Remove point notes quickly with right-click and restore with Undo.
+   - Save a flattened reference-notes layer back to canvas with embedded instruction metadata (`aiEditPlanData`) for downstream ComfyUI handoff.
 
 ### Storage & Management
 - **Server-Side Design Storage**: Designs are saved securely on the server (via filesystem in this edition), bypassing browser storage limits.

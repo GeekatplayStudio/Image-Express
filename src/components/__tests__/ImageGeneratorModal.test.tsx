@@ -109,25 +109,36 @@ type CanvasLike = {
     height: number;
     artboard?: { width: number; height: number };
     getActiveObject: jest.Mock;
+    getObjects: jest.Mock;
     add: jest.Mock;
     remove: jest.Mock;
     setActiveObject: jest.Mock;
     requestRenderAll: jest.Mock;
     contains: jest.Mock;
     centerObject: jest.Mock;
+    renderAll: jest.Mock;
+    toDataURL: jest.Mock;
+    viewportTransform?: number[];
 };
 
-const createCanvasStub = (activeObject: RectLike | null = null): CanvasLike => ({
+const createCanvasStub = (
+    activeObject: RectLike | null = null,
+    objects: Array<Record<string, unknown>> = []
+): CanvasLike => ({
     width: 1200,
     height: 800,
     artboard: { width: 1000, height: 700 },
     getActiveObject: jest.fn(() => activeObject),
+    getObjects: jest.fn(() => objects),
     add: jest.fn(),
     remove: jest.fn(),
     setActiveObject: jest.fn(),
     requestRenderAll: jest.fn(),
     contains: jest.fn(() => true),
     centerObject: jest.fn(),
+    renderAll: jest.fn(),
+    toDataURL: jest.fn(() => 'data:image/png;base64,mock'),
+    viewportTransform: [1, 0, 0, 1, 0, 0],
 });
 
 describe('ImageGeneratorModal', () => {
@@ -352,11 +363,48 @@ describe('ImageGeneratorModal', () => {
         const canvas = createCanvasStub();
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Prompt + Zone' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Generative Fill' }));
+        fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'stability' } });
 
         expect(screen.getByTestId('stability-generator')).toBeInTheDocument();
         expect(screen.getByTestId('stability-api-key')).toHaveTextContent('stab-abc');
         expect(screen.getByTestId('stability-embedded')).toHaveTextContent('true');
+    });
+
+    it('shows AI Edit Notes step flow and keeps layer actions disabled without canvas layers', async () => {
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('checkbox'));
+
+        expect(screen.getByText('Step 1 · Create Reference Layer')).toBeInTheDocument();
+        expect(screen.getByText('Step 2 · Notes Workspace')).toBeInTheDocument();
+        expect(screen.getByText('Step 3 · Note Tools')).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Make Reference Layer' })).toBeDisabled();
+            expect(screen.getByRole('button', { name: /Pointer Notes:/i })).toBeDisabled();
+            expect(
+                screen.getByRole('button', {
+                    name: 'Step 4 · Save Ref Notes Layer to Canvas (embedded notes + metadata)',
+                })
+            ).toBeDisabled();
+        });
+    });
+
+    it('auto-selects a canvas layer for AI Edit Notes when layers are present', async () => {
+        const layerObject = {
+            type: 'image',
+            visible: true,
+            getBoundingRect: jest.fn(() => ({ left: 0, top: 0, width: 512, height: 512 })),
+        };
+        const canvas = createCanvasStub(null, [layerObject]);
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('checkbox'));
+
+        await waitFor(() => {
+            expect(screen.getByText(/Selected layer:/i)).not.toHaveTextContent('None selected');
+            expect(screen.getByRole('button', { name: 'Make Reference Layer' })).toBeEnabled();
+        });
     });
 });

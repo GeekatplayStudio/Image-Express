@@ -161,3 +161,11 @@ This document serves as a source of truth for the `PropertiesPanel` and related 
 - [x] **Blend Modes**: Normal, Multiply, Screen, Overlay, Darken, Lighten.
 - [x] **Paint Layer**: New layer per paint session; selecting a paint layer reuses it.
 - [x] **Coordinate Fix**: Proper transform when adding strokes to group.
+
+## 16. AI Edit Notes Workflow (Beta)
+- [x] **Reference Layer Creation**: “Make Reference Layer” captures the selected canvas layer into AI Edit Notes references.
+- [x] **Layer Scoping**: Notes remain scoped to the active/selected layer context.
+- [x] **Notes Workspace**: Expanded annotation workspace supports direct note placement/editing.
+- [x] **Point Note Removal**: Right-click removes point notes from marker/inline note targets.
+- [x] **Undo Removal**: Recently removed note can be restored through the status Undo action window.
+- [x] **Canvas Persistence**: “Save Ref Notes Layer to Canvas” creates a flattened layer and embeds metadata payload for workflow forwarding (`aiEditPlanData`).

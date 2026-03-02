@@ -123,6 +123,28 @@ export type ExtendedFabricObject = fabric.Object & {
     isMask?: boolean;
     aiGenerated?: boolean;
     aiProvider?: string;
+    aiReferenceLayer?: boolean;
+    aiEditPlanData?: {
+        createdAt: string;
+        sourceLayerId: string;
+        sourceLayerLabel?: string;
+        globalPrompt: {
+            positive: string;
+            negative: string;
+        };
+        compiledPrompts: {
+            positive: string;
+            negative: string;
+        };
+        annotations: Array<{
+            id: string;
+            type: string;
+            instruction: string;
+            mode?: string;
+            strength?: number;
+            geometry: unknown;
+        }>;
+    };
     threeDSettings?: ThreeDSettings;
     isAdjustmentLayer?: boolean;
     adjustmentType?: AdjustmentLayerType;
