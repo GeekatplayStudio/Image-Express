@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ImageGeneratorModal from '../ImageGeneratorModal';
 
 const mockImageFromURL = jest.fn();
@@ -258,9 +258,45 @@ describe('ImageGeneratorModal', () => {
         );
     });
 
+    it('ignores rapid repeated image generation clicks while the first request is in flight', async () => {
+        localStorage.setItem('openai_api_key', 'openai-123');
+        localStorage.setItem('image-express-gen-provider', 'openai');
+
+        let resolveFetch: ((value: { json: () => Promise<{ success: boolean; imageUrl: string; }>; }) => void) | null = null;
+        (global.fetch as jest.Mock).mockReturnValueOnce(new Promise((resolve) => {
+            resolveFetch = resolve;
+        }));
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A remote request' } }
+        );
+
+        const generateButton = screen.getByRole('button', { name: /Generate Image/i });
+
+        await act(async () => {
+            generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+
+        resolveFetch?.({
+            json: async () => ({ success: true, imageUrl: 'https://cdn.example/generated.png' }),
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText('Generation complete!')).toBeInTheDocument();
+        });
+    });
+
     it('shows error message when generation fails', async () => {
         localStorage.setItem('openai_api_key', 'openai-123');
         localStorage.setItem('image-express-gen-provider', 'openai');
+        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
         (global.fetch as jest.Mock).mockResolvedValueOnce({
             json: async () => ({ success: false, message: 'Generation failed upstream' }),
         });
@@ -276,6 +312,8 @@ describe('ImageGeneratorModal', () => {
         await waitFor(() => {
             expect(screen.getByText('Error: Generation failed upstream')).toBeInTheDocument();
         });
+
+        consoleErrorSpy.mockRestore();
     });
 
     it('places generated image on canvas, saves asset URL, and closes modal', async () => {

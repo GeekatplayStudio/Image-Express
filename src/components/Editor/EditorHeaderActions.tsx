@@ -29,7 +29,7 @@ import {
     type MediaOverlaySafeAreaPreset,
 } from '@/components/Editor/editorViewConfig';
 import type { EditorMenuId } from '@/components/Editor/useEditorMenus';
-import type { MediaOverlayFrameConfig } from '@/components/Editor/useMediaOverlay';
+import type { CampaignVariant, MediaOverlayFrameConfig } from '@/components/Editor/mediaOverlayTypes';
 import type { GridType } from '@/components/GridOverlay';
 import type { UserProfileSettings } from '@/lib/profile-utils';
 import type { ColorPalette } from '@/types';
@@ -64,6 +64,11 @@ type EditorHeaderActionsProps = {
     handleActiveMediaOverlayFrameSafeAreaPresetChange: (preset: MediaOverlaySafeAreaPreset) => void;
     mediaOverlayNamingTemplate: MediaOverlayNamingTemplate;
     setMediaOverlayNamingTemplate: (template: MediaOverlayNamingTemplate) => void;
+    campaignVariants: CampaignVariant[];
+    activeCampaignVariantId: string | null;
+    handleConvertActiveMediaOverlayFrameToVariant: () => boolean;
+    handleSelectCampaignVariant: (variantId: string) => void;
+    handleRemoveCampaignVariant: (variantId: string) => void;
     handleExport: (format: ExportFormat) => void | Promise<void>;
     exportMediaOverlayFramesZip: (scope: 'selected' | 'all') => void | Promise<void>;
     setShowProfileModal: (show: boolean) => void;
@@ -97,6 +102,11 @@ export default function EditorHeaderActions({
     handleActiveMediaOverlayFrameSafeAreaPresetChange,
     mediaOverlayNamingTemplate,
     setMediaOverlayNamingTemplate,
+    campaignVariants,
+    activeCampaignVariantId,
+    handleConvertActiveMediaOverlayFrameToVariant,
+    handleSelectCampaignVariant,
+    handleRemoveCampaignVariant,
     handleExport,
     exportMediaOverlayFramesZip,
     setShowProfileModal,
@@ -288,6 +298,51 @@ export default function EditorHeaderActions({
                             )}
                             <div className="text-[10px] text-muted-foreground">
                                 Active frame exports to PNG/JPG/SVG/PDF. Batch exports create PNG ZIP files using the selected naming template.
+                            </div>
+                            <div className="rounded-md border border-border/60 bg-background/40 p-2 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div>
+                                        <div className="text-[11px] font-semibold text-foreground">Campaign Variants</div>
+                                        <div className="text-[10px] text-muted-foreground">Persisted frame snapshots for the upcoming variant workspace.</div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleConvertActiveMediaOverlayFrameToVariant}
+                                        disabled={!mediaOverlayEnabled || !activeFrame}
+                                        className="rounded-md border border-border/70 px-2 py-1.5 text-[11px] font-medium hover:bg-secondary/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        Convert Active
+                                    </button>
+                                </div>
+                                {campaignVariants.length === 0 ? (
+                                    <div className="text-[10px] text-muted-foreground">No variants saved yet.</div>
+                                ) : (
+                                    <div className="max-h-28 overflow-y-auto rounded-md border border-border/50 bg-background/60">
+                                        {campaignVariants.map((variant) => {
+                                            const isActiveVariant = variant.id === activeCampaignVariantId;
+                                            return (
+                                                <div key={variant.id} className={`flex items-center gap-2 px-2 py-1.5 text-[11px] ${isActiveVariant ? 'bg-secondary/35' : ''}`}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSelectCampaignVariant(variant.id)}
+                                                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                                    >
+                                                        <span className={`h-2 w-2 rounded-full ${isActiveVariant ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
+                                                        <span className="truncate font-medium">{variant.name}</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveCampaignVariant(variant.id)}
+                                                        className="text-[10px] text-muted-foreground hover:text-foreground"
+                                                        aria-label={`Remove ${variant.name}`}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <button onClick={() => handleExport('png')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-blue-500" /> <span className="font-medium">PNG</span></button>

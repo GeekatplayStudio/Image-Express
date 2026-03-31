@@ -16,14 +16,18 @@ type MockFetchResponse = {
 
 describe('LoginModal', () => {
     const originalFetch = global.fetch;
+    const originalGoogle = (window as Window & { google?: unknown }).google;
 
     beforeEach(() => {
         jest.clearAllMocks();
         global.fetch = jest.fn();
+        window.localStorage.clear();
+        delete (window as Window & { google?: unknown }).google;
     });
 
     afterAll(() => {
         global.fetch = originalFetch;
+        (window as Window & { google?: unknown }).google = originalGoogle;
     });
 
     const fillLoginForm = (email: string, password: string) => {
@@ -196,5 +200,65 @@ describe('LoginModal', () => {
 
         (handler as () => void)();
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses the stored Google Drive client ID for Google sign-in when env config is missing', async () => {
+        const onLogin = jest.fn();
+        const user = { email: 'artist@example.com', displayName: 'Artist', role: 'user' };
+        let googleCallback: ((response: { credential?: string }) => void) | null = null;
+        const initialize = jest.fn(({ callback }: { callback: (response: { credential?: string }) => void }) => {
+            googleCallback = callback;
+        });
+        const prompt = jest.fn(() => {
+            googleCallback?.({ credential: 'google-credential-123' });
+        });
+
+        window.localStorage.setItem('image-express-google-drive', JSON.stringify({ enabled: false, clientId: 'client-1.apps.googleusercontent.com' }));
+        (window as Window & {
+            google?: {
+                accounts: {
+                    id: {
+                        initialize: typeof initialize;
+                        prompt: typeof prompt;
+                    };
+                };
+            };
+        }).google = {
+            accounts: {
+                id: {
+                    initialize,
+                    prompt,
+                },
+            },
+        };
+
+        (global.fetch as unknown as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ success: true, user }),
+        });
+
+        render(<LoginModal isOpen onLogin={onLogin} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Continue with Google/i }));
+
+        await waitFor(() => {
+            expect(initialize).toHaveBeenCalledWith(expect.objectContaining({
+                client_id: 'client-1.apps.googleusercontent.com',
+            }));
+            expect(global.fetch).toHaveBeenCalledWith(
+                '/api/user/auth/google',
+                expect.objectContaining({
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            );
+            expect(onLogin).toHaveBeenCalledWith(user);
+        });
+
+        const body = JSON.parse((global.fetch as unknown as jest.Mock).mock.calls[0][1].body as string);
+        expect(body).toEqual({
+            credential: 'google-credential-123',
+            clientId: 'client-1.apps.googleusercontent.com',
+        });
     });
 });

@@ -10,6 +10,7 @@ import { BackgroundJob } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import useSingleFlight from '@/hooks/useSingleFlight';
 import { extractApiErrorMessage, parseApiResponse } from '@/lib/apiErrorParsing';
 import {
     DEFAULT_HITEMS_FORMAT,
@@ -175,6 +176,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, layerImageOptions, onStartBackgroundJob, onRecoverBackgroundJob, activeJob, currentUser }: ThreeDGeneratorProps) {
     const dialog = useDialog();
     const { toast } = useToast();
+    const runSingleFlight = useSingleFlight();
     const [prompt, setPrompt] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [apiKey, setApiKey] = useState('');
@@ -564,57 +566,56 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     };
 
     const handleGenerate = async () => {
-        let key = getSelectedKey();
-        if (!key) {
-            toast({
-                title: 'Missing API key',
-                description: `Configure API key for ${selectedProvider}.`,
-                variant: 'warning'
-            });
-            return;
-        }
-
-        // Sanitize Globally: Remove 'Bearer', quotes, and surrounding whitespace
-        key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
-        if (isMissingSanitizedKey(key)) {
-            toast({
-                title: 'Missing API key',
-                description: `Configure a valid API key for ${selectedProvider} in Settings.`,
-                variant: 'warning'
-            });
-            return;
-        }
-        
-        console.log(`[ThreeDGenerator] Generating with provider: ${selectedProvider}`);
-
-        setIsLoading(true);
-
-        try {
-            // ... Logic branches based on Provider ...
-            if (selectedProvider === 'meshy') {
-                await generateMeshy(key);
-            } else if (selectedProvider === 'tripo') {
-                 // Tripo Integration
-                 await generateTripo(key);
-            } else if (selectedProvider === 'hitems') {
-                if (mode === 'text' || !initialImage) {
-                    toast({
-                        title: 'Image required',
-                        description: 'Hitem3D currently supports image-to-3D only. Select an image first.',
-                        variant: 'warning'
-                    });
-                    setIsLoading(false);
-                    return;
-                }
-                await generateHitems(key);
-            } else {
-                  toast({ title: 'Coming soon', description: 'Service integration in progress.', variant: 'warning' });
-                 setIsLoading(false);
+        await runSingleFlight(async () => {
+            let key = getSelectedKey();
+            if (!key) {
+                toast({
+                    title: 'Missing API key',
+                    description: `Configure API key for ${selectedProvider}.`,
+                    variant: 'warning'
+                });
+                return;
             }
-        } catch (e) {
-            console.error(e);
-            setIsLoading(false);
-        }
+
+            key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+            if (isMissingSanitizedKey(key)) {
+                toast({
+                    title: 'Missing API key',
+                    description: `Configure a valid API key for ${selectedProvider} in Settings.`,
+                    variant: 'warning'
+                });
+                return;
+            }
+
+            console.log(`[ThreeDGenerator] Generating with provider: ${selectedProvider}`);
+
+            setIsLoading(true);
+
+            try {
+                if (selectedProvider === 'meshy') {
+                    await generateMeshy(key);
+                } else if (selectedProvider === 'tripo') {
+                    await generateTripo(key);
+                } else if (selectedProvider === 'hitems') {
+                    if (mode === 'text' || !initialImage) {
+                        toast({
+                            title: 'Image required',
+                            description: 'Hitem3D currently supports image-to-3D only. Select an image first.',
+                            variant: 'warning'
+                        });
+                        setIsLoading(false);
+                        return;
+                    }
+                    await generateHitems(key);
+                } else {
+                    toast({ title: 'Coming soon', description: 'Service integration in progress.', variant: 'warning' });
+                    setIsLoading(false);
+                }
+            } catch (e) {
+                console.error(e);
+                setIsLoading(false);
+            }
+        });
     };
 
     const generateMeshy = async (key: string) => {

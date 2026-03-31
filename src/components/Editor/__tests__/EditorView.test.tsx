@@ -2232,6 +2232,99 @@ describe('EditorView', () => {
         }));
     });
 
+    it('exports the full artboard via snapshot fallback when canvas export throws', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        await waitFor(() => {
+            expect(latestCanvasStub).toBeTruthy();
+        });
+
+        const runtimeCanvas = latestCanvasStub as (ReturnType<typeof createCanvasStub> & {
+            artboard?: { left: number; top: number; width: number; height: number };
+            artboardRect?: {
+                left: number;
+                top: number;
+                width: number;
+                height: number;
+                scaleX: number;
+                scaleY: number;
+                getScaledWidth: jest.Mock<number, []>;
+                getScaledHeight: jest.Mock<number, []>;
+            };
+            toCanvasElement?: jest.Mock<HTMLCanvasElement, [number?, Record<string, unknown>?]>;
+            lowerCanvasEl?: HTMLCanvasElement;
+        });
+
+        runtimeCanvas.width = 640;
+        runtimeCanvas.height = 360;
+        runtimeCanvas.artboard = { left: 0, top: 0, width: 1600, height: 900 };
+        runtimeCanvas.artboardRect = {
+            left: 0,
+            top: 0,
+            width: 1600,
+            height: 900,
+            scaleX: 1,
+            scaleY: 1,
+            getScaledWidth: jest.fn(() => 1600),
+            getScaledHeight: jest.fn(() => 900),
+        };
+
+        runtimeCanvas.toDataURL.mockImplementation(() => {
+            throw new TypeError("Cannot set properties of undefined (setting 'ctx')");
+        });
+
+        const snapshotCanvas = document.createElement('canvas');
+        const snapshotToDataURL = jest.fn(() => 'data:image/png;base64,FULLARTBOARD');
+        Object.defineProperty(snapshotCanvas, 'toDataURL', {
+            configurable: true,
+            writable: true,
+            value: snapshotToDataURL,
+        });
+
+        runtimeCanvas.toCanvasElement = jest.fn(() => snapshotCanvas);
+
+        const lowerCanvas = document.createElement('canvas');
+        const lowerCanvasToDataURL = jest.fn(() => 'data:image/png;base64,LOWER');
+        Object.defineProperty(lowerCanvas, 'toDataURL', {
+            configurable: true,
+            writable: true,
+            value: lowerCanvasToDataURL,
+        });
+        runtimeCanvas.lowerCanvasEl = lowerCanvas;
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+        fireEvent.click(screen.getByRole('button', { name: /PNG/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Export Quality')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        await waitFor(() => {
+            expect(anchorClickSpy).toHaveBeenCalled();
+        });
+
+        expect(runtimeCanvas.toCanvasElement).toHaveBeenCalled();
+        expect(runtimeCanvas.toCanvasElement.mock.calls.some((call) => {
+            const options = call[1] as {
+                left?: number;
+                top?: number;
+                width?: number;
+                height?: number;
+                format?: string;
+            } | undefined;
+            return options?.left === 0
+                && options?.top === 0
+                && options?.width === 1600
+                && options?.height === 900
+                && options?.format === 'png';
+        })).toBe(true);
+        expect(snapshotToDataURL).toHaveBeenCalledWith('image/png', 1);
+        expect(lowerCanvasToDataURL).not.toHaveBeenCalled();
+    });
+
     it('opens share flow, launches export quality modal, and downloads export', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
@@ -2279,6 +2372,80 @@ describe('EditorView', () => {
         });
         expect(pngCall).toBeDefined();
         expect(((pngCall as any[])?.[0] as any).backgroundColor).toBeUndefined();
+    });
+
+    it('exports PNG from full artboard bounds even when a media overlay frame exists', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        await waitFor(() => {
+            expect(latestCanvasStub).toBeTruthy();
+        });
+
+        const runtimeCanvas = latestCanvasStub as (ReturnType<typeof createCanvasStub> & {
+            artboard?: { left: number; top: number; width: number; height: number };
+            artboardRect?: {
+                left: number;
+                top: number;
+                width: number;
+                height: number;
+                scaleX: number;
+                scaleY: number;
+                getScaledWidth: jest.Mock<number, []>;
+                getScaledHeight: jest.Mock<number, []>;
+            };
+        });
+
+        runtimeCanvas.width = 640;
+        runtimeCanvas.height = 360;
+        runtimeCanvas.artboard = { left: 100, top: 50, width: 1600, height: 900 };
+        runtimeCanvas.artboardRect = {
+            left: 100,
+            top: 50,
+            width: 1600,
+            height: 900,
+            scaleX: 1,
+            scaleY: 1,
+            getScaledWidth: jest.fn(() => 1600),
+            getScaledHeight: jest.fn(() => 900),
+        };
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Add Frame/i }));
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('Active frame safe area')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /PNG/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Export Quality')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        await waitFor(() => {
+            expect(anchorClickSpy).toHaveBeenCalled();
+        });
+
+        const calls = latestCanvasStub?.toDataURL.mock.calls ?? [];
+        const artboardPngCall = [...calls].reverse().find((call) => {
+            const options = (call as any[])[0] as {
+                format?: string;
+                left?: number;
+                top?: number;
+                width?: number;
+                height?: number;
+            } | undefined;
+            return options?.format === 'png'
+                && options.left === 100
+                && options.top === 50
+                && options.width === 1600
+                && options.height === 900;
+        });
+
+        expect(artboardPngCall).toBeDefined();
     });
 
     it('exports JSON and HTML bundle from export menu', async () => {

@@ -5,6 +5,7 @@ import * as fabric from 'fabric';
 import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import useSingleFlight from '@/hooks/useSingleFlight';
 import { APP_THEME } from '@/lib/theme-tokens';
 import {
   DEFAULT_COMFY_LOCAL_URL,
@@ -452,6 +453,7 @@ export default function ImageGeneratorModal({
             }
             return `${Math.max(1, Math.round(elapsedMs / 1000))}s`;
     };
+    const runSingleFlight = useSingleFlight();
 
   const owner = currentUser?.trim() || 'Guest';
   // --- Generation State ---
@@ -1828,309 +1830,308 @@ export default function ImageGeneratorModal({
    * Routes request to appropriate provider (Comfy, Stability, etc).
    */
   const handleGenerate = async () => {
-        if (!prompt && !(selectedProvider === 'comfy' && selectedComfyTask === 'upscale')) return;
+        await runSingleFlight(async () => {
+            if (!prompt && !(selectedProvider === 'comfy' && selectedComfyTask === 'upscale')) return;
 
-    setIsGenerating(true);
-    setStatusMessage('Queueing generation...');
-    setGeneratedImage(null);
+            setIsGenerating(true);
+            setStatusMessage('Queueing generation...');
+            setGeneratedImage(null);
 
-    // Update zone dims from current object state just in case
-    if (zoneObjectRef.current) {
-        const z = zoneObjectRef.current;
-        const w = Math.round(z.width! * z.scaleX!);
-        const h = Math.round(z.height! * z.scaleY!);
-        setZoneWidth(w);
-        setZoneHeight(h);
-    }
-    
-    // Use current state for API call
-    const currentW = zoneObjectRef.current ? Math.round(zoneObjectRef.current.width! * zoneObjectRef.current.scaleX!) : zoneWidth;
-    const currentH = zoneObjectRef.current ? Math.round(zoneObjectRef.current.height! * zoneObjectRef.current.scaleY!) : zoneHeight;
+            if (zoneObjectRef.current) {
+                const z = zoneObjectRef.current;
+                const w = Math.round(z.width! * z.scaleX!);
+                const h = Math.round(z.height! * z.scaleY!);
+                setZoneWidth(w);
+                setZoneHeight(h);
+            }
 
-    try {
-      if (selectedProvider === 'comfy') {
-          if (!selectedComfyWorkflowId) {
-              throw new Error('No ComfyUI workflow is selected.');
-          }
+            const currentW = zoneObjectRef.current ? Math.round(zoneObjectRef.current.width! * zoneObjectRef.current.scaleX!) : zoneWidth;
+            const currentH = zoneObjectRef.current ? Math.round(zoneObjectRef.current.height! * zoneObjectRef.current.scaleY!) : zoneHeight;
 
-          if (!selectedComfyModelPresetId) {
-              throw new Error('No ComfyUI model preset is selected.');
-          }
+            try {
+                if (selectedProvider === 'comfy') {
+                    if (!selectedComfyWorkflowId) {
+                        throw new Error('No ComfyUI workflow is selected.');
+                    }
 
-          const params: Record<string, unknown> = {
-              prompt,
-              width: currentW,
-              height: currentH,
-          };
+                    if (!selectedComfyModelPresetId) {
+                        throw new Error('No ComfyUI model preset is selected.');
+                    }
 
-          if (selectedComfyTask !== 'generate') {
-              const sourceImage = captureComfySourceImage();
-              if (!sourceImage) {
-                  throw new Error('Select an image or zone on the canvas before running this ComfyUI task.');
-              }
+                    const params: Record<string, unknown> = {
+                        prompt,
+                        width: currentW,
+                        height: currentH,
+                    };
 
-              const sourceDimensions = await readImageDimensions(sourceImage);
-              params.image = sourceImage;
+                    if (selectedComfyTask !== 'generate') {
+                        const sourceImage = captureComfySourceImage();
+                        if (!sourceImage) {
+                            throw new Error('Select an image or zone on the canvas before running this ComfyUI task.');
+                        }
 
-              if (selectedComfyTask === 'img2img') {
-                  params.strength = 0.65;
-                  params.width = sourceDimensions.width;
-                  params.height = sourceDimensions.height;
-              }
+                        const sourceDimensions = await readImageDimensions(sourceImage);
+                        params.image = sourceImage;
 
-              if (selectedComfyTask === 'inpaint') {
-                  params.mask = createSolidMaskDataUrl(sourceDimensions.width, sourceDimensions.height);
-                  params.width = sourceDimensions.width;
-                  params.height = sourceDimensions.height;
-              }
+                        if (selectedComfyTask === 'img2img') {
+                            params.strength = 0.65;
+                            params.width = sourceDimensions.width;
+                            params.height = sourceDimensions.height;
+                        }
 
-              if (selectedComfyTask === 'outpaint') {
-                  const outpaintPayload = await buildOutpaintPayload(sourceImage, 128);
-                  params.image = outpaintPayload.imageDataUrl;
-                  params.mask = outpaintPayload.maskDataUrl;
-                  params.width = outpaintPayload.width;
-                  params.height = outpaintPayload.height;
-              }
+                        if (selectedComfyTask === 'inpaint') {
+                            params.mask = createSolidMaskDataUrl(sourceDimensions.width, sourceDimensions.height);
+                            params.width = sourceDimensions.width;
+                            params.height = sourceDimensions.height;
+                        }
 
-              if (selectedComfyTask === 'upscale') {
-                  params.width = Math.max(64, Math.round(sourceDimensions.width * 2));
-                  params.height = Math.max(64, Math.round(sourceDimensions.height * 2));
-              }
-          }
+                        if (selectedComfyTask === 'outpaint') {
+                            const outpaintPayload = await buildOutpaintPayload(sourceImage, 128);
+                            params.image = outpaintPayload.imageDataUrl;
+                            params.mask = outpaintPayload.maskDataUrl;
+                            params.width = outpaintPayload.width;
+                            params.height = outpaintPayload.height;
+                        }
 
-          setStatusMessage('Sending workflow to ComfyUI...');
+                        if (selectedComfyTask === 'upscale') {
+                            params.width = Math.max(64, Math.round(sourceDimensions.width * 2));
+                            params.height = Math.max(64, Math.round(sourceDimensions.height * 2));
+                        }
+                    }
 
-          let queuedPromptId: string | null = null;
+                    setStatusMessage('Sending workflow to ComfyUI...');
 
-          const execution = await executeComfyTask({
-              connection: {
-                  mode: comfyConnectionMode,
-                  localUrl: comfyServerUrl,
-                  cloudUrl: comfyCloudUrl,
-                  cloudApiKey: comfyCloudApiKey,
-              },
-              task: selectedComfyTask,
-              workflowId: selectedComfyWorkflowId,
-              modelPresetId: selectedComfyModelPresetId,
-              params,
-              onQueued: (promptId) => {
-                  queuedPromptId = promptId;
-                  writePendingComfyJob({
-                      promptId,
-                      task: selectedComfyTask,
-                      workflowId: selectedComfyWorkflowId,
-                      modelPresetId: selectedComfyModelPresetId,
-                      connection: {
-                          mode: comfyConnectionMode,
-                          localUrl: comfyServerUrl,
-                          cloudUrl: comfyCloudUrl,
-                          cloudApiKey: comfyCloudApiKey,
-                      },
-                      queuedAt: new Date().toISOString(),
-                  });
-              },
-              onProgress: (progress) => {
-                  if (progress.message && progress.message.trim().length > 0) {
-                      setStatusMessage(`ComfyUI: ${progress.message} • ${formatElapsedSeconds(progress.elapsedMs)}`);
-                      return;
-                  }
+                    let queuedPromptId: string | null = null;
 
-                  if (progress.stage === 'waiting-history') {
-                      setStatusMessage(`ComfyUI is still processing (loading models or running queue) • ${formatElapsedSeconds(progress.elapsedMs)}`);
-                      return;
-                  }
+                    const execution = await executeComfyTask({
+                        connection: {
+                            mode: comfyConnectionMode,
+                            localUrl: comfyServerUrl,
+                            cloudUrl: comfyCloudUrl,
+                            cloudApiKey: comfyCloudApiKey,
+                        },
+                        task: selectedComfyTask,
+                        workflowId: selectedComfyWorkflowId,
+                        modelPresetId: selectedComfyModelPresetId,
+                        params,
+                        onQueued: (promptId) => {
+                            queuedPromptId = promptId;
+                            writePendingComfyJob({
+                                promptId,
+                                task: selectedComfyTask,
+                                workflowId: selectedComfyWorkflowId,
+                                modelPresetId: selectedComfyModelPresetId,
+                                connection: {
+                                    mode: comfyConnectionMode,
+                                    localUrl: comfyServerUrl,
+                                    cloudUrl: comfyCloudUrl,
+                                    cloudApiKey: comfyCloudApiKey,
+                                },
+                                queuedAt: new Date().toISOString(),
+                            });
+                        },
+                        onProgress: (progress) => {
+                            if (progress.message && progress.message.trim().length > 0) {
+                                setStatusMessage(`ComfyUI: ${progress.message} • ${formatElapsedSeconds(progress.elapsedMs)}`);
+                                return;
+                            }
 
-                  const percent = Math.max(0, Math.min(100, Math.round(progress.progress * 100)));
-                  const nodeLabel = progress.nodeId ? `node ${progress.nodeId}` : 'current node';
-                  setStatusMessage(`ComfyUI running: ${nodeLabel} (${percent}%) • ${formatElapsedSeconds(progress.elapsedMs)}`);
-              },
-          });
+                            if (progress.stage === 'waiting-history') {
+                                setStatusMessage(`ComfyUI is still processing (loading models or running queue) • ${formatElapsedSeconds(progress.elapsedMs)}`);
+                                return;
+                            }
 
-          if (execution.result.dataUrl) {
-              setGeneratedImage(execution.result.dataUrl);
-              setStatusMessage(`Generation complete via ${execution.workflow.name}.`);
-              clearPendingComfyJob();
-          } else {
-              setStatusMessage('ComfyUI finished, but no image output was returned.');
-              if (queuedPromptId) {
-                  setStatusMessage('ComfyUI finished without direct image response. You can reload; recovery will continue from history.');
-              }
-          }
+                            const percent = Math.max(0, Math.min(100, Math.round(progress.progress * 100)));
+                            const nodeLabel = progress.nodeId ? `node ${progress.nodeId}` : 'current node';
+                            setStatusMessage(`ComfyUI running: ${nodeLabel} (${percent}%) • ${formatElapsedSeconds(progress.elapsedMs)}`);
+                        },
+                    });
 
-          setIsGenerating(false);
-          return;
-      }
+                    if (execution.result.dataUrl) {
+                        setGeneratedImage(execution.result.dataUrl);
+                        setStatusMessage(`Generation complete via ${execution.workflow.name}.`);
+                        clearPendingComfyJob();
+                    } else {
+                        setStatusMessage('ComfyUI finished, but no image output was returned.');
+                        if (queuedPromptId) {
+                            setStatusMessage('ComfyUI finished without direct image response. You can reload; recovery will continue from history.');
+                        }
+                    }
 
-      const currentKey = getProviderKey(selectedProvider);
+                    setIsGenerating(false);
+                    return;
+                }
 
-      if (useAgenticEditNotes) {
-          const resolvedAgenticProvider = mapGenerativeProviderToAgenticProvider(selectedProvider);
-          const sourceImage = captureComfySourceImage();
-          if (!sourceImage) {
-              throw new Error('Select an image or zone on the canvas before using AI Edit Notes.');
-          }
+                const currentKey = getProviderKey(selectedProvider);
 
-          setStatusMessage('Preparing AI Edit Notes payload...');
-          const imageDimensions = await readImageDimensions(sourceImage);
-          const originalFile = await dataUrlToFile(sourceImage, `agentic-original-${Date.now()}.png`);
+                if (useAgenticEditNotes) {
+                    const resolvedAgenticProvider = mapGenerativeProviderToAgenticProvider(selectedProvider);
+                    const sourceImage = captureComfySourceImage();
+                    if (!sourceImage) {
+                        throw new Error('Select an image or zone on the canvas before using AI Edit Notes.');
+                    }
 
-          const activeLayerId = activeAnnotationLayerIdRef.current;
-          const scopedNotes = activeLayerId
-              ? (layerAnnotationNotesMap[activeLayerId] || annotationNotes)
-              : annotationNotes;
+                    setStatusMessage('Preparing AI Edit Notes payload...');
+                    const imageDimensions = await readImageDimensions(sourceImage);
+                    const originalFile = await dataUrlToFile(sourceImage, `agentic-original-${Date.now()}.png`);
 
-          const nonEmptyNotes = scopedNotes
-              .filter((note) => note.enabled && note.instruction.trim().length > 0)
-              .map((note, index) => ({ ...note, priority: index + 1 }));
+                    const activeLayerId = activeAnnotationLayerIdRef.current;
+                    const scopedNotes = activeLayerId
+                        ? (layerAnnotationNotesMap[activeLayerId] || annotationNotes)
+                        : annotationNotes;
 
-          const fallbackNotes: AnnotationRecord[] = nonEmptyNotes.length > 0
-              ? nonEmptyNotes
-              : [{
-                  id: `note_prompt_${Date.now()}`,
-                  type: 'text',
-                  enabled: true,
-                  priority: 1,
-                  geometry: { x: 0, y: 0, w: 1, h: 1 },
-                  instruction: prompt,
-                  mode: 'auto',
-                  strength: 0.8,
-              }];
+                    const nonEmptyNotes = scopedNotes
+                        .filter((note) => note.enabled && note.instruction.trim().length > 0)
+                        .map((note, index) => ({ ...note, priority: index + 1 }));
 
-          const referenceDocument = referenceItems
-              .filter((reference) => reference.file)
-              .map((reference) => ({ id: reference.id, role: reference.role }));
+                    const fallbackNotes: AnnotationRecord[] = nonEmptyNotes.length > 0
+                        ? nonEmptyNotes
+                        : [{
+                            id: `note_prompt_${Date.now()}`,
+                            type: 'text',
+                            enabled: true,
+                            priority: 1,
+                            geometry: { x: 0, y: 0, w: 1, h: 1 },
+                            instruction: prompt,
+                            mode: 'auto',
+                            strength: 0.8,
+                        }];
 
-          const annotationDocument: AnnotationDocument = {
-              image: {
-                  id: `img_${Date.now()}`,
-                  width: imageDimensions.width,
-                  height: imageDimensions.height,
-              },
-              annotations: fallbackNotes,
-              globalPrompt: {
-                  positive: prompt,
-                  negative: globalNegativePrompt,
-              },
-              references: referenceDocument,
-              provider: {
-                  name: resolvedAgenticProvider,
-                  model: resolvedAgenticProvider === 'flux' ? 'flux-kontext' : resolvedAgenticProvider === 'nanobanana' ? 'nanobanana-v1' : 'mock-v1',
-                  params: {},
-              },
-          };
+                    const referenceDocument = referenceItems
+                        .filter((reference) => reference.file)
+                        .map((reference) => ({ id: reference.id, role: reference.role }));
 
-          const layerArtifacts = await buildAnnotationLayerArtifacts(
-              annotationDocument.annotations,
-              imageDimensions.width,
-              imageDimensions.height
-          );
+                    const annotationDocument: AnnotationDocument = {
+                        image: {
+                            id: `img_${Date.now()}`,
+                            width: imageDimensions.width,
+                            height: imageDimensions.height,
+                        },
+                        annotations: fallbackNotes,
+                        globalPrompt: {
+                            positive: prompt,
+                            negative: globalNegativePrompt,
+                        },
+                        references: referenceDocument,
+                        provider: {
+                            name: resolvedAgenticProvider,
+                            model: resolvedAgenticProvider === 'flux' ? 'flux-kontext' : resolvedAgenticProvider === 'nanobanana' ? 'nanobanana-v1' : 'mock-v1',
+                            params: {},
+                        },
+                    };
 
-          const compiledPrompts = compileAnnotationPrompts(annotationDocument);
-          const formData = new FormData();
-          formData.append('original', originalFile);
-          formData.append('notes_overlay', layerArtifacts.notesOverlayFile);
-          formData.append('combined_mask', layerArtifacts.combinedMaskFile);
-          formData.append('annotations_json', JSON.stringify(annotationDocument));
-          formData.append('prompt_positive', compiledPrompts.positive);
-          formData.append('prompt_negative', compiledPrompts.negative);
-          formData.append('provider_name', annotationDocument.provider.name);
-          formData.append('provider_model', annotationDocument.provider.model);
-          formData.append('provider_params', JSON.stringify(annotationDocument.provider.params));
+                    const layerArtifacts = await buildAnnotationLayerArtifacts(
+                        annotationDocument.annotations,
+                        imageDimensions.width,
+                        imageDimensions.height
+                    );
 
-          const referenceMeta: Array<{ id: string; role: string }> = [];
-          for (const reference of referenceItems) {
-              if (!reference.file) continue;
-              referenceMeta.push({ id: reference.id, role: reference.role });
-              formData.append('references[]', reference.file);
-          }
-          formData.append('references_meta', JSON.stringify(referenceMeta));
+                    const compiledPrompts = compileAnnotationPrompts(annotationDocument);
+                    const formData = new FormData();
+                    formData.append('original', originalFile);
+                    formData.append('notes_overlay', layerArtifacts.notesOverlayFile);
+                    formData.append('combined_mask', layerArtifacts.combinedMaskFile);
+                    formData.append('annotations_json', JSON.stringify(annotationDocument));
+                    formData.append('prompt_positive', compiledPrompts.positive);
+                    formData.append('prompt_negative', compiledPrompts.negative);
+                    formData.append('provider_name', annotationDocument.provider.name);
+                    formData.append('provider_model', annotationDocument.provider.model);
+                    formData.append('provider_params', JSON.stringify(annotationDocument.provider.params));
 
-          const queueResponse = await fetch('/api/generate', {
-              method: 'POST',
-              body: formData,
-          });
+                    const referenceMeta: Array<{ id: string; role: string }> = [];
+                    for (const reference of referenceItems) {
+                        if (!reference.file) continue;
+                        referenceMeta.push({ id: reference.id, role: reference.role });
+                        formData.append('references[]', reference.file);
+                    }
+                    formData.append('references_meta', JSON.stringify(referenceMeta));
 
-          const queueData = await queueResponse.json();
-          if (!queueResponse.ok || !queueData.job_id) {
-              throw new Error(queueData.message || 'Failed to queue AI Edit Notes job.');
-          }
+                    const queueResponse = await fetch('/api/generate', {
+                        method: 'POST',
+                        body: formData,
+                    });
 
-          const jobId = queueData.job_id as string;
-          setStatusMessage(`Job queued (${jobId.slice(-8)}). Waiting for worker...`);
+                    const queueData = await queueResponse.json();
+                    if (!queueResponse.ok || !queueData.job_id) {
+                        throw new Error(queueData.message || 'Failed to queue AI Edit Notes job.');
+                    }
 
-          let completedResultUrl = '';
-          for (let attempt = 0; attempt < 120; attempt += 1) {
-              await wait(1500);
+                    const jobId = queueData.job_id as string;
+                    setStatusMessage(`Job queued (${jobId.slice(-8)}). Waiting for worker...`);
 
-              const statusResponse = await fetch(`/api/jobs/${jobId}`);
-              const statusData = await statusResponse.json();
-              if (!statusResponse.ok) {
-                  throw new Error(statusData.message || 'Failed to poll job status.');
-              }
+                    let completedResultUrl = '';
+                    for (let attempt = 0; attempt < 120; attempt += 1) {
+                        await wait(1500);
 
-              const percent = Math.max(0, Math.min(100, Math.round((statusData.progress || 0) * 100)));
-              setStatusMessage(`AI Edit Notes: ${statusData.message || statusData.status} (${percent}%)`);
+                        const statusResponse = await fetch(`/api/jobs/${jobId}`);
+                        const statusData = await statusResponse.json();
+                        if (!statusResponse.ok) {
+                            throw new Error(statusData.message || 'Failed to poll job status.');
+                        }
 
-              if (statusData.status === 'failed') {
-                  throw new Error(statusData.error || 'AI Edit Notes generation failed.');
-              }
+                        const percent = Math.max(0, Math.min(100, Math.round((statusData.progress || 0) * 100)));
+                        setStatusMessage(`AI Edit Notes: ${statusData.message || statusData.status} (${percent}%)`);
 
-              if (statusData.status === 'succeeded') {
-                  const resultResponse = await fetch(`/api/jobs/${jobId}/result`);
-                  const resultData = await resultResponse.json();
-                  if (!resultResponse.ok || !resultData.imageUrl) {
-                      throw new Error(resultData.message || 'Job completed but result image is unavailable.');
-                  }
-                  completedResultUrl = resultData.imageUrl as string;
-                  break;
-              }
-          }
+                        if (statusData.status === 'failed') {
+                            throw new Error(statusData.error || 'AI Edit Notes generation failed.');
+                        }
 
-          if (!completedResultUrl) {
-              throw new Error('Timed out waiting for AI Edit Notes result.');
-          }
+                        if (statusData.status === 'succeeded') {
+                            const resultResponse = await fetch(`/api/jobs/${jobId}/result`);
+                            const resultData = await resultResponse.json();
+                            if (!resultResponse.ok || !resultData.imageUrl) {
+                                throw new Error(resultData.message || 'Job completed but result image is unavailable.');
+                            }
+                            completedResultUrl = resultData.imageUrl as string;
+                            break;
+                        }
+                    }
 
-          setGeneratedImage(completedResultUrl);
-          setStatusMessage('AI Edit Notes generation complete!');
-          setIsGenerating(false);
-          return;
-      }
+                    if (!completedResultUrl) {
+                        throw new Error('Timed out waiting for AI Edit Notes result.');
+                    }
 
-      const response = await fetch('/api/ai/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          width: currentW,
-          height: currentH,
-          serverUrl: comfyServerUrl,
-          provider: 'remote',
-          specificProvider: selectedProvider, 
-          apiKey: currentKey
-        }),
-      });
+                    setGeneratedImage(completedResultUrl);
+                    setStatusMessage('AI Edit Notes generation complete!');
+                    setIsGenerating(false);
+                    return;
+                }
 
-      const data = await response.json();
+                const response = await fetch('/api/ai/generate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt,
+                        width: currentW,
+                        height: currentH,
+                        serverUrl: comfyServerUrl,
+                        provider: 'remote',
+                        specificProvider: selectedProvider,
+                        apiKey: currentKey
+                    }),
+                });
 
-      if (!data.success) {
-        throw new Error(data.message || 'Generation failed');
-      }
+                const data = await response.json();
 
-      if (data.imageUrl) {
-          setGeneratedImage(data.imageUrl);
-          setStatusMessage('Generation complete!');
-      } else {
-          setStatusMessage('Finished, but no image returned.');
-      }
+                if (!data.success) {
+                    throw new Error(data.message || 'Generation failed');
+                }
 
-      setIsGenerating(false);
+                if (data.imageUrl) {
+                    setGeneratedImage(data.imageUrl);
+                    setStatusMessage('Generation complete!');
+                } else {
+                    setStatusMessage('Finished, but no image returned.');
+                }
 
-    } catch (error) {
-      console.error(error);
-            const message = error instanceof Error ? error.message : 'Unknown error';
-                        setStatusMessage(`Error: ${message}`);
-      setIsGenerating(false);
-    }
+                setIsGenerating(false);
+            } catch (error) {
+                console.error(error);
+                const message = error instanceof Error ? error.message : 'Unknown error';
+                setStatusMessage(`Error: ${message}`);
+                setIsGenerating(false);
+            }
+        });
   };
 
   const hasStabilityAccess = availableProviders.includes('stability');

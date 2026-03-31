@@ -162,6 +162,8 @@ Verification method used:
 - [ ] Implement **Media Export Overlay (Phase B)**:
   - Add optional `convert frame to variant` bridge action for campaign workflow handoff.
   - Keep A1/A2/A3 overlay export path as the canonical lightweight adaptation workflow.
+  - Execution checklist: `docs/media_export_overlay_phase_b_checklist.md`
+  - Foundation now includes persisted campaign-variant snapshot storage and active-frame conversion in the export menu.
 
 ### Media Export Overlay Roadmap (new)
 - [x] A1: single frame export from overlay bounds.
@@ -670,9 +672,10 @@ From `feature_implementation_tracker.md`:
 ---
 
 ## Current Recommended Next Step
-Proceed with **Phase 4 left-toolbar parity completion**:
-- [ ] Continue Retouch group parity slice: add `Spot Healing`, `Remove`, `Burn`, and `Sponge` tool identities (engine-safe aliases where behavior is partial).
-- [ ] Run reference screenshot parity smoke checks for Select, Retouch, Paint, Shapes, Type, and Add Image groups.
+Proceed with **Media Export Overlay Phase B preparation**:
+- [ ] Stabilize export correctness first, including normal full-artboard export when media overlay frames exist.
+- [ ] Implement `convert frame to variant` using a single active canvas engine and persisted variant snapshots.
+- [ ] Follow `docs/media_export_overlay_phase_b_checklist.md` as the Phase B execution source of truth.
 
 ---
 

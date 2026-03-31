@@ -96,35 +96,93 @@ export function useEditorCanvasExportSupport({
                 : 1;
             const finalMultiplier = (options.multiplier || 1) * retinaScaling;
 
-            // Fabric v7 Canvas#toDataURL can fail when upper canvas internals are unavailable.
-            // In that case, fallback to StaticCanvas export path that does not rely on `elements.upper`.
-            const canUseStaticFallback = !runtimeCanvas.elements?.upper
-                && typeof fabric.StaticCanvas?.prototype?.toCanvasElement === 'function'
-                && typeof (canvas as unknown as { calcViewportBoundaries?: unknown }).calcViewportBoundaries === 'function'
-                && typeof (canvas as unknown as { renderCanvas?: unknown }).renderCanvas === 'function';
+            const exportToSnapshotCanvas = () => {
+                const directToCanvasElement = runtimeCanvas.toCanvasElement;
+                if (typeof directToCanvasElement === 'function') {
+                    return directToCanvasElement.call(runtimeCanvas, finalMultiplier, options);
+                }
 
-            if (canUseStaticFallback) {
-                try {
-                    const toCanvasElement = fabric.StaticCanvas.prototype.toCanvasElement as (
+                if (typeof fabric.StaticCanvas?.prototype?.toCanvasElement === 'function') {
+                    const staticToCanvasElement = fabric.StaticCanvas.prototype.toCanvasElement as (
                         this: fabric.StaticCanvas,
                         multiplier?: number,
                         options?: fabric.TToCanvasElementOptions
                     ) => HTMLCanvasElement;
-                    const snapshotCanvas = toCanvasElement.call(
+                    return staticToCanvasElement.call(
                         canvas as unknown as fabric.StaticCanvas,
                         finalMultiplier,
-                        options
+                        options,
                     );
-                    return snapshotCanvas.toDataURL(`image/${format}`, quality);
-                } catch (fallbackError) {
-                    console.warn('StaticCanvas fallback export failed:', fallbackError);
                 }
+
+                return null;
+            };
+
+            try {
+                const snapshotCanvas = exportToSnapshotCanvas();
+                if (snapshotCanvas) {
+                    return snapshotCanvas.toDataURL(`image/${format}`, quality);
+                }
+            } catch (fallbackError) {
+                console.warn('Snapshot export fallback failed:', fallbackError);
             }
 
             const lowerCanvasEl = runtimeCanvas.lowerCanvasEl
                 || runtimeCanvas.elements?.lower?.el
                 || runtimeCanvas.getElement?.();
             if (lowerCanvasEl) {
+                const requiresScratchCanvas = Boolean(
+                    options.backgroundColor
+                    || typeof options.left === 'number'
+                    || typeof options.top === 'number'
+                    || typeof options.width === 'number'
+                    || typeof options.height === 'number',
+                );
+
+                if (!requiresScratchCanvas) {
+                    return lowerCanvasEl.toDataURL(`image/${format}`, quality);
+                }
+
+                const exportCanvas = document.createElement('canvas');
+                const exportWidth = Math.max(1, Math.round((options.width || lowerCanvasEl.width || canvas.getWidth() || 1) * finalMultiplier));
+                const exportHeight = Math.max(1, Math.round((options.height || lowerCanvasEl.height || canvas.getHeight() || 1) * finalMultiplier));
+                exportCanvas.width = exportWidth;
+                exportCanvas.height = exportHeight;
+
+                let exportContext: CanvasRenderingContext2D | null = null;
+                try {
+                    exportContext = exportCanvas.getContext('2d');
+                } catch {
+                    exportContext = null;
+                }
+                if (exportContext) {
+                    if (options.backgroundColor) {
+                        exportContext.fillStyle = options.backgroundColor;
+                        exportContext.fillRect(0, 0, exportWidth, exportHeight);
+                    }
+
+                    const sourceLeft = Math.max(0, Math.round((options.left || 0) * finalMultiplier));
+                    const sourceTop = Math.max(0, Math.round((options.top || 0) * finalMultiplier));
+                    const sourceWidth = Math.max(1, Math.min(lowerCanvasEl.width - sourceLeft, exportWidth));
+                    const sourceHeight = Math.max(1, Math.min(lowerCanvasEl.height - sourceTop, exportHeight));
+
+                    if (sourceWidth > 0 && sourceHeight > 0) {
+                        exportContext.drawImage(
+                            lowerCanvasEl,
+                            sourceLeft,
+                            sourceTop,
+                            sourceWidth,
+                            sourceHeight,
+                            0,
+                            0,
+                            sourceWidth,
+                            sourceHeight,
+                        );
+                    }
+
+                    return exportCanvas.toDataURL(`image/${format}`, quality);
+                }
+
                 return lowerCanvasEl.toDataURL(`image/${format}`, quality);
             }
 

@@ -10,6 +10,7 @@ import { notifyRegistrationApprovalRequest } from '@/lib/server/user-notificatio
 
 type GoogleLoginPayload = {
     credential?: string;
+    clientId?: string;
 };
 
 type GoogleTokenInfo = {
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
     try {
         const body = (await request.json()) as GoogleLoginPayload;
         const credential = (body.credential || '').trim();
+        const requestedClientId = (body.clientId || '').trim();
         if (!credential) {
             return NextResponse.json({ success: false, message: 'Missing Google credential.' }, { status: 400 });
         }
@@ -50,7 +52,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'Google email is not verified.' }, { status: 403 });
         }
 
-        const expectedAudience = process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID || '';
+        const expectedAudience = (
+            process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID
+            || process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID
+            || requestedClientId
+            || ''
+        ).trim();
         if (expectedAudience && tokenInfo.aud && tokenInfo.aud !== expectedAudience) {
             return NextResponse.json({ success: false, message: 'Google credential audience mismatch.' }, { status: 403 });
         }

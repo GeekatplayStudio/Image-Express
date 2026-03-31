@@ -45,7 +45,6 @@ type UseEditorExportArgs = {
     getCanvasBackgroundSettings: () => CanvasBackgroundSettings;
     withViewportReset: <T>(action: () => T | Promise<T>) => Promise<T>;
     safeCanvasToDataURL: (options: ExportDataUrlOptions) => string;
-    getMediaOverlayCropBounds: () => RectBounds | null;
     getMediaOverlayBatchTargets: (scope: 'selected' | 'all') => MediaOverlayBatchTarget[];
     mediaOverlayNamingTemplate: MediaOverlayNamingTemplate;
     designName: string;
@@ -65,7 +64,6 @@ export function useEditorExport({
     getCanvasBackgroundSettings,
     withViewportReset,
     safeCanvasToDataURL,
-    getMediaOverlayCropBounds,
     getMediaOverlayBatchTargets,
     mediaOverlayNamingTemplate,
     designName,
@@ -256,16 +254,6 @@ export function useEditorExport({
         const artboard = extCanvas.artboard;
         const rect = extCanvas.artboardRect;
 
-        const mediaOverlayCropBounds = getMediaOverlayCropBounds();
-        if (mediaOverlayCropBounds) {
-            return {
-                left: mediaOverlayCropBounds.left,
-                top: mediaOverlayCropBounds.top,
-                width: mediaOverlayCropBounds.width,
-                height: mediaOverlayCropBounds.height,
-            };
-        }
-
         if (rect) {
             const rectWidth = rect.getScaledWidth?.() ?? ((rect.width || 0) * (rect.scaleX || 1));
             const rectHeight = rect.getScaledHeight?.() ?? ((rect.height || 0) * (rect.scaleY || 1));
@@ -294,7 +282,7 @@ export function useEditorExport({
             width: canvas.width || 800,
             height: canvas.height || 600,
         };
-    }, [canvas, getMediaOverlayCropBounds]);
+    }, [canvas]);
 
     const exportHtmlBundle = useCallback(async (baseName: string, timestamp: string) => {
         if (!canvas) return;

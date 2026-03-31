@@ -1,54 +1,21 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import NextImage from 'next/image';
-import { Wand2, Loader2, Image as ImageIcon, Eraser, Move, Layers, Maximize, Check, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Scan } from 'lucide-react';
 import * as fabric from 'fabric';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Slider } from '../ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Switch } from '../ui/switch';
 import { useToast } from '@/providers/ToastProvider';
-import { BackgroundJob, ExtendedFabricObject } from '@/types';
+import { ExtendedFabricObject } from '@/types';
 import useEscapeKey from '@/hooks/useEscapeKey';
-
-export type StabilityGeneratorTab = 'generate' | 'inpaint' | 'img2img' | 'outpaint' | 'upscale' | 'removebox';
+import useSingleFlight from '@/hooks/useSingleFlight';
+import StabilityGeneratorContent from './stability-generator/StabilityGeneratorContent';
+import {
+    addResultImageToCanvas,
+    captureCanvasAndMask,
+    captureSelectionImage,
+    captureSourceImage,
+    clearCanvasMask,
+} from './stability-generator/stabilityGeneratorCanvas';
+import { createStabilityRequestHandlers } from './stability-generator/stabilityGeneratorRequests';
+import type { StabilityGeneratorProps, StabilityGeneratorTab } from './stability-generator/types';
 
 const INPAINT_MASK_BRUSH_COLOR = 'rgba(255, 84, 156, 0.38)';
-
-/**
- * Props for the Stability Generator Component
- */
-interface StabilityGeneratorProps {
-    /** Whether the generator modal is open */
-    isOpen: boolean;
-    /** Callback to close the generator */
-    onClose: () => void;
-    /** Reference to the main Fabric.js canvas for context */
-    canvas: fabric.Canvas | null;
-    /** Stability AI API Key */
-    apiKey: string | undefined;
-    /** Callback when a long-running job (like video/upscale) is started */
-    onJobCreated?: (job: BackgroundJob) => void;
-    /** Whether this is running inside another modal (simplified view) */
-    embedded?: boolean;
-    /** Callback to save the generated result to the backend asset library */
-    onAssetSave?: (url: string) => void;
-    /** Initial active tab to prioritize workflow defaults */
-    initialTab?: StabilityGeneratorTab;
-    /** Auto-enable on-canvas mask brush when entering inpaint */
-    autoStartInpaintMasking?: boolean;
-    /** Show compact prompt dock inspired by reference generative fill flow */
-    showInpaintQuickDock?: boolean;
-    /** Label shown in quick dock provider badge */
-    providerLabel?: string;
-}
-
-type CanvasWithArtboard = fabric.Canvas & {
-    artboard?: { width: number; height: number; left?: number; top?: number };
-    artboardRect?: fabric.Rect;
-};
 
 /**
  * StabilityGenerator
@@ -74,6 +41,7 @@ export default function StabilityGenerator({
 }: StabilityGeneratorProps) {
     const { toast } = useToast();
     useEscapeKey(onClose, { enabled: isOpen });
+    const runSingleFlight = useSingleFlight();
     // --- UI State ---
     const [activeTab, setActiveTab] = useState<StabilityGeneratorTab>(initialTab);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -132,89 +100,12 @@ export default function StabilityGenerator({
      * Helper: Extract image data from canvas.
      * Can extract specific object (isolated) OR crop region (all layers).
      */
-    const captureSelectionImage = useCallback(() => {
-        if (!canvas) return null;
+    const captureSelectionImageCallback = useCallback(() => captureSelectionImage(canvas, flattenSelection), [canvas, flattenSelection]);
 
-        const active = canvas.getActiveObject();
-        if (!active) return null;
-
-        // Option A: Flattened (All layers visible in selection box)
-        if (flattenSelection) {
-            const originalVpt = canvas.viewportTransform;
-            const rect = active.getBoundingRect();
-            
-            canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
-            canvas.requestRenderAll();
-
-            try {
-                return canvas.toDataURL({
-                    format: 'png',
-                    multiplier: 1,
-                    left: rect.left,
-                    top: rect.top,
-                    width: rect.width,
-                    height: rect.height
-                });
-            } finally {
-                if (originalVpt) {
-                    canvas.setViewportTransform(originalVpt);
-                    canvas.requestRenderAll();
-                }
-            }
-        }
-
-        // Option B: Isolated (Just the selected object)
-        return active.toDataURL({
-            format: 'png',
-            multiplier: 1
-        });
-    }, [canvas, flattenSelection]);
-
-    const captureSourceImage = useCallback(() => {
-        if (!canvas) return null;
-
-        const active = canvas.getActiveObject();
-
-        // 1. Full Canvas Mode
-        if (sourceType === 'canvas') {
-            const extCanvas = canvas as CanvasWithArtboard;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let cropOptions: any = { format: 'png', multiplier: 1 };
-             
-             if (extCanvas.artboard) {
-                 cropOptions = { ...cropOptions, ...extCanvas.artboard };
-             } else if (extCanvas.artboardRect) {
-                 const rect = extCanvas.artboardRect;
-                 cropOptions = {
-                     ...cropOptions,
-                     left: rect.left ?? 0,
-                     top: rect.top ?? 0,
-                     width: (rect.width ?? 0) * (rect.scaleX ?? 1),
-                     height: (rect.height ?? 0) * (rect.scaleY ?? 1)
-                 };
-             }
-
-             const originalVpt = canvas.viewportTransform;
-             canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
-             canvas.requestRenderAll();
-             
-             try {
-                return canvas.toDataURL(cropOptions);
-             } finally {
-                if (originalVpt) {
-                    canvas.setViewportTransform(originalVpt);
-                    canvas.requestRenderAll();
-                }
-             }
-        }
-        
-        // 2. Selection Mode
-        if (active) {
-            return captureSelectionImage();
-        }
-        
-        return null;
-    }, [canvas, sourceType, captureSelectionImage]);
+    const captureSourceImageCallback = useCallback(
+        () => captureSourceImage(canvas, sourceType, captureSelectionImageCallback),
+        [canvas, sourceType, captureSelectionImageCallback]
+    );
 
     /**
      * Effect: Monitor Canvas Selection
@@ -226,10 +117,10 @@ export default function StabilityGenerator({
             window.clearTimeout(selectionCaptureTimerRef.current);
         }
         selectionCaptureTimerRef.current = window.setTimeout(() => {
-            const img = captureSelectionImage();
+            const img = captureSelectionImageCallback();
             setSelectedCanvasImage(img);
         }, 150);
-    }, [captureSelectionImage, canvas]);
+    }, [captureSelectionImageCallback, canvas]);
 
     useEffect(() => {
         if (!canvas) return;
@@ -348,458 +239,49 @@ export default function StabilityGenerator({
     /**
      * Clears all mask paths from the canvas.
      */
-    const clearCanvasMask = () => {
-        if (!canvas) return;
-        const objects = canvas.getObjects();
-        const masks = objects.filter(obj => (obj as ExtendedFabricObject).isMask);
-        masks.forEach(m => canvas.remove(m));
-        canvas.requestRenderAll();
-    };
+    const clearCanvasMaskHandler = useCallback(() => clearCanvasMask(canvas), [canvas]);
 
-    /**
-     * Snapshot the canvas and the mask layer separately for the API.
-     */
-    const captureCanvasAndMask = async (): Promise<{ imageBlob: Blob, maskBlob: Blob } | null> => {
-        if (!canvas) return null;
-        
-        // 1. Get dimensions (Artboard or Canvas) in world coordinates
-        const extCanvas = canvas as CanvasWithArtboard;
-        const artboardRect = extCanvas.artboardRect;
-        const artboardMeta = extCanvas.artboard;
-        const width = artboardMeta?.width
-            || (artboardRect ? (artboardRect.width ?? 0) * (artboardRect.scaleX ?? 1) : 0)
-            || canvas.width
-            || 1024;
-        const height = artboardMeta?.height
-            || (artboardRect ? (artboardRect.height ?? 0) * (artboardRect.scaleY ?? 1) : 0)
-            || canvas.height
-            || 1024;
-        const left = artboardMeta?.left
-            || artboardRect?.left
-            || 0;
-        const top = artboardMeta?.top
-            || artboardRect?.top
-            || 0;
+    const captureCanvasAndMaskCallback = useCallback(
+        () => captureCanvasAndMask(canvas, INPAINT_MASK_BRUSH_COLOR),
+        [canvas]
+    );
 
-        const originalVpt = canvas.viewportTransform;
-        canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
-        canvas.requestRenderAll();
-        
-        // 2. Hide Mask objects to capture "Clean Image"
-        const objects = canvas.getObjects();
-        const masks = objects.filter(obj => (obj as ExtendedFabricObject).isMask);
-        const nonMasks = objects.filter(obj => !(obj as ExtendedFabricObject).isMask);
-        const originalMaskVisibility = masks.map((mask) => mask.visible);
-        const originalNonMaskVisibility = nonMasks.map((item) => item.visible);
-        const originalMaskStroke = masks.map((mask) => mask.stroke);
-        const originalBg = canvas.backgroundColor;
-        const originalArtboardVisible = artboardRect ? artboardRect.visible : true;
-        
-        try {
-            masks.forEach(m => m.visible = false);
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const imageParams: any = {
-                format: 'png',
-                multiplier: 1,
-                left, top, width, height
-            };
-
-            const imageDataUrl = canvas.toDataURL(imageParams);
-            const imageBlob = await fetch(imageDataUrl).then(r => r.blob());
-
-            // 3. Capture Mask (Black background, White shapes)
-            nonMasks.forEach(o => o.visible = false);
-            masks.forEach(m => {
-                m.visible = true;
-                m.set({ stroke: '#ffffff', fill: null });
-            });
-
-            canvas.backgroundColor = '#000000';
-            if (artboardRect) artboardRect.visible = false;
-
-            canvas.renderAll();
-
-            const maskOutputUrl = canvas.toDataURL(imageParams);
-            const maskBlob = await fetch(maskOutputUrl).then(r => r.blob());
-
-            return { imageBlob, maskBlob };
-        } finally {
-            masks.forEach((mask, index) => {
-                mask.set({ stroke: originalMaskStroke[index] || INPAINT_MASK_BRUSH_COLOR });
-                mask.visible = originalMaskVisibility[index];
-            });
-            nonMasks.forEach((item, index) => {
-                item.visible = originalNonMaskVisibility[index];
-            });
-            canvas.backgroundColor = originalBg;
-            if (artboardRect) {
-                artboardRect.visible = originalArtboardVisible;
-            }
-            if (originalVpt) {
-                canvas.setViewportTransform(originalVpt);
-            }
-            canvas.renderAll();
-        }
-    };
-
-    // --- API Handlers ---
-
-    /**
-     * Generates an image from text prompt.
-     * Uses Stability Core API.
-     */
-    const handleGenerate = async () => {
-        if (!apiKey) {
-            toast({ title: 'Missing API key', description: 'Please set Stability API Key in settings.', variant: 'warning' });
-            return;
-        }
-        if (!prompt || prompt.trim() === '') {
-            toast({ title: 'Missing Prompt', description: 'Please describe the image you want to generate.', variant: 'warning' });
-            return;
-        }
-
-        setIsProcessing(true);
-        setResultImage(null);
-
-        try {
-            const formData = new FormData();
-            formData.append('prompt', prompt);
-            formData.append('aspect_ratio', aspectRatio);
-            formData.append('output_format', 'png');
-            
-            console.log('[Stability] Generating Image:', { prompt, aspectRatio });
-
-            const res = await fetch('/api/ai/stability/generate', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}` },
-                body: formData
-            });
-            
-            const data = await res.json();
-            if (data.success) {
-                handleSuccess(data.image);
-            } else {
-                toast({ title: 'Generation failed', description: data.message || 'Error generating image.', variant: 'destructive' });
-            }
-
-        } catch (e) {
-            console.error(e);
-            toast({ title: 'Generation failed', description: 'Something went wrong.', variant: 'destructive' });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    /**
-     * Removes the background from the selected canvas image.
-     */
-    const handleRemoveBg = async () => {
-        if (!apiKey) {
-            toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
-            return;
-        }
-        if (!selectedCanvasImage) {
-            toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
-            return;
-        }
-        
-        setIsProcessing(true);
-        try {
-            // Fetch blob from selected image URL to send as file
-            const blobInfo = await fetch(selectedCanvasImage).then(r => r.blob());
-            
-            const formData = new FormData();
-            formData.append('image', blobInfo);
-            formData.append('output_format', 'png');
-
-            const res = await fetch('/api/ai/stability/remove-bg', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}` },
-                body: formData
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                handleSuccess(data.image);
-            } else {
-                toast({ title: 'Remove BG failed', description: data.message || 'Error removing background.', variant: 'destructive' });
-            }
-        } catch (e) {
-            console.error(e);
-            toast({ title: 'Remove BG failed', description: 'Something went wrong.', variant: 'destructive' });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    /**
-     * Upscales the selected image.
-     * @param type 'conservative' (details) or 'creative' (hallucinate details)
-     */
-    const handleUpscale = async (type: 'conservative' | 'creative') => {
-        if (!apiKey) {
-            toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
-            return;
-        }
-        if (!selectedCanvasImage) {
-            toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
-            return;
-        }
-
-        setIsProcessing(true);
-        try {
-            const blobInfo = await fetch(selectedCanvasImage).then(r => r.blob());
-            const formData = new FormData();
-            formData.append('image', blobInfo);
-            formData.append('prompt', prompt); // Only used for creative upscale
-            formData.append('output_format', 'png');
-
-            console.log(`[Stability] Sending Upscale (${type}):`, { prompt, blobSize: blobInfo.size });
-
-            const res = await fetch(`/api/ai/stability/upscale?type=${type}`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}` },
-                body: formData
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                if (data.status === 'IN_PROGRESS') {
-                    // Hand off to job queue manager
-                    onJobCreated?.({
-                        id: data.id,
-                        type: 'stability-upscale',
-                        status: 'IN_PROGRESS',
-                        createdAt: Date.now(),
-                        apiKey: apiKey,
-                        provider: 'stability'
-                    });
-                    toast({ title: 'Upscale started', description: 'Creative upscale running in background.', variant: 'success' });
-                    onClose(); 
-                } else {
-                    handleSuccess(data.image);
-                }
-            } else {
-                toast({ title: 'Upscale failed', description: data.message || 'Error starting upscale.', variant: 'destructive' });
-            }
-        } catch (e) {
-            console.error(e);
-            toast({ title: 'Upscale failed', description: 'Something went wrong.', variant: 'destructive' });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    /**
-     * Performs Image-to-Image generation based on canvas selection + prompt.
-     */
-    const handleImg2Img = async () => {
-         if (!apiKey) {
-             toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
-             return;
-         }
-         
-         // Use our robust capture helper (handles cropping, visible layers, etc.)
-         const sourceImage = captureSourceImage();
-         
-         console.log('[Stability] Img2Img Capture:', { 
-            length: sourceImage?.length, 
-            sourceType, 
-            flattenSelection 
-         });
-
-         if (!sourceImage) {
-             console.warn('[Stability] No source image captured');
-             toast({ title: 'No image source', description: 'Select an image or use full canvas.', variant: 'warning' });
-             return;
-         }
-         
-         setIsProcessing(true);
-         try {
-            const blobInfo = await fetch(sourceImage).then(r => r.blob());
-            const formData = new FormData();
-            formData.append('image', blobInfo);
-            formData.append('prompt', prompt);
-            formData.append('strength', String(strength[0])); // 0.0 = Identical to Original, 1.0 = Completely New
-            formData.append('mode', 'image-to-image');
-            formData.append('output_format', 'png');
-
-            console.log('[Stability] Sending Img2Img:', { prompt, strength: strength[0], blobSize: blobInfo.size });
-
-            const res = await fetch('/api/ai/stability/img2img', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}` },
-                body: formData
-            });
-            
-            const data = await res.json();
-            if (data.success) {
-                handleSuccess(data.image);
-            } else {
-                toast({ title: 'Img2Img failed', description: data.message || 'Error generating image.', variant: 'destructive' });
-            }
-         } catch (e) {
-            console.error(e);
-            toast({ title: 'Img2Img failed', description: 'Something went wrong.', variant: 'destructive' });
-         } finally {
-             setIsProcessing(false);
-         }
-    };
-
-    /**
-     * Performs Outpainting (extending the image).
-     */
-    const handleOutpaint = async () => {
-        if (!apiKey) {
-            toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
-            return;
-        }
-
-        const sourceImage = captureSourceImage();
-        if (!sourceImage) {
-             toast({ title: 'No image source', description: 'Select an image/area to outpaint from.', variant: 'warning' });
-             return;
-        }
-
-        // Validate directions - Stability requires at least one direction
-        if (!outpaintDirs.left && !outpaintDirs.right && !outpaintDirs.up && !outpaintDirs.down) {
-             toast({ title: 'No direction', description: 'Select at least one direction to expand.', variant: 'warning' });
-             return;
-        }
-
-        setIsProcessing(true);
-        try {
-            const blobInfo = await fetch(sourceImage).then(r => r.blob());
-            const formData = new FormData();
-            formData.append('image', blobInfo);
-            formData.append('prompt', prompt);
-            formData.append('output_format', 'png');
-            
-            if(outpaintDirs.left) formData.append('left', 'true');
-            if(outpaintDirs.right) formData.append('right', 'true');
-            if(outpaintDirs.up) formData.append('up', 'true');
-            if(outpaintDirs.down) formData.append('down', 'true');
-
-            // Pass creativity/strength if supported, for now just prompt and directions
-            
-            const res = await fetch('/api/ai/stability/outpaint', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${apiKey}` },
-                body: formData
-            });
-
-            const data = await res.json();
-             if (data.success) {
-                handleSuccess(data.image);
-            } else {
-                toast({ title: 'Outpaint failed', description: data.message || 'Error outpainting.', variant: 'destructive' });
-            }
-        } catch (e) {
-            console.error(e);
-             toast({ title: 'Outpaint failed', description: 'Something went wrong.', variant: 'destructive' });
-        } finally {
-             setIsProcessing(false);
-        }
-    };
-
-
-    /**
-     * Performs Inpainting (replacing masked area) based on canvas selection + mask.
-     */
-    const handleInpaint = async () => {
-        if (!apiKey) {
-            toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
-            return;
-        }
-
-        // New Logic: Main Canvas Masking
-        let imageBlob: Blob | null = null;
-        let maskBlob: Blob | null = null;
-
-        if (sourceType === 'canvas' || isCanvasMasking || canvas?.getObjects().some(o => (o as ExtendedFabricObject).isMask)) {
-             // Use Canvas Capture
-             const caps = await captureCanvasAndMask();
-             if (!caps) {
-                 toast({ title: 'Capture failed', description: 'Could not capture canvas.', variant: 'destructive' });
-                 return;
-             }
-             imageBlob = caps.imageBlob;
-             maskBlob = caps.maskBlob;
-        } else {
-            // Legacy/Selection Logic
-            if (!selectedCanvasImage) {
-                toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
-                return;
-            }
-            if (!maskDataUrl) {
-                toast({ title: 'No mask', description: 'Please draw a mask on the image.', variant: 'warning' });
-                return;
-            }
-            imageBlob = await fetch(selectedCanvasImage).then(r => r.blob());
-            maskBlob = await fetch(maskDataUrl).then(r => r.blob());
-        }
-
-        setIsProcessing(true);
-        try {
-           if (!imageBlob || !maskBlob) {
-               throw new Error("Image or mask data is missing.");
-           }
-
-           const formData = new FormData();
-           formData.append('image', imageBlob);
-           formData.append('mask', maskBlob);
-           formData.append('prompt', prompt);
-           formData.append('output_format', 'png');
-
-           const res = await fetch('/api/ai/stability/inpaint', {
-               method: 'POST',
-               headers: { 'Authorization': `Bearer ${apiKey}` },
-               body: formData
-           });
-           
-           const data = await res.json();
-           if (data.success) {
-               handleSuccess(data.image);
-               // Optional: Clear mask after success
-               // clearCanvasMask();
-               if (isCanvasMasking) toggleCanvasMasking(); // Exit mode
-           } else {
-               toast({ title: 'Inpaint failed', description: data.message || 'Error running inpaint.', variant: 'destructive' });
-           }
-        } catch (e) {
-            console.error(e);
-            toast({ title: 'Inpaint failed', description: 'Something went wrong.', variant: 'destructive' });
-        } finally {
-            setIsProcessing(false);
-        }
-   };
+    const {
+        handleGenerate,
+        handleRemoveBg,
+        handleUpscale,
+        handleImg2Img,
+        handleOutpaint,
+        handleInpaint,
+    } = createStabilityRequestHandlers({
+        apiKey,
+        prompt,
+        aspectRatio,
+        strength,
+        selectedCanvasImage,
+        sourceType,
+        flattenSelection,
+        maskDataUrl,
+        outpaintDirs,
+        isCanvasMasking,
+        canvas,
+        runSingleFlight,
+        toast,
+        onJobCreated,
+        onClose,
+        setIsProcessing,
+        setResultImage,
+        handleSuccess,
+        captureSourceImage: captureSourceImageCallback,
+        captureCanvasAndMask: captureCanvasAndMaskCallback,
+        toggleCanvasMasking,
+    });
 
 
     // --- Helper to add to Canvas ---
-    const addToCanvas = () => {
-        if (!canvas || !resultImage) return;
-
-        fabric.Image.fromURL(resultImage, {}).then((img) => {
-            // Use Artboard dimensions if available
-            const artboard = (canvas as CanvasWithArtboard).artboard || { width: canvas.width || 800, height: canvas.height || 600 };
-             const targetWidth = artboard.width;
-             const targetHeight = artboard.height;
-             
-             // Scale down if larger than 80% of canvas to ensure visibility
-             if (img.width! > targetWidth * 0.8 || img.height! > targetHeight * 0.8) {
-                 const scale = Math.min(
-                     (targetWidth * 0.8) / img.width!,
-                     (targetHeight * 0.8) / img.height!
-                 );
-                 img.scale(scale);
-             }
-            canvas.centerObject(img);
-            canvas.add(img);
-            canvas.setActiveObject(img);
-            canvas.requestRenderAll();
-        });
-    };
+    const addToCanvas = useCallback(() => {
+        void addResultImageToCanvas(canvas, resultImage);
+    }, [canvas, resultImage]);
 
     const handleTabChange = (nextTab: string) => {
         setActiveTab(nextTab as StabilityGeneratorTab);
@@ -867,358 +349,50 @@ export default function StabilityGenerator({
     if (!isOpen) return null;
 
     return (
-        <div className="flex flex-col h-full w-full">
-            {/* Content Body */}
-            <div className="flex-1 space-y-4">
-                {/* --- Tool Selector Tabs --- */}
-                <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                    <TabsList className="grid w-full grid-cols-6 h-auto p-1 bg-muted/50 mb-4">
-                        <TabsTrigger value="generate" title="Text to Image"><ImageIcon size={16} /></TabsTrigger>
-                        <TabsTrigger value="inpaint" title="Inpaint"><Eraser size={16} /></TabsTrigger>
-                        <TabsTrigger value="img2img" title="Img2Img"><Layers size={16} /></TabsTrigger>
-                        <TabsTrigger value="outpaint" title="Outpaint"><Scan size={16} /></TabsTrigger>
-                        <TabsTrigger value="upscale" title="Upscale"><Maximize size={16} /></TabsTrigger>
-                        <TabsTrigger value="removebox" title="Remove BG"><Move size={16} /></TabsTrigger>
-                    </TabsList>
-
-                    {/* --- TAB: TEXT TO IMAGE --- */}
-                    <TabsContent value="generate" className="space-y-4">
-                        <div className="space-y-2">
-                             <Label>Prompt</Label>
-                             <Input 
-                                placeholder="A cyberpunk cat..." 
-                                value={prompt} 
-                                onChange={e => setPrompt(e.target.value)}
-                             />
-                        </div>
-                        <div className="space-y-2">
-                             <Label>Aspect Ratio</Label>
-                             <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="1:1">Square (1:1)</SelectItem>
-                                    <SelectItem value="16:9">Widescreen (16:9)</SelectItem>
-                                    <SelectItem value="9:16">Portrait (9:16)</SelectItem>
-                                    <SelectItem value="21:9">Cinema (21:9)</SelectItem>
-                                </SelectContent>
-                             </Select>
-                        </div>
-                        <Button className="w-full" onClick={handleGenerate} disabled={isProcessing}>
-                            {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Wand2 className="mr-2" />}
-                            Generate
-                        </Button>
-                    </TabsContent>
-
-                    {/* --- TAB: IMAGE TO IMAGE (REIMAGINE) --- */}
-                    <TabsContent value="img2img" className="space-y-4">
-                         
-                         <div className="flex items-center space-x-2 bg-muted/30 p-2 rounded-lg">
-                             <Button 
-                                variant={sourceType === 'selection' ? 'secondary' : 'ghost'}
-                                size="sm"
-                                className="flex-1 text-xs"
-                                onClick={() => setSourceType('selection')}
-                                disabled={!selectedCanvasImage}
-                             >
-                                 Selection
-                             </Button>
-                             <Button 
-                                variant={sourceType === 'canvas' ? 'secondary' : 'ghost'}
-                                size="sm"
-                                className="flex-1 text-xs"
-                                onClick={() => setSourceType('canvas')}
-                             >
-                                 Full Canvas
-                             </Button>
-                         </div>
-
-                         {/* Flatten Selection Option */}
-                         {sourceType === 'selection' && (
-                             <div className="flex items-center space-x-2 py-2">
-                                <Switch id="flatten-mode" checked={flattenSelection} onCheckedChange={setFlattenSelection} />
-                                <Label htmlFor="flatten-mode" className="text-xs">
-                                    Include overlapping objects (Flatten)
-                                </Label>
-                             </div>
-                         )}
-
-                         {sourceType === 'selection' && !selectedCanvasImage ? (
-                             <div className="p-4 border border-dashed rounded text-center text-muted-foreground flex flex-col items-center gap-2">
-                                 <p>Select an object to edit.</p>
-                                 <span className="text-xs opacity-50">- or -</span>
-                                 <Button variant="ghost" size="sm" onClick={() => setSourceType('canvas')} className="underline">Use Full Canvas</Button>
-                             </div>
-                         ) : (
-                             <div className="space-y-4">
-                                 {/* Construct preview manually if canvas mode */}
-                                {sourceType === 'selection' && selectedCanvasImage && (
-                                    <div className="relative w-full h-32 bg-muted/50 rounded border border-border/50 overflow-hidden">
-                                        <NextImage
-                                            src={selectedCanvasImage}
-                                            alt="Source"
-                                            fill
-                                            sizes="100vw"
-                                            className="object-contain"
-                                            unoptimized
-                                        />
-                                    </div>
-                                )}
-                                 {sourceType === 'canvas' && (
-                                     <div className="w-full h-24 bg-muted/50 rounded flex items-center justify-center text-xs text-muted-foreground border border-border/50">
-                                         Full Canvas Preview (All Layers)
-                                     </div>
-                                 )}
-
-                                 <div className="space-y-2">
-                                     <Label>Prompt</Label>
-                                     <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Make it look like a sketch..." />
-                                 </div>
-                                 <div className="space-y-2">
-                                     <Label>Creativity Strength ({Math.round(strength[0] * 100)}%)</Label>
-                                     <Slider value={strength} onValueChange={(val) => setStrength(val)} min={0} max={1} step={0.05} />
-                                     <p className="text-[10px] text-muted-foreground flex justify-between">
-                                         <span>0% (No Change)</span>
-                                         <span>35% (Balanced)</span>
-                                         <span>100% (New Image)</span>
-                                     </p>
-                                 </div>
-                                 <Button className="w-full" onClick={handleImg2Img} disabled={isProcessing}>
-                                    {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Layers className="mr-2" />}
-                                    Reimagine {sourceType === 'canvas' ? 'Canvas' : 'Selection'}
-                                 </Button>
-                             </div>
-                         )}
-                    </TabsContent>
-
-                    {/* --- TAB: OUTPAINTING --- */}
-                    <TabsContent value="outpaint" className="space-y-4">
-                        {!selectedCanvasImage ? (
-                             <div className="p-4 border border-dashed rounded text-center text-muted-foreground">
-                                 Select an image on the canvas first to extend.
-                             </div>
-                        ) : (
-                             <div className="space-y-4">
-                                 <div className="w-full h-32 bg-muted p-2">
-                                     <div className="relative w-full h-full">
-                                         <NextImage
-                                             src={selectedCanvasImage}
-                                             alt="Selected canvas preview"
-                                             fill
-                                             sizes="100vw"
-                                             className="object-contain"
-                                             unoptimized
-                                         />
-                                     </div>
-                                 </div>
-                                 
-                                 <div className="space-y-2">
-                                     <Label>Expansion Directions</Label>
-                                     <div className="grid grid-cols-3 gap-2 w-32 mx-auto">
-                                         <div />
-                                         <Button variant={outpaintDirs.up ? "default" : "outline"} size="icon" onClick={() => setOutpaintDirs(d => ({...d, up: !d.up}))}><ArrowUp size={16}/></Button>
-                                         <div />
-                                         <Button variant={outpaintDirs.left ? "default" : "outline"} size="icon" onClick={() => setOutpaintDirs(d => ({...d, left: !d.left}))}><ArrowLeft size={16}/></Button>
-                                         <div className="flex items-center justify-center text-xs text-muted-foreground">Src</div>
-                                         <Button variant={outpaintDirs.right ? "default" : "outline"} size="icon" onClick={() => setOutpaintDirs(d => ({...d, right: !d.right}))}><ArrowRight size={16}/></Button>
-                                         <div />
-                                         <Button variant={outpaintDirs.down ? "default" : "outline"} size="icon" onClick={() => setOutpaintDirs(d => ({...d, down: !d.down}))}><ArrowDown size={16}/></Button>
-                                         <div />
-                                     </div>
-                                 </div>
-
-                                 <div className="space-y-2">
-                                     <Label>Prompt</Label>
-                                     <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="What to fill the space with..." />
-                                 </div>
-
-                                 <Button className="w-full" onClick={handleOutpaint} disabled={isProcessing}>
-                                    {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Scan className="mr-2" />}
-                                    Outpaint (Expand)
-                                 </Button>
-                             </div>
-                        )}
-                    </TabsContent>
-
-                    {/* --- TAB: INPAINTING --- */}
-                    <TabsContent value="inpaint" className="space-y-4">
-                        <div className="space-y-4">
-                            <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-                                <p className="text-xs font-semibold text-foreground">Generative Fill</p>
-                                <p className="text-[11px] text-muted-foreground">
-                                    Paint a translucent mask and describe what should be generated in that area.
-                                </p>
-                            </div>
-                            {!isCanvasMasking ? (
-                                <div className="space-y-4">
-                                     <div className="p-4 bg-secondary/10 rounded-lg space-y-2 border border-border/50">
-                                         <p className="text-sm font-medium">Use Main Canvas</p>
-                                         <p className="text-xs text-muted-foreground">Paint directly on your design to create a mask for inpainting.</p>
-                                         <Button 
-                                            variant="outline" 
-                                            className="w-full justify-start gap-2"
-                                            onClick={toggleCanvasMasking}
-                                         >
-                                             <Wand2 size={16} /> Start Canvas Masking
-                                         </Button>
-                                     </div>
-                                     
-                                     {/* Legacy Selection Fallback (Hidden if nothing selected or confusing) */}
-                                     {selectedCanvasImage && (
-                                         <div className="pt-2 border-t mt-2">
-                                             <Label className="text-xs text-muted-foreground mb-2 block">Or use selection preview (Legacy):</Label>
-                                             <div className="relative border rounded overflow-hidden cursor-crosshair bg-black"
-                                                 onMouseDown={() => setIsDrawingMask(true)}
-                                                 onMouseUp={() => {
-                                                     setIsDrawingMask(false);
-                                                     if(maskCanvasRef.current) setMaskDataUrl(maskCanvasRef.current.toDataURL());
-                                                 }}
-                                                 onMouseMove={drawMask}
-                                            >
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img src={selectedCanvasImage} alt="Inpaint source preview" className="w-full h-auto opacity-50 pointer-events-none select-none" />
-                                                <canvas ref={maskCanvasRef} className="absolute inset-0 w-full h-full mix-blend-screen" />
-                                            </div>
-                                         </div>
-                                     )}
-                                </div>
-                            ) : (
-                                <div className="space-y-4 p-4 bg-pink-500/10 border border-pink-500/25 rounded-lg animate-in fade-in">
-                                    <h3 className="font-semibold text-sm flex items-center gap-2 text-pink-600 dark:text-pink-300">
-                                        <Wand2 size={16} /> Masking Active
-                                    </h3>
-                                    <p className="text-xs text-muted-foreground">Draw on the canvas to highlight areas to replace.</p>
-                                    
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span>Brush Size: {brushSize[0]}px</span>
-                                            <Slider className="w-32" value={brushSize} onValueChange={(val) => setBrushSize(val)} min={5} max={100} step={5} />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2">
-                                         <Button size="sm" variant="destructive" className="flex-1" onClick={clearCanvasMask}>Clear Mask</Button>
-                                         <Button size="sm" variant="outline" className="flex-1" onClick={toggleCanvasMasking}>Stop</Button>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="space-y-2 mt-2">
-                                 <Label>Prompt</Label>
-                                 <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="What to put in the masked area..." />
-                            </div>
-
-                            <Button className="w-full" onClick={handleInpaint} disabled={isProcessing}>
-                                {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Eraser className="mr-2" />}
-                                Generate (Inpaint)
-                            </Button>
-
-                            {showInpaintQuickDock && (
-                                <div className="rounded-xl border border-primary/30 bg-background/80 backdrop-blur px-2.5 py-2">
-                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">Quick Fill Dock</div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] px-2 py-1 rounded bg-secondary text-foreground whitespace-nowrap">
-                                            {providerLabel}
-                                        </span>
-                                        <Input
-                                            value={prompt}
-                                            onChange={(event) => setPrompt(event.target.value)}
-                                            placeholder="What would you like to generate? (optional)"
-                                            className="h-8 text-xs"
-                                        />
-                                        <Button
-                                            size="sm"
-                                            className="h-8 px-3"
-                                            onClick={handleInpaint}
-                                            disabled={isProcessing}
-                                        >
-                                            {isProcessing ? <Loader2 className="animate-spin h-3.5 w-3.5" /> : 'Fill'}
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </TabsContent>
-
-                     {/* --- TAB: UPSCALE --- */}
-                     <TabsContent value="upscale" className="space-y-4">
-                         {!selectedCanvasImage ? (
-                             <div className="p-4 border border-dashed rounded text-center text-muted-foreground">
-                                 Select an image on the canvas first.
-                             </div>
-                         ) : (
-                             <div className="space-y-4">
-                                 <div className="relative w-full h-32 bg-muted overflow-hidden">
-                                     <NextImage
-                                         src={selectedCanvasImage}
-                                         alt="Selected canvas preview"
-                                         fill
-                                         sizes="100vw"
-                                         className="object-contain"
-                                         unoptimized
-                                     />
-                                 </div>
-                                 <Button className="w-full" variant="secondary" onClick={() => handleUpscale('conservative')} disabled={isProcessing}>
-                                     Conservative (Fast, Faithful)
-                                 </Button>
-                                 <div className="space-y-2">
-                                    <Label>Creative Upscale Prompt (Optional)</Label>
-                                    <Input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Adds detail..." />
-                                    <Button className="w-full" onClick={() => handleUpscale('creative')} disabled={isProcessing}>
-                                        <Sparkles className="mr-2 h-4 w-4" /> Creative (Slow, Re-imagines)
-                                    </Button>
-                                 </div>
-                             </div>
-                         )}
-                     </TabsContent>
-                     
-                     {/* --- TAB: REMOVE BACKGROUND --- */}
-                     <TabsContent value="removebox" className="space-y-4">
-                         {!selectedCanvasImage ? (
-                             <div className="p-4 border border-dashed rounded text-center text-muted-foreground">
-                                 Select an image on the canvas first.
-                             </div>
-                         ) : (
-                             <div className="space-y-4">
-                                 <div className="relative w-full h-32 bg-muted overflow-hidden">
-                                     <NextImage
-                                         src={selectedCanvasImage}
-                                         alt="Selected canvas preview"
-                                         fill
-                                         sizes="100vw"
-                                         className="object-contain"
-                                         unoptimized
-                                     />
-                                 </div>
-                                 <p className="text-sm text-muted-foreground">
-                                     Remove background from the selected image. This consumes credits.
-                                 </p>
-                                 <Button className="w-full" onClick={handleRemoveBg} disabled={isProcessing}>
-                                    {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Move className="mr-2" />}
-                                    Remove Background
-                                 </Button>
-                             </div>
-                         )}
-                     </TabsContent>
-
-                </Tabs>
-                
-                {/* --- RESULT AREA --- */}
-                {resultImage && (
-                    <div className="mt-4 border-t pt-4 animate-in fade-in slide-in-from-bottom-2">
-                        <Label>Result</Label>
-                        <div className="relative group rounded-md overflow-hidden border mt-2">
-                            {/* eslint-disable-next-line @next/next/no-img-element -- Preserve natural sizing for generated output preview. */}
-                            <img src={resultImage} alt="Generated result" className="w-full h-auto bg-[url('/checker.png')] bg-repeat" />
-                            <div className="absolute inset-x-0 bottom-0 bg-black/70 p-2 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button size="sm" onClick={addToCanvas}>
-                                    <Check className="mr-2 h-4 w-4" /> Add to Canvas
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
+        <StabilityGeneratorContent
+            activeTab={activeTab}
+            isProcessing={isProcessing}
+            prompt={prompt}
+            aspectRatio={aspectRatio}
+            strength={strength}
+            resultImage={resultImage}
+            selectedCanvasImage={selectedCanvasImage}
+            sourceType={sourceType}
+            flattenSelection={flattenSelection}
+            isDrawingMask={isDrawingMask}
+            maskCanvasRef={maskCanvasRef}
+            brushSize={brushSize}
+            isCanvasMasking={isCanvasMasking}
+            outpaintDirs={outpaintDirs}
+            showInpaintQuickDock={showInpaintQuickDock}
+            providerLabel={providerLabel}
+            onTabChange={handleTabChange}
+            onPromptChange={setPrompt}
+            onAspectRatioChange={setAspectRatio}
+            onStrengthChange={setStrength}
+            onSourceTypeChange={setSourceType}
+            onFlattenSelectionChange={setFlattenSelection}
+            onSetIsDrawingMask={setIsDrawingMask}
+            onPersistMaskDataUrl={() => {
+                if (maskCanvasRef.current) {
+                    setMaskDataUrl(maskCanvasRef.current.toDataURL());
+                }
+            }}
+            onDrawMask={drawMask}
+            onBrushSizeChange={setBrushSize}
+            onToggleCanvasMasking={toggleCanvasMasking}
+            onClearCanvasMask={clearCanvasMaskHandler}
+            onOutpaintDirectionToggle={(direction) => {
+                setOutpaintDirs((previous) => ({ ...previous, [direction]: !previous[direction] }));
+            }}
+            onGenerate={handleGenerate}
+            onImg2Img={handleImg2Img}
+            onOutpaint={handleOutpaint}
+            onInpaint={handleInpaint}
+            onUpscale={handleUpscale}
+            onRemoveBg={handleRemoveBg}
+            onAddToCanvas={addToCanvas}
+        />
     );
 }
 

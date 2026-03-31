@@ -3,12 +3,14 @@ import { Loader2 } from 'lucide-react';
 import { executeComfyTask } from '@/lib/comfyui/runner';
 import { comfyWorkflowRegistry } from '@/lib/comfyui/registry';
 import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
+import useSingleFlight from '@/hooks/useSingleFlight';
 
 export const ComfyUIWorkflowRunner: React.FC = () => {
     const [availableWorkflows, setAvailableWorkflows] = useState<string[]>([]);
     const [selectedWorkflow, setSelectedWorkflow] = useState<string>('');
     const [resultImage, setResultImage] = useState<string>('');
     const [loading, setLoading] = useState(false);
+    const runSingleFlight = useSingleFlight();
 
     useEffect(() => {
         ensureComfyWorkflowCatalogRegistered();
@@ -23,37 +25,39 @@ export const ComfyUIWorkflowRunner: React.FC = () => {
     }, []);
 
     const runWorkflow = async () => {
-        if (!selectedWorkflow) {
-            return;
-        }
-
-        const workflow = comfyWorkflowRegistry.getWorkflow(selectedWorkflow);
-        if (!workflow) {
-            return;
-        }
-
-        setLoading(true);
-
-        try {
-            const execution = await executeComfyTask({
-                task: workflow.task,
-                workflowId: selectedWorkflow,
-                params: {
-                    prompt: 'A modern product shot on a clean background',
-                    negativePrompt: 'blurry, low quality, distorted',
-                    width: 1024,
-                    height: 1024,
-                },
-            });
-
-            if (execution.result.dataUrl) {
-                setResultImage(execution.result.dataUrl);
+        await runSingleFlight(async () => {
+            if (!selectedWorkflow) {
+                return;
             }
-        } catch (error) {
-            console.error('ComfyUI workflow execution failed', error);
-        } finally {
-            setLoading(false);
-        }
+
+            const workflow = comfyWorkflowRegistry.getWorkflow(selectedWorkflow);
+            if (!workflow) {
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const execution = await executeComfyTask({
+                    task: workflow.task,
+                    workflowId: selectedWorkflow,
+                    params: {
+                        prompt: 'A modern product shot on a clean background',
+                        negativePrompt: 'blurry, low quality, distorted',
+                        width: 1024,
+                        height: 1024,
+                    },
+                });
+
+                if (execution.result.dataUrl) {
+                    setResultImage(execution.result.dataUrl);
+                }
+            } catch (error) {
+                console.error('ComfyUI workflow execution failed', error);
+            } finally {
+                setLoading(false);
+            }
+        });
     };
 
     return (

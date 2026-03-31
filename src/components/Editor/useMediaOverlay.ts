@@ -17,9 +17,11 @@ import {
     normalizeFrameOrigin,
 } from '@/components/Editor/editorViewGeometry';
 import { useMediaOverlayCanvasEffects } from '@/components/Editor/useMediaOverlayCanvasEffects';
+import { useMediaOverlayCampaignVariants } from '@/components/Editor/useMediaOverlayCampaignVariants';
 import { useMediaOverlayFrameActions } from '@/components/Editor/useMediaOverlayFrameActions';
 import { useMediaOverlayStateEffects } from '@/components/Editor/useMediaOverlayStateEffects';
 import type { MediaOverlayBatchTarget, MediaOverlayFrameConfig } from '@/components/Editor/mediaOverlayTypes';
+import type { ToastOptions } from '@/providers/ToastProvider';
 import type { ExtendedFabricObject } from '@/types';
 import type { CanvasWithArtboard, RectBounds } from '@/components/Editor/editorView.types';
 
@@ -29,6 +31,8 @@ type UseMediaOverlayArgs = {
     canvas: fabric.Canvas | null;
     designId: string | null;
     designName: string;
+    customHistoryProps: string[];
+    toast: (options: ToastOptions) => void;
     onDirty: () => void;
 };
 
@@ -39,7 +43,7 @@ const toNormalizedBounds = (bounds: Partial<RectBounds>): RectBounds => ({
     height: Number(bounds.height),
 });
 
-export function useMediaOverlay({ canvas, designId, designName, onDirty }: UseMediaOverlayArgs) {
+export function useMediaOverlay({ canvas, designId, designName, customHistoryProps, toast, onDirty }: UseMediaOverlayArgs) {
     const mediaOverlayStorageKey = useMemo(
         () => buildMediaOverlayStorageKey(designId, designName || 'untitled', MEDIA_OVERLAY_STORAGE_KEY_PREFIX),
         [designId, designName],
@@ -392,6 +396,23 @@ export function useMediaOverlay({ canvas, designId, designName, onDirty }: UseMe
         onDirty,
     });
 
+    const {
+        campaignVariants,
+        activeCampaignVariantId,
+        activeCampaignVariant,
+        handleConvertActiveMediaOverlayFrameToVariant,
+        handleSelectCampaignVariant,
+        handleRemoveCampaignVariant,
+    } = useMediaOverlayCampaignVariants({
+        mediaOverlayStorageKey,
+        canvas: canvas as unknown as { toJSON: (properties?: string[]) => import('@/components/Editor/editorView.types').DesignJson } | null,
+        customHistoryProps,
+        mediaOverlayFrames,
+        activeMediaOverlayFrameId,
+        resolveMediaOverlayFrameBounds,
+        toast,
+    });
+
     const getMediaOverlayBatchTargets = useCallback((scope: 'selected' | 'all'): MediaOverlayBatchTarget[] => {
         if (mediaOverlayFrames.length === 0) {
             const fallback = getMediaOverlayCropBounds();
@@ -460,5 +481,11 @@ export function useMediaOverlay({ canvas, designId, designName, onDirty }: UseMe
         setMediaOverlayNamingTemplate,
         handleActiveMediaOverlayFrameSafeAreaPresetChange,
         handleSelectMediaOverlayFrame,
+        campaignVariants,
+        activeCampaignVariantId,
+        activeCampaignVariant,
+        handleConvertActiveMediaOverlayFrameToVariant,
+        handleSelectCampaignVariant,
+        handleRemoveCampaignVariant,
     };
 }

@@ -135,8 +135,9 @@ Keep a personal copy of every saved design in your Google Drive without exposing
    export NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
    ```
    Creating a `.env.local` works too; if omitted, you can paste the ID into **Settings → Google Drive Backup** and it will be stored locally.
-4. Run the app and open **Settings → Google Drive Backup → Connect** to approve access.
-5. After connecting, every successful save keeps the local copy and uploads a JSON snapshot (with thumbnail metadata) to the `Image Express Backups` folder in your Drive.
+4. Google login reuses the same stored Client ID. In Docker or other production builds where `NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID` is not baked into the image, the login modal will use the Client ID saved in Settings.
+5. Run the app and open **Settings → Google Drive Backup → Connect** to approve access.
+6. After connecting, every successful save keeps the local copy and uploads a JSON snapshot (with thumbnail metadata) to the `Image Express Backups` folder in your Drive.
 
 ### Docker Deployment
 

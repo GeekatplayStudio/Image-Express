@@ -32,6 +32,10 @@ export type LassoSelectionHelper = fabric.Path & {
 export type CanvasWithExportInternals = fabric.Canvas & {
     disposed?: boolean;
     destroyed?: boolean;
+    toCanvasElement?: (
+        multiplier?: number,
+        options?: fabric.TToCanvasElementOptions,
+    ) => HTMLCanvasElement;
     elements?: {
         upper?: { ctx?: CanvasRenderingContext2D; el?: HTMLCanvasElement };
         lower?: { el?: HTMLCanvasElement };

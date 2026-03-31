@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { User, Lock, ArrowRight, Loader2, Mail, UserPlus, KeyRound, CheckCircle2, Chrome, Facebook } from 'lucide-react';
 import { AuthUser } from '@/types';
+import { loadDriveConfig } from '@/lib/googleDrive';
 import useEscapeKey from '@/hooks/useEscapeKey';
 
 type GoogleCredentialResponse = {
@@ -64,7 +65,17 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
     const [debugToken, setDebugToken] = useState<string | null>(null);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID || '';
+    const googleClientId = useMemo(() => {
+        const envClientId = (
+            process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID
+            || process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID
+            || ''
+        ).trim();
+        if (envClientId) {
+            return envClientId;
+        }
+        return loadDriveConfig().clientId?.trim() || '';
+    }, [isOpen]);
 
     const getGoogleApi = () => {
         if (typeof window === 'undefined') return null;
@@ -168,7 +179,7 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
             const res = await fetch('/api/user/auth/google', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ credential })
+                body: JSON.stringify({ credential, clientId: googleClientId })
             });
             const data = await res.json();
             if (!res.ok || !data.success) {
@@ -193,7 +204,7 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
     const handleGoogleSignIn = () => {
         resetFeedback();
         if (!googleClientId) {
-            setError('Google login is not configured. Set NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID.');
+            setError('Google login is not configured. Set NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID or add the Google Client ID in Settings.');
             return;
         }
         const googleApi = getGoogleApi();

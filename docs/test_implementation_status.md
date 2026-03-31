@@ -19,9 +19,12 @@
 *   Adjustment layer type creation and selection flow from the left toolbar rail.
 *   Text property multiline editing callback propagation.
 *   Utility defaults for newly added adjustment layer types.
+*   Duplicate-submit guards for Stability, Meshy, Image Generator, and ComfyUI workflow launches, including rapid double-click regressions.
 
 ### Next Steps for Team
-1.  Add focused tests for `PanelUtilityViews` color profile/channel editing and grouped swatch CRUD persistence.
-2.  Expand `PropertiesPanel` integration tests around adjustment auto-focus and color preview/apply behavior.
-3.  Add tests for `DesignCanvas.tsx` interaction-heavy flows (requires stronger Fabric.js event mocking).
-4.  Establish an E2E testing suite (Playwright recommended).
+1.  Add browser-level export verification for full-artboard PNG/JPG/PDF output, especially when media overlay frames exist.
+2.  Add focused tests for `PanelUtilityViews` color profile/channel editing and grouped swatch CRUD persistence.
+3.  Expand `PropertiesPanel` integration tests around adjustment auto-focus and color preview/apply behavior.
+4.  Add tests for `DesignCanvas.tsx` interaction-heavy flows (requires stronger Fabric.js event mocking).
+5.  Extend duplicate-submit coverage to remaining outbound actions outside the current AI generators, especially new provider launches or account-affecting admin actions.
+6.  Establish an E2E testing suite (Playwright recommended).

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import StabilityGenerator from '../StabilityGenerator';
 import '@testing-library/jest-dom';
 import * as fabric from 'fabric';
@@ -7,7 +7,7 @@ import * as fabric from 'fabric';
 // Mock next/image
 jest.mock('next/image', () => ({
   __esModule: true,
-  default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
+  default: ({ fill, unoptimized, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; unoptimized?: boolean }) => {
     // eslint-disable-next-line @next/next/no-img-element
     return <img {...props} alt={props.alt || ''} />;
   },
@@ -174,6 +174,43 @@ describe('StabilityGenerator', () => {
 
     await waitFor(() => {
         expect(mockOnAssetSave).toHaveBeenCalledWith('data:image/png;base64,generatedbase64image');
+    });
+  });
+
+  it('ignores rapid repeated generate clicks while the first request is in flight', async () => {
+    let resolveFetch: ((value: { ok: boolean; json: () => Promise<{ success: boolean; image: string; status: string; }>; blob: () => Promise<Blob>; }) => void) | null = null;
+    (global.fetch as jest.Mock).mockReturnValueOnce(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+
+    render(
+      <StabilityGenerator
+        isOpen={true}
+        onClose={mockOnClose}
+        canvas={mockCanvasInstance}
+        apiKey="test-api-key"
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(/A cyberpunk cat/i), { target: { value: 'A cool dog' } });
+
+    const generateButton = screen.getByRole('button', { name: /Generate/i });
+
+    await act(async () => {
+      generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    resolveFetch?.({
+      ok: true,
+      json: async () => ({ success: true, image: 'generatedbase64image', status: 'COMPLETED' }),
+      blob: async () => new Blob(['blobdata'], { type: 'image/png' }),
+    });
+
+    await waitFor(() => {
+      expect(generateButton).not.toBeDisabled();
     });
   });
 

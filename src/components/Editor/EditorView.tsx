@@ -260,10 +260,17 @@ export default function EditorView({
         setMediaOverlayNamingTemplate,
         handleActiveMediaOverlayFrameSafeAreaPresetChange,
         handleSelectMediaOverlayFrame,
+        campaignVariants,
+        activeCampaignVariantId,
+        handleConvertActiveMediaOverlayFrameToVariant,
+        handleSelectCampaignVariant,
+        handleRemoveCampaignVariant,
     } = useMediaOverlay({
         canvas,
         designId: propDesignId,
         designName: propDesignName || 'Untitled Design',
+        customHistoryProps,
+        toast,
         onDirty: () => setIsDirty(true),
     });
 
@@ -568,7 +575,6 @@ export default function EditorView({
         getCanvasBackgroundSettings,
         withViewportReset,
         safeCanvasToDataURL,
-        getMediaOverlayCropBounds,
         getMediaOverlayBatchTargets,
         mediaOverlayNamingTemplate,
         designName: propDesignName || 'Untitled Design',
@@ -1067,6 +1073,11 @@ export default function EditorView({
                     handleActiveMediaOverlayFrameSafeAreaPresetChange={handleActiveMediaOverlayFrameSafeAreaPresetChange}
                     mediaOverlayNamingTemplate={mediaOverlayNamingTemplate}
                     setMediaOverlayNamingTemplate={setMediaOverlayNamingTemplate}
+                    campaignVariants={campaignVariants}
+                    activeCampaignVariantId={activeCampaignVariantId}
+                    handleConvertActiveMediaOverlayFrameToVariant={handleConvertActiveMediaOverlayFrameToVariant}
+                    handleSelectCampaignVariant={handleSelectCampaignVariant}
+                    handleRemoveCampaignVariant={handleRemoveCampaignVariant}
                     handleExport={handleExport}
                     exportMediaOverlayFramesZip={exportMediaOverlayFramesZip}
                     setShowProfileModal={setShowProfileModal}
