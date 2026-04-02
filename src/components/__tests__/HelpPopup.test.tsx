@@ -27,6 +27,7 @@ describe('HelpPopup', () => {
         expect(screen.getByText('How to setup ComfyUI')).toBeInTheDocument();
         expect(screen.getByText('ComfyUI GitHub')).toBeInTheDocument();
         expect(screen.getByText('run_nvidia_gpu.bat')).toBeInTheDocument();
+        expect(screen.getByText('Connection Issues:')).toBeInTheDocument();
         expect(screen.getByText('--enable-cors-header')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Got it' }));

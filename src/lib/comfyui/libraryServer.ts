@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, readFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -8,6 +8,7 @@ import {
     type ResolvedComfyTransport,
 } from '@/lib/comfyui/connection';
 import { resolveComfyBaseUrlCandidates } from '@/lib/comfyui/proxy';
+import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 import {
     createComfyLibraryWorkflowEntry,
     type ComfyLibraryNodeRepo,
@@ -88,6 +89,25 @@ const resolveCustomNodesPath = async (installPath: string, customNodesPath: stri
     const candidates = [
         path.join(installPath, 'custom_nodes'),
         path.join(installPath, 'ComfyUI', 'custom_nodes'),
+    ];
+
+    for (const candidate of candidates) {
+        if (await fileExists(candidate)) {
+            return candidate;
+        }
+    }
+
+    return candidates[0];
+};
+
+const resolveModelsPath = async (installPath: string): Promise<string> => {
+    if (!installPath) {
+        return '';
+    }
+
+    const candidates = [
+        path.join(installPath, 'models'),
+        path.join(installPath, 'ComfyUI', 'models'),
     ];
 
     for (const candidate of candidates) {
@@ -678,4 +698,91 @@ export const updateComfyInstall = async (installPath: string): Promise<void> => 
     }
 
     await pullRepo(path.resolve(installPath));
+};
+
+const downloadModelToComfyInstall = async (
+    modelsRootPath: string,
+    model: ComfyWorkflowInstallableModel
+): Promise<string> => {
+    if (!model.downloadUrl.trim()) {
+        throw new Error(`Missing download URL for model ${model.name}.`);
+    }
+
+    const normalizedDirectory = model.directory
+        .replace(/[\\/]+/g, path.sep)
+        .replace(new RegExp(`^${path.sep}+`), '');
+    const targetDirectory = path.join(modelsRootPath, normalizedDirectory);
+    const targetPath = path.join(targetDirectory, model.name);
+    ensurePathInside(modelsRootPath, targetDirectory);
+    ensurePathInside(modelsRootPath, targetPath);
+
+    if (await fileExists(targetPath)) {
+        return targetPath;
+    }
+
+    const response = await fetch(model.downloadUrl);
+    if (!response.ok) {
+        throw new Error(`Failed to download ${model.name}: HTTP ${response.status}.`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    await mkdir(targetDirectory, { recursive: true });
+    await writeFile(targetPath, Buffer.from(arrayBuffer));
+    return targetPath;
+};
+
+export const installComfyRequirements = async (options: {
+    installPath?: string;
+    models?: ComfyWorkflowInstallableModel[];
+    updateInstall?: boolean;
+}): Promise<{ updatedInstall: boolean; installedModelPaths: string[]; skippedModelPaths: string[] }> => {
+    const installPath = trimPath(options.installPath);
+    const models = options.models || [];
+
+    if (!installPath) {
+        throw new Error('Configure the ComfyUI install folder before installing missing requirements.');
+    }
+
+    if (!options.updateInstall && models.length === 0) {
+        return {
+            updatedInstall: false,
+            installedModelPaths: [],
+            skippedModelPaths: [],
+        };
+    }
+
+    if (options.updateInstall) {
+        await updateComfyInstall(installPath);
+    }
+
+    const modelsRootPath = models.length > 0 ? await resolveModelsPath(installPath) : '';
+    const installedModelPaths: string[] = [];
+    const skippedModelPaths: string[] = [];
+    const seenModels = new Set<string>();
+
+    for (const model of models) {
+        const key = `${model.directory}/${model.name}`.toLowerCase();
+        if (seenModels.has(key)) {
+            continue;
+        }
+        seenModels.add(key);
+
+        const normalizedDirectory = model.directory
+            .replace(/[\\/]+/g, path.sep)
+            .replace(new RegExp(`^${path.sep}+`), '');
+        const targetPath = path.join(modelsRootPath, normalizedDirectory, model.name);
+
+        if (await fileExists(targetPath)) {
+            skippedModelPaths.push(targetPath);
+            continue;
+        }
+
+        installedModelPaths.push(await downloadModelToComfyInstall(modelsRootPath, model));
+    }
+
+    return {
+        updatedInstall: Boolean(options.updateInstall),
+        installedModelPaths,
+        skippedModelPaths,
+    };
 };

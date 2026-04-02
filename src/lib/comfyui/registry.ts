@@ -50,6 +50,17 @@ export interface ComfyModelPreset {
     inputOverrides: ComfyNodeInputOverride[];
 }
 
+export interface ComfyWorkflowInstallableModel {
+    name: string;
+    downloadUrl: string;
+    directory: string;
+}
+
+export interface ComfyWorkflowSetupRequirements {
+    models?: ComfyWorkflowInstallableModel[];
+    updateInstallForMissingNodes?: boolean;
+}
+
 export interface RegisteredWorkflow {
     id: string;
     task: ComfyTask;
@@ -60,6 +71,7 @@ export interface RegisteredWorkflow {
     outputNodeIds: string[];
     modelPresetIds: string[];
     defaultModelPresetId?: string;
+    setupRequirements?: ComfyWorkflowSetupRequirements;
 }
 
 export interface ResolvedWorkflowSelection {

@@ -9,12 +9,51 @@ import inpaintSdxlBlueprint from '@/lib/comfyui/workflows/inpaint_sdxl.json';
 import upscaleImageBlueprint from '@/lib/comfyui/workflows/upscale_image.json';
 import {
     comfyWorkflowRegistry,
+    type ComfyWorkflowInstallableModel,
     type ComfyModelPreset,
     type ComfyPromptBlueprint,
     type RegisteredWorkflow,
 } from '@/lib/comfyui/registry';
 
 let builtInCatalogRegistered = false;
+
+const extractInstallableModelsFromEditorGraph = (graph: unknown): ComfyWorkflowInstallableModel[] => {
+    if (!graph || typeof graph !== 'object') {
+        return [];
+    }
+
+    const nodes = Array.isArray((graph as { nodes?: unknown }).nodes)
+        ? (graph as { nodes: Array<Record<string, unknown>> }).nodes
+        : [];
+
+    const models = new Map<string, ComfyWorkflowInstallableModel>();
+
+    for (const node of nodes) {
+        const properties = typeof node.properties === 'object' && node.properties !== null
+            ? node.properties as Record<string, unknown>
+            : null;
+        const modelEntries = Array.isArray(properties?.models)
+            ? properties.models as Array<Record<string, unknown>>
+            : [];
+
+        for (const entry of modelEntries) {
+            const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+            const downloadUrl = typeof entry.url === 'string' ? entry.url.trim() : '';
+            const directory = typeof entry.directory === 'string' ? entry.directory.trim() : '';
+
+            if (!name || !downloadUrl || !directory) {
+                continue;
+            }
+
+            const key = `${directory}/${name}`.toLowerCase();
+            if (!models.has(key)) {
+                models.set(key, { name, downloadUrl, directory });
+            }
+        }
+    }
+
+    return Array.from(models.values());
+};
 
 const BUILT_IN_MODEL_PRESETS: ComfyModelPreset[] = [
     {
@@ -223,6 +262,10 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         outputNodeIds: ['9'],
         modelPresetIds: ['default'],
         defaultModelPresetId: 'default',
+        setupRequirements: {
+            models: extractInstallableModelsFromEditorGraph(fluxTextToImage9bBlueprint),
+            updateInstallForMissingNodes: true,
+        },
     },
     {
         id: 'image_flux2_klein_image_edit_4b_base',
@@ -234,6 +277,10 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         outputNodeIds: ['9'],
         modelPresetIds: ['default'],
         defaultModelPresetId: 'default',
+        setupRequirements: {
+            models: extractInstallableModelsFromEditorGraph(fluxKleinEdit4bBlueprint),
+            updateInstallForMissingNodes: true,
+        },
     },
     {
         id: 'image_flux2_klein_image_edit_9b_base',
@@ -245,6 +292,10 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         outputNodeIds: ['9'],
         modelPresetIds: ['default'],
         defaultModelPresetId: 'default',
+        setupRequirements: {
+            models: extractInstallableModelsFromEditorGraph(fluxKleinEdit9bBlueprint),
+            updateInstallForMissingNodes: true,
+        },
     },
     {
         id: 'image_qwen_image_2512_with_2steps_lora',
@@ -256,6 +307,10 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         outputNodeIds: ['128'],
         modelPresetIds: ['default'],
         defaultModelPresetId: 'default',
+        setupRequirements: {
+            models: extractInstallableModelsFromEditorGraph(qwenImageLoraBlueprint),
+            updateInstallForMissingNodes: true,
+        },
     },
 ];
 

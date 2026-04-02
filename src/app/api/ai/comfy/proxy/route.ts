@@ -107,9 +107,12 @@ const forwardToComfy = async (
         upstreamUrl.searchParams.append(key, value);
     });
 
+    const headers = buildForwardHeaders(request, preparedBody);
+    headers.set('origin', upstreamUrl.origin);
+
     return await fetch(upstreamUrl, {
         method: request.method,
-        headers: buildForwardHeaders(request, preparedBody),
+        headers,
         body: cloneForwardBody(preparedBody),
     });
 };

@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
     buildComfyLibrarySnapshot,
+    installComfyRequirements,
     installComfyRepository,
     updateComfyInstall,
     updateManagedRepository,
 } from '@/lib/comfyui/libraryServer';
 import type { ComfyConnectionMode } from '@/lib/comfyui/connection';
 import type { ComfyLibraryRepoKind } from '@/lib/comfyui/libraryTypes';
+import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 
 interface ComfyLibraryRequestBody {
-    action?: 'scan' | 'install-repo' | 'update-repo' | 'update-install';
+    action?: 'scan' | 'install-repo' | 'update-repo' | 'update-install' | 'install-requirements';
     connectionMode?: ComfyConnectionMode;
     comfyServerUrl?: string;
     comfyCloudUrl?: string;
@@ -20,6 +22,8 @@ interface ComfyLibraryRequestBody {
     repoUrl?: string;
     repoKind?: ComfyLibraryRepoKind;
     repoPath?: string;
+    models?: ComfyWorkflowInstallableModel[];
+    updateInstall?: boolean;
 }
 
 const buildConnection = (body: ComfyLibraryRequestBody) => ({
@@ -100,6 +104,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             return NextResponse.json({
                 success: true,
                 message: `Updated ComfyUI install at ${body.installPath}. Restart the server to use freshly pulled code and nodes.`,
+                snapshot,
+            });
+        }
+
+        if (action === 'install-requirements') {
+            const result = await installComfyRequirements({
+                installPath: body.installPath,
+                models: Array.isArray(body.models) ? body.models : [],
+                updateInstall: Boolean(body.updateInstall),
+            });
+
+            const snapshot = await buildComfyLibrarySnapshot(buildConnection(body), buildPathInput(body));
+            const messageParts: string[] = [];
+            if (result.updatedInstall) {
+                messageParts.push('Updated the ComfyUI install');
+            }
+            if (result.installedModelPaths.length > 0) {
+                messageParts.push(`downloaded ${result.installedModelPaths.length} model${result.installedModelPaths.length === 1 ? '' : 's'}`);
+            }
+            if (result.skippedModelPaths.length > 0) {
+                messageParts.push(`skipped ${result.skippedModelPaths.length} model${result.skippedModelPaths.length === 1 ? '' : 's'} already present`);
+            }
+
+            return NextResponse.json({
+                success: true,
+                message: messageParts.length > 0
+                    ? `${messageParts.join(' and ')}.`
+                    : 'ComfyUI requirements are already installed.',
                 snapshot,
             });
         }

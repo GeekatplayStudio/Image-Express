@@ -9,6 +9,8 @@ const mockLoadAssetStorageSettings = jest.fn();
 const mockSaveAssetStorageSettings = jest.fn();
 const mockRequestOpenSetupWizard = jest.fn();
 const mockUseEscapeKey = jest.fn();
+const mockDialogConfirm = jest.fn();
+const mockInspectComfyServerCatalog = jest.fn();
 
 jest.mock('@/lib/googleDrive', () => ({
     connectGoogleDrive: (...args: unknown[]) => mockConnectGoogleDrive(...args),
@@ -24,6 +26,16 @@ jest.mock('@/lib/assetStorageSettings', () => ({
 
 jest.mock('@/lib/setupWizard', () => ({
     requestOpenSetupWizard: (...args: unknown[]) => mockRequestOpenSetupWizard(...args),
+}));
+
+jest.mock('@/providers/DialogProvider', () => ({
+    useDialog: () => ({
+        confirm: (...args: unknown[]) => mockDialogConfirm(...args),
+    }),
+}));
+
+jest.mock('@/lib/comfyui/runner', () => ({
+    inspectComfyServerCatalog: (...args: unknown[]) => mockInspectComfyServerCatalog(...args),
 }));
 
 jest.mock('@/hooks/useEscapeKey', () => ({
@@ -62,6 +74,15 @@ describe('SettingsModal', () => {
         });
         mockConnectGoogleDrive.mockResolvedValue({ enabled: true, clientId: 'client-1', folderName: 'Backups' });
         mockDisconnectGoogleDrive.mockResolvedValue(undefined);
+        mockDialogConfirm.mockResolvedValue(true);
+        mockInspectComfyServerCatalog.mockResolvedValue({
+            serverUrl: 'http://localhost:8188',
+            transportKind: 'local',
+            detectedVersion: '0.8.2',
+            workflowCount: 1,
+            compatibleWorkflowCount: 1,
+            records: [],
+        });
 
         const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
             const url = String(input);
@@ -273,6 +294,57 @@ describe('SettingsModal', () => {
                 expect.objectContaining({
                     method: 'POST',
                     body: expect.stringContaining('install-repo'),
+                })
+            );
+        });
+    });
+
+    it('prompts to install missing Comfy requirements and runs the install action', async () => {
+        mockInspectComfyServerCatalog.mockResolvedValueOnce({
+            serverUrl: 'http://localhost:8188',
+            transportKind: 'local',
+            detectedVersion: '0.8.2',
+            workflowCount: 1,
+            compatibleWorkflowCount: 0,
+            records: [
+                {
+                    workflowId: 'image_flux2_klein_image_edit_4b_base',
+                    workflowName: 'FLUX 2 Klein Image Edit (4B Template)',
+                    task: 'img2img',
+                    requiredNodeTypes: ['UNETLoader'],
+                    missingNodeTypes: ['Flux2Scheduler'],
+                    missingModels: [
+                        {
+                            name: 'flux2-vae.safetensors',
+                            directory: 'vae',
+                            downloadUrl: 'https://example.com/flux2-vae.safetensors',
+                        },
+                    ],
+                    compatible: false,
+                    canAutoUpdateInstall: true,
+                },
+            ],
+        });
+
+        render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Verify Comfy Connection/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Missing Comfy requirements detected')).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /Install Missing Requirements/i })).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /Install Missing Requirements/i }));
+
+        await waitFor(() => {
+            expect(mockDialogConfirm).toHaveBeenCalled();
+            const fetchMock = (global as unknown as { fetch: jest.Mock }).fetch;
+            expect(fetchMock).toHaveBeenCalledWith(
+                '/api/ai/comfy/library',
+                expect.objectContaining({
+                    method: 'POST',
+                    body: expect.stringContaining('install-requirements'),
                 })
             );
         });

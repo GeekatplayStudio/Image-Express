@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud, HardDrive, Loader2, HelpCircle } from 'lucide-react';
 import HelpPopup from './HelpPopup';
 import type { AuthUser, DesktopUpdatePayload, DesktopUpdateStatus, GoogleDriveConfig } from '@/types';
+import { useDialog } from '@/providers/DialogProvider';
 import { connectGoogleDrive, disconnectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import {
@@ -30,6 +31,8 @@ import {
     type ComfyConnectionMode
 } from '@/lib/comfyui/connection';
 import type { ComfyLibraryRepoKind, ComfyLibrarySnapshot } from '@/lib/comfyui/libraryTypes';
+import { inspectComfyServerCatalog } from '@/lib/comfyui/runner';
+import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 import { resetNumberDragHintSeen } from '@/lib/number-drag-hints';
@@ -73,6 +76,7 @@ const sanitizeHeaderValue = (value: string) => value.replace(/Bearer /gi, '').re
 const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
 
 export default function SettingsModal({ isOpen, onClose, userId, userRoles }: SettingsModalProps) {
+    const dialog = useDialog();
     // 3D Keys
     const [meshyKey, setMeshyKey] = useState('');
     const [tripoKey, setTripoKey] = useState('');
@@ -118,6 +122,15 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     });
     const [comfyRepoUrl, setComfyRepoUrl] = useState('');
     const [comfyRepoKind, setComfyRepoKind] = useState<ComfyLibraryRepoKind>('custom-nodes');
+    const [comfyMissingRequirements, setComfyMissingRequirements] = useState<{
+        updateInstall: boolean;
+        models: ComfyWorkflowInstallableModel[];
+        workflows: Array<{
+            workflowName: string;
+            missingNodeTypes: string[];
+            missingModels: string[];
+        }>;
+    } | null>(null);
     const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(false);
     const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
     const [ollamaCheck, setOllamaCheck] = useState<{
@@ -331,6 +344,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 ? current
                 : { state: 'idle', message: '' }
         ));
+        setComfyMissingRequirements(null);
     }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl]);
 
     useEffect(() => {
@@ -438,6 +452,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             state: 'checking',
             message: 'Checking Comfy connection...',
         });
+        setComfyMissingRequirements(null);
 
         try {
             const result = await verifyAvailableComfyConnection({
@@ -451,6 +466,49 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 state: result.ok ? 'success' : 'error',
                 message: result.message,
             });
+
+            if (!result.ok) {
+                return;
+            }
+
+            const catalog = await inspectComfyServerCatalog({
+                connection: {
+                    mode: comfyConnectionMode,
+                    localUrl: comfyServerUrl,
+                    cloudUrl: comfyCloudUrl,
+                    cloudApiKey: comfyCloudApiKey,
+                },
+            });
+
+            const workflows = catalog.records
+                .filter((record) => record.missingNodeTypes.length > 0 || record.missingModels.length > 0)
+                .map((record) => ({
+                    workflowName: record.workflowName,
+                    missingNodeTypes: record.missingNodeTypes,
+                    missingModels: record.missingModels.map((model) => model.name),
+                }));
+
+            if (workflows.length === 0) {
+                return;
+            }
+
+            const modelMap = new Map<string, ComfyWorkflowInstallableModel>();
+            let updateInstall = false;
+            for (const record of catalog.records) {
+                if (record.missingNodeTypes.length > 0 && record.canAutoUpdateInstall) {
+                    updateInstall = true;
+                }
+
+                for (const model of record.missingModels) {
+                    modelMap.set(`${model.directory}/${model.name}`.toLowerCase(), model);
+                }
+            }
+
+            setComfyMissingRequirements({
+                updateInstall,
+                models: Array.from(modelMap.values()),
+                workflows,
+            });
         } catch (error) {
             setComfyConnectionCheck({
                 state: 'error',
@@ -460,7 +518,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl]);
 
     const runComfyLibraryAction = useCallback(async (
-        action: 'scan' | 'install-repo' | 'update-repo' | 'update-install',
+        action: 'scan' | 'install-repo' | 'update-repo' | 'update-install' | 'install-requirements',
         extraBody: Record<string, unknown> = {}
     ) => {
         setComfyLibraryCheck({
@@ -556,6 +614,36 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             repoPath,
         });
     }, [runComfyLibraryAction]);
+
+    const handleInstallMissingComfyRequirements = useCallback(async () => {
+        if (!comfyMissingRequirements) {
+            return;
+        }
+
+        const summaryParts: string[] = [];
+        if (comfyMissingRequirements.updateInstall) {
+            summaryParts.push('update the ComfyUI install to restore missing core nodes');
+        }
+        if (comfyMissingRequirements.models.length > 0) {
+            summaryParts.push(`download ${comfyMissingRequirements.models.length} missing model${comfyMissingRequirements.models.length === 1 ? '' : 's'} into the default models folders`);
+        }
+
+        const confirmed = await dialog.confirm(
+            `Install the detected ComfyUI requirements? This will ${summaryParts.join(' and ')}.`,
+            {
+                title: 'Install Missing Comfy Requirements',
+            }
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        await runComfyLibraryAction('install-requirements', {
+            updateInstall: comfyMissingRequirements.updateInstall,
+            models: comfyMissingRequirements.models,
+        });
+        await handleVerifyComfyConnection();
+    }, [comfyMissingRequirements, dialog, handleVerifyComfyConnection, runComfyLibraryAction]);
 
     const handleSave = async () => {
         setStatus('saving');
@@ -1348,6 +1436,29 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     }`}
                                 >
                                     {comfyConnectionCheck.message}
+                                </div>
+                            )}
+
+                            {comfyMissingRequirements && (
+                                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100 space-y-2">
+                                    <div className="font-semibold">Missing Comfy requirements detected</div>
+                                    <div>
+                                        {comfyMissingRequirements.workflows.slice(0, 3).map((workflow) => (
+                                            <div key={workflow.workflowName}>
+                                                {workflow.workflowName}: {workflow.missingNodeTypes.length > 0 ? `nodes ${workflow.missingNodeTypes.slice(0, 3).join(', ')}` : ''}{workflow.missingNodeTypes.length > 0 && workflow.missingModels.length > 0 ? ' | ' : ''}{workflow.missingModels.length > 0 ? `models ${workflow.missingModels.slice(0, 3).join(', ')}` : ''}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => void handleInstallMissingComfyRequirements()}
+                                            disabled={comfyLibraryCheck.state === 'checking' || (!comfyMissingRequirements.updateInstall && comfyMissingRequirements.models.length === 0)}
+                                            className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <DownloadCloud size={13} />
+                                            Install Missing Requirements
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

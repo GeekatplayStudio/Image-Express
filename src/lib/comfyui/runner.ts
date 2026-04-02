@@ -10,6 +10,7 @@ import {
 import {
     comfyWorkflowRegistry,
     prepareWorkflowBlueprint,
+    type ComfyWorkflowInstallableModel,
     type ComfyModelPreset,
     type ComfyTask,
     type ComfyWorkflowVariableParams,
@@ -61,6 +62,97 @@ const extractRequiredNodeTypesFromWorkflowJson = (workflowJson: Record<string, u
     return Array.from(required);
 };
 
+const MODEL_INPUT_NAME_PATTERN = /(?:^|_)(?:ckpt|checkpoint|model|unet|clip|vae|lora|controlnet|text_encoder|diffusion_model)(?:_|$)|name$/i;
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+    typeof value === 'object' && value !== null
+);
+
+const extractStringChoices = (inputDefinition: unknown): string[] => {
+    if (!Array.isArray(inputDefinition)) {
+        return [];
+    }
+
+    const directChoices = inputDefinition.find((entry) => (
+        Array.isArray(entry) && entry.every((item) => typeof item === 'string')
+    )) as string[] | undefined;
+    if (directChoices && directChoices.length > 0) {
+        return directChoices;
+    }
+
+    const objectEntry = inputDefinition.find((entry) => isRecord(entry));
+    if (!objectEntry || !isRecord(objectEntry)) {
+        return [];
+    }
+
+    const candidate = objectEntry.choices
+        || objectEntry.options
+        || objectEntry.values
+        || objectEntry.items;
+
+    if (Array.isArray(candidate) && candidate.every((item) => typeof item === 'string')) {
+        return candidate;
+    }
+
+    return [];
+};
+
+const findMissingInstallableModels = (
+    workflowJson: Record<string, unknown>,
+    objectInfo: Record<string, unknown>,
+    installableModels: ComfyWorkflowInstallableModel[]
+): ComfyWorkflowInstallableModel[] => {
+    if (installableModels.length === 0) {
+        return [];
+    }
+
+    const installableByName = new Map(installableModels.map((model) => [model.name, model]));
+    const missing = new Map<string, ComfyWorkflowInstallableModel>();
+
+    for (const rawNode of Object.values(workflowJson)) {
+        if (!isRecord(rawNode)) {
+            continue;
+        }
+
+        const classType = typeof rawNode.class_type === 'string' ? rawNode.class_type : '';
+        const inputs = isRecord(rawNode.inputs) ? rawNode.inputs : null;
+        if (!classType || !inputs) {
+            continue;
+        }
+
+        const nodeInfo = isRecord(objectInfo[classType]) ? objectInfo[classType] as Record<string, unknown> : null;
+        const inputInfo = nodeInfo && isRecord(nodeInfo.input) ? nodeInfo.input as Record<string, unknown> : null;
+        if (!inputInfo) {
+            continue;
+        }
+
+        const allInputDefs: Record<string, unknown> = {
+            ...(isRecord(inputInfo.required) ? inputInfo.required as Record<string, unknown> : {}),
+            ...(isRecord(inputInfo.optional) ? inputInfo.optional as Record<string, unknown> : {}),
+        };
+
+        for (const [inputName, configuredValue] of Object.entries(inputs)) {
+            if (typeof configuredValue !== 'string' || !MODEL_INPUT_NAME_PATTERN.test(inputName)) {
+                continue;
+            }
+
+            const installableModel = installableByName.get(configuredValue);
+            if (!installableModel) {
+                continue;
+            }
+
+            const choices = extractStringChoices(allInputDefs[inputName]);
+            if (choices.length === 0 || choices.includes(configuredValue)) {
+                continue;
+            }
+
+            missing.set(`${installableModel.directory}/${installableModel.name}`.toLowerCase(), installableModel);
+        }
+    }
+
+    return Array.from(missing.values());
+};
+
 const findMissingNodeTypes = (
     workflowJson: Record<string, unknown>,
     objectInfo: Record<string, unknown>
@@ -98,7 +190,9 @@ export interface ComfyWorkflowCompatibilityRecord {
     task: ComfyTask;
     requiredNodeTypes: string[];
     missingNodeTypes: string[];
+    missingModels: ComfyWorkflowInstallableModel[];
     compatible: boolean;
+    canAutoUpdateInstall: boolean;
 }
 
 export interface ComfyServerCatalogSnapshot {
@@ -280,6 +374,9 @@ export const inspectComfyServerCatalog = async (
         const blueprint = await prepareWorkflowBlueprint(workflow, {}, modelPreset);
         const requiredNodeTypes = extractNodeTypesFromWorkflowJson(blueprint);
         const missingNodeTypes = requiredNodeTypes.filter((nodeType) => !availableNodeTypes.has(nodeType));
+        const missingModels = objectInfo && typeof objectInfo === 'object'
+            ? findMissingInstallableModels(blueprint, objectInfo, workflow.setupRequirements?.models || [])
+            : [];
 
         records.push({
             workflowId: workflow.id,
@@ -287,7 +384,9 @@ export const inspectComfyServerCatalog = async (
             task: workflow.task,
             requiredNodeTypes,
             missingNodeTypes,
-            compatible: missingNodeTypes.length === 0,
+            missingModels,
+            compatible: missingNodeTypes.length === 0 && missingModels.length === 0,
+            canAutoUpdateInstall: Boolean(workflow.setupRequirements?.updateInstallForMissingNodes),
         });
     }
 

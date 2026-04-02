@@ -48,7 +48,7 @@ export default function HelpPopup({ isOpen, onClose, type }: HelpPopupProps) {
                                     <strong>Connect:</strong> By default, it runs at <code className="bg-secondary px-1 py-0.5 rounded text-primary">http://localhost:8188</code>. Copy this URL into the settings field.
                                 </li>
                                 <li>
-                                    <strong>CORS Issues:</strong> If you see connection errors, launch ComfyUI with the <code className="bg-secondary px-1 py-0.5 rounded">--enable-cors-header</code> argument to allow the browser to talk to it.
+                                    <strong>Connection Issues:</strong> The app proxies local ComfyUI requests through itself, so you normally do not need <code className="bg-secondary px-1 py-0.5 rounded">--enable-cors-header</code>. If ComfyUI still warns about a host/origin mismatch, keep the URL set to <code className="bg-secondary px-1 py-0.5 rounded">http://localhost:8188</code> and restart the app.
                                 </li>
                             </ol>
                         </>

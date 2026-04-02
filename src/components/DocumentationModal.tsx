@@ -168,7 +168,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="settings" title="Settings & API Keys">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Store Meshy, Tripo, Stability, OpenAI, Google, and Banana keys locally with optional account sync.</li>
-                                <li>Configure local ComfyUI by storing the endpoint URL; enable CORS in ComfyUI with --enable-cors-header.</li>
+                                <li>Configure local ComfyUI by storing the endpoint URL. The app proxies local ComfyUI requests, so you normally do not need to launch ComfyUI with --enable-cors-header.</li>
                                 <li>Connection badges in the editor header reflect whether image or 3D providers are ready.</li>
                             </ul>
                         </Section>
