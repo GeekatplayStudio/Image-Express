@@ -12,6 +12,7 @@ import { useToast } from '@/providers/ToastProvider';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import useSingleFlight from '@/hooks/useSingleFlight';
 import { extractApiErrorMessage, parseApiResponse } from '@/lib/apiErrorParsing';
+import { persistAssetToLibrary } from '@/lib/assetPersistence';
 import {
     DEFAULT_HITEMS_FORMAT,
     DEFAULT_HITEMS_MODEL,
@@ -1800,21 +1801,21 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     const confirmed = await dialog.confirm('Save generated 3D model to assets?', { title: 'Save 3D model' });
                                     if(confirmed) {
                                         try {
-                                            const res = await fetch('/api/assets/save-url', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                    url: modelUrl,
-                                                    filename: prompt.slice(0, 15) || 'generated-3d',
-                                                    type: 'models',
-                                                    owner: currentUser || 'Guest'
-                                                })
+                                            const urlMatch = modelUrl.match(/\.([a-z0-9]+)(?:$|[?#])/i);
+                                            const extension = (urlMatch?.[1] || 'glb').toLowerCase();
+                                            const filenameBase = prompt.slice(0, 15).trim() || 'generated-3d';
+                                            const filename = filenameBase.toLowerCase().endsWith(`.${extension}`)
+                                                ? filenameBase
+                                                : `${filenameBase}.${extension}`;
+
+                                            await persistAssetToLibrary({
+                                                source: modelUrl,
+                                                filename,
+                                                type: 'models',
+                                                category: 'uploads',
+                                                owner: currentUser || 'Guest',
                                             });
-                                            if(res.ok) {
-                                                toast({ title: 'Saved', description: 'Saved to assets.', variant: 'success' });
-                                            } else {
-                                                toast({ title: 'Save failed', description: 'Failed to save asset.', variant: 'destructive' });
-                                            }
+                                            toast({ title: 'Saved', description: 'Saved to assets.', variant: 'success' });
                                         } catch(e) { console.error(e); }
                                     }
                                 }}

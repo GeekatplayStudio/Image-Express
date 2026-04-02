@@ -68,6 +68,7 @@ import {
     mergeMaskGradientSettings,
     readMaskGradientSettings,
 } from './properties/maskGradientUtils';
+import { buildNavigatorPreviewDataUrl } from './properties/navigatorPreview';
 import { cn } from '@/lib/utils';
 
 interface CustomObjectState {
@@ -411,6 +412,7 @@ export default function PropertiesPanel({
     const [navigatorViewport, setNavigatorViewport] = useState<NavigatorSceneRect>({ left: 0, top: 0, width: 1080, height: 1080 });
     const [navigatorObjects, setNavigatorObjects] = useState<NavigatorSceneRect[]>([]);
     const [navigatorBackground, setNavigatorBackground] = useState('#ffffff');
+    const [navigatorPreviewDataUrl, setNavigatorPreviewDataUrl] = useState<string | null>(null);
     const navigatorWorldRef = useRef<NavigatorSceneRect>({ left: 0, top: 0, width: 1080, height: 1080 });
 
     // Selection Props
@@ -607,13 +609,6 @@ export default function PropertiesPanel({
         }
 
         const extendedCanvas = canvas as CanvasWithArtboard;
-        if (extendedCanvas.artboardRect) {
-            const artboardRect = getObjectSceneRect(extendedCanvas.artboardRect);
-            if (artboardRect) {
-                return artboardRect;
-            }
-        }
-
         if (extendedCanvas.artboard) {
             return normalizeNavigatorRect({
                 left: extendedCanvas.artboard.left,
@@ -621,6 +616,13 @@ export default function PropertiesPanel({
                 width: extendedCanvas.artboard.width,
                 height: extendedCanvas.artboard.height,
             });
+        }
+
+        if (extendedCanvas.artboardRect) {
+            const artboardRect = getObjectSceneRect(extendedCanvas.artboardRect);
+            if (artboardRect) {
+                return artboardRect;
+            }
         }
 
         return { left: 0, top: 0, width: Math.max(1, canvasWidth), height: Math.max(1, canvasHeight) };
@@ -648,7 +650,10 @@ export default function PropertiesPanel({
     }, [canvas, getObjectSceneRect]);
 
     const syncNavigatorStatic = useCallback(() => {
-        if (!canvas) return;
+        if (!canvas) {
+            setNavigatorPreviewDataUrl(null);
+            return;
+        }
         const nextWorld = getNavigatorWorldBounds();
         navigatorWorldRef.current = nextWorld;
         setNavigatorWorld(nextWorld);
@@ -658,7 +663,13 @@ export default function PropertiesPanel({
         const artboardColor = extendedCanvas.artboardRect && typeof extendedCanvas.artboardRect.canvasBackgroundColor === 'string'
             ? normalizeColorValue(extendedCanvas.artboardRect.canvasBackgroundColor) || extendedCanvas.artboardRect.canvasBackgroundColor
             : null;
-        setNavigatorBackground(artboardColor || canvasColor || '#ffffff');
+        const nextBackground = artboardColor || canvasColor || '#ffffff';
+        setNavigatorBackground(nextBackground);
+        setNavigatorPreviewDataUrl(buildNavigatorPreviewDataUrl({
+            canvas,
+            world: nextWorld,
+            backgroundColor: nextBackground,
+        }));
     }, [canvas, canvasColor, getNavigatorObjectRects, getNavigatorWorldBounds]);
 
     const syncNavigatorViewport = useCallback(() => {
@@ -2970,6 +2981,7 @@ export default function PropertiesPanel({
                 navigatorViewport={navigatorViewport}
                 navigatorObjects={navigatorObjects}
                 navigatorBackground={navigatorBackground}
+                navigatorPreviewDataUrl={navigatorPreviewDataUrl}
                 onZoomStep={(delta) => {
                     if (!canvas) return;
                     const currentZoom = canvas.getZoom();

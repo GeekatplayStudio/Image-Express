@@ -154,6 +154,27 @@ describe('generative-preferences', () => {
         expect(launch.provider).toBe('openai');
     });
 
+    it('keeps Ollama as the launch provider for zone workflows when available', () => {
+        const launch = resolveGenerativeLaunchState({
+            defaultProvider: 'ollama',
+            defaultWorkflow: 'zone',
+            comfyServerUrl: 'http://localhost:8188',
+            comfyConnectionMode: 'auto',
+            comfyCloudUrl: 'https://cloud.comfy.org',
+            comfyInstallPath: '',
+            comfyCustomNodesPath: '',
+            comfyWorkflowLibraryPath: '',
+            autoStartInpaintMasking: false,
+            showInpaintPromptDock: true,
+        }, ['comfy', 'ollama']);
+
+        expect(launch).toEqual({
+            provider: 'ollama',
+            mode: 'zone',
+            stabilityTab: 'generate',
+        });
+    });
+
     it('resolves unsupported workflow to provider-compatible fallback', () => {
         expect(resolveCompatibleWorkflowForProvider('openai', 'stability-inpaint')).toBe('zone');
     });

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
+import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
+import { normalizeOllamaBaseUrl } from '@/lib/ollama';
 
 const OLLAMA_STATUS_TIMEOUT_MS = 5000;
-
-const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 
 export async function GET(request: NextRequest) {
     const requestedBaseUrl = request.nextUrl.searchParams.get('baseUrl')?.trim() || DEFAULT_OLLAMA_BASE_URL;
@@ -11,33 +11,40 @@ export async function GET(request: NextRequest) {
 
     let resolvedBaseUrl: string;
     try {
-        const parsed = new URL(requestedBaseUrl);
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-            return NextResponse.json({ success: false, message: 'Ollama URL must use http or https.' }, { status: 400 });
-        }
-        resolvedBaseUrl = normalizeBaseUrl(parsed.toString());
-    } catch {
-        return NextResponse.json({ success: false, message: 'Invalid Ollama URL.' }, { status: 400 });
+        resolvedBaseUrl = normalizeOllamaBaseUrl(requestedBaseUrl);
+    } catch (error) {
+        return NextResponse.json({
+            success: false,
+            message: error instanceof Error ? error.message : 'Invalid Ollama URL.',
+        }, { status: 400 });
     }
 
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), OLLAMA_STATUS_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${resolvedBaseUrl}/api/tags`, {
+        const tagsResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
             method: 'GET',
             cache: 'no-store',
             signal: abortController.signal,
         });
 
-        if (!response.ok) {
+        if (!tagsResult.ok || !tagsResult.response) {
+            const attemptsSuffix = formatOllamaAttemptedBaseUrls(tagsResult.attemptedBaseUrls);
+            if (tagsResult.response) {
+                return NextResponse.json({
+                    success: false,
+                    message: `Ollama responded with ${tagsResult.response.status} ${tagsResult.response.statusText} while checking models.${attemptsSuffix}`,
+                }, { status: 502 });
+            }
+
             return NextResponse.json({
                 success: false,
-                message: `Ollama responded with ${response.status} ${response.statusText}.`,
+                message: `${tagsResult.error instanceof Error ? tagsResult.error.message : 'Failed to contact Ollama.'}${attemptsSuffix}`,
             }, { status: 502 });
         }
 
-        const payload = await response.json() as {
+        const payload = await tagsResult.response.json() as {
             models?: Array<{ name?: string; model?: string }>;
         };
         const models = Array.isArray(payload.models)
@@ -48,7 +55,8 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            baseUrl: resolvedBaseUrl,
+            baseUrl: tagsResult.baseUrl,
+            attemptedBaseUrls: tagsResult.attemptedBaseUrls,
             requestedModel,
             modelFound: models.includes(requestedModel),
             models,

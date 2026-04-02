@@ -41,7 +41,9 @@ Purpose: bridge the current single-canvas media overlay workflow into a campaign
 ### 6. Validation
 - [ ] Add regression tests for normal PNG/JPG/PDF export using full artboard bounds even when overlay frames exist.
 - [ ] Add tests for frame-to-variant conversion, variant switching, and variant-scoped export.
-- [ ] Add browser-level export verification before enabling `Export All Variants` for release.
+- [x] Add browser-level export verification before enabling `Export All Variants` for release.
+	Browser coverage now exists for full-artboard PNG/JPG/PDF downloads with overlay framing present via `npm run test:e2e -- e2e/export-verification.spec.ts`.
+	Additional browser coverage now exists for media-overlay batch ZIP export plus variant-draft conversion, save, cleanup, and variant PNG export via `npm run test:e2e -- e2e/media-overlay-verification.spec.ts`.
 
 ## Constraints
 - Avoid multiple simultaneous Fabric canvases.

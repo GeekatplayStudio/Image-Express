@@ -10,9 +10,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "audit:repo": "node scripts/repo-audit.mjs",
     "lint": "eslint",
     "validate": "npm run lint && npm run test && npm run build",
     "test": "jest",
+    "test:e2e": "playwright test",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "desktop:dev": "concurrently \"cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 next dev -p 3927\" \"wait-on http://localhost:3927 && cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 electron .\"",
@@ -51,6 +53,7 @@
     "three": "^0.182.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.2.0",

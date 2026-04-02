@@ -9,6 +9,7 @@ import useEscapeKey from '@/hooks/useEscapeKey';
 import { APP_THEME } from '@/lib/theme-tokens';
 import {
   DEFAULT_COMFY_LOCAL_URL,
+    hydrateComfyCloudSettingsFromRuntime,
   loadComfyCloudApiKey,
   saveComfyCloudApiKey,
   verifyAvailableComfyConnection,
@@ -35,6 +36,9 @@ import {
   type GenerativeProviderId,
   type GenerativeStabilityTab,
 } from '@/lib/generative-preferences';
+import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
+import { parseMissingOllamaModelMessage, requestOllamaModelInstall } from '@/lib/ollamaModelInstall';
+import { persistAssetToLibrary } from '@/lib/assetPersistence';
 import { compileAnnotationPrompts } from '@/lib/agentic-edit/promptCompiler';
 import type { AnnotationDocument, AnnotationRecord, ReferenceRecord } from '@/lib/agentic-edit/types';
 
@@ -467,7 +471,7 @@ const mapGenerativeProviderToAgenticProvider = (provider: GenerativeProviderId):
     if (provider === 'banana') {
         return 'nanobanana';
     }
-    if (provider === 'comfy' || provider === 'openai' || provider === 'google' || provider === 'stability') {
+    if (provider === 'comfy' || provider === 'ollama' || provider === 'openai' || provider === 'google' || provider === 'stability') {
         return 'flux';
     }
     return 'mock';
@@ -1048,7 +1052,7 @@ export default function ImageGeneratorModal({
         const google = localStorage.getItem('google_api_key');
         const banana = localStorage.getItem('banana_api_key');
         
-        const providers: GenerativeProviderId[] = ['comfy']; // Local ComfyUI is always an option
+        const providers: GenerativeProviderId[] = ['comfy', 'ollama']; // Local runtimes are always available as options
         if (stability) providers.push('stability');
         if (openai) providers.push('openai');
         if (google) providers.push('google');
@@ -1065,6 +1069,21 @@ export default function ImageGeneratorModal({
         setComfyConnectionMode(preferences.comfyConnectionMode);
         setComfyCloudUrl(preferences.comfyCloudUrl);
         setComfyCloudApiKey(loadComfyCloudApiKey());
+        void hydrateComfyCloudSettingsFromRuntime().then((runtimeConfig) => {
+            if (runtimeConfig.cloudApiKey) {
+                setComfyCloudApiKey((current) => current || runtimeConfig.cloudApiKey);
+            }
+
+            if (
+                runtimeConfig.cloudUrl
+                && (
+                    !preferences.comfyCloudUrl.trim()
+                    || preferences.comfyCloudUrl.trim() === 'https://cloud.comfy.org'
+                )
+            ) {
+                setComfyCloudUrl(runtimeConfig.cloudUrl);
+            }
+        });
         setComfyInstallPath(preferences.comfyInstallPath);
         setComfyCustomNodesPath(preferences.comfyCustomNodesPath);
         setComfyWorkflowLibraryPath(preferences.comfyWorkflowLibraryPath);
@@ -2488,38 +2507,21 @@ export default function ImageGeneratorModal({
 
   /**
    * Saves a generated image (URL or Data URI) to the persistent workspace assets.
-   * Target folder: public/assets/generated/images
+   * Respects the current asset storage mode (local, hybrid, cloud).
    */
   const saveToAssets = async (url: string) => {
     try {
-        if (url.startsWith('data:')) {
-            // Case: Base64 Data URI (e.g. from Stability API)
-            const blob = await (await fetch(url)).blob();
-            const file = new File([blob], `generated-${Date.now()}.png`, { type: 'image/png' });
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('type', 'images');
-            formData.append('category', 'generated');
-            formData.append('owner', owner);
-            
-            await fetch('/api/assets/upload', {
-                method: 'POST',
-                body: formData
-            });
-        } else {
-            // Case: External URL (e.g. from ComfyUI or other Remote URL)
-             await fetch('/api/assets/save-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    url: url,
-                    filename: `generated-${Date.now()}.png`,
-                    type: 'images',
-                    category: 'generated',
-                    owner
-                })
-            });
-        }
+        const extensionMatch = url.match(/^data:image\/([a-z0-9.+-]+);/i)
+            || url.match(/\.([a-z0-9]+)(?:$|[?#])/i);
+        const extension = (extensionMatch?.[1] || 'png').replace('svg+xml', 'svg').toLowerCase();
+
+        await persistAssetToLibrary({
+            source: url,
+            filename: `generated-${Date.now()}.${extension}`,
+            type: 'images',
+            category: 'generated',
+            owner,
+        });
     } catch (e) {
         console.error("Failed to auto-save asset", e);
     }
@@ -3033,7 +3035,10 @@ export default function ImageGeneratorModal({
           return;
       }
 
-      const currentKey = getProviderKey(selectedProvider);
+            const currentKey = getProviderKey(selectedProvider);
+            const localAiPreferences = selectedProvider === 'ollama'
+                    ? loadLocalAiPreferences()
+                    : null;
 
       const response = await fetch('/api/ai/generate-image', {
         method: 'POST',
@@ -3045,7 +3050,9 @@ export default function ImageGeneratorModal({
           serverUrl: comfyServerUrl,
           provider: 'remote',
           specificProvider: selectedProvider, 
-          apiKey: currentKey
+                    apiKey: currentKey,
+                    localAiBaseUrl: localAiPreferences?.ollamaBaseUrl,
+                    localAiModel: localAiPreferences?.ollamaModel,
         }),
       });
 
@@ -3071,7 +3078,38 @@ export default function ImageGeneratorModal({
                                 setStatusMessage('AI Edit Notes request was aborted by user.');
                         } else {
                                 const message = error instanceof Error ? error.message : 'Unknown error';
-                                setStatusMessage(`Error: ${message}`);
+                                const missingModel = selectedProvider === 'ollama'
+                                    ? parseMissingOllamaModelMessage(message)
+                                    : null;
+
+                                if (missingModel) {
+                                    const confirmed = await dialog.confirm(
+                                        `Model "${missingModel.model}" is not installed in Ollama yet. Download and install it now?`,
+                                        {
+                                            title: 'Install missing Ollama model',
+                                            confirmText: 'Install model',
+                                            cancelText: 'Not now',
+                                        }
+                                    );
+
+                                    if (confirmed) {
+                                        setStatusMessage(`Installing ${missingModel.model} from Ollama...`);
+                                        try {
+                                            const preferences = loadLocalAiPreferences();
+                                            const result = await requestOllamaModelInstall({
+                                                baseUrl: missingModel.baseUrl || preferences.ollamaBaseUrl,
+                                                model: missingModel.model,
+                                            });
+                                            setStatusMessage(`${result.message} Click Generate again to continue.`);
+                                        } catch (installError) {
+                                            setStatusMessage(`Error: ${installError instanceof Error ? installError.message : 'Failed to install the Ollama model.'}`);
+                                        }
+                                    } else {
+                                        setStatusMessage(`Error: ${message}`);
+                                    }
+                                } else {
+                                    setStatusMessage(`Error: ${message}`);
+                                }
                         }
             aiEditNotesAbortControllerRef.current = null;
             aiEditNotesAbortRequestedRef.current = false;

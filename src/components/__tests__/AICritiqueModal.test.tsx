@@ -66,12 +66,31 @@ describe('AICritiqueModal', () => {
 
     it('forces canvas selection mode and analyzes the selected layer with saved Ollama settings', async () => {
         const canvas = createCanvasStub(createObjectStub());
-        (global.fetch as jest.Mock).mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                success: true,
-                critique: 'Summary\nStrong focal point.\n\nNext Edits\nIncrease headline contrast.',
-            }),
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input.startsWith('/api/ai/ollama/status?')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        requestedModel: 'llava:7b',
+                        modelFound: true,
+                        count: 1,
+                        models: ['llava:7b'],
+                    }),
+                } as Response;
+            }
+
+            if (input === '/api/ai/ollama/critique') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        critique: 'Summary\nStrong focal point.\n\nNext Edits\nIncrease headline contrast.',
+                    }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
         });
 
         render(
@@ -87,6 +106,7 @@ describe('AICritiqueModal', () => {
         expect(canvas.defaultCursor).toBe('default');
         expect(canvas.hoverCursor).toBe('move');
         await waitFor(() => expect(screen.getByLabelText('Selected Layer')).toBeChecked());
+        await waitFor(() => expect(screen.getByText(/Ollama is reachable/i)).toBeInTheDocument());
         expect(screen.getAllByText('Hero Layer').length).toBeGreaterThan(0);
 
         fireEvent.change(screen.getByLabelText('Focus Prompt'), {
@@ -94,8 +114,12 @@ describe('AICritiqueModal', () => {
         });
         fireEvent.click(screen.getByRole('button', { name: 'Analyze with Ollama' }));
 
-        await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
-        const [, requestInit] = (global.fetch as jest.Mock).mock.calls[0];
+        let critiqueCall: [string, RequestInit] | undefined;
+        await waitFor(() => {
+            critiqueCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/ollama/critique') as [string, RequestInit] | undefined;
+            expect(critiqueCall).toBeDefined();
+        });
+        const requestInit = critiqueCall?.[1] as RequestInit;
         const body = JSON.parse((requestInit as RequestInit).body as string);
 
         expect(body).toEqual(expect.objectContaining({
@@ -119,8 +143,114 @@ describe('AICritiqueModal', () => {
         });
     });
 
+    it('blocks critique when the saved Ollama model is not installed', async () => {
+        const canvas = createCanvasStub(createObjectStub());
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input.startsWith('/api/ai/ollama/status?')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        requestedModel: 'llava:7b',
+                        modelFound: false,
+                        count: 1,
+                        models: ['qwen2.5:7b'],
+                    }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        render(
+            <AICritiqueModal
+                isOpen
+                canvas={canvas as unknown as never}
+                onClose={jest.fn()}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText(/not installed yet/i)).toBeInTheDocument();
+        });
+        expect(screen.getByText(/Update Local AI Runtime in Settings/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Analyze with Ollama' })).toBeDisabled();
+    });
+
+    it('installs the missing Ollama model from the critique panel', async () => {
+        const canvas = createCanvasStub(createObjectStub());
+        let installCompleted = false;
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input.startsWith('/api/ai/ollama/status?')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        requestedModel: 'llava:7b',
+                        modelFound: installCompleted,
+                        count: installCompleted ? 2 : 1,
+                        models: installCompleted ? ['qwen2.5:7b', 'llava:7b'] : ['qwen2.5:7b'],
+                    }),
+                } as Response;
+            }
+
+            if (input === '/api/ai/ollama/install') {
+                installCompleted = true;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        message: 'Installed "llava:7b" in Ollama at http://localhost:11434.',
+                        model: 'llava:7b',
+                        baseUrl: 'http://localhost:11434',
+                    }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        render(
+            <AICritiqueModal
+                isOpen
+                canvas={canvas as unknown as never}
+                onClose={jest.fn()}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Install llava:7b' })).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Install llava:7b' }));
+
+        await waitFor(() => {
+            expect((global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/ollama/install')).toBeDefined();
+        });
+        await waitFor(() => {
+            expect(screen.getByText(/Ollama is reachable/i)).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Analyze with Ollama' })).toBeEnabled();
+        });
+    });
+
     it('updates the selected-layer target when canvas selection changes while the panel stays open', async () => {
         const canvas = createCanvasStub(null);
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input.startsWith('/api/ai/ollama/status?')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        requestedModel: 'llava:7b',
+                        modelFound: true,
+                        count: 1,
+                        models: ['llava:7b'],
+                    }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
 
         render(
             <AICritiqueModal

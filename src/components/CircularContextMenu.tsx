@@ -40,6 +40,7 @@ interface CircularContextMenuProps {
     x: number;
     y: number;
     isOpen: boolean;
+    activeTool?: string;
     onClose: () => void;
     onSelectTool: (tool: string) => void;
     onLayerOrderAction?: (action: LayerOrderAction) => void;
@@ -114,6 +115,7 @@ export default function CircularContextMenu({
     x,
     y,
     isOpen,
+    activeTool,
     onClose,
     onSelectTool,
     onLayerOrderAction,
@@ -241,16 +243,21 @@ export default function CircularContextMenu({
                     const radian = (angle * Math.PI) / 180;
                     const bx = Math.cos(radian) * radius;
                     const by = Math.sin(radian) * radius;
+                    const isActive = activeTool === item.id;
 
                     return (
                         <button
                             key={item.id}
+                            type="button"
+                            aria-pressed={isActive}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onSelectTool(item.id);
                                 onClose();
                             }}
-                            className="absolute w-10 h-10 bg-white dark:bg-zinc-800 rounded-full shadow-md border border-zinc-200 dark:border-zinc-700 flex items-center justify-center hover:bg-primary hover:text-white hover:border-primary transition-colors hover:scale-110 duration-200 z-10 group"
+                            className={`absolute w-10 h-10 rounded-full shadow-md border flex items-center justify-center transition-colors duration-200 z-10 group ${isActive
+                                ? 'bg-primary text-white border-primary scale-110'
+                                : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:bg-primary hover:text-white hover:border-primary hover:scale-110'}`}
                             style={{
                                 left: bx,
                                 top: by,
@@ -260,8 +267,8 @@ export default function CircularContextMenu({
                         >
                             <item.icon
                                 size={18}
-                                style={{ color: item.color }}
-                                className="transition-colors group-hover:!text-white"
+                                style={isActive ? undefined : { color: item.color }}
+                                className={`transition-colors ${isActive ? 'text-white' : 'group-hover:!text-white'}`}
                             />
                             {/* Tooltip */}
                             <span className="absolute opacity-0 group-hover:opacity-100 bg-black/80 text-white text-[10px] px-2 py-1 rounded -bottom-8 pointer-events-none whitespace-nowrap transition-opacity">

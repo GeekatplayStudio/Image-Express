@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as fabric from 'fabric';
 
 import type { BackgroundJob, ThreeDGroup, ThreeDImage } from '@/types';
+import { persistAssetToLibrary } from '@/lib/assetPersistence';
 
 type UseBackgroundJobPollingArgs = {
     backgroundJobs: BackgroundJob[];
@@ -287,10 +288,12 @@ export function useBackgroundJobPolling({
                         const extension = (urlMatch?.[1] || 'glb').toLowerCase();
                         if (!filename.toLowerCase().endsWith(`.${extension}`)) filename += `.${extension}`;
                         try {
-                            await fetch('/api/assets/save-url', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ url: resultUrl, filename, type: 'models', owner: user }),
+                            await persistAssetToLibrary({
+                                source: resultUrl,
+                                filename,
+                                type: 'models',
+                                category: 'uploads',
+                                owner: user,
                             });
                         } catch (error) {
                             console.error('Failed to auto-save asset', error);

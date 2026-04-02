@@ -299,6 +299,7 @@ const createCanvasStub = (activeObject: { set: jest.Mock } | null = null): MockC
 const renderToolbar = (options?: {
     initialTool?: string;
     onOpen3DEditor?: (url: string) => void;
+    onRequestPropertiesPanel?: (mode?: 'properties' | 'layers') => void;
     activeObject?: { set: jest.Mock } | null;
     enableHoverLabels?: boolean;
     zoomCursorMode?: 'in' | 'out';
@@ -322,6 +323,7 @@ const renderToolbar = (options?: {
                 canvas={canvas as unknown as never}
                 activeTool={activeTool}
                 setActiveTool={handleSetActiveTool}
+                onRequestPropertiesPanel={options?.onRequestPropertiesPanel}
                 onOpen3DEditor={options?.onOpen3DEditor}
                 setActivePalette={setActivePaletteSpy}
                 currentUser="tester"
@@ -520,7 +522,8 @@ describe('Toolbar', () => {
     });
 
     it('adds a cloud from the shapes menu', () => {
-        const { canvas } = renderToolbar();
+        const onRequestPropertiesPanel = jest.fn();
+        const { canvas } = renderToolbar({ onRequestPropertiesPanel });
 
         fireEvent.click(screen.getByTitle('Shapes'));
         fireEvent.click(screen.getByRole('button', { name: 'Cloud' }));
@@ -528,6 +531,7 @@ describe('Toolbar', () => {
         expect(canvas.add).toHaveBeenCalled();
         expect(canvas.setActiveObject).toHaveBeenCalled();
         expect(canvas.add.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ type: 'path' }));
+        expect(onRequestPropertiesPanel).toHaveBeenCalledWith('properties');
     });
 
     it('exposes adjustment layers as a creation tool on the left rail', () => {
@@ -539,23 +543,27 @@ describe('Toolbar', () => {
     });
 
     it('creates an adjustment layer from the left rail flyout', () => {
-        const { canvas, setActiveToolSpy } = renderToolbar();
+        const onRequestPropertiesPanel = jest.fn();
+        const { canvas, setActiveToolSpy } = renderToolbar({ onRequestPropertiesPanel });
 
         fireEvent.click(screen.getByTitle('Adjustment Layers'));
         fireEvent.click(screen.getByRole('button', { name: 'Curves' }));
 
         expect(canvas.fire).toHaveBeenCalledWith('adjustment:create', { type: 'curves' });
         expect(setActiveToolSpy).toHaveBeenCalledWith('layers');
+        expect(onRequestPropertiesPanel).toHaveBeenCalledWith('properties');
     });
 
     it('creates Light and Color adjustment layer from the flyout', () => {
-        const { canvas, setActiveToolSpy } = renderToolbar();
+        const onRequestPropertiesPanel = jest.fn();
+        const { canvas, setActiveToolSpy } = renderToolbar({ onRequestPropertiesPanel });
 
         fireEvent.click(screen.getByTitle('Adjustment Layers'));
         fireEvent.click(screen.getByRole('button', { name: 'Light and Color' }));
 
         expect(canvas.fire).toHaveBeenCalledWith('adjustment:create', { type: 'light-and-color' });
         expect(setActiveToolSpy).toHaveBeenCalledWith('layers');
+        expect(onRequestPropertiesPanel).toHaveBeenCalledWith('properties');
     });
 
     it('expands and reveals tool labels on hover when enabled', () => {

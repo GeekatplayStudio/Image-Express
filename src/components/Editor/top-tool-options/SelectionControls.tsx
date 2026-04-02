@@ -68,7 +68,7 @@ export default function SelectionControls({
                     <button
                         key={tool.key}
                         onClick={() => onSelectToolChange?.(tool.key)}
-                        className={`px-2 py-1 text-xs ${index > 0 ? 'border-l border-border/50' : ''} ${activeTool === tool.key ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
+                        className={`px-2 py-1 text-xs whitespace-nowrap ${index > 0 ? 'border-l border-border/50' : ''} ${activeTool === tool.key ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
                         aria-label={`Selection tool ${tool.key}`}
                     >
                         {tool.label}

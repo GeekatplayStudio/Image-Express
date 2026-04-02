@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from 'next/script';
 import "./globals.css";
 import "./ui-theme.css";
 import '@fontsource/inter/400.css';
@@ -23,14 +24,24 @@ export const metadata: Metadata = {
 import { DialogProvider } from "@/providers/DialogProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
 import RangeResetListener from "@/components/ui/RangeResetListener";
+import { buildRuntimePerformanceShimSource } from '@/lib/runtimePerformanceShim';
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const performanceShimSource = buildRuntimePerformanceShimSource();
+
   return (
     <html lang="en">
+      <head>
+        <Script
+          id="runtime-performance-shim"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: performanceShimSource }}
+        />
+      </head>
       <body
         className="antialiased"
         suppressHydrationWarning

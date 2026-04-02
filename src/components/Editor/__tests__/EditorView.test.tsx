@@ -507,6 +507,22 @@ describe('EditorView', () => {
         expect(props.onLogout).toHaveBeenCalledTimes(1);
     });
 
+    it('switches selection tools from the top options bar and updates canvas tool mode', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} initialActiveTool="select" />);
+
+        const lassoButton = await screen.findByRole('button', { name: 'Selection tool lasso' });
+        fireEvent.click(lassoButton);
+
+        await waitFor(() => {
+            expect(screen.getByText('lasso')).toBeInTheDocument();
+        });
+
+        expect(latestCanvasStub?.defaultCursor).toBe('crosshair');
+        expect(latestCanvasStub?.hoverCursor).toBe('crosshair');
+        expect(latestCanvasStub?.selection).toBe(false);
+    });
+
     it('wires top pen path/shape toggle to pen config events', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="pen" />);

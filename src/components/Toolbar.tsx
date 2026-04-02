@@ -79,6 +79,7 @@ interface ToolbarProps {
     canvas: fabric.Canvas | null;
     activeTool: string;
     setActiveTool: (tool: string) => void;
+    onRequestPropertiesPanel?: (mode?: 'properties' | 'layers') => void;
     onOpen3DEditor?: (url: string) => void;
     apiKeys?: { stability?: string };
     activePalette?: ColorPalette | null;
@@ -558,6 +559,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     canvas,
     activeTool,
     setActiveTool,
+    onRequestPropertiesPanel,
     onOpen3DEditor,
     apiKeys,
     activePalette,
@@ -584,6 +586,20 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSaveModal, setShowSaveModal] = useState(false);
+
+    const openPropertiesPanel = useCallback(() => {
+        onRequestPropertiesPanel?.('properties');
+    }, [onRequestPropertiesPanel]);
+
+    const focusInsertedObject = useCallback((object: fabric.Object | null | undefined) => {
+        if (!canvas || !object) {
+            return;
+        }
+
+        canvas.setActiveObject(object);
+        canvas.requestRenderAll();
+        openPropertiesPanel();
+    }, [canvas, openPropertiesPanel]);
     const [shapeConfig, setShapeConfig] = useState<ShapeConfigPayload>(DEFAULT_SHAPE_CONFIG);
     const toolGroupMenuRef = useRef<HTMLDivElement>(null);
     const selectionGroupButtonRef = useRef<HTMLButtonElement>(null);
@@ -780,7 +796,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         namedObject.isPenPath = true;
 
         canvas.add(createdObject);
-        canvas.setActiveObject(createdObject);
+        focusInsertedObject(createdObject);
 
         // Ensure new layer is clearly visible and editable
         canvas.requestRenderAll();
@@ -789,7 +805,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         setPenCursorPoint(null);
         penActiveLineRef.current = null;
         // Stay in Pen Tool for continuous drawing
-    }, [canvas, clearPenDraft, penAnchors, penClosure, penMode, penPathOperation, penPoints]);
+    }, [canvas, clearPenDraft, focusInsertedObject, penAnchors, penClosure, penMode, penPathOperation, penPoints]);
 
     useEffect(() => {
         if (activeTool === 'pen') return;
@@ -1218,7 +1234,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         (text as ExtendedFabricObject).textSpellcheck = true;
         canvas.add(text);
-        canvas.setActiveObject(text);
+        focusInsertedObject(text);
     };
 
     const syncToolbarColorsToCanvas = useCallback((
@@ -1571,7 +1587,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(rect);
         canvas.add(rect);
-        canvas.setActiveObject(rect);
+        focusInsertedObject(rect);
     };
 
     const addCircle = () => {
@@ -1583,7 +1599,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(circle);
         canvas.add(circle);
-        canvas.setActiveObject(circle);
+        focusInsertedObject(circle);
     };
 
     const addTriangle = () => {
@@ -1596,7 +1612,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(triangle);
         canvas.add(triangle);
-        canvas.setActiveObject(triangle);
+        focusInsertedObject(triangle);
     };
 
     const addStar = () => {
@@ -1616,7 +1632,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         applyShapeConfig(star);
 
         canvas.add(star);
-        canvas.setActiveObject(star);
+        focusInsertedObject(star);
     };
 
     const addArrow = () => {
@@ -1637,7 +1653,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(arrow);
         canvas.add(arrow);
-        canvas.setActiveObject(arrow);
+        focusInsertedObject(arrow);
     };
 
     const addBentArrow = () => {
@@ -1676,7 +1692,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(bentArrow);
         canvas.add(bentArrow);
-        canvas.setActiveObject(bentArrow);
+        focusInsertedObject(bentArrow);
     };
 
     const addSpeechBubble = () => {
@@ -1689,7 +1705,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(bubble);
         canvas.add(bubble);
-        canvas.setActiveObject(bubble);
+        focusInsertedObject(bubble);
     };
 
     const addCloud = () => {
@@ -1711,7 +1727,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(cloud);
         canvas.add(cloud);
-        canvas.setActiveObject(cloud);
+        focusInsertedObject(cloud);
     };
 
     const addThoughtBubble = () => {
@@ -1736,7 +1752,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(thoughtBubble);
         canvas.add(thoughtBubble);
-        canvas.setActiveObject(thoughtBubble);
+        focusInsertedObject(thoughtBubble);
     };
 
     const addHexagon = () => {
@@ -1756,7 +1772,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(hexagon);
         canvas.add(hexagon);
-        canvas.setActiveObject(hexagon);
+        focusInsertedObject(hexagon);
     };
 
     const addDiamond = () => {
@@ -1774,14 +1790,14 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         });
         applyShapeConfig(diamond);
         canvas.add(diamond);
-        canvas.setActiveObject(diamond);
+        focusInsertedObject(diamond);
     };
 
     const createAdjustmentLayer = (type: AdjustmentLayerType) => {
         if (!canvas) return;
         (canvas as unknown as { fire: (eventName: string, payload?: unknown) => void }).fire('adjustment:create', { type });
         setShowAdjustmentMenu(false);
-        setActiveTool('layers');
+        openPropertiesPanel();
     };
 
     const add3DPlaceholder = (url: string, nameOverride?: string) => {
@@ -1825,8 +1841,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         }
 
         canvas.add(group);
-        canvas.setActiveObject(group);
-        canvas.requestRenderAll();
+        focusInsertedObject(group);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1892,8 +1907,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             canvas.centerObject(img);
 
             canvas.add(img);
-            canvas.setActiveObject(img);
-            canvas.requestRenderAll();
+            focusInsertedObject(img);
         }).catch((err) => {
             console.error("Error loading image:", err);
         });
@@ -1977,8 +1991,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
         canvas.add(group);
         canvas.centerObject(group);
-        canvas.setActiveObject(group);
-        canvas.requestRenderAll();
+        focusInsertedObject(group);
     };
 
     const addVideoPlaceholder = (url: string) => addMediaPlaceholder('video', url);

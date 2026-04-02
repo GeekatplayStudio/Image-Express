@@ -31,6 +31,7 @@ import {
     onAssetStorageSettingsChanged,
     type AssetStorageSettings,
 } from '@/lib/assetStorageSettings';
+import { ASSET_LIBRARY_CHANGED_EVENT } from '@/lib/assetLibraryEvents';
 
 const ACCEPTED_FILE_TYPES = 'image/*,video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply';
 
@@ -489,6 +490,17 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         });
         return unsubscribe;
     }, []);
+
+    useEffect(() => {
+        const handleAssetLibraryChanged = () => {
+            void fetchAssets();
+        };
+
+        window.addEventListener(ASSET_LIBRARY_CHANGED_EVENT, handleAssetLibraryChanged);
+        return () => {
+            window.removeEventListener(ASSET_LIBRARY_CHANGED_EVENT, handleAssetLibraryChanged);
+        };
+    }, [fetchAssets]);
 
     useEffect(() => {
         return () => {

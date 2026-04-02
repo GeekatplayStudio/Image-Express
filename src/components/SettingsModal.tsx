@@ -25,6 +25,7 @@ import {
 } from '@/lib/generative-preferences';
 import {
     DEFAULT_COMFY_LOCAL_URL,
+    hydrateComfyCloudSettingsFromRuntime,
     loadComfyCloudApiKey,
     saveComfyCloudApiKey,
     verifyAvailableComfyConnection,
@@ -42,6 +43,7 @@ import {
     loadLocalAiPreferences,
     saveLocalAiPreferences,
 } from '@/lib/localAiPreferences';
+import { requestOllamaModelInstall } from '@/lib/ollamaModelInstall';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -136,10 +138,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [ollamaCheck, setOllamaCheck] = useState<{
         state: 'idle' | 'checking' | 'success' | 'error';
         message: string;
+        modelFound?: boolean;
     }>({
         state: 'idle',
         message: '',
     });
+    const [isInstallingOllamaModel, setIsInstallingOllamaModel] = useState(false);
 
     const [status, setStatus] = useState<'idle' | 'saved' | 'saving' | 'error'>('idle');
     const [syncStatus, setSyncStatus] = useState<'local' | 'synced' | 'syncing'>('local');
@@ -246,6 +250,21 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setComfyCustomNodesPath(generativePreferences.comfyCustomNodesPath);
         setComfyWorkflowLibraryPath(generativePreferences.comfyWorkflowLibraryPath);
         setComfyCloudApiKey(loadComfyCloudApiKey());
+        void hydrateComfyCloudSettingsFromRuntime().then((runtimeConfig) => {
+            if (runtimeConfig.cloudApiKey) {
+                setComfyCloudApiKey((current) => current || runtimeConfig.cloudApiKey);
+            }
+
+            if (
+                runtimeConfig.cloudUrl
+                && (
+                    !generativePreferences.comfyCloudUrl.trim()
+                    || generativePreferences.comfyCloudUrl.trim() === 'https://cloud.comfy.org'
+                )
+            ) {
+                setComfyCloudUrl(runtimeConfig.cloudUrl);
+            }
+        });
         setAutoStartInpaintMasking(generativePreferences.autoStartInpaintMasking);
         setShowInpaintPromptDock(generativePreferences.showInpaintPromptDock);
 
@@ -732,6 +751,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setOllamaCheck({
             state: 'checking',
             message: 'Checking Ollama runtime...',
+            modelFound: undefined,
         });
 
         try {
@@ -753,6 +773,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 setOllamaCheck({
                     state: 'error',
                     message: data.message || 'Failed to contact Ollama.',
+                    modelFound: undefined,
                 });
                 return;
             }
@@ -765,14 +786,46 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             setOllamaCheck({
                 state: data.modelFound ? 'success' : 'error',
                 message: summary,
+                modelFound: Boolean(data.modelFound),
             });
         } catch (error) {
             setOllamaCheck({
                 state: 'error',
                 message: error instanceof Error ? error.message : 'Failed to contact Ollama.',
+                modelFound: undefined,
             });
         }
     }, [ollamaBaseUrl, ollamaModel]);
+
+    const handleInstallOllamaModel = useCallback(async () => {
+        setIsInstallingOllamaModel(true);
+        setOllamaCheck({
+            state: 'checking',
+            message: `Installing ${ollamaModel.trim() || DEFAULT_OLLAMA_MODEL}...`,
+            modelFound: false,
+        });
+
+        try {
+            const result = await requestOllamaModelInstall({
+                baseUrl: ollamaBaseUrl,
+                model: ollamaModel,
+            });
+            setOllamaCheck({
+                state: 'success',
+                message: result.message,
+                modelFound: true,
+            });
+            await handleCheckOllama();
+        } catch (error) {
+            setOllamaCheck({
+                state: 'error',
+                message: error instanceof Error ? error.message : 'Failed to install the Ollama model.',
+                modelFound: false,
+            });
+        } finally {
+            setIsInstallingOllamaModel(false);
+        }
+    }, [handleCheckOllama, ollamaBaseUrl, ollamaModel]);
 
     // Helper to mask key for display if it comes from env (not implemented here per se, but good for UX)
     // Here we just input what is in local storage.
@@ -1222,7 +1275,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         value={ollamaBaseUrl}
                                         onChange={(event) => {
                                             setOllamaBaseUrl(event.target.value);
-                                            setOllamaCheck({ state: 'idle', message: '' });
+                                            setOllamaCheck({ state: 'idle', message: '', modelFound: undefined });
                                         }}
                                         placeholder={DEFAULT_OLLAMA_BASE_URL}
                                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
@@ -1232,7 +1285,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         value={ollamaModel}
                                         onChange={(event) => {
                                             setOllamaModel(event.target.value);
-                                            setOllamaCheck({ state: 'idle', message: '' });
+                                            setOllamaCheck({ state: 'idle', message: '', modelFound: undefined });
                                         }}
                                         placeholder={DEFAULT_OLLAMA_MODEL}
                                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
@@ -1243,10 +1296,20 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         type="button"
                                         onClick={() => void handleCheckOllama()}
                                         className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
-                                        disabled={ollamaCheck.state === 'checking'}
+                                        disabled={ollamaCheck.state === 'checking' || isInstallingOllamaModel}
                                     >
                                         Check Ollama
                                     </button>
+                                    {ollamaCheck.modelFound === false ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleInstallOllamaModel()}
+                                            className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                                            disabled={isInstallingOllamaModel || ollamaCheck.state === 'checking'}
+                                        >
+                                            {isInstallingOllamaModel ? 'Installing...' : `Install ${ollamaModel.trim() || DEFAULT_OLLAMA_MODEL}`}
+                                        </button>
+                                    ) : null}
                                     {ollamaCheck.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
                                     {ollamaCheck.message ? (
                                         <span className={`text-[10px] ${ollamaCheck.state === 'success' ? 'text-green-500' : 'text-amber-500'}`}>
@@ -1255,7 +1318,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     ) : null}
                                 </div>
                                 <p className="mt-2 text-[11px] text-muted-foreground">
-                                    First Ollama slice: runtime URL, preferred model, and install/status checks for upcoming local AI flows.
+                                    Local AI runtime URL, preferred model, and install/status checks for Ollama-based generation and critique.
                                 </p>
                             </div>
                         </div>
@@ -1340,7 +1403,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                             />
                             <p className="text-[11px] text-muted-foreground">
-                                The app now proxies local ComfyUI requests through itself, which avoids the host/origin 403s you saw. In Docker on Windows, <code className="font-mono">localhost</code> will also retry via <code className="font-mono">host.docker.internal</code> server-side.
+                                The app now proxies local ComfyUI requests through itself, which avoids the host/origin 403s you saw. In Docker on macOS or Windows, <code className="font-mono">localhost</code> will also retry via <code className="font-mono">host.docker.internal</code> server-side.
                             </p>
                         </div>
 

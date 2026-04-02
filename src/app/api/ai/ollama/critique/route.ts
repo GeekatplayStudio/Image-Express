@@ -6,6 +6,7 @@ import {
     formatOllamaModelList,
     normalizeOllamaBaseUrl,
 } from '@/lib/ollama';
+import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
 
 const OLLAMA_CRITIQUE_TIMEOUT_MS = 45000;
 
@@ -61,25 +62,35 @@ export async function POST(request: NextRequest) {
     const timeoutId = setTimeout(() => abortController.abort(), OLLAMA_CRITIQUE_TIMEOUT_MS);
 
     try {
-        const tagsResponse = await fetch(`${resolvedBaseUrl}/api/tags`, {
+        const tagsResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
             method: 'GET',
             cache: 'no-store',
             signal: abortController.signal,
         });
 
-        if (!tagsResponse.ok) {
+        if (!tagsResult.ok || !tagsResult.response) {
+            const attemptsSuffix = formatOllamaAttemptedBaseUrls(tagsResult.attemptedBaseUrls);
+            if (tagsResult.response) {
+                return NextResponse.json({
+                    success: false,
+                    message: `Ollama responded with ${tagsResult.response.status} ${tagsResult.response.statusText} while checking models.${attemptsSuffix}`,
+                }, { status: 502 });
+            }
+
             return NextResponse.json({
                 success: false,
-                message: `Ollama responded with ${tagsResponse.status} ${tagsResponse.statusText} while checking models.`,
+                message: `${tagsResult.error instanceof Error ? tagsResult.error.message : 'Failed to contact Ollama.'}${attemptsSuffix}`,
             }, { status: 502 });
         }
 
-        const tagsPayload = await tagsResponse.json() as OllamaTagsPayload;
+        const tagsPayload = await tagsResult.response.json() as OllamaTagsPayload;
         const models = Array.isArray(tagsPayload.models)
             ? tagsPayload.models
                 .map((entry) => entry.name || entry.model || '')
                 .filter((entry) => entry.trim().length > 0)
             : [];
+
+        resolvedBaseUrl = tagsResult.baseUrl;
 
         if (!models.includes(requestedModel)) {
             return NextResponse.json({
@@ -88,7 +99,7 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        const critiqueResponse = await fetch(`${resolvedBaseUrl}/api/generate`, {
+        const critiqueResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/generate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -110,11 +121,27 @@ export async function POST(request: NextRequest) {
             }),
         });
 
-        const critiquePayload = await critiqueResponse.json() as OllamaGeneratePayload;
-        if (!critiqueResponse.ok || critiquePayload.error) {
+        if (!critiqueResult.ok || !critiqueResult.response) {
+            const attemptsSuffix = formatOllamaAttemptedBaseUrls(critiqueResult.attemptedBaseUrls);
+            if (critiqueResult.response) {
+                return NextResponse.json({
+                    success: false,
+                    message: `Ollama critique failed with ${critiqueResult.response.status} ${critiqueResult.response.statusText}.${attemptsSuffix}`,
+                }, { status: 502 });
+            }
+
             return NextResponse.json({
                 success: false,
-                message: critiquePayload.error || `Ollama critique failed with ${critiqueResponse.status} ${critiqueResponse.statusText}.`,
+                message: `${critiqueResult.error instanceof Error ? critiqueResult.error.message : 'Failed to contact Ollama.'}${attemptsSuffix}`,
+            }, { status: 502 });
+        }
+
+        resolvedBaseUrl = critiqueResult.baseUrl;
+        const critiquePayload = await critiqueResult.response.json() as OllamaGeneratePayload;
+        if (critiquePayload.error) {
+            return NextResponse.json({
+                success: false,
+                message: critiquePayload.error,
             }, { status: 502 });
         }
 

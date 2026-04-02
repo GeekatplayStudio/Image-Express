@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 
 import { runWithExportOverlays } from '@/components/Editor/editorExportOverlays';
+import { resolveEditorExportCropBounds } from '@/components/Editor/editorExportCrop';
 import { exportHtmlBundle as exportHtmlBundleHelper } from '@/components/Editor/editorHtmlExport';
 import { type MediaOverlayNamingTemplate } from '@/components/Editor/editorViewConfig';
 import type { MediaOverlayBatchTarget } from '@/components/Editor/useMediaOverlay';
@@ -16,9 +17,9 @@ import type { UserProfileSettings } from '@/lib/profile-utils';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import type {
     CanvasWithArtboard,
-    DesignJson,
     ExportDataUrlOptions,
     RectBounds,
+    DesignJson,
 } from '@/components/Editor/editorView.types';
 
 type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html';
@@ -241,47 +242,7 @@ export function useEditorExport({
     ]);
 
     const resolveCropOptions = useCallback((): RectBounds => {
-        if (!canvas) {
-            return {
-                left: 0,
-                top: 0,
-                width: 800,
-                height: 600,
-            };
-        }
-
-        const extCanvas = canvas as CanvasWithArtboard;
-        const artboard = extCanvas.artboard;
-        const rect = extCanvas.artboardRect;
-
-        if (rect) {
-            const rectWidth = rect.getScaledWidth?.() ?? ((rect.width || 0) * (rect.scaleX || 1));
-            const rectHeight = rect.getScaledHeight?.() ?? ((rect.height || 0) * (rect.scaleY || 1));
-            if (rectWidth > 0 && rectHeight > 0) {
-                return {
-                    left: rect.left || 0,
-                    top: rect.top || 0,
-                    width: rectWidth,
-                    height: rectHeight,
-                };
-            }
-        }
-
-        if (artboard && artboard.width > 0 && artboard.height > 0) {
-            return {
-                left: artboard.left || 0,
-                top: artboard.top || 0,
-                width: artboard.width,
-                height: artboard.height,
-            };
-        }
-
-        return {
-            left: 0,
-            top: 0,
-            width: canvas.width || 800,
-            height: canvas.height || 600,
-        };
+        return resolveEditorExportCropBounds(canvas as CanvasWithArtboard | null);
     }, [canvas]);
 
     const exportHtmlBundle = useCallback(async (baseName: string, timestamp: string) => {
@@ -337,6 +298,7 @@ export function useEditorExport({
                             orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
                             unit: 'px',
                             format: [pdfWidth, pdfHeight],
+                            hotfixes: ['px_scaling'],
                         });
                         const imgData = safeCanvasToDataURL({
                             format: 'png',

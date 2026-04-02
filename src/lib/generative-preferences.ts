@@ -2,7 +2,7 @@
 
 import { DEFAULT_COMFY_LOCAL_URL, type ComfyConnectionMode } from '@/lib/comfyui/connection';
 
-export type GenerativeProviderId = 'comfy' | 'stability' | 'openai' | 'google' | 'banana';
+export type GenerativeProviderId = 'comfy' | 'ollama' | 'stability' | 'openai' | 'google' | 'banana';
 
 export type GenerativeWorkflowId =
     | 'zone'
@@ -37,7 +37,7 @@ const LEGACY_PROVIDER_STORAGE_KEYS = ['image-express-gen-provider', 'image-expre
 const LEGACY_COMFY_URL_STORAGE_KEY = 'image-express-comfy-url';
 const LEGACY_DEFAULT_COMFY_URL = 'http://127.0.0.1:8188';
 
-const GENERATIVE_PROVIDER_SET = new Set<GenerativeProviderId>(['comfy', 'stability', 'openai', 'google', 'banana']);
+const GENERATIVE_PROVIDER_SET = new Set<GenerativeProviderId>(['comfy', 'ollama', 'stability', 'openai', 'google', 'banana']);
 const GENERATIVE_WORKFLOW_SET = new Set<GenerativeWorkflowId>([
     'zone',
     'stability-generate',
@@ -69,6 +69,13 @@ export const GENERATIVE_PROVIDER_OPTIONS: Array<{
             'stability-upscale',
             'stability-removebg',
         ],
+    },
+    {
+        id: 'ollama',
+        label: 'Ollama (Local SVG)',
+        description: 'Local prompt-to-SVG generation using your saved Ollama runtime and model.',
+        status: 'ready',
+        supportedWorkflows: ['zone'],
     },
     {
         id: 'openai',

@@ -3,6 +3,8 @@ import * as fabric from 'fabric';
 import { Loader2, MessageSquare, X } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
+import { requestOllamaModelInstall } from '@/lib/ollamaModelInstall';
+import { formatOllamaRuntimeStatusMessage, requestOllamaRuntimeStatus } from '@/lib/ollamaRuntimeStatus';
 
 interface AICritiqueModalProps {
     isOpen?: boolean;
@@ -11,6 +13,12 @@ interface AICritiqueModalProps {
 }
 
 type CritiqueTarget = 'selection' | 'canvas';
+
+type RuntimeCheckState = {
+    state: 'idle' | 'checking' | 'success' | 'warning';
+    message: string;
+    modelFound: boolean;
+};
 
 type CanvasWithSelectionControls = fabric.Canvas & {
     artboard?: { width: number; height: number };
@@ -91,12 +99,18 @@ export default function AICritiqueModal({
     canvas,
     onClose,
 }: AICritiqueModalProps) {
+    const [runtimeCheck, setRuntimeCheck] = useState<RuntimeCheckState>({
+        state: 'idle',
+        message: '',
+        modelFound: false,
+    });
     const [target, setTarget] = useState<CritiqueTarget>('canvas');
     const [selectionLabel, setSelectionLabel] = useState<string | null>(null);
     const [focus, setFocus] = useState('');
     const [ollamaBaseUrl, setOllamaBaseUrl] = useState('');
     const [ollamaModel, setOllamaModel] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isInstallingModel, setIsInstallingModel] = useState(false);
     const [critique, setCritique] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
 
@@ -111,15 +125,55 @@ export default function AICritiqueModal({
         setSelectionLabel(resolveSelectionLabel(canvas.getActiveObject()));
     }, [canvas]);
 
+    const checkRuntime = useCallback(async (
+        baseUrlOverride?: string,
+        modelOverride?: string,
+    ): Promise<boolean> => {
+        const requestedBaseUrl = (baseUrlOverride ?? ollamaBaseUrl).trim();
+        const requestedModel = (modelOverride ?? ollamaModel).trim();
+
+        setRuntimeCheck({
+            state: 'checking',
+            message: 'Checking saved Ollama runtime...',
+            modelFound: false,
+        });
+
+        try {
+            const result = await requestOllamaRuntimeStatus({
+                baseUrl: requestedBaseUrl,
+                model: requestedModel,
+            });
+            setRuntimeCheck({
+                state: result.modelFound ? 'success' : 'warning',
+                message: formatOllamaRuntimeStatusMessage(result),
+                modelFound: result.modelFound,
+            });
+            return result.modelFound;
+        } catch (error) {
+            setRuntimeCheck({
+                state: 'warning',
+                message: error instanceof Error ? error.message : 'Failed to contact Ollama.',
+                modelFound: false,
+            });
+            return false;
+        }
+    }, [ollamaBaseUrl, ollamaModel]);
+
     useEffect(() => {
         if (!isOpen) return;
 
         const preferences = loadLocalAiPreferences();
         setOllamaBaseUrl(preferences.ollamaBaseUrl);
         setOllamaModel(preferences.ollamaModel);
+        setRuntimeCheck({
+            state: 'idle',
+            message: '',
+            modelFound: false,
+        });
         setFocus('');
         setCritique('');
         setErrorMessage('');
+        void checkRuntime(preferences.ollamaBaseUrl, preferences.ollamaModel);
 
         if (!canvas) {
             setTarget('canvas');
@@ -136,7 +190,7 @@ export default function AICritiqueModal({
         const nextSelectionLabel = resolveSelectionLabel(canvas.getActiveObject());
         setSelectionLabel(nextSelectionLabel);
         setTarget(nextSelectionLabel ? 'selection' : 'canvas');
-    }, [canvas, isOpen]);
+    }, [canvas, checkRuntime, isOpen]);
 
     useEffect(() => {
         if (!isOpen || !canvas) return;
@@ -163,7 +217,11 @@ export default function AICritiqueModal({
             : 'Full canvas'
     ), [selectionLabel, target]);
 
-    const canAnalyze = Boolean(canvas) && (target === 'canvas' || Boolean(selectionLabel)) && !isAnalyzing;
+    const canAnalyze = Boolean(canvas)
+        && (target === 'canvas' || Boolean(selectionLabel))
+        && !isAnalyzing
+        && runtimeCheck.state !== 'checking'
+        && runtimeCheck.modelFound;
 
     const handleAnalyze = async () => {
         if (!canvas) {
@@ -173,6 +231,12 @@ export default function AICritiqueModal({
 
         if (target === 'selection' && !selectionLabel) {
             setErrorMessage('Select a layer on the canvas, or switch the critique target to Full Canvas.');
+            return;
+        }
+
+        const runtimeReady = runtimeCheck.modelFound || await checkRuntime();
+        if (!runtimeReady) {
+            setErrorMessage(runtimeCheck.message || 'Ollama is not ready yet. Check the configured runtime and model in Settings.');
             return;
         }
 
@@ -215,6 +279,33 @@ export default function AICritiqueModal({
         }
     };
 
+    const handleInstallModel = useCallback(async () => {
+        if (!ollamaModel.trim()) {
+            setErrorMessage('Set an Ollama model before installing it.');
+            return;
+        }
+
+        setIsInstallingModel(true);
+        setErrorMessage('');
+
+        try {
+            const result = await requestOllamaModelInstall({
+                baseUrl: ollamaBaseUrl,
+                model: ollamaModel,
+            });
+            setRuntimeCheck({
+                state: 'success',
+                message: result.message,
+                modelFound: true,
+            });
+            await checkRuntime(ollamaBaseUrl, ollamaModel);
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : 'Failed to install the Ollama model.');
+        } finally {
+            setIsInstallingModel(false);
+        }
+    }, [checkRuntime, ollamaBaseUrl, ollamaModel]);
+
     if (!isOpen) return null;
 
     return (
@@ -243,13 +334,47 @@ export default function AICritiqueModal({
 
             <div className="space-y-4 px-4 py-4">
                 <div className="rounded-xl border border-border bg-secondary/30 p-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Local Runtime
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Local Runtime
+                            </div>
+                            <div className="mt-1 text-sm font-medium">{ollamaModel || 'No model configured'}</div>
+                            <div className="mt-1 break-all text-xs text-muted-foreground">
+                                {ollamaBaseUrl || 'No Ollama URL configured'}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => void checkRuntime()}
+                            disabled={runtimeCheck.state === 'checking'}
+                            className="rounded-lg border border-border px-2 py-1 text-[11px] font-semibold text-foreground transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {runtimeCheck.state === 'checking' ? 'Checking...' : 'Recheck'}
+                        </button>
                     </div>
-                    <div className="mt-1 text-sm font-medium">{ollamaModel || 'No model configured'}</div>
-                    <div className="mt-1 break-all text-xs text-muted-foreground">
-                        {ollamaBaseUrl || 'No Ollama URL configured'}
-                    </div>
+                    {runtimeCheck.message ? (
+                        <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${runtimeCheck.state === 'success'
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+                            : runtimeCheck.state === 'warning'
+                                ? 'border-amber-500/40 bg-amber-500/10 text-amber-100'
+                                : 'border-border bg-secondary/30 text-muted-foreground'}`}>
+                            {runtimeCheck.message}
+                        </div>
+                    ) : null}
+                    {!runtimeCheck.modelFound && runtimeCheck.state !== 'checking' ? (
+                        <div className="mt-3 flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => void handleInstallModel()}
+                                disabled={isInstallingModel}
+                                className="rounded-lg border border-border px-2 py-1 text-[11px] font-semibold text-foreground transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {isInstallingModel ? 'Installing...' : `Install ${ollamaModel || 'model'}`}
+                            </button>
+                            {isInstallingModel ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
+                        </div>
+                    ) : null}
                 </div>
 
                 <fieldset>
@@ -321,6 +446,11 @@ export default function AICritiqueModal({
                     {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <MessageSquare size={16} />}
                     {isAnalyzing ? 'Analyzing...' : 'Analyze with Ollama'}
                 </button>
+                {!runtimeCheck.modelFound && runtimeCheck.state !== 'checking' ? (
+                    <div className="text-xs text-muted-foreground">
+                        Critique is disabled until the saved Ollama model is reachable. Install the missing model here or update Local AI Runtime in Settings, then recheck.
+                    </div>
+                ) : null}
 
                 {errorMessage && (
                     <div

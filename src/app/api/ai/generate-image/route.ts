@@ -1,4 +1,24 @@
 import { NextResponse } from 'next/server';
+import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
+import {
+    buildOllamaSvgGenerationPrompt,
+    encodeSvgDataUrl,
+    formatOllamaModelList,
+    normalizeOllamaBaseUrl,
+    sanitizeOllamaSvgDocument,
+} from '@/lib/ollama';
+import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
+
+const OLLAMA_GENERATE_TIMEOUT_MS = 45000;
+
+type OllamaTagsPayload = {
+    models?: Array<{ name?: string; model?: string }>;
+};
+
+type OllamaGeneratePayload = {
+    response?: string;
+    error?: string;
+};
 
 /**
  * AI Generation Route
@@ -9,7 +29,17 @@ import { NextResponse } from 'next/server';
  */
 export async function POST(request: Request) {
   try {
-    const { prompt, width, height, serverUrl, provider, apiKey, specificProvider } = await request.json();
+        const {
+                prompt,
+                width,
+                height,
+                serverUrl,
+                provider,
+                apiKey,
+                specificProvider,
+                localAiBaseUrl,
+                localAiModel,
+        } = await request.json();
 
     if (provider === 'comfy') {
         const comfyHost = serverUrl || 'http://localhost:8188';
@@ -99,10 +129,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, promptId: queueData.prompt_id, provider: 'comfy' });
 
     } else {
-        if (!apiKey) {
-             return NextResponse.json({ success: false, message: 'API Key is required for remote generation.' });
-        }
-        
         const mode = specificProvider || 'stability'; // Default to stability if legacy
 
         // --- OPENAI HANDLER ---
@@ -138,6 +164,145 @@ export async function POST(request: Request) {
             
             return NextResponse.json({ success: true, imageUrl: data.data[0].url, provider: 'openai' });
         }
+
+        // --- OLLAMA HANDLER ---
+        if (mode === 'ollama') {
+            const targetWidth = Math.max(64, Number(width) || 1024);
+            const targetHeight = Math.max(64, Number(height) || 1024);
+            const requestedBaseUrl = typeof localAiBaseUrl === 'string' && localAiBaseUrl.trim().length > 0
+                ? localAiBaseUrl.trim()
+                : DEFAULT_OLLAMA_BASE_URL;
+            const requestedModel = typeof localAiModel === 'string' && localAiModel.trim().length > 0
+                ? localAiModel.trim()
+                : DEFAULT_OLLAMA_MODEL;
+
+            let resolvedBaseUrl: string;
+            try {
+                resolvedBaseUrl = normalizeOllamaBaseUrl(requestedBaseUrl);
+            } catch (error) {
+                return NextResponse.json({
+                    success: false,
+                    message: error instanceof Error ? error.message : 'Invalid Ollama URL.',
+                }, { status: 400 });
+            }
+
+            const abortController = new AbortController();
+            const timeoutId = setTimeout(() => abortController.abort(), OLLAMA_GENERATE_TIMEOUT_MS);
+
+            try {
+                const tagsResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
+                    method: 'GET',
+                    cache: 'no-store',
+                    signal: abortController.signal,
+                });
+
+                if (!tagsResult.ok || !tagsResult.response) {
+                    const attemptsSuffix = formatOllamaAttemptedBaseUrls(tagsResult.attemptedBaseUrls);
+                    if (tagsResult.response) {
+                        return NextResponse.json({
+                            success: false,
+                            message: `Ollama responded with ${tagsResult.response.status} ${tagsResult.response.statusText} while checking models.${attemptsSuffix}`,
+                        }, { status: 502 });
+                    }
+
+                    return NextResponse.json({
+                        success: false,
+                        message: `${tagsResult.error instanceof Error ? tagsResult.error.message : 'Failed to contact Ollama.'}${attemptsSuffix}`,
+                    }, { status: 502 });
+                }
+
+                const tagsPayload = await tagsResult.response.json() as OllamaTagsPayload;
+                const models = Array.isArray(tagsPayload.models)
+                    ? tagsPayload.models
+                        .map((entry) => entry.name || entry.model || '')
+                        .filter((entry) => entry.trim().length > 0)
+                    : [];
+
+                resolvedBaseUrl = tagsResult.baseUrl;
+
+                if (!models.includes(requestedModel)) {
+                    return NextResponse.json({
+                        success: false,
+                        message: `Model "${requestedModel}" is not installed in Ollama at ${resolvedBaseUrl}. Available models: ${formatOllamaModelList(models)}.`,
+                    }, { status: 400 });
+                }
+
+                const generationResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    cache: 'no-store',
+                    signal: abortController.signal,
+                    body: JSON.stringify({
+                        model: requestedModel,
+                        prompt: buildOllamaSvgGenerationPrompt({
+                            prompt: typeof prompt === 'string' ? prompt : '',
+                            width: targetWidth,
+                            height: targetHeight,
+                        }),
+                        stream: false,
+                        options: {
+                            temperature: 0.2,
+                        },
+                    }),
+                });
+
+                if (!generationResult.ok || !generationResult.response) {
+                    const attemptsSuffix = formatOllamaAttemptedBaseUrls(generationResult.attemptedBaseUrls);
+                    if (generationResult.response) {
+                        return NextResponse.json({
+                            success: false,
+                            message: `Ollama responded with ${generationResult.response.status} ${generationResult.response.statusText}.${attemptsSuffix}`,
+                        }, { status: 502 });
+                    }
+
+                    return NextResponse.json({
+                        success: false,
+                        message: `${generationResult.error instanceof Error ? generationResult.error.message : 'Failed to contact Ollama.'}${attemptsSuffix}`,
+                    }, { status: 502 });
+                }
+
+                resolvedBaseUrl = generationResult.baseUrl;
+                const generationPayload = await generationResult.response.json() as OllamaGeneratePayload;
+
+                if (generationPayload.error) {
+                    return NextResponse.json({
+                        success: false,
+                        message: generationPayload.error,
+                    }, { status: 502 });
+                }
+
+                if (!generationPayload.response || generationPayload.response.trim().length === 0) {
+                    return NextResponse.json({
+                        success: false,
+                        message: 'Ollama returned an empty image response.',
+                    }, { status: 502 });
+                }
+
+                const sanitizedSvg = sanitizeOllamaSvgDocument(generationPayload.response, targetWidth, targetHeight);
+                return NextResponse.json({
+                    success: true,
+                    imageUrl: encodeSvgDataUrl(sanitizedSvg),
+                    provider: 'ollama',
+                    output: 'svg',
+                });
+            } catch (error) {
+                const isAbortError = error instanceof DOMException && error.name === 'AbortError';
+                return NextResponse.json({
+                    success: false,
+                    message: isAbortError
+                        ? `Timed out contacting Ollama after ${Math.round(OLLAMA_GENERATE_TIMEOUT_MS / 1000)} seconds.`
+                        : (error instanceof Error ? error.message : 'Failed to contact Ollama.'),
+                }, { status: 502 });
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
+           if (!apiKey) {
+               return NextResponse.json({ success: false, message: 'API Key is required for remote generation.' });
+           }
 
         // --- GOOGLE HANDLER ---
         if (mode === 'google') {

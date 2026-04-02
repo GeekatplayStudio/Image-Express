@@ -171,9 +171,9 @@ export default function TopToolOptionsBar({
     return (
         <div
             data-testid="top-tool-options-bar"
-            className="h-11 border-b border-border/50 bg-card/60 backdrop-blur-sm px-3 flex items-center justify-between gap-3"
+            className="min-h-11 border-b border-border/50 bg-card/60 px-3 py-1.5 backdrop-blur-sm flex items-center gap-3 overflow-hidden"
         >
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex shrink-0 items-center gap-2.5 min-w-0">
                 {showToolbarActions && (
                     <>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -218,7 +218,7 @@ export default function TopToolOptionsBar({
                 </div>
             </div>
 
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <div className="flex flex-1 min-w-0 items-center justify-start gap-1.5 overflow-x-auto scrollbar-thin whitespace-nowrap pb-1 -mb-1 pr-1">
                 {(activeTool === 'select' || activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush') && selectOptions && (
                     <SelectionControls
                         activeTool={activeTool}

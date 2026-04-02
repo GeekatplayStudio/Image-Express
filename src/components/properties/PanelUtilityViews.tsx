@@ -28,6 +28,7 @@ interface NavigatorPanelViewProps {
     navigatorViewport?: NavigatorSceneRect;
     navigatorObjects?: NavigatorSceneRect[];
     navigatorBackground?: string;
+    navigatorPreviewDataUrl?: string | null;
     onZoomStep?: (delta: number) => void;
     onResetView?: () => void;
     onNavigate?: (sceneX: number, sceneY: number) => void;
@@ -1153,6 +1154,7 @@ export function NavigatorPanelView({
     navigatorViewport,
     navigatorObjects,
     navigatorBackground = '#ffffff',
+    navigatorPreviewDataUrl,
     onZoomStep,
     onResetView,
     onNavigate,
@@ -1237,7 +1239,15 @@ export function NavigatorPanelView({
                                 className="absolute inset-0"
                                 style={{ backgroundColor: navigatorBackground }}
                             />
-                            {previewObjects.map((rect, index) => (
+                            {navigatorPreviewDataUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element -- Navigator uses a generated data URL snapshot.
+                                <img
+                                    src={navigatorPreviewDataUrl}
+                                    alt="Navigator preview"
+                                    className="absolute inset-0 h-full w-full object-fill pointer-events-none select-none"
+                                    draggable={false}
+                                />
+                            ) : previewObjects.map((rect, index) => (
                                 <div
                                     key={`${rect.left}-${rect.top}-${index}`}
                                     className="absolute rounded-[2px] border border-foreground/30 bg-foreground/15"

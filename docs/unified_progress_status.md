@@ -695,22 +695,23 @@ Completed in this pass (Editor canvas overlay hook extraction slice):
 From `feature_implementation_tracker.md`:
 - [x] Upgrade program is **In Progress** (item 29)
 - [x] Gradient masks per layer
-- [~] Local AI support (Ollama): runtime preferences, status probe, and critique route done; image-generation provider wiring still pending
-- [~] AI critique of image/canvas: toolbar modal + local route implemented; interactive QA still pending
+- [x] Local AI support (Ollama): runtime preferences, status probe, critique route, and first-pass image-generation provider wiring are complete
+- [~] AI critique of image/canvas: toolbar modal + local route implemented, with runtime preflight/setup messaging in place; interactive QA still pending
 - [ ] Direct social media posting integrations
 - [ ] In-profile change password
 - [ ] Import/export asset library
 - [ ] Additional online storage providers
 - [ ] Channel editing panel
 - [ ] Google Imagen / Banana.dev / NanoBanana runtime completion
+- [ ] Facebook sign-in/auth integration
 
 ---
 
 ## Current Recommended Next Step
-Proceed with **Local AI support (Ollama)** follow-through:
-- [ ] Wire the saved local runtime settings into the existing image-generation workflow as a real provider path.
-- [ ] Reuse the existing status/model checks in image-generation entry points so setup failures are explicit before a job is submitted.
-- [ ] Run an interactive QA pass on the new critique modal with at least one vision-capable Ollama model (for example, a local multimodal model) and tune the critique prompt/output shape if needed.
+Proceed with **AI critique + local generation QA**:
+- [ ] Run an interactive QA pass on the new critique modal with at least one vision-capable Ollama model (for example, a local multimodal model) and tune the critique prompt/output shape now that runtime/model preflight is surfaced inline.
+- [ ] Run a hands-on QA pass on the new Ollama SVG generation path with the saved local runtime/model settings, then tune the SVG prompt template based on real outputs.
+- [ ] Decide whether the current Ollama path stays SVG-first or later graduates to a richer local-image orchestration flow.
 
 Media Export Overlay Phase B remains open for QA/decision follow-through:
 - [ ] Validate the new variant-draft save flow against real design sessions.

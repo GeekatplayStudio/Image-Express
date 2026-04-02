@@ -39,8 +39,11 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Image Generation**: Provider-routed generation via ComfyUI, Stability, and OpenAI pathways.
 - **Local AI Critique with Ollama**:
    - Persist local runtime settings for Ollama base URL and preferred model in Settings.
+   - Server-side Ollama routes retry between `localhost` and `host.docker.internal`, so the same saved setting can work when the app runs either directly on the host or inside Docker.
+   - Use Ollama as a first-pass local SVG generation provider in the shared image-generation modal.
    - Run local critique against either the selected layer or the full canvas from the toolbar.
    - Validate local model availability before sending critique requests.
+   - If the configured model is missing, the app now offers an inline install action in Settings, AI Critique, and Ollama generation flows.
 - **ComfyUI Workflow Library & Proxying**:
    - Browse runnable server templates plus custom workflow-folder JSON imports from the app.
    - Inspect and manage configured Comfy custom-node/workflow repositories.
@@ -58,6 +61,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Server-Side Design Storage**: Designs are saved securely on the server (via filesystem in this edition), bypassing browser storage limits.
 - **Asset Library**: 
   - Upload, organize, and manage images and 3D models.
+   - AI-generated and AI-processed outputs now save through the active storage mode, so they appear in the local library, Google Drive, or both according to current storage settings.
   - **3D Previews**: Hover over any 3D model asset to see a real-time rotating 3D preview popup.
   - **Renaming System**: Interactive renaming overlay for assets.
 - **Authentication**: Secure login system with server-side key persistence for API access.
@@ -125,6 +129,7 @@ To unlock full AI capabilities, you need to configure your API keys in the **Set
 **2D Generation (Text-to-Image):**
 - **[Stability AI](https://platform.stability.ai/)**: For Stable Diffusion generation.
 - **[OpenAI](https://platform.openai.com/)**: For DALL-E 3 integration.
+- **Comfy Cloud**: The app can bootstrap `COMFY_CLOUD_URL` and `COMFY_CLOUD_API_KEY` from runtime env for both host and Docker runs. Free-tier Comfy Cloud accounts currently reject API-key authentication, so a saved key alone will still return the provider error reported by Comfy Cloud until that account tier supports API access.
 
 ### Provider Key Validation (Settings)
 
@@ -160,10 +165,15 @@ This project includes a `Dockerfile` optimized for production.
    ```
 2. **Run**: 
    ```bash
-   docker run -p 3000:3000 image-express
+   docker run -p 3000:3000 \
+     -e COMFY_CLOUD_URL="https://cloud.comfy.org" \
+     -e COMFY_CLOUD_API_KEY="your-comfy-cloud-key" \
+     image-express
    ```
 
 For local ComfyUI folder management inside Docker, mount your Comfy install, `custom_nodes` folder, and optional workflow-library folder into the container. If ComfyUI itself runs on the host machine, prefer `host.docker.internal` over `localhost` for server-side template scans.
+
+For host installs outside Docker, creating a local `.env.local` with the same `COMFY_CLOUD_URL` and `COMFY_CLOUD_API_KEY` values is enough for the app to preload the cloud configuration.
 
 ## 🏗 Project Structure
 
@@ -231,12 +241,18 @@ The Properties Panel provides comprehensive editing capabilities:
 - Current implementation status and handoff checkpoint: [docs/unified_progress_status.md](docs/unified_progress_status.md)
 - Editor ownership map for ongoing refactors: [docs/component_responsibility_map.md](docs/component_responsibility_map.md)
 - Current large-component audit and extraction plan: [docs/refactor_component_audit_2026-02-26.md](docs/refactor_component_audit_2026-02-26.md)
+- Current repo maintenance audit snapshot: [docs/repo_maintenance_audit.md](docs/repo_maintenance_audit.md)
 - Latest release notes (Apr 1 2026): [docs/release_notes_2026-04-01.md](docs/release_notes_2026-04-01.md)
 
 Validation status as of 2026-04-01:
 - `npm.cmd test -- --runInBand --ci` -> 57/57 suites passed
 - `npm.cmd run build` -> passed
 - `npm.cmd run lint -- .` -> passed with existing warnings only
+
+Maintenance audit:
+- `npm run audit:repo` -> reports oversized source/test files, large modules without a direct same-name test heuristic, and runtime `coming soon` / `not implemented yet` markers.
+- Playwright output folders such as `test-results/` and `playwright-report/` are intentionally ignored.
+- Current generated-asset saves, Comfy/Ollama runtime fallbacks, navigator thumbnail preview, and circular-context-menu sync are all tracked in the latest release notes.
 
 ## Editor Refactor Status
 

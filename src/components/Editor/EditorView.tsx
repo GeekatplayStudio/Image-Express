@@ -563,6 +563,7 @@ export default function EditorView({
         exportRef,
         setShowExportMenu,
         setZoom,
+        zoomTopMode,
         handTopLockPan,
         mediaPreview,
         setMediaPreview,
@@ -587,6 +588,19 @@ export default function EditorView({
             return prev;
         });
     }, [activeTool, setPanelState, setPropertiesPanelMode]);
+
+    const handleRequestPropertiesPanel = useCallback((mode: PanelRailMode = 'properties') => {
+        setPropertiesPanelMode((prev) => (prev === mode ? prev : mode));
+        setPanelState((prev) => {
+            if (prev.mode === 'collapsed-left') {
+                return { ...prev, mode: 'docked-left' };
+            }
+            if (prev.mode === 'collapsed-right') {
+                return { ...prev, mode: 'docked-right' };
+            }
+            return prev;
+        });
+    }, [setPanelState, setPropertiesPanelMode]);
 
     const closeExportMenu = useCallback(() => {
         setShowExportMenu(false);
@@ -805,6 +819,7 @@ export default function EditorView({
         activePalette,
         setActivePalette,
         handleToolbarToolChange,
+        handleRequestPropertiesPanel,
         handleOpenThreeDEditor,
         apiKeys,
         zoomTopMode,
@@ -1129,7 +1144,7 @@ export default function EditorView({
                 />
             </header>
 
-            <EditorTopToolOptionsBridge activeTool={activeTool} {...topToolOptionsBridgeProps} />
+            <EditorTopToolOptionsBridge activeTool={activeTool} onTriggerTool={handleToolbarToolChange} {...topToolOptionsBridgeProps} />
 
             {/* Overlays */}
             <EditorViewOverlays

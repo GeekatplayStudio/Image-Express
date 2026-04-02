@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ImageGeneratorModal from '../ImageGeneratorModal';
+import { LOCAL_AI_PREFERENCES_STORAGE_KEY } from '@/lib/localAiPreferences';
 
 const mockImageFromURL = jest.fn();
 const mockUseEscapeKey = jest.fn();
@@ -14,12 +15,18 @@ const mockInspectComfyServerCatalog = jest.fn(async () => ({
     transportKind: 'local',
     records: [],
 }));
+const mockPersistAssetToLibrary = jest.fn(async () => ({ savedProviders: ['local'], warnings: [] }));
 
 jest.mock('@/providers/DialogProvider', () => ({
     __esModule: true,
     useDialog: () => ({
         confirm: (...args: unknown[]) => mockDialogConfirm(...args),
     }),
+}));
+
+jest.mock('@/lib/assetPersistence', () => ({
+    __esModule: true,
+    persistAssetToLibrary: (...args: unknown[]) => mockPersistAssetToLibrary(...args),
 }));
 
 jest.mock('@/lib/comfyui/connection', () => {
@@ -244,6 +251,7 @@ describe('ImageGeneratorModal', () => {
 
             return mockJsonResponse({}) as Response;
         });
+        mockPersistAssetToLibrary.mockResolvedValue({ savedProviders: ['local'], warnings: [] });
     });
 
     afterAll(() => {
@@ -320,6 +328,7 @@ describe('ImageGeneratorModal', () => {
         const providerSelect = screen.getAllByRole('combobox')[0];
         expect(providerSelect).toHaveValue('openai');
         expect(screen.getByRole('option', { name: 'ComfyUI' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'Ollama (Local SVG)' })).toBeInTheDocument();
         expect(screen.getByRole('option', { name: 'Stability AI' })).toBeInTheDocument();
         expect(screen.getByRole('option', { name: 'ChatGPT / OpenAI' })).toBeInTheDocument();
 
@@ -383,6 +392,99 @@ describe('ImageGeneratorModal', () => {
         );
     });
 
+    it('forwards saved Ollama runtime settings when generating through the local provider', async () => {
+        localStorage.setItem('image-express-gen-provider', 'ollama');
+        localStorage.setItem(LOCAL_AI_PREFERENCES_STORAGE_KEY, JSON.stringify({
+            ollamaBaseUrl: 'http://localhost:11434',
+            ollamaModel: 'qwen2.5:7b',
+        }));
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A geometric fox poster' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('mock-next-image')).toBeInTheDocument();
+            expect(screen.getByText('Generation complete!')).toBeInTheDocument();
+        });
+
+        const generateCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/generate-image');
+        expect(generateCall).toBeDefined();
+        const payload = JSON.parse(generateCall?.[1].body as string);
+        expect(payload).toEqual(expect.objectContaining({
+            provider: 'remote',
+            specificProvider: 'ollama',
+            localAiBaseUrl: 'http://localhost:11434',
+            localAiModel: 'qwen2.5:7b',
+            prompt: 'A geometric fox poster',
+        }));
+    });
+
+    it('prompts to install a missing Ollama model and runs the install request', async () => {
+        localStorage.setItem('image-express-gen-provider', 'ollama');
+        localStorage.setItem(LOCAL_AI_PREFERENCES_STORAGE_KEY, JSON.stringify({
+            ollamaBaseUrl: 'http://localhost:11434',
+            ollamaModel: 'qwen2.5:7b',
+        }));
+        mockDialogConfirm.mockResolvedValue(true);
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({
+                    success: false,
+                    message: 'Model "qwen2.5:7b" is not installed in Ollama at http://localhost:11434. Available models: qwen2.5-coder:7b, llama3.1:8b.',
+                });
+            }
+            if (input === '/api/ai/ollama/install') {
+                return mockJsonResponse({
+                    success: true,
+                    message: 'Installed "qwen2.5:7b" in Ollama at http://localhost:11434.',
+                    model: 'qwen2.5:7b',
+                    baseUrl: 'http://localhost:11434',
+                });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A geometric fox poster' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(mockDialogConfirm).toHaveBeenCalledWith(
+                'Model "qwen2.5:7b" is not installed in Ollama yet. Download and install it now?',
+                expect.objectContaining({ title: 'Install missing Ollama model' })
+            );
+        });
+        await waitFor(() => {
+            expect((global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/ollama/install')).toBeDefined();
+            expect(screen.getByText(/Installed "qwen2.5:7b" in Ollama/i)).toBeInTheDocument();
+        });
+    });
+
     it('shows error message when generation fails', async () => {
         localStorage.setItem('openai_api_key', 'openai-123');
         localStorage.setItem('image-express-gen-provider', 'openai');
@@ -410,7 +512,7 @@ describe('ImageGeneratorModal', () => {
         });
     });
 
-    it('places generated image on canvas, saves asset URL, and closes modal', async () => {
+    it('places generated image on canvas, persists it to the configured asset library, and closes modal', async () => {
         localStorage.setItem('openai_api_key', 'openai-123');
         localStorage.setItem('image-express-gen-provider', 'openai');
         const onClose = jest.fn();
@@ -421,10 +523,6 @@ describe('ImageGeneratorModal', () => {
             }
             if (input === '/api/ai/generate-image') {
                 return mockJsonResponse({ success: true, imageUrl: 'https://cdn.example/generated.png' });
-            }
-
-            if (input === '/api/assets/save-url') {
-                return mockJsonResponse({ success: true });
             }
 
             throw new Error(`Unexpected fetch call: ${input}`);
@@ -461,13 +559,12 @@ describe('ImageGeneratorModal', () => {
             expect(onClose).toHaveBeenCalled();
         });
 
-        expect(global.fetch).toHaveBeenCalledWith(
-            '/api/assets/save-url',
-            expect.objectContaining({
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-            })
-        );
+        expect(mockPersistAssetToLibrary).toHaveBeenCalledWith(expect.objectContaining({
+            source: 'https://cdn.example/generated.png',
+            type: 'images',
+            category: 'generated',
+            owner: 'artist@example.com',
+        }));
     });
 
     it('calls onGenerate fallback when no canvas is provided', async () => {

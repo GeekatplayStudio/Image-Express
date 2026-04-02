@@ -1,6 +1,7 @@
 import { type Dispatch, type RefObject, type SetStateAction, useEffect } from 'react';
 import * as fabric from 'fabric';
 
+import { applyEditorCanvasToolConfig } from '@/components/Editor/editorCanvasToolMode';
 import { loadUiPreferences, UI_PREFERENCES_CHANGED_EVENT } from '@/lib/ui-preferences';
 
 type MediaPreview = { type: 'video' | 'audio'; url: string } | null;
@@ -16,6 +17,7 @@ type UseEditorShellEffectsArgs = {
     exportRef: RefObject<HTMLDivElement | null>;
     setShowExportMenu: Dispatch<SetStateAction<boolean>>;
     setZoom: Dispatch<SetStateAction<number>>;
+    zoomTopMode: 'in' | 'out';
     handTopLockPan: boolean;
     mediaPreview: MediaPreview;
     setMediaPreview: Dispatch<SetStateAction<MediaPreview>>;
@@ -62,6 +64,7 @@ export function useEditorShellEffects({
     exportRef,
     setShowExportMenu,
     setZoom,
+    zoomTopMode,
     handTopLockPan,
     mediaPreview,
     setMediaPreview,
@@ -85,6 +88,11 @@ export function useEditorShellEffects({
             canvas.off('selection:updated', handleSelection);
         };
     }, [canvas, activeTool, autoSelectEnabled, setActiveTool]);
+
+    useEffect(() => {
+        if (!canvas) return;
+        applyEditorCanvasToolConfig(canvas, activeTool, { zoomMode: zoomTopMode });
+    }, [canvas, activeTool, zoomTopMode]);
 
     useEffect(() => {
         if (!canvas) return;

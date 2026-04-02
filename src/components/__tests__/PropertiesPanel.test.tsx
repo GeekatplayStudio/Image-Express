@@ -1,14 +1,106 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import * as fabric from 'fabric';
 import PropertiesPanel from '../PropertiesPanel';
+import { createMockCanvas, createMockObject } from './propertiesPanelTestUtils';
+
+type SelectionPropertiesMockProps = {
+    selectedObject: { type?: string; adjustmentType?: string; isAdjustmentLayer?: boolean } | null;
+    onPropChange: (prop: string, value: unknown) => void;
+};
+
+type ColorPanelViewMockProps = {
+    color: string;
+    hasEditableTarget: boolean;
+    onColorChange: (color: string) => void;
+};
+
+let latestSelectionProps: SelectionPropertiesMockProps | null = null;
+let latestColorPanelProps: ColorPanelViewMockProps | null = null;
+let getContextSpy: jest.SpyInstance | null = null;
+
+jest.mock('fabric', () => {
+    const actual = jest.requireActual('fabric');
+
+    class MockCanvas2dFilterBackend {}
+
+    class MockRect {
+        type = 'rect';
+        left = 0;
+        top = 0;
+        width = 0;
+        height = 0;
+        fill = 'transparent';
+        selectable = true;
+        evented = true;
+        visible = true;
+        opacity = 1;
+        set = jest.fn((key: string | Record<string, unknown>, value?: unknown) => {
+            if (typeof key === 'string') {
+                (this as unknown as Record<string, unknown>)[key] = value;
+                return;
+            }
+
+            Object.assign(this, key);
+        });
+        setCoords = jest.fn();
+
+        constructor(options: Partial<MockRect> = {}) {
+            Object.assign(this, options);
+        }
+    }
+
+    return {
+        ...actual,
+        Canvas2dFilterBackend: MockCanvas2dFilterBackend,
+        Rect: MockRect,
+        getFilterBackend: jest.fn(() => new MockCanvas2dFilterBackend()),
+        setFilterBackend: jest.fn(),
+    };
+});
 
 jest.mock('../properties/LayersView', () => ({
     LayersView: () => <div data-testid="layers-view">Layers view</div>,
 }));
 
 jest.mock('../properties/SelectionProperties', () => ({
-    SelectionProperties: () => <div data-testid="selection-properties">Selection properties</div>,
+    SelectionProperties: (props: SelectionPropertiesMockProps) => {
+        latestSelectionProps = props;
+
+        return (
+            <div data-testid="selection-properties">
+                <div>Selection properties</div>
+                <div data-testid="selection-object-type">{props.selectedObject?.type ?? 'none'}</div>
+                <div data-testid="selection-adjustment-type">{props.selectedObject?.adjustmentType ?? 'none'}</div>
+                <button type="button" onClick={() => props.onPropChange('fill', '#224466')}>
+                    Mock apply selection color
+                </button>
+            </div>
+        );
+    },
 }));
+
+jest.mock('../properties/PanelUtilityViews', () => {
+    const actual = jest.requireActual('../properties/PanelUtilityViews');
+
+    return {
+        ...actual,
+        ColorPanelView: (props: ColorPanelViewMockProps) => {
+            latestColorPanelProps = props;
+
+            return (
+                <div>
+                    <div>Color</div>
+                    <div data-testid="color-panel-current-color">{props.color}</div>
+                    <div data-testid="color-panel-has-target">{String(props.hasEditableTarget)}</div>
+                    <button type="button" onClick={() => props.onColorChange('#224466')}>
+                        Apply mock color
+                    </button>
+                </div>
+            );
+        },
+    };
+});
 
 jest.mock('../properties/PaintProperties', () => ({
     PaintProperties: () => <div data-testid="paint-properties">Paint properties</div>,
@@ -34,8 +126,18 @@ jest.mock('@/hooks/useGradientControls', () => ({
 const PANEL_MODE_STORAGE_KEY = 'image-express-properties-panel-mode';
 
 describe('PropertiesPanel panel mode rail persistence', () => {
+    beforeAll(() => {
+        getContextSpy = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ({}) as CanvasRenderingContext2D);
+    });
+
+    afterAll(() => {
+        getContextSpy?.mockRestore();
+    });
+
     beforeEach(() => {
         window.localStorage.clear();
+        latestSelectionProps = null;
+        latestColorPanelProps = null;
     });
 
     it('hydrates panel mode from localStorage', async () => {
@@ -231,5 +333,58 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         });
 
         expect(screen.getByTestId('layers-view')).toBeInTheDocument();
+    });
+
+    it('switches back to properties and focuses the new adjustment layer after adjustment creation', async () => {
+        const canvas = createMockCanvas();
+        window.localStorage.setItem(PANEL_MODE_STORAGE_KEY, 'layers');
+
+        render(<PropertiesPanel canvas={canvas as unknown as fabric.Canvas} activeTool="select" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Panel mode layers' })).toHaveAttribute('aria-pressed', 'true');
+        });
+
+        act(() => {
+            canvas.emit('adjustment:create', { type: 'brightness-contrast' });
+        });
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Panel mode properties' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('selection-properties')).toBeInTheDocument();
+            expect(screen.getByTestId('selection-adjustment-type')).toHaveTextContent('brightness-contrast');
+        });
+
+        expect(canvas.add).toHaveBeenCalledTimes(1);
+        expect(canvas.setActiveObject).toHaveBeenCalledTimes(1);
+        expect(latestSelectionProps?.selectedObject?.isAdjustmentLayer).toBe(true);
+    });
+
+    it('hydrates the selected fill into color mode and applies color changes back to the object', async () => {
+        const selectedObject = createMockObject({ fill: '#112233' });
+        const canvas = createMockCanvas([selectedObject], [selectedObject]);
+
+        render(
+            <PropertiesPanel
+                canvas={canvas as unknown as fabric.Canvas}
+                activeTool="select"
+                panelMode="color"
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('color-panel-current-color')).toHaveTextContent('#112233');
+            expect(screen.getByTestId('color-panel-has-target')).toHaveTextContent('true');
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Apply mock color' }));
+
+        await waitFor(() => {
+            expect(selectedObject.fill).toBe('#224466');
+            expect(screen.getByTestId('color-panel-current-color')).toHaveTextContent('#224466');
+        });
+
+        expect(selectedObject.set).toHaveBeenCalledWith('fill', '#224466');
+        expect(latestColorPanelProps?.hasEditableTarget).toBe(true);
     });
 });

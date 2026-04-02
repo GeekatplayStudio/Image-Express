@@ -255,6 +255,86 @@ describe('SettingsModal', () => {
         );
     });
 
+    it('installs a missing Ollama model from Settings after a failed check', async () => {
+        let statusCalls = 0;
+        (global as unknown as { fetch: jest.Mock }).fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = String(input);
+            if (url.startsWith('/api/user/keys?')) {
+                return {
+                    ok: true,
+                    json: async () => ({ keys: {} }),
+                } as Response;
+            }
+            if (url.startsWith('/api/user/admin/users?')) {
+                return {
+                    ok: true,
+                    json: async () => ({ success: true, users: [] }),
+                } as Response;
+            }
+            if (url === '/api/logs/login') {
+                return {
+                    ok: true,
+                    text: async () => 'login-entry-1',
+                } as Response;
+            }
+            if (url.startsWith('/api/ai/ollama/status?')) {
+                statusCalls += 1;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        requestedModel: 'qwen2.5:7b',
+                        modelFound: statusCalls > 1,
+                        count: statusCalls > 1 ? 2 : 1,
+                        models: statusCalls > 1 ? ['qwen2.5-coder:7b', 'qwen2.5:7b'] : ['qwen2.5-coder:7b'],
+                    }),
+                } as Response;
+            }
+            if (url === '/api/ai/ollama/install' && init?.method === 'POST') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        message: 'Installed "qwen2.5:7b" in Ollama at http://localhost:11434.',
+                        model: 'qwen2.5:7b',
+                        baseUrl: 'http://localhost:11434',
+                    }),
+                } as Response;
+            }
+            if (url === '/api/ai/comfy/library' && init?.method === 'POST') {
+                return {
+                    ok: true,
+                    json: async () => ({ success: true, message: 'Comfy library refreshed.', snapshot: null }),
+                } as Response;
+            }
+            return {
+                ok: true,
+                json: async () => ({}),
+                text: async () => '',
+            } as Response;
+        });
+
+        render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Check Ollama/i }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Install qwen2.5:7b' })).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Install qwen2.5:7b' }));
+
+        await waitFor(() => {
+            expect((global as unknown as { fetch: jest.Mock }).fetch).toHaveBeenCalledWith(
+                '/api/ai/ollama/install',
+                expect.objectContaining({ method: 'POST' })
+            );
+        });
+        await waitFor(() => {
+            expect(screen.getByText(/Ollama is reachable/i)).toBeInTheDocument();
+        });
+    });
+
     it('handles drive connect flow and launches setup wizard', async () => {
         render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
 

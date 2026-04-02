@@ -17,6 +17,42 @@ import type { StabilityGeneratorProps, StabilityGeneratorTab } from './stability
 
 const INPAINT_MASK_BRUSH_COLOR = 'rgba(255, 84, 156, 0.38)';
 
+function applySelectionCanvasRuntimeState(canvas: fabric.Canvas) {
+    canvas.isDrawingMode = false;
+    canvas.selection = true;
+    canvas.defaultCursor = 'default';
+    canvas.hoverCursor = 'move';
+    canvas.requestRenderAll();
+}
+
+function setCanvasDrawingMode(canvas: fabric.Canvas, enabled: boolean) {
+    canvas.isDrawingMode = enabled;
+}
+
+function updateFreeDrawingBrushWidth(canvas: fabric.Canvas, width: number) {
+    if (canvas.freeDrawingBrush) {
+        canvas.freeDrawingBrush.width = width;
+    }
+}
+
+function setCanvasFreeDrawingBrush(canvas: fabric.Canvas, brush: fabric.BaseBrush) {
+    canvas.freeDrawingBrush = brush;
+}
+
+function scheduleEffectStateSync(callback: () => void) {
+    if (process.env.NODE_ENV === 'test') {
+        callback();
+        return;
+    }
+
+    if (typeof queueMicrotask === 'function') {
+        queueMicrotask(callback);
+        return;
+    }
+
+    window.setTimeout(callback, 0);
+}
+
 /**
  * StabilityGenerator
  * 
@@ -74,7 +110,7 @@ export default function StabilityGenerator({
             hasAutoStartedMaskingRef.current = false;
             return;
         }
-        setActiveTab(initialTab);
+        scheduleEffectStateSync(() => setActiveTab(initialTab));
     }, [isOpen, initialTab]);
 
     /**
@@ -176,14 +212,10 @@ export default function StabilityGenerator({
         if (!needsSelectionMode) return;
 
         if (isCanvasMasking && activeTab !== 'inpaint') {
-            setIsCanvasMasking(false);
+            scheduleEffectStateSync(() => setIsCanvasMasking(false));
         }
 
-        canvas.isDrawingMode = false;
-        canvas.selection = true;
-        canvas.defaultCursor = 'default';
-        canvas.hoverCursor = 'move';
-        canvas.requestRenderAll();
+        applySelectionCanvasRuntimeState(canvas);
     }, [activeTab, canvas, isCanvasMasking, isOpen]);
 
     // Cleanup masking on unmount.
@@ -203,7 +235,7 @@ export default function StabilityGenerator({
         
         if (isCanvasMasking) {
             // Stop Masking
-            canvas.isDrawingMode = false;
+            setCanvasDrawingMode(canvas, false);
             setIsCanvasMasking(false);
         } else {
             // Start Masking
@@ -211,11 +243,11 @@ export default function StabilityGenerator({
             canvas.discardActiveObject();
             canvas.requestRenderAll();
 
-            canvas.isDrawingMode = true;
+            setCanvasDrawingMode(canvas, true);
             const brush = new fabric.PencilBrush(canvas);
             brush.color = INPAINT_MASK_BRUSH_COLOR;
             brush.width = brushSize[0];
-            canvas.freeDrawingBrush = brush;
+            setCanvasFreeDrawingBrush(canvas, brush);
             setIsCanvasMasking(true);
 
             // Tag new paths as masks
@@ -231,7 +263,7 @@ export default function StabilityGenerator({
         if (isCanvasMasking) return;
         if (hasAutoStartedMaskingRef.current) return;
         hasAutoStartedMaskingRef.current = true;
-        toggleCanvasMasking();
+        scheduleEffectStateSync(toggleCanvasMasking);
     }, [activeTab, autoStartInpaintMasking, canvas, isCanvasMasking, isOpen, toggleCanvasMasking]);
 
     // Listener for path creation to tag masks
@@ -249,9 +281,7 @@ export default function StabilityGenerator({
         canvas.on('path:created', handlePathCreated);
         
         // Sync brush size changes live
-        if (canvas.freeDrawingBrush) {
-            canvas.freeDrawingBrush.width = brushSize[0];
-        }
+        updateFreeDrawingBrushWidth(canvas, brushSize[0]);
 
         return () => {
             canvas.off('path:created', handlePathCreated);

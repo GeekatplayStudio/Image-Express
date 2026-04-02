@@ -192,6 +192,7 @@ type EditorTopToolOptionsBridgeProps = {
     activeTool: string;
     canvas: fabric.Canvas | null;
     toolbarRef: MutableRefObject<ToolbarHandle | null>;
+    onTriggerTool: (tool: string) => void;
     toolbarState: ToolbarState;
     selectionControls: SelectionControlsState;
     retouchControls: RetouchControlsState;
@@ -206,7 +207,7 @@ type EditorTopToolOptionsBridgeProps = {
 export default function EditorTopToolOptionsBridge({
     activeTool,
     canvas,
-    toolbarRef,
+    onTriggerTool,
     toolbarState,
     selectionControls,
     retouchControls,
@@ -266,7 +267,7 @@ export default function EditorTopToolOptionsBridge({
             onSelectionExpand={() => selectionControls.handleSelectionModify('expand')}
             onSelectionContract={() => selectionControls.handleSelectionModify('contract')}
             onSelectToolChange={(tool) => {
-                toolbarRef.current?.triggerTool(tool);
+                onTriggerTool(tool);
             }}
             wandOptions={{
                 threshold: retouchControls.wandTopThreshold,

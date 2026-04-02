@@ -13,6 +13,7 @@ type UseEditorWorkspaceCompositionPropsArgs<TJob extends { id: string }> = {
     activePalette: ColorPalette | null;
     setActivePalette: Dispatch<SetStateAction<ColorPalette | null>>;
     handleToolbarToolChange: (toolName: string) => void;
+    handleRequestPropertiesPanel: (mode?: PanelRailMode) => void;
     handleOpenThreeDEditor: (url: string) => void;
     apiKeys: Record<string, string | undefined>;
     zoomTopMode: 'in' | 'out';
@@ -102,6 +103,7 @@ export function useEditorWorkspaceCompositionProps<TJob extends { id: string }>(
         activePalette,
         setActivePalette,
         handleToolbarToolChange,
+        handleRequestPropertiesPanel,
         handleOpenThreeDEditor,
         apiKeys,
         zoomTopMode,
@@ -263,6 +265,7 @@ export function useEditorWorkspaceCompositionProps<TJob extends { id: string }>(
         activePalette,
         setActivePalette,
         setActiveTool: handleToolbarToolChange,
+        onRequestPropertiesPanel: handleRequestPropertiesPanel,
         onOpen3DEditor: handleOpenThreeDEditor,
         apiKeys,
         zoomCursorMode: zoomTopMode,
@@ -280,6 +283,7 @@ export function useEditorWorkspaceCompositionProps<TJob extends { id: string }>(
         x: contextMenu.x,
         y: contextMenu.y,
         isOpen: contextMenu.isOpen,
+        activeTool,
         onClose: handleCloseContextMenu,
         onSelectTool: triggerToolbarTool,
         onLayerOrderAction: handleLayerOrderAction,
