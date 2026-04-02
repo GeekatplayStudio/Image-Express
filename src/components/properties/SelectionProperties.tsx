@@ -10,8 +10,22 @@ import { ImageFilterProperties, ImageFilterValues } from './ImageFilterPropertie
 import { ShadowStrokeProperties, ShadowStrokeValues } from './ShadowStrokeProperties';
 import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
+import { readMaskGradientSettings } from './maskGradientUtils';
 import { Folder, Layers, Blend, ChevronDown, ChevronRight, Lock, Unlock, Box, Type } from 'lucide-react';
 import { ColorPicker } from './ColorPicker';
+
+const ADJUSTMENT_ACTION_ITEMS: Array<{ type: AdjustmentLayerType; enabled: boolean }> = [
+    { type: 'curves', enabled: true },
+    { type: 'levels', enabled: true },
+    { type: 'saturation-vibrance', enabled: true },
+    { type: 'hue-saturation', enabled: true },
+    { type: 'exposure', enabled: true },
+    { type: 'black-white', enabled: true },
+    { type: 'brightness-contrast', enabled: true },
+    { type: 'color-balance', enabled: true },
+    { type: 'light-and-color', enabled: false },
+    { type: 'solid-color', enabled: false },
+];
 
 const getAdjustmentTypeLabel = (type: AdjustmentLayerType) => {
     if (type === 'curves') return 'Curves';
@@ -99,6 +113,8 @@ export function SelectionProperties({
     selectedTextPathId,
     hasAttachedTextPath,
     updateAdjustment,
+    onAdjustmentTypeChange,
+    onCreateAdjustmentLayer,
     onMake3D,
     textState,
     activeTextEffects,
@@ -123,6 +139,9 @@ export function SelectionProperties({
     const isMasked = !!selectedObject?.clipPath;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isMaskAbsolute = isMasked ? (selectedObject?.clipPath as any).absolutePositioned : false;
+    const maskGradientSettings = isMasked
+        ? readMaskGradientSettings(selectedObject?.clipPath as fabric.Object | null | undefined)
+        : null;
     
     const isAdjustment = (selectedObject as ExtendedFabricObject)?.isAdjustmentLayer;
     const extended = selectedObject as ExtendedFabricObject;
@@ -566,6 +585,8 @@ export function SelectionProperties({
                 blendMode={selectedObject.globalCompositeOperation || 'source-over'}
                 visible={selectedObject.visible !== false}
                 onChange={(vals) => handleTransform(vals)}
+                maskGradient={maskGradientSettings}
+                onMaskGradientChange={isMasked ? (vals) => onPropChange('maskGradient', vals) : undefined}
             />
 
             <LayoutProperties 
@@ -581,9 +602,59 @@ export function SelectionProperties({
                 />
             )}
 
+            {!isAdjustment && onCreateAdjustmentLayer && (
+                <div className="p-4 border-b border-border/50 space-y-3">
+                    <h3 className="font-medium text-sm">Adjustments</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                        {ADJUSTMENT_ACTION_ITEMS.map((item) => (
+                            <button
+                                key={item.type}
+                                type="button"
+                                aria-label={`Adjustment action ${getAdjustmentTypeLabel(item.type)}`}
+                                onClick={() => onCreateAdjustmentLayer(item.type)}
+                                disabled={!item.enabled}
+                                className={`rounded border px-2 py-1.5 text-[11px] text-left transition-colors ${item.enabled ? 'border-border/60 bg-secondary/20 hover:bg-secondary/40 text-foreground' : 'border-border/40 bg-secondary/10 text-muted-foreground cursor-not-allowed opacity-60'}`}
+                            >
+                                {getAdjustmentTypeLabel(item.type)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {isAdjustment && extended?.adjustmentType && (
                  <div className="p-4 border-b border-border/50 space-y-3">
                     <h3 className="font-medium text-sm">Adjustment Settings</h3>
+                    {onAdjustmentTypeChange && (
+                        <div className="grid grid-cols-3 gap-2">
+                            {(['curves', 'levels', 'exposure'] as const).map((type) => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    aria-label={`Quick adjustment ${getAdjustmentTypeLabel(type)}`}
+                                    onClick={() => onAdjustmentTypeChange(type)}
+                                    className={`rounded border px-2 py-1 text-[10px] transition-colors ${extended.adjustmentType === type ? 'border-tool-accent/40 bg-tool-accent/20 text-tool-accent' : 'border-border/50 bg-secondary/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground'}`}
+                                >
+                                    {getAdjustmentTypeLabel(type)}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {onAdjustmentTypeChange && (
+                        <div className="grid grid-cols-2 gap-2">
+                            {ADJUSTMENT_ACTION_ITEMS.filter((item) => item.enabled).map((item) => (
+                                <button
+                                    key={item.type}
+                                    type="button"
+                                    aria-label={`Adjustment action ${getAdjustmentTypeLabel(item.type)}`}
+                                    onClick={() => onAdjustmentTypeChange(item.type)}
+                                    className={`rounded border px-2 py-1.5 text-[11px] text-left transition-colors ${extended.adjustmentType === item.type ? 'border-tool-accent/40 bg-tool-accent/20 text-tool-accent' : 'border-border/60 bg-secondary/20 hover:bg-secondary/40 text-foreground'}`}
+                                >
+                                    {getAdjustmentTypeLabel(item.type)}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <div className="text-[11px] text-muted-foreground">
                         Type: {getAdjustmentTypeLabel(extended.adjustmentType)}
                     </div>

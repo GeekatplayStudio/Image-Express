@@ -37,6 +37,14 @@ Image Express is a professional content creation platform built with Next.js 16,
   - **Textured Models**: Enforced PBR texture generation for realistic results.
   - **Background Processing**: Robust polling system for long-running AI tasks.
 - **Image Generation**: Provider-routed generation via ComfyUI, Stability, and OpenAI pathways.
+- **Local AI Critique with Ollama**:
+   - Persist local runtime settings for Ollama base URL and preferred model in Settings.
+   - Run local critique against either the selected layer or the full canvas from the toolbar.
+   - Validate local model availability before sending critique requests.
+- **ComfyUI Workflow Library & Proxying**:
+   - Browse runnable server templates plus custom workflow-folder JSON imports from the app.
+   - Inspect and manage configured Comfy custom-node/workflow repositories.
+   - Use a same-origin Comfy proxy with loopback fallback handling for Docker/host setups.
 - **AI Edit Notes (Beta)**:
    - Create a reference layer directly from the currently selected canvas layer.
    - Annotate with a large notes workspace using point/manual notes.
@@ -155,6 +163,8 @@ This project includes a `Dockerfile` optimized for production.
    docker run -p 3000:3000 image-express
    ```
 
+For local ComfyUI folder management inside Docker, mount your Comfy install, `custom_nodes` folder, and optional workflow-library folder into the container. If ComfyUI itself runs on the host machine, prefer `host.docker.internal` over `localhost` for server-side template scans.
+
 ## 🏗 Project Structure
 
 - **`src/app`**:
@@ -189,6 +199,7 @@ The Properties Panel provides comprehensive editing capabilities:
 - **Profile Preview Modes**: sRGB, Adobe RGB, and CMYK print-preview context
 - **Harmony Sets**: Save, rename, delete, import, and export harmony palettes
 - **Grouped Swatches**: Create, select, and remove swatch groups directly in the Swatches panel, plus add/remove swatches per group
+- **Mask Gradient Controls**: Clip-path masks support non-destructive linear or radial opacity fades with editable angle/start/end opacity.
 
 ### Shadow & Stroke
 - **Drop Shadow**: Blur (0-150px), Offset (±200px), Opacity, Blend Modes
@@ -220,7 +231,12 @@ The Properties Panel provides comprehensive editing capabilities:
 - Current implementation status and handoff checkpoint: [docs/unified_progress_status.md](docs/unified_progress_status.md)
 - Editor ownership map for ongoing refactors: [docs/component_responsibility_map.md](docs/component_responsibility_map.md)
 - Current large-component audit and extraction plan: [docs/refactor_component_audit_2026-02-26.md](docs/refactor_component_audit_2026-02-26.md)
-- Latest release notes (Mar 1 2026): [docs/release_notes_2026-03-01.md](docs/release_notes_2026-03-01.md)
+- Latest release notes (Apr 1 2026): [docs/release_notes_2026-04-01.md](docs/release_notes_2026-04-01.md)
+
+Validation status as of 2026-04-01:
+- `npm.cmd test -- --runInBand --ci` -> 57/57 suites passed
+- `npm.cmd run build` -> passed
+- `npm.cmd run lint -- .` -> passed with existing warnings only
 
 ## Editor Refactor Status
 

@@ -182,7 +182,7 @@ export const prepareComfyTask = async (options: PrepareComfyTaskOptions): Promis
 
     const objectInfo = await client.getObjectInfoSnapshot();
     if (objectInfo && typeof objectInfo === 'object') {
-        let missingNodeTypes = findMissingNodeTypes(workflowJson, objectInfo);
+        const missingNodeTypes = findMissingNodeTypes(workflowJson, objectInfo);
 
         if (missingNodeTypes.length > 0) {
             const candidates = comfyWorkflowRegistry.getWorkflowsForTask(options.task)

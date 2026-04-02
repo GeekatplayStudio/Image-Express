@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import EditorCanvasWorkspace from '@/components/Editor/EditorCanvasWorkspace';
 import EditorHeaderPrimary from '@/components/Editor/EditorHeaderPrimary';
 import EditorHeaderMenus from '@/components/Editor/EditorHeaderMenus';
@@ -47,6 +47,7 @@ import { useEditorPaintPenEffects } from '@/components/Editor/useEditorPaintPenE
 import { useEditorPanelModePersistence } from '@/components/Editor/useEditorPanelModePersistence';
 import { useEditorWorkspaceCompositionProps } from '@/components/Editor/useEditorWorkspaceCompositionProps';
 import { useEditorTopToolOptionsBridgeProps } from '@/components/Editor/useEditorTopToolOptionsBridgeProps';
+import type { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
 
 interface EditorViewProps {
     initialDesign: { data?: unknown } | null;
@@ -67,6 +68,31 @@ interface EditorViewProps {
 }
 
 const PANEL_MODE_STORAGE_KEY = 'image-express-properties-panel-mode';
+
+const TOOL_PANEL_MODE_MAP: Partial<Record<string, PanelRailMode>> = {
+    select: 'properties',
+    marquee: 'properties',
+    lasso: 'properties',
+    wand: 'properties',
+    'quick-select': 'properties',
+    'selection-brush': 'properties',
+    'path-select': 'properties',
+    healing: 'properties',
+    'clone-stamp': 'properties',
+    'history-brush': 'properties',
+    blur: 'properties',
+    sharpen: 'properties',
+    dodge: 'properties',
+    text: 'properties',
+    gradient: 'properties',
+    eyedropper: 'properties',
+    crop: 'properties',
+    zoom: 'properties',
+    hand: 'properties',
+    paint: 'brushes',
+    pen: 'brushes',
+    layers: 'layers',
+};
 
 export default function EditorView({ 
     initialDesign, 
@@ -258,20 +284,23 @@ export default function EditorView({
         handleToggleMediaOverlayFrameInclude,
         mediaOverlayNamingTemplate,
         setMediaOverlayNamingTemplate,
+        mediaOverlayVariantConversionMode,
+        setMediaOverlayVariantConversionMode,
         handleActiveMediaOverlayFrameSafeAreaPresetChange,
         handleSelectMediaOverlayFrame,
-        campaignVariants,
-        activeCampaignVariantId,
         handleConvertActiveMediaOverlayFrameToVariant,
-        handleSelectCampaignVariant,
-        handleRemoveCampaignVariant,
     } = useMediaOverlay({
         canvas,
         designId: propDesignId,
         designName: propDesignName || 'Untitled Design',
-        customHistoryProps,
-        toast,
         onDirty: () => setIsDirty(true),
+        pushHistory,
+        toast,
+        confirm: dialog.confirm,
+        onVariantDraftCreated: (name) => {
+            onUpdateDesignInfo(null, name);
+            setIsDirty(true);
+        },
     });
 
     const {
@@ -542,6 +571,24 @@ export default function EditorView({
         setExpandToolRailLabelsOnHover,
     });
 
+    useEffect(() => {
+        const nextPanelMode = TOOL_PANEL_MODE_MAP[activeTool];
+        if (!nextPanelMode) {
+            return;
+        }
+
+        setPropertiesPanelMode((prev) => (prev === nextPanelMode ? prev : nextPanelMode));
+        setPanelState((prev) => {
+            if (prev.mode === 'collapsed-left') {
+                return { ...prev, mode: 'docked-left' };
+            }
+            if (prev.mode === 'collapsed-right') {
+                return { ...prev, mode: 'docked-right' };
+            }
+            return prev;
+        });
+    }, [activeTool, setPanelState, setPropertiesPanelMode]);
+
     const closeExportMenu = useCallback(() => {
         setShowExportMenu(false);
     }, [setShowExportMenu]);
@@ -575,6 +622,7 @@ export default function EditorView({
         getCanvasBackgroundSettings,
         withViewportReset,
         safeCanvasToDataURL,
+        getMediaOverlayCropBounds,
         getMediaOverlayBatchTargets,
         mediaOverlayNamingTemplate,
         designName: propDesignName || 'Untitled Design',
@@ -1073,11 +1121,9 @@ export default function EditorView({
                     handleActiveMediaOverlayFrameSafeAreaPresetChange={handleActiveMediaOverlayFrameSafeAreaPresetChange}
                     mediaOverlayNamingTemplate={mediaOverlayNamingTemplate}
                     setMediaOverlayNamingTemplate={setMediaOverlayNamingTemplate}
-                    campaignVariants={campaignVariants}
-                    activeCampaignVariantId={activeCampaignVariantId}
+                    mediaOverlayVariantConversionMode={mediaOverlayVariantConversionMode}
+                    setMediaOverlayVariantConversionMode={setMediaOverlayVariantConversionMode}
                     handleConvertActiveMediaOverlayFrameToVariant={handleConvertActiveMediaOverlayFrameToVariant}
-                    handleSelectCampaignVariant={handleSelectCampaignVariant}
-                    handleRemoveCampaignVariant={handleRemoveCampaignVariant}
                     handleExport={handleExport}
                     exportMediaOverlayFramesZip={exportMediaOverlayFramesZip}
                     setShowProfileModal={setShowProfileModal}

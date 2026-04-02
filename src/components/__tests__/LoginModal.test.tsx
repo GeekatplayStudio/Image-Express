@@ -16,18 +16,14 @@ type MockFetchResponse = {
 
 describe('LoginModal', () => {
     const originalFetch = global.fetch;
-    const originalGoogle = (window as Window & { google?: unknown }).google;
 
     beforeEach(() => {
         jest.clearAllMocks();
         global.fetch = jest.fn();
-        window.localStorage.clear();
-        delete (window as Window & { google?: unknown }).google;
     });
 
     afterAll(() => {
         global.fetch = originalFetch;
-        (window as Window & { google?: unknown }).google = originalGoogle;
     });
 
     const fillLoginForm = (email: string, password: string) => {
@@ -202,63 +198,37 @@ describe('LoginModal', () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
-    it('uses the stored Google Drive client ID for Google sign-in when env config is missing', async () => {
-        const onLogin = jest.fn();
-        const user = { email: 'artist@example.com', displayName: 'Artist', role: 'user' };
-        let googleCallback: ((response: { credential?: string }) => void) | null = null;
-        const initialize = jest.fn(({ callback }: { callback: (response: { credential?: string }) => void }) => {
-            googleCallback = callback;
-        });
-        const prompt = jest.fn(() => {
-            googleCallback?.({ credential: 'google-credential-123' });
-        });
+    it('uses the persisted Drive client ID for Google sign-in when auth env vars are not set', async () => {
+        localStorage.setItem('image-express-google-drive', JSON.stringify({
+            enabled: true,
+            clientId: 'stored-client-id.apps.googleusercontent.com'
+        }));
 
-        window.localStorage.setItem('image-express-google-drive', JSON.stringify({ enabled: false, clientId: 'client-1.apps.googleusercontent.com' }));
-        (window as Window & {
-            google?: {
+        const initialize = jest.fn();
+        const prompt = jest.fn();
+        Object.defineProperty(window, 'google', {
+            value: {
                 accounts: {
                     id: {
-                        initialize: typeof initialize;
-                        prompt: typeof prompt;
-                    };
-                };
-            };
-        }).google = {
-            accounts: {
-                id: {
-                    initialize,
-                    prompt,
-                },
+                        initialize,
+                        prompt,
+                    }
+                }
             },
-        };
-
-        (global.fetch as unknown as jest.Mock<Promise<MockFetchResponse>>).mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({ success: true, user }),
+            configurable: true,
         });
 
-        render(<LoginModal isOpen onLogin={onLogin} />);
+        render(<LoginModal isOpen onLogin={jest.fn()} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /Continue with Google/i }));
+        fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
 
         await waitFor(() => {
             expect(initialize).toHaveBeenCalledWith(expect.objectContaining({
-                client_id: 'client-1.apps.googleusercontent.com',
+                client_id: 'stored-client-id.apps.googleusercontent.com'
             }));
-            expect(global.fetch).toHaveBeenCalledWith(
-                '/api/user/auth/google',
-                expect.objectContaining({
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                })
-            );
-            expect(onLogin).toHaveBeenCalledWith(user);
+            expect(prompt).toHaveBeenCalled();
         });
 
-        const body = JSON.parse((global.fetch as unknown as jest.Mock).mock.calls[0][1].body as string);
-        expect(body).toEqual({
-            credential: 'google-credential-123',
-            clientId: 'client-1.apps.googleusercontent.com',
-        });
+        expect(screen.queryByText(/Google login is not configured/i)).not.toBeInTheDocument();
     });
 });

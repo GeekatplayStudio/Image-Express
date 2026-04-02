@@ -625,14 +625,12 @@ async function ensureFontsFolder(gapi: GapiClient, config: StoredConfig) {
 
 async function ensureProjectFolders(gapi: GapiClient, config: StoredConfig) {
   await ensureRootFolder(gapi, config);
-  await Promise.all([
-    ensureFolder(gapi, config),
-    ensureAssetsFolder(gapi, config),
-    ensureGeneratedFolder(gapi, config),
-    ensureModelsFolder(gapi, config),
-    ensureTemplatesFolder(gapi, config),
-    ensureFontsFolder(gapi, config),
-  ]);
+  await ensureFolder(gapi, config);
+  await ensureAssetsFolder(gapi, config);
+  await ensureGeneratedFolder(gapi, config);
+  await ensureModelsFolder(gapi, config);
+  await ensureTemplatesFolder(gapi, config);
+  await ensureFontsFolder(gapi, config);
 }
 
 async function ensureDriveSession(clientId?: string, options?: DriveSessionOptions) {

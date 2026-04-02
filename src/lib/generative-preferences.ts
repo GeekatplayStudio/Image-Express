@@ -23,6 +23,9 @@ export type GenerativePreferences = {
     comfyServerUrl: string;
     comfyConnectionMode: ComfyConnectionMode;
     comfyCloudUrl: string;
+    comfyInstallPath: string;
+    comfyCustomNodesPath: string;
+    comfyWorkflowLibraryPath: string;
     autoStartInpaintMasking: boolean;
     showInpaintPromptDock: boolean;
 };
@@ -113,6 +116,9 @@ const DEFAULT_GENERATIVE_PREFERENCES: GenerativePreferences = {
     comfyServerUrl: DEFAULT_COMFY_LOCAL_URL,
     comfyConnectionMode: 'auto',
     comfyCloudUrl: 'https://cloud.comfy.org',
+    comfyInstallPath: '',
+    comfyCustomNodesPath: '',
+    comfyWorkflowLibraryPath: '',
     autoStartInpaintMasking: false,
     showInpaintPromptDock: true,
 };
@@ -183,6 +189,15 @@ export const loadGenerativePreferences = (): GenerativePreferences => {
         const comfyCloudUrl = typeof parsed.comfyCloudUrl === 'string' && parsed.comfyCloudUrl.trim().length > 0
             ? parsed.comfyCloudUrl.trim()
             : DEFAULT_GENERATIVE_PREFERENCES.comfyCloudUrl;
+        const comfyInstallPath = typeof parsed.comfyInstallPath === 'string'
+            ? parsed.comfyInstallPath.trim()
+            : DEFAULT_GENERATIVE_PREFERENCES.comfyInstallPath;
+        const comfyCustomNodesPath = typeof parsed.comfyCustomNodesPath === 'string'
+            ? parsed.comfyCustomNodesPath.trim()
+            : DEFAULT_GENERATIVE_PREFERENCES.comfyCustomNodesPath;
+        const comfyWorkflowLibraryPath = typeof parsed.comfyWorkflowLibraryPath === 'string'
+            ? parsed.comfyWorkflowLibraryPath.trim()
+            : DEFAULT_GENERATIVE_PREFERENCES.comfyWorkflowLibraryPath;
 
         return {
             defaultProvider: provider,
@@ -190,6 +205,9 @@ export const loadGenerativePreferences = (): GenerativePreferences => {
             comfyServerUrl,
             comfyConnectionMode,
             comfyCloudUrl,
+            comfyInstallPath,
+            comfyCustomNodesPath,
+            comfyWorkflowLibraryPath,
             autoStartInpaintMasking: coerceBoolean(
                 parsed.autoStartInpaintMasking,
                 DEFAULT_GENERATIVE_PREFERENCES.autoStartInpaintMasking
@@ -223,6 +241,9 @@ export const saveGenerativePreferences = (updates: Partial<GenerativePreferences
             || DEFAULT_GENERATIVE_PREFERENCES.comfyServerUrl
         ),
         comfyCloudUrl: (updates.comfyCloudUrl ?? current.comfyCloudUrl).trim() || DEFAULT_GENERATIVE_PREFERENCES.comfyCloudUrl,
+        comfyInstallPath: (updates.comfyInstallPath ?? current.comfyInstallPath).trim(),
+        comfyCustomNodesPath: (updates.comfyCustomNodesPath ?? current.comfyCustomNodesPath).trim(),
+        comfyWorkflowLibraryPath: (updates.comfyWorkflowLibraryPath ?? current.comfyWorkflowLibraryPath).trim(),
         comfyConnectionMode: coerceComfyConnectionMode(updates.comfyConnectionMode) || current.comfyConnectionMode,
     };
 

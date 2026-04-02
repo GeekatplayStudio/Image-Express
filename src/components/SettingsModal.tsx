@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud, HardDrive, Loader2, HelpCircle } from 'lucide-react';
 import HelpPopup from './HelpPopup';
-import { ComfyUIWorkflowRunner } from '@/components/ComfyUIWorkflowRunner';
 import type { AuthUser, DesktopUpdatePayload, DesktopUpdateStatus, GoogleDriveConfig } from '@/types';
 import { connectGoogleDrive, disconnectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 import useEscapeKey from '@/hooks/useEscapeKey';
@@ -30,9 +29,16 @@ import {
     verifyAvailableComfyConnection,
     type ComfyConnectionMode
 } from '@/lib/comfyui/connection';
+import type { ComfyLibraryRepoKind, ComfyLibrarySnapshot } from '@/lib/comfyui/libraryTypes';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 import { resetNumberDragHintSeen } from '@/lib/number-drag-hints';
+import {
+    DEFAULT_OLLAMA_BASE_URL,
+    DEFAULT_OLLAMA_MODEL,
+    loadLocalAiPreferences,
+    saveLocalAiPreferences,
+} from '@/lib/localAiPreferences';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -84,12 +90,17 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [openaiKey, setOpenaiKey] = useState('');
     const [googleKey, setGoogleKey] = useState('');
     const [bananaKey, setBananaKey] = useState('');
+    const [ollamaBaseUrl, setOllamaBaseUrl] = useState(DEFAULT_OLLAMA_BASE_URL);
+    const [ollamaModel, setOllamaModel] = useState(DEFAULT_OLLAMA_MODEL);
     const [defaultGenerativeProvider, setDefaultGenerativeProvider] = useState<GenerativeProviderId>('comfy');
     const [defaultGenerativeWorkflow, setDefaultGenerativeWorkflow] = useState<GenerativeWorkflowId>('zone');
     const [comfyServerUrl, setComfyServerUrl] = useState(DEFAULT_COMFY_LOCAL_URL);
     const [comfyConnectionMode, setComfyConnectionMode] = useState<ComfyConnectionMode>('auto');
     const [comfyCloudUrl, setComfyCloudUrl] = useState('https://cloud.comfy.org');
     const [comfyCloudApiKey, setComfyCloudApiKey] = useState('');
+    const [comfyInstallPath, setComfyInstallPath] = useState('');
+    const [comfyCustomNodesPath, setComfyCustomNodesPath] = useState('');
+    const [comfyWorkflowLibraryPath, setComfyWorkflowLibraryPath] = useState('');
     const [comfyConnectionCheck, setComfyConnectionCheck] = useState<{
         state: 'idle' | 'checking' | 'success' | 'error';
         message: string;
@@ -97,8 +108,25 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         state: 'idle',
         message: '',
     });
+    const [comfyLibrarySnapshot, setComfyLibrarySnapshot] = useState<ComfyLibrarySnapshot | null>(null);
+    const [comfyLibraryCheck, setComfyLibraryCheck] = useState<{
+        state: 'idle' | 'checking' | 'success' | 'error';
+        message: string;
+    }>({
+        state: 'idle',
+        message: '',
+    });
+    const [comfyRepoUrl, setComfyRepoUrl] = useState('');
+    const [comfyRepoKind, setComfyRepoKind] = useState<ComfyLibraryRepoKind>('custom-nodes');
     const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(false);
     const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
+    const [ollamaCheck, setOllamaCheck] = useState<{
+        state: 'idle' | 'checking' | 'success' | 'error';
+        message: string;
+    }>({
+        state: 'idle',
+        message: '',
+    });
 
     const [status, setStatus] = useState<'idle' | 'saved' | 'saving' | 'error'>('idle');
     const [syncStatus, setSyncStatus] = useState<'local' | 'synced' | 'syncing'>('local');
@@ -192,12 +220,18 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setOpenaiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
         setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
         setBananaKey(localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
+        const localAiPreferences = loadLocalAiPreferences();
+        setOllamaBaseUrl(localAiPreferences.ollamaBaseUrl);
+        setOllamaModel(localAiPreferences.ollamaModel);
         const generativePreferences = loadGenerativePreferences();
         setDefaultGenerativeProvider(generativePreferences.defaultProvider);
         setDefaultGenerativeWorkflow(generativePreferences.defaultWorkflow);
         setComfyServerUrl(generativePreferences.comfyServerUrl);
         setComfyConnectionMode(generativePreferences.comfyConnectionMode);
         setComfyCloudUrl(generativePreferences.comfyCloudUrl);
+        setComfyInstallPath(generativePreferences.comfyInstallPath);
+        setComfyCustomNodesPath(generativePreferences.comfyCustomNodesPath);
+        setComfyWorkflowLibraryPath(generativePreferences.comfyWorkflowLibraryPath);
         setComfyCloudApiKey(loadComfyCloudApiKey());
         setAutoStartInpaintMasking(generativePreferences.autoStartInpaintMasking);
         setShowInpaintPromptDock(generativePreferences.showInpaintPromptDock);
@@ -298,6 +332,14 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 : { state: 'idle', message: '' }
         ));
     }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl]);
+
+    useEffect(() => {
+        setComfyLibraryCheck((current) => (
+            current.state === 'idle' && !current.message
+                ? current
+                : { state: 'idle', message: '' }
+        ));
+    }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyCustomNodesPath, comfyInstallPath, comfyServerUrl, comfyWorkflowLibraryPath]);
 
     const setProviderValidation = useCallback((provider: ValidationProvider, state: ValidationState, message: string) => {
         setValidationStatus((prev) => ({
@@ -417,6 +459,104 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         }
     }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl]);
 
+    const runComfyLibraryAction = useCallback(async (
+        action: 'scan' | 'install-repo' | 'update-repo' | 'update-install',
+        extraBody: Record<string, unknown> = {}
+    ) => {
+        setComfyLibraryCheck({
+            state: 'checking',
+            message: action === 'scan' ? 'Scanning Comfy workflow library...' : 'Running Comfy library action...',
+        });
+
+        try {
+            const response = await fetch('/api/ai/comfy/library', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action,
+                    connectionMode: comfyConnectionMode,
+                    comfyServerUrl,
+                    comfyCloudUrl,
+                    comfyCloudApiKey,
+                    installPath: comfyInstallPath,
+                    customNodesPath: comfyCustomNodesPath,
+                    workflowLibraryPath: comfyWorkflowLibraryPath,
+                    ...extraBody,
+                }),
+            });
+
+            const data = await response.json() as {
+                success?: boolean;
+                message?: string;
+                snapshot?: ComfyLibrarySnapshot;
+            };
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Comfy library action failed.');
+            }
+
+            setComfyLibrarySnapshot(data.snapshot || null);
+            setComfyLibraryCheck({
+                state: 'success',
+                message: data.message || 'Comfy library refreshed.',
+            });
+        } catch (error) {
+            setComfyLibraryCheck({
+                state: 'error',
+                message: error instanceof Error ? error.message : 'Comfy library action failed.',
+            });
+        }
+    }, [
+        comfyCloudApiKey,
+        comfyCloudUrl,
+        comfyConnectionMode,
+        comfyCustomNodesPath,
+        comfyInstallPath,
+        comfyServerUrl,
+        comfyWorkflowLibraryPath,
+    ]);
+
+    const handleRefreshComfyLibrary = useCallback(async () => {
+        await runComfyLibraryAction('scan');
+    }, [runComfyLibraryAction]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        void handleRefreshComfyLibrary();
+    }, [handleRefreshComfyLibrary, isOpen]);
+
+    const handleInstallComfyRepo = useCallback(async () => {
+        const repoUrl = comfyRepoUrl.trim();
+        if (!repoUrl) {
+            setComfyLibraryCheck({
+                state: 'error',
+                message: 'Paste a GitHub repository URL before installing.',
+            });
+            return;
+        }
+
+        await runComfyLibraryAction('install-repo', {
+            repoUrl,
+            repoKind: comfyRepoKind,
+        });
+        setComfyRepoUrl('');
+    }, [comfyRepoKind, comfyRepoUrl, runComfyLibraryAction]);
+
+    const handleUpdateComfyInstall = useCallback(async () => {
+        await runComfyLibraryAction('update-install');
+    }, [runComfyLibraryAction]);
+
+    const handleUpdateManagedRepo = useCallback(async (repoPath: string) => {
+        await runComfyLibraryAction('update-repo', {
+            repoPath,
+        });
+    }, [runComfyLibraryAction]);
+
     const handleSave = async () => {
         setStatus('saving');
 
@@ -434,6 +574,10 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         localStorage.setItem(STORAGE_KEYS.BANANA_API_KEY, bananaKey);
         localStorage.setItem(STORAGE_KEYS.IMG_GEN_PROVIDER, defaultGenerativeProvider);
         localStorage.setItem(STORAGE_KEYS.COMFY_UI_URL, comfyServerUrl.trim());
+        saveLocalAiPreferences({
+            ollamaBaseUrl,
+            ollamaModel,
+        });
         saveComfyCloudApiKey(comfyCloudApiKey);
         saveGenerativePreferences({
             defaultProvider: defaultGenerativeProvider,
@@ -441,6 +585,9 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             comfyServerUrl: comfyServerUrl.trim(),
             comfyConnectionMode,
             comfyCloudUrl: comfyCloudUrl.trim(),
+            comfyInstallPath: comfyInstallPath.trim(),
+            comfyCustomNodesPath: comfyCustomNodesPath.trim(),
+            comfyWorkflowLibraryPath: comfyWorkflowLibraryPath.trim(),
             autoStartInpaintMasking,
             showInpaintPromptDock,
         });
@@ -492,6 +639,52 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setStatus('saved');
         setTimeout(() => setStatus('idle'), 2000);
     };
+
+    const handleCheckOllama = useCallback(async () => {
+        setOllamaCheck({
+            state: 'checking',
+            message: 'Checking Ollama runtime...',
+        });
+
+        try {
+            const params = new URLSearchParams({
+                baseUrl: ollamaBaseUrl.trim() || DEFAULT_OLLAMA_BASE_URL,
+                model: ollamaModel.trim() || DEFAULT_OLLAMA_MODEL,
+            });
+            const response = await fetch(`/api/ai/ollama/status?${params.toString()}`);
+            const data = await response.json() as {
+                success?: boolean;
+                message?: string;
+                count?: number;
+                requestedModel?: string;
+                modelFound?: boolean;
+                models?: string[];
+            };
+
+            if (!response.ok || !data.success) {
+                setOllamaCheck({
+                    state: 'error',
+                    message: data.message || 'Failed to contact Ollama.',
+                });
+                return;
+            }
+
+            const requestedModel = data.requestedModel || (ollamaModel.trim() || DEFAULT_OLLAMA_MODEL);
+            const summary = data.modelFound
+                ? `Ollama is reachable. Found ${requestedModel}${typeof data.count === 'number' ? ` (${data.count} model${data.count === 1 ? '' : 's'} installed)` : ''}.`
+                : `Ollama is reachable, but ${requestedModel} is not installed yet.${Array.isArray(data.models) && data.models.length > 0 ? ` Available: ${data.models.slice(0, 3).join(', ')}${data.models.length > 3 ? '…' : ''}.` : ''}`;
+
+            setOllamaCheck({
+                state: data.modelFound ? 'success' : 'error',
+                message: summary,
+            });
+        } catch (error) {
+            setOllamaCheck({
+                state: 'error',
+                message: error instanceof Error ? error.message : 'Failed to contact Ollama.',
+            });
+        }
+    }, [ollamaBaseUrl, ollamaModel]);
 
     // Helper to mask key for display if it comes from env (not implemented here per se, but good for UX)
     // Here we just input what is in local storage.
@@ -929,6 +1122,54 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
+
+                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                                <div className="flex justify-between mb-1.5">
+                                    <label className="text-xs font-semibold">Local AI Runtime (Ollama)</label>
+                                    <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">Local</span>
+                                </div>
+                                <div className="space-y-2">
+                                    <input
+                                        type="text"
+                                        value={ollamaBaseUrl}
+                                        onChange={(event) => {
+                                            setOllamaBaseUrl(event.target.value);
+                                            setOllamaCheck({ state: 'idle', message: '' });
+                                        }}
+                                        placeholder={DEFAULT_OLLAMA_BASE_URL}
+                                        className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={ollamaModel}
+                                        onChange={(event) => {
+                                            setOllamaModel(event.target.value);
+                                            setOllamaCheck({ state: 'idle', message: '' });
+                                        }}
+                                        placeholder={DEFAULT_OLLAMA_MODEL}
+                                        className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
+                                    />
+                                </div>
+                                <div className="mt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleCheckOllama()}
+                                        className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
+                                        disabled={ollamaCheck.state === 'checking'}
+                                    >
+                                        Check Ollama
+                                    </button>
+                                    {ollamaCheck.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
+                                    {ollamaCheck.message ? (
+                                        <span className={`text-[10px] ${ollamaCheck.state === 'success' ? 'text-green-500' : 'text-amber-500'}`}>
+                                            {ollamaCheck.message}
+                                        </span>
+                                    ) : null}
+                                </div>
+                                <p className="mt-2 text-[11px] text-muted-foreground">
+                                    First Ollama slice: runtime URL, preferred model, and install/status checks for upcoming local AI flows.
+                                </p>
+                            </div>
                         </div>
                     </div>
 
@@ -1011,7 +1252,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                             />
                             <p className="text-[11px] text-muted-foreground">
-                                Local AI support follows a Krita/GIMP-like pattern: point the app to your local server endpoint.
+                                The app now proxies local ComfyUI requests through itself, which avoids the host/origin 403s you saw. In Docker on Windows, <code className="font-mono">localhost</code> will also retry via <code className="font-mono">host.docker.internal</code> server-side.
                             </p>
                         </div>
 
@@ -1037,6 +1278,48 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             />
                             <p className="text-[11px] text-muted-foreground">
                                 Cloud requests use the <code className="font-mono">X-API-Key</code> header and websocket token auth.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">ComfyUI Install Folder</label>
+                            <input
+                                type="text"
+                                value={comfyInstallPath}
+                                onChange={(event) => setComfyInstallPath(event.target.value)}
+                                placeholder="D:\\ComfyUI"
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                                Optional, but needed if you want the app to pull updates for your ComfyUI install.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Custom Nodes Folder</label>
+                            <input
+                                type="text"
+                                value={comfyCustomNodesPath}
+                                onChange={(event) => setComfyCustomNodesPath(event.target.value)}
+                                placeholder="D:\\ComfyUI\\custom_nodes"
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                                GitHub node repos can be cloned here, and the manager will scan this folder for installed custom nodes.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold">Custom Workflow Folder</label>
+                            <input
+                                type="text"
+                                value={comfyWorkflowLibraryPath}
+                                onChange={(event) => setComfyWorkflowLibraryPath(event.target.value)}
+                                placeholder="D:\\ComfyUI\\user\\default\\workflows"
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                                Any JSON workflows in this folder become available in the AI modal workflow library.
                             </p>
                         </div>
 
@@ -1067,6 +1350,135 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     {comfyConnectionCheck.message}
                                 </div>
                             )}
+                        </div>
+
+                        <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/10 p-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <h5 className="text-xs font-semibold">Comfy Workflow Manager</h5>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Browse server templates, scan your custom workflow folder, and install GitHub repos into custom nodes or workflow storage.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => void handleRefreshComfyLibrary()}
+                                    disabled={comfyLibraryCheck.state === 'checking'}
+                                    className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {comfyLibraryCheck.state === 'checking' ? (
+                                        <Loader2 size={13} className="animate-spin" />
+                                    ) : (
+                                        <RefreshCcw size={13} />
+                                    )}
+                                    Refresh Library
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
+                                    <div className="text-[10px] uppercase text-muted-foreground">Server Templates</div>
+                                    <div className="text-sm font-semibold">{comfyLibrarySnapshot?.serverTemplates.length || 0}</div>
+                                </div>
+                                <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
+                                    <div className="text-[10px] uppercase text-muted-foreground">Custom Folder</div>
+                                    <div className="text-sm font-semibold">{comfyLibrarySnapshot?.customFolderWorkflows.length || 0}</div>
+                                </div>
+                                <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
+                                    <div className="text-[10px] uppercase text-muted-foreground">Managed Repos</div>
+                                    <div className="text-sm font-semibold">{comfyLibrarySnapshot?.nodeRepos.length || 0}</div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+                                <input
+                                    type="text"
+                                    value={comfyRepoUrl}
+                                    onChange={(event) => setComfyRepoUrl(event.target.value)}
+                                    placeholder="https://github.com/owner/repo"
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                                />
+                                <select
+                                    value={comfyRepoKind}
+                                    onChange={(event) => setComfyRepoKind(event.target.value as ComfyLibraryRepoKind)}
+                                    className="h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs"
+                                >
+                                    <option value="custom-nodes">Custom Nodes</option>
+                                    <option value="workflow-library">Workflow Folder</option>
+                                </select>
+                                <button
+                                    onClick={() => void handleInstallComfyRepo()}
+                                    disabled={comfyLibraryCheck.state === 'checking'}
+                                    className="h-9 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <DownloadCloud size={13} />
+                                    Install Repo
+                                </button>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={() => void handleUpdateComfyInstall()}
+                                    disabled={comfyLibraryCheck.state === 'checking' || !comfyInstallPath.trim()}
+                                    className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <RefreshCcw size={13} />
+                                    Update ComfyUI
+                                </button>
+                            </div>
+
+                            {comfyLibraryCheck.message && (
+                                <div
+                                    className={`text-[11px] rounded-md border px-2.5 py-2 ${
+                                        comfyLibraryCheck.state === 'success'
+                                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+                                            : comfyLibraryCheck.state === 'error'
+                                                ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                                                : 'border-border/60 bg-background/70 text-muted-foreground'
+                                    }`}
+                                >
+                                    {comfyLibraryCheck.message}
+                                </div>
+                            )}
+
+                            {comfyLibrarySnapshot?.warnings?.length ? (
+                                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700">
+                                    {comfyLibrarySnapshot.warnings[0]}
+                                </div>
+                            ) : null}
+
+                            <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                                {(comfyLibrarySnapshot?.nodeRepos || []).map((repo) => (
+                                    <div key={`${repo.repoKind}:${repo.path}`} className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <div className="truncate text-xs font-semibold">{repo.name}</div>
+                                                <div className="truncate text-[10px] text-muted-foreground">{repo.path}</div>
+                                                <div className="text-[10px] text-muted-foreground">
+                                                    {repo.repoKind === 'custom-nodes' ? 'Custom Nodes' : 'Workflow Folder'} | {repo.gitManaged ? 'git repo' : 'plain folder'} | workflow hints: {repo.workflowHintCount}
+                                                </div>
+                                            </div>
+                                            {repo.gitManaged && (
+                                                <button
+                                                    onClick={() => void handleUpdateManagedRepo(repo.path)}
+                                                    disabled={comfyLibraryCheck.state === 'checking'}
+                                                    className="h-7 px-2 text-[10px] font-semibold rounded border border-border hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Update
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                                {!comfyLibrarySnapshot?.nodeRepos?.length && (
+                                    <div className="rounded-md border border-dashed border-border/60 px-2 py-3 text-[11px] text-muted-foreground">
+                                        No managed custom-node or workflow repos were discovered yet.
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="text-[11px] text-muted-foreground">
+                                New custom nodes usually need a ComfyUI restart before the connected server can expose them in its template/catalog APIs.
+                            </p>
                         </div>
 
                         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">

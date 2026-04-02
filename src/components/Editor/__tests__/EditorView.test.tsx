@@ -2232,99 +2232,6 @@ describe('EditorView', () => {
         }));
     });
 
-    it('exports the full artboard via snapshot fallback when canvas export throws', async () => {
-        const props = createDefaultProps();
-        render(<EditorView {...props} />);
-
-        await waitFor(() => {
-            expect(latestCanvasStub).toBeTruthy();
-        });
-
-        const runtimeCanvas = latestCanvasStub as (ReturnType<typeof createCanvasStub> & {
-            artboard?: { left: number; top: number; width: number; height: number };
-            artboardRect?: {
-                left: number;
-                top: number;
-                width: number;
-                height: number;
-                scaleX: number;
-                scaleY: number;
-                getScaledWidth: jest.Mock<number, []>;
-                getScaledHeight: jest.Mock<number, []>;
-            };
-            toCanvasElement?: jest.Mock<HTMLCanvasElement, [number?, Record<string, unknown>?]>;
-            lowerCanvasEl?: HTMLCanvasElement;
-        });
-
-        runtimeCanvas.width = 640;
-        runtimeCanvas.height = 360;
-        runtimeCanvas.artboard = { left: 0, top: 0, width: 1600, height: 900 };
-        runtimeCanvas.artboardRect = {
-            left: 0,
-            top: 0,
-            width: 1600,
-            height: 900,
-            scaleX: 1,
-            scaleY: 1,
-            getScaledWidth: jest.fn(() => 1600),
-            getScaledHeight: jest.fn(() => 900),
-        };
-
-        runtimeCanvas.toDataURL.mockImplementation(() => {
-            throw new TypeError("Cannot set properties of undefined (setting 'ctx')");
-        });
-
-        const snapshotCanvas = document.createElement('canvas');
-        const snapshotToDataURL = jest.fn(() => 'data:image/png;base64,FULLARTBOARD');
-        Object.defineProperty(snapshotCanvas, 'toDataURL', {
-            configurable: true,
-            writable: true,
-            value: snapshotToDataURL,
-        });
-
-        runtimeCanvas.toCanvasElement = jest.fn(() => snapshotCanvas);
-
-        const lowerCanvas = document.createElement('canvas');
-        const lowerCanvasToDataURL = jest.fn(() => 'data:image/png;base64,LOWER');
-        Object.defineProperty(lowerCanvas, 'toDataURL', {
-            configurable: true,
-            writable: true,
-            value: lowerCanvasToDataURL,
-        });
-        runtimeCanvas.lowerCanvasEl = lowerCanvas;
-
-        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
-        fireEvent.click(screen.getByRole('button', { name: /PNG/i }));
-
-        await waitFor(() => {
-            expect(screen.getByText('Export Quality')).toBeInTheDocument();
-        });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-        await waitFor(() => {
-            expect(anchorClickSpy).toHaveBeenCalled();
-        });
-
-        expect(runtimeCanvas.toCanvasElement).toHaveBeenCalled();
-        expect(runtimeCanvas.toCanvasElement.mock.calls.some((call) => {
-            const options = call[1] as {
-                left?: number;
-                top?: number;
-                width?: number;
-                height?: number;
-                format?: string;
-            } | undefined;
-            return options?.left === 0
-                && options?.top === 0
-                && options?.width === 1600
-                && options?.height === 900
-                && options?.format === 'png';
-        })).toBe(true);
-        expect(snapshotToDataURL).toHaveBeenCalledWith('image/png', 1);
-        expect(lowerCanvasToDataURL).not.toHaveBeenCalled();
-    });
-
     it('opens share flow, launches export quality modal, and downloads export', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
@@ -2374,49 +2281,59 @@ describe('EditorView', () => {
         expect(((pngCall as any[])?.[0] as any).backgroundColor).toBeUndefined();
     });
 
-    it('exports PNG from full artboard bounds even when a media overlay frame exists', async () => {
+    it('exports the full artboard crop when lower-canvas fallback is used', async () => {
         const props = createDefaultProps();
+        const fallbackContext = {
+            drawImage: jest.fn(),
+            fillRect: jest.fn(),
+            fillStyle: '',
+        } as any;
+        const getContextSpy = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+            () => fallbackContext
+        );
+        const toDataUrlSpy = jest.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockImplementation(
+            () => 'data:image/png;base64,FALLBACK'
+        );
+
         render(<EditorView {...props} />);
 
         await waitFor(() => {
             expect(latestCanvasStub).toBeTruthy();
         });
 
-        const runtimeCanvas = latestCanvasStub as (ReturnType<typeof createCanvasStub> & {
-            artboard?: { left: number; top: number; width: number; height: number };
-            artboardRect?: {
-                left: number;
-                top: number;
-                width: number;
-                height: number;
-                scaleX: number;
-                scaleY: number;
-                getScaledWidth: jest.Mock<number, []>;
-                getScaledHeight: jest.Mock<number, []>;
-            };
-        });
-
-        runtimeCanvas.width = 640;
-        runtimeCanvas.height = 360;
-        runtimeCanvas.artboard = { left: 100, top: 50, width: 1600, height: 900 };
-        runtimeCanvas.artboardRect = {
+        const artboardRect = {
             left: 100,
-            top: 50,
-            width: 1600,
-            height: 900,
+            top: 80,
+            width: 300,
+            height: 200,
             scaleX: 1,
             scaleY: 1,
-            getScaledWidth: jest.fn(() => 1600),
-            getScaledHeight: jest.fn(() => 900),
         };
-
-        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
-        fireEvent.click(screen.getByRole('button', { name: /Add Frame/i }));
-
-        await waitFor(() => {
-            expect(screen.getByLabelText('Active frame safe area')).toBeInTheDocument();
+        const runtimeCanvas = latestCanvasStub as ReturnType<typeof createCanvasStub> & {
+            artboard?: { left: number; top: number; width: number; height: number };
+            artboardRect?: object | null;
+            lowerCanvasEl?: HTMLCanvasElement;
+        };
+        runtimeCanvas.artboard = {
+            left: 100,
+            top: 80,
+            width: 300,
+            height: 200,
+        };
+        runtimeCanvas.artboardRect = artboardRect as any;
+        latestCanvasStub!.toDataURL.mockImplementation(() => {
+            throw new TypeError("Cannot set properties of undefined (setting 'ctx')");
+        });
+        latestCanvasStub!.setViewportTransform.mockImplementation((nextTransform) => {
+            latestCanvasStub!.viewportTransform = nextTransform;
         });
 
+        const lowerCanvas = document.createElement('canvas');
+        lowerCanvas.width = 2400;
+        lowerCanvas.height = 1600;
+        runtimeCanvas.lowerCanvasEl = lowerCanvas;
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
         fireEvent.click(screen.getByRole('button', { name: /PNG/i }));
 
         await waitFor(() => {
@@ -2429,23 +2346,20 @@ describe('EditorView', () => {
             expect(anchorClickSpy).toHaveBeenCalled();
         });
 
-        const calls = latestCanvasStub?.toDataURL.mock.calls ?? [];
-        const artboardPngCall = [...calls].reverse().find((call) => {
-            const options = (call as any[])[0] as {
-                format?: string;
-                left?: number;
-                top?: number;
-                width?: number;
-                height?: number;
-            } | undefined;
-            return options?.format === 'png'
-                && options.left === 100
-                && options.top === 50
-                && options.width === 1600
-                && options.height === 900;
-        });
+        expect(fallbackContext.drawImage).toHaveBeenCalledWith(
+            lowerCanvas,
+            200,
+            160,
+            600,
+            400,
+            0,
+            0,
+            300,
+            200,
+        );
 
-        expect(artboardPngCall).toBeDefined();
+        toDataUrlSpy.mockRestore();
+        getContextSpy.mockRestore();
     });
 
     it('exports JSON and HTML bundle from export menu', async () => {
@@ -2510,6 +2424,228 @@ describe('EditorView', () => {
         await waitFor(() => {
             expect(anchorClickSpy).toHaveBeenCalled();
         });
+    });
+
+    it('converts an active media overlay frame to a variant draft', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const artboardRect = {
+            set: jest.fn(),
+            setCoords: jest.fn(),
+        };
+        const variantObject = {
+            left: 120,
+            top: 80,
+            scaleX: 1,
+            scaleY: 1,
+            set: jest.fn(function set(this: any, values: Record<string, unknown>) {
+                Object.assign(this, values);
+                return this;
+            }),
+            setCoords: jest.fn(),
+            getBoundingRect: jest.fn(() => ({ left: 120, top: 80, width: 320, height: 240 })),
+            calcTransformMatrix: jest.fn(() => [1, 0, 0, 1, 0, 0]),
+        };
+        const outsideObject = {
+            getBoundingRect: jest.fn(() => ({ left: -500, top: -400, width: 100, height: 100 })),
+            set: jest.fn(),
+            setCoords: jest.fn(),
+            calcTransformMatrix: jest.fn(() => [1, 0, 0, 1, 0, 0]),
+        };
+        const mutableCanvas = latestCanvasStub as ReturnType<typeof createCanvasStub> & {
+            artboard?: { left: number; top: number; width: number; height: number };
+            artboardRect?: { set: jest.Mock; setCoords: jest.Mock };
+        };
+        mutableCanvas.artboard = { left: 0, top: 0, width: 1200, height: 800 };
+        mutableCanvas.artboardRect = artboardRect;
+        latestCanvasStub?.getObjects.mockReturnValue([artboardRect as any, variantObject as any, outsideObject as any]);
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Add Frame/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Convert Active Frame to Variant/i }));
+
+        await waitFor(() => {
+            expect(artboardRect.set).toHaveBeenCalledWith(expect.objectContaining({
+                width: 1080,
+                height: 1080,
+            }));
+        });
+        expect(latestCanvasStub?.remove).toHaveBeenCalledWith(outsideObject);
+        expect(screen.queryByLabelText('Active frame safe area')).not.toBeInTheDocument();
+        expect(props.onUpdateDesignInfo).toHaveBeenCalledWith(null, expect.stringContaining('Instagram 1:1'));
+        expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Variant draft created',
+            variant: 'success',
+        }));
+    });
+
+    it('cancels media overlay variant conversion when confirmation is rejected', async () => {
+        mockDialogConfirm.mockResolvedValueOnce(false);
+
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const artboardRect = {
+            set: jest.fn(),
+            setCoords: jest.fn(),
+        };
+        const variantObject = {
+            left: 120,
+            top: 80,
+            scaleX: 1,
+            scaleY: 1,
+            set: jest.fn(function set(this: any, values: Record<string, unknown>) {
+                Object.assign(this, values);
+                return this;
+            }),
+            setCoords: jest.fn(),
+            getBoundingRect: jest.fn(() => ({ left: 120, top: 80, width: 320, height: 240 })),
+            calcTransformMatrix: jest.fn(() => [1, 0, 0, 1, 0, 0]),
+        };
+        const mutableCanvas = latestCanvasStub as ReturnType<typeof createCanvasStub> & {
+            artboard?: { left: number; top: number; width: number; height: number };
+            artboardRect?: { set: jest.Mock; setCoords: jest.Mock };
+        };
+        mutableCanvas.artboard = { left: 0, top: 0, width: 1200, height: 800 };
+        mutableCanvas.artboardRect = artboardRect;
+        latestCanvasStub?.getObjects.mockReturnValue([artboardRect as any, variantObject as any]);
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Add Frame/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Convert Active Frame to Variant/i }));
+
+        await waitFor(() => {
+            expect(mockDialogConfirm).toHaveBeenCalled();
+        });
+        expect(artboardRect.set).not.toHaveBeenCalled();
+        expect(props.onUpdateDesignInfo).not.toHaveBeenCalledWith(null, expect.any(String));
+    });
+
+    it('saves a converted variant draft as a new design', async () => {
+        const props = createDefaultProps();
+
+        function VariantSaveHarness() {
+            const [designId, setDesignId] = React.useState<string | null>('design-master');
+            const [designName, setDesignName] = React.useState('Master Design');
+
+            return (
+                <EditorView
+                    {...props}
+                    currentDesignId={designId}
+                    currentDesignName={designName}
+                    onUpdateDesignInfo={(id, name) => {
+                        props.onUpdateDesignInfo(id, name);
+                        setDesignId(id);
+                        setDesignName(name);
+                    }}
+                />
+            );
+        }
+
+        render(<VariantSaveHarness />);
+
+        const artboardRect = {
+            set: jest.fn(),
+            setCoords: jest.fn(),
+        };
+        const variantObject = {
+            left: 120,
+            top: 80,
+            scaleX: 1,
+            scaleY: 1,
+            set: jest.fn(function set(this: any, values: Record<string, unknown>) {
+                Object.assign(this, values);
+                return this;
+            }),
+            setCoords: jest.fn(),
+            getBoundingRect: jest.fn(() => ({ left: 120, top: 80, width: 320, height: 240 })),
+            calcTransformMatrix: jest.fn(() => [1, 0, 0, 1, 0, 0]),
+        };
+        const mutableCanvas = latestCanvasStub as ReturnType<typeof createCanvasStub> & {
+            artboard?: { left: number; top: number; width: number; height: number };
+            artboardRect?: { set: jest.Mock; setCoords: jest.Mock };
+        };
+        mutableCanvas.artboard = { left: 0, top: 0, width: 1200, height: 800 };
+        mutableCanvas.artboardRect = artboardRect;
+        latestCanvasStub?.getObjects.mockReturnValue([artboardRect as any, variantObject as any]);
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Add Frame/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Convert Active Frame to Variant/i }));
+
+        await waitFor(() => {
+            expect(props.onUpdateDesignInfo).toHaveBeenCalledWith(null, expect.stringContaining('Instagram 1:1'));
+        });
+
+        fireEvent.click(screen.getByTitle('Save Design'));
+
+        await waitFor(() => {
+            expect(hasFetchCall(fetchMock, '/api/designs/save', 'POST')).toBe(true);
+        });
+
+        const saveCall = fetchMock.mock.calls.find((call) => (
+            String(call[0]) === '/api/designs/save' && (call[1] as RequestInit | undefined)?.method === 'POST'
+        ));
+        expect(saveCall).toBeDefined();
+        const body = JSON.parse(String((saveCall?.[1] as RequestInit).body || '{}'));
+        expect(body.id).toBeNull();
+        expect(body.name).toContain('Master Design - Instagram 1:1');
+        expect(mockDialogPrompt).not.toHaveBeenCalled();
+    });
+
+    it('applies safe-area variant conversion mode when creating a variant draft', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const artboardRect = {
+            set: jest.fn(),
+            setCoords: jest.fn(),
+        };
+        const variantObject = {
+            left: 320,
+            top: 120,
+            scaleX: 1,
+            scaleY: 1,
+            set: jest.fn(function set(this: any, values: Record<string, unknown>) {
+                Object.assign(this, values);
+                return this;
+            }),
+            setCoords: jest.fn(),
+            getBoundingRect: jest.fn(() => ({ left: 320, top: 120, width: 200, height: 200 })),
+        };
+        const mutableCanvas = latestCanvasStub as ReturnType<typeof createCanvasStub> & {
+            artboard?: { left: number; top: number; width: number; height: number };
+            artboardRect?: { set: jest.Mock; setCoords: jest.Mock };
+        };
+        mutableCanvas.artboard = { left: 0, top: 0, width: 1200, height: 800 };
+        mutableCanvas.artboardRect = artboardRect;
+        latestCanvasStub?.getObjects.mockReturnValue([artboardRect as any, variantObject as any]);
+
+        fireEvent.click(screen.getByRole('button', { name: /Export/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Add Frame/i }));
+        fireEvent.change(screen.getByLabelText('Active frame safe area'), { target: { value: 'title-safe-10' } });
+        fireEvent.change(screen.getByLabelText('Variant conversion mode'), { target: { value: 'safe-area' } });
+        fireEvent.click(screen.getByRole('button', { name: /Convert Active Frame to Variant/i }));
+
+        await waitFor(() => {
+            expect(variantObject.set).toHaveBeenCalled();
+        });
+
+        const lastSetPayload = variantObject.set.mock.calls.at(-1)?.[0] as {
+            left: number;
+            top: number;
+            scaleX: number;
+            scaleY: number;
+        };
+        expect(lastSetPayload.left).toBeCloseTo(108, 5);
+        expect(lastSetPayload.top).toBeCloseTo(108, 5);
+        expect(lastSetPayload.scaleX).toBeCloseTo(864 / 560, 5);
+        expect(lastSetPayload.scaleY).toBeCloseTo(864 / 560, 5);
+        expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Variant draft created',
+            description: expect.stringContaining('Safe Area'),
+        }));
     });
 
     it('loads initial design from URL and handles load errors', async () => {

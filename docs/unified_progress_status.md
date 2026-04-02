@@ -1,6 +1,6 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-02-27  
+Last updated: 2026-04-01  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 HEAD: 9b54543
@@ -12,6 +12,40 @@ This is the single source of truth for implementation progress across:
 - continuation handoff notes.
 
 Use this file first for: what is done, what is pending, and what to do next.
+
+---
+
+## Latest Delivery (2026-04-01)
+
+- Fixed the AI remove-background selection trap: opening the AI modal now forces the editor canvas back into selectable mode instead of leaving brush/drawing state active, so the prompt to pick a layer is actionable again.
+- Updated `StabilityGenerator` to hydrate the current active canvas selection immediately, so remove-background recognizes an already-selected image without requiring the user to reselect it.
+- Added regression coverage for the selection-mode reset and immediate-selection hydration in `ImageGeneratorModal.test.tsx` and `StabilityGenerator.test.tsx`.
+- Started the Local AI support (Ollama) track with persisted local runtime preferences, a new `/api/ai/ollama/status` probe route, and a Settings-panel health check for base URL/model availability.
+- Added regression coverage for the new Ollama settings workflow in `SettingsModal.test.tsx`.
+- Started AI critique of image/canvas with a new toolbar-triggered local critique panel that can review either the selected layer or the full canvas using the saved Ollama runtime/model settings.
+- Added `/api/ai/ollama/critique` plus shared Ollama helpers for URL normalization, model-list messaging, image payload extraction, and critique prompt construction.
+- Added regression coverage for the critique modal and Ollama helpers in `AICritiqueModal.test.tsx`, `Toolbar.test.tsx`, and `ollama.test.ts`.
+- Added Comfy workflow library support through `/api/ai/comfy/library`, including server-template discovery, custom workflow-folder scanning, managed repo inspection, and update/install helpers for configured Comfy folders.
+- Added same-origin Comfy proxying via `/api/ai/comfy/proxy` with loopback-to-`host.docker.internal` fallback candidates for mixed Docker/host setups.
+- Added `ComfyWorkflowLibraryPanel` to surface runnable server/custom workflows directly in the UI.
+- Added non-destructive mask gradient utilities and regression coverage so clip masks can use editable linear/radial opacity fades.
+- Fixed safe-area media-overlay variant conversion geometry to use the logical frame box rather than the stroked outline, eliminating the 2 px frame inflation that was breaking the editor regression test.
+
+Validation notes (2026-04-01):
+- Focused tests passed:
+  - `npm test -- --runInBand src/components/__tests__/ImageGeneratorModal.test.tsx src/components/AI/__tests__/StabilityGenerator.test.tsx src/components/__tests__/SettingsModal.test.tsx`
+- Focused lint passed:
+  - `npm run lint -- src/components/ImageGeneratorModal.tsx src/components/AI/StabilityGenerator.tsx src/components/__tests__/ImageGeneratorModal.test.tsx src/components/AI/__tests__/StabilityGenerator.test.tsx src/components/SettingsModal.tsx src/components/__tests__/SettingsModal.test.tsx src/lib/localAiPreferences.ts src/app/api/ai/ollama/status/route.ts`
+- Production build passed:
+  - `npm run build`
+- Additional critique validation passed:
+  - `npm test -- --runInBand src/components/__tests__/AICritiqueModal.test.tsx src/components/__tests__/Toolbar.test.tsx src/lib/__tests__/ollama.test.ts`
+  - `npm run lint -- src/components/AICritiqueModal.tsx src/components/Toolbar.tsx src/components/__tests__/AICritiqueModal.test.tsx src/components/__tests__/Toolbar.test.tsx src/lib/ollama.ts src/lib/__tests__/ollama.test.ts src/app/api/ai/ollama/critique/route.ts`
+  - `npm run build`
+- Full repository validation passed:
+  - `npm.cmd test -- --runInBand --ci` -> 57/57 suites passed, 405 tests passed
+  - `npm.cmd run build` -> passed
+  - `npm.cmd run lint -- .` -> passed with existing warnings only
 
 ---
 
@@ -35,6 +69,7 @@ Use this file first for: what is done, what is pending, and what to do next.
 - Added batch frame export actions in Export menu: `ZIP Selected Frames` and `ZIP All Frames`, reusing existing crop/export pipeline and generating PNG ZIP archives.
 - Refactored media overlay orchestration out of `EditorView` into dedicated hook `src/components/Editor/useMediaOverlay.ts` to reduce integration-file bloat and centralize overlay behavior.
 - Added focused export regression coverage in `src/components/Editor/__tests__/EditorView.test.tsx` for batch ZIP export flow.
+- Completed gradient masks per layer: masked layers now expose linear/radial fade controls in Appearance so clip-path masks can be softened non-destructively without releasing the mask.
 - Added refactor slice: extracted crop/eyedropper/zoom top utility state and effects from `EditorView` into `src/components/Editor/useEditorTopCanvasControls.ts`.
 - Moved viewport-size and utility-canvas-size synchronization effects into `useEditorTopCanvasControls` and rewired top-bar callbacks to hook handlers.
 - Adopted existing `src/components/Editor/useEditorCanvasInteractionEffects.ts` from `EditorView` for gradient drag handlers and media/3D double-click interaction effects.
@@ -160,16 +195,16 @@ Verification method used:
 
 ### Next Active Step (Approved Direction)
 - [ ] Implement **Media Export Overlay (Phase B)**:
-  - Add optional `convert frame to variant` bridge action for campaign workflow handoff.
+  - [x] Add first-pass `convert active frame to variant` bridge action inside the editor.
+  - [ ] Decide whether the bridge should remain an in-editor draft flow or hand off into a dedicated Campaign Workspace later.
   - Keep A1/A2/A3 overlay export path as the canonical lightweight adaptation workflow.
-  - Execution checklist: `docs/media_export_overlay_phase_b_checklist.md`
-  - Foundation now includes persisted campaign-variant snapshot storage and active-frame conversion in the export menu.
 
 ### Media Export Overlay Roadmap (new)
 - [x] A1: single frame export from overlay bounds.
 - [x] A2: multi-frame management + batch ZIP export.
 - [x] A3: safe-area guides + naming templates.
-- [ ] B: optional bridge "convert frame to variant" for future campaign workspace.
+- [x] B1: convert active frame to a preset-sized variant draft in the current editor.
+- [ ] B2: optional handoff from the bridge into a future Campaign Workspace model.
 
 ### A) Pre-Implementation Safety Gates
 - [ ] Baseline visual + UX parity snapshots captured
@@ -659,23 +694,27 @@ Completed in this pass (Editor canvas overlay hook extraction slice):
 ## Other Product Tracker Snapshot (Non-upgrade items)
 From `feature_implementation_tracker.md`:
 - [x] Upgrade program is **In Progress** (item 29)
-- [ ] Gradient masks per layer
-- [ ] More text effects
-- [ ] Local AI support (Ollama)
-- [ ] AI critique of image/canvas
-- [ ] Social media posting
-- [ ] User registration
-- [ ] Reset/change password
+- [x] Gradient masks per layer
+- [~] Local AI support (Ollama): runtime preferences, status probe, and critique route done; image-generation provider wiring still pending
+- [~] AI critique of image/canvas: toolbar modal + local route implemented; interactive QA still pending
+- [ ] Direct social media posting integrations
+- [ ] In-profile change password
 - [ ] Import/export asset library
-- [ ] Online storage integration
+- [ ] Additional online storage providers
+- [ ] Channel editing panel
+- [ ] Google Imagen / Banana.dev / NanoBanana runtime completion
 
 ---
 
 ## Current Recommended Next Step
-Proceed with **Media Export Overlay Phase B preparation**:
-- [ ] Stabilize export correctness first, including normal full-artboard export when media overlay frames exist.
-- [ ] Implement `convert frame to variant` using a single active canvas engine and persisted variant snapshots.
-- [ ] Follow `docs/media_export_overlay_phase_b_checklist.md` as the Phase B execution source of truth.
+Proceed with **Local AI support (Ollama)** follow-through:
+- [ ] Wire the saved local runtime settings into the existing image-generation workflow as a real provider path.
+- [ ] Reuse the existing status/model checks in image-generation entry points so setup failures are explicit before a job is submitted.
+- [ ] Run an interactive QA pass on the new critique modal with at least one vision-capable Ollama model (for example, a local multimodal model) and tune the critique prompt/output shape if needed.
+
+Media Export Overlay Phase B remains open for QA/decision follow-through:
+- [ ] Validate the new variant-draft save flow against real design sessions.
+- [ ] Decide whether the bridge stays as an in-editor draft flow or expands into a dedicated Campaign Workspace later.
 
 ---
 

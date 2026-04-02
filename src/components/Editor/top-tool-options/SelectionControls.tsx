@@ -47,6 +47,7 @@ export default function SelectionControls({
     onWandThresholdChange,
 }: SelectionControlsProps) {
     const isMoveLikeTool = activeTool === 'select' || activeTool === 'path-select';
+    const isSelectionFamilyTool = isMoveLikeTool || activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush';
     const isPixelSelectionTool = activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush';
     const supportsThreshold = activeTool === 'wand' || activeTool === 'quick-select';
 
@@ -75,17 +76,19 @@ export default function SelectionControls({
                 ))}
             </div>
 
-            {isMoveLikeTool && (
+            {isSelectionFamilyTool && (
                 <>
-                    <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                        <input
-                            type="checkbox"
-                            checked={selectOptions.autoSelectEnabled}
-                            onChange={(event) => onAutoSelectChange?.(event.target.checked)}
-                            aria-label="Auto-Select"
-                        />
-                        <span>Auto-Select</span>
-                    </label>
+                    {isMoveLikeTool && (
+                        <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <input
+                                type="checkbox"
+                                checked={selectOptions.autoSelectEnabled}
+                                onChange={(event) => onAutoSelectChange?.(event.target.checked)}
+                                aria-label="Auto-Select"
+                            />
+                            <span>Auto-Select</span>
+                        </label>
+                    )}
 
                     <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                         <button
@@ -104,19 +107,21 @@ export default function SelectionControls({
                         </button>
                     </div>
 
-                    <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                        <input
-                            type="checkbox"
-                            checked={selectOptions.showTransformControls}
-                            onChange={(event) => onTransformControlsChange?.(event.target.checked)}
-                            aria-label="Show Transform Controls"
-                        />
-                        <span>Show Transform Controls</span>
-                    </label>
+                    {isMoveLikeTool && (
+                        <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
+                            <input
+                                type="checkbox"
+                                checked={selectOptions.showTransformControls}
+                                onChange={(event) => onTransformControlsChange?.(event.target.checked)}
+                                aria-label="Show Transform Controls"
+                            />
+                            <span>Show Transform Controls</span>
+                        </label>
+                    )}
                 </>
             )}
 
-            {isPixelSelectionTool && (
+            {isSelectionFamilyTool && (
                 <>
                     <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
                         <span className="text-muted-foreground">Feather</span>

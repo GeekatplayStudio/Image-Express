@@ -1,6 +1,8 @@
 import {
     DEFAULT_COMFY_LOCAL_URL,
+    buildComfyTransportRequestUrl,
     createLocalComfyTransport,
+    shouldUseComfyBrowserProxy,
     type ResolvedComfyTransport,
 } from '@/lib/comfyui/connection';
 
@@ -145,6 +147,10 @@ export class ComfyUIClient {
     }
 
     public connect() {
+        if (shouldUseComfyBrowserProxy(this.transport)) {
+            return;
+        }
+
         if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
             return;
         }
@@ -213,7 +219,10 @@ export class ComfyUIClient {
     }
 
     public async getHistory(promptId: string): Promise<Record<string, unknown>> {
-        const response = await fetch(`${this.transport.baseUrl}${this.transport.historyPathBase}/${promptId}`, {
+        const response = await fetch(buildComfyTransportRequestUrl(
+            this.transport,
+            `${this.transport.historyPathBase}/${promptId}`
+        ), {
             headers: this.transport.defaultHeaders,
         });
 
@@ -445,7 +454,18 @@ export class ComfyUIClient {
     }
 
     private buildApiUrl(path: string): string {
-        return `${this.transport.baseUrl}${this.transport.apiBasePath}${path}`;
+        return buildComfyTransportRequestUrl(
+            this.transport,
+            `${this.transport.apiBasePath}${path}`
+        );
+    }
+
+    private buildViewUrl(params: URLSearchParams): string {
+        return buildComfyTransportRequestUrl(
+            this.transport,
+            `${this.transport.apiBasePath}/view`,
+            params
+        );
     }
 
     public async getFeaturesSnapshot(): Promise<GenericJsonRecord | null> {
@@ -833,7 +853,7 @@ export class ComfyUIClient {
             type,
         });
 
-        const response = await fetch(`${this.buildApiUrl('/view')}?${params.toString()}`, {
+        const response = await fetch(this.buildViewUrl(params), {
             headers: this.transport.defaultHeaders,
         });
 

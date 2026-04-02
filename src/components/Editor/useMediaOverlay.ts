@@ -5,10 +5,12 @@ import {
     MEDIA_OVERLAY_PRESETS,
     MEDIA_OVERLAY_SAFE_AREA_PRESETS,
     MEDIA_OVERLAY_STORAGE_KEY_PREFIX,
+    MEDIA_OVERLAY_VARIANT_CONVERSION_MODES,
     type MediaOverlayNamingTemplate,
     type MediaOverlayPersistedState,
     type MediaOverlayPreset,
     type MediaOverlaySafeAreaPreset,
+    type MediaOverlayVariantConversionMode,
 } from '@/components/Editor/editorViewConfig';
 import {
     buildAspectCropRect,
@@ -17,11 +19,9 @@ import {
     normalizeFrameOrigin,
 } from '@/components/Editor/editorViewGeometry';
 import { useMediaOverlayCanvasEffects } from '@/components/Editor/useMediaOverlayCanvasEffects';
-import { useMediaOverlayCampaignVariants } from '@/components/Editor/useMediaOverlayCampaignVariants';
 import { useMediaOverlayFrameActions } from '@/components/Editor/useMediaOverlayFrameActions';
 import { useMediaOverlayStateEffects } from '@/components/Editor/useMediaOverlayStateEffects';
 import type { MediaOverlayBatchTarget, MediaOverlayFrameConfig } from '@/components/Editor/mediaOverlayTypes';
-import type { ToastOptions } from '@/providers/ToastProvider';
 import type { ExtendedFabricObject } from '@/types';
 import type { CanvasWithArtboard, RectBounds } from '@/components/Editor/editorView.types';
 
@@ -31,9 +31,11 @@ type UseMediaOverlayArgs = {
     canvas: fabric.Canvas | null;
     designId: string | null;
     designName: string;
-    customHistoryProps: string[];
-    toast: (options: ToastOptions) => void;
     onDirty: () => void;
+    pushHistory: () => void;
+    toast: (options: { title: string; description: string; variant: 'success' | 'warning' }) => void;
+    confirm: (message: string, options?: { title?: string; variant?: 'default' | 'destructive' }) => Promise<boolean>;
+    onVariantDraftCreated?: (name: string) => void;
 };
 
 const toNormalizedBounds = (bounds: Partial<RectBounds>): RectBounds => ({
@@ -43,7 +45,63 @@ const toNormalizedBounds = (bounds: Partial<RectBounds>): RectBounds => ({
     height: Number(bounds.height),
 });
 
-export function useMediaOverlay({ canvas, designId, designName, customHistoryProps, toast, onDirty }: UseMediaOverlayArgs) {
+const rectsIntersect = (
+    a: { left: number; top: number; width: number; height: number },
+    b: { left: number; top: number; width: number; height: number },
+) => (
+    a.left < b.left + b.width
+    && a.left + a.width > b.left
+    && a.top < b.top + b.height
+    && a.top + a.height > b.top
+);
+
+const buildAspectFitRect = (targetRect: RectBounds, aspectRatio: number): RectBounds => (
+    buildAspectCropRect(targetRect, aspectRatio)
+);
+
+const buildAspectFillRect = (targetRect: RectBounds, aspectRatio: number): RectBounds => {
+    if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+        return targetRect;
+    }
+
+    const targetRatio = targetRect.width / targetRect.height;
+    let width = targetRect.width;
+    let height = targetRect.height;
+    if (targetRatio > aspectRatio) {
+        height = targetRect.width / aspectRatio;
+    } else {
+        width = targetRect.height * aspectRatio;
+    }
+    return {
+        left: targetRect.left + (targetRect.width - width) / 2,
+        top: targetRect.top + (targetRect.height - height) / 2,
+        width: Math.max(1, width),
+        height: Math.max(1, height),
+    };
+};
+
+const buildInsetRect = (targetRect: RectBounds, insetRatio: number): RectBounds => {
+    const safeInsetRatio = Number.isFinite(insetRatio) ? Math.max(0, Math.min(0.45, insetRatio)) : 0;
+    const insetX = targetRect.width * safeInsetRatio;
+    const insetY = targetRect.height * safeInsetRatio;
+    return {
+        left: targetRect.left + insetX,
+        top: targetRect.top + insetY,
+        width: Math.max(1, targetRect.width - (insetX * 2)),
+        height: Math.max(1, targetRect.height - (insetY * 2)),
+    };
+};
+
+export function useMediaOverlay({
+    canvas,
+    designId,
+    designName,
+    onDirty,
+    pushHistory,
+    toast,
+    confirm,
+    onVariantDraftCreated,
+}: UseMediaOverlayArgs) {
     const mediaOverlayStorageKey = useMemo(
         () => buildMediaOverlayStorageKey(designId, designName || 'untitled', MEDIA_OVERLAY_STORAGE_KEY_PREFIX),
         [designId, designName],
@@ -54,6 +112,7 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
     const [mediaOverlayFrames, setMediaOverlayFrames] = useState<MediaOverlayFrameConfig[]>([]);
     const [activeMediaOverlayFrameId, setActiveMediaOverlayFrameId] = useState<string | null>(null);
     const [mediaOverlayNamingTemplate, setMediaOverlayNamingTemplate] = useState<MediaOverlayNamingTemplate>('frame-preset');
+    const [mediaOverlayVariantConversionMode, setMediaOverlayVariantConversionMode] = useState<MediaOverlayVariantConversionMode>('fill');
 
     const mediaOverlayFrameRef = useRef<(fabric.Rect & ExtendedFabricObject & {
         excludeFromExport?: boolean;
@@ -93,6 +152,11 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
         && MEDIA_OVERLAY_NAMING_TEMPLATES.some((item) => item.id === template)
     ), []);
 
+    const isValidVariantConversionMode = useCallback((mode: unknown): mode is MediaOverlayVariantConversionMode => (
+        typeof mode === 'string'
+        && MEDIA_OVERLAY_VARIANT_CONVERSION_MODES.some((item) => item.id === mode)
+    ), []);
+
     const getMediaOverlaySourceRect = useCallback((): RectBounds | null => {
         if (!canvas) return null;
         const activeCanvas = canvas as CanvasWithArtboard;
@@ -128,7 +192,7 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
 
     const getMediaOverlayConstraintRect = useCallback((preset: MediaOverlayPreset): RectBounds | null => {
         if (preset === 'canvas-original') {
-            return getCanvasFullRect();
+            return getMediaOverlaySourceRect() || getCanvasFullRect();
         }
         return getMediaOverlaySourceRect() || getCanvasFullRect();
     }, [getCanvasFullRect, getMediaOverlaySourceRect]);
@@ -280,6 +344,7 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
                 enabled: mediaOverlayEnabled,
                 preset: activeFrame?.preset ?? mediaOverlayPreset,
                 namingTemplate: mediaOverlayNamingTemplate,
+                variantConversionMode: mediaOverlayVariantConversionMode,
             };
             if (mediaOverlayFrames.length > 0) {
                 payload.frames = mediaOverlayFrames.map((frame) => ({
@@ -315,6 +380,7 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
         mediaOverlayFrames,
         mediaOverlayNamingTemplate,
         mediaOverlayPreset,
+        mediaOverlayVariantConversionMode,
         mediaOverlayStorageKey,
     ]);
 
@@ -328,6 +394,7 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
         isValidMediaOverlayBounds,
         isValidSafeAreaPreset,
         isValidNamingTemplate,
+        isValidVariantConversionMode,
         toNormalizedBounds,
         mediaOverlayPendingRestoreRef,
         previousActiveMediaOverlayFrameIdRef,
@@ -336,6 +403,7 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
         setMediaOverlayFrames,
         setActiveMediaOverlayFrameId,
         setMediaOverlayNamingTemplate,
+        setMediaOverlayVariantConversionMode,
         onDirty,
     });
 
@@ -396,23 +464,6 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
         onDirty,
     });
 
-    const {
-        campaignVariants,
-        activeCampaignVariantId,
-        activeCampaignVariant,
-        handleConvertActiveMediaOverlayFrameToVariant,
-        handleSelectCampaignVariant,
-        handleRemoveCampaignVariant,
-    } = useMediaOverlayCampaignVariants({
-        mediaOverlayStorageKey,
-        canvas: canvas as unknown as { toJSON: (properties?: string[]) => import('@/components/Editor/editorView.types').DesignJson } | null,
-        customHistoryProps,
-        mediaOverlayFrames,
-        activeMediaOverlayFrameId,
-        resolveMediaOverlayFrameBounds,
-        toast,
-    });
-
     const getMediaOverlayBatchTargets = useCallback((scope: 'selected' | 'all'): MediaOverlayBatchTarget[] => {
         if (mediaOverlayFrames.length === 0) {
             const fallback = getMediaOverlayCropBounds();
@@ -441,6 +492,200 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
             })
             .filter((frame): frame is MediaOverlayBatchTarget => frame !== null);
     }, [getMediaOverlayCropBounds, mediaOverlayFrames, mediaOverlayPreset, resolveMediaOverlayFrameBounds]);
+
+    const handleConvertActiveMediaOverlayFrameToVariant = useCallback(async () => {
+        if (!canvas) return;
+
+        const activeFrame = getActiveMediaOverlayFrame();
+        if (!activeFrame) {
+            toast({
+                title: 'Variant unavailable',
+                description: 'Add or select a media overlay frame first.',
+                variant: 'warning',
+            });
+            return;
+        }
+
+        const confirmed = await confirm(
+            'Create a new variant draft from the active frame? Off-frame objects will be removed from the new draft, and the current session will switch to that variant.',
+            {
+                title: 'Convert Frame to Variant',
+                variant: 'destructive',
+            },
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        const cropBounds = resolveMediaOverlayFrameBounds(activeFrame);
+        const sourceRect = getMediaOverlaySourceRect();
+        const presetSpec = MEDIA_OVERLAY_PRESETS.find((item) => item.id === activeFrame.preset);
+        if (!cropBounds || !sourceRect || !presetSpec) {
+            toast({
+                title: 'Variant unavailable',
+                description: 'The active frame could not be resolved.',
+                variant: 'warning',
+            });
+            return;
+        }
+
+        const targetRect: RectBounds = {
+            left: sourceRect.left,
+            top: sourceRect.top,
+            width: presetSpec.width,
+            height: presetSpec.height,
+        };
+        const sourceAspectRatio = cropBounds.width / cropBounds.height;
+        const safeAreaPreset = activeFrame.safeAreaPreset === 'none' ? 'title-safe-10' : activeFrame.safeAreaPreset;
+        const safeAreaSpec = MEDIA_OVERLAY_SAFE_AREA_PRESETS.find((item) => item.id === safeAreaPreset)
+            ?? MEDIA_OVERLAY_SAFE_AREA_PRESETS[0];
+        const destinationContentRect = mediaOverlayVariantConversionMode === 'fit'
+            ? buildAspectFitRect(targetRect, sourceAspectRatio)
+            : mediaOverlayVariantConversionMode === 'safe-area'
+                ? buildAspectFitRect(buildInsetRect(targetRect, safeAreaSpec.insetRatio), sourceAspectRatio)
+                : buildAspectFillRect(targetRect, sourceAspectRatio);
+        const scaleX = destinationContentRect.width / cropBounds.width;
+        const scaleY = destinationContentRect.height / cropBounds.height;
+        const transformMatrix = [
+            scaleX,
+            0,
+            0,
+            scaleY,
+            destinationContentRect.left - (cropBounds.left * scaleX),
+            destinationContentRect.top - (cropBounds.top * scaleY),
+        ] as fabric.TMat2D;
+
+        const applyVariantTransformToObject = (obj: fabric.Object) => {
+            try {
+                if (
+                    typeof obj.calcTransformMatrix === 'function'
+                    && typeof fabric.util.multiplyTransformMatrices === 'function'
+                    && typeof fabric.util.applyTransformToObject === 'function'
+                ) {
+                    const objectMatrix = obj.calcTransformMatrix() as fabric.TMat2D;
+                    const finalMatrix = fabric.util.multiplyTransformMatrices(transformMatrix, objectMatrix);
+                    fabric.util.applyTransformToObject(obj, finalMatrix);
+                    obj.setCoords();
+                    return;
+                }
+            } catch {
+                // Fall back to direct property remap below when matrix transforms are unavailable.
+            }
+
+            const directObj = obj as fabric.Object & {
+                left?: number;
+                top?: number;
+                scaleX?: number;
+                scaleY?: number;
+            };
+            obj.set({
+                left: destinationContentRect.left + (((directObj.left || 0) - cropBounds.left) * scaleX),
+                top: destinationContentRect.top + (((directObj.top || 0) - cropBounds.top) * scaleY),
+                scaleX: (directObj.scaleX || 1) * scaleX,
+                scaleY: (directObj.scaleY || 1) * scaleY,
+            });
+            obj.setCoords();
+        };
+
+        const canvasWithArtboard = canvas as CanvasWithArtboard;
+        const overlayFrame = mediaOverlayFrameRef.current;
+        const overlayGuide = mediaOverlayLabelRef.current;
+        if (overlayFrame) {
+            canvas.remove(overlayFrame);
+            mediaOverlayFrameRef.current = null;
+        }
+        if (overlayGuide) {
+            canvas.remove(overlayGuide);
+            mediaOverlayLabelRef.current = null;
+        }
+
+        canvas.discardActiveObject();
+
+        let removedCount = 0;
+        const objects = [...canvas.getObjects()];
+        for (const obj of objects) {
+            if (obj === overlayFrame || obj === overlayGuide || obj === canvasWithArtboard.artboardRect) {
+                continue;
+            }
+
+            const bounds = typeof obj.getBoundingRect === 'function' ? obj.getBoundingRect() : null;
+            if (bounds && !rectsIntersect(bounds, cropBounds)) {
+                canvas.remove(obj);
+                removedCount += 1;
+                continue;
+            }
+
+            applyVariantTransformToObject(obj);
+        }
+
+        Object.assign(canvasWithArtboard as { artboard?: CanvasWithArtboard['artboard'] }, {
+            artboard: {
+                left: targetRect.left,
+                top: targetRect.top,
+                width: targetRect.width,
+                height: targetRect.height,
+            },
+        });
+
+        if (canvasWithArtboard.artboardRect) {
+            canvasWithArtboard.artboardRect.set({
+                left: targetRect.left,
+                top: targetRect.top,
+                width: targetRect.width,
+                height: targetRect.height,
+            });
+            canvasWithArtboard.artboardRect.setCoords();
+            canvas.fire('object:modified', { target: canvasWithArtboard.artboardRect });
+        }
+        const canvasWithCustomEvents = canvas as fabric.Canvas & {
+            fire: (eventName: string, options?: object) => void;
+        };
+        canvasWithCustomEvents.fire('artboard:resize', targetRect);
+        canvas.requestRenderAll();
+
+        mediaOverlayPendingRestoreRef.current = null;
+        setMediaOverlayFrames([]);
+        setActiveMediaOverlayFrameId(null);
+        setMediaOverlayPreset('canvas-original');
+        setMediaOverlayEnabled(true);
+
+        const nextVariantName = designName && designName !== 'Untitled Design'
+            ? `${designName} - ${presetSpec.label}`
+            : presetSpec.label;
+        const modeLabel = mediaOverlayVariantConversionMode === 'fit'
+            ? 'Fit'
+            : mediaOverlayVariantConversionMode === 'safe-area'
+                ? 'Safe Area'
+                : 'Fill';
+
+        onVariantDraftCreated?.(nextVariantName);
+        onDirty();
+        pushHistory();
+
+        toast({
+            title: 'Variant draft created',
+            description: removedCount > 0
+                ? `Active frame converted to ${presetSpec.label} using ${modeLabel}. Removed ${removedCount} off-frame object${removedCount === 1 ? '' : 's'}.`
+                : `Active frame converted to ${presetSpec.label} using ${modeLabel}. Save to keep it as a separate design.`,
+            variant: 'success',
+        });
+    }, [
+        canvas,
+        designName,
+        getActiveMediaOverlayFrame,
+        getMediaOverlaySourceRect,
+        mediaOverlayVariantConversionMode,
+        onDirty,
+        onVariantDraftCreated,
+        pushHistory,
+        resolveMediaOverlayFrameBounds,
+        setActiveMediaOverlayFrameId,
+        setMediaOverlayEnabled,
+        setMediaOverlayFrames,
+        setMediaOverlayPreset,
+        toast,
+        confirm,
+    ]);
 
     useMediaOverlayCanvasEffects({
         canvas,
@@ -479,13 +724,10 @@ export function useMediaOverlay({ canvas, designId, designName, customHistoryPro
         handleToggleMediaOverlayFrameInclude,
         mediaOverlayNamingTemplate,
         setMediaOverlayNamingTemplate,
+        mediaOverlayVariantConversionMode,
+        setMediaOverlayVariantConversionMode,
         handleActiveMediaOverlayFrameSafeAreaPresetChange,
         handleSelectMediaOverlayFrame,
-        campaignVariants,
-        activeCampaignVariantId,
-        activeCampaignVariant,
         handleConvertActiveMediaOverlayFrameToVariant,
-        handleSelectCampaignVariant,
-        handleRemoveCampaignVariant,
     };
 }

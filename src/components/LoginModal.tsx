@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { User, Lock, ArrowRight, Loader2, Mail, UserPlus, KeyRound, CheckCircle2, Chrome, Facebook } from 'lucide-react';
 import { AuthUser } from '@/types';
-import { loadDriveConfig } from '@/lib/googleDrive';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import { loadDriveConfig } from '@/lib/googleDrive';
 
 type GoogleCredentialResponse = {
     credential?: string;
@@ -64,18 +64,15 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
     const [resetNewPassword, setResetNewPassword] = useState('');
     const [debugToken, setDebugToken] = useState<string | null>(null);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [storedGoogleClientId, setStoredGoogleClientId] = useState('');
 
     const googleClientId = useMemo(() => {
-        const envClientId = (
-            process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID
-            || process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID
-            || ''
-        ).trim();
-        if (envClientId) {
-            return envClientId;
-        }
-        return loadDriveConfig().clientId?.trim() || '';
-    }, [isOpen]);
+        return [
+            process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID,
+            process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID,
+            storedGoogleClientId,
+        ].find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() || '';
+    }, [storedGoogleClientId]);
 
     const getGoogleApi = () => {
         if (typeof window === 'undefined') return null;
@@ -102,6 +99,7 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
     useEffect(() => {
         if (!isOpen) return;
         if (typeof window === 'undefined') return;
+        setStoredGoogleClientId(loadDriveConfig().clientId || '');
         if (getGoogleApi()) return;
 
         const existingScript = document.querySelector<HTMLScriptElement>('script[data-google-identity="true"]');
@@ -179,7 +177,7 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
             const res = await fetch('/api/user/auth/google', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ credential, clientId: googleClientId })
+                body: JSON.stringify({ credential })
             });
             const data = await res.json();
             if (!res.ok || !data.success) {
@@ -204,7 +202,7 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
     const handleGoogleSignIn = () => {
         resetFeedback();
         if (!googleClientId) {
-            setError('Google login is not configured. Set NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID or add the Google Client ID in Settings.');
+            setError('Google login is not configured. Set NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID, NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID, or configure the Google client ID in Settings.');
             return;
         }
         const googleApi = getGoogleApi();
@@ -395,7 +393,7 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div
                 ref={modalRef}
                 role="dialog"

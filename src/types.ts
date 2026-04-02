@@ -36,6 +36,7 @@ export type ThreeDSettings = {
 export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white' | 'brightness-contrast' | 'color-balance' | 'light-and-color' | 'solid-color';
 
 export type CurvesChannel = 'rgb' | 'r' | 'g' | 'b' | 'luminosity';
+export type CurvesPickerTarget = 'shadow' | 'midtone' | 'highlight';
 
 
 export type CurvePoint = { x: number; y: number };
@@ -44,6 +45,8 @@ export type CurvesAdjustmentSettings = {
     points: CurvePoint[]; // 0..1 normalized points
     channel?: CurvesChannel;
     pointsByChannel?: Partial<Record<CurvesChannel, CurvePoint[]>>;
+    pickerTarget?: CurvesPickerTarget;
+    pickerColors?: Partial<Record<CurvesPickerTarget, string>>;
 };
 
 export type LevelsAdjustmentSettings = {

@@ -25,7 +25,6 @@ import {
 import { LayersView } from './properties/LayersView';
 import { SelectionProperties } from './properties/SelectionProperties';
 import { CanvasSettingsPanel } from './properties/CanvasSettingsPanel';
-import AssetLibrary from './AssetLibrary';
 import { useGradientControls } from '@/hooks/useGradientControls';
 import type { RasterBlendMode, RasterBrushPreset } from '@/lib/raster-engine';
 
@@ -64,6 +63,11 @@ import {
     ColorPanelMode,
     NavigatorSceneRect,
 } from './properties/PanelUtilityViews';
+import {
+    buildMaskGradientFill,
+    mergeMaskGradientSettings,
+    readMaskGradientSettings,
+} from './properties/maskGradientUtils';
 import { cn } from '@/lib/utils';
 
 interface CustomObjectState {
@@ -148,7 +152,6 @@ export default function PropertiesPanel({
     onLayerDblClick,
     onMake3D,
     onDuplicate,
-    onAssetSelect,
     historyState,
     onUndo,
     onRedo,
@@ -1628,6 +1631,34 @@ export default function PropertiesPanel({
              selectedObject.set('fill', gradient);
         }
 
+        if (prop === 'maskGradient') {
+            const mask = selectedObject.clipPath;
+            if (!mask) {
+                return;
+            }
+
+            const nextMaskGradient = mergeMaskGradientSettings(
+                readMaskGradientSettings(mask as fabric.Object),
+                value as Partial<ReturnType<typeof readMaskGradientSettings>>,
+            );
+
+            mask.set({
+                fill: buildMaskGradientFill(nextMaskGradient),
+                stroke: undefined,
+                dirty: true,
+            });
+            selectedObject.set('dirty', true);
+
+            if ((selectedObject as ExtendedFabricObject).isAdjustmentLayer) {
+                applyAdjustmentLayers();
+            }
+
+            canvas.requestRenderAll();
+            updateObjects();
+            canvas.fire('object:modified', { target: selectedObject });
+            return;
+        }
+
         if (prop === 'opacity') {
             selectedObject.set('opacity', value);
             setOpacity(value);
@@ -2848,17 +2879,6 @@ export default function PropertiesPanel({
         // Force update to refresh UI
         updateObjects();
     };
-
-    if (activeTool === 'assets') {
-        return (
-            <div className="h-full flex flex-col bg-card overflow-hidden">
-                <AssetLibrary 
-                    onSelect={(url, type, name) => onAssetSelect?.(url, type, name)}
-                    onClose={() => {}} 
-                />
-            </div>
-        );
-    }
 
     const selectedExt = selectedObject as ExtendedFabricObject | null;
     const hasEditableFillTarget = !!selectedObject

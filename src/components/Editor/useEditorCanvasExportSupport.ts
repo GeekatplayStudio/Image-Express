@@ -18,6 +18,34 @@ type UseEditorCanvasExportSupportArgs = {
     canvas: fabric.Canvas | null;
 };
 
+const IDENTITY_TRANSFORM = [1, 0, 0, 1, 0, 0] as fabric.TMat2D;
+
+function exportSnapshotCanvasToDataUrl(
+    snapshotCanvas: HTMLCanvasElement,
+    format: string,
+    quality: number,
+    backgroundColor?: string,
+) {
+    if (!backgroundColor) {
+        return snapshotCanvas.toDataURL(`image/${format}`, quality);
+    }
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = snapshotCanvas.width;
+    exportCanvas.height = snapshotCanvas.height;
+
+    const exportContext = exportCanvas.getContext('2d');
+    if (!exportContext) {
+        return snapshotCanvas.toDataURL(`image/${format}`, quality);
+    }
+
+    exportContext.fillStyle = backgroundColor;
+    exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+    exportContext.drawImage(snapshotCanvas, 0, 0);
+
+    return exportCanvas.toDataURL(`image/${format}`, quality);
+}
+
 export function useEditorCanvasExportSupport({
     canvas,
 }: UseEditorCanvasExportSupportArgs) {
@@ -60,7 +88,7 @@ export function useEditorCanvasExportSupport({
 
         if (originalTransform && !runtimeCanvas.disposed && !runtimeCanvas.destroyed) {
             try {
-                canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as fabric.TMat2D);
+                canvas.setViewportTransform(IDENTITY_TRANSFORM);
                 canvas.requestRenderAll();
                 shouldRestoreTransform = true;
             } catch (error) {
@@ -96,91 +124,95 @@ export function useEditorCanvasExportSupport({
                 : 1;
             const finalMultiplier = (options.multiplier || 1) * retinaScaling;
 
-            const exportToSnapshotCanvas = () => {
-                const directToCanvasElement = runtimeCanvas.toCanvasElement;
-                if (typeof directToCanvasElement === 'function') {
-                    return directToCanvasElement.call(runtimeCanvas, finalMultiplier, options);
-                }
+            // Fabric v7 Canvas#toDataURL can fail when upper canvas internals are unavailable.
+            // In that case, bypass Canvas#toCanvasElement and call StaticCanvas directly.
+            const canUseStaticFallback =
+                typeof fabric.StaticCanvas?.prototype?.toCanvasElement === 'function'
+                && typeof (canvas as unknown as { calcViewportBoundaries?: unknown }).calcViewportBoundaries === 'function'
+                && typeof (canvas as unknown as { renderCanvas?: unknown }).renderCanvas === 'function';
 
-                if (typeof fabric.StaticCanvas?.prototype?.toCanvasElement === 'function') {
-                    const staticToCanvasElement = fabric.StaticCanvas.prototype.toCanvasElement as (
+            if (canUseStaticFallback) {
+                try {
+                    const toCanvasElement = fabric.StaticCanvas.prototype.toCanvasElement as (
                         this: fabric.StaticCanvas,
                         multiplier?: number,
                         options?: fabric.TToCanvasElementOptions
                     ) => HTMLCanvasElement;
-                    return staticToCanvasElement.call(
+                    const snapshotCanvas = toCanvasElement.call(
                         canvas as unknown as fabric.StaticCanvas,
                         finalMultiplier,
-                        options,
+                        options
                     );
+                    return exportSnapshotCanvasToDataUrl(
+                        snapshotCanvas,
+                        format,
+                        quality,
+                        options.backgroundColor,
+                    );
+                } catch (fallbackError) {
+                    console.warn('StaticCanvas fallback export failed:', fallbackError);
                 }
-
-                return null;
-            };
-
-            try {
-                const snapshotCanvas = exportToSnapshotCanvas();
-                if (snapshotCanvas) {
-                    return snapshotCanvas.toDataURL(`image/${format}`, quality);
-                }
-            } catch (fallbackError) {
-                console.warn('Snapshot export fallback failed:', fallbackError);
             }
 
             const lowerCanvasEl = runtimeCanvas.lowerCanvasEl
                 || runtimeCanvas.elements?.lower?.el
                 || runtimeCanvas.getElement?.();
             if (lowerCanvasEl) {
-                const requiresScratchCanvas = Boolean(
-                    options.backgroundColor
-                    || typeof options.left === 'number'
-                    || typeof options.top === 'number'
-                    || typeof options.width === 'number'
-                    || typeof options.height === 'number',
+                const viewportTransform = canvas.viewportTransform || IDENTITY_TRANSFORM;
+                const logicalWidth = Number(canvas.getWidth?.() || canvas.width || lowerCanvasEl.width || 1);
+                const logicalHeight = Number(canvas.getHeight?.() || canvas.height || lowerCanvasEl.height || 1);
+                const cropLeft = Number(options.left ?? 0);
+                const cropTop = Number(options.top ?? 0);
+                const cropWidth = Math.max(1, Number(options.width ?? logicalWidth));
+                const cropHeight = Math.max(1, Number(options.height ?? logicalHeight));
+                const mapSceneToViewport = (point: fabric.Point) => (
+                    new fabric.Point(
+                        (point.x * viewportTransform[0]) + (point.y * viewportTransform[2]) + viewportTransform[4],
+                        (point.x * viewportTransform[1]) + (point.y * viewportTransform[3]) + viewportTransform[5],
+                    )
                 );
 
-                if (!requiresScratchCanvas) {
-                    return lowerCanvasEl.toDataURL(`image/${format}`, quality);
-                }
+                const topLeft = mapSceneToViewport(new fabric.Point(cropLeft, cropTop));
+                const bottomRight = mapSceneToViewport(new fabric.Point(
+                    cropLeft + cropWidth,
+                    cropTop + cropHeight,
+                ));
+                const pixelScaleX = lowerCanvasEl.width / Math.max(1, logicalWidth);
+                const pixelScaleY = lowerCanvasEl.height / Math.max(1, logicalHeight);
 
-                const exportCanvas = document.createElement('canvas');
-                const exportWidth = Math.max(1, Math.round((options.width || lowerCanvasEl.width || canvas.getWidth() || 1) * finalMultiplier));
-                const exportHeight = Math.max(1, Math.round((options.height || lowerCanvasEl.height || canvas.getHeight() || 1) * finalMultiplier));
-                exportCanvas.width = exportWidth;
-                exportCanvas.height = exportHeight;
+                let sx = Math.floor(Math.min(topLeft.x, bottomRight.x) * pixelScaleX);
+                let sy = Math.floor(Math.min(topLeft.y, bottomRight.y) * pixelScaleY);
+                let sw = Math.ceil(Math.abs(bottomRight.x - topLeft.x) * pixelScaleX);
+                let sh = Math.ceil(Math.abs(bottomRight.y - topLeft.y) * pixelScaleY);
 
-                let exportContext: CanvasRenderingContext2D | null = null;
-                try {
-                    exportContext = exportCanvas.getContext('2d');
-                } catch {
-                    exportContext = null;
-                }
-                if (exportContext) {
+                sx = Math.max(0, Math.min(lowerCanvasEl.width - 1, sx));
+                sy = Math.max(0, Math.min(lowerCanvasEl.height - 1, sy));
+                sw = Math.max(1, Math.min(lowerCanvasEl.width - sx, sw));
+                sh = Math.max(1, Math.min(lowerCanvasEl.height - sy, sh));
+
+                const snapshotCanvas = document.createElement('canvas');
+                snapshotCanvas.width = Math.max(1, Math.round(cropWidth * finalMultiplier));
+                snapshotCanvas.height = Math.max(1, Math.round(cropHeight * finalMultiplier));
+
+                const snapshotContext = snapshotCanvas.getContext('2d');
+                if (snapshotContext) {
                     if (options.backgroundColor) {
-                        exportContext.fillStyle = options.backgroundColor;
-                        exportContext.fillRect(0, 0, exportWidth, exportHeight);
+                        snapshotContext.fillStyle = options.backgroundColor;
+                        snapshotContext.fillRect(0, 0, snapshotCanvas.width, snapshotCanvas.height);
                     }
-
-                    const sourceLeft = Math.max(0, Math.round((options.left || 0) * finalMultiplier));
-                    const sourceTop = Math.max(0, Math.round((options.top || 0) * finalMultiplier));
-                    const sourceWidth = Math.max(1, Math.min(lowerCanvasEl.width - sourceLeft, exportWidth));
-                    const sourceHeight = Math.max(1, Math.min(lowerCanvasEl.height - sourceTop, exportHeight));
-
-                    if (sourceWidth > 0 && sourceHeight > 0) {
-                        exportContext.drawImage(
-                            lowerCanvasEl,
-                            sourceLeft,
-                            sourceTop,
-                            sourceWidth,
-                            sourceHeight,
-                            0,
-                            0,
-                            sourceWidth,
-                            sourceHeight,
-                        );
-                    }
-
-                    return exportCanvas.toDataURL(`image/${format}`, quality);
+                    // Preserve the requested crop instead of exporting only the visible viewport canvas.
+                    snapshotContext.drawImage(
+                        lowerCanvasEl,
+                        sx,
+                        sy,
+                        sw,
+                        sh,
+                        0,
+                        0,
+                        snapshotCanvas.width,
+                        snapshotCanvas.height,
+                    );
+                    return snapshotCanvas.toDataURL(`image/${format}`, quality);
                 }
 
                 return lowerCanvasEl.toDataURL(`image/${format}`, quality);

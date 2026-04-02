@@ -1,9 +1,11 @@
 import React from 'react';
+import { Pipette } from 'lucide-react';
 import { 
     AdjustmentLayerType, 
     AdjustmentLayerSettings, 
     CurvesAdjustmentSettings, 
     CurvesChannel, 
+    CurvesPickerTarget,
     LevelsAdjustmentSettings, 
     HueSaturationSettings, 
     ExposureSettings, 
@@ -21,29 +23,151 @@ interface AdjustmentControlsProps {
     onChange: (settings: AdjustmentLayerSettings) => void;
 }
 
+type EyeDropperLike = {
+    open: () => Promise<{ sRGBHex: string }>;
+};
+
+const CURVES_HISTOGRAM_PATH = 'M 0 160 L 0 132 C 7 119, 15 153, 24 143 C 33 132, 42 78, 52 109 C 61 138, 70 113, 80 140 C 89 156, 99 101, 109 128 C 119 155, 130 91, 140 118 C 148 140, 154 130, 160 136 L 160 160 Z';
+
+const CURVE_PICKER_LABELS: Record<CurvesPickerTarget, string> = {
+    shadow: 'Black point',
+    midtone: 'Gray point',
+    highlight: 'White point',
+};
+
+const CURVE_PICKER_OUTPUTS: Record<CurvesPickerTarget, number> = {
+    shadow: 0,
+    midtone: 0.5,
+    highlight: 1,
+};
+
+const CURVE_CHANNEL_APPEARANCE: Record<CurvesChannel, {
+    stroke: string;
+    background: string;
+    grid: string;
+    diagonal: string;
+    histogramFill: string;
+    pointStroke: string;
+    pointFill: string;
+}> = {
+    rgb: {
+        stroke: APP_THEME.curveDefaultStroke,
+        background: 'linear-gradient(135deg, rgba(15,23,42,0.96) 0%, rgba(31,41,55,0.96) 100%)',
+        grid: 'rgba(255,255,255,0.10)',
+        diagonal: 'rgba(255,255,255,0.18)',
+        histogramFill: 'rgba(244,244,245,0.24)',
+        pointStroke: '#ffffff',
+        pointFill: APP_THEME.curveDefaultStroke,
+    },
+    luminosity: {
+        stroke: '#ffffff',
+        background: 'linear-gradient(135deg, rgba(10,10,10,0.98) 0%, rgba(86,86,86,0.88) 52%, rgba(236,236,236,0.94) 100%)',
+        grid: 'rgba(255,255,255,0.18)',
+        diagonal: 'rgba(255,255,255,0.28)',
+        histogramFill: 'rgba(255,255,255,0.32)',
+        pointStroke: '#ffffff',
+        pointFill: '#111827',
+    },
+    r: {
+        stroke: '#ef4444',
+        background: 'linear-gradient(135deg, rgba(127,29,29,0.92) 0%, rgba(69,10,10,0.92) 38%, rgba(17,24,39,0.92) 58%, rgba(8,145,178,0.28) 100%)',
+        grid: 'rgba(255,255,255,0.10)',
+        diagonal: 'rgba(255,255,255,0.20)',
+        histogramFill: 'rgba(248,113,113,0.34)',
+        pointStroke: '#ffffff',
+        pointFill: '#ef4444',
+    },
+    g: {
+        stroke: '#22c55e',
+        background: 'linear-gradient(135deg, rgba(22,101,52,0.94) 0%, rgba(34,197,94,0.22) 24%, rgba(17,24,39,0.90) 58%, rgba(190,24,93,0.28) 82%, rgba(131,24,67,0.48) 100%)',
+        grid: 'rgba(255,255,255,0.10)',
+        diagonal: 'rgba(255,255,255,0.20)',
+        histogramFill: 'rgba(74,222,128,0.30)',
+        pointStroke: '#ffffff',
+        pointFill: '#22c55e',
+    },
+    b: {
+        stroke: '#3b82f6',
+        background: 'linear-gradient(135deg, rgba(30,64,175,0.92) 0%, rgba(59,130,246,0.24) 24%, rgba(15,23,42,0.90) 58%, rgba(202,138,4,0.28) 82%, rgba(161,161,11,0.46) 100%)',
+        grid: 'rgba(255,255,255,0.10)',
+        diagonal: 'rgba(255,255,255,0.20)',
+        histogramFill: 'rgba(96,165,250,0.34)',
+        pointStroke: '#ffffff',
+        pointFill: '#3b82f6',
+    },
+};
+
+function normalizeHexColor(color: string) {
+    const normalized = color.trim().toLowerCase();
+    if (/^#[0-9a-f]{6}$/.test(normalized)) return normalized;
+    if (/^#[0-9a-f]{3}$/.test(normalized)) {
+        return `#${normalized[1]}${normalized[1]}${normalized[2]}${normalized[2]}${normalized[3]}${normalized[3]}`;
+    }
+    return '#808080';
+}
+
+function hexToRgb(color: string) {
+    const normalized = normalizeHexColor(color);
+    return {
+        r: Number.parseInt(normalized.slice(1, 3), 16),
+        g: Number.parseInt(normalized.slice(3, 5), 16),
+        b: Number.parseInt(normalized.slice(5, 7), 16),
+    };
+}
+
+function getCurveSampleValue(channel: CurvesChannel, color: string) {
+    const { r, g, b } = hexToRgb(color);
+    if (channel === 'r') return r / 255;
+    if (channel === 'g') return g / 255;
+    if (channel === 'b') return b / 255;
+    return ((0.299 * r) + (0.587 * g) + (0.114 * b)) / 255;
+}
+
+function insertOrReplaceAnchor(points: { x: number; y: number }[], target: CurvesPickerTarget, anchorX: number) {
+    const normalizedAnchorX = Math.min(1, Math.max(0, anchorX));
+    const anchorPoint = { x: normalizedAnchorX, y: CURVE_PICKER_OUTPUTS[target] };
+    const basePoints = [...points].sort((left, right) => left.x - right.x);
+
+    if (target === 'shadow') {
+        const withoutShadowInterior = basePoints.filter((point, index) => index === 0 || point.x > normalizedAnchorX + 0.001);
+        return [{ x: normalizedAnchorX, y: 0 }, ...withoutShadowInterior.slice(1)].sort((left, right) => left.x - right.x);
+    }
+
+    if (target === 'highlight') {
+        const withoutHighlightInterior = basePoints.filter((point, index) => index === basePoints.length - 1 || point.x < normalizedAnchorX - 0.001);
+        return [...withoutHighlightInterior.slice(0, -1), { x: normalizedAnchorX, y: 1 }].sort((left, right) => left.x - right.x);
+    }
+
+    const middleIndex = basePoints.findIndex((point, index) => index > 0 && index < basePoints.length - 1);
+    if (middleIndex === -1) {
+        return [...basePoints, anchorPoint].sort((left, right) => left.x - right.x);
+    }
+
+    const nextPoints = [...basePoints];
+    nextPoints[middleIndex] = anchorPoint;
+    return nextPoints.sort((left, right) => left.x - right.x);
+}
+
 function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjustmentSettings, onChange: (s: CurvesAdjustmentSettings) => void }) {
     const channel = curves.channel ?? 'rgb';
     const points = curves.pointsByChannel?.[channel] ?? curves.points ?? [{ x: 0, y: 0 }, { x: 1, y: 1 }];
     const sorted = [...points].sort((a, b) => a.x - b.x);
+    const appearance = CURVE_CHANNEL_APPEARANCE[channel];
+    const pickerTarget = curves.pickerTarget ?? 'midtone';
+    const pickerColors = React.useMemo(() => curves.pickerColors ?? {}, [curves.pickerColors]);
     
     const [activePointIndex, setActivePointIndex] = React.useState<number | null>(null);
+    const [isSampling, setIsSampling] = React.useState(false);
+    const hiddenColorInputRef = React.useRef<HTMLInputElement | null>(null);
+    const pendingPickerTargetRef = React.useRef<CurvesPickerTarget>('midtone');
 
-    const updateCurves = (newCurves: CurvesAdjustmentSettings) => {
+    const updateCurves = React.useCallback((newCurves: CurvesAdjustmentSettings) => {
         onChange(newCurves);
-    }
+    }, [onChange]);
 
     const toSvgX = (value: number) => value * 160;
     const toSvgY = (value: number) => 160 - value * 160;
-    
-    const curveStroke = channel === 'r'
-        ? '#ef4444'
-        : channel === 'g'
-            ? '#22c55e'
-            : channel === 'b'
-                ? '#3b82f6'
-                : channel === 'luminosity'
-                    ? '#e5e7eb'
-                    : APP_THEME.curveDefaultStroke;
+    const curveStroke = appearance.stroke;
     
     const smoothPath = () => {
         if (sorted.length < 2) return '';
@@ -72,6 +196,51 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
     };
     const path = smoothPath();
 
+    const applyPickedColor = React.useCallback((target: CurvesPickerTarget, color: string) => {
+        const normalizedColor = normalizeHexColor(color);
+        const sampleValue = getCurveSampleValue(channel, normalizedColor);
+        const nextPoints = insertOrReplaceAnchor(sorted, target, sampleValue);
+        const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: nextPoints };
+        const nextPickerColors = { ...(curves.pickerColors ?? {}), [target]: normalizedColor };
+        updateCurves({
+            ...curves,
+            channel,
+            points: nextPoints,
+            pointsByChannel: nextByChannel,
+            pickerTarget: target,
+            pickerColors: nextPickerColors,
+        });
+        setActivePointIndex(nextPoints.findIndex((point) => point.x === sampleValue && point.y === CURVE_PICKER_OUTPUTS[target]));
+    }, [channel, curves, sorted, updateCurves]);
+
+    const openFallbackColorInput = React.useCallback((target: CurvesPickerTarget) => {
+        pendingPickerTargetRef.current = target;
+        if (!hiddenColorInputRef.current) return;
+        hiddenColorInputRef.current.value = pickerColors[target] ?? '#808080';
+        hiddenColorInputRef.current.click();
+    }, [pickerColors]);
+
+    const handlePickerSample = React.useCallback(async (target: CurvesPickerTarget) => {
+        updateCurves({ ...curves, pickerTarget: target });
+        const EyeDropperConstructor = (window as Window & { EyeDropper?: new () => EyeDropperLike }).EyeDropper;
+        if (!EyeDropperConstructor) {
+            openFallbackColorInput(target);
+            return;
+        }
+
+        try {
+            setIsSampling(true);
+            pendingPickerTargetRef.current = target;
+            const eyeDropper = new EyeDropperConstructor();
+            const result = await eyeDropper.open();
+            applyPickedColor(target, result.sRGBHex);
+        } catch {
+            // Ignore cancelled picks and retain the current curve state.
+        } finally {
+            setIsSampling(false);
+        }
+    }, [applyPickedColor, curves, openFallbackColorInput, updateCurves]);
+
     const handleAddPoint = (event: { currentTarget: SVGSVGElement; clientX: number; clientY: number; button?: number; target: EventTarget | null }) => {
         if ((event.target as Element | null)?.tagName?.toLowerCase() === 'circle') return;
         if (typeof event.button === 'number' && event.button !== 0) return;
@@ -80,10 +249,8 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
         const y = Math.min(1, Math.max(0, 1 - (event.clientY - rect.top) / rect.height));
         const next = [...sorted, { x, y }].sort((a, b) => a.x - b.x);
         const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: next };
-        // Update logic specific to Curves structure
-        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel, points: sorted /* legacy prop sync */ } as unknown as CurvesAdjustmentSettings);
+        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel, points: next });
         
-        // Optimize active point selection for new point
         const newIndex = next.findIndex(p => p.x === x && p.y === y);
         setActivePointIndex(newIndex !== -1 ? newIndex : null);
     };
@@ -100,19 +267,18 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
 
     const resetCurve = () => {
         const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: [{ x: 0, y: 0 }, { x: 1, y: 1 }] };
-        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
+        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel, points: nextByChannel[channel] ?? [{ x: 0, y: 0 }, { x: 1, y: 1 }] });
         setActivePointIndex(null);
     };
 
     const handlePointChange = (index: number, x: number, y: number) => {
         const next = sorted.map((point, i) => (i === index ? { x, y } : point));
         const normalized = next.sort((a, b) => a.x - b.x);
-        // Re-find our point to keep it active
         const newIndex = normalized.findIndex(p => p.x === x && p.y === y);
         setActivePointIndex(newIndex);
         
         const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: normalized };
-         updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
+        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel, points: normalized });
     };
 
     const startDrag = (index: number) => (event: React.PointerEvent<SVGCircleElement>) => {
@@ -139,7 +305,7 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
         event.preventDefault();
         const next = sorted.filter((_, i) => i !== index);
         const nextByChannel = { ...(curves.pointsByChannel ?? {}), [channel]: next };
-        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel });
+        updateCurves({ ...curves, channel, pointsByChannel: nextByChannel, points: next });
         setActivePointIndex(null);
     };
 
@@ -166,8 +332,48 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                     <option value="b">Blue</option>
                 </select>
             </div>
-            {/* Scalable Container */}
-            <div className="relative w-full aspect-square bg-background border border-border/50 rounded-md overflow-hidden group">
+            <div className="grid grid-cols-3 gap-2">
+                {(['shadow', 'midtone', 'highlight'] as CurvesPickerTarget[]).map((target) => {
+                    const isActive = pickerTarget === target;
+                    return (
+                        <button
+                            key={target}
+                            type="button"
+                            onClick={() => void handlePickerSample(target)}
+                            className={`flex min-h-12 items-center gap-2 rounded-md border px-2 py-2 text-left transition-colors ${isActive ? 'border-white/60 bg-white/12' : 'border-border/60 bg-secondary/20 hover:bg-secondary/35'}`}
+                            title={CURVE_PICKER_LABELS[target]}
+                            disabled={isSampling}
+                        >
+                            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/25 bg-black/25 text-white">
+                                <Pipette size={14} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[10px] font-medium text-foreground">{CURVE_PICKER_LABELS[target]}</span>
+                                <span className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                                    <span className="inline-block h-3 w-3 rounded-full border border-white/30" style={{ backgroundColor: pickerColors[target] ?? '#808080' }} />
+                                    {pickerColors[target] ? pickerColors[target]?.toUpperCase() : 'Sample'}
+                                </span>
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border/50 bg-secondary/20 px-2 py-1.5 text-[10px] text-muted-foreground">
+                <span>Picker source</span>
+                <span>{typeof window !== 'undefined' && 'EyeDropper' in window ? (isSampling ? 'Sampling from screen...' : 'Screen picker') : 'Manual color picker fallback'}</span>
+            </div>
+            <input
+                ref={hiddenColorInputRef}
+                type="color"
+                className="sr-only"
+                onChange={(event) => applyPickedColor(pendingPickerTargetRef.current, event.target.value)}
+                aria-label="Curves point color picker"
+            />
+            <div
+                data-testid="curves-surface"
+                className="relative w-full aspect-square border border-border/50 rounded-md overflow-hidden group shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                style={{ background: appearance.background }}
+            >
                 <svg
                     width="100%"
                     height="100%"
@@ -179,15 +385,15 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                     onDoubleClick={resetCurve}
                     style={{ touchAction: 'none', pointerEvents: 'all', cursor: 'crosshair', userSelect: 'none' }}
                 >
-                    {/* Grid lines for reference */}
-                    <line x1="40" y1="0" x2="40" y2="160" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
-                    <line x1="80" y1="0" x2="80" y2="160" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
-                    <line x1="120" y1="0" x2="120" y2="160" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
-                    <line x1="0" y1="120" x2="160" y2="120" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
-                    <line x1="0" y1="80" x2="160" y2="80" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
-                    <line x1="0" y1="40" x2="160" y2="40" stroke="#27272a" strokeWidth={0.5} strokeDasharray="4 2" />
+                    <path d={CURVES_HISTOGRAM_PATH} fill={appearance.histogramFill} />
+                    <line x1="40" y1="0" x2="40" y2="160" stroke={appearance.grid} strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="80" y1="0" x2="80" y2="160" stroke={appearance.grid} strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="120" y1="0" x2="120" y2="160" stroke={appearance.grid} strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="0" y1="120" x2="160" y2="120" stroke={appearance.grid} strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="0" y1="80" x2="160" y2="80" stroke={appearance.grid} strokeWidth={0.5} strokeDasharray="4 2" />
+                    <line x1="0" y1="40" x2="160" y2="40" stroke={appearance.grid} strokeWidth={0.5} strokeDasharray="4 2" />
 
-                    <path d="M 0 160 L 160 0" stroke="#27272a" strokeWidth={1} fill="none" />
+                    <path d="M 0 160 L 160 0" stroke={appearance.diagonal} strokeWidth={1} fill="none" />
                     <path d={path} stroke={curveStroke} strokeWidth={2} fill="none" vectorEffect="non-scaling-stroke" />
                     {sorted.map((point, index) => (
                         <circle
@@ -195,8 +401,8 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                             cx={toSvgX(point.x)}
                             cy={toSvgY(point.y)}
                             r={activePointIndex === index ? 8 : 6} 
-                            fill={activePointIndex === index ? '#fff' : APP_THEME.curveDefaultStroke}
-                            stroke={activePointIndex === index ? APP_THEME.curveDefaultStroke : '#fff'}
+                            fill={activePointIndex === index ? '#ffffff' : appearance.pointFill}
+                            stroke={activePointIndex === index ? appearance.pointFill : appearance.pointStroke}
                             strokeWidth={2}
                             onPointerDown={startDrag(index)}
                             onClick={removePoint(index)}

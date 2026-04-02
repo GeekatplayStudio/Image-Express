@@ -213,4 +213,23 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         expect(screen.getByTestId('canvas-settings')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Panel mode paths' })).toBeNull();
     });
+
+    it('keeps the panel rail visible when the gallery tool is active', async () => {
+        render(<PropertiesPanel canvas={null} activeTool="assets" />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Panel mode properties' })).toHaveAttribute('aria-pressed', 'true');
+        });
+
+        expect(screen.getByTestId('canvas-settings')).toBeInTheDocument();
+        expect(screen.queryByTestId('asset-library')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Panel mode layers' }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Panel mode layers' })).toHaveAttribute('aria-pressed', 'true');
+        });
+
+        expect(screen.getByTestId('layers-view')).toBeInTheDocument();
+    });
 });

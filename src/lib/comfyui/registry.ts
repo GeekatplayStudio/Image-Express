@@ -264,6 +264,8 @@ const normalizePromptBlueprint = (workflowId: string, blueprint: unknown): Comfy
     return blueprint;
 };
 
+export const normalizeComfyPromptBlueprint = normalizePromptBlueprint;
+
 class WorkflowRegistry {
     private workflows: Map<string, RegisteredWorkflow> = new Map();
     private modelPresets: Map<string, ComfyModelPreset> = new Map();

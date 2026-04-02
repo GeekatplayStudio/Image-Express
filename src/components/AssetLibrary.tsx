@@ -348,9 +348,10 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     /**
      * Fetches assets from enabled storage providers based on storage mode.
      */
-    const fetchAssets = useCallback(async () => {
+    const fetchAssets = useCallback(async (forcedTab?: LibraryTab) => {
         setIsLoading(true);
-        const config = TAB_CONFIG[activeTab];
+        const resolvedTab = forcedTab || activeTab;
+        const config = TAB_CONFIG[resolvedTab];
         const settings = loadAssetStorageSettings();
         setStorageSettings(settings);
 
@@ -553,8 +554,10 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             const targetTab = typeToTabKey[detectedType];
             if (targetTab && targetTab !== activeTab) {
                 setActiveTab(targetTab);
+                await fetchAssets(targetTab);
+            } else {
+                await fetchAssets();
             }
-            await fetchAssets();
         } catch (error) {
             console.error(error);
             toast({ title: 'Upload error', description: 'Could not upload asset.', variant: 'destructive' });
@@ -1084,7 +1087,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             onChange={(event) => setUploadToCloud(event.target.checked)}
                             className="rounded border-border text-primary focus:ring-primary/20"
                         />
-                        Also upload to Google Drive
+                        Also upload this file to Google Drive
                     </label>
                 )}
                 {storageSettings.mode === 'cloud' && (
@@ -1354,7 +1357,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                     }}
                                                 >
                                                     <div className="space-y-1 text-[10px] leading-tight">
-                                                        <div className="font-semibold text-[11px] truncate" title={asset.name}>{asset.name}</div>
+                                                        <div className="font-semibold text-[11px] truncate">{asset.name}</div>
                                                         <div className="flex items-center justify-between gap-2">
                                                             <span className="text-white/70">Visibility</span>
                                                             <span className="inline-flex items-center gap-1 font-medium">
@@ -1382,6 +1385,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                         <button
                                                             onClick={() => void toggleAssetVisibility(asset)}
                                                             className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
+                                                            title={asset.isPublic ? 'Set private' : 'Set public'}
                                                         >
                                                             {asset.isPublic ? <Lock size={10} /> : <Globe size={10} />}
                                                             {asset.isPublic ? 'Private' : 'Public'}
@@ -1389,6 +1393,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                         <button
                                                             onClick={() => void downloadAsset(asset)}
                                                             className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
+                                                            title="Download Asset"
                                                         >
                                                             <Download size={10} />
                                                             Download
@@ -1401,6 +1406,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                         setEditName(asset.name);
                                                                     }}
                                                                     className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
+                                                                    title="Rename Asset"
                                                                 >
                                                                     <Pen size={10} />
                                                                     Rename
@@ -1408,6 +1414,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                 <button
                                                                     onClick={() => void deleteAsset(asset)}
                                                                     className="h-7 rounded-md bg-red-500/25 hover:bg-red-500/35 text-[10px] font-medium inline-flex items-center justify-center gap-1"
+                                                                    title="Delete Asset"
                                                                 >
                                                                     <Trash2 size={10} />
                                                                     Delete
@@ -1420,7 +1427,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
                                             <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/65 via-black/25 to-transparent text-white px-2 py-1 pointer-events-none">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="text-[10px] truncate flex-1" title={asset.name}>{asset.name}</span>
+                                                    <span className="text-[10px] truncate flex-1">{asset.name}</span>
                                                     <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50" title={sourceCountLabel || sourceLabels.join(', ')}>
                                                         {sourceLabels.length > 1 ? <Cloud size={8} /> : <HardDrive size={8} />}
                                                     </span>

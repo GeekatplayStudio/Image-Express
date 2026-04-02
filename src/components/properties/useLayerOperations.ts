@@ -359,13 +359,13 @@ export function useLayerOperations(
             const targetInverse = fabric.util.invertTransform(targetMatrix);
             const localMatrix = fabric.util.multiplyTransformMatrices(targetInverse, maskMatrix);
             fabric.util.applyTransformToObject(mask, localMatrix);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // eslint-disable-next-line react-hooks/immutability, @typescript-eslint/no-explicit-any
             (mask as any).absolutePositioned = false;
         } else {
             const localMatrix = mask.calcTransformMatrix();
             const worldMatrix = fabric.util.multiplyTransformMatrices(targetMatrix, localMatrix);
             fabric.util.applyTransformToObject(mask, worldMatrix);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // eslint-disable-next-line react-hooks/immutability, @typescript-eslint/no-explicit-any
             (mask as any).absolutePositioned = true;
         }
 

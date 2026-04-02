@@ -59,6 +59,11 @@ jest.mock('../ImageGeneratorModal', () => ({
     default: () => <div data-testid="mock-image-generator-modal">Image Generator</div>,
 }));
 
+jest.mock('../AICritiqueModal', () => ({
+    __esModule: true,
+    default: () => <div data-testid="mock-ai-critique-modal">AI Critique</div>,
+}));
+
 jest.mock('../ColorWheelTool', () => ({
     ColorWheelTool: ({
         onColorSelect,
@@ -363,6 +368,30 @@ describe('Toolbar', () => {
         expect(screen.getByTitle('Eyedropper')).toBeInTheDocument();
         expect(screen.getByTitle('Zoom')).toBeInTheDocument();
         expect(screen.getByTitle('Hand')).toBeInTheDocument();
+    });
+
+    it('opens the AI Critique modal from the creation rail and restores selection mode', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('AI Critique'));
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('ai-critique');
+        expect(canvas.defaultCursor).toBe('default');
+        expect(canvas.hoverCursor).toBe('move');
+        expect(canvas.selection).toBe(true);
+        expect(screen.getByTestId('mock-ai-critique-modal')).toBeInTheDocument();
+    });
+
+    it('opens AI Zone from the creation rail and restores selection mode', () => {
+        const { canvas, setActiveToolSpy } = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('AI Zone'));
+
+        expect(setActiveToolSpy).toHaveBeenCalledWith('ai-zone');
+        expect(canvas.defaultCursor).toBe('default');
+        expect(canvas.hoverCursor).toBe('move');
+        expect(canvas.selection).toBe(true);
+        expect(screen.getByTestId('mock-image-generator-modal')).toBeInTheDocument();
     });
 
     it('opens color wheel when eyedropper is selected and applies wheel colors as foreground', () => {

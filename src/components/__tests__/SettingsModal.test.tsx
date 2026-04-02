@@ -112,6 +112,56 @@ describe('SettingsModal', () => {
                     text: async () => 'login-entry-1',
                 } as Response;
             }
+            if (url.startsWith('/api/ai/ollama/status?')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        requestedModel: 'qwen2.5:7b',
+                        modelFound: true,
+                        count: 1,
+                        models: ['qwen2.5:7b'],
+                    }),
+                } as Response;
+            }
+            if (url === '/api/ai/comfy/library' && init?.method === 'POST') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        message: 'Comfy library refreshed.',
+                        snapshot: {
+                            installPath: 'D:\\ComfyUI',
+                            customNodesPath: 'D:\\ComfyUI\\custom_nodes',
+                            workflowLibraryPath: 'D:\\ComfyUI\\user\\default\\workflows',
+                            serverTemplates: [
+                                {
+                                    id: 'server-upscale',
+                                    source: 'server-template',
+                                    name: 'Server Upscale',
+                                    description: 'Upscale template',
+                                    task: 'upscale',
+                                    runnable: true,
+                                    category: 'Server Templates',
+                                    nodeTypes: ['LoadImage', 'SaveImage'],
+                                },
+                            ],
+                            customFolderWorkflows: [],
+                            nodeRepos: [
+                                {
+                                    name: 'custom-upscaler',
+                                    path: 'D:\\ComfyUI\\custom_nodes\\custom-upscaler',
+                                    repoKind: 'custom-nodes',
+                                    gitManaged: true,
+                                    workflowHintCount: 2,
+                                    requirementsFile: true,
+                                },
+                            ],
+                            warnings: [],
+                        },
+                    }),
+                } as Response;
+            }
             return {
                 ok: true,
                 json: async () => ({}),
@@ -147,6 +197,16 @@ describe('SettingsModal', () => {
         fireEvent.change(screen.getByPlaceholderText('Enter Meshy API Key'), {
             target: { value: 'new-meshy' },
         });
+        fireEvent.change(screen.getByPlaceholderText('http://127.0.0.1:11434'), {
+            target: { value: 'http://localhost:11434' },
+        });
+        fireEvent.change(screen.getByPlaceholderText('qwen2.5:7b'), {
+            target: { value: 'llava:7b' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Check Ollama/i }));
+        await waitFor(() => {
+            expect(screen.getByText(/Ollama is reachable/i)).toBeInTheDocument();
+        });
         fireEvent.change(screen.getByDisplayValue('Hybrid (local + optional cloud per upload)'), {
             target: { value: 'cloud' },
         });
@@ -156,6 +216,8 @@ describe('SettingsModal', () => {
         await waitFor(() => {
             expect(window.localStorage.getItem('meshy_api_key')).toBe('new-meshy');
         });
+        expect(window.localStorage.getItem('image-express-local-ai-preferences')).toContain('http://localhost:11434');
+        expect(window.localStorage.getItem('image-express-local-ai-preferences')).toContain('llava:7b');
         expect(mockSaveAssetStorageSettings).toHaveBeenCalledWith({
             mode: 'cloud',
             cloudProvider: 'google-drive',
@@ -189,6 +251,31 @@ describe('SettingsModal', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Launch Setup Wizard/i }));
         expect(mockRequestOpenSetupWizard).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the Comfy workflow manager and installs a repo through the library route', async () => {
+        render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Comfy Workflow Manager')).toBeInTheDocument();
+            expect(screen.getByText('custom-upscaler')).toBeInTheDocument();
+        });
+
+        fireEvent.change(screen.getByPlaceholderText('https://github.com/owner/repo'), {
+            target: { value: 'https://github.com/example/custom-upscaler' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Install Repo/i }));
+
+        await waitFor(() => {
+            const fetchMock = (global as unknown as { fetch: jest.Mock }).fetch;
+            expect(fetchMock).toHaveBeenCalledWith(
+                '/api/ai/comfy/library',
+                expect.objectContaining({
+                    method: 'POST',
+                    body: expect.stringContaining('install-repo'),
+                })
+            );
+        });
     });
 
     it('supports desktop updates, admin actions, log view, and disconnect', async () => {

@@ -51,6 +51,20 @@ export function buildMediaOverlayStorageKey(
 }
 
 export function getFrameBounds(frame: fabric.Rect): RectBounds {
+    const angle = typeof frame.angle === 'number' ? frame.angle : 0;
+    const skewX = typeof frame.skewX === 'number' ? frame.skewX : 0;
+    const skewY = typeof frame.skewY === 'number' ? frame.skewY : 0;
+    const hasAxisAlignedGeometry = angle === 0 && skewX === 0 && skewY === 0;
+
+    if (hasAxisAlignedGeometry) {
+        return {
+            left: frame.left || 0,
+            top: frame.top || 0,
+            width: Math.max(1, (frame.width || 1) * (frame.scaleX || 1)),
+            height: Math.max(1, (frame.height || 1) * (frame.scaleY || 1)),
+        };
+    }
+
     if (typeof frame.getCoords === 'function') {
         const coords = frame.getCoords();
         if (Array.isArray(coords) && coords.length > 0) {

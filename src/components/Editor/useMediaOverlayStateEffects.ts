@@ -6,6 +6,7 @@ import {
     type MediaOverlayPersistedState,
     type MediaOverlayPreset,
     type MediaOverlaySafeAreaPreset,
+    type MediaOverlayVariantConversionMode,
 } from '@/components/Editor/editorViewConfig';
 import type { MediaOverlayFrameConfig } from '@/components/Editor/mediaOverlayTypes';
 import type { RectBounds } from '@/components/Editor/editorView.types';
@@ -28,6 +29,8 @@ type UseMediaOverlayStateEffectsArgs = {
     setMediaOverlayFrames: Dispatch<SetStateAction<MediaOverlayFrameConfig[]>>;
     setActiveMediaOverlayFrameId: (frameId: string | null) => void;
     setMediaOverlayNamingTemplate: (template: MediaOverlayNamingTemplate) => void;
+    isValidVariantConversionMode: (mode: unknown) => mode is MediaOverlayVariantConversionMode;
+    setMediaOverlayVariantConversionMode: (mode: MediaOverlayVariantConversionMode) => void;
     onDirty: () => void;
 };
 
@@ -49,6 +52,8 @@ export function useMediaOverlayStateEffects({
     setMediaOverlayFrames,
     setActiveMediaOverlayFrameId,
     setMediaOverlayNamingTemplate,
+    isValidVariantConversionMode,
+    setMediaOverlayVariantConversionMode,
     onDirty,
 }: UseMediaOverlayStateEffectsArgs) {
     useEffect(() => {
@@ -61,6 +66,7 @@ export function useMediaOverlayStateEffects({
             setMediaOverlayFrames([]);
             setActiveMediaOverlayFrameId(null);
             setMediaOverlayNamingTemplate('frame-preset');
+            setMediaOverlayVariantConversionMode('fill');
             previousActiveMediaOverlayFrameIdRef.current = null;
         };
 
@@ -120,6 +126,9 @@ export function useMediaOverlayStateEffects({
             setMediaOverlayNamingTemplate(
                 isValidNamingTemplate(parsed.namingTemplate) ? parsed.namingTemplate : 'frame-preset',
             );
+            setMediaOverlayVariantConversionMode(
+                isValidVariantConversionMode(parsed.variantConversionMode) ? parsed.variantConversionMode : 'fill',
+            );
         } catch {
             resetOverlay();
         }
@@ -128,6 +137,7 @@ export function useMediaOverlayStateEffects({
         isValidMediaOverlayBounds,
         isValidNamingTemplate,
         isValidSafeAreaPreset,
+        isValidVariantConversionMode,
         mediaOverlayStorageKey,
         previousActiveMediaOverlayFrameIdRef,
         mediaOverlayPendingRestoreRef,
@@ -135,6 +145,7 @@ export function useMediaOverlayStateEffects({
         setMediaOverlayEnabled,
         setMediaOverlayFrames,
         setMediaOverlayNamingTemplate,
+        setMediaOverlayVariantConversionMode,
         setMediaOverlayPreset,
         toNormalizedBounds,
     ]);

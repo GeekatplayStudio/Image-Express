@@ -64,6 +64,7 @@ import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
 import ImageGeneratorModal from './ImageGeneratorModal';
+import AICritiqueModal from './AICritiqueModal';
 import { ColorWheelTool } from './ColorWheelTool';
 import { useToast } from '@/providers/ToastProvider';
 import { loadProfileSettings } from '@/lib/profile-utils';
@@ -139,7 +140,7 @@ const resolveToolCursorConfig = (
     tool: string,
     options?: { zoomMode?: 'in' | 'out' }
 ): ToolCursorConfig | null => {
-    if (tool === 'select') {
+    if (tool === 'select' || tool === 'ai-zone' || tool === 'ai-critique') {
         return {
             defaultCursor: 'default',
             hoverCursor: 'move',
@@ -282,6 +283,7 @@ const CREATION_LIBRARY_TOOLS: ToolbarToolDefinition[] = [
     { name: 'assets', icon: ImageIcon, label: 'Gallery' },
     { name: 'templates', icon: LayoutTemplate, label: 'Library', shortLabel: 'Templates' },
     { name: 'ai-zone', icon: Sparkles, label: 'AI Zone' },
+    { name: 'ai-critique', icon: MessageSquare, label: 'AI Critique', shortLabel: 'Critique' },
     { name: '3d-gen', icon: Box, label: 'AI 3D' },
 ];
 
@@ -1469,6 +1471,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             case 'ai-zone':
                 // logic handled by tool activation
                 break;
+            case 'ai-critique':
+                if (canvas) {
+                    configureCanvasForTool(canvas, 'select');
+                }
+                break;
             case 'layers':
                 // Properties Panel handles the view reset, we just set activeTool
                 break;
@@ -2360,6 +2367,13 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     onClose={() => setActiveTool('select')}
                     apiKey={apiKeys?.stability}
                     currentUser={currentUser}
+                />
+            )}
+
+            {activeTool === 'ai-critique' && canvas && (
+                <AICritiqueModal
+                    canvas={canvas}
+                    onClose={() => setActiveTool('select')}
                 />
             )}
 

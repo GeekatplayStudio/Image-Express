@@ -60,10 +60,21 @@ export type MediaOverlayNamingTemplateSpec = {
     label: string;
 };
 
+export type MediaOverlayVariantConversionMode =
+    | 'fill'
+    | 'fit'
+    | 'safe-area';
+
+export type MediaOverlayVariantConversionModeSpec = {
+    id: MediaOverlayVariantConversionMode;
+    label: string;
+};
+
 export type MediaOverlayPersistedState = {
     enabled: boolean;
     preset: MediaOverlayPreset;
     namingTemplate?: MediaOverlayNamingTemplate;
+    variantConversionMode?: MediaOverlayVariantConversionMode;
     frameBounds?: {
         left: number;
         top: number;
@@ -86,7 +97,7 @@ export type MediaOverlayPersistedState = {
 };
 
 export const MEDIA_OVERLAY_PRESETS: MediaOverlayPresetSpec[] = [
-    { id: 'canvas-original', label: 'Original Size (Canvas)', width: 1, height: 1 },
+    { id: 'canvas-original', label: 'Original Size (Artboard)', width: 1, height: 1 },
     { id: 'instagram-square', label: 'Instagram 1:1', width: 1080, height: 1080 },
     { id: 'instagram-story', label: 'Instagram Story 9:16', width: 1080, height: 1920 },
     { id: 'facebook-post', label: 'Facebook Post 1200x630', width: 1200, height: 630 },
@@ -107,6 +118,12 @@ export const MEDIA_OVERLAY_NAMING_TEMPLATES: MediaOverlayNamingTemplateSpec[] = 
     { id: 'frame-preset', label: 'Frame + Preset' },
     { id: 'design-frame-preset', label: 'Design + Frame + Preset' },
     { id: 'design-preset-date-frame', label: 'Design + Preset + Date + Frame' },
+];
+
+export const MEDIA_OVERLAY_VARIANT_CONVERSION_MODES: MediaOverlayVariantConversionModeSpec[] = [
+    { id: 'fill', label: 'Fill' },
+    { id: 'fit', label: 'Fit' },
+    { id: 'safe-area', label: 'Safe Area' },
 ];
 
 export const MEDIA_OVERLAY_STORAGE_KEY_PREFIX = 'image-express-media-overlay';

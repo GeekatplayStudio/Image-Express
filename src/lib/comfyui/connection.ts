@@ -1,3 +1,8 @@
+import {
+    buildComfyProxyUrl,
+    normalizeComfyBaseUrl,
+} from '@/lib/comfyui/proxy';
+
 export type ComfyConnectionMode = 'auto' | 'local' | 'cloud';
 
 export interface ComfyConnectionOptions {
@@ -34,8 +39,6 @@ export const DEFAULT_COMFY_LOCAL_URL = 'http://localhost:8188';
 export const DEFAULT_COMFY_CLOUD_URL = 'https://cloud.comfy.org';
 export const COMFY_CLOUD_API_KEY_STORAGE_KEY = 'comfy_cloud_api_key';
 
-const normalizeBaseUrl = (url: string) => url.trim().replace(/\/$/, '');
-
 export const loadComfyCloudApiKey = (): string => {
     if (typeof window === 'undefined') {
         return '';
@@ -56,7 +59,7 @@ export const saveComfyCloudApiKey = (value: string): string => {
 
 export const createLocalComfyTransport = (baseUrl: string = DEFAULT_COMFY_LOCAL_URL): ResolvedComfyTransport => ({
     kind: 'local',
-    baseUrl: normalizeBaseUrl(baseUrl) || DEFAULT_COMFY_LOCAL_URL,
+    baseUrl: normalizeComfyBaseUrl(baseUrl) || DEFAULT_COMFY_LOCAL_URL,
     apiBasePath: '',
     historyPathBase: '/history',
     healthCheckPath: '/features',
@@ -74,7 +77,7 @@ export const createCloudComfyTransport = (
 
     return {
         kind: 'cloud',
-        baseUrl: normalizeBaseUrl(baseUrl) || DEFAULT_COMFY_CLOUD_URL,
+        baseUrl: normalizeComfyBaseUrl(baseUrl) || DEFAULT_COMFY_CLOUD_URL,
         apiBasePath: '/api',
         historyPathBase: '/api/history_v2',
         healthCheckPath: '/api/user',
@@ -93,7 +96,7 @@ export const probeComfyTransportDetailed = async (
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        const response = await fetch(`${transport.baseUrl}${transport.healthCheckPath}`, {
+        const response = await fetch(buildComfyTransportRequestUrl(transport, transport.healthCheckPath), {
             method: 'GET',
             headers: transport.defaultHeaders,
             signal: controller.signal,
@@ -133,7 +136,7 @@ const formatComfyTransportFailure = (
     }
 
     if (transport.kind === 'local') {
-        return `Could not reach local ComfyUI from the browser at ${transport.baseUrl}. If ComfyUI is running, start it with --enable-cors-header.`;
+        return `Could not reach local ComfyUI at ${transport.baseUrl}. If this app is running in Docker while ComfyUI is on Windows, keep the URL as localhost or switch to host.docker.internal and the app proxy will retry it server-side.`;
     }
 
     return `Could not reach Comfy Cloud at ${transport.baseUrl}. Check the cloud URL and API key.`;
@@ -228,4 +231,26 @@ export const resolveAvailableComfyTransport = async (
     }
 
     return verification.transport;
+};
+
+export const shouldUseComfyBrowserProxy = (transport: ResolvedComfyTransport): boolean => (
+    transport.kind === 'local' && typeof window !== 'undefined'
+);
+
+export const buildComfyTransportRequestUrl = (
+    transport: ResolvedComfyTransport,
+    path: string,
+    searchParams?: URLSearchParams
+): string => {
+    if (shouldUseComfyBrowserProxy(transport)) {
+        return buildComfyProxyUrl(transport.baseUrl, path, searchParams);
+    }
+
+    const url = new URL(path, `${transport.baseUrl}/`);
+    if (searchParams) {
+        searchParams.forEach((value, key) => {
+            url.searchParams.append(key, value);
+        });
+    }
+    return url.toString();
 };

@@ -80,7 +80,7 @@ class FakeTransaction {
                 request.result = executor();
                 request.onsuccess?.(new Event('success'));
             } catch (error) {
-                request.error = error as any;
+                request.error = error as DOMException;
                 this.error = request.error || null;
                 request.onerror?.(new Event('error'));
                 this.onerror?.(new Event('error'));
@@ -146,7 +146,7 @@ class FakeIndexedDb {
                 }
                 request.onsuccess?.(new Event('success'));
             } catch (error) {
-                request.error = error as any;
+                request.error = error as DOMException;
                 request.onerror?.(new Event('error'));
             }
         }, 0);

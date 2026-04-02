@@ -31,6 +31,9 @@ const mockFabricCanvas = {
   setViewportTransform: jest.fn(),
   toDataURL: jest.fn().mockReturnValue('data:image/png;base64,mockedcanvasimage'),
   isDrawingMode: false,
+  selection: true,
+  defaultCursor: 'default',
+  hoverCursor: 'move',
   freeDrawingBrush: null,
 };
 
@@ -75,6 +78,10 @@ describe('StabilityGenerator', () => {
     });
     // Default: no active object
     mockFabricCanvas.getActiveObject.mockReturnValue(null);
+    mockFabricCanvas.isDrawingMode = false;
+    mockFabricCanvas.selection = true;
+    mockFabricCanvas.defaultCursor = 'default';
+    mockFabricCanvas.hoverCursor = 'move';
   });
 
   it('renders correctly when open', () => {
@@ -464,6 +471,81 @@ describe('StabilityGenerator', () => {
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith('/api/ai/stability/remove-bg', expect.anything());
       });
+  });
+
+  it('hydrates the current canvas selection immediately for remove background', async () => {
+    const mockActiveObject = {
+        isType: (t: string) => t === 'image',
+        getBoundingRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+        toDataURL: jest.fn().mockReturnValue('data:image/png;base64,obj'),
+    };
+    mockFabricCanvas.getActiveObject.mockReturnValue(mockActiveObject);
+
+    render(
+      <StabilityGenerator
+        isOpen={true}
+        onClose={mockOnClose}
+        canvas={mockCanvasInstance}
+        apiKey="test-api-key"
+        initialTab="removebox"
+      />
+    );
+
+    await waitFor(() => {
+        expect(screen.queryByText('Select an image on the canvas first.')).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Remove Background')).toBeInTheDocument();
+  });
+
+  it('restores selection mode for remove background even if the canvas started in drawing mode', async () => {
+    mockFabricCanvas.isDrawingMode = true;
+    mockFabricCanvas.selection = false;
+    mockFabricCanvas.defaultCursor = 'crosshair';
+    mockFabricCanvas.hoverCursor = 'crosshair';
+
+    render(
+      <StabilityGenerator
+        isOpen={true}
+        onClose={mockOnClose}
+        canvas={mockCanvasInstance}
+        apiKey="test-api-key"
+        initialTab="removebox"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockFabricCanvas.isDrawingMode).toBe(false);
+      expect(mockFabricCanvas.selection).toBe(true);
+      expect(mockFabricCanvas.defaultCursor).toBe('default');
+      expect(mockFabricCanvas.hoverCursor).toBe('move');
+    });
+  });
+
+  it('leaves inpaint masking and restores selection mode when switching to remove background', async () => {
+    render(
+      <StabilityGenerator
+        isOpen={true}
+        onClose={mockOnClose}
+        canvas={mockCanvasInstance}
+        apiKey="test-api-key"
+        initialTab="inpaint"
+        autoStartInpaintMasking={true}
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockFabricCanvas.isDrawingMode).toBe(true);
+    });
+
+    fireEvent.click(screen.getByTitle('Remove BG'));
+
+    await waitFor(() => {
+      expect(mockFabricCanvas.isDrawingMode).toBe(false);
+      expect(mockFabricCanvas.selection).toBe(true);
+      expect(mockFabricCanvas.defaultCursor).toBe('default');
+      expect(mockFabricCanvas.hoverCursor).toBe('move');
+    });
   });
 
 });

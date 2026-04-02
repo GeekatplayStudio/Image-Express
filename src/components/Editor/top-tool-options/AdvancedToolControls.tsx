@@ -1,10 +1,3 @@
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import type { TopToolOptionsBarProps } from '@/components/Editor/TopToolOptionsBar.types';
 
 type AdvancedToolControlsProps = Pick<
@@ -120,12 +113,15 @@ export default function AdvancedToolControls({
             <>
                 <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Font</span>
-                    <Select value={textOptions.fontFamily} onValueChange={(value) => onTextFontFamilyChange?.(value)}>
-                        <SelectTrigger aria-label="Text font family" className="h-7 min-w-[150px] border-0 bg-transparent px-1 text-xs shadow-none focus:ring-0" style={{ fontFamily: textOptions.fontFamily }}>
-                            <SelectValue placeholder="Font" />
-                        </SelectTrigger>
-                        <SelectContent>{textOptions.fontFamilies.map((font) => (<SelectItem key={font} value={font}>{font}</SelectItem>))}</SelectContent>
-                    </Select>
+                    <select
+                        aria-label="Text font family"
+                        value={textOptions.fontFamily}
+                        onChange={(event) => onTextFontFamilyChange?.(event.target.value)}
+                        className="h-7 min-w-[150px] bg-transparent outline-none text-xs"
+                        style={{ fontFamily: textOptions.fontFamily }}
+                    >
+                        {textOptions.fontFamilies.map((font) => (<option key={font} value={font}>{font}</option>))}
+                    </select>
                 </label>
                 <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">
                     <span className="text-muted-foreground">Style</span>

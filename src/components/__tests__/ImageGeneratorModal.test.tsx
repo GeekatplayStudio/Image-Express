@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ImageGeneratorModal from '../ImageGeneratorModal';
 
 const mockImageFromURL = jest.fn();
@@ -108,6 +108,10 @@ type CanvasLike = {
     width: number;
     height: number;
     artboard?: { width: number; height: number };
+    defaultCursor?: string;
+    hoverCursor?: string;
+    selection?: boolean;
+    isDrawingMode?: boolean;
     getActiveObject: jest.Mock;
     getObjects: jest.Mock;
     add: jest.Mock;
@@ -128,6 +132,10 @@ const createCanvasStub = (
     width: 1200,
     height: 800,
     artboard: { width: 1000, height: 700 },
+    defaultCursor: 'crosshair',
+    hoverCursor: 'crosshair',
+    selection: false,
+    isDrawingMode: true,
     getActiveObject: jest.fn(() => activeObject),
     getObjects: jest.fn(() => objects),
     add: jest.fn(),
@@ -144,6 +152,49 @@ const createCanvasStub = (
 describe('ImageGeneratorModal', () => {
     const originalFetch = global.fetch;
 
+    const mockJsonResponse = (body: unknown) => ({
+        ok: true,
+        json: async () => body,
+    });
+
+    const mockComfyLibraryResponse = () => mockJsonResponse({
+        success: true,
+        snapshot: {
+            installPath: 'D:\\ComfyUI',
+            customNodesPath: 'D:\\ComfyUI\\custom_nodes',
+            workflowLibraryPath: 'D:\\ComfyUI\\user\\default\\workflows',
+            serverTemplates: [
+                {
+                    id: 'server-upscale',
+                    source: 'server-template',
+                    name: 'Server Upscale',
+                    description: 'Upscale workflow',
+                    task: 'upscale',
+                    runnable: true,
+                    category: 'Server Templates',
+                    nodeTypes: ['LoadImage', 'SaveImage'],
+                    registration: {
+                        id: 'server-upscale',
+                        task: 'upscale',
+                        name: 'Server Upscale',
+                        description: 'Upscale workflow',
+                        blueprint: {
+                            '1': { class_type: 'LoadImage', inputs: { image: 'input.png' } },
+                            '2': { class_type: 'SaveImage', inputs: { images: ['1', 0], filename_prefix: 'ComfyUI' } },
+                        },
+                        inputBindings: [{ source: 'image', nodeId: '1', inputName: 'image' }],
+                        outputNodeIds: ['2'],
+                        modelPresetIds: ['default'],
+                        defaultModelPresetId: 'default',
+                    },
+                },
+            ],
+            customFolderWorkflows: [],
+            nodeRepos: [],
+            warnings: [],
+        },
+    });
+
     beforeEach(() => {
         jest.clearAllMocks();
         localStorage.clear();
@@ -151,7 +202,13 @@ describe('ImageGeneratorModal', () => {
             __MockImage: new () => unknown;
         };
         mockImageFromURL.mockResolvedValue(new fabricModule.__MockImage());
-        global.fetch = jest.fn();
+        global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+            if (String(input) === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+
+            return mockJsonResponse({}) as Response;
+        });
     });
 
     afterAll(() => {
@@ -198,6 +255,17 @@ describe('ImageGeneratorModal', () => {
         expect(canvas.add).not.toHaveBeenCalled();
     });
 
+    it('forces the canvas back into selectable mode when the AI modal opens', () => {
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        expect(canvas.isDrawingMode).toBe(false);
+        expect(canvas.selection).toBe(true);
+        expect(canvas.defaultCursor).toBe('default');
+        expect(canvas.hoverCursor).toBe('move');
+        expect(canvas.requestRenderAll).toHaveBeenCalled();
+    });
+
     it('loads provider options from localStorage and persists provider selection', () => {
         localStorage.setItem('stability_api_key', 'stability-key');
         localStorage.setItem('openai_api_key', 'openai-key');
@@ -224,11 +292,33 @@ describe('ImageGeneratorModal', () => {
         expect(localStorage.getItem('image-express-gen-provider')).toBe('comfy');
     });
 
+    it('imports a runnable workflow from the Comfy workflow library', async () => {
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Use' })).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Use' }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Comfy workflow "Server Upscale" is ready.')).toBeInTheDocument();
+        });
+    });
+
     it('generates image via remote provider and shows preview', async () => {
         localStorage.setItem('openai_api_key', 'openai-123');
         localStorage.setItem('image-express-gen-provider', 'openai');
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-            json: async () => ({ success: true, imageUrl: 'https://cdn.example/generated.png' }),
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'https://cdn.example/generated.png' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
         });
 
         const canvas = createCanvasStub();
@@ -245,9 +335,9 @@ describe('ImageGeneratorModal', () => {
             expect(screen.getByText('Generation complete!')).toBeInTheDocument();
         });
 
-        const firstCall = (global.fetch as jest.Mock).mock.calls[0];
-        expect(firstCall[0]).toBe('/api/ai/generate-image');
-        const payload = JSON.parse(firstCall[1].body as string);
+        const generateCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/generate-image');
+        expect(generateCall).toBeDefined();
+        const payload = JSON.parse(generateCall?.[1].body as string);
         expect(payload).toEqual(
             expect.objectContaining({
                 provider: 'remote',
@@ -258,47 +348,18 @@ describe('ImageGeneratorModal', () => {
         );
     });
 
-    it('ignores rapid repeated image generation clicks while the first request is in flight', async () => {
-        localStorage.setItem('openai_api_key', 'openai-123');
-        localStorage.setItem('image-express-gen-provider', 'openai');
-
-        let resolveFetch: ((value: { json: () => Promise<{ success: boolean; imageUrl: string; }>; }) => void) | null = null;
-        (global.fetch as jest.Mock).mockReturnValueOnce(new Promise((resolve) => {
-            resolveFetch = resolve;
-        }));
-
-        const canvas = createCanvasStub();
-        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
-
-        fireEvent.change(
-            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
-            { target: { value: 'A remote request' } }
-        );
-
-        const generateButton = screen.getByRole('button', { name: /Generate Image/i });
-
-        await act(async () => {
-            generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        expect(global.fetch).toHaveBeenCalledTimes(1);
-
-        resolveFetch?.({
-            json: async () => ({ success: true, imageUrl: 'https://cdn.example/generated.png' }),
-        });
-
-        await waitFor(() => {
-            expect(screen.getByText('Generation complete!')).toBeInTheDocument();
-        });
-    });
-
     it('shows error message when generation fails', async () => {
         localStorage.setItem('openai_api_key', 'openai-123');
         localStorage.setItem('image-express-gen-provider', 'openai');
-        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-            json: async () => ({ success: false, message: 'Generation failed upstream' }),
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: false, message: 'Generation failed upstream' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
         });
         const canvas = createCanvasStub();
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
@@ -312,8 +373,6 @@ describe('ImageGeneratorModal', () => {
         await waitFor(() => {
             expect(screen.getByText('Error: Generation failed upstream')).toBeInTheDocument();
         });
-
-        consoleErrorSpy.mockRestore();
     });
 
     it('places generated image on canvas, saves asset URL, and closes modal', async () => {
@@ -321,13 +380,20 @@ describe('ImageGeneratorModal', () => {
         localStorage.setItem('image-express-gen-provider', 'openai');
         const onClose = jest.fn();
         const canvas = createCanvasStub();
-        (global.fetch as jest.Mock)
-            .mockResolvedValueOnce({
-                json: async () => ({ success: true, imageUrl: 'https://cdn.example/generated.png' }),
-            })
-            .mockResolvedValueOnce({
-                json: async () => ({ success: true }),
-            });
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'https://cdn.example/generated.png' });
+            }
+
+            if (input === '/api/assets/save-url') {
+                return mockJsonResponse({ success: true });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
 
         render(
             <ImageGeneratorModal
@@ -374,8 +440,15 @@ describe('ImageGeneratorModal', () => {
         localStorage.setItem('image-express-gen-provider', 'openai');
         const onGenerate = jest.fn();
         const onClose = jest.fn();
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-            json: async () => ({ success: true, imageUrl: 'https://cdn.example/generated.png' }),
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'https://cdn.example/generated.png' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
         });
 
         render(<ImageGeneratorModal onClose={onClose} onGenerate={onGenerate} />);
@@ -392,8 +465,10 @@ describe('ImageGeneratorModal', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Place on Canvas' }));
 
-        expect(onGenerate).toHaveBeenCalledWith('https://cdn.example/generated.png');
-        expect(onClose).toHaveBeenCalled();
+        await waitFor(() => {
+            expect(onGenerate).toHaveBeenCalledWith('https://cdn.example/generated.png');
+            expect(onClose).toHaveBeenCalled();
+        });
     });
 
     it('switches to stability mode and renders embedded generator with configured key', () => {

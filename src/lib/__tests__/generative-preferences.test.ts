@@ -19,6 +19,9 @@ describe('generative-preferences', () => {
             comfyServerUrl: 'http://localhost:8188',
             comfyConnectionMode: 'auto',
             comfyCloudUrl: 'https://cloud.comfy.org',
+            comfyInstallPath: '',
+            comfyCustomNodesPath: '',
+            comfyWorkflowLibraryPath: '',
             autoStartInpaintMasking: false,
             showInpaintPromptDock: true,
         });
@@ -32,6 +35,9 @@ describe('generative-preferences', () => {
             defaultProvider: 'comfy',
             defaultWorkflow: 'zone',
             comfyServerUrl: 'http://localhost:9999',
+            comfyInstallPath: 'D:\\ComfyUI',
+            comfyCustomNodesPath: 'D:\\ComfyUI\\custom_nodes',
+            comfyWorkflowLibraryPath: 'D:\\ComfyUI\\user\\default\\workflows',
             autoStartInpaintMasking: false,
             showInpaintPromptDock: false,
         });
@@ -42,6 +48,9 @@ describe('generative-preferences', () => {
             comfyServerUrl: 'http://localhost:9999',
             comfyConnectionMode: 'auto',
             comfyCloudUrl: 'https://cloud.comfy.org',
+            comfyInstallPath: 'D:\\ComfyUI',
+            comfyCustomNodesPath: 'D:\\ComfyUI\\custom_nodes',
+            comfyWorkflowLibraryPath: 'D:\\ComfyUI\\user\\default\\workflows',
             autoStartInpaintMasking: false,
             showInpaintPromptDock: false,
         });
@@ -80,6 +89,9 @@ describe('generative-preferences', () => {
             comfyServerUrl: 'http://localhost:8188',
             comfyConnectionMode: 'auto',
             comfyCloudUrl: 'https://cloud.comfy.org',
+            comfyInstallPath: '',
+            comfyCustomNodesPath: '',
+            comfyWorkflowLibraryPath: '',
             autoStartInpaintMasking: false,
             showInpaintPromptDock: true,
         });
@@ -92,6 +104,9 @@ describe('generative-preferences', () => {
             comfyServerUrl: 'http://localhost:8188',
             comfyConnectionMode: 'auto',
             comfyCloudUrl: 'https://cloud.comfy.org',
+            comfyInstallPath: '',
+            comfyCustomNodesPath: '',
+            comfyWorkflowLibraryPath: '',
             autoStartInpaintMasking: true,
             showInpaintPromptDock: true,
         }, ['comfy', 'stability', 'openai']);
@@ -110,6 +125,9 @@ describe('generative-preferences', () => {
             comfyServerUrl: 'http://localhost:8188',
             comfyConnectionMode: 'auto',
             comfyCloudUrl: 'https://cloud.comfy.org',
+            comfyInstallPath: '',
+            comfyCustomNodesPath: '',
+            comfyWorkflowLibraryPath: '',
             autoStartInpaintMasking: true,
             showInpaintPromptDock: true,
         }, ['comfy', 'openai']);
@@ -125,6 +143,9 @@ describe('generative-preferences', () => {
             comfyServerUrl: 'http://localhost:8188',
             comfyConnectionMode: 'auto',
             comfyCloudUrl: 'https://cloud.comfy.org',
+            comfyInstallPath: '',
+            comfyCustomNodesPath: '',
+            comfyWorkflowLibraryPath: '',
             autoStartInpaintMasking: true,
             showInpaintPromptDock: true,
         }, ['google', 'openai']);

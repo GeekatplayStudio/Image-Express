@@ -36,15 +36,28 @@ In Image Express:
 - Select `ComfyUI` provider.
 - Click `Verify ComfyUI Connection`.
 - The app now performs a **catalog sync** (Comfy version + workflow compatibility against registered workflows).
+- If you configure local paths in Settings, the app can also scan server template workflows, custom workflow JSON folders, and managed `custom_nodes` / workflow-library repositories.
+
+### Local Comfy folders (optional, but recommended)
+Configure these paths in Settings when you want the app to inspect or manage your local Comfy workspace:
+- `ComfyUI install path`
+- `custom_nodes path`
+- `workflow library path`
+
+This enables repo install/update flows and custom workflow-folder scanning from the app UI.
+
+If Image Express runs in Docker while ComfyUI lives on the host machine:
+- mount those folders into the container,
+- use `host.docker.internal` instead of `localhost` for server-side Comfy access when needed.
 
 ### Comfy Cloud
 - Set `Connection = Cloud`.
 - Fill `Comfy Cloud URL` and `Comfy Cloud API Key`.
 - Run connection verification.
 
-## 3) Optional Local LLM for Future Visual Analysis
+## 3) Optional Local LLM for Visual Analysis
 
-For future visual-analysis and agentic features, local LLM runtime is optional.
+For local visual-analysis features, a local LLM runtime is optional.
 
 ### Option A: Ollama (easiest)
 - Install Ollama for your OS.
@@ -53,6 +66,9 @@ For future visual-analysis and agentic features, local LLM runtime is optional.
 ollama pull qwen2.5:7b
 ```
 - Keep Ollama running (`http://localhost:11434`).
+- In Image Express Settings, save the Ollama base URL and model.
+- The toolbar `AI Critique` panel can then review either the selected layer or the full canvas using that local runtime.
+- The app validates model availability through `/api/ai/ollama/status` before critique requests are sent.
 
 ### Option B: LM Studio
 - Install LM Studio.
@@ -91,3 +107,5 @@ cmd /c npm.cmd run build
 ```
 - If Comfy workflow compatibility is partial, check the catalog sync message and install missing nodes/models.
 - If local Comfy is unreachable from browser, start ComfyUI with CORS enabled.
+- If Comfy server scans fail only on the server side, check whether the app runtime is inside Docker and whether `localhost` should be replaced with `host.docker.internal`.
+- If local Comfy folders are unreadable, confirm the configured paths are mounted into the container or that the app is running directly on the host OS.

@@ -142,6 +142,7 @@ export default function StabilityGenerator({
         canvas.on('selection:created', handleSelection);
         canvas.on('selection:updated', handleSelection);
         canvas.on('selection:cleared', handleSelection);
+        handleSelection();
 
         return () => {
              canvas.off('selection:created', handleSelection);
@@ -161,16 +162,38 @@ export default function StabilityGenerator({
         }
     }, [flattenSelection, scheduleSelectionCapture, sourceType, canvas]);
 
-    // Cleanup masking if tab changes or component unmounts
+    // Selection-driven tabs must restore normal object picking, even if the user
+    // entered AI from a brush-like tool or previously enabled inpaint masking.
+    useEffect(() => {
+        if (!canvas || !isOpen) return;
+
+        const needsSelectionMode = activeTab === 'img2img'
+            || activeTab === 'outpaint'
+            || activeTab === 'upscale'
+            || activeTab === 'removebox'
+            || (activeTab === 'inpaint' && !isCanvasMasking);
+
+        if (!needsSelectionMode) return;
+
+        if (isCanvasMasking && activeTab !== 'inpaint') {
+            setIsCanvasMasking(false);
+        }
+
+        canvas.isDrawingMode = false;
+        canvas.selection = true;
+        canvas.defaultCursor = 'default';
+        canvas.hoverCursor = 'move';
+        canvas.requestRenderAll();
+    }, [activeTab, canvas, isCanvasMasking, isOpen]);
+
+    // Cleanup masking on unmount.
     useEffect(() => {
         return () => {
-            if (isCanvasMasking && canvas) {
+            if (canvas) {
                 canvas.isDrawingMode = false;
-                // We don't auto-clear mask to allow toggling back and forth, 
-                // but we should ensure drawing mode is off.
             }
         };
-    }, [isCanvasMasking, canvas]);
+    }, [canvas]);
 
     /**
      * Toggles the main canvas into "Mask Painting" mode.

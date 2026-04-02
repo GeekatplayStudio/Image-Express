@@ -156,4 +156,77 @@ describe('SelectionProperties', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Adjustment action Exposure' }));
         expect(onAdjustmentTypeChange).toHaveBeenCalledWith('exposure');
     });
+
+    it('shows gradient mask controls for masked layers and dispatches updates', () => {
+        const onPropChange = jest.fn();
+        const selectedObject = {
+            type: 'image',
+            opacity: 1,
+            visible: true,
+            left: 0,
+            top: 0,
+            width: 100,
+            height: 100,
+            scaleX: 1,
+            scaleY: 1,
+            clipPath: {
+                fill: {
+                    type: 'linear',
+                    coords: { x1: 0.5, y1: 0, x2: 0.5, y2: 1 },
+                    colorStops: [
+                        { offset: 0, color: 'rgba(255,255,255,1)' },
+                        { offset: 1, color: 'rgba(255,255,255,0)' },
+                    ],
+                },
+            },
+        } as unknown as fabric.Object;
+
+        render(
+            <SelectionProperties
+                {...baseProps}
+                onPropChange={onPropChange}
+                selectedObject={selectedObject}
+                selectedObjects={[selectedObject]}
+            />
+        );
+
+        expect(screen.getByText('Mask Fade')).toBeInTheDocument();
+        expect(screen.getByLabelText('Enable gradient mask')).toBeChecked();
+
+        fireEvent.change(screen.getByLabelText('Mask gradient angle'), { target: { value: '45' } });
+        expect(onPropChange).toHaveBeenCalledWith('maskGradient', { angle: 45 });
+
+        fireEvent.change(screen.getByLabelText('Mask gradient end opacity'), { target: { value: '40' } });
+        expect(onPropChange).toHaveBeenCalledWith('maskGradient', { endOpacity: 0.4 });
+    });
+
+    it('allows enabling gradient masks on masked layers with solid clip paths', () => {
+        const onPropChange = jest.fn();
+        const selectedObject = {
+            type: 'image',
+            opacity: 1,
+            visible: true,
+            left: 0,
+            top: 0,
+            width: 100,
+            height: 100,
+            scaleX: 1,
+            scaleY: 1,
+            clipPath: {
+                fill: '#ffffff',
+            },
+        } as unknown as fabric.Object;
+
+        render(
+            <SelectionProperties
+                {...baseProps}
+                onPropChange={onPropChange}
+                selectedObject={selectedObject}
+                selectedObjects={[selectedObject]}
+            />
+        );
+
+        fireEvent.click(screen.getByLabelText('Enable gradient mask'));
+        expect(onPropChange).toHaveBeenCalledWith('maskGradient', { enabled: true });
+    });
 });

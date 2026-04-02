@@ -7,25 +7,14 @@ import {
   uploadBackup,
 } from '@/lib/googleDrive';
 
-type MockGapi = {
+type FolderRecord = { id: string; name: string };
+
+type GapiMock = {
   load: jest.Mock;
-  auth?: unknown;
-  auth2: {
-    getAuthInstance: () => {
-      currentUser: {
-        get: () => {
-          isSignedIn: () => boolean;
-          getAuthResponse: (includeAuthData?: boolean) => { access_token: string; expires_in: string | number };
-          reloadAuthResponse: () => Promise<{ access_token: string; expires_in: string | number }>;
-        };
-      };
-      signIn: () => Promise<void>;
-    } | undefined;
-  };
   client: {
     init: jest.Mock;
-    getToken?: jest.Mock;
-    load?: jest.Mock;
+    setToken: jest.Mock;
+    load: jest.Mock;
     drive?: {
       files: {
         list: jest.Mock;
@@ -35,47 +24,107 @@ type MockGapi = {
   };
 };
 
-const makeGapiMock = (overrides?: Partial<MockGapi> & { signedIn?: boolean }) => {
-  const signedIn = overrides?.signedIn ?? false;
-  const authResponse = { access_token: 'token-1', expires_in: '3600' };
-  const reloadResponse = { access_token: 'token-2', expires_in: '3600' };
+type GoogleOauthMock = {
+  initTokenClient: jest.Mock;
+};
 
-  const user = {
-    isSignedIn: () => signedIn,
-    getAuthResponse: () => authResponse,
-    reloadAuthResponse: jest.fn().mockResolvedValue(reloadResponse),
+const DRIVE_STORAGE_KEY = 'image-express-google-drive';
+
+const mockGoogleIdentity = (response: { access_token?: string; expires_in?: number | string; error?: string } = { access_token: 'token-1', expires_in: 3600 }) => {
+  const oauth2: GoogleOauthMock = {
+    initTokenClient: jest.fn(({ callback }) => ({
+      requestAccessToken: jest.fn(() => {
+        callback(response);
+      }),
+    })),
   };
 
-  const authInstance = {
-    currentUser: { get: () => user },
-    signIn: jest.fn().mockResolvedValue(undefined),
-  };
+  Object.defineProperty(window, 'google', {
+    value: { accounts: { oauth2 } },
+    configurable: true,
+  });
 
-  const gapi: MockGapi = {
-    load: jest.fn((module, { callback }) => callback()),
-    auth2: {
-      getAuthInstance: () => authInstance,
-    },
+  return oauth2;
+};
+
+const createDriveListMock = (folders: Record<string, FolderRecord | undefined>) =>
+  jest.fn(async ({ q }: { q: string }) => {
+    if (q.includes("name = 'ImageExpress'")) {
+      return { result: { files: folders.root ? [folders.root] : [] } };
+    }
+    if (q.includes("name = 'Backups'")) {
+      return { result: { files: folders.backups ? [folders.backups] : [] } };
+    }
+    if (q.includes("name = 'Assets'")) {
+      return { result: { files: folders.assets ? [folders.assets] : [] } };
+    }
+    if (q.includes("name = 'Generated'")) {
+      return { result: { files: folders.generated ? [folders.generated] : [] } };
+    }
+    if (q.includes("name = '3D Models'")) {
+      return { result: { files: folders.models ? [folders.models] : [] } };
+    }
+    if (q.includes("name = 'Templates'")) {
+      return { result: { files: folders.templates ? [folders.templates] : [] } };
+    }
+    if (q.includes("name = 'Fonts'")) {
+      return { result: { files: folders.fonts ? [folders.fonts] : [] } };
+    }
+    return { result: { files: [] } };
+  });
+
+const makeGapiMock = (options?: {
+  folders?: Record<string, FolderRecord | undefined>;
+  loadDriveRejects?: Error;
+  omitDrive?: boolean;
+}) => {
+  const folders = options?.folders || {};
+  const list = createDriveListMock(folders);
+  const create = jest.fn(async ({ resource }: { resource: { name: string } }) => {
+    const id = `${resource.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-id`;
+    return { result: { id, name: resource.name } };
+  });
+
+  const gapi: GapiMock = {
+    load: jest.fn((_module, { callback }) => callback()),
     client: {
       init: jest.fn().mockResolvedValue(undefined),
-      getToken: jest.fn().mockReturnValue(null),
-      load: jest.fn().mockResolvedValue(undefined),
-      drive: {
-        files: {
-          list: jest.fn().mockResolvedValue({ result: { files: [] } }),
-          create: jest.fn().mockResolvedValue({ result: { id: 'folder-1', name: 'Image Express Backups' } }),
-        },
-      },
+      setToken: jest.fn(),
+      load: options?.loadDriveRejects
+        ? jest.fn().mockRejectedValue(options.loadDriveRejects)
+        : jest.fn().mockResolvedValue(undefined),
+      drive: options?.omitDrive
+        ? undefined
+        : {
+            files: {
+              list,
+              create,
+            },
+          },
     },
   };
 
-  return Object.assign(gapi, overrides);
+  Object.defineProperty(window, 'gapi', {
+    value: gapi,
+    configurable: true,
+  });
+
+  return { gapi, list, create };
 };
 
 describe('googleDrive (browser)', () => {
+  const originalFetch = global.fetch;
+
   beforeEach(() => {
     localStorage.clear();
     jest.restoreAllMocks();
+    delete (window as typeof window & { google?: unknown }).google;
+    delete (window as typeof window & { gapi?: unknown }).gapi;
+    global.fetch = jest.fn();
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
   });
 
   it('loads default config when none stored', () => {
@@ -84,41 +133,32 @@ describe('googleDrive (browser)', () => {
 
   it('handles malformed config', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-    localStorage.setItem('image-express-google-drive', '{bad');
+    localStorage.setItem(DRIVE_STORAGE_KEY, '{bad');
 
     expect(loadDriveConfig()).toEqual({ enabled: false });
     expect(errorSpy).toHaveBeenCalled();
   });
 
-  it('fails when the gapi script cannot load', async () => {
-    Object.defineProperty(window, 'gapi', { value: undefined, configurable: true });
-
+  it('fails when the Google Identity Services script cannot load', async () => {
+    Object.defineProperty(window, 'google', { value: undefined, configurable: true });
     const createElementSpy = jest.spyOn(document, 'createElement');
     const appendChildSpy = jest.spyOn(document.body, 'appendChild');
 
-    createElementSpy.mockImplementation(() => {
-      return {
-        set src(_value: string) {
-          // no-op
-        },
-        async: true,
-        onload: null,
-        onerror: null,
-      } as unknown as HTMLScriptElement;
-    });
+    createElementSpy.mockImplementation(() => ({
+      src: '',
+      async: true,
+      defer: true,
+      onload: null,
+      onerror: null,
+    } as unknown as HTMLScriptElement));
 
     appendChildSpy.mockImplementation((node) => {
-      const script = node as unknown as { onerror?: (error: unknown) => void };
-      if (script.onerror) {
-        script.onerror(new Error('load failed'));
-      }
+      const script = node as HTMLScriptElement;
+      script.onerror?.(new Event('error'));
       return node;
     });
 
-    await expect(connectGoogleDrive('client-1')).rejects.toThrow('Failed to load Google API script.');
-
-    createElementSpy.mockRestore();
-    appendChildSpy.mockRestore();
+    await expect(connectGoogleDrive('client-1')).rejects.toThrow('Failed to load Google Identity Services script.');
   });
 
   it('updates and resets config', () => {
@@ -134,123 +174,112 @@ describe('googleDrive (browser)', () => {
     expect(reset.clientId).toBe('client-1');
   });
 
-  it('connects and reuses existing folder', async () => {
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000);
-    const gapi = makeGapiMock({
-      client: {
-        init: jest.fn().mockResolvedValue(undefined),
-        getToken: jest.fn().mockReturnValue(null),
-        load: jest.fn().mockResolvedValue(undefined),
-        drive: {
-          files: {
-            list: jest.fn().mockResolvedValue({ result: { files: [{ id: 'existing', name: 'Image Express Backups' }] } }),
-            create: jest.fn(),
-          },
-        },
+  it('connects and reuses existing folders', async () => {
+    mockGoogleIdentity({ access_token: 'token-1', expires_in: 3600 });
+    const { gapi, create } = makeGapiMock({
+      folders: {
+        root: { id: 'root-1', name: 'ImageExpress' },
+        backups: { id: 'backups-1', name: 'Backups' },
+        assets: { id: 'assets-1', name: 'Assets' },
+        generated: { id: 'generated-1', name: 'Generated' },
+        models: { id: 'models-1', name: '3D Models' },
+        templates: { id: 'templates-1', name: 'Templates' },
+        fonts: { id: 'fonts-1', name: 'Fonts' },
       },
     });
-
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
 
     const config = await connectGoogleDrive('client-1');
 
-    expect(gapi.load).toHaveBeenCalled();
-    expect(config.enabled).toBe(true);
-    expect(config.folderId).toBe('existing');
-    expect(config.accessToken).toBe('token-1');
-    nowSpy.mockRestore();
+    expect(gapi.client.setToken).toHaveBeenCalledWith({ access_token: 'token-1' });
+    expect(create).not.toHaveBeenCalled();
+    expect(config).toEqual(expect.objectContaining({
+      enabled: true,
+      clientId: 'client-1',
+      accessToken: 'token-1',
+      rootFolderId: 'root-1',
+      folderId: 'backups-1',
+      assetsFolderId: 'assets-1',
+      generatedFolderId: 'generated-1',
+      modelsFolderId: 'models-1',
+      templatesFolderId: 'templates-1',
+      fontsFolderId: 'fonts-1',
+    }));
   });
 
-  it('creates folder when missing', async () => {
-    const gapi = makeGapiMock();
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
+  it('creates project folders when missing', async () => {
+    mockGoogleIdentity({ access_token: 'token-1', expires_in: 3600 });
+    const { create } = makeGapiMock();
 
     const config = await connectGoogleDrive('client-2');
 
-    expect(gapi.client.drive?.files.create).toHaveBeenCalled();
-    expect(config.folderId).toBe('folder-1');
-  });
-
-  it('skips auth load and client init when already available', async () => {
-    const gapi = makeGapiMock({ signedIn: true });
-    gapi.auth = {};
-    gapi.load = jest.fn();
-    gapi.client.getToken = jest.fn().mockReturnValue('existing-token');
-
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
-
-    await connectGoogleDrive('client-4');
-
-    expect(gapi.load).not.toHaveBeenCalled();
-    expect(gapi.client.init).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledTimes(7);
+    expect(config.rootFolderId).toBe('imageexpress-id');
+    expect(config.folderId).toBe('backups-id');
+    expect(config.assetsFolderId).toBe('assets-id');
+    expect(config.generatedFolderId).toBe('generated-id');
+    expect(config.modelsFolderId).toBe('3d-models-id');
+    expect(config.templatesFolderId).toBe('templates-id');
+    expect(config.fontsFolderId).toBe('fonts-id');
   });
 
   it('fails when drive API cannot load', async () => {
-    const gapi = makeGapiMock({
-      client: {
-        init: jest.fn().mockResolvedValue(undefined),
-        getToken: jest.fn().mockReturnValue(null),
-        load: jest.fn().mockRejectedValue(new Error('load failed')),
-      },
-    });
+    mockGoogleIdentity({ access_token: 'token-1', expires_in: 3600 });
+    makeGapiMock({ omitDrive: true, loadDriveRejects: new Error('load failed') });
 
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
-
-    await expect(connectGoogleDrive('client-3')).rejects.toThrow('Failed to load Google Drive API.');
+    await expect(connectGoogleDrive('client-3')).rejects.toThrow('load failed');
   });
 
   it('fails when drive API is unavailable', async () => {
-    const gapi = makeGapiMock({
-      client: {
-        init: jest.fn().mockResolvedValue(undefined),
-        getToken: jest.fn().mockReturnValue('token'),
-      },
-    });
-
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
+    mockGoogleIdentity({ access_token: 'token-1', expires_in: 3600 });
+    const { gapi } = makeGapiMock({ omitDrive: true });
+    gapi.client.load = undefined as unknown as jest.Mock;
 
     await expect(connectGoogleDrive('client-3')).rejects.toThrow('Google Drive API client is unavailable.');
   });
 
-  it('fails when auth instance is missing', async () => {
-    const gapi = makeGapiMock();
-    gapi.auth2.getAuthInstance = () => undefined;
-
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
-
-    await expect(connectGoogleDrive('client-3')).rejects.toThrow('Google authentication is unavailable.');
-  });
-
   it('disconnects and revokes token', async () => {
     updateDriveConfig({ enabled: true, accessToken: 'token-1', clientId: 'client-1' });
-    const fetchSpy = jest.fn().mockResolvedValue({ ok: true });
-    (global as unknown as { fetch: typeof fetch }).fetch = fetchSpy;
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
 
     await disconnectGoogleDrive();
 
-    const config = loadDriveConfig();
-    expect(config.enabled).toBe(false);
-    expect(fetchSpy).toHaveBeenCalled();
+    expect(loadDriveConfig()).toEqual({ enabled: false, clientId: 'client-1' });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://accounts.google.com/o/oauth2/revoke?token=token-1',
+      expect.objectContaining({ method: 'POST', mode: 'no-cors' })
+    );
   });
 
   it('uploads backup with refreshed token', async () => {
-    const gapi = makeGapiMock({ signedIn: false });
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
+    mockGoogleIdentity({ access_token: 'token-2', expires_in: 3600 });
+    const { gapi } = makeGapiMock({
+      folders: {
+        root: { id: 'root-1', name: 'ImageExpress' },
+        backups: { id: 'backups-1', name: 'Backups' },
+      },
+    });
 
     updateDriveConfig({
       enabled: true,
       clientId: 'client-1',
       accessToken: 'old-token',
       tokenExpiry: 0,
+      rootFolderId: 'root-1',
+      folderId: 'backups-1',
     });
 
-    const fetchSpy = jest.fn().mockResolvedValue({ ok: true });
-    (global as unknown as { fetch: typeof fetch }).fetch = fetchSpy;
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
 
     await uploadBackup('client-1', 'file.json', '{"a":1}', 'application/json', 'thumb');
 
-    expect(gapi.auth2.getAuthInstance()?.signIn).toHaveBeenCalled();
-    expect(fetchSpy).toHaveBeenCalled();
+    expect(gapi.client.setToken).toHaveBeenCalledWith({ access_token: 'token-2' });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer token-2' }),
+      })
+    );
   });
 
   it('throws when backup not enabled', async () => {
@@ -260,29 +289,51 @@ describe('googleDrive (browser)', () => {
   });
 
   it('throws when upload token is missing', async () => {
-    const gapi = makeGapiMock({ signedIn: true });
-    const authInstance = gapi.auth2.getAuthInstance();
-    if (authInstance) {
-      authInstance.currentUser.get().reloadAuthResponse = jest.fn().mockResolvedValue({ access_token: '', expires_in: '0' });
-    }
+    makeGapiMock({
+      folders: {
+        root: { id: 'root-1', name: 'ImageExpress' },
+        backups: { id: 'backups-1', name: 'Backups' },
+      },
+    });
 
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
-    updateDriveConfig({ enabled: true, clientId: 'client-1', tokenExpiry: 0 });
+    updateDriveConfig({
+      enabled: true,
+      clientId: 'client-1',
+      tokenExpiry: Date.now() + 120000,
+      rootFolderId: 'root-1',
+      folderId: 'backups-1',
+    });
 
     await expect(uploadBackup('client-1', 'file.json', '{}', 'application/json')).rejects.toThrow(
       'Missing access token for Google Drive upload.'
     );
   });
 
-  it('throws when refresh cannot access auth instance', async () => {
-    const gapi = makeGapiMock({ signedIn: true });
-    gapi.auth2.getAuthInstance = () => undefined;
-    Object.defineProperty(window, 'gapi', { value: gapi, configurable: true });
+  it('throws when Google Identity Services is unavailable during token refresh', async () => {
+    Object.defineProperty(window, 'google', { value: {}, configurable: true });
+    const appendChildSpy = jest.spyOn(document.body, 'appendChild');
+    appendChildSpy.mockImplementation((node) => {
+      const script = node as HTMLScriptElement;
+      script.onload?.(new Event('load'));
+      return node;
+    });
+    makeGapiMock({
+      folders: {
+        root: { id: 'root-1', name: 'ImageExpress' },
+        backups: { id: 'backups-1', name: 'Backups' },
+      },
+    });
 
-    updateDriveConfig({ enabled: true, clientId: 'client-1', tokenExpiry: 0 });
+    updateDriveConfig({
+      enabled: true,
+      clientId: 'client-1',
+      tokenExpiry: 0,
+      rootFolderId: 'root-1',
+      folderId: 'backups-1',
+    });
 
     await expect(uploadBackup('client-1', 'file.json', '{}', 'application/json')).rejects.toThrow(
-      'Google authentication is unavailable.'
+      'Google Identity Services is unavailable.'
     );
   });
 });
