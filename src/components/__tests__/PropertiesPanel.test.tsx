@@ -221,7 +221,7 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         expect(screen.getByText('Swatches')).toBeInTheDocument();
     });
 
-    it('renders channels coming-soon surface when channels mode is persisted', async () => {
+    it('renders the channels panel when channels mode is persisted', async () => {
         window.localStorage.setItem(PANEL_MODE_STORAGE_KEY, 'channels');
 
         render(<PropertiesPanel canvas={null} activeTool="select" />);
@@ -231,7 +231,7 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         });
 
         expect(screen.getByText('Channels')).toBeInTheDocument();
-        expect(screen.getByText(/Channel editing .* not implemented yet/i)).toBeInTheDocument();
+        expect(screen.getByText(/Select an image or a fillable layer/i)).toBeInTheDocument();
     });
 
     it('hydrates brushes mode and wires brush controls', async () => {

@@ -37,6 +37,7 @@ Image Express is a professional content creation platform built with Next.js 16,
   - **Textured Models**: Enforced PBR texture generation for realistic results.
   - **Background Processing**: Robust polling system for long-running AI tasks.
 - **Image Generation**: Provider-routed generation via ComfyUI, Stability, and OpenAI pathways.
+- **Google Gemini Image Generation**: The shared generator route now supports Gemini image generation using your saved Google API key, including aspect-ratio mapping for the current prompt zone.
 - **Local AI Critique with Ollama**:
    - Persist local runtime settings for Ollama base URL and preferred model in Settings.
    - Server-side Ollama routes retry between `localhost` and `host.docker.internal`, so the same saved setting can work when the app runs either directly on the host or inside Docker.
@@ -44,6 +45,7 @@ Image Express is a professional content creation platform built with Next.js 16,
    - Run local critique against either the selected layer or the full canvas from the toolbar.
    - Validate local model availability before sending critique requests.
    - If the configured model is missing, the app now offers an inline install action in Settings, AI Critique, and Ollama generation flows.
+   - Run `npm run qa:ollama` to hit the live status, generation, and critique routes against a running app and local Ollama runtime.
 - **ComfyUI Workflow Library & Proxying**:
    - Browse runnable server templates plus custom workflow-folder JSON imports from the app.
    - Inspect and manage configured Comfy custom-node/workflow repositories.
@@ -65,6 +67,7 @@ Image Express is a professional content creation platform built with Next.js 16,
   - **3D Previews**: Hover over any 3D model asset to see a real-time rotating 3D preview popup.
   - **Renaming System**: Interactive renaming overlay for assets.
 - **Authentication**: Secure login system with server-side key persistence for API access.
+- **Profile Security**: Signed-in web accounts can change their password directly from the User Profile modal with current-password verification.
 - **Session Security**: Automatic 30-minute inactivity timeout for guest and web users to protect sessions.
 - **Audit Logging**: Automatic login activity logging with IP and user agent; viewable from Settings.
 - **Desktop Shell**: Single-codebase Electron build with auto-update checks and in-app update prompts.
@@ -211,6 +214,16 @@ The Properties Panel provides comprehensive editing capabilities:
 - **Grouped Swatches**: Create, select, and remove swatch groups directly in the Swatches panel, plus add/remove swatches per group
 - **Mask Gradient Controls**: Clip-path masks support non-destructive linear or radial opacity fades with editable angle/start/end opacity.
 
+### Channels
+- **Real Channels Panel**: Composite, Red, Green, Blue, Alpha, and Luminosity rows are available in the right rail and circular context menu.
+- **Per-Channel Controls**: Each editable channel supports opacity, composite masking, isolate, invert, and mask actions.
+- **Layer-Aware Behavior**: Selected images use non-destructive ColorMatrix filters, while fillable layers and solid-color adjustments support direct per-channel value edits.
+
+### AI Providers
+- **Google Gemini**: Shared zone generation route is live for image generation with the saved Google API key.
+- **Banana.dev**: Shared zone generation route is live when the server is configured with a Banana endpoint and the user has saved a Banana API key.
+- **NanoBanana**: AI Edit Notes can now route direct edit jobs through the Banana runtime instead of returning the earlier stub image.
+
 ### Shadow & Stroke
 - **Drop Shadow**: Blur (0-150px), Offset (±200px), Opacity, Blend Modes
 - **Inside Stroke**: Renders over fill
@@ -225,6 +238,13 @@ The Properties Panel provides comprehensive editing capabilities:
 - **Brush Types**: Pencil, Spray, Oil, Watercolor
 - **Blend Modes**: Normal, Multiply, Screen, Overlay
 - **Smart Grouping**: Strokes auto-grouped in Paint Folders
+
+### Photoshop-Style Shortcuts
+- **Navigation**: Space + Drag pans, Scroll zooms, and Double-click empty canvas recenters the artboard.
+- **Layer Duplication**: Alt/Option + Drag duplicates the selected layer and drags the copy.
+- **Selection Tools**: `V` Move, `M` Marquee, `L` Lasso, `W` Quick Selection, `Shift+W` Magic Wand, `A` Path Select.
+- **Creation & Retouch**: `T` Text, `U` Shapes, `P` Pen, `B` Brush, `R` Blur, `J` Healing, `S` Clone Stamp, `O` Dodge, `G` Gradient, `I` Eyedropper, `C` Crop, `H` Hand, `Z` Zoom.
+- **History & Selection**: `Cmd/Ctrl+J` duplicates, `Cmd/Ctrl+D` deselects, `Cmd/Ctrl+Z` and `Cmd/Ctrl+Alt+Z` undo, `Cmd/Ctrl+Shift+Z` redo.
 
 ## 🛠 Tech Stack
 
@@ -251,6 +271,8 @@ Validation status as of 2026-04-01:
 
 Maintenance audit:
 - `npm run audit:repo` -> reports oversized source/test files, large modules without a direct same-name test heuristic, and runtime `coming soon` / `not implemented yet` markers.
+- `npm run qa:ollama` -> exercises the live Ollama status, generation, and critique routes against the running app.
+- `npm run qa:overlay` -> runs the browser-level export and media-overlay verification suites.
 - Playwright output folders such as `test-results/` and `playwright-report/` are intentionally ignored.
 - Current generated-asset saves, Comfy/Ollama runtime fallbacks, navigator thumbnail preview, and circular-context-menu sync are all tracked in the latest release notes.
 

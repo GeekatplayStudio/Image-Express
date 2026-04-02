@@ -8,6 +8,8 @@ import {
     sanitizeOllamaSvgDocument,
 } from '@/lib/ollama';
 import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
+import { requestBananaImageGeneration } from '@/lib/server/bananaGeneration';
+import { requestGoogleImageGeneration } from '@/lib/server/googleImageGeneration';
 
 const OLLAMA_GENERATE_TIMEOUT_MS = 45000;
 
@@ -306,12 +308,51 @@ export async function POST(request: Request) {
 
         // --- GOOGLE HANDLER ---
         if (mode === 'google') {
-            return NextResponse.json({ success: false, message: 'Google Imagen integration coming soon' });
+            try {
+                const result = await requestGoogleImageGeneration({
+                    apiKey,
+                    prompt: typeof prompt === 'string' ? prompt : '',
+                    width,
+                    height,
+                });
+                return NextResponse.json({
+                    success: true,
+                    imageUrl: result.imageUrl,
+                    provider: 'google',
+                    model: result.model,
+                    aspectRatio: result.aspectRatio,
+                });
+            } catch (error) {
+                return NextResponse.json({
+                    success: false,
+                    message: error instanceof Error ? error.message : 'Google image generation failed.',
+                }, { status: 502 });
+            }
         }
 
         // --- BANANA HANDLER ---
         if (mode === 'banana') {
-             return NextResponse.json({ success: false, message: 'Banana.dev integration coming soon' });
+            try {
+                const result = await requestBananaImageGeneration({
+                    apiKey,
+                    prompt: typeof prompt === 'string' ? prompt : '',
+                    width,
+                    height,
+                    mode: 'generate',
+                });
+                return NextResponse.json({
+                    success: true,
+                    imageUrl: result.imageUrl,
+                    provider: 'banana',
+                    model: result.model,
+                    endpoint: result.endpoint,
+                });
+            } catch (error) {
+                return NextResponse.json({
+                    success: false,
+                    message: error instanceof Error ? error.message : 'Banana image generation failed.',
+                }, { status: 502 });
+            }
         }
 
         // --- STABILITY AI HANDLER (Default) ---

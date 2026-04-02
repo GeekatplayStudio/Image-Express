@@ -38,6 +38,8 @@ describe('DocumentationModal', () => {
         expect(screen.getAllByText('Introduction').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Toolbar Tools').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Productivity Shortcuts').length).toBeGreaterThan(0);
+        expect(screen.getByText(/Alt\/Option \+ Drag on a selected layer duplicates it in place/i)).toBeInTheDocument();
+        expect(screen.getByText(/Cmd\/Ctrl\+J duplicates the active selection/i)).toBeInTheDocument();
 
         const chapterLinks = screen.getAllByRole('link').filter((link) => {
             const href = link.getAttribute('href');

@@ -11,6 +11,8 @@
     "build": "next build",
     "start": "next start",
     "audit:repo": "node scripts/repo-audit.mjs",
+    "qa:ollama": "node scripts/qa-ollama.mjs",
+    "qa:overlay": "playwright test e2e/export-verification.spec.ts e2e/media-overlay-verification.spec.ts",
     "lint": "eslint",
     "validate": "npm run lint && npm run test && npm run build",
     "test": "jest",

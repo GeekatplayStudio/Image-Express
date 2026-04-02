@@ -160,6 +160,7 @@ export default function EditorView({
         'adjustmentType',
         'adjustmentSettings',
         'baseFilters',
+        'channelSettings',
         'aiGenerated',
         'aiProvider',
         'isPenPath',
@@ -708,8 +709,13 @@ export default function EditorView({
     });
 
     const triggerToolbarTool = useCallback((toolName: string) => {
+        if (toolName === 'channels') {
+            handleRequestPropertiesPanel('channels');
+            return;
+        }
+
         toolbarRef.current?.triggerTool(toolName);
-    }, []);
+    }, [handleRequestPropertiesPanel]);
 
     const {
         openPanelModeFromMenu,

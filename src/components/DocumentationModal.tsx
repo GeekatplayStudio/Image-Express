@@ -185,6 +185,10 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         <Section id="shortcuts" title="Productivity Shortcuts">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Space + Drag to pan, Scroll to zoom, Double-click empty canvas to recenter.</li>
+                                <li>Alt/Option + Drag on a selected layer duplicates it in place, then drags the copy.</li>
+                                <li>Photoshop-style tool keys: V Move, M Marquee, L Lasso, W Quick Selection, Shift+W Magic Wand, A Path Select.</li>
+                                <li>Creation and utility keys: T Text, U Shapes, P Pen, B Brush, R Blur, J Healing, S Clone Stamp, O Dodge, G Gradient, I Eyedropper, C Crop, H Hand, Z Zoom.</li>
+                                <li>Editing keys: Cmd/Ctrl+J duplicates the active selection, Cmd/Ctrl+D deselects, Cmd/Ctrl+Z or Cmd/Ctrl+Alt+Z undoes, and Cmd/Ctrl+Shift+Z redoes.</li>
                                 <li>With Crop active, press Enter to apply the current crop draft bounds.</li>
                                 <li>Drag layer grips to reorder, or double-click names to rename elements quickly.</li>
                                 <li>Use Shift while resizing Fabric objects to maintain aspect ratio.</li>

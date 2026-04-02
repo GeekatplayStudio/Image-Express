@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 
-import type { ExtendedFabricObject } from '@/types';
 import type { DesignJson } from '@/components/Editor/editorView.types';
+import { duplicateActiveCanvasSelection } from '@/components/Editor/duplicateCanvasSelection';
 
 type UseEditorHistoryArgs = {
     canvas: fabric.Canvas | null;
@@ -89,40 +89,9 @@ export function useEditorHistory({
 
     const handleDuplicate = useCallback(async () => {
         if (!canvas) return;
-        const activeObjects = canvas.getActiveObjects();
-        if (!activeObjects || activeObjects.length === 0) return;
-
-        canvas.discardActiveObject();
-
-        const clones: fabric.Object[] = [];
-        for (const obj of activeObjects) {
-            const cloned = await obj.clone();
-            cloned.set({
-                left: (cloned.left || 0) + 20,
-                top: (cloned.top || 0) + 20,
-                evented: true,
-            });
-
-            (cloned as ExtendedFabricObject).id = crypto.randomUUID();
-
-            if ((obj as ExtendedFabricObject).name) {
-                (cloned as ExtendedFabricObject).name = `${(obj as ExtendedFabricObject).name} (Copy)`;
-            }
-
-            canvas.add(cloned);
-            clones.push(cloned);
-        }
+        const clones = await duplicateActiveCanvasSelection(canvas, { offsetX: 20, offsetY: 20 });
 
         if (clones.length > 0) {
-            if (clones.length === 1) {
-                canvas.setActiveObject(clones[0]);
-            } else {
-                const selection = new fabric.ActiveSelection(clones, {
-                    canvas,
-                });
-                canvas.setActiveObject(selection);
-            }
-            canvas.requestRenderAll();
             pushHistory();
             setIsDirty(true);
         }

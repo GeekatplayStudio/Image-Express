@@ -91,6 +91,10 @@ ollama pull qwen2.5:7b
 
 When using AI Edit Notes with reference image editing:
 - `NanoBanana` provider auto-routes to `nanobanana-2` model payload.
+- Banana-backed generation and editing require server configuration for a Banana endpoint:
+  - `BANANA_GENERATE_URL` for zone generation
+  - optional `BANANA_EDIT_URL` for direct edit jobs, falling back to `BANANA_GENERATE_URL`
+  - optional `BANANA_MODEL` override, defaulting to `nanobanana-2`
 - `ComfyUI` provider auto-selects `img2img` task and prioritizes Flux Klein image-edit workflow:
   - `image_flux2_klein_image_edit_9b_base`
   - fallback `image_flux2_klein_image_edit_4b_base`

@@ -19,7 +19,7 @@ The audit reports:
 ## Current Large Source Hotspots
 
 Highest-priority oversized source files from the current audit snapshot:
-- `src/components/ImageGeneratorModal.tsx` around 4005 lines
+- `src/components/ImageGeneratorModal.tsx` around 3728 lines after the first annotation-helper extraction pass
 - `src/components/PropertiesPanel.tsx` around 3301 lines
 - `src/components/Toolbar.tsx` around 2578 lines
 - `src/components/SettingsModal.tsx` around 2116 lines
@@ -56,3 +56,4 @@ The audit continues to surface these runtime placeholders:
 - Browser-test artifacts belong in ignored generated directories only.
 - `test-results/` and `playwright-report/` should not be committed.
 - New feature work should prefer extracting helpers/tests instead of growing existing coordinator files further.
+- `ImageGeneratorModal.tsx` has started its extraction pass through `src/components/image-generator/annotationCanvasUtils.ts`; keep peeling self-contained canvas/annotation helpers out instead of adding new logic inline.

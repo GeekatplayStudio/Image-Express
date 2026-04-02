@@ -136,7 +136,7 @@ describe('generative-preferences', () => {
         expect(launch.provider).toBe('comfy');
     });
 
-    it('falls back to a ready provider when default provider is coming soon', () => {
+    it('keeps Google as the launch provider now that it is ready', () => {
         const launch = resolveGenerativeLaunchState({
             defaultProvider: 'google',
             defaultWorkflow: 'zone',
@@ -151,7 +151,7 @@ describe('generative-preferences', () => {
         }, ['google', 'openai']);
 
         expect(launch.mode).toBe('zone');
-        expect(launch.provider).toBe('openai');
+        expect(launch.provider).toBe('google');
     });
 
     it('keeps Ollama as the launch provider for zone workflows when available', () => {

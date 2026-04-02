@@ -4,6 +4,7 @@ import * as fabric from 'fabric'; // Import all to be safe with versioning, or n
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { ensureObjectId } from '@/lib/fabric-utils';
+import { duplicateCanvasObjects } from '@/components/Editor/duplicateCanvasSelection';
 import { ExtendedFabricObject } from '@/types';
 
 type ArtboardInfo = {
@@ -745,6 +746,24 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         
         // Important: Re-render to show updates immediately
         canvas.requestRenderAll();
+    });
+
+    canvas.on('mouse:down:before', (opt) => {
+        const evt = opt.e as MouseEvent | undefined;
+        if (!evt || evt.button !== 0 || !evt.altKey) return;
+        if (isSpacePressed || handModeLocked) return;
+
+        const target = opt.target;
+        if (!target || target.selectable === false || target.evented === false) return;
+
+        const activeObjects = canvas.getActiveObjects();
+        const sourceObjects = activeObjects.includes(target) ? activeObjects : [target];
+        if (sourceObjects.length === 0) return;
+
+        evt.preventDefault();
+        evt.stopPropagation();
+
+        void duplicateCanvasObjects(canvas, sourceObjects, { offsetX: 0, offsetY: 0 });
     });
 
     canvas.on('mouse:down', (opt) => {

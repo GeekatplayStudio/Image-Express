@@ -156,7 +156,12 @@ jest.mock('@/components/Toolbar', () => {
 
 jest.mock('@/components/PropertiesPanel', () => ({
     __esModule: true,
-    default: () => <div data-testid="properties-panel">Properties</div>,
+    default: ({ panelMode }: { panelMode?: string }) => (
+        <div data-testid="properties-panel">
+            <div>Properties</div>
+            <div data-testid="properties-panel-mode">{panelMode || 'properties'}</div>
+        </div>
+    ),
 }));
 
 jest.mock('@/components/ThreeDGenerator', () => ({
@@ -254,6 +259,7 @@ jest.mock('@/components/CircularContextMenu', () => ({
         isOpen ? (
             <div data-testid="context-menu">
                 <button onClick={() => onSelectTool('paint')}>Context Paint</button>
+                <button onClick={() => onSelectTool('channels')}>Context Channels</button>
                 <button
                     onClick={() => onLayerOrderAction?.('move-up')}
                     disabled={!layerOrderState?.canMoveUp}
@@ -1242,7 +1248,7 @@ describe('EditorView', () => {
         expect(mockTriggerTool).toHaveBeenCalledWith('select');
     });
 
-    it('supports move, wand, quick-select, selection brush, healing, history brush, blur, dodge, clone stamp, marquee, lasso, and path-select keyboard aliases', () => {
+    it('supports Photoshop-style tool keyboard aliases for the current editor tools', () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
 
@@ -1250,6 +1256,9 @@ describe('EditorView', () => {
         expect(mockTriggerTool).toHaveBeenCalledWith('select');
 
         fireEvent.keyDown(window, { key: 'w' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('quick-select');
+
+        fireEvent.keyDown(window, { key: 'W', shiftKey: true });
         expect(mockTriggerTool).toHaveBeenCalledWith('wand');
 
         fireEvent.keyDown(window, { key: 'q' });
@@ -1265,6 +1274,9 @@ describe('EditorView', () => {
         expect(mockTriggerTool).toHaveBeenCalledWith('history-brush');
 
         fireEvent.keyDown(window, { key: 'b' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('paint');
+
+        fireEvent.keyDown(window, { key: 'r' });
         expect(mockTriggerTool).toHaveBeenCalledWith('blur');
 
         fireEvent.keyDown(window, { key: 'o' });
@@ -1281,6 +1293,57 @@ describe('EditorView', () => {
 
         fireEvent.keyDown(window, { key: 'a' });
         expect(mockTriggerTool).toHaveBeenCalledWith('path-select');
+
+        fireEvent.keyDown(window, { key: 'c' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('crop');
+
+        fireEvent.keyDown(window, { key: 'i' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('eyedropper');
+
+        fireEvent.keyDown(window, { key: 'g' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('gradient');
+
+        fireEvent.keyDown(window, { key: 'h' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('hand');
+
+        fireEvent.keyDown(window, { key: 'p' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('pen');
+
+        fireEvent.keyDown(window, { key: 't' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('text');
+
+        fireEvent.keyDown(window, { key: 'u' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('shapes');
+
+        fireEvent.keyDown(window, { key: 'z' });
+        expect(mockTriggerTool).toHaveBeenCalledWith('zoom');
+    });
+
+    it('uses Photoshop-style duplicate and deselect shortcuts', async () => {
+        const props = createDefaultProps();
+        render(<EditorView {...props} />);
+
+        const clone = {
+            left: 40,
+            top: 60,
+            set: jest.fn(),
+        };
+        const source = {
+            name: 'Layer 1',
+            clone: jest.fn().mockResolvedValue(clone),
+        };
+
+        latestCanvasStub?.getActiveObjects.mockReturnValue([source] as any[]);
+
+        fireEvent.keyDown(window, { key: 'j', metaKey: true });
+
+        await waitFor(() => {
+            expect(latestCanvasStub?.add).toHaveBeenCalledWith(clone);
+        });
+
+        fireEvent.keyDown(window, { key: 'd', metaKey: true });
+        expect(latestCanvasStub?.discardActiveObject).toHaveBeenCalled();
+        expect(latestCanvasStub?.requestRenderAll).toHaveBeenCalled();
     });
 
     it.skip('unlocks a locked layer from the canvas lock badge click', async () => {
@@ -2092,6 +2155,12 @@ describe('EditorView', () => {
         expect(screen.getByTestId('context-menu')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Context Paint' }));
         expect(mockTriggerTool).toHaveBeenCalledWith('paint');
+
+        fireEvent.contextMenu(screen.getByTestId('design-canvas'));
+        fireEvent.click(screen.getByRole('button', { name: 'Context Channels' }));
+        await waitFor(() => {
+            expect(screen.getByTestId('properties-panel-mode')).toHaveTextContent('channels');
+        });
 
         expect(screen.getByTestId('bottom-right-utilities')).toBeInTheDocument();
         expect(screen.getByText('Grid Thirds')).toBeInTheDocument();

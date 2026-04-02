@@ -43,7 +43,7 @@ export function useEditorKeyboardShortcuts({
             const meta = event.metaKey || event.ctrlKey;
             if (!meta) return;
 
-            if (!event.shiftKey && key === 'z') {
+            if ((!event.shiftKey && !event.altKey && key === 'z') || (event.altKey && key === 'z')) {
                 event.preventDefault();
                 onUndo();
                 return;
@@ -53,7 +53,14 @@ export function useEditorKeyboardShortcuts({
                 onRedo();
                 return;
             }
-            if (key === 'd') {
+            if (!event.shiftKey && !event.altKey && key === 'd') {
+                event.preventDefault();
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+                return;
+            }
+
+            if (!event.shiftKey && !event.altKey && key === 'j') {
                 event.preventDefault();
                 onDuplicate();
             }
@@ -69,21 +76,36 @@ export function useEditorKeyboardShortcuts({
             if (isTypingTarget(event.target)) return;
 
             const key = event.key.toLowerCase();
-            const toolMap: Record<string, string> = {
-                v: 'select',
-                w: 'wand',
-                q: 'quick-select',
-                k: 'selection-brush',
-                m: 'marquee',
-                l: 'lasso',
-                j: 'healing',
-                y: 'history-brush',
-                b: 'blur',
-                o: 'dodge',
-                s: 'clone-stamp',
-                a: 'path-select',
-            };
-            const tool = toolMap[key];
+            let tool: string | undefined;
+
+            if (key === 'w') {
+                tool = event.shiftKey ? 'wand' : 'quick-select';
+            } else {
+                const toolMap: Record<string, string> = {
+                    v: 'select',
+                    q: 'quick-select',
+                    k: 'selection-brush',
+                    m: 'marquee',
+                    l: 'lasso',
+                    j: 'healing',
+                    y: 'history-brush',
+                    b: 'paint',
+                    r: 'blur',
+                    o: 'dodge',
+                    s: 'clone-stamp',
+                    a: 'path-select',
+                    c: 'crop',
+                    i: 'eyedropper',
+                    g: 'gradient',
+                    h: 'hand',
+                    p: 'pen',
+                    t: 'text',
+                    u: 'shapes',
+                    z: 'zoom',
+                };
+                tool = toolMap[key];
+            }
+
             if (!tool) return;
 
             event.preventDefault();

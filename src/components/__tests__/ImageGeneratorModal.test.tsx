@@ -392,6 +392,48 @@ describe('ImageGeneratorModal', () => {
         );
     });
 
+    it('treats Banana as a ready provider and forwards the saved Banana key', async () => {
+        localStorage.setItem('banana_api_key', 'banana-123');
+        localStorage.setItem('image-express-gen-provider', 'banana');
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'data:image/png;base64,AQIDBA==' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        expect(screen.getByText('Ready for generation')).toBeInTheDocument();
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A glossy product hero shot' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('mock-next-image')).toBeInTheDocument();
+        });
+
+        const generateCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/generate-image');
+        expect(generateCall).toBeDefined();
+        const payload = JSON.parse(generateCall?.[1].body as string);
+        expect(payload).toEqual(
+            expect.objectContaining({
+                provider: 'remote',
+                specificProvider: 'banana',
+                apiKey: 'banana-123',
+                prompt: 'A glossy product hero shot',
+            })
+        );
+    });
+
     it('forwards saved Ollama runtime settings when generating through the local provider', async () => {
         localStorage.setItem('image-express-gen-provider', 'ollama');
         localStorage.setItem(LOCAL_AI_PREFERENCES_STORAGE_KEY, JSON.stringify({

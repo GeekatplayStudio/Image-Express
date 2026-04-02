@@ -284,6 +284,7 @@ export function useEditorWorkspaceCompositionProps<TJob extends { id: string }>(
         y: contextMenu.y,
         isOpen: contextMenu.isOpen,
         activeTool,
+        activePanelMode: propertiesPanelMode,
         onClose: handleCloseContextMenu,
         onSelectTool: triggerToolbarTool,
         onLayerOrderAction: handleLayerOrderAction,

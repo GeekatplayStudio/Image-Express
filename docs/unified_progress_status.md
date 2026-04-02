@@ -284,7 +284,7 @@ Completed in this pass (D1 rail taxonomy expansion slice):
 - [x] Expanded right rail with remaining reference icons (`color`, `swatches`, `brushes`, `channels`, `adjustments`).
 - [x] Mapped `color`/`swatches`/`adjustments` to concrete panel surfaces tied to existing mutation pipelines.
 - [x] Mapped `brushes` to a real dedicated controls surface wired to editor paint state (preset/size/hardness/opacity/flow/smoothing/blend + activate paint action).
-- [x] Kept `channels` as explicit coming-soon surface with clear affordance copy.
+- [x] Reserved `channels` in the right rail so the later real panel could land without changing the rail taxonomy.
 - [x] Extended rail persistence + hydration tests for new modes.
 - [x] Added `PropertiesPanel` test coverage for brushes mode control wiring.
 
@@ -431,7 +431,7 @@ Completed in this pass (Phase 4 cursor realism + test-coverage audit slice):
 - [x] Added viewport-aware pointer mapping for cursor previews with scene-point fallback.
 - [x] Added `EditorView` regression tests for brush cursor preview rendering and eyedropper target preview rendering.
 - [x] Full suite audit rerun completed: `npm test -- --runInBand` (50 suites / 346 tests), then `npm run lint`, `npm run build`.
-- [x] Confirmed intentional placeholder remains only where explicitly marked (e.g. Channels panel coming-soon surface), not in active cursor workflows.
+- [x] Confirmed remaining placeholders are isolated away from active editor cursor workflows; Channels has now moved beyond the old coming-soon stub into a real MVP panel.
 
 Completed in this pass (Phase 4 selection-group parity slice):
 - [x] Added `Quick Selection` and `Selection Brush` identities across tool surfaces (left rail group, tools dropdown, select menu, keyboard aliases).
@@ -698,24 +698,31 @@ From `feature_implementation_tracker.md`:
 - [x] Local AI support (Ollama): runtime preferences, status probe, critique route, and first-pass image-generation provider wiring are complete
 - [~] AI critique of image/canvas: toolbar modal + local route implemented, with runtime preflight/setup messaging in place; interactive QA still pending
 - [ ] Direct social media posting integrations
-- [ ] In-profile change password
+- [x] In-profile change password
 - [ ] Import/export asset library
 - [ ] Additional online storage providers
-- [ ] Channel editing panel
-- [ ] Google Imagen / Banana.dev / NanoBanana runtime completion
+- [~] Channel editing panel MVP (rows/previews/isolate/invert/mask/value edits plus luminosity and per-channel opacity complete; advanced channel workflows still pending)
+- [x] Google, Banana.dev, and NanoBanana runtime branches are now wired into the shared generation and agentic edit flows
 - [ ] Facebook sign-in/auth integration
 
 ---
 
 ## Current Recommended Next Step
-Proceed with **AI critique + local generation QA**:
-- [ ] Run an interactive QA pass on the new critique modal with at least one vision-capable Ollama model (for example, a local multimodal model) and tune the critique prompt/output shape now that runtime/model preflight is surfaced inline.
-- [ ] Run a hands-on QA pass on the new Ollama SVG generation path with the saved local runtime/model settings, then tune the SVG prompt template based on real outputs.
-- [ ] Decide whether the current Ollama path stays SVG-first or later graduates to a richer local-image orchestration flow.
+Proceed with **interactive Ollama QA + Media Overlay follow-through**:
+- [~] Route-level Ollama QA is now scripted through `npm run qa:ollama` and verified against the running app.
+- [ ] Run an interactive QA pass on the critique modal with at least one vision-capable Ollama model and tune the critique prompt/output shape.
+- [ ] Run a hands-on QA pass on the Ollama SVG generation path with the saved local runtime/model settings, then decide whether the local path stays SVG-first or later graduates to a richer local-image orchestration flow.
 
 Media Export Overlay Phase B remains open for QA/decision follow-through:
+- [~] Browser export and variant-draft QA are now formalized through `npm run qa:overlay`.
 - [ ] Validate the new variant-draft save flow against real design sessions.
 - [ ] Decide whether the bridge stays as an in-editor draft flow or expands into a dedicated Campaign Workspace later.
+
+Provider follow-through is now implementation-complete:
+- [x] Google Gemini shared generation route
+- [x] Banana.dev shared generation route via server-configured Banana endpoint
+- [x] NanoBanana agentic edit provider integration
+- [ ] Run live QA against a real Banana endpoint deployment once server env is configured
 
 ---
 

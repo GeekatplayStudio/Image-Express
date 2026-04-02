@@ -177,4 +177,94 @@ describe('/api/ai/generate-image', () => {
             output: 'svg',
         }));
     });
+
+    it('returns an image data URL for the Google provider path', async () => {
+        global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+            expect(String(input)).toContain('generativelanguage.googleapis.com');
+            return {
+                ok: true,
+                json: async () => ({
+                    candidates: [
+                        {
+                            content: {
+                                parts: [
+                                    { text: 'Created with Gemini.' },
+                                    {
+                                        inlineData: {
+                                            mimeType: 'image/png',
+                                            data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6p5xQAAAAASUVORK5CYII=',
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                }),
+            } as Response;
+        }) as typeof global.fetch;
+
+        const request = new Request('http://localhost:3000/api/ai/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: 'A minimal poster with bold geometric shapes',
+                width: 1536,
+                height: 1024,
+                provider: 'remote',
+                specificProvider: 'google',
+                apiKey: 'AIza-test-key',
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload).toEqual(expect.objectContaining({
+            success: true,
+            provider: 'google',
+            model: expect.any(String),
+            aspectRatio: '3:2',
+        }));
+        expect(payload.imageUrl).toMatch(/^data:image\/png;base64,/);
+    });
+
+    it('returns a Banana image when the server endpoint is configured', async () => {
+        process.env.BANANA_GENERATE_URL = 'https://banana.example/run';
+
+        global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+            expect(String(input)).toBe('https://banana.example/run');
+            return {
+                ok: true,
+                json: async () => ({
+                    imageUrl: 'data:image/png;base64,AQIDBA==',
+                }),
+            } as Response;
+        }) as typeof global.fetch;
+
+        const request = new Request('http://localhost:3000/api/ai/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: 'A minimal poster with bold geometric shapes',
+                width: 1536,
+                height: 1024,
+                provider: 'remote',
+                specificProvider: 'banana',
+                apiKey: 'banana-key',
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload).toEqual(expect.objectContaining({
+            success: true,
+            provider: 'banana',
+            model: 'nanobanana-2',
+            endpoint: 'https://banana.example/run',
+        }));
+        expect(payload.imageUrl).toBe('data:image/png;base64,AQIDBA==');
+    });
 });

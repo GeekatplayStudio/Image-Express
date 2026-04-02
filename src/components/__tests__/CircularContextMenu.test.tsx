@@ -31,6 +31,32 @@ describe('CircularContextMenu', () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
+    it('surfaces Channels as a panel action and marks it active when the channels panel is open', () => {
+        const onSelectTool = jest.fn();
+        const onClose = jest.fn();
+
+        render(
+            <CircularContextMenu
+                x={160}
+                y={140}
+                isOpen={true}
+                activeTool="select"
+                activePanelMode="channels"
+                onClose={onClose}
+                onSelectTool={onSelectTool}
+            />
+        );
+
+        const channelsButton = screen.getByRole('button', { name: 'Channels' });
+
+        expect(channelsButton).toHaveAttribute('aria-pressed', 'true');
+
+        fireEvent.click(channelsButton);
+
+        expect(onSelectTool).toHaveBeenCalledWith('channels');
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
     it('enables and disables layer-order actions from the supplied layer state', () => {
         const onLayerOrderAction = jest.fn();
 

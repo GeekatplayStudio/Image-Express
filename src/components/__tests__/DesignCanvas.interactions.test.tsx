@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import DesignCanvas from '../DesignCanvas';
 import {
     installDesignCanvasLayoutMocks,
@@ -307,5 +307,59 @@ describe('DesignCanvas interactions', () => {
         expect(textarea.autocapitalize).toBe('sentences');
         expect(textarea.autocomplete).toBe('off');
         expect(textarea.autocorrect).toBe(true);
+    });
+
+    it('duplicates the selected layer when Alt/Option drag starts on an object', async () => {
+        render(<DesignCanvas onCanvasReady={jest.fn()} />);
+
+        if (!latestCanvas) {
+            throw new Error('Canvas was not initialized');
+        }
+
+        const clone = {
+            left: 120,
+            top: 160,
+            set: jest.fn(function set(patch: Record<string, unknown>) {
+                Object.assign(this, patch);
+            }),
+        };
+        const source = {
+            selectable: true,
+            evented: true,
+            name: 'Logo',
+            clone: jest.fn().mockResolvedValue(clone),
+        };
+
+        latestCanvas.activeObjects = [source as unknown as never];
+        latestCanvas.getActiveObjects.mockReturnValue([source]);
+
+        const preventDefault = jest.fn();
+        const stopPropagation = jest.fn();
+
+        act(() => {
+            latestCanvas?.emit('mouse:down:before', {
+                e: {
+                    button: 0,
+                    altKey: true,
+                    preventDefault,
+                    stopPropagation,
+                } as unknown as MouseEvent,
+                target: source,
+            });
+        });
+
+        await waitFor(() => {
+            expect(latestCanvas?.add).toHaveBeenCalledWith(clone);
+        });
+
+        expect(source.clone).toHaveBeenCalledTimes(1);
+        expect(clone.set).toHaveBeenCalledWith(expect.objectContaining({
+            left: 120,
+            top: 160,
+            evented: true,
+        }));
+        expect(latestCanvas.setActiveObject).toHaveBeenCalledWith(clone);
+        expect(preventDefault).toHaveBeenCalledTimes(1);
+        expect(stopPropagation).toHaveBeenCalledTimes(1);
     });
 });

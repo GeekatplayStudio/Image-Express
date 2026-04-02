@@ -214,16 +214,16 @@ describe('SwatchesPanelView', () => {
 });
 
 describe('ComingSoonPanelView', () => {
-    it('renders the channels placeholder messaging', () => {
+    it('renders generic coming-soon messaging', () => {
         render(
             <ComingSoonPanelView
-                title="Channels"
-                description="Channel editing (RGB/alpha channel isolation and per-channel operations) is not implemented yet."
+                title="Future Panel"
+                description="This utility is still in progress."
             />
         );
 
-        expect(screen.getByText('Channels')).toBeInTheDocument();
+        expect(screen.getByText('Future Panel')).toBeInTheDocument();
         expect(screen.getByText('Soon')).toBeInTheDocument();
-        expect(screen.getByText(/Channel editing .* not implemented yet/i)).toBeInTheDocument();
+        expect(screen.getByText(/still in progress/i)).toBeInTheDocument();
     });
 });

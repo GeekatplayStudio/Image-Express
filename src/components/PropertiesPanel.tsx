@@ -57,12 +57,29 @@ import {
     SwatchesPanelView,
     BrushesPanelView,
     AdjustmentsPanelView,
-    ComingSoonPanelView,
     NavigatorPanelView,
     InfoPanelView,
     ColorPanelMode,
     NavigatorSceneRect,
 } from './properties/PanelUtilityViews';
+import { ChannelsPanelView } from './properties/ChannelsPanelView';
+import {
+    applyChannelStateToColor,
+    buildChannelFilterState,
+    createChannelColorMatrixFilter,
+    createDefaultChannelFilterState,
+    isDefaultChannelFilterState,
+    normalizeChannelFilterState,
+    readChannelFilterState,
+    setChannelValueInColor,
+    setChannelAdjustmentSettings,
+    setChannelBaseFilters,
+    setChannelObjectState,
+    stripChannelFilters,
+    type ChannelControlState,
+    type ChannelFilterState,
+    type EditableChannelTarget,
+} from './properties/channelEditing';
 import {
     buildMaskGradientFill,
     mergeMaskGradientSettings,
@@ -2898,6 +2915,173 @@ export default function PropertiesPanel({
         && selectedObject.type !== 'group'
         && !selectedExt?.isAdjustmentLayer;
     const selectedAdjustmentType = selectedExt?.isAdjustmentLayer ? selectedExt.adjustmentType ?? null : null;
+    const selectedSolidColorSettings = selectedExt?.isAdjustmentLayer && selectedAdjustmentType === 'solid-color'
+        ? (selectedExt.adjustmentSettings as SolidColorSettings | undefined) ?? null
+        : null;
+    const selectedFillStyle = typeof selectedObject?.fill === 'string' ? selectedObject.fill : null;
+    const selectedOpacityValue = typeof selectedObject?.opacity === 'number' ? selectedObject.opacity : 1;
+    const channelSupportedTarget = selectedObject?.type === 'image'
+        ? 'image'
+        : (selectedSolidColorSettings || selectedFillStyle ? 'color' : 'none');
+    const channelCurrentColor = selectedSolidColorSettings?.color ?? selectedFillStyle ?? '#000000';
+    const channelCurrentOpacity = selectedSolidColorSettings?.opacity ?? selectedOpacityValue;
+    const channelPreviewSource = (() => {
+        if (selectedObject?.type === 'image') {
+            const image = selectedObject as fabric.Image;
+            const element = typeof image.getElement === 'function' ? image.getElement() : null;
+            if (element instanceof HTMLCanvasElement || element instanceof HTMLImageElement) {
+                return { kind: 'image' as const, element };
+            }
+        }
+
+        if (channelSupportedTarget === 'color') {
+            return {
+                kind: 'color' as const,
+                color: channelCurrentColor,
+                opacity: channelCurrentOpacity,
+            };
+        }
+
+        return null;
+    })();
+    const channelStoredState = selectedExt?.channelSettings as Partial<ChannelFilterState> | undefined;
+    const channelAppliedState = selectedObject
+        ? normalizeChannelFilterState(
+            channelStoredState ?? (selectedObject.type === 'image'
+                ? readChannelFilterState(((selectedObject as ExtendedFabricObject).baseFilters ?? (selectedObject as fabric.Image).filters ?? []))
+                : undefined),
+        )
+        : createDefaultChannelFilterState();
+    const channelSelectionLabel = selectedObject?.name
+        ?? (selectedObject?.type === 'image' ? 'Selected image' : selectedObject?.type ?? 'Selected layer');
+    const channelPanelKey = `channels:${selectedObject?.id ?? channelSelectionLabel}:${channelSupportedTarget}`;
+
+    const finalizeChannelMutation = (targetObject: ExtendedFabricObject, nextState?: ChannelFilterState) => {
+        if (nextState) {
+            setChannelObjectState(targetObject, nextState);
+        }
+        targetObject.set('dirty', true);
+        if (targetObject.isAdjustmentLayer) {
+            applyAdjustmentLayers();
+        }
+        canvas?.requestRenderAll();
+        updateObjects();
+        canvas?.fire('object:modified', { target: targetObject });
+    };
+
+    const applyImageChannelState = (
+        image: fabric.Image & ExtendedFabricObject,
+        nextState: ChannelFilterState,
+    ) => {
+        const existingBaseFilters = stripChannelFilters(image.baseFilters ?? image.filters ?? []);
+        setChannelBaseFilters(
+            image,
+            isDefaultChannelFilterState(nextState)
+                ? existingBaseFilters
+                : [...existingBaseFilters, createChannelColorMatrixFilter(nextState)],
+        );
+        finalizeChannelMutation(image, nextState);
+    };
+
+    const handleChangeChannelControls = (controls: ChannelControlState) => {
+        if (!selectedObject || !selectedExt) return;
+        const nextState = normalizeChannelFilterState({
+            ...channelAppliedState,
+            opacities: controls.opacities,
+            masks: controls.masks,
+        });
+
+        if (selectedObject.type === 'image') {
+            applyImageChannelState(selectedObject as fabric.Image & ExtendedFabricObject, nextState);
+            return;
+        }
+
+        setChannelObjectState(selectedExt, nextState);
+        selectedExt.set('dirty', true);
+        canvas?.requestRenderAll();
+        updateObjects();
+    };
+
+    const handleApplyChannelMode = (
+        target: EditableChannelTarget,
+        mode: 'isolate' | 'invert' | 'mask',
+        controls: ChannelControlState,
+    ) => {
+        if (!selectedObject || !canvas) return;
+
+        const nextState = buildChannelFilterState(target, mode, controls);
+
+        if (selectedObject.type === 'image') {
+            const image = selectedObject as fabric.Image & ExtendedFabricObject;
+            applyImageChannelState(image, nextState);
+            return;
+        }
+
+        if (channelSupportedTarget !== 'color') return;
+
+        const next = applyChannelStateToColor(channelCurrentColor, channelCurrentOpacity, nextState);
+        const nextFill = normalizeColorValue(next.color) ?? next.color;
+
+        if (selectedSolidColorSettings && selectedExt) {
+            setChannelAdjustmentSettings(selectedExt, {
+                ...selectedSolidColorSettings,
+                color: nextFill,
+                opacity: next.opacity,
+                channelSettings: nextState,
+            } as SolidColorSettings & { channelSettings?: ChannelFilterState });
+            finalizeChannelMutation(selectedExt, nextState);
+            return;
+        }
+
+        selectedObject.set('fill', nextFill);
+        selectedObject.set('opacity', next.opacity);
+        finalizeChannelMutation(selectedExt ?? selectedObject as ExtendedFabricObject, nextState);
+    };
+
+    const handleResetChannelComposite = () => {
+        if (!selectedObject || !selectedExt) return;
+        const nextState = createDefaultChannelFilterState();
+
+        if (selectedObject.type === 'image') {
+            applyImageChannelState(selectedObject as fabric.Image & ExtendedFabricObject, nextState);
+            return;
+        }
+
+        setChannelObjectState(selectedExt, nextState);
+        selectedExt.set('dirty', true);
+        canvas?.requestRenderAll();
+        updateObjects();
+    };
+
+    const handleSetChannelValue = (
+        target: Exclude<EditableChannelTarget, 'lum'>,
+        nextValue: number,
+        controls: ChannelControlState,
+    ) => {
+        if (!selectedObject || !canvas || channelSupportedTarget !== 'color') return;
+        const next = setChannelValueInColor(channelCurrentColor, channelCurrentOpacity, target, nextValue);
+        const nextFill = normalizeColorValue(next.color) ?? next.color;
+        const nextState = normalizeChannelFilterState({
+            ...channelAppliedState,
+            opacities: controls.opacities,
+            masks: controls.masks,
+        });
+
+        if (selectedSolidColorSettings && selectedExt) {
+            setChannelAdjustmentSettings(selectedExt, {
+                ...selectedSolidColorSettings,
+                color: nextFill,
+                opacity: next.opacity,
+                channelSettings: nextState,
+            } as SolidColorSettings & { channelSettings?: ChannelFilterState });
+            finalizeChannelMutation(selectedExt, nextState);
+            return;
+        }
+
+        selectedObject.set('fill', nextFill);
+        selectedObject.set('opacity', next.opacity);
+        finalizeChannelMutation(selectedExt ?? selectedObject as ExtendedFabricObject, nextState);
+    };
 
     if (panelMode === 'color') {
         return withPanelRail(
@@ -2940,9 +3124,18 @@ export default function PropertiesPanel({
 
     if (panelMode === 'channels') {
         return withPanelRail(
-            <ComingSoonPanelView
-                title="Channels"
-                description="Channel editing (RGB/alpha channel isolation and per-channel operations) is not implemented yet."
+            <ChannelsPanelView
+                key={channelPanelKey}
+                supportedTarget={channelSupportedTarget}
+                selectionLabel={channelSelectionLabel}
+                previewSource={channelPreviewSource}
+                currentColor={channelCurrentColor}
+                currentOpacity={channelCurrentOpacity}
+                appliedState={channelAppliedState}
+                onApplyMode={handleApplyChannelMode}
+                onResetComposite={handleResetChannelComposite}
+                onSetChannelValue={channelSupportedTarget === 'color' ? handleSetChannelValue : undefined}
+                onChangeControls={handleChangeChannelControls}
             />
         );
     }

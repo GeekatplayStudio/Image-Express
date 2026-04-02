@@ -87,15 +87,15 @@ export const GENERATIVE_PROVIDER_OPTIONS: Array<{
     {
         id: 'google',
         label: 'Gemini / Google',
-        description: 'Remote Google image stack (coming soon in generator route).',
-        status: 'coming-soon',
+        description: 'Gemini image generation using your saved Google API key.',
+        status: 'ready',
         supportedWorkflows: ['zone'],
     },
     {
         id: 'banana',
         label: 'Banana.dev',
-        description: 'Remote GPU provider (route support in progress).',
-        status: 'coming-soon',
+        description: 'Server-configured Banana endpoint using your saved Banana API key.',
+        status: 'ready',
         supportedWorkflows: ['zone'],
     },
     {

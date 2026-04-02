@@ -16,7 +16,8 @@
 *   `src/components/__tests__/Toolbar.test.tsx`: Left-rail tool coverage including Adjustment Layers flyout actions and expanded shape menu entries.
 *   `src/components/properties/__tests__/TextProperties.test.tsx`: Multiline text property editing behavior and text-path attach/detach flows.
 *   `src/lib/__tests__/fabric-utils.test.ts`: Adjustment labels/defaults coverage including `brightness-contrast`, `color-balance`, `light-and-color`, and `solid-color`.
-*   `src/components/properties/__tests__/PanelUtilityViews.test.tsx`: Color profile switching, grouped swatch CRUD persistence/legacy hydration, channel placeholder, and navigator minimap coverage.
+*   `src/components/properties/__tests__/PanelUtilityViews.test.tsx`: Color profile switching, grouped swatch CRUD persistence/legacy hydration, generic utility panel coverage, and navigator minimap coverage.
+*   `src/components/properties/__tests__/ChannelsPanelView.test.tsx` and `src/components/properties/__tests__/channelEditing.test.ts`: Channel-panel interaction coverage plus RGB/alpha/luminosity isolate, invert, mask, per-channel opacity, and value-edit utility coverage.
 *   `src/components/__tests__/PropertiesPanel.test.tsx`: Adjustment auto-focus and color preview/apply integration coverage for the right properties rail.
 *   `src/components/__tests__/DesignCanvas.test.tsx` and `src/components/__tests__/DesignCanvas.interactions.test.tsx`: Design canvas keyboard, zoom/pan, hand-mode, artboard resize sync, and text-edit spellcheck interaction coverage.
 *   `src/components/Editor/__tests__/useBackgroundJobPolling.test.tsx`: Completed background 3D polling autosave coverage through the shared asset library persistence helper.
@@ -26,6 +27,7 @@
 *   `src/lib/comfyui/__tests__/connection.test.ts` and `src/app/api/runtime/comfy/route.test.ts`: Runtime Comfy env bootstrap, detailed cloud failure messaging, and free-tier API-auth diagnostics.
 *   `src/lib/__tests__/runtimePerformanceShim.test.ts`: Startup guard coverage for missing browser `performance` methods.
 *   `src/app/api/ai/ollama/status/route.test.ts`, `src/app/api/ai/ollama/install/route.test.ts`, and `src/app/api/ai/generate-image/route.test.ts`: Ollama fallback, install, and local SVG-generation route coverage.
+*   `src/components/__tests__/UserProfileModal.test.tsx` and `src/app/api/user/auth/change-password/route.test.ts`: In-profile change-password flow coverage for client validation, successful password changes, and authenticated server-side verification.
 
 ### Recently Validated Flows
 *   Adjustment layer type creation and selection flow from the left toolbar rail.
@@ -48,6 +50,6 @@
 ### Next Steps for Team
 1.  Extend duplicate-submit coverage to remaining outbound actions outside the current AI generators, especially new provider launches or account-affecting admin actions.
 2.  Add browser-level QA for future campaign workspace features like variant switching and `Export All Variants` manifests once those surfaces exist.
-3.  Start a real `Channel editing panel` implementation once the placeholder surface is replaced by actual per-channel controls.
-4.  Add targeted integration tests around saved design reload flows that combine media-overlay variants, export settings, and local AI provider preferences.
+3.  Add targeted integration tests around saved design reload flows that combine media-overlay variants, export settings, and local AI provider preferences.
+4.  Expand the new Channels MVP with advanced raster workflows such as load-channel-as-selection and saved extra channels.
 5.  Continue splitting the oversized coordinator files flagged by `npm run audit:repo`, especially `ImageGeneratorModal`, `PropertiesPanel`, `Toolbar`, `SettingsModal`, and `AssetLibrary`.

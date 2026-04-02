@@ -27,6 +27,7 @@ import {
     Shapes,
     ShieldCheck,
     Sparkles,
+    LayoutGrid,
     Square,
     Sun,
     Type,
@@ -41,6 +42,7 @@ interface CircularContextMenuProps {
     y: number;
     isOpen: boolean;
     activeTool?: string;
+    activePanelMode?: string;
     onClose: () => void;
     onSelectTool: (tool: string) => void;
     onLayerOrderAction?: (action: LayerOrderAction) => void;
@@ -94,6 +96,7 @@ const MENU_ITEMS: CircularMenuItem[] = [
     { id: 'assets', icon: ImageIcon, label: 'Gallery', color: APP_THEME.circularMenuColors.assets, group: 'library' },
     { id: 'templates', icon: LayoutTemplate, label: 'Library', color: APP_THEME.circularMenuColors.templates, group: 'library' },
     { id: 'ai-zone', icon: Sparkles, label: 'AI Zone', color: APP_THEME.circularMenuColors.aiZone, group: 'library' },
+    { id: 'channels', icon: LayoutGrid, label: 'Channels', color: APP_THEME.circularMenuColors.templates, group: 'library' },
     { id: '3d-gen', icon: Box, label: 'AI 3D', color: APP_THEME.circularMenuColors.threeD, group: 'library' },
 ];
 
@@ -116,6 +119,7 @@ export default function CircularContextMenu({
     y,
     isOpen,
     activeTool,
+    activePanelMode,
     onClose,
     onSelectTool,
     onLayerOrderAction,
@@ -243,7 +247,7 @@ export default function CircularContextMenu({
                     const radian = (angle * Math.PI) / 180;
                     const bx = Math.cos(radian) * radius;
                     const by = Math.sin(radian) * radius;
-                    const isActive = activeTool === item.id;
+                    const isActive = activeTool === item.id || (item.id === 'channels' && activePanelMode === 'channels');
 
                     return (
                         <button

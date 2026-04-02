@@ -153,6 +153,12 @@ export type ExtendedFabricObject = fabric.Object & {
     adjustmentType?: AdjustmentLayerType;
     adjustmentSettings?: AdjustmentLayerSettings;
     baseFilters?: FabricBaseFilter[];
+    channelSettings?: {
+        mode?: string;
+        target?: string;
+        opacities?: Record<string, number>;
+        masks?: Record<string, boolean>;
+    };
     locked?: boolean;
     clipped?: boolean;
     cacheKey?: string;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import UserProfileModal from '../UserProfileModal';
 import type { UserProfileSettings } from '@/lib/profile-utils';
 
@@ -33,6 +33,7 @@ jest.mock('@/lib/profile-utils', () => ({
 
 describe('UserProfileModal', () => {
     const OriginalFileReader = global.FileReader;
+    const originalFetch = global.fetch;
 
     beforeAll(() => {
         // Lightweight FileReader mock for profile image upload test.
@@ -47,11 +48,13 @@ describe('UserProfileModal', () => {
 
     afterAll(() => {
         global.FileReader = OriginalFileReader;
+        global.fetch = originalFetch;
     });
 
     beforeEach(() => {
         jest.clearAllMocks();
         mockLoadProfileSettings.mockReturnValue(null);
+        global.fetch = jest.fn();
     });
 
     it('returns null when closed', () => {
@@ -196,5 +199,73 @@ describe('UserProfileModal', () => {
         expect(options).toEqual({ enabled: true });
         (handler as () => void)();
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('changes the signed-in account password from the profile modal', async () => {
+        (global.fetch as jest.Mock).mockResolvedValue({
+            ok: true,
+            json: async () => ({ success: true, message: 'Password changed successfully.' }),
+        });
+
+        render(
+            <UserProfileModal
+                isOpen
+                onClose={jest.fn()}
+                username="artist@example.com"
+                onLogout={jest.fn()}
+            />,
+        );
+
+        fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'old-secret' } });
+        fireEvent.change(screen.getByLabelText('New Password'), { target: { value: 'new-secret' } });
+        fireEvent.change(screen.getByLabelText('Confirm New Password'), { target: { value: 'new-secret' } });
+        fireEvent.click(screen.getByRole('button', { name: /Update Password/i }));
+
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith('/api/user/auth/change-password', expect.objectContaining({ method: 'POST' }));
+        });
+
+        const [, requestInit] = (global.fetch as jest.Mock).mock.calls[0];
+        expect(JSON.parse(requestInit.body as string)).toEqual({
+            identifier: 'artist@example.com',
+            currentPassword: 'old-secret',
+            newPassword: 'new-secret',
+        });
+        await waitFor(() => {
+            expect(screen.getByText('Password changed successfully.')).toBeInTheDocument();
+        });
+    });
+
+    it('blocks mismatched new passwords before sending the request', async () => {
+        render(
+            <UserProfileModal
+                isOpen
+                onClose={jest.fn()}
+                username="artist@example.com"
+                onLogout={jest.fn()}
+            />,
+        );
+
+        fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'old-secret' } });
+        fireEvent.change(screen.getByLabelText('New Password'), { target: { value: 'new-secret' } });
+        fireEvent.change(screen.getByLabelText('Confirm New Password'), { target: { value: 'other-secret' } });
+        fireEvent.click(screen.getByRole('button', { name: /Update Password/i }));
+
+        expect(screen.getByText('New passwords do not match.')).toBeInTheDocument();
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('disables password changes for local desktop sessions', () => {
+        render(
+            <UserProfileModal
+                isOpen
+                onClose={jest.fn()}
+                username="Local Desktop"
+                onLogout={jest.fn()}
+            />,
+        );
+
+        expect(screen.getByText(/Password changes are unavailable for guest or local desktop sessions/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Update Password/i })).toBeDisabled();
     });
 });

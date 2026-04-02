@@ -1,6 +1,6 @@
 'use client';
 
-import { X, User, Mail, Camera, Save } from 'lucide-react';
+import { X, User, Mail, Camera, Save, KeyRound, Loader2, CheckCircle2 } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { loadProfileSettings, saveProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
@@ -22,6 +22,14 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
     const [image, setImage] = useState<string | null>(null);
     const [imageScale, setImageScale] = useState(1);
     const [embedInfo, setEmbedInfo] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [passwordError, setPasswordError] = useState('');
+    const [passwordMessage, setPasswordMessage] = useState('');
+
+    const canChangePassword = username.trim().length > 0 && username !== 'Guest' && username !== 'Local Desktop';
 
     useEffect(() => {
         const saved = loadProfileSettings();
@@ -34,6 +42,11 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
             setImageScale(saved.imageScale || 1);
             setEmbedInfo(!!saved.embedInfo);
         }
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setPasswordError('');
+        setPasswordMessage('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
@@ -65,6 +78,56 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
         saveProfileSettings(profile);
         onProfileUpdate?.(profile);
         onClose();
+    };
+
+    const handleChangePassword = async () => {
+        setPasswordError('');
+        setPasswordMessage('');
+
+        if (!canChangePassword) {
+            setPasswordError('Password changes are unavailable for this local session.');
+            return;
+        }
+        if (!currentPassword) {
+            setPasswordError('Current password is required.');
+            return;
+        }
+        if (newPassword.length < 6) {
+            setPasswordError('New password must be at least 6 characters.');
+            return;
+        }
+        if (newPassword !== confirmNewPassword) {
+            setPasswordError('New passwords do not match.');
+            return;
+        }
+
+        setIsChangingPassword(true);
+        try {
+            const response = await fetch('/api/user/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    identifier: username,
+                    currentPassword,
+                    newPassword,
+                }),
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok || !payload.success) {
+                setPasswordError(payload.message || 'Password change failed.');
+                return;
+            }
+
+            setPasswordMessage(payload.message || 'Password changed successfully.');
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+        } catch {
+            setPasswordError('Password change failed. Please try again.');
+        } finally {
+            setIsChangingPassword(false);
+        }
     };
 
     return (
@@ -180,6 +243,76 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                             />
                             Embed profile info in every export and saved template
                         </label>
+                    </div>
+
+                    <div className="space-y-4 rounded-lg border border-border/60 bg-secondary/20 p-4">
+                        <div className="flex items-center gap-2">
+                            <KeyRound size={16} className="text-muted-foreground" />
+                            <div>
+                                <h3 className="text-sm font-semibold text-foreground">Change Password</h3>
+                                <p className="text-xs text-muted-foreground">
+                                    {canChangePassword
+                                        ? `Update the password for the signed-in account: ${username}`
+                                        : 'Password changes are unavailable for guest or local desktop sessions.'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">Current Password</label>
+                            <input
+                                type="password"
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                aria-label="Current Password"
+                                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+                                autoComplete="current-password"
+                                disabled={!canChangePassword || isChangingPassword}
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">New Password</label>
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                aria-label="New Password"
+                                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+                                autoComplete="new-password"
+                                disabled={!canChangePassword || isChangingPassword}
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">Confirm New Password</label>
+                            <input
+                                type="password"
+                                value={confirmNewPassword}
+                                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                aria-label="Confirm New Password"
+                                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+                                autoComplete="new-password"
+                                disabled={!canChangePassword || isChangingPassword}
+                            />
+                        </div>
+
+                        {passwordError ? (
+                            <p className="text-xs text-destructive">{passwordError}</p>
+                        ) : null}
+                        {passwordMessage ? (
+                            <p className="text-xs text-emerald-600 flex items-center gap-1.5"><CheckCircle2 size={14} /> {passwordMessage}</p>
+                        ) : null}
+
+                        <button
+                            type="button"
+                            onClick={handleChangePassword}
+                            disabled={!canChangePassword || isChangingPassword}
+                            className="w-full py-2 bg-secondary text-foreground rounded-md text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            {isChangingPassword ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
+                            Update Password
+                        </button>
                     </div>
 
                     <div className="pt-4 flex gap-3 border-t border-border/50">
