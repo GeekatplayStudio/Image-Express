@@ -15,7 +15,11 @@ import {
   type ComfyConnectionMode,
 } from '@/lib/comfyui/connection';
 import { comfyWorkflowRegistry, type ComfyTask, type ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
-import { registerSerializedComfyWorkflow, type SerializedComfyWorkflowRegistration } from '@/lib/comfyui/libraryTypes';
+import {
+    registerSerializedComfyWorkflow,
+    type ComfyDiagnosticsSnapshot,
+    type SerializedComfyWorkflowRegistration,
+} from '@/lib/comfyui/libraryTypes';
 import { getComfyTaskPreference, saveComfyTaskPreference } from '@/lib/comfyui/preferences';
 import { executeComfyTask, inspectComfyServerCatalog, recoverComfyTaskByPromptId } from '@/lib/comfyui/runner';
 import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
@@ -122,6 +126,74 @@ interface ComfyMissingRequirementSummary {
     models: ComfyWorkflowInstallableModel[];
     workflows: string[];
 }
+
+const formatComfyDiagnosticsText = (diagnostics: ComfyDiagnosticsSnapshot): string => {
+    const lines: string[] = [];
+    const pushSection = (title: string, sectionLines: string[]) => {
+        lines.push(title);
+        lines.push(...sectionLines);
+        lines.push('');
+    };
+
+    pushSection('ComfyUI Diagnostics', [
+        `Generated: ${diagnostics.generatedAt}`,
+        `Server URL: ${diagnostics.connection.serverUrl}`,
+        `Transport: ${diagnostics.connection.transportKind}`,
+        `API Base Path: ${diagnostics.connection.apiBasePath || '/'}`,
+        `History Path: ${diagnostics.connection.historyPathBase}`,
+    ]);
+
+    pushSection('Resolved Paths', diagnostics.paths.statuses.map((status) => (
+        `${status.label}: ${status.path || '(not configured)'} | exists=${status.exists ? 'yes' : 'no'} | readable=${status.readable ? 'yes' : 'no'}${status.note ? ` | ${status.note}` : ''}`
+    )));
+
+    pushSection('Asset Inventory', diagnostics.assets.length > 0
+        ? diagnostics.assets.flatMap((group) => [
+            `${group.label} (${group.values.length})${group.expectedSubdirectory ? ` | expected folder: ${group.expectedSubdirectory}` : ''}`,
+            `  Sources: ${group.sourceInputs.join(', ') || '(none)'}`,
+            ...group.values.map((value) => `  - ${value}`),
+        ])
+        : ['No model-style asset lists were returned by ComfyUI object_info.']);
+
+    pushSection('Custom Node Repositories', diagnostics.library.nodeRepos.length > 0
+        ? diagnostics.library.nodeRepos.flatMap((repo) => [
+            `${repo.name} | ${repo.repoKind} | ${repo.gitManaged ? 'git repo' : 'plain folder'} | workflow hints=${repo.workflowHintCount}`,
+            `  Path: ${repo.path}`,
+        ])
+        : ['No custom node/workflow repositories were discovered in configured folders.']);
+
+    pushSection('Custom Workflow Files', diagnostics.library.customFolderWorkflows.length > 0
+        ? diagnostics.library.customFolderWorkflows.flatMap((workflow) => [
+            `${workflow.name} | runnable=${workflow.runnable ? 'yes' : 'no'} | task=${workflow.task || 'unknown'}`,
+            `  Location: ${workflow.location || '(unknown)'}`,
+            workflow.warning ? `  Warning: ${workflow.warning}` : '',
+        ].filter(Boolean))
+        : ['No custom workflow JSON files were discovered.']);
+
+    pushSection('Server Workflow Templates', diagnostics.library.serverTemplates.length > 0
+        ? diagnostics.library.serverTemplates.flatMap((workflow) => [
+            `${workflow.name} | runnable=${workflow.runnable ? 'yes' : 'no'} | task=${workflow.task || 'unknown'}`,
+            `  Location: ${workflow.location || '(unknown)'}`,
+            workflow.warning ? `  Warning: ${workflow.warning}` : '',
+        ].filter(Boolean))
+        : ['No importable server templates were discovered.']);
+
+    pushSection('Available Node Types', diagnostics.runtime.nodeTypes.length > 0
+        ? [
+            `Count: ${diagnostics.runtime.nodeTypes.length}`,
+            ...diagnostics.runtime.nodeTypes.map((nodeType) => `- ${nodeType}`),
+        ]
+        : ['No node types were returned by ComfyUI object_info.']);
+
+    pushSection('Features JSON', [JSON.stringify(diagnostics.runtime.features, null, 2) || 'null']);
+    pushSection('System Stats JSON', [JSON.stringify(diagnostics.runtime.systemStats, null, 2) || 'null']);
+
+    if (diagnostics.library.warnings.length > 0) {
+        pushSection('Warnings', diagnostics.library.warnings.map((warning) => `- ${warning}`));
+    }
+
+    return lines.join('\n').trim();
+};
 
 const buildComfyMissingRequirementSummary = (
     records: Array<{
@@ -808,9 +880,12 @@ export default function ImageGeneratorModal({
   const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
   const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
   const [isCheckingComfyConnection, setIsCheckingComfyConnection] = useState(false);
+        const [isInspectingComfyDiagnostics, setIsInspectingComfyDiagnostics] = useState(false);
     const [isInstallingComfyRequirements, setIsInstallingComfyRequirements] = useState(false);
   const [comfyConnectionStatusMessage, setComfyConnectionStatusMessage] = useState('');
     const [comfyCatalogStatusMessage, setComfyCatalogStatusMessage] = useState('');
+    const [showComfyDiagnosticsPopup, setShowComfyDiagnosticsPopup] = useState(false);
+    const [comfyDiagnosticsText, setComfyDiagnosticsText] = useState('');
     const [comfyMissingRequirements, setComfyMissingRequirements] = useState<ComfyMissingRequirementSummary | null>(null);
   const hasAttemptedComfyRecoveryRef = useRef(false);
     const warmedComfyProfilesRef = useRef<Set<string>>(new Set());
@@ -1218,6 +1293,62 @@ export default function ImageGeneratorModal({
 
       return { catalogSnapshot, missingRequirements };
   }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl]);
+
+  const handleInspectComfyDiagnostics = useCallback(async () => {
+      if (isInspectingComfyDiagnostics) {
+          return;
+      }
+
+      setIsInspectingComfyDiagnostics(true);
+      setComfyConnectionStatusMessage('Loading ComfyUI diagnostics...');
+
+      try {
+          const response = await fetch('/api/ai/comfy/library', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  action: 'inspect-config',
+                  connectionMode: comfyConnectionMode,
+                  comfyServerUrl,
+                  comfyCloudUrl,
+                  comfyCloudApiKey,
+                  installPath: comfyInstallPath,
+                  customNodesPath: comfyCustomNodesPath,
+                  workflowLibraryPath: comfyWorkflowLibraryPath,
+              }),
+          });
+
+          const data = await response.json() as {
+              success?: boolean;
+              message?: string;
+              diagnostics?: ComfyDiagnosticsSnapshot;
+          };
+
+          if (!response.ok || !data.success || !data.diagnostics) {
+              throw new Error(data.message || 'Failed to load ComfyUI diagnostics.');
+          }
+
+          setComfyDiagnosticsText(formatComfyDiagnosticsText(data.diagnostics));
+          setShowComfyDiagnosticsPopup(true);
+          setComfyConnectionStatusMessage(`Loaded ComfyUI diagnostics from ${data.diagnostics.connection.serverUrl}.`);
+      } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to load ComfyUI diagnostics.';
+          setComfyConnectionStatusMessage(message);
+      } finally {
+          setIsInspectingComfyDiagnostics(false);
+      }
+  }, [
+      comfyCloudApiKey,
+      comfyCloudUrl,
+      comfyConnectionMode,
+      comfyCustomNodesPath,
+      comfyInstallPath,
+      comfyServerUrl,
+      comfyWorkflowLibraryPath,
+      isInspectingComfyDiagnostics,
+  ]);
 
   const installMissingComfyRequirements = useCallback(async (requirements: ComfyMissingRequirementSummary) => {
       const summaryParts: string[] = [];
@@ -3625,6 +3756,17 @@ export default function ImageGeneratorModal({
                            {isCheckingComfyConnection ? 'Checking connection...' : 'Verify ComfyUI Connection'}
                        </button>
 
+                       <button
+                           type="button"
+                           onClick={() => {
+                               void handleInspectComfyDiagnostics();
+                           }}
+                           disabled={isInspectingComfyDiagnostics || isGenerating}
+                           className="w-full rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                       >
+                           {isInspectingComfyDiagnostics ? 'Loading ComfyUI diagnostics...' : 'Show ComfyUI Diagnostics'}
+                       </button>
+
                        {isGenerating && selectedProvider === 'comfy' && !useAgenticEditNotes && (
                            <button
                                type="button"
@@ -3711,6 +3853,38 @@ export default function ImageGeneratorModal({
                          </div>
                     )}
 
+
+                    {showComfyDiagnosticsPopup && (
+                        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 p-4">
+                            <div className="flex h-full max-h-[80vh] w-full max-w-4xl flex-col rounded-xl border border-border bg-card shadow-2xl">
+                                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-foreground">ComfyUI Diagnostics</h3>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Runtime config, resolved paths, assets, workflows, and node inventory from the connected ComfyUI server.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowComfyDiagnosticsPopup(false)}
+                                        className="rounded-md border border-border p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                        aria-label="Close ComfyUI diagnostics"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+
+                                <div className="flex-1 p-4 min-h-0">
+                                    <textarea
+                                        aria-label="ComfyUI diagnostics output"
+                                        value={comfyDiagnosticsText}
+                                        readOnly
+                                        className="h-full min-h-[420px] w-full resize-none rounded-lg border border-border bg-background px-3 py-3 font-mono text-[11px] leading-5 text-foreground outline-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                {statusMessage && (
                   <div className={`text-xs py-2 px-3 rounded-md ${statusMessage.includes('Error') ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-secondary-foreground'}`}>
                       <div className="flex items-center justify-between gap-2">

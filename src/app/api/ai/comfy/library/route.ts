@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+    buildComfyDiagnosticsSnapshot,
     buildComfyLibrarySnapshot,
     installComfyRequirements,
     installComfyRepository,
@@ -7,11 +8,11 @@ import {
     updateManagedRepository,
 } from '@/lib/comfyui/libraryServer';
 import type { ComfyConnectionMode } from '@/lib/comfyui/connection';
-import type { ComfyLibraryRepoKind } from '@/lib/comfyui/libraryTypes';
+import type { ComfyDiagnosticsSnapshot, ComfyLibraryRepoKind } from '@/lib/comfyui/libraryTypes';
 import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 
 interface ComfyLibraryRequestBody {
-    action?: 'scan' | 'install-repo' | 'update-repo' | 'update-install' | 'install-requirements';
+    action?: 'scan' | 'inspect-config' | 'install-repo' | 'update-repo' | 'update-install' | 'install-requirements';
     connectionMode?: ComfyConnectionMode;
     comfyServerUrl?: string;
     comfyCloudUrl?: string;
@@ -133,6 +134,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     ? `${messageParts.join(' and ')}.`
                     : 'ComfyUI requirements are already installed.',
                 snapshot,
+            });
+        }
+
+        if (action === 'inspect-config') {
+            const diagnostics: ComfyDiagnosticsSnapshot = await buildComfyDiagnosticsSnapshot(
+                buildConnection(body),
+                buildPathInput(body)
+            );
+
+            return NextResponse.json({
+                success: true,
+                diagnostics,
             });
         }
 

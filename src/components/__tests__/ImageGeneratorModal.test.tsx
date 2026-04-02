@@ -665,4 +665,129 @@ describe('ImageGeneratorModal', () => {
             expect(screen.getByText('Installed Comfy requirements.')).toBeInTheDocument();
         });
     });
+
+    it('shows ComfyUI diagnostics in a popup text window', async () => {
+        (global.fetch as jest.Mock).mockImplementation(async (input: string, init?: RequestInit) => {
+            if (input === '/api/ai/comfy/library') {
+                const body = init?.body ? JSON.parse(init.body as string) : {};
+                if (body.action === 'inspect-config') {
+                    return mockJsonResponse({
+                        success: true,
+                        diagnostics: {
+                            generatedAt: '2026-04-01T12:00:00.000Z',
+                            connection: {
+                                serverUrl: 'http://localhost:8188',
+                                transportKind: 'local',
+                                apiBasePath: '',
+                                historyPathBase: '/history',
+                            },
+                            paths: {
+                                modelsPath: 'D:\\ComfyUI\\models',
+                                statuses: [
+                                    {
+                                        label: 'Models Path',
+                                        path: 'D:\\ComfyUI\\models',
+                                        exists: true,
+                                        readable: true,
+                                        note: 'Expected root for checkpoints, LoRAs, VAEs, ControlNets, and other model assets.',
+                                    },
+                                ],
+                            },
+                            runtime: {
+                                features: { api: true },
+                                systemStats: { devices: [{ name: 'RTX 4090' }] },
+                                nodeTypes: ['CheckpointLoaderSimple', 'LoraLoaderModelOnly'],
+                            },
+                            assets: [
+                                {
+                                    id: 'checkpoints',
+                                    label: 'Checkpoints',
+                                    expectedSubdirectory: 'checkpoints',
+                                    values: ['flux1-dev.safetensors'],
+                                    sourceInputs: ['CheckpointLoaderSimple.ckpt_name'],
+                                },
+                                {
+                                    id: 'loras',
+                                    label: 'LoRAs',
+                                    expectedSubdirectory: 'loras',
+                                    values: ['detailer.safetensors'],
+                                    sourceInputs: ['LoraLoaderModelOnly.lora_name'],
+                                },
+                            ],
+                            library: {
+                                installPath: 'D:\\ComfyUI',
+                                customNodesPath: 'D:\\ComfyUI\\custom_nodes',
+                                workflowLibraryPath: 'D:\\ComfyUI\\user\\default\\workflows',
+                                serverTemplates: [
+                                    {
+                                        id: 'server-template',
+                                        source: 'server-template',
+                                        name: 'Server Template',
+                                        description: 'From ComfyUI',
+                                        task: 'generate',
+                                        runnable: true,
+                                        category: 'Server Templates',
+                                        location: 'http://localhost:8188/workflow_templates/server-template.json',
+                                        nodeTypes: ['CheckpointLoaderSimple'],
+                                    },
+                                ],
+                                customFolderWorkflows: [
+                                    {
+                                        id: 'custom-workflow',
+                                        source: 'custom-folder',
+                                        name: 'My Local Workflow',
+                                        description: 'Local workflow',
+                                        task: 'img2img',
+                                        runnable: true,
+                                        category: 'Custom Folder',
+                                        location: 'D:\\ComfyUI\\user\\default\\workflows\\my-local-workflow.json',
+                                        nodeTypes: ['LoraLoaderModelOnly'],
+                                    },
+                                ],
+                                nodeRepos: [
+                                    {
+                                        name: 'ComfyUI-Manager',
+                                        path: 'D:\\ComfyUI\\custom_nodes\\ComfyUI-Manager',
+                                        repoKind: 'custom-nodes',
+                                        gitManaged: true,
+                                        workflowHintCount: 3,
+                                        requirementsFile: true,
+                                    },
+                                ],
+                                warnings: [],
+                            },
+                        },
+                    }) as Response;
+                }
+
+                return mockComfyLibraryResponse() as Response;
+            }
+
+            return mockJsonResponse({}) as Response;
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show ComfyUI Diagnostics' }));
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('ComfyUI diagnostics output')).toBeInTheDocument();
+        });
+
+        expect(global.fetch).toHaveBeenCalledWith(
+            '/api/ai/comfy/library',
+            expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining('inspect-config'),
+            })
+        );
+
+        const diagnosticsOutput = screen.getByLabelText('ComfyUI diagnostics output') as HTMLTextAreaElement;
+        expect(diagnosticsOutput.value).toContain('Server URL: http://localhost:8188');
+        expect(diagnosticsOutput.value).toContain('flux1-dev.safetensors');
+        expect(diagnosticsOutput.value).toContain('detailer.safetensors');
+        expect(diagnosticsOutput.value).toContain('My Local Workflow');
+        expect(diagnosticsOutput.value).toContain('CheckpointLoaderSimple');
+    });
 });

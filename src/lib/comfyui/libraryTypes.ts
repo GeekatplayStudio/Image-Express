@@ -72,6 +72,43 @@ export interface ComfyLibrarySnapshot {
     warnings: string[];
 }
 
+export interface ComfyLibraryPathStatus {
+    label: string;
+    path: string;
+    exists: boolean;
+    readable: boolean;
+    note?: string;
+}
+
+export interface ComfyLibraryAssetGroup {
+    id: string;
+    label: string;
+    expectedSubdirectory: string;
+    values: string[];
+    sourceInputs: string[];
+}
+
+export interface ComfyDiagnosticsSnapshot {
+    generatedAt: string;
+    connection: {
+        serverUrl: string;
+        transportKind: string;
+        apiBasePath: string;
+        historyPathBase: string;
+    };
+    paths: {
+        modelsPath: string;
+        statuses: ComfyLibraryPathStatus[];
+    };
+    runtime: {
+        features: Record<string, unknown> | null;
+        systemStats: Record<string, unknown> | null;
+        nodeTypes: string[];
+    };
+    assets: ComfyLibraryAssetGroup[];
+    library: ComfyLibrarySnapshot;
+}
+
 const slugify = (value: string): string => value
     .trim()
     .toLowerCase()

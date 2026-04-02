@@ -10,13 +10,17 @@ import {
 import { resolveComfyBaseUrlCandidates } from '@/lib/comfyui/proxy';
 import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 import {
+    type ComfyDiagnosticsSnapshot,
+    type ComfyLibraryAssetGroup,
     createComfyLibraryWorkflowEntry,
     type ComfyLibraryNodeRepo,
+    type ComfyLibraryPathStatus,
     type ComfyLibraryRepoKind,
     type ComfyLibrarySnapshot,
     type ComfyLibraryWorkflowEntry,
     type ComfyWorkflowManifest,
 } from '@/lib/comfyui/libraryTypes';
+import { ComfyUIClient } from '@/lib/comfyui/client';
 
 const execFile = promisify(execFileCallback);
 const MANIFEST_SUFFIX = '.manifest.json';
@@ -47,6 +51,8 @@ interface ServerTemplateCandidate {
 
 const trimPath = (value: string | undefined): string => (value || '').trim();
 
+const MODEL_ASSET_INPUT_PATTERN = /(?:^|_)(?:ckpt|checkpoint|model|unet|clip|vae|lora|controlnet|embedding|text_encoder|diffusion_model|upscale_model|style_model|hypernetwork)(?:_|$)|name$/i;
+
 const fileExists = async (targetPath: string): Promise<boolean> => {
     if (!targetPath) {
         return false;
@@ -66,6 +72,159 @@ const parseJsonSafe = <T>(value: string): T | null => {
     } catch {
         return null;
     }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+    typeof value === 'object' && value !== null
+);
+
+const extractStringChoices = (inputDefinition: unknown): string[] => {
+    if (!Array.isArray(inputDefinition)) {
+        return [];
+    }
+
+    const directChoices = inputDefinition.find((entry) => (
+        Array.isArray(entry) && entry.every((item) => typeof item === 'string')
+    )) as string[] | undefined;
+    if (directChoices && directChoices.length > 0) {
+        return directChoices;
+    }
+
+    const objectEntry = inputDefinition.find((entry) => isRecord(entry));
+    if (!objectEntry) {
+        return [];
+    }
+
+    const candidate = objectEntry.choices
+        || objectEntry.options
+        || objectEntry.values
+        || objectEntry.items;
+
+    if (Array.isArray(candidate) && candidate.every((item) => typeof item === 'string')) {
+        return candidate;
+    }
+
+    return [];
+};
+
+const inferAssetGroup = (classType: string, inputName: string): { id: string; label: string; expectedSubdirectory: string } | null => {
+    const fingerprint = `${classType}.${inputName}`.toLowerCase();
+
+    if (fingerprint.includes('lora')) {
+        return { id: 'loras', label: 'LoRAs', expectedSubdirectory: 'loras' };
+    }
+    if (fingerprint.includes('checkpoint') || fingerprint.includes('ckpt')) {
+        return { id: 'checkpoints', label: 'Checkpoints', expectedSubdirectory: 'checkpoints' };
+    }
+    if (fingerprint.includes('controlnet')) {
+        return { id: 'controlnets', label: 'ControlNets', expectedSubdirectory: 'controlnet' };
+    }
+    if (fingerprint.includes('embedding')) {
+        return { id: 'embeddings', label: 'Embeddings', expectedSubdirectory: 'embeddings' };
+    }
+    if (fingerprint.includes('upscale_model') || fingerprint.includes('upscaler')) {
+        return { id: 'upscale-models', label: 'Upscale Models', expectedSubdirectory: 'upscale_models' };
+    }
+    if (fingerprint.includes('text_encoder')) {
+        return { id: 'text-encoders', label: 'Text Encoders', expectedSubdirectory: 'text_encoders' };
+    }
+    if (fingerprint.includes('diffusion_model')) {
+        return { id: 'diffusion-models', label: 'Diffusion Models', expectedSubdirectory: 'diffusion_models' };
+    }
+    if (fingerprint.includes('style_model')) {
+        return { id: 'style-models', label: 'Style Models', expectedSubdirectory: 'style_models' };
+    }
+    if (fingerprint.includes('hypernetwork')) {
+        return { id: 'hypernetworks', label: 'Hypernetworks', expectedSubdirectory: 'hypernetworks' };
+    }
+    if (fingerprint.includes('unet')) {
+        return { id: 'unets', label: 'UNETs', expectedSubdirectory: 'unet' };
+    }
+    if (fingerprint.includes('clip')) {
+        return { id: 'clips', label: 'CLIP Models', expectedSubdirectory: 'clip' };
+    }
+    if (fingerprint.includes('vae')) {
+        return { id: 'vaes', label: 'VAEs', expectedSubdirectory: 'vae' };
+    }
+    if (fingerprint.includes('model')) {
+        return { id: 'models', label: 'Models', expectedSubdirectory: '.' };
+    }
+
+    return null;
+};
+
+const collectAssetInventory = (objectInfo: Record<string, unknown> | null): ComfyLibraryAssetGroup[] => {
+    if (!objectInfo) {
+        return [];
+    }
+
+    const groups = new Map<string, {
+        id: string;
+        label: string;
+        expectedSubdirectory: string;
+        values: Set<string>;
+        sourceInputs: Set<string>;
+    }>();
+
+    for (const [classType, rawNodeInfo] of Object.entries(objectInfo)) {
+        if (!isRecord(rawNodeInfo)) {
+            continue;
+        }
+
+        const input = isRecord(rawNodeInfo.input) ? rawNodeInfo.input : null;
+        const requiredInputs = isRecord(input?.required) ? input.required : {};
+        const optionalInputs = isRecord(input?.optional) ? input.optional : {};
+        const allInputs = { ...requiredInputs, ...optionalInputs };
+
+        for (const [inputName, inputDefinition] of Object.entries(allInputs)) {
+            if (!MODEL_ASSET_INPUT_PATTERN.test(inputName)) {
+                continue;
+            }
+
+            const choices = extractStringChoices(inputDefinition);
+            if (choices.length === 0) {
+                continue;
+            }
+
+            const assetGroup = inferAssetGroup(classType, inputName);
+            if (!assetGroup) {
+                continue;
+            }
+
+            const existingGroup = groups.get(assetGroup.id) || {
+                ...assetGroup,
+                values: new Set<string>(),
+                sourceInputs: new Set<string>(),
+            };
+
+            for (const choice of choices) {
+                existingGroup.values.add(choice);
+            }
+            existingGroup.sourceInputs.add(`${classType}.${inputName}`);
+            groups.set(assetGroup.id, existingGroup);
+        }
+    }
+
+    return Array.from(groups.values())
+        .map((group) => ({
+            id: group.id,
+            label: group.label,
+            expectedSubdirectory: group.expectedSubdirectory,
+            values: Array.from(group.values).sort((left, right) => left.localeCompare(right)),
+            sourceInputs: Array.from(group.sourceInputs).sort((left, right) => left.localeCompare(right)),
+        }))
+        .sort((left, right) => left.label.localeCompare(right.label));
+};
+
+const buildPathStatus = async (label: string, targetPath: string, note?: string): Promise<ComfyLibraryPathStatus> => {
+    const exists = targetPath ? await fileExists(targetPath) : false;
+    return {
+        label,
+        path: targetPath,
+        exists,
+        readable: exists,
+        note,
+    };
 };
 
 const ensurePathInside = (basePath: string, targetPath: string): void => {
@@ -606,6 +765,50 @@ export const buildComfyLibrarySnapshot = async (
         customFolderWorkflows,
         nodeRepos,
         warnings,
+    };
+};
+
+export const buildComfyDiagnosticsSnapshot = async (
+    connection: ComfyConnectionOptions,
+    pathInput: ComfyLibraryPathsInput
+): Promise<ComfyDiagnosticsSnapshot> => {
+    const library = await buildComfyLibrarySnapshot(connection, pathInput);
+    const transport = await resolveLibraryTransport(connection);
+    const client = new ComfyUIClient(transport);
+
+    const [features, systemStats, objectInfo, modelsPath] = await Promise.all([
+        client.getFeaturesSnapshot(),
+        client.getSystemStatsSnapshot(),
+        client.getObjectInfoSnapshot(),
+        resolveModelsPath(library.installPath),
+    ]);
+
+    const pathStatuses = await Promise.all([
+        buildPathStatus('Install Path', library.installPath, 'Configured ComfyUI install root used for repo updates.'),
+        buildPathStatus('Custom Nodes Path', library.customNodesPath, 'Folder scanned for installed custom node repositories.'),
+        buildPathStatus('Workflow Library Path', library.workflowLibraryPath, 'Folder scanned for custom workflow JSON files.'),
+        buildPathStatus('Models Path', modelsPath, 'Expected root for checkpoints, LoRAs, VAEs, ControlNets, and other model assets.'),
+    ]);
+
+    return {
+        generatedAt: new Date().toISOString(),
+        connection: {
+            serverUrl: transport.baseUrl,
+            transportKind: transport.kind,
+            apiBasePath: transport.apiBasePath,
+            historyPathBase: transport.historyPathBase,
+        },
+        paths: {
+            modelsPath,
+            statuses: pathStatuses,
+        },
+        runtime: {
+            features,
+            systemStats,
+            nodeTypes: objectInfo ? Object.keys(objectInfo).sort((left, right) => left.localeCompare(right)) : [],
+        },
+        assets: collectAssetInventory(objectInfo),
+        library,
     };
 };
 
