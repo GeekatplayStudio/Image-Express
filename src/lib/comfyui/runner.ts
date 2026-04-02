@@ -45,17 +45,173 @@ export interface ExecuteComfyTaskResult {
     result: ComfyExecutionResult;
 }
 
-const extractRequiredNodeTypesFromWorkflowJson = (workflowJson: Record<string, unknown>): string[] => {
-    const required = new Set<string>();
+interface WorkflowNodeDescriptor {
+    classType: string;
+    inputs: Record<string, unknown>;
+}
 
-    for (const rawNode of Object.values(workflowJson)) {
-        if (typeof rawNode !== 'object' || rawNode === null) {
+interface EditorGraphInputDescriptor {
+    name?: unknown;
+    widget?: {
+        name?: unknown;
+    };
+    link?: unknown;
+}
+
+interface EditorGraphNodeDescriptor {
+    type?: unknown;
+    inputs?: unknown;
+    widgets_values?: unknown;
+    properties?: unknown;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+    typeof value === 'object' && value !== null
+);
+
+const isEditorGraphBlueprint = (value: unknown): value is Record<string, unknown> => (
+    isRecord(value)
+    && Array.isArray(value.nodes)
+    && Array.isArray(value.links)
+);
+
+const collectEditorSubgraphMap = (
+    graph: Record<string, unknown>,
+    subgraphs = new Map<string, Record<string, unknown>>()
+): Map<string, Record<string, unknown>> => {
+    const definitions = isRecord(graph.definitions) ? graph.definitions as Record<string, unknown> : null;
+    const nestedSubgraphs = Array.isArray(definitions?.subgraphs)
+        ? definitions.subgraphs as Array<Record<string, unknown>>
+        : [];
+
+    for (const subgraph of nestedSubgraphs) {
+        const subgraphId = typeof subgraph.id === 'string' ? subgraph.id : '';
+        if (!subgraphId || subgraphs.has(subgraphId)) {
             continue;
         }
 
-        const classType = (rawNode as { class_type?: unknown }).class_type;
-        if (typeof classType === 'string' && classType.trim().length > 0) {
-            required.add(classType);
+        subgraphs.set(subgraphId, subgraph);
+        collectEditorSubgraphMap(subgraph, subgraphs);
+    }
+
+    return subgraphs;
+};
+
+const resolveEditorGraphNodeClassType = (rawNode: EditorGraphNodeDescriptor): string => {
+    const properties = isRecord(rawNode.properties) ? rawNode.properties as Record<string, unknown> : null;
+    const searchAndReplaceName = typeof properties?.['Node name for S&R'] === 'string'
+        ? properties['Node name for S&R'].trim()
+        : '';
+    if (searchAndReplaceName.length > 0) {
+        return searchAndReplaceName;
+    }
+
+    return typeof rawNode.type === 'string' ? rawNode.type.trim() : '';
+};
+
+const extractEditorGraphNodeInputs = (rawNode: EditorGraphNodeDescriptor): Record<string, unknown> => {
+    const nodeInputs = Array.isArray(rawNode.inputs) ? rawNode.inputs as EditorGraphInputDescriptor[] : [];
+    const widgetValues = Array.isArray(rawNode.widgets_values) ? rawNode.widgets_values : [];
+    const inputs: Record<string, unknown> = {};
+    let widgetValueIndex = 0;
+
+    for (const input of nodeInputs) {
+        const inputName = typeof input.name === 'string' ? input.name : null;
+        if (!inputName) {
+            continue;
+        }
+
+        if (input.link !== null && input.link !== undefined && Number.isFinite(Number(input.link))) {
+            continue;
+        }
+
+        const widgetName = typeof input.widget?.name === 'string' ? input.widget.name : null;
+        if (!widgetName) {
+            continue;
+        }
+
+        const widgetValue = widgetValues[widgetValueIndex];
+        widgetValueIndex += 1;
+        if (widgetValue !== undefined) {
+            inputs[inputName] = widgetValue;
+        }
+    }
+
+    return inputs;
+};
+
+const extractWorkflowNodesFromEditorGraph = (
+    graph: Record<string, unknown>,
+    subgraphMap = collectEditorSubgraphMap(graph),
+    visitedSubgraphs = new Set<string>()
+): WorkflowNodeDescriptor[] => {
+    const nodes = Array.isArray(graph.nodes) ? graph.nodes as EditorGraphNodeDescriptor[] : [];
+    const workflowNodes: WorkflowNodeDescriptor[] = [];
+
+    for (const rawNode of nodes) {
+        const rawType = typeof rawNode.type === 'string' ? rawNode.type.trim() : '';
+        if (!rawType || rawType === 'MarkdownNote') {
+            continue;
+        }
+
+        const subgraph = subgraphMap.get(rawType);
+        if (subgraph) {
+            if (visitedSubgraphs.has(rawType)) {
+                continue;
+            }
+
+            visitedSubgraphs.add(rawType);
+            workflowNodes.push(...extractWorkflowNodesFromEditorGraph(subgraph, subgraphMap, visitedSubgraphs));
+            visitedSubgraphs.delete(rawType);
+            continue;
+        }
+
+        const classType = resolveEditorGraphNodeClassType(rawNode);
+        if (!classType) {
+            continue;
+        }
+
+        workflowNodes.push({
+            classType,
+            inputs: extractEditorGraphNodeInputs(rawNode),
+        });
+    }
+
+    return workflowNodes;
+};
+
+const extractWorkflowNodesFromPromptBlueprint = (workflowJson: Record<string, unknown>): WorkflowNodeDescriptor[] => {
+    const workflowNodes: WorkflowNodeDescriptor[] = [];
+
+    for (const rawNode of Object.values(workflowJson)) {
+        if (!isRecord(rawNode)) {
+            continue;
+        }
+
+        const classType = typeof rawNode.class_type === 'string' ? rawNode.class_type.trim() : '';
+        const inputs = isRecord(rawNode.inputs) ? rawNode.inputs as Record<string, unknown> : null;
+        if (!classType || !inputs) {
+            continue;
+        }
+
+        workflowNodes.push({ classType, inputs });
+    }
+
+    return workflowNodes;
+};
+
+const extractWorkflowNodes = (workflowBlueprint: Record<string, unknown>): WorkflowNodeDescriptor[] => (
+    isEditorGraphBlueprint(workflowBlueprint)
+        ? extractWorkflowNodesFromEditorGraph(workflowBlueprint)
+        : extractWorkflowNodesFromPromptBlueprint(workflowBlueprint)
+);
+
+const extractRequiredNodeTypesFromWorkflowJson = (workflowJson: Record<string, unknown>): string[] => {
+    const required = new Set<string>();
+
+    for (const node of extractWorkflowNodes(workflowJson)) {
+        if (node.classType.trim().length > 0) {
+            required.add(node.classType);
         }
     }
 
@@ -63,10 +219,6 @@ const extractRequiredNodeTypesFromWorkflowJson = (workflowJson: Record<string, u
 };
 
 const MODEL_INPUT_NAME_PATTERN = /(?:^|_)(?:ckpt|checkpoint|model|unet|clip|vae|lora|controlnet|text_encoder|diffusion_model)(?:_|$)|name$/i;
-
-const isRecord = (value: unknown): value is Record<string, unknown> => (
-    typeof value === 'object' && value !== null
-);
 
 const extractStringChoices = (inputDefinition: unknown): string[] => {
     if (!Array.isArray(inputDefinition)) {
@@ -109,13 +261,9 @@ const findMissingInstallableModels = (
     const installableByName = new Map(installableModels.map((model) => [model.name, model]));
     const missing = new Map<string, ComfyWorkflowInstallableModel>();
 
-    for (const rawNode of Object.values(workflowJson)) {
-        if (!isRecord(rawNode)) {
-            continue;
-        }
-
-        const classType = typeof rawNode.class_type === 'string' ? rawNode.class_type : '';
-        const inputs = isRecord(rawNode.inputs) ? rawNode.inputs : null;
+    for (const node of extractWorkflowNodes(workflowJson)) {
+        const classType = node.classType;
+        const inputs = node.inputs;
         if (!classType || !inputs) {
             continue;
         }
@@ -206,14 +354,9 @@ export interface ComfyServerCatalogSnapshot {
 
 const extractNodeTypesFromWorkflowJson = (workflowJson: Record<string, unknown>): string[] => {
     const nodeTypes = new Set<string>();
-    for (const rawNode of Object.values(workflowJson)) {
-        if (typeof rawNode !== 'object' || rawNode === null) {
-            continue;
-        }
-
-        const classType = (rawNode as { class_type?: unknown }).class_type;
-        if (typeof classType === 'string' && classType.trim().length > 0) {
-            nodeTypes.add(classType);
+    for (const node of extractWorkflowNodes(workflowJson)) {
+        if (node.classType.trim().length > 0) {
+            nodeTypes.add(node.classType);
         }
     }
 
@@ -371,7 +514,10 @@ export const inspectComfyServerCatalog = async (
                 inputOverrides: [],
             };
 
-        const blueprint = await prepareWorkflowBlueprint(workflow, {}, modelPreset);
+        const rawBlueprint = await workflow.loadBlueprint() as unknown;
+        const blueprint = isRecord(rawBlueprint)
+            ? rawBlueprint as Record<string, unknown>
+            : await prepareWorkflowBlueprint(workflow, {}, modelPreset);
         const requiredNodeTypes = extractNodeTypesFromWorkflowJson(blueprint);
         const missingNodeTypes = requiredNodeTypes.filter((nodeType) => !availableNodeTypes.has(nodeType));
         const missingModels = objectInfo && typeof objectInfo === 'object'

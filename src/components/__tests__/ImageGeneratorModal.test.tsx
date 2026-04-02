@@ -4,6 +4,41 @@ import ImageGeneratorModal from '../ImageGeneratorModal';
 
 const mockImageFromURL = jest.fn();
 const mockUseEscapeKey = jest.fn();
+const mockDialogConfirm = jest.fn(async () => false);
+const mockVerifyAvailableComfyConnection = jest.fn(async () => ({ ok: true, message: 'Connected to ComfyUI.' }));
+const mockInspectComfyServerCatalog = jest.fn(async () => ({
+    detectedVersion: '0.18.1',
+    serverUrl: 'http://localhost:8188',
+    workflowCount: 10,
+    compatibleWorkflowCount: 8,
+    transportKind: 'local',
+    records: [],
+}));
+
+jest.mock('@/providers/DialogProvider', () => ({
+    __esModule: true,
+    useDialog: () => ({
+        confirm: (...args: unknown[]) => mockDialogConfirm(...args),
+    }),
+}));
+
+jest.mock('@/lib/comfyui/connection', () => {
+    const actual = jest.requireActual('@/lib/comfyui/connection');
+    return {
+        __esModule: true,
+        ...actual,
+        verifyAvailableComfyConnection: (...args: unknown[]) => mockVerifyAvailableComfyConnection(...args),
+    };
+});
+
+jest.mock('@/lib/comfyui/runner', () => {
+    const actual = jest.requireActual('@/lib/comfyui/runner');
+    return {
+        __esModule: true,
+        ...actual,
+        inspectComfyServerCatalog: (...args: unknown[]) => mockInspectComfyServerCatalog(...args),
+    };
+});
 
 jest.mock('next/image', () => ({
     __esModule: true,
@@ -518,6 +553,116 @@ describe('ImageGeneratorModal', () => {
         await waitFor(() => {
             expect(screen.getByText(/Selected layer:/i)).not.toHaveTextContent('None selected');
             expect(screen.getByRole('button', { name: 'Make Reference Layer' })).toBeEnabled();
+        });
+    });
+
+    it('prompts to install missing Comfy requirements from the Comfy panel', async () => {
+        mockDialogConfirm.mockResolvedValueOnce(true);
+        mockInspectComfyServerCatalog.mockResolvedValueOnce({
+            detectedVersion: '0.18.1',
+            serverUrl: 'http://localhost:8188',
+            workflowCount: 10,
+            compatibleWorkflowCount: 10,
+            transportKind: 'local',
+            records: [],
+        });
+        mockInspectComfyServerCatalog.mockResolvedValueOnce({
+            detectedVersion: '0.18.1',
+            serverUrl: 'http://localhost:8188',
+            workflowCount: 10,
+            compatibleWorkflowCount: 7,
+            transportKind: 'local',
+            records: [
+                {
+                    workflowId: 'image_flux2_klein_image_edit_4b_base',
+                    workflowName: 'FLUX 2 Klein Image Edit (4B Template)',
+                    task: 'img2img',
+                    requiredNodeTypes: ['Flux2Scheduler', 'UNETLoader'],
+                    missingNodeTypes: [],
+                    missingModels: [
+                        {
+                            name: 'flux-2-klein-base-4b-fp8.safetensors',
+                            downloadUrl: 'https://example.com/flux-2-klein-base-4b-fp8.safetensors',
+                            directory: 'diffusion_models',
+                        },
+                    ],
+                    compatible: false,
+                    canAutoUpdateInstall: false,
+                },
+                {
+                    workflowId: 'image_flux2_klein_image_edit_9b_base',
+                    workflowName: 'FLUX 2 Klein Image Edit (9B Template)',
+                    task: 'img2img',
+                    requiredNodeTypes: ['Flux2Scheduler', 'UNETLoader'],
+                    missingNodeTypes: ['Flux2Scheduler'],
+                    missingModels: [],
+                    compatible: false,
+                    canAutoUpdateInstall: true,
+                },
+            ],
+        });
+        mockInspectComfyServerCatalog.mockResolvedValueOnce({
+            detectedVersion: '0.18.1',
+            serverUrl: 'http://localhost:8188',
+            workflowCount: 10,
+            compatibleWorkflowCount: 10,
+            transportKind: 'local',
+            records: [
+                {
+                    workflowId: 'image_flux2_klein_image_edit_4b_base',
+                    workflowName: 'FLUX 2 Klein Image Edit (4B Template)',
+                    task: 'img2img',
+                    requiredNodeTypes: ['Flux2Scheduler', 'UNETLoader'],
+                    missingNodeTypes: [],
+                    missingModels: [],
+                    compatible: true,
+                    canAutoUpdateInstall: false,
+                },
+                {
+                    workflowId: 'image_flux2_klein_image_edit_9b_base',
+                    workflowName: 'FLUX 2 Klein Image Edit (9B Template)',
+                    task: 'img2img',
+                    requiredNodeTypes: ['Flux2Scheduler', 'UNETLoader'],
+                    missingNodeTypes: [],
+                    missingModels: [],
+                    compatible: true,
+                    canAutoUpdateInstall: false,
+                },
+            ],
+        });
+
+        (global.fetch as jest.Mock).mockImplementation(async (input: string, init?: RequestInit) => {
+            if (input === '/api/ai/comfy/library') {
+                const body = init?.body ? JSON.parse(init.body as string) : {};
+                if (body.action === 'install-requirements') {
+                    return mockJsonResponse({ success: true, message: 'Installed Comfy requirements.' }) as Response;
+                }
+
+                return mockComfyLibraryResponse() as Response;
+            }
+
+            return mockJsonResponse({}) as Response;
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Verify ComfyUI Connection' }));
+
+        await waitFor(() => {
+            expect(mockDialogConfirm).toHaveBeenCalled();
+        });
+
+        expect(global.fetch).toHaveBeenCalledWith(
+            '/api/ai/comfy/library',
+            expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining('install-requirements'),
+            })
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Installed Comfy requirements.')).toBeInTheDocument();
         });
     });
 });

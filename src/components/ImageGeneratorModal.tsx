@@ -14,11 +14,12 @@ import {
   verifyAvailableComfyConnection,
   type ComfyConnectionMode,
 } from '@/lib/comfyui/connection';
-import { comfyWorkflowRegistry, type ComfyTask } from '@/lib/comfyui/registry';
+import { comfyWorkflowRegistry, type ComfyTask, type ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 import { registerSerializedComfyWorkflow, type SerializedComfyWorkflowRegistration } from '@/lib/comfyui/libraryTypes';
 import { getComfyTaskPreference, saveComfyTaskPreference } from '@/lib/comfyui/preferences';
 import { executeComfyTask, inspectComfyServerCatalog, recoverComfyTaskByPromptId } from '@/lib/comfyui/runner';
 import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
+import { useDialog } from '@/providers/DialogProvider';
 import {
   GENERATIVE_PROVIDER_OPTIONS,
   getGenerativeProviderOption,
@@ -115,6 +116,75 @@ const COMFY_TASK_OPTIONS: Array<{ id: ComfyTask; label: string }> = [
 
 const COMFY_AGENTIC_EDIT_WORKFLOW_9B = 'image_flux2_klein_image_edit_9b_base';
 const COMFY_AGENTIC_EDIT_WORKFLOW_4B = 'image_flux2_klein_image_edit_4b_base';
+
+interface ComfyMissingRequirementSummary {
+    updateInstall: boolean;
+    models: ComfyWorkflowInstallableModel[];
+    workflows: string[];
+}
+
+const buildComfyMissingRequirementSummary = (
+    records: Array<{
+        workflowId: string;
+        missingNodeTypes: string[];
+        missingModels: ComfyWorkflowInstallableModel[];
+        canAutoUpdateInstall: boolean;
+    }>
+): ComfyMissingRequirementSummary | null => {
+    const workflows = new Set<string>();
+    const modelMap = new Map<string, ComfyWorkflowInstallableModel>();
+    let updateInstall = false;
+
+    for (const record of records) {
+        if (record.missingNodeTypes.length === 0 && record.missingModels.length === 0) {
+            continue;
+        }
+
+        workflows.add(record.workflowId);
+        if (record.canAutoUpdateInstall && record.missingNodeTypes.length > 0) {
+            updateInstall = true;
+        }
+
+        for (const model of record.missingModels) {
+            modelMap.set(`${model.directory}/${model.name}`.toLowerCase(), model);
+        }
+    }
+
+    if (!updateInstall && modelMap.size === 0) {
+        return null;
+    }
+
+    return {
+        updateInstall,
+        models: Array.from(modelMap.values()),
+        workflows: Array.from(workflows),
+    };
+};
+
+const formatComfyRequirementDetails = (
+    records: Array<{
+        workflowId: string;
+        compatible: boolean;
+        missingNodeTypes: string[];
+        missingModels: ComfyWorkflowInstallableModel[];
+    }>
+): string => records
+    .map((record) => {
+        if (record.compatible) {
+            return `${record.workflowId}:ok`;
+        }
+
+        const detailParts: string[] = [];
+        if (record.missingNodeTypes.length > 0) {
+            detailParts.push(`nodes ${record.missingNodeTypes.slice(0, 3).join(', ')}`);
+        }
+        if (record.missingModels.length > 0) {
+            detailParts.push(`models ${record.missingModels.slice(0, 3).map((model) => model.name).join(', ')}`);
+        }
+
+        return `${record.workflowId}:missing ${detailParts.join('; ') || 'requirements'}`;
+    })
+    .join(' | ');
 
 interface ComfyQualityProfile {
     width: number;
@@ -619,6 +689,7 @@ export default function ImageGeneratorModal({
   apiKey,
   currentUser,
 }: ImageGeneratorModalProps) {
+    const dialog = useDialog();
     const formatElapsedSeconds = (elapsedMs?: number): string => {
             if (!elapsedMs || elapsedMs <= 0) {
                     return '0s';
@@ -737,8 +808,10 @@ export default function ImageGeneratorModal({
   const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(true);
   const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
   const [isCheckingComfyConnection, setIsCheckingComfyConnection] = useState(false);
+    const [isInstallingComfyRequirements, setIsInstallingComfyRequirements] = useState(false);
   const [comfyConnectionStatusMessage, setComfyConnectionStatusMessage] = useState('');
     const [comfyCatalogStatusMessage, setComfyCatalogStatusMessage] = useState('');
+    const [comfyMissingRequirements, setComfyMissingRequirements] = useState<ComfyMissingRequirementSummary | null>(null);
   const hasAttemptedComfyRecoveryRef = useRef(false);
     const warmedComfyProfilesRef = useRef<Set<string>>(new Set());
     const comfyCancelRequestedRef = useRef(false);
@@ -1121,6 +1194,87 @@ export default function ImageGeneratorModal({
       }
   }, [canvas, zoneHeight, zoneWidth]);
 
+  const inspectComfyCatalog = useCallback(async () => {
+      const catalogSnapshot = await inspectComfyServerCatalog({
+          connection: {
+              mode: comfyConnectionMode,
+              localUrl: comfyServerUrl,
+              cloudUrl: comfyCloudUrl,
+              cloudApiKey: comfyCloudApiKey,
+          },
+      });
+
+      const fluxKleinRecords = catalogSnapshot.records.filter((record) => (
+          record.workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_9B || record.workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_4B
+      ));
+      const fluxReady = fluxKleinRecords.some((record) => record.compatible);
+      const details = formatComfyRequirementDetails(fluxKleinRecords);
+      const missingRequirements = buildComfyMissingRequirementSummary(fluxKleinRecords);
+
+      setComfyMissingRequirements(missingRequirements);
+      setComfyCatalogStatusMessage(
+          `ComfyUI ${catalogSnapshot.detectedVersion} @ ${catalogSnapshot.serverUrl} — workflows ${catalogSnapshot.compatibleWorkflowCount}/${catalogSnapshot.workflowCount} compatible. Flux Klein edit: ${fluxReady ? 'ready' : 'not ready (missing custom nodes/models)'}${details ? ` (${details})` : ''}.`
+      );
+
+      return { catalogSnapshot, missingRequirements };
+  }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl]);
+
+  const installMissingComfyRequirements = useCallback(async (requirements: ComfyMissingRequirementSummary) => {
+      const summaryParts: string[] = [];
+      if (requirements.updateInstall) {
+          summaryParts.push('update the ComfyUI install to restore missing nodes');
+      }
+      if (requirements.models.length > 0) {
+          summaryParts.push(`download ${requirements.models.length} missing model${requirements.models.length === 1 ? '' : 's'} into the default models folders`);
+      }
+
+      const confirmed = await dialog.confirm(
+          `Install the detected ComfyUI requirements for Flux Klein? This will ${summaryParts.join(' and ')}.`,
+          { title: 'Install Missing Comfy Requirements' }
+      );
+      if (!confirmed) {
+          return false;
+      }
+
+      setIsInstallingComfyRequirements(true);
+      try {
+          const response = await fetch('/api/ai/comfy/library', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  action: 'install-requirements',
+                  connectionMode: comfyConnectionMode,
+                  comfyServerUrl,
+                  comfyCloudUrl,
+                  comfyCloudApiKey,
+                  installPath: comfyInstallPath,
+                  customNodesPath: comfyCustomNodesPath,
+                  workflowLibraryPath: comfyWorkflowLibraryPath,
+                  updateInstall: requirements.updateInstall,
+                  models: requirements.models,
+              }),
+          });
+
+          const data = await response.json() as { success?: boolean; message?: string };
+          if (!response.ok || !data.success) {
+              throw new Error(data.message || 'Failed to install missing Comfy requirements.');
+          }
+
+          setComfyConnectionStatusMessage(data.message || 'Installed missing Comfy requirements.');
+          setComfyMissingRequirements(null);
+          await inspectComfyCatalog();
+          return true;
+      } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to install missing Comfy requirements.';
+          setComfyConnectionStatusMessage(message);
+          return false;
+      } finally {
+          setIsInstallingComfyRequirements(false);
+      }
+  }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyCustomNodesPath, comfyInstallPath, comfyServerUrl, comfyWorkflowLibraryPath, dialog, inspectComfyCatalog]);
+
   const handleVerifyComfyConnection = async () => {
       if (isCheckingComfyConnection) {
           return;
@@ -1141,35 +1295,21 @@ export default function ImageGeneratorModal({
 
           if (verification.ok) {
               try {
-                  const catalogSnapshot = await inspectComfyServerCatalog({
-                      connection: {
-                          mode: comfyConnectionMode,
-                          localUrl: comfyServerUrl,
-                          cloudUrl: comfyCloudUrl,
-                          cloudApiKey: comfyCloudApiKey,
-                      },
-                  });
-
-                  const fluxKleinRecords = catalogSnapshot.records.filter((record) => (
-                      record.workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_9B || record.workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_4B
-                  ));
-                  const fluxReady = fluxKleinRecords.some((record) => record.compatible);
-                  const details = fluxKleinRecords
-                      .map((record) => `${record.workflowId}:${record.compatible ? 'ok' : `missing ${record.missingNodeTypes.slice(0, 3).join(', ') || 'nodes'}`}`)
-                      .join(' | ');
-
-                  setComfyCatalogStatusMessage(
-                      `ComfyUI ${catalogSnapshot.detectedVersion} @ ${catalogSnapshot.serverUrl} — workflows ${catalogSnapshot.compatibleWorkflowCount}/${catalogSnapshot.workflowCount} compatible. Flux Klein edit: ${fluxReady ? 'ready' : 'not ready (missing custom nodes/models)'}${details ? ` (${details})` : ''}.`
-                  );
+                  const { missingRequirements } = await inspectComfyCatalog();
+                  if (missingRequirements) {
+                      await installMissingComfyRequirements(missingRequirements);
+                  }
               } catch (catalogError) {
                   const catalogMessage = catalogError instanceof Error ? catalogError.message : 'Failed to inspect Comfy workflow catalog.';
                   setComfyCatalogStatusMessage(`Catalog sync warning: ${catalogMessage}`);
+                  setComfyMissingRequirements(null);
               }
           }
       } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to verify ComfyUI connection.';
           setComfyConnectionStatusMessage(message);
           setComfyCatalogStatusMessage('');
+          setComfyMissingRequirements(null);
       } finally {
           setIsCheckingComfyConnection(false);
       }
@@ -1188,30 +1328,21 @@ export default function ImageGeneratorModal({
 
       void (async () => {
           try {
-              const catalogSnapshot = await inspectComfyServerCatalog({
-                  connection: {
-                      mode: comfyConnectionMode,
-                      localUrl: comfyServerUrl,
-                      cloudUrl: comfyCloudUrl,
-                      cloudApiKey: comfyCloudApiKey,
-                  },
-              });
-
-              setComfyCatalogStatusMessage(
-                  `ComfyUI ${catalogSnapshot.detectedVersion} @ ${catalogSnapshot.serverUrl} — workflows ${catalogSnapshot.compatibleWorkflowCount}/${catalogSnapshot.workflowCount} compatible.`
-              );
+              await inspectComfyCatalog();
           } catch {
               setComfyCatalogStatusMessage('');
+              setComfyMissingRequirements(null);
           }
       })();
   }, [
       isOpen,
       selectedProvider,
-    hasComfyConfigForCatalogSync,
+      hasComfyConfigForCatalogSync,
       comfyConnectionMode,
       comfyServerUrl,
       comfyCloudUrl,
       comfyCloudApiKey,
+      inspectComfyCatalog,
   ]);
     
   /**
@@ -3513,6 +3644,30 @@ export default function ImageGeneratorModal({
                        {comfyCatalogStatusMessage && (
                            <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
                                {comfyCatalogStatusMessage}
+                           </div>
+                       )}
+
+                       {comfyMissingRequirements && (
+                           <div className="text-[10px] text-muted-foreground border border-amber-500/30 rounded-md px-2 py-2 bg-amber-500/10 space-y-2">
+                               <div>
+                                   Missing Comfy requirements detected for {comfyMissingRequirements.workflows.join(', ')}.
+                               </div>
+                               <div>
+                                   {comfyMissingRequirements.updateInstall ? 'ComfyUI install update required. ' : ''}
+                                   {comfyMissingRequirements.models.length > 0
+                                       ? `Missing models: ${comfyMissingRequirements.models.map((model) => model.name).join(', ')}.`
+                                       : 'No model downloads required.'}
+                               </div>
+                               <button
+                                   type="button"
+                                   onClick={() => {
+                                       void installMissingComfyRequirements(comfyMissingRequirements);
+                                   }}
+                                   disabled={isCheckingComfyConnection || isInstallingComfyRequirements || isGenerating}
+                                   className="w-full rounded-md border border-amber-500/40 px-3 py-2 text-xs font-medium text-foreground hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                               >
+                                   {isInstallingComfyRequirements ? 'Installing missing requirements...' : 'Install Missing Requirements'}
+                               </button>
                            </div>
                        )}
 

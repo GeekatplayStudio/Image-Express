@@ -17,19 +17,21 @@ import {
 
 let builtInCatalogRegistered = false;
 
-const extractInstallableModelsFromEditorGraph = (graph: unknown): ComfyWorkflowInstallableModel[] => {
-    if (!graph || typeof graph !== 'object') {
-        return [];
-    }
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+    typeof value === 'object' && value !== null
+);
 
-    const nodes = Array.isArray((graph as { nodes?: unknown }).nodes)
-        ? (graph as { nodes: Array<Record<string, unknown>> }).nodes
+const collectInstallableModelsFromGraph = (
+    graph: Record<string, unknown>,
+    models: Map<string, ComfyWorkflowInstallableModel>,
+    visitedSubgraphs: Set<string>
+) => {
+    const nodes = Array.isArray(graph.nodes)
+        ? graph.nodes as Array<Record<string, unknown>>
         : [];
 
-    const models = new Map<string, ComfyWorkflowInstallableModel>();
-
     for (const node of nodes) {
-        const properties = typeof node.properties === 'object' && node.properties !== null
+        const properties = isRecord(node.properties)
             ? node.properties as Record<string, unknown>
             : null;
         const modelEntries = Array.isArray(properties?.models)
@@ -51,6 +53,31 @@ const extractInstallableModelsFromEditorGraph = (graph: unknown): ComfyWorkflowI
             }
         }
     }
+
+    const subgraphs = isRecord(graph.definitions) && Array.isArray(graph.definitions.subgraphs)
+        ? graph.definitions.subgraphs as Array<Record<string, unknown>>
+        : [];
+
+    for (const subgraph of subgraphs) {
+        const subgraphId = typeof subgraph.id === 'string' ? subgraph.id : '';
+        if (subgraphId && visitedSubgraphs.has(subgraphId)) {
+            continue;
+        }
+        if (subgraphId) {
+            visitedSubgraphs.add(subgraphId);
+        }
+
+        collectInstallableModelsFromGraph(subgraph, models, visitedSubgraphs);
+    }
+};
+
+const extractInstallableModelsFromEditorGraph = (graph: unknown): ComfyWorkflowInstallableModel[] => {
+    if (!isRecord(graph)) {
+        return [];
+    }
+
+    const models = new Map<string, ComfyWorkflowInstallableModel>();
+    collectInstallableModelsFromGraph(graph, models, new Set<string>());
 
     return Array.from(models.values());
 };
