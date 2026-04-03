@@ -9,11 +9,13 @@ interface TransformPropertiesProps {
     scaleX: number;
     scaleY: number;
     isLocked: boolean;
+    pseudoBacksidePreset?: 'front' | 'back';
     onChange: (values: Partial<{ left: number; top: number; width: number; height: number; angle: number; scaleX: number; scaleY: number; lockMovementX: boolean; lockMovementY: boolean; lockRotation: boolean; lockScalingX: boolean; lockScalingY: boolean }>) => void;
+    onPresetChange?: (preset: 'front' | 'back') => void;
 }
 
 export function TransformProperties({
-    x, y, width, height, rotation, scaleX, scaleY, isLocked, onChange
+    x, y, width, height, rotation, scaleX, scaleY, isLocked, pseudoBacksidePreset, onChange, onPresetChange
 }: TransformPropertiesProps) {
     
     // Local state to handle input changes smoothly before commit if needed, 
@@ -116,6 +118,32 @@ export function TransformProperties({
                             className="w-12 text-xs bg-transparent border border-border rounded px-2 py-1 text-right"
                         />
                     </div>
+                </div>
+                <div className="col-span-2 space-y-2">
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Front / Back View</span>
+                        <span>{(pseudoBacksidePreset || 'front') === 'back' ? 'Back' : 'Front'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[
+                            { label: 'Front', value: 'front' as const },
+                            { label: 'Back', value: 'back' as const },
+                        ].map((preset) => (
+                            <button
+                                key={preset.value}
+                                type="button"
+                                onClick={() => onPresetChange?.(preset.value)}
+                                className={`rounded-md border px-2 py-1.5 text-[10px] transition-colors ${((pseudoBacksidePreset || 'front') === preset.value)
+                                    ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30'
+                                    : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
+                            >
+                                {preset.label}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[9px] text-muted-foreground">
+                        Flip between the front and backside presentation without adding extra perspective skew.
+                    </p>
                 </div>
             </div>
         </div>

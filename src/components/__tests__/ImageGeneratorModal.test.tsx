@@ -281,6 +281,20 @@ describe('ImageGeneratorModal', () => {
         expect(canvas.remove).toHaveBeenCalledWith(createdZone);
     });
 
+    it('uses the active accent palette for newly created AI zones', () => {
+        document.documentElement.dataset.themeAccent = 'meadow';
+        const canvas = createCanvasStub();
+
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        const createdZone = canvas.add.mock.calls[0][0];
+        expect(createdZone.fill).toBe('rgba(21, 128, 61, 0.14)');
+        expect(createdZone.stroke).toBe('#15803d');
+        expect(createdZone.cornerColor).toBe('#15803d');
+
+        document.documentElement.dataset.themeAccent = 'ocean';
+    });
+
     it('uses selected rectangle as zone dimensions', () => {
         const existingRect = {
             type: 'rect',

@@ -57,6 +57,7 @@ export async function POST(request: Request) {
             id: designId,
             name: name,
             image: imagePathRel || `/assets/designs/${baseFilename}.png`, // Fallback to expected path
+        thumbnail: imagePathRel || `/assets/designs/${baseFilename}.png`,
             data: `/assets/designs/${baseFilename}.json`,
             lastModified: timestamp
         }

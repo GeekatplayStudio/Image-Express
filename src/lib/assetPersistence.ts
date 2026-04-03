@@ -2,7 +2,11 @@
 
 import type { AssetCategory, AssetType } from '@/types';
 
-import { loadAssetStorageSettings } from '@/lib/assetStorageSettings';
+import {
+    getAssetCloudProviderLabel,
+    isImplementedAssetCloudProvider,
+    loadAssetStorageSettings,
+} from '@/lib/assetStorageSettings';
 import { dispatchAssetLibraryChanged } from '@/lib/assetLibraryEvents';
 import { loadDriveConfig, uploadDriveAsset } from '@/lib/googleDrive';
 import { saveLocalAsset } from '@/lib/localAssetStore';
@@ -61,9 +65,19 @@ export async function persistAssetToLibrary({
 }: PersistAssetToLibraryParams): Promise<PersistAssetToLibraryResult> {
     const settings = loadAssetStorageSettings();
     const uploadLocal = settings.mode === 'local' || settings.mode === 'hybrid';
-    const uploadCloud = settings.mode === 'cloud' || (settings.mode === 'hybrid' && settings.hybridUploadToCloudByDefault);
+    const cloudProviderLabel = getAssetCloudProviderLabel(settings.cloudProvider);
+    const cloudProviderImplemented = isImplementedAssetCloudProvider(settings.cloudProvider);
+    const uploadCloud = cloudProviderImplemented && (settings.mode === 'cloud' || (settings.mode === 'hybrid' && settings.hybridUploadToCloudByDefault));
     const warnings: string[] = [];
     const savedProviders: Array<'local' | 'google-drive'> = [];
+
+    if (!cloudProviderImplemented && settings.mode !== 'local') {
+        const warning = `${cloudProviderLabel} cloud storage is not implemented yet, so assets stay local in this build.`;
+        if (!uploadLocal) {
+            throw new Error(warning);
+        }
+        warnings.push(warning);
+    }
 
     if (!uploadLocal && !uploadCloud) {
         return { savedProviders, warnings };
@@ -90,7 +104,7 @@ export async function persistAssetToLibrary({
         const resolvedDriveClientId = (driveConfig.clientId || process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID || '').trim();
 
         if (!driveConfig.enabled || !resolvedDriveClientId) {
-            const warning = 'Google Drive is not connected, so the asset was not mirrored to cloud storage.';
+            const warning = `${cloudProviderLabel} is not connected, so the asset was not mirrored to cloud storage.`;
             if (!uploadLocal) {
                 throw new Error(warning);
             }

@@ -50,6 +50,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
 import { APP_THEME } from '@/lib/theme-tokens';
+import useAppTheme from '@/hooks/useAppTheme';
 import {
     PenPoint,
     PenModeSetting,
@@ -86,6 +87,7 @@ interface ToolbarProps {
     setActivePalette?: (palette: ColorPalette | null) => void;
     currentUser?: string;
     enableHoverLabels?: boolean;
+    onRailExpandedChange?: (expanded: boolean) => void;
     zoomCursorMode?: 'in' | 'out';
 }
 
@@ -299,14 +301,6 @@ const PEN_STROKE = PEN_DEFAULT_STROKE;
 const PEN_FILL = PEN_DEFAULT_FILL;
 const PEN_ANCHOR_COLOR = '#2563eb';
 const PEN_HANDLE_COLOR = '#ffffff';
-const DEFAULT_SHAPE_CONFIG: ShapeConfigPayload = {
-    mode: 'shape',
-    fillColor: APP_THEME.shapeDefaultFillHex,
-    strokeColor: '#111827',
-    strokeWidth: 0,
-    cornerRadius: 0,
-    fixedSize: false,
-};
 let isPenSpacePressed = false;
 
 const isPenDraftAnchor = (obj?: fabric.Object | null): obj is PenAnchorObject => !!obj && (obj as PenAnchorObject).isPenDraftAnchor === true;
@@ -566,9 +560,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     setActivePalette,
     currentUser,
     enableHoverLabels = true,
+    onRailExpandedChange,
     zoomCursorMode = 'in',
 }, ref) => {
     const { toast } = useToast();
+    const appTheme = useAppTheme();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
     const [showExtraMenu, setShowExtraMenu] = useState(false);
@@ -600,7 +596,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         canvas.requestRenderAll();
         openPropertiesPanel();
     }, [canvas, openPropertiesPanel]);
-    const [shapeConfig, setShapeConfig] = useState<ShapeConfigPayload>(DEFAULT_SHAPE_CONFIG);
+    const [shapeConfig, setShapeConfig] = useState<ShapeConfigPayload>({
+        mode: 'shape',
+        fillColor: appTheme.shapeDefaultFillHex,
+        strokeColor: '#111827',
+        strokeWidth: 0,
+        cornerRadius: 0,
+        fixedSize: false,
+    });
+    const previousThemeFillRef = useRef(appTheme.shapeDefaultFillHex);
     const toolGroupMenuRef = useRef<HTMLDivElement>(null);
     const selectionGroupButtonRef = useRef<HTMLButtonElement>(null);
     const retouchGroupButtonRef = useRef<HTMLButtonElement>(null);
@@ -632,6 +636,25 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     useEffect(() => {
         penAnchorsRef.current = penAnchors;
     }, [penAnchors]);
+
+    useEffect(() => {
+        setShapeConfig((prev) => {
+            if (prev.fillColor !== previousThemeFillRef.current) {
+                previousThemeFillRef.current = appTheme.shapeDefaultFillHex;
+                return prev;
+            }
+
+            previousThemeFillRef.current = appTheme.shapeDefaultFillHex;
+            return {
+                ...prev,
+                fillColor: appTheme.shapeDefaultFillHex,
+            };
+        });
+    }, [appTheme.shapeDefaultFillHex]);
+
+    useEffect(() => {
+        onRailExpandedChange?.(isRailExpanded);
+    }, [isRailExpanded, onRailExpandedChange]);
 
     useEffect(() => {
         if (!canvas) return;
@@ -2103,7 +2126,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
     return (
         <div
-            className="relative self-start origin-left flex w-full flex-col items-start pt-2"
+            className="relative self-stretch origin-left flex min-h-0 w-full flex-col items-start pt-2"
             data-testid="toolbar-rail-host"
             onMouseEnter={() => setIsRailHovered(true)}
             onMouseLeave={() => setIsRailHovered(false)}
@@ -2133,7 +2156,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             />
             <div
                 className={cn(
-                    'ml-[10px] flex max-h-[calc(100%-0.5rem)] overflow-y-auto flex-col items-stretch gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out',
+                    'ml-[10px] flex min-h-0 flex-1 max-h-full overflow-y-auto flex-col items-stretch gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out',
                     isRailExpanded ? 'w-56 shadow-xl' : 'w-10'
                 )}
                 data-testid="toolbar-rail"

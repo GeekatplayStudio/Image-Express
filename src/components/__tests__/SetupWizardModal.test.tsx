@@ -20,6 +20,19 @@ jest.mock('@/lib/googleDrive', () => ({
 }));
 
 jest.mock('@/lib/assetStorageSettings', () => ({
+    ASSET_CLOUD_PROVIDER_OPTIONS: [
+        { id: 'google-drive', label: 'Google Drive', availability: 'available', description: 'Google Drive ready.' },
+        { id: 'dropbox', label: 'Dropbox', availability: 'planned', description: 'Dropbox planned.' },
+        { id: 'onedrive', label: 'OneDrive', availability: 'planned', description: 'OneDrive planned.' },
+        { id: 's3-compatible', label: 'S3-compatible', availability: 'planned', description: 'S3 planned.' },
+    ],
+    getAssetCloudProviderLabel: (provider: string) => ({
+        'google-drive': 'Google Drive',
+        dropbox: 'Dropbox',
+        onedrive: 'OneDrive',
+        's3-compatible': 'S3-compatible',
+    }[provider] || 'Cloud'),
+    isImplementedAssetCloudProvider: (provider: string) => provider === 'google-drive',
     loadAssetStorageSettings: (...args: unknown[]) => mockLoadAssetStorageSettings(...args),
     saveAssetStorageSettings: (...args: unknown[]) => mockSaveAssetStorageSettings(...args),
 }));
@@ -28,6 +41,27 @@ describe('SetupWizardModal', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         window.localStorage.clear();
+        (global as unknown as { fetch: jest.Mock }).fetch = jest.fn(async () => ({
+            ok: true,
+            json: async () => ({
+                configFile: '/tmp/sources.json',
+                comfyDirectory: {
+                    path: '/tmp/ComfyUI',
+                    exists: true,
+                    gitRepo: true,
+                },
+                customBundles: [],
+                comfyModels: [],
+                ollama: {
+                    cliAvailable: true,
+                    configuredModels: [],
+                },
+                summary: {
+                    ready: true,
+                    missing: [],
+                },
+            }),
+        }));
         mockLoadDriveConfig.mockReturnValue({ enabled: false, clientId: '' });
         mockLoadAssetStorageSettings.mockReturnValue({
             mode: 'hybrid',
@@ -89,10 +123,35 @@ describe('SetupWizardModal', () => {
         fireEvent.change(screen.getAllByPlaceholderText('sk-...')[1], {
             target: { value: 'sk-openai' },
         });
-        fireEvent.click(screen.getByRole('button', { name: /Next/i })); // api -> finish
+        fireEvent.click(screen.getByRole('button', { name: /Next/i })); // api -> runtime
+        await waitFor(() => {
+            expect(screen.getByText('Runtime ready')).toBeInTheDocument();
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Next/i })); // runtime -> finish
         fireEvent.click(screen.getByRole('button', { name: /Finish Setup/i }));
 
         expect(window.localStorage.getItem('openai_api_key')).toBe('sk-openai');
         expect(onComplete).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists a planned provider selection in hybrid mode', async () => {
+        render(<SetupWizardModal isOpen={true} onClose={jest.fn()} onComplete={jest.fn()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+        fireEvent.change(screen.getByDisplayValue('Google Drive'), {
+            target: { value: 'dropbox' },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+        await waitFor(() => {
+            expect(mockSaveAssetStorageSettings).toHaveBeenCalledWith(expect.objectContaining({
+                mode: 'hybrid',
+                cloudProvider: 'dropbox',
+            }));
+        });
+
+        expect(screen.getByText(/Dropbox is selected as your future cloud provider/i)).toBeInTheDocument();
     });
 });

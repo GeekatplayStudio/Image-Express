@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
         name: readableName, // Simplified name extraction
         data: `/assets/designs/${file}`, // The JSON data URL
         image: `/assets/designs/${id}.png`, // The thumbnail URL
+        thumbnail: `/assets/designs/${id}.png`,
         lastModified: stats.mtimeMs
       };
     }));

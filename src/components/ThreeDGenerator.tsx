@@ -1327,18 +1327,21 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         )}
                                     </div>
                                 </div>
-                                {hitemsImageViewMode === 'multi' && (
-                                    <div className="space-y-1">
+                                <div className="space-y-1">
+                                    <div className="flex items-center justify-between gap-2">
                                         <p className="text-[10px] text-muted-foreground">Back Preview</p>
-                                        <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
-                                            {resolveLayerImageUrl(hitemsBackLayerId) ? (
-                                                <Image src={resolveLayerImageUrl(hitemsBackLayerId)} alt="Back layer preview" fill sizes="128px" className="object-contain" unoptimized />
-                                            ) : (
-                                                <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">Not set</div>
-                                            )}
-                                        </div>
+                                        {hitemsImageViewMode !== 'multi' && (
+                                            <span className="text-[9px] uppercase tracking-wide text-muted-foreground">Saved for multi-view</span>
+                                        )}
                                     </div>
-                                )}
+                                    <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
+                                        {resolveLayerImageUrl(hitemsBackLayerId) ? (
+                                            <Image src={resolveLayerImageUrl(hitemsBackLayerId)} alt="Back layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">Not set</div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                             <div className="grid grid-cols-1 gap-1 pt-1">
                                 <label className="text-[10px] text-muted-foreground">Front Layer</label>
@@ -1351,6 +1354,22 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         <option key={option.id} value={option.id}>{option.label}</option>
                                     ))}
                                 </select>
+                            </div>
+                            <div className="grid grid-cols-1 gap-1 pt-1">
+                                <label className="text-[10px] text-muted-foreground">Back Layer</label>
+                                <select
+                                    value={hitemsBackLayerId}
+                                    onChange={(e) => setHitemsBackLayerId(e.target.value)}
+                                    className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
+                                >
+                                    <option value="">Back: Not set</option>
+                                    {normalizedLayerImageOptions.map((option) => (
+                                        <option key={`always-back-${option.id}`} value={option.id}>{option.label}</option>
+                                    ))}
+                                </select>
+                                {hitemsImageViewMode !== 'multi' && (
+                                    <p className="text-[10px] text-muted-foreground">Back artwork stays visible here and will be included automatically when you switch to Multi-view.</p>
+                                )}
                             </div>
                             {hitemsImageViewMode === 'multi' && (
                                 <div className="grid grid-cols-1 gap-1 pt-1">
@@ -1377,16 +1396,6 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                             </div>
                                         </div>
                                     </div>
-                                    <select
-                                        value={hitemsBackLayerId}
-                                        onChange={(e) => setHitemsBackLayerId(e.target.value)}
-                                        className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
-                                    >
-                                        <option value="">Back: Not set</option>
-                                        {normalizedLayerImageOptions.map((option) => (
-                                            <option key={`back-${option.id}`} value={option.id}>{option.label}</option>
-                                        ))}
-                                    </select>
                                     <select
                                         value={hitemsLeftLayerId}
                                         onChange={(e) => setHitemsLeftLayerId(e.target.value)}

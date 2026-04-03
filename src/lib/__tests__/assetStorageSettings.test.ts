@@ -46,6 +46,25 @@ describe('assetStorageSettings', () => {
         expect(listener).toHaveBeenCalledTimes(2);
     });
 
+    it('accepts supported planned providers in stored settings', () => {
+        window.localStorage.setItem(
+            'image-express-asset-storage-settings',
+            JSON.stringify({
+                mode: 'hybrid',
+                cloudProvider: 'dropbox',
+                hybridUploadToCloudByDefault: true,
+                includeLegacyServerAssetsInHybrid: false,
+            })
+        );
+
+        expect(loadAssetStorageSettings()).toEqual({
+            mode: 'hybrid',
+            cloudProvider: 'dropbox',
+            hybridUploadToCloudByDefault: true,
+            includeLegacyServerAssetsInHybrid: false,
+        });
+    });
+
     it('falls back to defaults for malformed or invalid stored settings', () => {
         const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
         window.localStorage.setItem('image-express-asset-storage-settings', '{bad');
@@ -61,7 +80,7 @@ describe('assetStorageSettings', () => {
             'image-express-asset-storage-settings',
             JSON.stringify({
                 mode: 'unsupported',
-                cloudProvider: 'dropbox',
+                cloudProvider: 'unknown-cloud',
                 hybridUploadToCloudByDefault: 0,
                 includeLegacyServerAssetsInHybrid: false,
             })

@@ -20,6 +20,19 @@ jest.mock('@/lib/googleDrive', () => ({
 }));
 
 jest.mock('@/lib/assetStorageSettings', () => ({
+    ASSET_CLOUD_PROVIDER_OPTIONS: [
+        { id: 'google-drive', label: 'Google Drive', availability: 'available', description: 'Google Drive ready.' },
+        { id: 'dropbox', label: 'Dropbox', availability: 'planned', description: 'Dropbox planned.' },
+        { id: 'onedrive', label: 'OneDrive', availability: 'planned', description: 'OneDrive planned.' },
+        { id: 's3-compatible', label: 'S3-compatible', availability: 'planned', description: 'S3 planned.' },
+    ],
+    getAssetCloudProviderLabel: (provider: string) => ({
+        'google-drive': 'Google Drive',
+        dropbox: 'Dropbox',
+        onedrive: 'OneDrive',
+        's3-compatible': 'S3-compatible',
+    }[provider] || 'Cloud'),
+    isImplementedAssetCloudProvider: (provider: string) => provider === 'google-drive',
     loadAssetStorageSettings: (...args: unknown[]) => mockLoadAssetStorageSettings(...args),
     saveAssetStorageSettings: (...args: unknown[]) => mockSaveAssetStorageSettings(...args),
 }));
@@ -133,6 +146,66 @@ describe('SettingsModal', () => {
                     text: async () => 'login-entry-1',
                 } as Response;
             }
+            if (url === '/api/runtime/installer/status') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        configFile: '/tmp/sources.json',
+                        comfyDirectory: {
+                            path: '/tmp/ComfyUI',
+                            exists: true,
+                            gitRepo: true,
+                        },
+                        customBundles: [
+                            {
+                                name: 'image-express-custom-nodes',
+                                bundleType: 'custom-node',
+                                targetPath: 'custom_nodes/image-express-custom-nodes',
+                                exists: false,
+                            },
+                        ],
+                        comfyModels: [],
+                        ollama: {
+                            cliAvailable: true,
+                            configuredModels: [],
+                        },
+                        summary: {
+                            ready: false,
+                            missing: ['Bundle missing: image-express-custom-nodes'],
+                        },
+                    }),
+                } as Response;
+            }
+            if (url === '/api/runtime/installer/run' && init?.method === 'POST') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        startedAt: '2026-04-03T10:00:00.000Z',
+                        finishedAt: '2026-04-03T10:00:01.000Z',
+                        durationMs: 1000,
+                        continueOnError: false,
+                        dryRun: true,
+                        steps: [
+                            {
+                                id: 'install-comfy',
+                                label: 'ComfyUI install/update',
+                                command: 'node',
+                                args: ['scripts/installers/comfy/install-comfy.mjs'],
+                                exitCode: 0,
+                                success: true,
+                                durationMs: 120,
+                                stdout: 'ok',
+                                stderr: '',
+                            },
+                        ],
+                        summary: {
+                            completedSteps: 1,
+                            failedSteps: 0,
+                        },
+                    }),
+                } as Response;
+            }
             if (url.startsWith('/api/ai/ollama/status?')) {
                 return {
                     ok: true,
@@ -214,10 +287,18 @@ describe('SettingsModal', () => {
         await waitFor(() => {
             expect(screen.getByText('Synced with Account')).toBeInTheDocument();
         });
+        expect(screen.getByText('Installer Runtime Readiness')).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByText('1 missing')).toBeInTheDocument();
+        });
 
         fireEvent.change(screen.getByPlaceholderText('Enter Meshy API Key'), {
             target: { value: 'new-meshy' },
         });
+        fireEvent.change(screen.getByLabelText('Theme mode'), {
+            target: { value: 'light' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Accent palette Meadow' }));
         fireEvent.change(screen.getByPlaceholderText('http://127.0.0.1:11434'), {
             target: { value: 'http://localhost:11434' },
         });
@@ -237,6 +318,10 @@ describe('SettingsModal', () => {
         await waitFor(() => {
             expect(window.localStorage.getItem('meshy_api_key')).toBe('new-meshy');
         });
+        expect(window.localStorage.getItem('image-express-theme-preferences')).toContain('light');
+        expect(window.localStorage.getItem('image-express-theme-preferences')).toContain('meadow');
+        expect(document.documentElement.dataset.themeMode).toBe('light');
+        expect(document.documentElement.dataset.themeAccent).toBe('meadow');
         expect(window.localStorage.getItem('image-express-local-ai-preferences')).toContain('http://localhost:11434');
         expect(window.localStorage.getItem('image-express-local-ai-preferences')).toContain('llava:7b');
         expect(mockSaveAssetStorageSettings).toHaveBeenCalledWith({
@@ -253,6 +338,52 @@ describe('SettingsModal', () => {
                 method: 'POST',
             })
         );
+    });
+
+    it('runs installer workflow from runtime readiness panel', async () => {
+        render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Installer Runtime Readiness')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /Dry Run Installer/i }));
+
+        await waitFor(() => {
+            const fetchMock = (global as unknown as { fetch: jest.Mock }).fetch;
+            expect(fetchMock).toHaveBeenCalledWith(
+                '/api/runtime/installer/run',
+                expect.objectContaining({
+                    method: 'POST',
+                }),
+            );
+        });
+
+        await waitFor(() => {
+            expect(screen.getByTestId('settings-installer-run-message')).toBeInTheDocument();
+        });
+    });
+
+    it('saves a planned cloud provider selection without forcing broken cloud-only mode', async () => {
+        render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Asset Storage Strategy')).toBeInTheDocument();
+        });
+
+        fireEvent.change(screen.getByDisplayValue('Google Drive'), {
+            target: { value: 'dropbox' },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /Save Configurations/i }));
+
+        await waitFor(() => {
+            expect(mockSaveAssetStorageSettings).toHaveBeenCalledWith(expect.objectContaining({
+                cloudProvider: 'dropbox',
+            }));
+        });
+
+        expect(screen.getAllByText(/Dropbox/i).length).toBeGreaterThan(0);
     });
 
     it('installs a missing Ollama model from Settings after a failed check', async () => {
@@ -275,6 +406,47 @@ describe('SettingsModal', () => {
                 return {
                     ok: true,
                     text: async () => 'login-entry-1',
+                } as Response;
+            }
+            if (url === '/api/runtime/installer/status') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        configFile: '/tmp/sources.json',
+                        comfyDirectory: {
+                            path: '/tmp/ComfyUI',
+                            exists: true,
+                            gitRepo: true,
+                        },
+                        customBundles: [],
+                        comfyModels: [],
+                        ollama: {
+                            cliAvailable: true,
+                            configuredModels: [],
+                        },
+                        summary: {
+                            ready: true,
+                            missing: [],
+                        },
+                    }),
+                } as Response;
+            }
+            if (url === '/api/runtime/installer/run' && init?.method === 'POST') {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        startedAt: '2026-04-03T10:00:00.000Z',
+                        finishedAt: '2026-04-03T10:00:01.000Z',
+                        durationMs: 1000,
+                        continueOnError: false,
+                        dryRun: false,
+                        steps: [],
+                        summary: {
+                            completedSteps: 0,
+                            failedSteps: 0,
+                        },
+                    }),
                 } as Response;
             }
             if (url.startsWith('/api/ai/ollama/status?')) {

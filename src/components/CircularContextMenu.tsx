@@ -35,7 +35,7 @@ import {
     SquareMousePointer,
     type LucideIcon,
 } from 'lucide-react';
-import { APP_THEME } from '@/lib/theme-tokens';
+import useAppTheme from '@/hooks/useAppTheme';
 
 interface CircularContextMenuProps {
     x: number;
@@ -67,39 +67,6 @@ type CircularMenuItem = {
     group: 'select' | 'retouch' | 'create' | 'library';
 };
 
-const MENU_ITEMS: CircularMenuItem[] = [
-    { id: 'select', icon: Move, label: 'Move', color: APP_THEME.circularMenuColors.select, group: 'select' },
-    { id: 'marquee', icon: Square, label: 'Marquee', color: APP_THEME.circularMenuColors.marquee, group: 'select' },
-    { id: 'lasso', icon: LassoSelect, label: 'Lasso', color: APP_THEME.circularMenuColors.lasso, group: 'select' },
-    { id: 'wand', icon: Wand2, label: 'Magic Wand', color: APP_THEME.circularMenuColors.wand, group: 'select' },
-    { id: 'quick-select', icon: SquareMousePointer, label: 'Quick Selection', color: APP_THEME.circularMenuColors.wand, group: 'select' },
-    { id: 'selection-brush', icon: PaintbrushVertical, label: 'Selection Brush', color: APP_THEME.circularMenuColors.paint, group: 'select' },
-    { id: 'path-select', icon: Pointer, label: 'Path Select', color: APP_THEME.circularMenuColors.pathSelect, group: 'select' },
-
-    { id: 'spot-healing', icon: Bandage, label: 'Spot Healing', color: APP_THEME.circularMenuColors.healing, group: 'retouch' },
-    { id: 'remove', icon: Eraser, label: 'Remove Tool', color: APP_THEME.circularMenuColors.healing, group: 'retouch' },
-    { id: 'healing', icon: ShieldCheck, label: 'Healing Brush', color: APP_THEME.circularMenuColors.healing, group: 'retouch' },
-    { id: 'clone-stamp', icon: Copy, label: 'Clone Stamp', color: APP_THEME.circularMenuColors.cloneStamp, group: 'retouch' },
-    { id: 'history-brush', icon: History, label: 'History Brush', color: APP_THEME.circularMenuColors.historyBrush, group: 'retouch' },
-    { id: 'blur', icon: Blend, label: 'Blur Tool', color: APP_THEME.circularMenuColors.blur, group: 'retouch' },
-    { id: 'sharpen', icon: Scan, label: 'Sharpen Tool', color: APP_THEME.circularMenuColors.sharpen, group: 'retouch' },
-    { id: 'dodge', icon: Sun, label: 'Dodge Tool', color: APP_THEME.circularMenuColors.dodge, group: 'retouch' },
-    { id: 'burn', icon: Flame, label: 'Burn Tool', color: APP_THEME.circularMenuColors.dodge, group: 'retouch' },
-    { id: 'sponge', icon: Droplets, label: 'Sponge Tool', color: APP_THEME.circularMenuColors.dodge, group: 'retouch' },
-
-    { id: 'text', icon: Type, label: 'Text', color: APP_THEME.circularMenuColors.text, group: 'create' },
-    { id: 'shapes', icon: Shapes, label: 'Shapes', color: APP_THEME.circularMenuColors.shapes, group: 'create' },
-    { id: 'paint', icon: Brush, label: 'Paint', color: APP_THEME.circularMenuColors.paint, group: 'create' },
-    { id: 'pen', icon: PenTool, label: 'Pen', color: APP_THEME.circularMenuColors.pen, group: 'create' },
-    { id: 'gradient', icon: PaintBucket, label: 'Fill / Gradient', color: APP_THEME.circularMenuColors.gradient, group: 'create' },
-
-    { id: 'assets', icon: ImageIcon, label: 'Gallery', color: APP_THEME.circularMenuColors.assets, group: 'library' },
-    { id: 'templates', icon: LayoutTemplate, label: 'Library', color: APP_THEME.circularMenuColors.templates, group: 'library' },
-    { id: 'ai-zone', icon: Sparkles, label: 'AI Zone', color: APP_THEME.circularMenuColors.aiZone, group: 'library' },
-    { id: 'channels', icon: LayoutGrid, label: 'Channels', color: APP_THEME.circularMenuColors.templates, group: 'library' },
-    { id: '3d-gen', icon: Box, label: 'AI 3D', color: APP_THEME.circularMenuColors.threeD, group: 'library' },
-];
-
 const GROUP_ORDER: Array<CircularMenuItem['group']> = ['select', 'retouch', 'create', 'library'];
 
 const LAYER_ORDER_ITEMS: Array<{
@@ -126,6 +93,37 @@ export default function CircularContextMenu({
     layerOrderState
 }: CircularContextMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
+    const appTheme = useAppTheme();
+
+    const menuItems: CircularMenuItem[] = [
+        { id: 'select', icon: Move, label: 'Move', color: appTheme.circularMenuColors.select, group: 'select' },
+        { id: 'marquee', icon: Square, label: 'Marquee', color: appTheme.circularMenuColors.marquee, group: 'select' },
+        { id: 'lasso', icon: LassoSelect, label: 'Lasso', color: appTheme.circularMenuColors.lasso, group: 'select' },
+        { id: 'wand', icon: Wand2, label: 'Magic Wand', color: appTheme.circularMenuColors.wand, group: 'select' },
+        { id: 'quick-select', icon: SquareMousePointer, label: 'Quick Selection', color: appTheme.circularMenuColors.wand, group: 'select' },
+        { id: 'selection-brush', icon: PaintbrushVertical, label: 'Selection Brush', color: appTheme.circularMenuColors.paint, group: 'select' },
+        { id: 'path-select', icon: Pointer, label: 'Path Select', color: appTheme.circularMenuColors.pathSelect, group: 'select' },
+        { id: 'spot-healing', icon: Bandage, label: 'Spot Healing', color: appTheme.circularMenuColors.healing, group: 'retouch' },
+        { id: 'remove', icon: Eraser, label: 'Remove Tool', color: appTheme.circularMenuColors.healing, group: 'retouch' },
+        { id: 'healing', icon: ShieldCheck, label: 'Healing Brush', color: appTheme.circularMenuColors.healing, group: 'retouch' },
+        { id: 'clone-stamp', icon: Copy, label: 'Clone Stamp', color: appTheme.circularMenuColors.cloneStamp, group: 'retouch' },
+        { id: 'history-brush', icon: History, label: 'History Brush', color: appTheme.circularMenuColors.historyBrush, group: 'retouch' },
+        { id: 'blur', icon: Blend, label: 'Blur Tool', color: appTheme.circularMenuColors.blur, group: 'retouch' },
+        { id: 'sharpen', icon: Scan, label: 'Sharpen Tool', color: appTheme.circularMenuColors.sharpen, group: 'retouch' },
+        { id: 'dodge', icon: Sun, label: 'Dodge Tool', color: appTheme.circularMenuColors.dodge, group: 'retouch' },
+        { id: 'burn', icon: Flame, label: 'Burn Tool', color: appTheme.circularMenuColors.dodge, group: 'retouch' },
+        { id: 'sponge', icon: Droplets, label: 'Sponge Tool', color: appTheme.circularMenuColors.dodge, group: 'retouch' },
+        { id: 'text', icon: Type, label: 'Text', color: appTheme.circularMenuColors.text, group: 'create' },
+        { id: 'shapes', icon: Shapes, label: 'Shapes', color: appTheme.circularMenuColors.shapes, group: 'create' },
+        { id: 'paint', icon: Brush, label: 'Paint', color: appTheme.circularMenuColors.paint, group: 'create' },
+        { id: 'pen', icon: PenTool, label: 'Pen', color: appTheme.circularMenuColors.pen, group: 'create' },
+        { id: 'gradient', icon: PaintBucket, label: 'Fill / Gradient', color: appTheme.circularMenuColors.gradient, group: 'create' },
+        { id: 'assets', icon: ImageIcon, label: 'Gallery', color: appTheme.circularMenuColors.assets, group: 'library' },
+        { id: 'templates', icon: LayoutTemplate, label: 'Library', color: appTheme.circularMenuColors.templates, group: 'library' },
+        { id: 'ai-zone', icon: Sparkles, label: 'AI Zone', color: appTheme.circularMenuColors.aiZone, group: 'library' },
+        { id: 'channels', icon: LayoutGrid, label: 'Channels', color: appTheme.circularMenuColors.templates, group: 'library' },
+        { id: '3d-gen', icon: Box, label: 'AI 3D', color: appTheme.circularMenuColors.threeD, group: 'library' },
+    ];
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -154,7 +152,7 @@ export default function CircularContextMenu({
 
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
-    const itemCount = MENU_ITEMS.length;
+    const itemCount = menuItems.length;
     const minArcSpacing = 48;
     const idealRadius = Math.max(72, Math.ceil((itemCount * minArcSpacing) / (2 * Math.PI)));
     const maxViewportRadius = viewportWidth > 0 && viewportHeight > 0
@@ -167,7 +165,7 @@ export default function CircularContextMenu({
     const menuY = viewportHeight > 0 ? Math.min(Math.max(y, safeMargin), viewportHeight - safeMargin) : y;
     const groupedItems = GROUP_ORDER.map((groupId) => ({
         groupId,
-        items: MENU_ITEMS.filter((item) => item.group === groupId),
+        items: menuItems.filter((item) => item.group === groupId),
     }));
     const groupGapAngle = 11;
     const totalGapAngle = groupGapAngle * groupedItems.length;

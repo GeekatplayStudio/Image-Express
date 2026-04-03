@@ -16,7 +16,7 @@ import type { GridType } from '@/components/GridOverlay';
 import { ColorPalette } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
-import { APP_THEME } from '@/lib/theme-tokens';
+import useAppTheme from '@/hooks/useAppTheme';
 import { useMediaOverlay } from '@/components/Editor/useMediaOverlay';
 import { useEditorExport } from '@/components/Editor/useEditorExport';
 import { useEditorPersistence } from '@/components/Editor/useEditorPersistence';
@@ -111,6 +111,7 @@ export default function EditorView({
     settingsOpen,
     initialActiveTool
 }: EditorViewProps) {
+    const appTheme = useAppTheme();
     const dialog = useDialog();
     const { toast } = useToast();
 
@@ -348,7 +349,7 @@ export default function EditorView({
         handleShapeFixedSizeChange,
     } = useEditorShapeGradientControls({
         canvas,
-        initialShapeFillColor: APP_THEME.shapeDefaultFillHex,
+        initialShapeFillColor: appTheme.shapeDefaultFillHex,
     });
 
     const {

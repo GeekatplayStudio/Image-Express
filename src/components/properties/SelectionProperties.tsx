@@ -125,7 +125,7 @@ export function SelectionProperties({
     onDetachTextPath
 }: SelectionPropertiesProps) {
 
-    const [isTransformOpen, setIsTransformOpen] = useState(false); // Collapsed by default
+    const [isTransformOpen, setIsTransformOpen] = useState(true);
     const [colorMode, setColorMode] = useState<'RGB' | 'HSB' | 'CMYK' | 'Lab'>('RGB');
 
     const isMultiple = selectedObjects.length > 1;
@@ -300,7 +300,9 @@ export function SelectionProperties({
                             scaleX={selectedObject.scaleX || 1}
                             scaleY={selectedObject.scaleY || 1}
                             isLocked={!!selectedObject.lockMovementX}
+                            pseudoBacksidePreset={effectState.skew.preset || 'front'}
                             onChange={handleTransform}
+                            onPresetChange={(preset) => onPropChange('pseudoBacksidePreset', preset)}
                         />
                          <SkewTaperProperties 
                             values={{
@@ -311,7 +313,6 @@ export function SelectionProperties({
                                 pseudoBacksidePreset: effectState.skew.preset || 'front'
                             }}
                             onChange={(k, v) => onPropChange(k, v)}
-                            onPresetChange={(preset) => onPropChange('pseudoBacksidePreset', preset)}
                         />
                      </div>
                 )}

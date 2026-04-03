@@ -45,8 +45,9 @@ describe('DocumentationModal', () => {
             const href = link.getAttribute('href');
             return href?.startsWith('#');
         });
-        expect(chapterLinks).toHaveLength(13);
-        expect(screen.getByRole('link', { name: 'Dashboard Overview' })).toHaveAttribute('href', '#dashboard');
+        expect(Array.from(new Set(chapterLinks.map((link) => link.getAttribute('href'))))).toHaveLength(13);
+        expect(screen.getAllByRole('link', { name: 'Dashboard Overview' }).every((link) => link.getAttribute('href') === '#dashboard')).toBe(true);
+        expect(screen.getByText('Floating chapter options')).toBeInTheDocument();
 
         const githubLink = screen.getByRole('link', { name: /GitHub/i });
         expect(githubLink).toHaveAttribute('href', 'https://github.com/GeekatplayStudio');
@@ -59,7 +60,7 @@ describe('DocumentationModal', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Close documentation' }));
         expect(onClose).toHaveBeenCalledTimes(1);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Close Manual' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Close manual from side panel' }));
         expect(onClose).toHaveBeenCalledTimes(2);
 
         const [handler, options] = mockUseEscapeKey.mock.calls[0];

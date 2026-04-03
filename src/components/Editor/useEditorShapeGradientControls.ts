@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 
 import { normalizeColorValue, parseColorWithAlpha } from '@/lib/fabric-utils';
@@ -42,6 +42,7 @@ export function useEditorShapeGradientControls({
 
     const [shapeTopMode, setShapeTopMode] = useState<ShapeMode>('shape');
     const [shapeTopFillColor, setShapeTopFillColor] = useState<string>(initialShapeFillColor);
+    const previousInitialShapeFillColorRef = useRef(initialShapeFillColor);
     const [shapeTopStrokeColor, setShapeTopStrokeColor] = useState('#111827');
     const [shapeTopStrokeWidth, setShapeTopStrokeWidth] = useState(0);
     const [shapeTopCornerRadius, setShapeTopCornerRadius] = useState(0);
@@ -53,6 +54,18 @@ export function useEditorShapeGradientControls({
         if ((obj as ExtendedFabricObject).isStar) return true;
         return ['rect', 'circle', 'triangle', 'polygon', 'polyline', 'path', 'ellipse', 'line'].includes(obj.type || '');
     }, []);
+
+    useEffect(() => {
+        setShapeTopFillColor((prev) => {
+            if (prev !== previousInitialShapeFillColorRef.current) {
+                previousInitialShapeFillColorRef.current = initialShapeFillColor;
+                return prev;
+            }
+
+            previousInitialShapeFillColorRef.current = initialShapeFillColor;
+            return initialShapeFillColor;
+        });
+    }, [initialShapeFillColor]);
 
     const emitShapeTopConfig = useCallback((overrides?: ShapeConfigOverrides) => {
         if (!canvas) return;

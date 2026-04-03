@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import Dashboard from '../Dashboard';
 import { DialogProvider } from '@/providers/DialogProvider';
@@ -9,7 +9,7 @@ import { ToastProvider } from '@/providers/ToastProvider';
 jest.mock('next/image', () => ({
     __esModule: true,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @next/next/no-img-element, jsx-a11y/alt-text
-    default: ({ fill, ...props }: any) => <img {...props} data-fill={fill} /> 
+    default: ({ fill, unoptimized, ...props }: any) => <img {...props} data-fill={fill} data-unoptimized={unoptimized} /> 
 }));
 
 // Mock fetch
@@ -24,8 +24,15 @@ describe('Dashboard Component', () => {
     const mockOnSelectTemplate = jest.fn();
     const mockOnOpenDesign = jest.fn();
 
-    const renderDashboard = () => {
-        return render(
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (global.fetch as jest.Mock).mockResolvedValue({
+            json: () => Promise.resolve({ success: true, designs: [] }),
+        });
+    });
+
+    const renderDashboard = async () => {
+        const view = render(
             <DialogProvider>
                 <ToastProvider>
                     <Dashboard 
@@ -36,17 +43,23 @@ describe('Dashboard Component', () => {
                 </ToastProvider>
             </DialogProvider>
         );
+
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalled();
+        });
+
+        return view;
     };
 
-    it('renders the quote header', () => {
-        renderDashboard();
+    it('renders the quote header', async () => {
+        await renderDashboard();
         // Check for quotes (assuming at least one exists)
         // Since quotes are random, just check if a header is present
         expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     });
 
-    it('allows searching templates', () => {
-        renderDashboard();
+    it('allows searching templates', async () => {
+        await renderDashboard();
         const searchInput = screen.getByPlaceholderText(/Search templates/i);
         expect(searchInput).not.toBeDisabled();
 
@@ -61,8 +74,8 @@ describe('Dashboard Component', () => {
         // Let's assume search works.
     });
 
-    it('calls onNewDesign with correct tool when action buttons clicked', () => {
-        renderDashboard();
+    it('calls onNewDesign with correct tool when action buttons clicked', async () => {
+        await renderDashboard();
         
         // Custom Size (new) logic: now opens a modal first
         const customSizeBtns = screen.getAllByText('Custom Size');
@@ -87,8 +100,8 @@ describe('Dashboard Component', () => {
         expect(mockOnNewDesign).toHaveBeenCalledWith('3d');
     });
 
-    it('lets users clear and retype custom size without forced zero', () => {
-        renderDashboard();
+    it('lets users clear and retype custom size without forced zero', async () => {
+        await renderDashboard();
         mockOnNewDesign.mockClear();
 
         const customSizeBtns = screen.getAllByText('Custom Size');
@@ -112,8 +125,8 @@ describe('Dashboard Component', () => {
         expect(mockOnNewDesign).toHaveBeenCalledWith(undefined, { width: 1920, height: 1080 });
     });
 
-    it('filters templates by category', () => {
-        renderDashboard();
+    it('filters templates by category', async () => {
+        await renderDashboard();
         const webTab = screen.getByText('Web');
         fireEvent.click(webTab);
         
@@ -121,5 +134,34 @@ describe('Dashboard Component', () => {
         // "Instagram Post" is Type 'Social Media'.
         // Assuming "Website Hero" is present
         expect(screen.getByText('Website Hero')).toBeInTheDocument();
+    });
+
+    it('shows hub version tracking label in footer', async () => {
+        await renderDashboard();
+        const versionLabel = screen.getByTestId('hub-version-label');
+        expect(versionLabel).toBeInTheDocument();
+        expect(versionLabel.textContent).toMatch(/Version/i);
+        expect(versionLabel.textContent).toMatch(/subversion/i);
+        expect(versionLabel.textContent).toMatch(/commit/i);
+    });
+
+    it('renders saved project screenshots when the API returns image-only previews', async () => {
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+            json: () => Promise.resolve({
+                success: true,
+                designs: [
+                    {
+                        id: 'project-1',
+                        name: 'Project One',
+                        image: '/assets/designs/project-1.png',
+                        lastModified: new Date('2026-04-03T12:00:00.000Z').toISOString(),
+                    },
+                ],
+            }),
+        });
+
+        await renderDashboard();
+
+        expect(await screen.findByAltText('Project One')).toHaveAttribute('src', '/assets/designs/project-1.png');
     });
 });

@@ -1,7 +1,39 @@
 'use client';
 
 export type AssetStorageMode = 'local' | 'hybrid' | 'cloud';
-export type AssetCloudProvider = 'google-drive';
+export type AssetCloudProvider = 'google-drive' | 'dropbox' | 'onedrive' | 's3-compatible';
+
+export const ASSET_CLOUD_PROVIDER_OPTIONS: Array<{
+    id: AssetCloudProvider;
+    label: string;
+    availability: 'available' | 'planned';
+    description: string;
+}> = [
+    {
+        id: 'google-drive',
+        label: 'Google Drive',
+        availability: 'available',
+        description: 'Fully integrated today for asset sync and design backup.',
+    },
+    {
+        id: 'dropbox',
+        label: 'Dropbox',
+        availability: 'planned',
+        description: 'Provider slot is wired, but the Dropbox adapter is not implemented yet.',
+    },
+    {
+        id: 'onedrive',
+        label: 'OneDrive',
+        availability: 'planned',
+        description: 'Provider slot is wired, but the OneDrive adapter is not implemented yet.',
+    },
+    {
+        id: 's3-compatible',
+        label: 'S3-compatible',
+        availability: 'planned',
+        description: 'Provider slot is wired, but S3-compatible storage setup is not implemented yet.',
+    },
+];
 
 export interface AssetStorageSettings {
     mode: AssetStorageMode;
@@ -20,6 +52,18 @@ const DEFAULT_SETTINGS: AssetStorageSettings = {
     includeLegacyServerAssetsInHybrid: true
 };
 
+export function isAssetCloudProvider(value: unknown): value is AssetCloudProvider {
+    return ASSET_CLOUD_PROVIDER_OPTIONS.some((option) => option.id === value);
+}
+
+export function getAssetCloudProviderLabel(provider: AssetCloudProvider) {
+    return ASSET_CLOUD_PROVIDER_OPTIONS.find((option) => option.id === provider)?.label || 'Cloud';
+}
+
+export function isImplementedAssetCloudProvider(provider: AssetCloudProvider) {
+    return provider === 'google-drive';
+}
+
 export function loadAssetStorageSettings(): AssetStorageSettings {
     if (typeof window === 'undefined') return DEFAULT_SETTINGS;
     try {
@@ -30,7 +74,7 @@ export function loadAssetStorageSettings(): AssetStorageSettings {
         const mode: AssetStorageMode = parsed.mode === 'local' || parsed.mode === 'hybrid' || parsed.mode === 'cloud'
             ? parsed.mode
             : DEFAULT_SETTINGS.mode;
-        const cloudProvider: AssetCloudProvider = parsed.cloudProvider === 'google-drive'
+        const cloudProvider: AssetCloudProvider = isAssetCloudProvider(parsed.cloudProvider)
             ? parsed.cloudProvider
             : DEFAULT_SETTINGS.cloudProvider;
 

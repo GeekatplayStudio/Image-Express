@@ -4,6 +4,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import CircularContextMenu from '../CircularContextMenu';
 
 describe('CircularContextMenu', () => {
+    afterEach(() => {
+        document.documentElement.dataset.themeAccent = 'ocean';
+    });
+
     it('highlights the active tool and routes tool selection through the shared callback', () => {
         const onSelectTool = jest.fn();
         const onClose = jest.fn();
@@ -88,5 +92,26 @@ describe('CircularContextMenu', () => {
 
         fireEvent.click(moveUpButton);
         expect(onLayerOrderAction).toHaveBeenCalledWith('move-up');
+    });
+
+    it('uses the active accent palette for inactive tool icon colors', () => {
+        document.documentElement.dataset.themeAccent = 'meadow';
+
+        render(
+            <CircularContextMenu
+                x={160}
+                y={140}
+                isOpen={true}
+                activeTool="select"
+                onClose={jest.fn()}
+                onSelectTool={jest.fn()}
+            />
+        );
+
+        const lassoButton = screen.getByRole('button', { name: 'Lasso' });
+        const lassoIcon = lassoButton.querySelector('svg');
+
+        expect(lassoIcon).not.toBeNull();
+        expect(lassoIcon).toHaveStyle({ color: '#15803d' });
     });
 });

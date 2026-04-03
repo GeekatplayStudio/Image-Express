@@ -140,7 +140,7 @@ export default function EditorPropertiesPanels({
     return (
         <>
             {placement === 'before-main' && panelState.mode === 'docked-left' && (
-                <aside style={{ width: panelState.width }} className="bg-card border-r flex flex-col z-10 shadow-xl overflow-hidden shrink-0 relative">
+                <aside style={{ width: panelState.width }} className="relative z-10 flex min-h-0 shrink-0 flex-col overflow-hidden border-r bg-card shadow-xl">
                     <div className="h-8 bg-muted border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground"><GripHorizontal size={14} /> Properties</div>
                         <div className="flex gap-1">
@@ -148,7 +148,7 @@ export default function EditorPropertiesPanels({
                             <button onClick={toggleCollapse} className="p-0.5 hover:bg-background rounded"><ChevronLeft size={12} /></button>
                         </div>
                     </div>
-                    <div className="flex-1 overflow-hidden relative">
+                    <div className="relative flex-1 min-h-0 overflow-hidden">
                         {renderPropertiesPanel(false)}
                     </div>
                     <div
@@ -165,7 +165,7 @@ export default function EditorPropertiesPanels({
             )}
 
             {placement === 'after-main' && panelState.mode === 'docked-right' && (
-                <aside style={{ width: panelState.width }} className="bg-card border-l flex flex-col z-10 shadow-xl overflow-hidden shrink-0 relative">
+                <aside style={{ width: panelState.width }} className="relative z-10 flex min-h-0 shrink-0 flex-col overflow-hidden border-l bg-card shadow-xl">
                     <div className="h-8 bg-muted border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground"><GripHorizontal size={14} /> Properties</div>
                         <div className="flex gap-1">
@@ -173,7 +173,7 @@ export default function EditorPropertiesPanels({
                             <button onClick={toggleCollapse} className="p-0.5 hover:bg-background rounded"><ChevronRight size={12} /></button>
                         </div>
                     </div>
-                    <div className="flex-1 overflow-hidden relative">
+                    <div className="relative flex-1 min-h-0 overflow-hidden">
                         {renderPropertiesPanel(true)}
                     </div>
                     <div
@@ -196,9 +196,9 @@ export default function EditorPropertiesPanels({
                         left: panelState.position.x,
                         top: panelState.position.y,
                         width: panelState.width,
-                        height: '70vh',
+                        height: 'min(70vh, calc(100vh - 1rem))',
                     }}
-                    className="z-50 shadow-2xl border rounded-xl overflow-hidden bg-card flex flex-col animate-in fade-in zoom-in-95 duration-200"
+                    className="z-50 flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200"
                 >
                     <div className="h-8 bg-secondary border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
                         <div className="flex items-center gap-2 text-xs font-semibold"><GripHorizontal size={14} /> Properties (Floating)</div>
@@ -206,7 +206,7 @@ export default function EditorPropertiesPanels({
                             <button onClick={toggleFloat} className="p-0.5 hover:bg-background rounded" title="Dock Right"><Minimize size={12} /></button>
                         </div>
                     </div>
-                    <div className="flex-1 overflow-hidden relative">
+                    <div className="relative flex-1 min-h-0 overflow-hidden">
                         {renderPropertiesPanel(true)}
                     </div>
                 </div>

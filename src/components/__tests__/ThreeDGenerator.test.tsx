@@ -81,4 +81,29 @@ describe('ThreeDGenerator', () => {
             method: 'POST',
         }));
     });
+
+    it('keeps Hitems back preview controls visible in single-image mode', async () => {
+        window.localStorage.setItem('image-express-3d-provider', 'hitems');
+        window.localStorage.setItem('hitems_api_key', 'ak_test:sk_test');
+        window.localStorage.setItem('hitems_back_layer_id', 'back-layer');
+
+        render(
+            <ThreeDGenerator
+                onAddToCanvas={jest.fn()}
+                onClose={jest.fn()}
+                onStartBackgroundJob={jest.fn()}
+                initialImage="/front.png"
+                layerImageOptions={[
+                    { id: 'front-layer', label: 'Front art', imageUrl: '/front-layer.png' },
+                    { id: 'back-layer', label: 'Back art', imageUrl: '/back-layer.png' },
+                ]}
+            />
+        );
+
+        expect(await screen.findByText('Back Preview')).toBeInTheDocument();
+        expect(screen.getByText('Saved for multi-view')).toBeInTheDocument();
+        expect(screen.getByText('Back Layer')).toBeInTheDocument();
+        expect(screen.getByAltText('Back layer preview')).toHaveAttribute('src', '/back-layer.png');
+        expect(screen.getByText(/Back artwork stays visible here/i)).toBeInTheDocument();
+    });
 });

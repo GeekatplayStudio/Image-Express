@@ -1,10 +1,11 @@
 'use client';
 
-import type { ComponentProps, ReactNode, RefObject } from 'react';
+import { useState, type ComponentProps, type ReactNode, type RefObject } from 'react';
 
 import CircularContextMenu from '@/components/CircularContextMenu';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import Toolbar, { type ToolbarHandle } from '@/components/Toolbar';
+import { cn } from '@/lib/utils';
 
 type ToolbarProps = ComponentProps<typeof Toolbar>;
 type ContextMenuProps = ComponentProps<typeof CircularContextMenu>;
@@ -29,11 +30,26 @@ export default function EditorWorkspaceShell({
     jobFooterProps,
     contextMenuProps,
 }: EditorWorkspaceShellProps) {
+    const [isToolbarExpanded, setIsToolbarExpanded] = useState(false);
+
     return (
         <>
-            <div className="flex flex-1 overflow-hidden relative">
-                <aside className="w-[60px] bg-card border-r flex flex-col items-center py-2 z-20 shadow-xl relative overflow-visible">
-                    <Toolbar ref={toolbarRef} {...toolbarProps} />
+            <div className="relative flex flex-1 min-h-0 overflow-hidden">
+                <aside
+                    className={cn(
+                        'relative z-20 flex min-h-0 flex-col items-center overflow-y-auto overflow-x-hidden border-r bg-card py-2 shadow-xl transition-[width] duration-200 ease-out',
+                        isToolbarExpanded ? 'w-[236px]' : 'w-[60px]'
+                    )}
+                    data-testid="toolbar-shell"
+                >
+                    <Toolbar
+                        ref={toolbarRef}
+                        {...toolbarProps}
+                        onRailExpandedChange={(expanded) => {
+                            toolbarProps.onRailExpandedChange?.(expanded);
+                            setIsToolbarExpanded(expanded);
+                        }}
+                    />
                 </aside>
                 {beforeWorkspace}
                 {workspace}

@@ -1,10 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight, Cloud, HardDrive, Loader2, Sparkles, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Cloud, HardDrive, Loader2, RefreshCcw, Sparkles, X } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { connectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
-import { loadAssetStorageSettings, saveAssetStorageSettings, type AssetStorageMode } from '@/lib/assetStorageSettings';
+import {
+    ASSET_CLOUD_PROVIDER_OPTIONS,
+    getAssetCloudProviderLabel,
+    isImplementedAssetCloudProvider,
+    loadAssetStorageSettings,
+    saveAssetStorageSettings,
+    type AssetCloudProvider,
+    type AssetStorageMode,
+} from '@/lib/assetStorageSettings';
 import {
     GENERATIVE_PROVIDER_OPTIONS,
     GENERATIVE_WORKFLOW_OPTIONS,
@@ -18,6 +26,14 @@ import {
 } from '@/lib/generative-preferences';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 import { DEFAULT_COMFY_LOCAL_URL } from '@/lib/comfyui/connection';
+import {
+    fetchInstallerRuntimeStatus,
+    type InstallerRuntimeStatus,
+} from '@/lib/installerRuntimeStatus';
+import {
+    runInstallerRuntime,
+    type InstallerRunResult,
+} from '@/lib/installerRuntimeRun';
 
 interface SetupWizardModalProps {
     isOpen: boolean;
@@ -37,14 +53,18 @@ const ENV_DRIVE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? ''
 const STEPS = [
     { id: 'welcome', title: 'Welcome', description: 'Understand what gets configured.' },
     { id: 'storage', title: 'Asset Storage', description: 'Choose local, hybrid, or cloud mode.' },
-    { id: 'drive', title: 'Google Drive', description: 'Connect your personal cloud.' },
+    { id: 'drive', title: 'Cloud Connection', description: 'Connect your selected provider or review planned-provider status.' },
     { id: 'api', title: 'API Keys', description: 'Optional AI key setup.' },
+    { id: 'runtime', title: 'Runtime Check', description: 'Verify local AI dependencies are ready.' },
     { id: 'finish', title: 'Finish', description: 'Review and start creating.' },
 ] as const;
+
+type SetupWizardStepId = (typeof STEPS)[number]['id'];
 
 export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupWizardModalProps) {
     const [stepIndex, setStepIndex] = useState(0);
     const [storageMode, setStorageMode] = useState<AssetStorageMode>('hybrid');
+    const [cloudProvider, setCloudProvider] = useState<AssetCloudProvider>('google-drive');
     const [hybridUploadToCloudByDefault, setHybridUploadToCloudByDefault] = useState(false);
     const [includeLegacyServerAssetsInHybrid, setIncludeLegacyServerAssetsInHybrid] = useState(true);
 
@@ -64,15 +84,64 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
     const [suppressNumberDragHints, setSuppressNumberDragHints] = useState(false);
     const [appOrigin, setAppOrigin] = useState('http://localhost:3000');
+    const [installerStatus, setInstallerStatus] = useState<InstallerRuntimeStatus | null>(null);
+    const [installerStatusState, setInstallerStatusState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [installerStatusMessage, setInstallerStatusMessage] = useState('');
+    const [runInstallerDryRun, setRunInstallerDryRun] = useState(true);
+    const [runInstallerComfy, setRunInstallerComfy] = useState(true);
+    const [runInstallerBundles, setRunInstallerBundles] = useState(true);
+    const [runInstallerComfyModels, setRunInstallerComfyModels] = useState(false);
+    const [runInstallerOllamaModels, setRunInstallerOllamaModels] = useState(false);
+    const [runInstallerQa, setRunInstallerQa] = useState(true);
+    const [runInstallerAutoFix, setRunInstallerAutoFix] = useState(true);
+    const [runInstallerForce, setRunInstallerForce] = useState(false);
+    const [runInstallerSkipTests, setRunInstallerSkipTests] = useState(false);
+    const [runInstallerContinueOnError, setRunInstallerContinueOnError] = useState(false);
+    const [selectedComfyModelIds, setSelectedComfyModelIds] = useState<string[]>([]);
+    const [selectedOllamaModelIds, setSelectedOllamaModelIds] = useState<string[]>([]);
+    const [installerRunState, setInstallerRunState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+    const [installerRunMessage, setInstallerRunMessage] = useState('');
+    const [installerRunResult, setInstallerRunResult] = useState<InstallerRunResult | null>(null);
 
     useEscapeKey(onClose, { enabled: isOpen });
+
+    const loadInstallerStatus = useCallback(async () => {
+        setInstallerStatusState('loading');
+        setInstallerStatusMessage('');
+        try {
+            const status = await fetchInstallerRuntimeStatus();
+            setInstallerStatus(status);
+            setInstallerStatusState('success');
+        } catch (error) {
+            setInstallerStatusState('error');
+            setInstallerStatusMessage(
+                error instanceof Error ? error.message : 'Failed to load runtime readiness.',
+            );
+        }
+    }, []);
 
     useEffect(() => {
         if (!isOpen) return;
         setStepIndex(0);
+        setRunInstallerDryRun(true);
+        setRunInstallerComfy(true);
+        setRunInstallerBundles(true);
+        setRunInstallerComfyModels(false);
+        setRunInstallerOllamaModels(false);
+        setRunInstallerQa(true);
+        setRunInstallerAutoFix(true);
+        setRunInstallerForce(false);
+        setRunInstallerSkipTests(false);
+        setRunInstallerContinueOnError(false);
+        setSelectedComfyModelIds([]);
+        setSelectedOllamaModelIds([]);
+        setInstallerRunState('idle');
+        setInstallerRunMessage('');
+        setInstallerRunResult(null);
 
         const storageSettings = loadAssetStorageSettings();
         setStorageMode(storageSettings.mode);
+        setCloudProvider(storageSettings.cloudProvider);
         setHybridUploadToCloudByDefault(storageSettings.hybridUploadToCloudByDefault);
         setIncludeLegacyServerAssetsInHybrid(storageSettings.includeLegacyServerAssetsInHybrid);
 
@@ -97,7 +166,86 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
             setGoogleKey(window.localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
             setBananaKey(window.localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
         }
-    }, [isOpen]);
+        void loadInstallerStatus();
+    }, [isOpen, loadInstallerStatus]);
+
+    useEffect(() => {
+        if (!installerStatus) {
+            return;
+        }
+        if (selectedComfyModelIds.length === 0) {
+            setSelectedComfyModelIds(installerStatus.comfyModels.map((model) => model.id));
+        }
+        if (selectedOllamaModelIds.length === 0) {
+            setSelectedOllamaModelIds(installerStatus.ollama.configuredModels.map((model) => model.id));
+        }
+    }, [installerStatus, selectedComfyModelIds.length, selectedOllamaModelIds.length]);
+
+    const handleToggleComfyModel = useCallback((modelId: string, checked: boolean) => {
+        setSelectedComfyModelIds((current) => {
+            if (checked) {
+                return current.includes(modelId) ? current : [...current, modelId];
+            }
+            return current.filter((id) => id !== modelId);
+        });
+    }, []);
+
+    const handleToggleOllamaModel = useCallback((modelId: string, checked: boolean) => {
+        setSelectedOllamaModelIds((current) => {
+            if (checked) {
+                return current.includes(modelId) ? current : [...current, modelId];
+            }
+            return current.filter((id) => id !== modelId);
+        });
+    }, []);
+
+    const handleRunInstaller = useCallback(async () => {
+        setInstallerRunState('running');
+        setInstallerRunMessage('');
+        setInstallerRunResult(null);
+        try {
+            const result = await runInstallerRuntime({
+                dryRun: runInstallerDryRun,
+                installComfy: runInstallerComfy,
+                installCustomBundles: runInstallerBundles,
+                installComfyModels: runInstallerComfyModels,
+                comfyModelIds: selectedComfyModelIds,
+                installOllamaModels: runInstallerOllamaModels,
+                ollamaModelIds: selectedOllamaModelIds,
+                runQa: runInstallerQa,
+                autoFix: runInstallerAutoFix,
+                force: runInstallerForce,
+                skipTests: runInstallerSkipTests,
+                continueOnError: runInstallerContinueOnError,
+            });
+            setInstallerRunResult(result);
+            if (result.success) {
+                setInstallerRunState('success');
+                setInstallerRunMessage('Installer workflow completed successfully.');
+            } else {
+                setInstallerRunState('error');
+                setInstallerRunMessage(`Installer completed with ${result.summary.failedSteps} failed step${result.summary.failedSteps === 1 ? '' : 's'}.`);
+            }
+            await loadInstallerStatus();
+        } catch (error) {
+            setInstallerRunState('error');
+            setInstallerRunMessage(error instanceof Error ? error.message : 'Installer workflow failed.');
+        }
+    }, [
+        loadInstallerStatus,
+        runInstallerAutoFix,
+        runInstallerBundles,
+        runInstallerComfy,
+        runInstallerComfyModels,
+        runInstallerContinueOnError,
+        runInstallerDryRun,
+        runInstallerForce,
+        runInstallerOllamaModels,
+        runInstallerQa,
+        runInstallerSkipTests,
+        selectedComfyModelIds,
+        selectedOllamaModelIds,
+    ]);
 
     useEffect(() => {
         if (isWorkflowSupportedByProvider(defaultGenerativeProvider, defaultGenerativeWorkflow)) return;
@@ -113,13 +261,25 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     const isDriveStepOptional = storageMode === 'local';
     const shouldNudgeDriveConnection = useMemo(() => {
         if (storageMode === 'local') return false;
+        if (!isImplementedAssetCloudProvider(cloudProvider)) return false;
         return !driveConnected;
-    }, [storageMode, driveConnected]);
+    }, [cloudProvider, storageMode, driveConnected]);
+
+    useEffect(() => {
+        if (!isImplementedAssetCloudProvider(cloudProvider) && storageMode === 'cloud') {
+            setStorageMode('hybrid');
+        }
+    }, [cloudProvider, storageMode]);
+
+    const selectedCloudProviderOption = ASSET_CLOUD_PROVIDER_OPTIONS.find((provider) => provider.id === cloudProvider)
+        || ASSET_CLOUD_PROVIDER_OPTIONS[0];
+    const selectedCloudProviderLabel = getAssetCloudProviderLabel(cloudProvider);
+    const selectedCloudProviderIsImplemented = isImplementedAssetCloudProvider(cloudProvider);
 
     const persistStorageSettings = () => {
         saveAssetStorageSettings({
             mode: storageMode,
-            cloudProvider: 'google-drive',
+            cloudProvider,
             hybridUploadToCloudByDefault,
             includeLegacyServerAssetsInHybrid,
         });
@@ -182,6 +342,8 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
         setStepIndex((prev) => Math.max(prev - 1, 0));
     };
 
+    const visitedStepIds = new Set<SetupWizardStepId>(STEPS.slice(0, stepIndex + 1).map((item) => item.id));
+
     if (!isOpen) return null;
 
     return (
@@ -196,6 +358,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         <p className="text-xs text-muted-foreground mt-1">
                             Step {stepIndex + 1} of {STEPS.length}: {step.title}
                         </p>
+                        <p className="text-[11px] text-muted-foreground mt-1">{step.description}</p>
                     </div>
                     <button
                         onClick={onClose}
@@ -207,10 +370,15 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                 </div>
 
                 <div className="px-6 py-4 border-b border-border/50">
-                    <div className="grid grid-cols-5 gap-2">
+                    <div
+                        className="grid gap-2"
+                        style={{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))` }}
+                    >
                         {STEPS.map((item, index) => (
                             <div key={item.id} className="space-y-1">
-                                <div className={`h-1.5 rounded-full ${index <= stepIndex ? 'bg-primary' : 'bg-secondary/60'}`} />
+                                <div
+                                    className={`h-1.5 rounded-full ${visitedStepIds.has(item.id) ? 'bg-primary' : 'bg-secondary/60'}`}
+                                />
                                 <p className={`text-[10px] ${index === stepIndex ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
                                     {item.title}
                                 </p>
@@ -235,6 +403,23 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                     {step.id === 'storage' && (
                         <div className="space-y-4">
                             <p className="text-sm text-foreground/90">Choose your default asset storage strategy.</p>
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold block">Cloud Provider</label>
+                                <select
+                                    value={cloudProvider}
+                                    onChange={(event) => setCloudProvider(event.target.value as AssetCloudProvider)}
+                                    className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs"
+                                >
+                                    {ASSET_CLOUD_PROVIDER_OPTIONS.map((provider) => (
+                                        <option key={provider.id} value={provider.id}>
+                                            {provider.label}{provider.availability === 'planned' ? ' (planned)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {selectedCloudProviderOption.description}
+                                </p>
+                            </div>
                             <div className="grid gap-3">
                                 <button
                                     onClick={() => setStorageMode('local')}
@@ -252,16 +437,21 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     }`}
                                 >
                                     <p className="text-sm font-semibold flex items-center gap-2"><Cloud size={14} /> Hybrid (recommended)</p>
-                                    <p className="text-xs text-muted-foreground mt-1">Save locally by default with optional Google Drive copy per upload.</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Save locally by default with optional {selectedCloudProviderLabel} copy per upload when supported.</p>
                                 </button>
                                 <button
                                     onClick={() => setStorageMode('cloud')}
+                                    disabled={!selectedCloudProviderIsImplemented}
                                     className={`text-left rounded-lg border p-4 transition-colors ${
                                         storageMode === 'cloud' ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary/30'
-                                    }`}
+                                    } ${!selectedCloudProviderIsImplemented ? 'opacity-60 cursor-not-allowed' : ''}`}
                                 >
                                     <p className="text-sm font-semibold flex items-center gap-2"><Cloud size={14} /> Cloud only</p>
-                                    <p className="text-xs text-muted-foreground mt-1">All assets are uploaded to Google Drive.</p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        {selectedCloudProviderIsImplemented
+                                            ? `All assets are uploaded to ${selectedCloudProviderLabel}.`
+                                            : `${selectedCloudProviderLabel} cloud-only mode will unlock when that provider adapter ships.`}
+                                    </p>
                                 </button>
                             </div>
                             {storageMode === 'hybrid' && (
@@ -273,7 +463,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setHybridUploadToCloudByDefault(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Pre-check “upload to Google Drive” on each asset upload
+                                        Pre-check “upload to {selectedCloudProviderLabel}” on each asset upload
                                     </label>
                                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
                                         <input
@@ -286,6 +476,11 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     </label>
                                 </div>
                             )}
+                            {!selectedCloudProviderIsImplemented && storageMode !== 'local' && (
+                                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                                    {selectedCloudProviderLabel} is planned, so this setup will keep assets local for now.
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -293,12 +488,21 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         <div className="space-y-4">
                             {isDriveStepOptional ? (
                                 <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 text-sm text-muted-foreground">
-                                    You selected local-only storage, so Google Drive is optional right now.
+                                    You selected local-only storage, so cloud connection is optional right now.
+                                </div>
+                            ) : !selectedCloudProviderIsImplemented ? (
+                                <div className="space-y-3">
+                                    <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 text-sm text-muted-foreground">
+                                        {selectedCloudProviderLabel} is selected as your future cloud provider.
+                                    </div>
+                                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                                        This provider adapter is not implemented yet, so Image Express will continue using local storage until support lands.
+                                    </div>
                                 </div>
                             ) : (
                                 <>
                                     <p className="text-sm text-foreground/90">
-                                        Connect Google Drive so assets can be stored in your personal cloud.
+                                        Connect {selectedCloudProviderLabel} so assets can be stored in your personal cloud.
                                     </p>
                                     <div className="space-y-2">
                                         <label className="text-xs font-semibold block">Google OAuth Client ID</label>
@@ -318,11 +522,11 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         className="h-9 px-4 text-xs font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-2"
                                     >
                                         {isDriveBusy ? <Loader2 size={14} className="animate-spin" /> : <Cloud size={14} />}
-                                        {driveConnected ? 'Reconnect Google Drive' : 'Connect Google Drive'}
+                                        {driveConnected ? `Reconnect ${selectedCloudProviderLabel}` : `Connect ${selectedCloudProviderLabel}`}
                                     </button>
                                     {driveConnected && (
                                         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
-                                            Google Drive connected successfully.
+                                            {selectedCloudProviderLabel} connected successfully.
                                         </div>
                                     )}
                                     {driveError && (
@@ -342,7 +546,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             <li>Enable the Google Drive API.</li>
                                             <li>Set up OAuth Consent Screen (External) and add test users during development.</li>
                                             <li>Create OAuth Client ID for Web App and add <span className="font-mono">{appOrigin}</span> as an authorized origin.</li>
-                                            <li>Paste the client ID here, then click Connect Google Drive.</li>
+                                            <li>Paste the client ID here, then click Connect {selectedCloudProviderLabel}.</li>
                                         </ol>
                                         <p>Image Express requests <span className="font-mono">drive.file</span> scope and stores files in your Drive space.</p>
                                     </div>
@@ -447,15 +651,285 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         </div>
                     )}
 
+                    {step.id === 'runtime' && (
+                        <div className="space-y-4">
+                            <p className="text-sm text-foreground/90">
+                                Check whether local ComfyUI, bundled workflows/nodes, models, and Ollama are ready.
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    onClick={() => void loadInstallerStatus()}
+                                    disabled={installerStatusState === 'loading'}
+                                    className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {installerStatusState === 'loading' ? (
+                                        <Loader2 size={13} className="animate-spin" />
+                                    ) : (
+                                        <RefreshCcw size={13} />
+                                    )}
+                                    Refresh Runtime Status
+                                </button>
+                                {installerStatus && (
+                                    <span
+                                        className={`text-[11px] px-2 py-1 rounded border ${
+                                            installerStatus.summary.ready
+                                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+                                                : 'border-amber-500/30 bg-amber-500/10 text-amber-700'
+                                        }`}
+                                        data-testid="wizard-runtime-status-pill"
+                                    >
+                                        {installerStatus.summary.ready ? 'Runtime ready' : `${installerStatus.summary.missing.length} missing requirement${installerStatus.summary.missing.length === 1 ? '' : 's'}`}
+                                    </span>
+                                )}
+                            </div>
+
+                            {installerStatusState === 'error' && (
+                                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                                    {installerStatusMessage || 'Failed to load runtime readiness.'}
+                                </div>
+                            )}
+
+                            <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 space-y-3 text-xs">
+                                <p className="font-semibold text-foreground">Super Installer Actions</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerDryRun}
+                                            onChange={(event) => setRunInstallerDryRun(event.target.checked)}
+                                            className="rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        Dry run (preview only)
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerComfy}
+                                            onChange={(event) => setRunInstallerComfy(event.target.checked)}
+                                            className="rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        Install/update ComfyUI
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerBundles}
+                                            onChange={(event) => setRunInstallerBundles(event.target.checked)}
+                                            className="rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        Install/update bundled nodes/workflows
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerComfyModels}
+                                            onChange={(event) => setRunInstallerComfyModels(event.target.checked)}
+                                            className="rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        Download selected Comfy models
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerOllamaModels}
+                                            onChange={(event) => setRunInstallerOllamaModels(event.target.checked)}
+                                            className="rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        Download selected Ollama models
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerQa}
+                                            onChange={(event) => setRunInstallerQa(event.target.checked)}
+                                            className="rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        Run post-install QA checks
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerAutoFix}
+                                            onChange={(event) => setRunInstallerAutoFix(event.target.checked)}
+                                            disabled={!runInstallerQa}
+                                            className="rounded border-border text-primary focus:ring-primary/20 disabled:opacity-50"
+                                        />
+                                        Enable QA auto-fix
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerSkipTests}
+                                            onChange={(event) => setRunInstallerSkipTests(event.target.checked)}
+                                            disabled={!runInstallerQa}
+                                            className="rounded border-border text-primary focus:ring-primary/20 disabled:opacity-50"
+                                        />
+                                        Skip QA tests
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerForce}
+                                            onChange={(event) => setRunInstallerForce(event.target.checked)}
+                                            className="rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        Force model re-download
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={runInstallerContinueOnError}
+                                            onChange={(event) => setRunInstallerContinueOnError(event.target.checked)}
+                                            className="rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        Continue on step errors
+                                    </label>
+                                </div>
+
+                                {runInstallerComfyModels && installerStatus && installerStatus.comfyModels.length > 0 && (
+                                    <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 space-y-1">
+                                        <p className="text-[11px] font-semibold text-foreground">Comfy model selection</p>
+                                        {installerStatus.comfyModels.map((model) => (
+                                            <label key={model.id} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedComfyModelIds.includes(model.id)}
+                                                    onChange={(event) => handleToggleComfyModel(model.id, event.target.checked)}
+                                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                                />
+                                                {model.displayName} ({model.id})
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {runInstallerOllamaModels && installerStatus && installerStatus.ollama.configuredModels.length > 0 && (
+                                    <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 space-y-1">
+                                        <p className="text-[11px] font-semibold text-foreground">Ollama model selection</p>
+                                        {installerStatus.ollama.configuredModels.map((model) => (
+                                            <label key={model.id} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedOllamaModelIds.includes(model.id)}
+                                                    onChange={(event) => handleToggleOllamaModel(model.id, event.target.checked)}
+                                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                                />
+                                                {model.displayName} ({model.id})
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        onClick={() => void handleRunInstaller()}
+                                        disabled={installerRunState === 'running'}
+                                        className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {installerRunState === 'running' ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                                        Run Selected Installer Actions
+                                    </button>
+                                    {installerRunMessage && (
+                                        <span
+                                            className={`text-[11px] ${
+                                                installerRunState === 'success' ? 'text-emerald-700' : installerRunState === 'error' ? 'text-destructive' : 'text-muted-foreground'
+                                            }`}
+                                            data-testid="wizard-installer-run-message"
+                                        >
+                                            {installerRunMessage}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {installerRunResult && (
+                                    <div className="rounded-md border border-border/60 bg-background/70 p-2 space-y-2">
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Steps completed: {installerRunResult.summary.completedSteps} | Failed: {installerRunResult.summary.failedSteps}
+                                        </p>
+                                        <div className="max-h-56 overflow-y-auto space-y-2">
+                                            {installerRunResult.steps.map((stepResult) => (
+                                                <div key={stepResult.id} className="rounded border border-border/50 bg-background px-2 py-1.5 text-[11px]">
+                                                    <p className="font-semibold">
+                                                        {stepResult.label} ({stepResult.success ? 'ok' : `failed: ${stepResult.exitCode}`})
+                                                    </p>
+                                                    {stepResult.stdout ? (
+                                                        <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-[10px] text-muted-foreground">
+                                                            {stepResult.stdout}
+                                                        </pre>
+                                                    ) : null}
+                                                    {stepResult.stderr ? (
+                                                        <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-[10px] text-destructive/90">
+                                                            {stepResult.stderr}
+                                                        </pre>
+                                                    ) : null}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {installerStatus && (
+                                <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 space-y-3 text-xs">
+                                    <p>
+                                        <span className="font-semibold">Comfy directory:</span> <span className="font-mono">{installerStatus.comfyDirectory.path}</span>
+                                    </p>
+                                    <p>
+                                        <span className="font-semibold">Comfy git checkout:</span> {installerStatus.comfyDirectory.gitRepo ? 'Detected' : 'Missing'}
+                                    </p>
+                                    <p>
+                                        <span className="font-semibold">Custom bundles installed:</span>{' '}
+                                        {installerStatus.customBundles.filter((bundle) => bundle.exists).length}/{installerStatus.customBundles.length}
+                                    </p>
+                                    <p>
+                                        <span className="font-semibold">Comfy models installed:</span>{' '}
+                                        {installerStatus.comfyModels.filter((model) => model.exists).length}/{installerStatus.comfyModels.length}
+                                    </p>
+                                    <p>
+                                        <span className="font-semibold">Ollama CLI:</span> {installerStatus.ollama.cliAvailable ? 'Available' : 'Not found'}
+                                    </p>
+
+                                    {installerStatus.summary.missing.length > 0 ? (
+                                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 space-y-1">
+                                            <p className="font-semibold">Missing items</p>
+                                            {installerStatus.summary.missing.map((item) => (
+                                                <p key={item}>- {item}</p>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-700">
+                                            All tracked local runtime dependencies are ready.
+                                        </div>
+                                    )}
+
+                                    <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 text-[11px] text-muted-foreground space-y-1">
+                                        <p className="font-semibold text-foreground">Recommended next commands</p>
+                                        <p><code className="font-mono">npm run install:super -- --yes</code></p>
+                                        <p><code className="font-mono">npm run qa:install -- --auto-fix</code></p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {step.id === 'finish' && (
                         <div className="space-y-4">
                             <p className="text-sm text-foreground/90">Review your setup and finish onboarding.</p>
                             <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 space-y-2 text-xs">
                                 <p><span className="font-semibold">Storage mode:</span> {storageMode}</p>
-                                <p><span className="font-semibold">Google Drive:</span> {driveConnected ? 'Connected' : (storageMode === 'local' ? 'Not required (local mode)' : 'Not connected yet')}</p>
+                                <p><span className="font-semibold">Cloud provider:</span> {selectedCloudProviderLabel}</p>
+                                <p><span className="font-semibold">Cloud connection:</span> {selectedCloudProviderIsImplemented ? (driveConnected ? 'Connected' : (storageMode === 'local' ? 'Not required (local mode)' : 'Not connected yet')) : 'Planned provider (not yet available)'}</p>
                                 <p><span className="font-semibold">AI keys set:</span> {[stabilityKey, openaiKey, googleKey, bananaKey].filter((value) => value.trim().length > 0).length}</p>
                                 <p><span className="font-semibold">Default Generative Provider:</span> {GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === defaultGenerativeProvider)?.label || defaultGenerativeProvider}</p>
                                 <p><span className="font-semibold">Default Generative Workflow:</span> {GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow)?.label || defaultGenerativeWorkflow}</p>
+                                <p>
+                                    <span className="font-semibold">Runtime readiness:</span>{' '}
+                                    {installerStatus
+                                        ? (installerStatus.summary.ready
+                                            ? 'Ready'
+                                            : `Needs attention (${installerStatus.summary.missing.length} missing)`)
+                                        : 'Not checked yet'}
+                                </p>
                             </div>
                             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 flex items-center gap-2">
                                 <CheckCircle2 size={14} />

@@ -6,6 +6,13 @@ const mockSaveLocalAsset = jest.fn();
 const mockUploadDriveAsset = jest.fn();
 
 jest.mock('@/lib/assetStorageSettings', () => ({
+    getAssetCloudProviderLabel: (provider: string) => ({
+        'google-drive': 'Google Drive',
+        dropbox: 'Dropbox',
+        onedrive: 'OneDrive',
+        's3-compatible': 'S3-compatible',
+    }[provider] || 'Cloud'),
+    isImplementedAssetCloudProvider: (provider: string) => provider === 'google-drive',
     loadAssetStorageSettings: (...args: unknown[]) => mockLoadAssetStorageSettings(...args),
 }));
 
@@ -142,5 +149,27 @@ describe('persistAssetToLibrary', () => {
             filename: 'remote-image.webp',
             mimeType: 'image/webp',
         }));
+    });
+
+    it('keeps assets local and warns when a planned cloud provider is selected', async () => {
+        mockLoadAssetStorageSettings.mockReturnValue({
+            mode: 'hybrid',
+            cloudProvider: 'dropbox',
+            hybridUploadToCloudByDefault: true,
+            includeLegacyServerAssetsInHybrid: true,
+        });
+
+        const result = await persistAssetToLibrary({
+            source: new Blob(['image-bytes'], { type: 'image/png' }),
+            filename: 'planned-provider.png',
+            type: 'images',
+            category: 'generated',
+            owner: 'artist@example.com',
+        });
+
+        expect(mockSaveLocalAsset).toHaveBeenCalledTimes(1);
+        expect(mockUploadDriveAsset).not.toHaveBeenCalled();
+        expect(result.savedProviders).toEqual(['local']);
+        expect(result.warnings).toContain('Dropbox cloud storage is not implemented yet, so assets stay local in this build.');
     });
 });

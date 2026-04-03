@@ -4,6 +4,7 @@ import { Plus, Image as ImageIcon, Clock, Layout, Trash2, ChevronDown, ChevronUp
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import quotes from '@/data/quotes.json';
+import { APP_VERSION_INFO, formatHubVersionLabel } from '@/lib/appVersion';
 
 type IconType = React.ComponentType<{ size?: number; className?: string }>;
 
@@ -22,6 +23,7 @@ type DesignSummary = {
     id: string;
     name: string;
     thumbnail?: string;
+    image?: string;
     data?: string;
     lastModified: string;
 };
@@ -144,6 +146,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         && parsedCustomWidth > 0
         && Number.isFinite(parsedCustomHeight)
         && parsedCustomHeight > 0;
+    const hubVersionLabel = useMemo(() => formatHubVersionLabel(APP_VERSION_INFO), []);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -270,6 +273,8 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
       onSelectTemplate(template);
   };
 
+    const getDesignPreviewUrl = (design: DesignSummary) => design.thumbnail || design.image || '';
+
   const visibleDesigns = showAllDesigns ? recentDesigns : recentDesigns.slice(0, 6);
 
   return (
@@ -380,15 +385,18 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
            <>
                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-6 gap-3">
                   {visibleDesigns.map(design => (
+                            (() => {
+                                const previewUrl = getDesignPreviewUrl(design);
+                                return (
                      <div 
                         key={design.id} 
                         onClick={() => onOpenDesign(design)}
                         className="group bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-all cursor-pointer relative flex flex-col aspect-[3/4]"
                      >
                             <div className="flex-1 bg-secondary/50 flex items-center justify-center relative bg-checkerboard overflow-hidden">
-                            {design.thumbnail ? (
+                                     {previewUrl ? (
                                 <Image
-                                    src={design.thumbnail}
+                                                src={previewUrl}
                                     alt={design.name}
                                     fill
                                     sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 12vw"
@@ -423,6 +431,8 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                            </div>
                         </div>
                      </div>
+                                );
+                            })()
                   ))}
                </div>
 
@@ -494,53 +504,68 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
 
         {/* Footer Info Section */}
         <section className="border-t border-border pt-8 mt-12 mb-8">
-            <div className="flex flex-col md:flex-row items-center gap-8 bg-card/30 p-8 rounded-2xl border border-border/50">
-              <div className="relative shrink-0">
-                <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden ring-4 ring-background shadow-lg">
-                   <Image
-                     src="https://github.com/GeekatplayStudio.png"
-                     alt="GeekatplayStudio"
-                     fill
-                     sizes="96px"
-                     className="object-cover"
-                   />
-                </div>
-                <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-background rounded-full"></div>
-              </div>
+            <div className="rounded-3xl border border-border/60 bg-card/40 p-6 shadow-sm backdrop-blur-sm md:p-8">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex items-start gap-4">
+                        <div className="relative shrink-0">
+                            <div className="relative h-20 w-20 overflow-hidden rounded-2xl ring-4 ring-background shadow-lg md:h-24 md:w-24">
+                                <Image
+                                    src="https://github.com/GeekatplayStudio.png"
+                                    alt="GeekatplayStudio"
+                                    fill
+                                    sizes="96px"
+                                    className="object-cover"
+                                />
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-4 border-background bg-green-500 text-[10px] font-bold text-white">
+                                IE
+                            </div>
+                        </div>
 
-              <div className="flex-1 text-center md:text-left space-y-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground tracking-tight">Image Express</h2>
-                  <div className="text-muted-foreground mt-1">
-                    Open source project by <span className="font-semibold text-foreground">V Chopine</span>
-                  </div>
+                        <div className="space-y-2">
+                            <div>
+                                <h2 className="text-2xl font-bold tracking-tight text-foreground">Image Express Hub</h2>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Open source creative workspace by <span className="font-semibold text-foreground">V Chopine</span>.
+                                </p>
+                            </div>
+                            <p className="max-w-2xl text-sm text-muted-foreground">
+                                Use the hub for templates, saved projects, release tracking, and support links. The editor canvas stays focused on creation, while project-level information lives here.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2 lg:w-[360px]">
+                        <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Contact Us</p>
+                            <div className="mt-2 space-y-2 text-sm text-muted-foreground">
+                                <a href="mailto:hello@geekatplay.com" className="block transition-colors hover:text-foreground">hello@geekatplay.com</a>
+                                <a href="https://www.geekatplay.com" target="_blank" rel="noreferrer" className="block transition-colors hover:text-foreground">www.geekatplay.com</a>
+                                <a href="https://www.chopinephotography.com" target="_blank" rel="noreferrer" className="block transition-colors hover:text-foreground">www.chopinephotography.com</a>
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Community</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <a href="https://github.com/GeekatplayStudio" target="_blank" rel="noreferrer" className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary/80">GitHub</a>
+                                <a href="https://www.linkedin.com/in/geekatplay/" target="_blank" rel="noreferrer" className="rounded-full bg-[#0077b5]/10 px-3 py-1.5 text-xs font-medium text-[#0077b5] transition-colors hover:bg-[#0077b5]/20">LinkedIn</a>
+                                <a href="https://www.youtube.com/@geekatplay" target="_blank" rel="noreferrer" className="rounded-full bg-[#FF0000]/10 px-3 py-1.5 text-xs font-medium text-[#FF0000] transition-colors hover:bg-[#FF0000]/20">YouTube</a>
+                                <a href="https://geekatplay.gumroad.com/coffee" target="_blank" rel="noreferrer" className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-tool-accent px-4 py-1.5 text-xs font-semibold text-white shadow-md transition-all hover:-translate-y-0.5 hover:from-primary/90 hover:to-tool-accent/90 hover:shadow-lg">
+                                    <Heart size={14} className="group-hover:animate-bounce" fill="currentColor" />
+                                    Support My Work
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                   <a href="https://github.com/GeekatplayStudio" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-secondary hover:bg-secondary/80 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
-                     GitHub
-                   </a>
-                   <a href="https://www.linkedin.com/in/geekatplay/" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-[#0077b5]/10 text-[#0077b5] hover:bg-[#0077b5]/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
-                     LinkedIn
-                   </a>
-                   <a href="https://www.youtube.com/@geekatplay" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-[#FF0000]/10 text-[#FF0000] hover:bg-[#FF0000]/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
-                     YouTube
-                   </a>
-                   <a href="https://www.geekatplay.com" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
-                      Geekatplay.com
-                   </a>
-                   <a href="https://www.chopinephotography.com" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-full text-xs font-medium transition-colors flex items-center gap-2">
-                      ChopinePhotography.com
-                   </a>
-                   
-                   <div className="w-px h-6 bg-border mx-2 hidden md:block"></div>
-
-                   <a href="https://geekatplay.gumroad.com/coffee" target="_blank" rel="noreferrer" className="group px-4 py-1.5 bg-gradient-to-r from-primary to-tool-accent hover:from-primary/90 hover:to-tool-accent/90 text-white rounded-full text-xs font-semibold transition-all shadow-md hover:shadow-lg flex items-center gap-2 transform hover:-translate-y-0.5">
-                      <Heart size={14} className="group-hover:animate-bounce" fill="currentColor" />
-                      Support my work
-                   </a>
+                <div className="mt-6 flex flex-col gap-3 border-t border-border/60 pt-4 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
+                    <p>Copyright © 2026 V Chopine and Geekatplay Studio. All rights reserved.</p>
+                    <p data-testid="hub-version-label" className="font-mono text-[11px] text-muted-foreground/90">
+                        {hubVersionLabel}
+                    </p>
                 </div>
-              </div>
             </div>
         </section>
 

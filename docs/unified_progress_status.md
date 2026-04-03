@@ -21,6 +21,38 @@ Future roadmap canonical source:
 
 ## Latest Delivery (2026-04-03)
 
+- Started roadmap item `R-16` / tracker item 43 with a first-pass interface customization system.
+- Added `src/lib/themePreferences.ts` for persisted theme mode + accent preference storage, DOM application, and early-init script generation.
+- Added `src/lib/theme-tokens.ts` accent palettes plus `src/hooks/useAppTheme.ts` so JS-driven surfaces can resolve the active runtime palette instead of relying on one static accent.
+- Added `src/components/ThemePreferenceSync.tsx` and wired it into the root layout so theme preferences stay applied after hydration, settings saves, storage changes, and system appearance changes.
+- Added global `light` mode token overrides in `src/app/globals.css` and accent-preset token overrides in `src/app/ui-theme.css` for `ocean`, `ember`, `meadow`, and `violet`.
+- Extended `SettingsModal` with saved Theme Mode and Accent Palette controls so users can switch between `system` / `dark` / `light` and persist a preferred accent.
+- Extended the active accent into JS-controlled UI paths: `CircularContextMenu` icon tints, `ImageGeneratorModal` AI zone overlay colors, and default shape fill colors in toolbar/editor shape controls now follow the selected palette.
+- Added focused regression coverage confirming Settings saves both the local preference payload and the DOM-applied theme attributes, and that theme-aware menu/zone colors switch with the active accent.
+
+Validation notes (2026-04-03 theme follow-up):
+- Focused tests passed:
+  - `npm test -- --runInBand src/components/__tests__/SettingsModal.test.tsx src/components/__tests__/CircularContextMenu.test.tsx src/components/__tests__/ImageGeneratorModal.test.tsx`
+  - Run completed with existing `act(...)` warning noise in the long-standing Image Generator / Comfy test path, but the focused suites passed.
+
+## Earlier Delivery (2026-04-03 UI Follow-up)
+
+- Improved small-window accessibility and modal overflow behavior for the dashboard/editor shell slice tied to roadmap item `R-15` / tracker item 42.
+- Reworked `DocumentationModal` with an explicit close icon, floating quick-jump chapter rail on larger screens, and mobile horizontal chapter navigation while keeping the manual scroll-safe inside the viewport.
+- Updated editor shell overflow handling so the left tool rail and docked/floating properties surfaces remain reachable when viewport height is constrained.
+- Restored hub project screenshots by making saved design routes expose both `thumbnail` and `image` preview fields and by teaching `Dashboard` to use either field.
+- Added a hub-only standard footer with version/subversion/commit label plus contact/support/community links, keeping it off the canvas/editor page.
+- Restored Hitem3D Back Preview / Back Layer controls in single-image mode so front/back artwork stays visible before switching to multi-view.
+- Added focused regression coverage for the updated dashboard/docs/Hitem3D behaviors.
+
+Validation notes (2026-04-03 UI follow-up):
+- Focused tests passed:
+  - `npm test -- --runInBand src/components/__tests__/Dashboard.test.tsx src/components/__tests__/DocumentationModal.test.tsx src/components/__tests__/ThreeDGenerator.test.tsx`
+- Static editor checks passed:
+  - no errors reported for touched dashboard/docs/editor shell/Hitem3D files
+
+## Earlier Delivery (2026-04-03)
+
 - Started roadmap implementation in priority order with `R-01` (Durable Encrypted User Key Vault) phase 1 delivery.
 - Replaced `/api/user/keys` in-memory storage with encrypted-at-rest filesystem vault persistence using new server service `src/lib/server/user-key-vault.ts`.
 - Added durable secret-key resolution strategy for vault encryption:
@@ -758,8 +790,8 @@ From `feature_implementation_tracker.md`:
 - [~] AI critique of image/canvas: toolbar modal + local route implemented, with runtime preflight/setup messaging in place; interactive QA still pending
 - [ ] Direct social media posting integrations
 - [x] In-profile change password
-- [ ] Import/export asset library
-- [ ] Additional online storage providers
+- [x] Import/export asset library
+- [~] Additional online storage providers: shared provider abstraction + provider selection are in place; Google Drive remains the only implemented adapter
 - [~] Channel editing panel MVP (rows/previews/isolate/invert/mask/value edits plus luminosity and per-channel opacity complete; advanced channel workflows still pending)
 - [x] Google, Banana.dev, and NanoBanana runtime branches are now wired into the shared generation and agentic edit flows
 - [ ] Facebook sign-in/auth integration

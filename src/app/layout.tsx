@@ -23,8 +23,10 @@ export const metadata: Metadata = {
 
 import { DialogProvider } from "@/providers/DialogProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
+import ThemePreferenceSync from '@/components/ThemePreferenceSync';
 import RangeResetListener from "@/components/ui/RangeResetListener";
 import { buildRuntimePerformanceShimSource } from '@/lib/runtimePerformanceShim';
+import { buildThemePreferencesInitScript } from '@/lib/themePreferences';
 
 export default function RootLayout({
   children,
@@ -32,6 +34,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const performanceShimSource = buildRuntimePerformanceShimSource();
+  const themePreferenceInitScript = buildThemePreferencesInitScript();
 
   return (
     <html lang="en">
@@ -41,6 +44,11 @@ export default function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: performanceShimSource }}
         />
+        <Script
+          id="theme-preferences-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themePreferenceInitScript }}
+        />
       </head>
       <body
         className="antialiased"
@@ -48,6 +56,7 @@ export default function RootLayout({
       >
         <DialogProvider>
           <ToastProvider>
+            <ThemePreferenceSync />
             <RangeResetListener />
             {children}
           </ToastProvider>

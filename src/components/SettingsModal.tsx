@@ -8,8 +8,12 @@ import { useDialog } from '@/providers/DialogProvider';
 import { connectGoogleDrive, disconnectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import {
+    ASSET_CLOUD_PROVIDER_OPTIONS,
+    getAssetCloudProviderLabel,
+    isImplementedAssetCloudProvider,
     loadAssetStorageSettings,
     saveAssetStorageSettings,
+    type AssetCloudProvider,
     type AssetStorageMode
 } from '@/lib/assetStorageSettings';
 import {
@@ -36,6 +40,14 @@ import { inspectComfyServerCatalog } from '@/lib/comfyui/runner';
 import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
+import {
+    THEME_ACCENT_OPTIONS,
+    THEME_MODE_OPTIONS,
+    loadThemePreferences,
+    saveThemePreferences,
+    type ThemeAccentPreset,
+    type ThemePreferenceMode,
+} from '@/lib/themePreferences';
 import { resetNumberDragHintSeen } from '@/lib/number-drag-hints';
 import {
     DEFAULT_OLLAMA_BASE_URL,
@@ -44,6 +56,14 @@ import {
     saveLocalAiPreferences,
 } from '@/lib/localAiPreferences';
 import { requestOllamaModelInstall } from '@/lib/ollamaModelInstall';
+import {
+    fetchInstallerRuntimeStatus,
+    type InstallerRuntimeStatus,
+} from '@/lib/installerRuntimeStatus';
+import {
+    runInstallerRuntime,
+    type InstallerRunResult,
+} from '@/lib/installerRuntimeRun';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -133,6 +153,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             missingModels: string[];
         }>;
     } | null>(null);
+    const [installerStatus, setInstallerStatus] = useState<InstallerRuntimeStatus | null>(null);
+    const [installerStatusState, setInstallerStatusState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [installerStatusMessage, setInstallerStatusMessage] = useState('');
+    const [installerRunState, setInstallerRunState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+    const [installerRunMessage, setInstallerRunMessage] = useState('');
+    const [installerRunResult, setInstallerRunResult] = useState<InstallerRunResult | null>(null);
     const [autoStartInpaintMasking, setAutoStartInpaintMasking] = useState(false);
     const [showInpaintPromptDock, setShowInpaintPromptDock] = useState(true);
     const [ollamaCheck, setOllamaCheck] = useState<{
@@ -161,10 +187,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     const [clientIdInput, setClientIdInput] = useState(envDriveClientId);
     const [showDriveHelp, setShowDriveHelp] = useState(false);
     const [assetStorageMode, setAssetStorageMode] = useState<AssetStorageMode>('hybrid');
+    const [assetCloudProvider, setAssetCloudProvider] = useState<AssetCloudProvider>('google-drive');
     const [hybridUploadToCloudByDefault, setHybridUploadToCloudByDefault] = useState(false);
     const [includeLegacyServerAssetsInHybrid, setIncludeLegacyServerAssetsInHybrid] = useState(true);
     const [expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover] = useState(true);
     const [suppressNumberDragHints, setSuppressNumberDragHints] = useState(false);
+    const [themeMode, setThemeMode] = useState<ThemePreferenceMode>('system');
+    const [themeAccentPreset, setThemeAccentPreset] = useState<ThemeAccentPreset>('ocean');
     const [adminUsers, setAdminUsers] = useState<AuthUser[]>([]);
     const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
     const [adminError, setAdminError] = useState<string | null>(null);
@@ -311,11 +340,15 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
 
         const assetStorageSettings = loadAssetStorageSettings();
         setAssetStorageMode(assetStorageSettings.mode);
+        setAssetCloudProvider(assetStorageSettings.cloudProvider);
         setHybridUploadToCloudByDefault(assetStorageSettings.hybridUploadToCloudByDefault);
         setIncludeLegacyServerAssetsInHybrid(assetStorageSettings.includeLegacyServerAssetsInHybrid);
         const uiPreferences = loadUiPreferences();
         setExpandToolRailLabelsOnHover(uiPreferences.expandToolRailLabelsOnHover);
         setSuppressNumberDragHints(uiPreferences.suppressNumberDragHints);
+        const themePreferences = loadThemePreferences();
+        setThemeMode(themePreferences.mode);
+        setThemeAccentPreset(themePreferences.accentPreset);
 
         return () => {
             unsubscribe?.();
@@ -599,13 +632,67 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         await runComfyLibraryAction('scan');
     }, [runComfyLibraryAction]);
 
+    const loadInstallerStatus = useCallback(async () => {
+        setInstallerStatusState('loading');
+        setInstallerStatusMessage('');
+        try {
+            const status = await fetchInstallerRuntimeStatus();
+            setInstallerStatus(status);
+            setInstallerStatusState('success');
+        } catch (error) {
+            setInstallerStatusState('error');
+            setInstallerStatusMessage(
+                error instanceof Error ? error.message : 'Failed to load installer runtime status.',
+            );
+        }
+    }, []);
+
+    const handleRunInstallerWorkflow = useCallback(async (
+        payload: {
+            installComfy: boolean;
+            installCustomBundles: boolean;
+            installComfyModels: boolean;
+            installOllamaModels: boolean;
+            runQa: boolean;
+            autoFix: boolean;
+            skipTests: boolean;
+            dryRun: boolean;
+        },
+    ) => {
+        setInstallerRunState('running');
+        setInstallerRunMessage('');
+        setInstallerRunResult(null);
+        try {
+            const result = await runInstallerRuntime({
+                ...payload,
+                comfyModelIds: installerStatus?.comfyModels.map((model) => model.id) || [],
+                ollamaModelIds: installerStatus?.ollama.configuredModels.map((model) => model.id) || [],
+                force: false,
+                continueOnError: false,
+            });
+            setInstallerRunResult(result);
+            if (result.success) {
+                setInstallerRunState('success');
+                setInstallerRunMessage('Installer workflow completed successfully.');
+            } else {
+                setInstallerRunState('error');
+                setInstallerRunMessage(`Installer completed with ${result.summary.failedSteps} failed step${result.summary.failedSteps === 1 ? '' : 's'}.`);
+            }
+            await loadInstallerStatus();
+        } catch (error) {
+            setInstallerRunState('error');
+            setInstallerRunMessage(error instanceof Error ? error.message : 'Installer workflow failed.');
+        }
+    }, [installerStatus, loadInstallerStatus]);
+
     useEffect(() => {
         if (!isOpen) {
             return;
         }
 
         void handleRefreshComfyLibrary();
-    }, [handleRefreshComfyLibrary, isOpen]);
+        void loadInstallerStatus();
+    }, [handleRefreshComfyLibrary, isOpen, loadInstallerStatus]);
 
     const handleInstallComfyRepo = useCallback(async () => {
         const repoUrl = comfyRepoUrl.trim();
@@ -700,13 +787,17 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         });
         saveAssetStorageSettings({
             mode: assetStorageMode,
-            cloudProvider: 'google-drive',
+            cloudProvider: assetCloudProvider,
             hybridUploadToCloudByDefault,
             includeLegacyServerAssetsInHybrid
         });
         saveUiPreferences({
             expandToolRailLabelsOnHover,
             suppressNumberDragHints,
+        });
+        saveThemePreferences({
+            mode: themeMode,
+            accentPreset: themeAccentPreset,
         });
 
         // 2. Save Server (if logged in)
@@ -988,6 +1079,17 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             resolveCompatibleWorkflowForProvider(defaultGenerativeProvider, defaultGenerativeWorkflow)
         );
     }, [defaultGenerativeProvider, defaultGenerativeWorkflow]);
+
+    useEffect(() => {
+        if (!isImplementedAssetCloudProvider(assetCloudProvider) && assetStorageMode === 'cloud') {
+            setAssetStorageMode('hybrid');
+        }
+    }, [assetCloudProvider, assetStorageMode]);
+
+    const selectedCloudProviderOption = ASSET_CLOUD_PROVIDER_OPTIONS.find((provider) => provider.id === assetCloudProvider)
+        || ASSET_CLOUD_PROVIDER_OPTIONS[0];
+    const selectedCloudProviderLabel = getAssetCloudProviderLabel(assetCloudProvider);
+    const selectedCloudProviderIsImplemented = isImplementedAssetCloudProvider(assetCloudProvider);
 
     if (!isOpen) return null;
 
@@ -1529,6 +1631,175 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                         <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/10 p-3">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
+                                    <h5 className="text-xs font-semibold">Installer Runtime Readiness</h5>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Validates Super Installer targets (Comfy checkout, bundles, models, and Ollama CLI) against the current machine.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => void loadInstallerStatus()}
+                                    disabled={installerStatusState === 'loading'}
+                                    className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {installerStatusState === 'loading' ? (
+                                        <Loader2 size={13} className="animate-spin" />
+                                    ) : (
+                                        <RefreshCcw size={13} />
+                                    )}
+                                    Refresh Status
+                                </button>
+                            </div>
+
+                            {installerStatusState === 'error' && (
+                                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">
+                                    {installerStatusMessage || 'Failed to load installer runtime status.'}
+                                </div>
+                            )}
+
+                            {installerStatus && (
+                                <>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
+                                            <div className="text-[10px] uppercase text-muted-foreground">Runtime</div>
+                                            <div
+                                                className={`text-sm font-semibold ${installerStatus.summary.ready ? 'text-emerald-600' : 'text-amber-600'}`}
+                                                data-testid="settings-installer-ready"
+                                            >
+                                                {installerStatus.summary.ready ? 'Ready' : `${installerStatus.summary.missing.length} missing`}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
+                                            <div className="text-[10px] uppercase text-muted-foreground">Comfy Git</div>
+                                            <div className="text-sm font-semibold">
+                                                {installerStatus.comfyDirectory.gitRepo ? 'Detected' : 'Missing'}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
+                                            <div className="text-[10px] uppercase text-muted-foreground">Bundles</div>
+                                            <div className="text-sm font-semibold">
+                                                {installerStatus.customBundles.filter((bundle) => bundle.exists).length}/{installerStatus.customBundles.length}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
+                                            <div className="text-[10px] uppercase text-muted-foreground">Comfy Models</div>
+                                            <div className="text-sm font-semibold">
+                                                {installerStatus.comfyModels.filter((model) => model.exists).length}/{installerStatus.comfyModels.length}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {installerStatus.summary.missing.length > 0 ? (
+                                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700 space-y-1">
+                                            <div className="font-semibold">Missing runtime dependencies</div>
+                                            {installerStatus.summary.missing.map((item) => (
+                                                <div key={item}>- {item}</div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-2 text-[11px] text-emerald-700">
+                                            All tracked dependencies are installed.
+                                        </div>
+                                    )}
+
+                                    <p className="text-[11px] text-muted-foreground">
+                                        To repair missing dependencies, run <code className="font-mono">npm run install:super -- --yes</code> followed by <code className="font-mono">npm run qa:install -- --auto-fix</code>.
+                                    </p>
+
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => void handleRunInstallerWorkflow({
+                                                installComfy: true,
+                                                installCustomBundles: true,
+                                                installComfyModels: false,
+                                                installOllamaModels: false,
+                                                runQa: false,
+                                                autoFix: false,
+                                                skipTests: false,
+                                                dryRun: true,
+                                            })}
+                                            disabled={installerRunState === 'running'}
+                                            className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {installerRunState === 'running' ? <Loader2 size={13} className="animate-spin" /> : <RefreshCcw size={13} />}
+                                            Dry Run Installer
+                                        </button>
+                                        <button
+                                            onClick={() => void handleRunInstallerWorkflow({
+                                                installComfy: true,
+                                                installCustomBundles: true,
+                                                installComfyModels: true,
+                                                installOllamaModels: true,
+                                                runQa: true,
+                                                autoFix: true,
+                                                skipTests: false,
+                                                dryRun: false,
+                                            })}
+                                            disabled={installerRunState === 'running'}
+                                            className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {installerRunState === 'running' ? <Loader2 size={13} className="animate-spin" /> : <DownloadCloud size={13} />}
+                                            Run Installer + QA
+                                        </button>
+                                        <button
+                                            onClick={() => void handleRunInstallerWorkflow({
+                                                installComfy: false,
+                                                installCustomBundles: false,
+                                                installComfyModels: false,
+                                                installOllamaModels: false,
+                                                runQa: true,
+                                                autoFix: true,
+                                                skipTests: false,
+                                                dryRun: false,
+                                            })}
+                                            disabled={installerRunState === 'running'}
+                                            className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {installerRunState === 'running' ? <Loader2 size={13} className="animate-spin" /> : <Server size={13} />}
+                                            Run QA Auto-fix
+                                        </button>
+                                    </div>
+
+                                    {installerRunMessage && (
+                                        <div
+                                            className={`text-[11px] rounded-md border px-2.5 py-2 ${
+                                                installerRunState === 'success'
+                                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+                                                    : installerRunState === 'error'
+                                                        ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                                                        : 'border-border/60 bg-background/70 text-muted-foreground'
+                                            }`}
+                                            data-testid="settings-installer-run-message"
+                                        >
+                                            {installerRunMessage}
+                                        </div>
+                                    )}
+
+                                    {installerRunResult && (
+                                        <div className="rounded-md border border-border/60 bg-background/70 p-2 space-y-1">
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Completed {installerRunResult.summary.completedSteps} step(s), failed {installerRunResult.summary.failedSteps}.
+                                            </p>
+                                            <div className="max-h-40 overflow-y-auto space-y-1">
+                                                {installerRunResult.steps.map((stepResult) => (
+                                                    <div key={stepResult.id} className="rounded border border-border/50 bg-background px-2 py-1 text-[10px]">
+                                                        <div className="font-semibold">
+                                                            {stepResult.label} ({stepResult.success ? 'ok' : `failed: ${stepResult.exitCode}`})
+                                                        </div>
+                                                        {stepResult.stderr ? (
+                                                            <div className="mt-0.5 text-destructive/90 whitespace-pre-wrap">{stepResult.stderr.slice(0, 500)}</div>
+                                                        ) : null}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/10 p-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
                                     <h5 className="text-xs font-semibold">Comfy Workflow Manager</h5>
                                     <p className="text-[11px] text-muted-foreground">
                                         Browse server templates, scan your custom workflow folder, and install GitHub repos into custom nodes or workflow storage.
@@ -1731,10 +2002,10 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             <div>
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
                                     <HardDrive size={16} className="text-primary" />
-                                    Google Drive Backup
+                                    Cloud Connections
                                 </h4>
                                 <p className="text-[11px] text-muted-foreground">
-                                    Optional backup for saved designs to your Drive.
+                                    Google Drive is available today. Additional providers can now be selected in storage settings and surfaced explicitly while their adapters are pending.
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -1749,7 +2020,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <button
                                         onClick={handleDisconnectDrive}
                                         className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
-                                        disabled={isDriveBusy}
+                                        disabled={isDriveBusy || !selectedCloudProviderIsImplemented}
                                     >
                                         {isDriveBusy ? (
                                             <>
@@ -1764,7 +2035,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <button
                                         onClick={handleConnectDrive}
                                         className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
-                                        disabled={isDriveBusy}
+                                        disabled={isDriveBusy || !selectedCloudProviderIsImplemented}
                                     >
                                         {isDriveBusy ? (
                                             <>
@@ -1792,6 +2063,14 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
                         )}
                         <div className="space-y-2">
+                            <div className="text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md px-3 py-2">
+                                <p className="font-semibold text-foreground">Selected provider: {selectedCloudProviderLabel}</p>
+                                <p>
+                                    {selectedCloudProviderIsImplemented
+                                        ? 'This provider can be connected below and used for cloud backups/uploads.'
+                                        : `${selectedCloudProviderLabel} is planned. Selecting it updates preferences now, but cloud uploads stay local-only until that adapter is implemented.`}
+                                </p>
+                            </div>
                             <label className="text-xs font-semibold block">Google OAuth Client ID</label>
                             <input
                                 type="text"
@@ -1809,6 +2088,11 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 <p className="text-[11px] text-muted-foreground">
                                     Paste the Client ID from your Google Cloud OAuth credentials. Enable the Drive API and include the <span className="font-mono">drive.file</span> scope.
                                 </p>
+                            )}
+                            {!selectedCloudProviderIsImplemented && (
+                                <div className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                                    {selectedCloudProviderLabel} connection controls are not implemented yet. Google Drive remains the only active cloud connector in this build.
+                                </div>
                             )}
                         </div>
                         {driveConfig.enabled && (
@@ -1832,7 +2116,24 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 Asset Storage Strategy
                             </h4>
                             <p className="text-[11px] text-muted-foreground">
-                                Choose where uploaded assets are stored: browser-local, hybrid, or Google Drive only.
+                                Choose where uploaded assets are stored: browser-local, hybrid, or cloud-backed with your selected provider.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold block">Cloud Provider</label>
+                            <select
+                                value={assetCloudProvider}
+                                onChange={(event) => setAssetCloudProvider(event.target.value as AssetCloudProvider)}
+                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs"
+                            >
+                                {ASSET_CLOUD_PROVIDER_OPTIONS.map((provider) => (
+                                    <option key={provider.id} value={provider.id}>
+                                        {provider.label}{provider.availability === 'planned' ? ' (planned)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[11px] text-muted-foreground">
+                                {selectedCloudProviderOption.description}
                             </p>
                         </div>
                         <div className="space-y-2">
@@ -1844,12 +2145,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             >
                                 <option value="local">Local only (browser)</option>
                                 <option value="hybrid">Hybrid (local + optional cloud per upload)</option>
-                                <option value="cloud">Cloud only (Google Drive)</option>
+                                <option value="cloud" disabled={!selectedCloudProviderIsImplemented}>Cloud only ({selectedCloudProviderLabel})</option>
                             </select>
                             <p className="text-[11px] text-muted-foreground">
                                 {assetStorageMode === 'local' && 'Files stay in your browser storage (IndexedDB).'}
-                                {assetStorageMode === 'hybrid' && 'Files save locally by default; you can check per-upload cloud copy.'}
-                                {assetStorageMode === 'cloud' && 'All uploads go to your connected Google Drive assets folder.'}
+                                {assetStorageMode === 'hybrid' && `Files save locally by default; you can enable per-upload cloud copy for ${selectedCloudProviderLabel} when supported.`}
+                                {assetStorageMode === 'cloud' && `All uploads go to your connected ${selectedCloudProviderLabel} assets folder.`}
                             </p>
                         </div>
 
@@ -1877,9 +2178,15 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </label>
                         )}
 
-                        {assetStorageMode !== 'local' && !driveConfig.enabled && (
+                        {assetStorageMode !== 'local' && selectedCloudProviderIsImplemented && !driveConfig.enabled && (
                             <div className="text-[11px] text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                                Connect Google Drive above to use cloud or hybrid cloud uploads.
+                                Connect {selectedCloudProviderLabel} above to use cloud or hybrid cloud uploads.
+                            </div>
+                        )}
+
+                        {assetStorageMode !== 'local' && !selectedCloudProviderIsImplemented && (
+                            <div className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                                {selectedCloudProviderLabel} is planned but not active yet. Assets will remain local in this build.
                             </div>
                         )}
 
@@ -1900,9 +2207,59 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     Interface Behavior
                                 </h4>
                                 <p className="text-[11px] text-muted-foreground">
-                                    Control whether left and right tool rails expand with text labels when hovered.
+                                    Control the global appearance mode, accent palette, and editor rail behavior.
                                 </p>
                             </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-1.5">
+                                    <label htmlFor="settings-theme-mode" className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                                        Theme mode
+                                    </label>
+                                    <select
+                                        id="settings-theme-mode"
+                                        aria-label="Theme mode"
+                                        value={themeMode}
+                                        onChange={(event) => setThemeMode(event.target.value as ThemePreferenceMode)}
+                                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                                    >
+                                        {THEME_MODE_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        {THEME_MODE_OPTIONS.find((option) => option.value === themeMode)?.description}
+                                    </p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                                        Accent palette
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {THEME_ACCENT_OPTIONS.map((option) => {
+                                            const isActive = themeAccentPreset === option.value;
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    aria-label={`Accent palette ${option.label}`}
+                                                    aria-pressed={isActive}
+                                                    onClick={() => setThemeAccentPreset(option.value)}
+                                                    className={`rounded-xl border px-3 py-2 text-left transition-colors ${isActive ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-secondary'}`}
+                                                >
+                                                    <div className="mb-2 h-3 rounded-full" style={{ backgroundImage: option.swatch }} />
+                                                    <div className="text-xs font-semibold text-foreground">{option.label}</div>
+                                                    <div className="text-[11px] text-muted-foreground">{option.description}</div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Theme changes apply globally after saving and persist across sessions.
+                                    </p>
+                                </div>
+                            </div>
+
                             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                                 <input
                                     type="checkbox"

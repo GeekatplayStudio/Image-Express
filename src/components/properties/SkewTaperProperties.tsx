@@ -11,43 +11,15 @@ interface SkewTaperValues {
 interface SkewTaperPropertiesProps {
     values: SkewTaperValues;
     onChange: (key: string, value: number) => void;
-    onPresetChange?: (preset: 'front' | 'back') => void;
     onStartDirDrag?: () => void;
     onStopDirDrag?: () => void;
 }
 
-export function SkewTaperProperties({ values, onChange, onPresetChange, onStartDirDrag, onStopDirDrag }: SkewTaperPropertiesProps) {
+export function SkewTaperProperties({ values, onChange, onStartDirDrag, onStopDirDrag }: SkewTaperPropertiesProps) {
     return (
         <div className="p-4 space-y-4 border-b border-border/50">
              <div className="flex items-center justify-between">
                 <h3 className="font-medium text-sm">Perspective / Skew</h3>
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>Back Side Preset</span>
-                    <span>{values.pseudoBacksidePreset === 'back' ? 'Back' : 'Front'}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                    {[
-                        { label: 'Front', value: 'front' as const },
-                        { label: 'Back', value: 'back' as const },
-                    ].map((preset) => (
-                        <button
-                            key={preset.value}
-                            type="button"
-                            onClick={() => onPresetChange?.(preset.value)}
-                            className={`rounded-md border px-2 py-1.5 text-[10px] transition-colors ${((values.pseudoBacksidePreset || 'front') === preset.value)
-                                ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30'
-                                : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
-                        >
-                            {preset.label}
-                        </button>
-                    ))}
-                </div>
-                <p className="text-[9px] text-muted-foreground">
-                    Shows the reverse side by mirroring the layer without adding perspective skew.
-                </p>
             </div>
             
             <div className="grid grid-cols-2 gap-2">

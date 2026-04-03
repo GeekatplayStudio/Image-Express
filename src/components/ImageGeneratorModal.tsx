@@ -6,8 +6,8 @@ import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
 import ComfyWorkflowLibraryPanel from './ComfyWorkflowLibraryPanel';
 import { captureComfySourceImageFromCanvas, inspectCapturedSourceDataUrl } from './imageGeneratorModalUtils';
+import useAppTheme from '@/hooks/useAppTheme';
 import useEscapeKey from '@/hooks/useEscapeKey';
-import { APP_THEME } from '@/lib/theme-tokens';
 import {
   DEFAULT_COMFY_LOCAL_URL,
     hydrateComfyCloudSettingsFromRuntime,
@@ -523,6 +523,7 @@ export default function ImageGeneratorModal({
   apiKey,
   currentUser,
 }: ImageGeneratorModalProps) {
+    const appTheme = useAppTheme();
     const dialog = useDialog();
     const formatElapsedSeconds = (elapsedMs?: number): string => {
             if (!elapsedMs || elapsedMs <= 0) {
@@ -2147,12 +2148,12 @@ export default function ImageGeneratorModal({
             top: 100,
             width: 512,
             height: 512,
-            fill: APP_THEME.zoneOverlayFill,
-            stroke: APP_THEME.zoneStroke,
+            fill: appTheme.zoneOverlayFill,
+            stroke: appTheme.zoneStroke,
             strokeWidth: 2,
             strokeDashArray: [5, 5], // Dashed line
             transparentCorners: false,
-            cornerColor: APP_THEME.zoneStroke,
+            cornerColor: appTheme.zoneStroke,
             cornerStrokeColor: '#fff',
         });
         

@@ -253,7 +253,6 @@ describe('SelectionProperties', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: /Transform/i }));
         fireEvent.click(screen.getByRole('button', { name: 'Back' }));
         expect(onPropChange).toHaveBeenCalledWith('pseudoBacksidePreset', 'back');
 

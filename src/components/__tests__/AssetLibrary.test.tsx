@@ -1,4 +1,5 @@
 import React from 'react';
+import JSZip from 'jszip';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AssetLibrary from '../AssetLibrary';
 import type { AssetDescriptor } from '@/types';
@@ -526,5 +527,141 @@ describe('AssetLibrary', () => {
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, (url) => url === '/server-assets/server-photo.png')).toBe(true);
         });
+    });
+
+    it('exports selected assets into a transferable library zip with manifest metadata', async () => {
+        serverAssets = [
+            {
+                path: '/server-assets/exportable.png',
+                name: 'exportable.png',
+                type: 'images',
+                category: 'uploads',
+                owner: 'alice@example.com',
+                isPublic: false,
+            },
+        ];
+
+        render(
+            <AssetLibrary
+                onSelect={jest.fn()}
+                onClose={jest.fn()}
+                currentUser="alice@example.com"
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTitle('exportable.png')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('checkbox', { name: /Select asset exportable.png/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Export Library/i }));
+
+        await waitFor(() => {
+            expect(anchorClickSpy).toHaveBeenCalled();
+        });
+
+        const createObjectUrlMock = URL.createObjectURL as jest.Mock;
+        const zipBlob = createObjectUrlMock.mock.calls[createObjectUrlMock.mock.calls.length - 1][0] as Blob;
+        const zip = await JSZip.loadAsync(zipBlob);
+        const manifest = JSON.parse(
+            await zip.file('manifest.json')!.async('string')
+        ) as {
+            assetCount: number;
+            exportedBy: string;
+            assets: Array<{ archivePath: string; name: string; owner: string; isPublic: boolean }>;
+        };
+
+        expect(manifest.exportedBy).toBe('alice@example.com');
+        expect(manifest.assetCount).toBe(1);
+        expect(manifest.assets[0]).toMatchObject({
+            name: 'exportable.png',
+            owner: 'alice@example.com',
+            isPublic: false,
+        });
+        expect(zip.file(manifest.assets[0].archivePath)).toBeTruthy();
+    });
+
+    it('imports a library bundle, skips deterministic duplicates, and reports a summary', async () => {
+        const existingLocalAsset: LocalAssetRecord = {
+            id: 'local-duplicate',
+            name: 'duplicate.png',
+            type: 'images',
+            category: 'uploads',
+            owner: 'alice@example.com',
+            isPublic: false,
+            mimeType: 'image/png',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            data: new Blob(['duplicate-local'], { type: 'image/png' }),
+        };
+        mockListLocalAssets.mockResolvedValue([existingLocalAsset]);
+
+        const zip = new JSZip();
+        zip.file('assets/uploads/images/001-fresh.png', new Blob(['fresh'], { type: 'image/png' }));
+        zip.file('assets/uploads/images/002-duplicate.png', new Blob(['duplicate'], { type: 'image/png' }));
+        zip.file('manifest.json', JSON.stringify({
+            kind: 'image-express-asset-library',
+            version: 1,
+            exportedAt: '2026-04-03T10:00:00.000Z',
+            exportedBy: 'someone@example.com',
+            assetCount: 2,
+            assets: [
+                {
+                    archivePath: 'assets/uploads/images/001-fresh.png',
+                    name: 'fresh.png',
+                    type: 'images',
+                    category: 'uploads',
+                    owner: 'someone@example.com',
+                    isPublic: false,
+                    mimeType: 'image/png',
+                    sourceProviders: ['server'],
+                },
+                {
+                    archivePath: 'assets/uploads/images/002-duplicate.png',
+                    name: 'duplicate.png',
+                    type: 'images',
+                    category: 'uploads',
+                    owner: 'someone@example.com',
+                    isPublic: false,
+                    mimeType: 'image/png',
+                    sourceProviders: ['server'],
+                },
+            ],
+        }));
+        const bundleBlob = await zip.generateAsync({ type: 'blob' });
+        const bundleFile = new File([bundleBlob], 'asset-library.zip', { type: 'application/zip' });
+
+        render(
+            <AssetLibrary
+                onSelect={jest.fn()}
+                onClose={jest.fn()}
+                currentUser="alice@example.com"
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTitle('duplicate.png')).toBeInTheDocument();
+        });
+
+        const importInput = screen.getByTestId('asset-library-import-input') as HTMLInputElement;
+        await act(async () => {
+            fireEvent.change(importInput, { target: { files: [bundleFile] } });
+        });
+
+        await waitFor(() => {
+            expect(mockSaveLocalAsset).toHaveBeenCalledWith(expect.objectContaining({
+                filename: 'fresh.png',
+                owner: 'alice@example.com',
+            }));
+        });
+        expect(mockSaveLocalAsset).not.toHaveBeenCalledWith(expect.objectContaining({
+            filename: 'duplicate.png',
+        }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('asset-library-import-summary')).toBeInTheDocument();
+        });
+        expect(screen.getByText(/Imported 1 of 2 asset\(s\) as alice@example.com/i)).toBeInTheDocument();
+        expect(screen.getByText(/Skipped duplicates: 1. Failed: 0./i)).toBeInTheDocument();
     });
 });

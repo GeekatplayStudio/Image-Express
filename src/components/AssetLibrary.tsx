@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import JSZip from 'jszip';
 import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
@@ -27,11 +28,24 @@ import {
     setLocalAssetVisibility,
 } from '@/lib/localAssetStore';
 import {
+    getAssetCloudProviderLabel,
+    isImplementedAssetCloudProvider,
     loadAssetStorageSettings,
     onAssetStorageSettingsChanged,
     type AssetStorageSettings,
 } from '@/lib/assetStorageSettings';
-import { ASSET_LIBRARY_CHANGED_EVENT } from '@/lib/assetLibraryEvents';
+import { ASSET_LIBRARY_CHANGED_EVENT, dispatchAssetLibraryChanged } from '@/lib/assetLibraryEvents';
+import {
+    ASSET_LIBRARY_BUNDLE_KIND,
+    ASSET_LIBRARY_BUNDLE_MANIFEST_PATH,
+    ASSET_LIBRARY_BUNDLE_VERSION,
+    buildAssetLibraryBundleArchivePath,
+    buildAssetLibraryBundleCollisionKey,
+    isAssetLibraryBundleManifest,
+    normalizeAssetBundleOwner,
+    type AssetLibraryBundleEntry,
+    type AssetLibraryBundleManifest,
+} from '@/lib/assetLibraryBundle';
 
 const ACCEPTED_FILE_TYPES = 'image/*,video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply';
 
@@ -162,6 +176,17 @@ type ModelPreviewPopupState = {
     height: number;
 };
 
+type AssetLibraryImportSummary = {
+    importedCount: number;
+    skippedCount: number;
+    failedCount: number;
+    totalCount: number;
+    importedAsOwner: string;
+    skippedNames: string[];
+    failureMessages: string[];
+    warnings: string[];
+};
+
 const SOURCE_PRIORITY: Record<Exclude<AssetStorageProvider, 'merged'>, number> = {
     local: 0,
     'google-drive': 1,
@@ -268,11 +293,16 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     const [previewHoverKey, setPreviewHoverKey] = useState<string | null>(null);
     const [playingMediaKey, setPlayingMediaKey] = useState<string | null>(null);
     const [updatingVisibilityKey, setUpdatingVisibilityKey] = useState<string | null>(null);
+    const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>([]);
+    const [isExportingLibrary, setIsExportingLibrary] = useState(false);
+    const [isImportingLibrary, setIsImportingLibrary] = useState(false);
+    const [lastImportSummary, setLastImportSummary] = useState<AssetLibraryImportSummary | null>(null);
 
     const dialog = useDialog();
     const { toast } = useToast();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const importInputRef = useRef<HTMLInputElement>(null);
     const objectUrlsRef = useRef<string[]>([]);
     const mediaPreviewRefs = useRef<Map<string, HTMLMediaElement>>(new Map());
 
@@ -331,11 +361,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     }, [playingMediaKey]);
 
     useEffect(() => {
+        const mediaPreviewMap = mediaPreviewRefs.current;
         return () => {
-            mediaPreviewRefs.current.forEach((media) => {
+            mediaPreviewMap.forEach((media) => {
                 media.pause();
             });
-            mediaPreviewRefs.current.clear();
+            mediaPreviewMap.clear();
         };
     }, []);
 
@@ -346,102 +377,93 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         return `${asset.storageProvider}:${asset.storageId || asset.path}`;
     }, []);
 
-    /**
-     * Fetches assets from enabled storage providers based on storage mode.
-     */
-    const fetchAssets = useCallback(async (forcedTab?: LibraryTab) => {
-        setIsLoading(true);
-        const resolvedTab = forcedTab || activeTab;
-        const config = TAB_CONFIG[resolvedTab];
+    const queryAssetsForTab = useCallback(async (
+        targetTab: LibraryTab,
+        options?: {
+            includePreviewPaths?: boolean;
+            search?: string;
+            scope?: AssetScopeTab;
+            visibility?: VisibilityFilter;
+            includePublic?: boolean;
+        },
+    ) => {
+        const config = TAB_CONFIG[targetTab];
         const settings = loadAssetStorageSettings();
-        setStorageSettings(settings);
+        const resolvedScope = options?.scope || scopeTab;
+        const resolvedVisibility = options?.visibility || visibilityFilter;
+        const includePreviewPaths = Boolean(options?.includePreviewPaths);
+        const includePublic = typeof options?.includePublic === 'boolean'
+            ? options.includePublic
+            : (resolvedScope === 'shared' ? true : showPublicAssets);
+        const search = (options?.search ?? searchQuery).trim();
+        const cloudProviderImplemented = isImplementedAssetCloudProvider(settings.cloudProvider);
 
-        const includePublic = scopeTab === 'shared' ? true : showPublicAssets;
-        const search = searchQuery.trim();
+        const shouldLoadLocal = settings.mode === 'local' || settings.mode === 'hybrid';
+        const shouldLoadCloud = cloudProviderImplemented && (settings.mode === 'cloud' || settings.mode === 'hybrid');
+        const shouldLoadServer = settings.mode === 'hybrid' && settings.includeLegacyServerAssetsInHybrid;
 
-        try {
-            const shouldLoadLocal = settings.mode === 'local' || settings.mode === 'hybrid';
-            const shouldLoadCloud = settings.mode === 'cloud' || settings.mode === 'hybrid';
-            const shouldLoadServer = settings.mode === 'hybrid' && settings.includeLegacyServerAssetsInHybrid;
+        const loadLocalPromise = shouldLoadLocal
+            ? listLocalAssets({
+                type: config.type,
+                category: config.category,
+                owner: normalizedUser,
+                scope: resolvedScope,
+                includePublic,
+                visibility: resolvedVisibility,
+                search,
+            })
+            : Promise.resolve([]);
 
-            const loadLocalPromise = shouldLoadLocal
-                ? listLocalAssets({
-                    type: config.type,
-                    category: config.category,
-                    owner: normalizedUser,
-                    scope: scopeTab,
-                    includePublic,
-                    visibility: visibilityFilter,
-                    search,
+        const driveConfig = loadDriveConfig();
+        const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
+        const loadCloudPromise = shouldLoadCloud && driveConfig.enabled && resolvedDriveClientId
+            ? listDriveAssets(resolvedDriveClientId, {
+                owner: normalizedUser,
+                scope: resolvedScope,
+                includePublic,
+                visibility: resolvedVisibility,
+                search,
+                type: config.type,
+                category: config.category,
+            }, {
+                allowInteractiveAuth: false,
+            }).catch((error) => {
+                if (!isDrivePassiveAuthError(error)) {
+                    console.error('Failed loading Google Drive assets', error);
+                }
+                return [];
+            })
+            : Promise.resolve([]);
+
+        const loadServerPromise = shouldLoadServer
+            ? fetch(`/api/assets/list?${new URLSearchParams({
+                type: config.type,
+                category: config.category,
+                owner: normalizedUser,
+                scope: resolvedScope,
+                includePublic: String(includePublic),
+                visibility: resolvedVisibility,
+                search,
+            }).toString()}`)
+                .then((res) => res.json())
+                .then((data) => (data.success ? (data.files || []) as AssetDescriptor[] : []))
+                .catch((error) => {
+                    console.error('Failed loading legacy server assets', error);
+                    return [] as AssetDescriptor[];
                 })
-                : Promise.resolve([]);
+            : Promise.resolve([]);
 
-            const driveConnected = loadDriveConfig().enabled;
-            const resolvedDriveClientId = (loadDriveConfig().clientId || driveClientId || '').trim();
-            const loadCloudPromise = shouldLoadCloud && driveConnected && resolvedDriveClientId
-                ? listDriveAssets(resolvedDriveClientId, {
-                    owner: normalizedUser,
-                    scope: scopeTab,
-                    includePublic,
-                    visibility: visibilityFilter,
-                    search,
-                    type: config.type,
-                    category: config.category,
-                }, {
-                    allowInteractiveAuth: false,
-                }).catch((error) => {
-                    if (!isDrivePassiveAuthError(error)) {
-                        console.error('Failed loading Google Drive assets', error);
-                    }
-                    return [];
-                })
-                : Promise.resolve([]);
+        const [localAssets, cloudAssets, serverAssets] = await Promise.all([
+            loadLocalPromise,
+            loadCloudPromise,
+            loadServerPromise,
+        ]);
 
-            const loadServerPromise = shouldLoadServer
-                ? fetch(`/api/assets/list?${new URLSearchParams({
-                    type: config.type,
-                    category: config.category,
-                    owner: normalizedUser,
-                    scope: scopeTab,
-                    includePublic: String(includePublic),
-                    visibility: visibilityFilter,
-                    search,
-                }).toString()}`)
-                    .then((res) => res.json())
-                    .then((data) => (data.success ? (data.files || []) as AssetDescriptor[] : []))
-                    .catch((error) => {
-                        console.error('Failed loading legacy server assets', error);
-                        return [] as AssetDescriptor[];
-                    })
-                : Promise.resolve([]);
-
-            const [localAssets, cloudAssets, serverAssets] = await Promise.all([
-                loadLocalPromise,
-                loadCloudPromise,
-                loadServerPromise,
-            ]);
-
-            clearObjectUrls();
-
-            const localNormalized: LibraryAsset[] = localAssets.map((item) => {
-                const previewPath = registerObjectUrl(URL.createObjectURL(item.data));
-                return {
-                    path: `local-file://${item.id}`,
-                    previewPath,
-                    name: item.name,
-                    type: item.type,
-                    category: item.category,
-                    owner: item.owner,
-                    isPublic: item.isPublic,
-                    createdAt: item.createdAt,
-                    updatedAt: item.updatedAt,
-                    storageProvider: 'local',
-                    storageId: item.id,
-                };
-            });
-
-            const cloudNormalized: LibraryAsset[] = cloudAssets.map((item) => ({
-                path: `gdrive-file://${item.id}`,
+        const localNormalized: LibraryAsset[] = localAssets.map((item) => {
+            const previewPath = includePreviewPaths ? registerObjectUrl(URL.createObjectURL(item.data)) : undefined;
+            return {
+                path: `local-file://${item.id}`,
+                previewPath,
                 name: item.name,
                 type: item.type,
                 category: item.category,
@@ -449,24 +471,52 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 isPublic: item.isPublic,
                 createdAt: item.createdAt,
                 updatedAt: item.updatedAt,
-                storageProvider: 'google-drive',
+                storageProvider: 'local',
                 storageId: item.id,
-            }));
+            };
+        });
 
-            const serverNormalized: LibraryAsset[] = serverAssets.map((file) => ({
-                ...file,
-                category: file.category || config.category,
-                type: file.type || config.type,
-                storageProvider: 'server',
-            }));
+        const cloudNormalized: LibraryAsset[] = cloudAssets.map((item) => ({
+            path: `gdrive-file://${item.id}`,
+            name: item.name,
+            type: item.type,
+            category: item.category,
+            owner: item.owner,
+            isPublic: item.isPublic,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            storageProvider: 'google-drive',
+            storageId: item.id,
+        }));
 
-            setAssets(mergeDuplicateAssets([...localNormalized, ...cloudNormalized, ...serverNormalized]));
+        const serverNormalized: LibraryAsset[] = serverAssets.map((file) => ({
+            ...file,
+            category: file.category || config.category,
+            type: file.type || config.type,
+            storageProvider: 'server',
+        }));
+
+        return mergeDuplicateAssets([...localNormalized, ...cloudNormalized, ...serverNormalized]);
+    }, [driveClientId, normalizedUser, registerObjectUrl, scopeTab, searchQuery, showPublicAssets, visibilityFilter]);
+
+    /**
+     * Fetches assets from enabled storage providers based on storage mode.
+     */
+    const fetchAssets = useCallback(async (forcedTab?: LibraryTab) => {
+        setIsLoading(true);
+        const resolvedTab = forcedTab || activeTab;
+
+        try {
+            const settings = loadAssetStorageSettings();
+            setStorageSettings(settings);
+            clearObjectUrls();
+            setAssets(await queryAssetsForTab(resolvedTab, { includePreviewPaths: true }));
         } catch (error) {
             console.error('Failed to load assets', error);
         } finally {
             setIsLoading(false);
         }
-    }, [activeTab, clearObjectUrls, driveClientId, normalizedUser, registerObjectUrl, scopeTab, searchQuery, showPublicAssets, visibilityFilter]);
+    }, [activeTab, clearObjectUrls, queryAssetsForTab]);
 
     // Re-fetch when tabs/filters change
     useEffect(() => {
@@ -508,7 +558,63 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         };
     }, [clearObjectUrls]);
 
+    useEffect(() => {
+        const visibleKeys = new Set(assets.map((asset) => getAssetKey(asset)));
+        setSelectedAssetKeys((current) => current.filter((assetKey) => visibleKeys.has(assetKey)));
+    }, [assets, getAssetKey]);
+
     useEscapeKey(onClose);
+
+    const toggleAssetSelection = useCallback((assetKey: string, checked: boolean) => {
+        setSelectedAssetKeys((current) => {
+            if (checked) {
+                return current.includes(assetKey) ? current : [...current, assetKey];
+            }
+            return current.filter((entry) => entry !== assetKey);
+        });
+    }, []);
+
+    const clearAssetSelection = useCallback(() => {
+        setSelectedAssetKeys([]);
+    }, []);
+
+    const downloadBlob = useCallback((blob: Blob, filename: string) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
+    }, []);
+
+    const resolveAssetBlob = useCallback(async (asset: LibraryAsset) => {
+        if (asset.storageProvider === 'local') {
+            if (!asset.storageId) {
+                throw new Error('Missing local asset id.');
+            }
+            return getLocalAssetBlob(asset.storageId);
+        }
+
+        if (asset.storageProvider === 'google-drive') {
+            if (!asset.storageId) {
+                throw new Error('Missing Google Drive asset id.');
+            }
+            const driveConfig = loadDriveConfig();
+            const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
+            if (!driveConfig.enabled || !resolvedDriveClientId) {
+                throw new Error('Google Drive is not connected.');
+            }
+            return downloadDriveAssetBlob(resolvedDriveClientId, asset.storageId);
+        }
+
+        const response = await fetch(asset.path);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        return response.blob();
+    }, [driveClientId]);
 
     /**
      * Handles file selection from system dialog.
@@ -525,14 +631,29 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         try {
             const settings = loadAssetStorageSettings();
             const uploadLocal = settings.mode === 'local' || settings.mode === 'hybrid';
-            const uploadCloud = settings.mode === 'cloud' || (settings.mode === 'hybrid' && uploadToCloud);
+            const cloudProviderLabel = getAssetCloudProviderLabel(settings.cloudProvider);
+            const cloudProviderImplemented = isImplementedAssetCloudProvider(settings.cloudProvider);
+            const uploadCloud = cloudProviderImplemented && (settings.mode === 'cloud' || (settings.mode === 'hybrid' && uploadToCloud));
+
+            if (!cloudProviderImplemented && settings.mode !== 'local') {
+                toast({
+                    title: `${cloudProviderLabel} not available yet`,
+                    description: uploadLocal
+                        ? `This build will keep the upload local until ${cloudProviderLabel} support lands.`
+                        : `${cloudProviderLabel} cloud uploads are not implemented yet.`,
+                    variant: 'warning'
+                });
+                if (!uploadLocal) {
+                    return;
+                }
+            }
 
             const driveConfig = loadDriveConfig();
             const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
             if (uploadCloud && (!driveConfig.enabled || !resolvedDriveClientId)) {
                 toast({
-                    title: 'Google Drive required',
-                    description: 'Connect Google Drive in Settings before cloud upload.',
+                    title: `${cloudProviderLabel} required`,
+                    description: `Connect ${cloudProviderLabel} in Settings before cloud upload.`,
                     variant: 'warning'
                 });
                 if (!uploadLocal) {
@@ -922,35 +1043,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
         try {
             const selectedAsset = pickRepresentativeAsset(asset);
-            let blob: Blob;
-
-            if (selectedAsset.storageProvider === 'local') {
-                if (!selectedAsset.storageId) throw new Error('Missing local asset id.');
-                blob = await getLocalAssetBlob(selectedAsset.storageId);
-            } else if (selectedAsset.storageProvider === 'google-drive') {
-                if (!selectedAsset.storageId) throw new Error('Missing Google Drive asset id.');
-                const driveConfig = loadDriveConfig();
-                const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
-                if (!driveConfig.enabled || !resolvedDriveClientId) {
-                    throw new Error('Google Drive is not connected.');
-                }
-                blob = await downloadDriveAssetBlob(resolvedDriveClientId, selectedAsset.storageId);
-            } else {
-                const response = await fetch(selectedAsset.path);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                blob = await response.blob();
-            }
-
-            const objectUrl = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = objectUrl;
-            link.download = selectedAsset.name || 'asset';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(objectUrl);
+            const blob = await resolveAssetBlob(selectedAsset);
+            downloadBlob(blob, selectedAsset.name || 'asset');
         } catch (error) {
             console.error('Download failed', error);
             toast({
@@ -960,6 +1054,277 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             });
         }
     };
+
+    const selectedAssetsInView = assets.filter((asset) => selectedAssetKeys.includes(getAssetKey(asset)));
+
+    const loadAllTabAssetsForBundle = useCallback(async (searchOverride?: string) => {
+        const assetGroups = await Promise.all(
+            LIBRARY_TABS.map((tab) => queryAssetsForTab(tab.key, {
+                includePreviewPaths: false,
+                search: searchOverride,
+            }))
+        );
+        return assetGroups.flat();
+    }, [queryAssetsForTab]);
+
+    const buildExistingImportCollisionSet = useCallback(async () => {
+        const assetGroups = await Promise.all(
+            LIBRARY_TABS.map((tab) => queryAssetsForTab(tab.key, {
+                includePreviewPaths: false,
+                search: '',
+                scope: 'personal',
+                visibility: 'all',
+                includePublic: true,
+            }))
+        );
+
+        const keys = new Set<string>();
+        assetGroups.flat().forEach((asset) => {
+            getSourceAssets(asset).forEach((sourceAsset) => {
+                keys.add(buildAssetLibraryBundleCollisionKey({
+                    name: sourceAsset.name,
+                    type: sourceAsset.type,
+                    category: sourceAsset.category,
+                    owner: sourceAsset.owner,
+                    isPublic: sourceAsset.isPublic,
+                }));
+            });
+        });
+        return keys;
+    }, [queryAssetsForTab]);
+
+    const handleExportLibrary = useCallback(async () => {
+        setIsExportingLibrary(true);
+        try {
+            const exportTargets = selectedAssetsInView.length > 0
+                ? selectedAssetsInView
+                : await loadAllTabAssetsForBundle(searchQuery);
+
+            if (exportTargets.length === 0) {
+                toast({
+                    title: 'No assets to export',
+                    description: 'Select assets or adjust your current library filters before exporting.',
+                    variant: 'warning',
+                });
+                return;
+            }
+
+            const manifestEntries: AssetLibraryBundleEntry[] = [];
+            const exportFailures: string[] = [];
+            const zip = new JSZip();
+
+            for (const asset of exportTargets) {
+                const representative = pickRepresentativeAsset(asset);
+                try {
+                    const blob = await resolveAssetBlob(representative);
+                    const archivePath = buildAssetLibraryBundleArchivePath({
+                        index: manifestEntries.length,
+                        name: asset.name,
+                        type: asset.type,
+                        category: asset.category,
+                    });
+                    zip.file(archivePath, blob);
+                    manifestEntries.push({
+                        archivePath,
+                        name: asset.name,
+                        type: asset.type,
+                        category: asset.category,
+                        owner: normalizeAssetBundleOwner(asset.owner),
+                        isPublic: Boolean(asset.isPublic),
+                        mimeType: blob.type || undefined,
+                        createdAt: asset.createdAt,
+                        updatedAt: asset.updatedAt,
+                        sourceProviders: Array.from(new Set(getSourceAssets(asset).map((entry) => entry.storageProvider))),
+                    });
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : 'Unknown export error';
+                    exportFailures.push(`${asset.name}: ${message}`);
+                }
+            }
+
+            if (manifestEntries.length === 0) {
+                throw new Error('None of the current assets could be packaged.');
+            }
+
+            const manifest: AssetLibraryBundleManifest = {
+                kind: ASSET_LIBRARY_BUNDLE_KIND,
+                version: ASSET_LIBRARY_BUNDLE_VERSION,
+                exportedAt: new Date().toISOString(),
+                exportedBy: normalizedUser,
+                assetCount: manifestEntries.length,
+                assets: manifestEntries,
+            };
+            zip.file(ASSET_LIBRARY_BUNDLE_MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const bundleBlob = await zip.generateAsync({ type: 'blob' });
+            downloadBlob(bundleBlob, `asset-library-${timestamp}.zip`);
+
+            toast({
+                title: exportFailures.length > 0 ? 'Library export completed with warnings' : 'Library export complete',
+                description: exportFailures.length > 0
+                    ? `Packaged ${manifestEntries.length} asset(s); ${exportFailures.length} failed to export.`
+                    : `Packaged ${manifestEntries.length} asset(s) into a transferable ZIP.`,
+                variant: exportFailures.length > 0 ? 'warning' : 'success',
+            });
+        } catch (error) {
+            console.error('Asset library export failed', error);
+            toast({
+                title: 'Library export failed',
+                description: error instanceof Error ? error.message : 'Could not export the asset library bundle.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsExportingLibrary(false);
+        }
+    }, [downloadBlob, loadAllTabAssetsForBundle, normalizedUser, resolveAssetBlob, searchQuery, selectedAssetsInView, toast]);
+
+    const handleImportLibrary = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const bundleFile = event.target.files?.[0];
+        if (!bundleFile) {
+            return;
+        }
+
+        setIsImportingLibrary(true);
+        setLastImportSummary(null);
+
+        try {
+            const zip = await JSZip.loadAsync(bundleFile);
+            const manifestFile = zip.file(ASSET_LIBRARY_BUNDLE_MANIFEST_PATH);
+            if (!manifestFile) {
+                throw new Error('This ZIP does not contain an Image Express asset-library manifest.');
+            }
+
+            const manifestJson = await manifestFile.async('string');
+            const manifestValue = JSON.parse(manifestJson) as unknown;
+            if (!isAssetLibraryBundleManifest(manifestValue)) {
+                throw new Error('Asset-library manifest is invalid or unsupported.');
+            }
+
+            const settings = loadAssetStorageSettings();
+            const uploadLocal = settings.mode === 'local' || settings.mode === 'hybrid';
+            const cloudProviderLabel = getAssetCloudProviderLabel(settings.cloudProvider);
+            const cloudProviderImplemented = isImplementedAssetCloudProvider(settings.cloudProvider);
+            const uploadCloud = cloudProviderImplemented && (settings.mode === 'cloud' || (settings.mode === 'hybrid' && uploadToCloud));
+            if (!uploadLocal && !uploadCloud) {
+                throw new Error('Current storage settings do not allow imported assets to be stored.');
+            }
+
+            if (!cloudProviderImplemented && settings.mode !== 'local' && !uploadLocal) {
+                throw new Error(`${cloudProviderLabel} cloud imports are not implemented yet.`);
+            }
+
+            const driveConfig = loadDriveConfig();
+            const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
+            const canUploadToDrive = uploadCloud && driveConfig.enabled && resolvedDriveClientId;
+            if (uploadCloud && !canUploadToDrive && !uploadLocal) {
+                throw new Error(`${cloudProviderLabel} must be connected before importing a cloud-only asset bundle.`);
+            }
+
+            const existingKeys = await buildExistingImportCollisionSet();
+            const skippedNames: string[] = [];
+            const failureMessages: string[] = [];
+            const warnings: string[] = [];
+            let importedCount = 0;
+
+            if (uploadCloud && !canUploadToDrive) {
+                warnings.push(`${cloudProviderLabel} was unavailable, so imported assets were saved only to local storage.`);
+            }
+
+            for (const entry of manifestValue.assets) {
+                const collisionKey = buildAssetLibraryBundleCollisionKey({
+                    name: entry.name,
+                    type: entry.type,
+                    category: entry.category,
+                    owner: normalizedUser,
+                    isPublic: entry.isPublic,
+                });
+
+                if (existingKeys.has(collisionKey)) {
+                    skippedNames.push(entry.name);
+                    continue;
+                }
+
+                const archiveFile = zip.file(entry.archivePath);
+                if (!archiveFile) {
+                    failureMessages.push(`${entry.name}: missing archived file in bundle.`);
+                    continue;
+                }
+
+                try {
+                    const blob = await archiveFile.async('blob');
+
+                    if (uploadLocal) {
+                        await saveLocalAsset({
+                            file: blob,
+                            filename: entry.name,
+                            type: entry.type,
+                            category: entry.category,
+                            owner: normalizedUser,
+                            isPublic: entry.isPublic,
+                            mimeType: entry.mimeType || blob.type || undefined,
+                        });
+                    }
+
+                    if (canUploadToDrive) {
+                        await uploadDriveAsset(resolvedDriveClientId, {
+                            file: blob,
+                            filename: entry.name,
+                            type: entry.type,
+                            category: entry.category,
+                            owner: normalizedUser,
+                            isPublic: entry.isPublic,
+                        });
+                    }
+
+                    existingKeys.add(collisionKey);
+                    importedCount += 1;
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : 'Unknown import error';
+                    failureMessages.push(`${entry.name}: ${message}`);
+                }
+            }
+
+            const summary: AssetLibraryImportSummary = {
+                importedCount,
+                skippedCount: skippedNames.length,
+                failedCount: failureMessages.length,
+                totalCount: manifestValue.assets.length,
+                importedAsOwner: normalizedUser,
+                skippedNames,
+                failureMessages,
+                warnings,
+            };
+            setLastImportSummary(summary);
+
+            if (importedCount > 0) {
+                dispatchAssetLibraryChanged({
+                    action: 'bundle-import',
+                    assetCount: importedCount,
+                    owner: normalizedUser,
+                });
+                await fetchAssets();
+            }
+
+            toast({
+                title: failureMessages.length > 0 ? 'Library import completed with warnings' : 'Library import complete',
+                description: `Imported ${importedCount} of ${manifestValue.assets.length} asset(s). Skipped ${skippedNames.length}, failed ${failureMessages.length}.`,
+                variant: failureMessages.length > 0 || skippedNames.length > 0 ? 'warning' : 'success',
+            });
+        } catch (error) {
+            console.error('Asset library import failed', error);
+            toast({
+                title: 'Library import failed',
+                description: error instanceof Error ? error.message : 'Could not import the asset library bundle.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsImportingLibrary(false);
+            if (importInputRef.current) {
+                importInputRef.current.value = '';
+            }
+        }
+    }, [buildExistingImportCollisionSet, driveClientId, fetchAssets, normalizedUser, toast, uploadToCloud]);
 
     return (
         <>
@@ -977,6 +1342,26 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     Asset Library
                 </h3>
                 <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => importInputRef.current?.click()}
+                        disabled={isImportingLibrary}
+                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background/80 text-[11px] font-semibold text-foreground inline-flex items-center gap-1.5 hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Import Library"
+                        title="Import Library"
+                    >
+                        {isImportingLibrary ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                        Import Library
+                    </button>
+                    <button
+                        onClick={() => void handleExportLibrary()}
+                        disabled={isExportingLibrary}
+                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background/80 text-[11px] font-semibold text-foreground inline-flex items-center gap-1.5 hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Export Library"
+                        title="Export Library"
+                    >
+                        {isExportingLibrary ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                        Export Library
+                    </button>
                      <button 
                         onClick={() => fetchAssets()}
                         className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors"
@@ -1066,6 +1451,23 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     <span className="h-7 px-2 inline-flex items-center rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
                         Signed in as <span className="font-semibold text-foreground/80 ml-1">{normalizedUser}</span>
                     </span>
+
+                    {selectedAssetKeys.length > 0 && (
+                        <>
+                            <span
+                                className="h-7 px-2 inline-flex items-center rounded-md border border-primary/30 bg-primary/10 text-[11px] font-semibold text-primary shrink-0"
+                                data-testid="asset-library-selection-count"
+                            >
+                                {selectedAssetKeys.length} selected
+                            </span>
+                            <button
+                                onClick={clearAssetSelection}
+                                className="h-7 px-2 rounded-md border border-border/50 bg-background/70 text-[11px] font-medium text-muted-foreground hover:bg-secondary shrink-0"
+                            >
+                                Clear Selection
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -1090,6 +1492,34 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
             {/* Upload Row */}
             <div className="p-2 border-b border-border/50 bg-secondary/5">
+                {lastImportSummary && (
+                    <div
+                        className="mb-2 rounded-md border border-border/60 bg-background/80 px-3 py-2 text-[11px] text-muted-foreground"
+                        data-testid="asset-library-import-summary"
+                    >
+                        <div className="font-semibold text-foreground">
+                            Imported {lastImportSummary.importedCount} of {lastImportSummary.totalCount} asset(s) as {lastImportSummary.importedAsOwner}.
+                        </div>
+                        <div>
+                            Skipped duplicates: {lastImportSummary.skippedCount}. Failed: {lastImportSummary.failedCount}.
+                        </div>
+                        {lastImportSummary.warnings.length > 0 && (
+                            <div className="mt-1 text-amber-700">
+                                {lastImportSummary.warnings.join(' ')}
+                            </div>
+                        )}
+                        {lastImportSummary.skippedNames.length > 0 && (
+                            <div className="mt-1 truncate" title={lastImportSummary.skippedNames.join(', ')}>
+                                Duplicates: {lastImportSummary.skippedNames.join(', ')}
+                            </div>
+                        )}
+                        {lastImportSummary.failureMessages.length > 0 && (
+                            <div className="mt-1 truncate text-destructive" title={lastImportSummary.failureMessages.join(' | ')}>
+                                Failures: {lastImportSummary.failureMessages.join(' | ')}
+                            </div>
+                        )}
+                    </div>
+                )}
                 <div className="flex items-center gap-2 flex-wrap">
                 {storageSettings.mode === 'hybrid' && (
                     <label className="h-7 px-2 rounded-md border border-border/50 bg-background/70 flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none shrink-0">
@@ -1099,18 +1529,23 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             onChange={(event) => setUploadToCloud(event.target.checked)}
                             className="rounded border-border text-primary focus:ring-primary/20"
                         />
-                        Also upload this file to Google Drive
+                        Also upload this file to {getAssetCloudProviderLabel(storageSettings.cloudProvider)}
                     </label>
                 )}
                 {storageSettings.mode === 'cloud' && (
                     <div className="h-7 px-2 text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md inline-flex items-center gap-1.5 shrink-0">
                         <Cloud size={12} className="text-primary" />
-                        Uploads go to Google Drive only.
+                        Uploads go to {getAssetCloudProviderLabel(storageSettings.cloudProvider)} only.
                     </div>
                 )}
-                {storageSettings.mode !== 'local' && !loadDriveConfig().enabled && (
+                {storageSettings.mode !== 'local' && isImplementedAssetCloudProvider(storageSettings.cloudProvider) && !loadDriveConfig().enabled && (
                     <div className="h-7 px-2 text-[11px] text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-md inline-flex items-center shrink-0">
-                        Google Drive not connected.
+                        {getAssetCloudProviderLabel(storageSettings.cloudProvider)} not connected.
+                    </div>
+                )}
+                {storageSettings.mode !== 'local' && !isImplementedAssetCloudProvider(storageSettings.cloudProvider) && (
+                    <div className="h-7 px-2 text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-md inline-flex items-center shrink-0">
+                        {getAssetCloudProviderLabel(storageSettings.cloudProvider)} planned. Uploads stay local in this build.
                     </div>
                 )}
                 <input 
@@ -1120,6 +1555,14 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     // Allow all supported asset types; backend will classify them
                     accept={ACCEPTED_FILE_TYPES}
                     onChange={handleUpload}
+                />
+                <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".zip,application/zip"
+                    className="hidden"
+                    onChange={handleImportLibrary}
+                    data-testid="asset-library-import-input"
                 />
                 
                 <button 
@@ -1195,6 +1638,21 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                         setEditName(asset.name);
                                     }}
                                 >
+                                    <label
+                                        className="absolute left-1.5 top-1.5 z-30 inline-flex items-center gap-1 rounded-md bg-black/65 px-1.5 py-1 text-[10px] font-medium text-white"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedAssetKeys.includes(assetKey)}
+                                            onChange={(event) => toggleAssetSelection(assetKey, event.target.checked)}
+                                            aria-label={`Select asset ${asset.name}`}
+                                            className="rounded border-white/40 text-primary focus:ring-primary/30"
+                                        />
+                                        Select
+                                    </label>
                                     {editingAsset === assetKey ? (
                                         <div className="absolute inset-0 z-30 bg-background/95 flex flex-col items-center justify-center p-1" onClick={(e) => e.stopPropagation()}>
                                             <div className="w-full flex items-center justify-center gap-1 mb-1">
