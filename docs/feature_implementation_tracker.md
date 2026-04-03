@@ -1,6 +1,7 @@
 # Feature Implementation Tracker
 
 Canonical progress file: [docs/unified_progress_status.md](docs/unified_progress_status.md)
+Canonical future roadmap file: [docs/master_future_implementation_roadmap.md](docs/master_future_implementation_roadmap.md)
 
 **Purpose:** Track requested features, verify existing functionality before each change, and record lint/build results per feature.
 
@@ -61,6 +62,11 @@ Canonical progress file: [docs/unified_progress_status.md](docs/unified_progress
 | 36 | Channel editing panel (RGB/alpha isolation and per-channel operations) | Partial | src/components/PropertiesPanel.tsx, src/components/properties/ChannelsPanelView.tsx, src/components/properties/channelEditing.ts | Pass | Pass | Expanded the Channels MVP beyond the placeholder: composite/RGB/alpha/luminosity rows, live channel thumbnails, per-channel opacity controls, per-channel composite masks, isolate/invert/mask actions for selected images, direct per-channel value editing for fillable layers, and reset-to-composite for image filter stacks. Remaining work is saved extra channels, load-channel-as-selection, and broader raster-channel workflows. |
 | 37 | Google Imagen / Banana.dev / NanoBanana generation runtime completion | Done | src/app/api/ai/generate-image/route.ts, src/lib/server/googleImageGeneration.ts, src/lib/server/bananaGeneration.ts, src/lib/generative-preferences.ts, src/components/ImageGeneratorModal.tsx, src/components/SettingsModal.tsx, src/lib/agentic-edit/providers/nanobanana.ts, src/app/api/ai/generate-image/route.test.ts, src/lib/server/__tests__/bananaGeneration.test.ts, src/lib/agentic-edit/providers/__tests__/nanobanana.test.ts | Pass | Pass | Google Gemini image generation is live in the shared generator route, Banana.dev now routes through a server-configured Banana endpoint using the saved Banana API key, and the agentic `NanoBananaProvider` now uses the same Banana runtime for edit jobs instead of returning a stub image. Validation rerun: `npm test -- --runInBand src/app/api/ai/generate-image/route.test.ts src/lib/server/__tests__/bananaGeneration.test.ts src/lib/agentic-edit/providers/__tests__/nanobanana.test.ts src/components/__tests__/ImageGeneratorModal.test.tsx`, `npm run build`. |
 | 38 | Facebook sign-in/auth integration | Not started | src/components/LoginModal.tsx, src/components/SettingsModal.tsx, src/components/SetupWizardModal.tsx | - | - | Login currently supports Email and Google only; Facebook auth is still presented as coming soon in the auth modal. |
+| 39 | Comfy custom workflows/nodes bundled integration | Not started | src/components/SettingsModal.tsx, src/components/ImageGeneratorModal.tsx, src/lib/comfyui/registry.ts, src/lib/comfyui/runner.ts, src/app/api/ai/comfy/library/route.ts | - | - | Bundle first-party custom node/workflow repo definitions in codebase, install/update from UI, and track versions/compatibility status. |
+| 40 | Super installer + first-run dependency orchestration | Not started | src/components/SetupWizardModal.tsx, src/components/SettingsModal.tsx, scripts/super-installer.mjs (new), scripts/qa-installation.mjs (new), scripts/qa-ollama.mjs | - | - | Guided selector-based installer for ComfyUI/custom bundles/models/Ollama models, pulls latest code from configured GitHub sources, runs post-install checks, and attempts safe auto-fixes for missing dependencies. |
+| 41 | Comfy model catalog + custom model upload/selection UI | Not started | src/components/ImageGeneratorModal.tsx, src/components/SettingsModal.tsx, src/lib/comfyui/registry.ts, src/lib/comfyui/preferences.ts, src/app/api/ai/comfy/library/route.ts | - | - | Let users select among multiple models (not only SDXL), register/upload custom models, and enforce workflow-model compatibility guards in UI. |
+| 42 | Global resizable popup/modal compliance | Not started | src/components/ui/DraggableResizablePanel.tsx, src/components/SettingsModal.tsx, src/components/LoginModal.tsx, src/components/UserProfileModal.tsx, src/components/AdminAreaModal.tsx, src/components/DocumentationModal.tsx, src/components/Editor/EditorExportQualityModal.tsx | - | - | Standardize resize behavior and constraints for major modals/popups via shared shell patterns with accessibility-safe focus/keyboard handling. |
+| 43 | Interface customization (themes/colors/modes) | Not started | src/app/ui-theme.css, src/app/globals.css, src/lib/theme-tokens.ts, src/components/SettingsModal.tsx, src/app/layout.tsx | - | - | Add user-selectable interface modes and color presets with persisted preferences and contrast-safe token application across dashboard/editor/modals. |
 
 
 ---
@@ -90,6 +96,11 @@ The following items were explicitly requested and are tracked above. Use this se
 - Facebook sign-in/auth integration.
 - Direct social posting integrations beyond the current manual export-and-open flow.
 - Additional online storage providers beyond Google Drive.
+- Comfy custom workflows/nodes bundled integration and version-managed install/update flow.
+- Super installer with first-run selectors for Comfy/custom bundles/model downloads/Ollama model downloads plus post-install validation + safe auto-fix retries.
+- Comfy model catalog with custom model upload/registration and model-workflow compatibility checks in UI.
+- Global resizable popup/modal compliance.
+- Interface customization with user-selectable colors/modes/themes.
 
 
 ## Notes

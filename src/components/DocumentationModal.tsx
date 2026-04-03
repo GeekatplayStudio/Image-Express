@@ -70,128 +70,194 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
 
                     <div className="flex-1 h-full overflow-y-auto px-6 py-6 space-y-10 text-sm leading-relaxed" id="documentation-content">
                         <IntroSection />
+
                         <Section id="dashboard" title="Dashboard Overview">
-                            <ul className="list-disc list-inside space-y-2">
-                                <li><span className="font-medium">Welcome banner:</span> confirms the current profile and links to community resources.</li>
-                                <li><span className="font-medium">Quick Start:</span> One-click access to popular formats (Instagram, YouTube, A4, Letter) to instantly launch a sized canvas.</li>
-                                <li><span className="font-medium">Start Creating:</span> opens a custom blank canvas dialog.</li>
-                                <li><span className="font-medium">Recent designs:</span> shows saved canvases from /api/designs/list with delete shortcuts and thumbnail previews.</li>
-                                <li><span className="font-medium">Support:</span> Footer links to support the developer (&quot;Buy me a Coffee&quot;) and social channels.</li>
-                            </ul>
+                            <p>
+                                The Dashboard is your mission control. Every project starts here, and every returning project
+                                is easy to pick up where you left off.
+                            </p>
+                            <ol className="list-decimal list-inside space-y-2">
+                                <li><span className="font-medium">Choose a starting path:</span> Start from <span className="font-mono">Custom Size</span>, <span className="font-mono">Upload Media</span>, <span className="font-mono">Generate Image</span>, or <span className="font-mono">Create 3D</span>. The editor opens with the right context already prepared.</li>
+                                <li><span className="font-medium">Use Templates when speed matters:</span> Search and filter by type, open a template, then customize text, colors, and assets instead of starting from a blank canvas.</li>
+                                <li><span className="font-medium">Resume recent work:</span> Recent designs are sorted by last modified time, so active projects are always first. Delete outdated drafts from each card menu.</li>
+                                <li><span className="font-medium">Access account and system controls:</span> Open profile, settings, docs, and admin (admins only) from the top-right controls.</li>
+                            </ol>
+                            <p className="text-xs bg-secondary/40 border border-border/60 p-3 rounded-md">
+                                Best practice: use Dashboard cards for quick project starts, then save early in the editor so your
+                                design appears in Recent Designs immediately.
+                            </p>
                         </Section>
 
                         <Section id="editor-layout" title="Editor Layout">
+                            <p>
+                                The editor follows a practical left-to-right workflow: select a tool, work on the canvas,
+                                then refine with precision panels.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li><span className="font-medium">Header bar:</span> houses Save, Settings, Profile, Export, and quick status chips for AI and 3D connectivity.</li>
-                                <li><span className="font-medium">Toolbar (left):</span> creation-focused workflow (Move, Text, Shapes, Brush, Pen, Fill/Gradient, Gallery, Library, AI Zone, AI 3D).</li>
-                                <li><span className="font-medium">Design canvas (center):</span> Fabric.js workspace with a white artboard and checkerboard surroundings.</li>
-                                <li><span className="font-medium">Properties panel (right):</span> contextual styling, layer ordering, and canvas configuration.</li>
-                                <li><span className="font-medium">Job Status footer:</span> logs AI background jobs with live progress and completion actions.</li>
+                                <li><span className="font-medium">Header:</span> Project name, menu actions, grid/share/export, and account controls.</li>
+                                <li><span className="font-medium">Top tool strip:</span> Changes based on selected tool, exposing quick options like brush size, selection behavior, crop settings, and gradient controls.</li>
+                                <li><span className="font-medium">Left tool rail:</span> Selection, drawing, text, retouch, utility, AI launchers, and asset access in one predictable vertical flow.</li>
+                                <li><span className="font-medium">Center canvas:</span> Your active artboard with direct manipulation, transform handles, guides, and visual overlays.</li>
+                                <li><span className="font-medium">Right panel modes:</span> Layers, Properties, History, Color, Swatches, Brushes, Channels, Adjustments, Navigator, and Info.</li>
+                                <li><span className="font-medium">Job footer:</span> Long-running AI and 3D jobs continue in the background and show live progress here.</li>
                             </ul>
+                            <p>
+                                Recommended loop: place content on canvas, organize layers, style in Properties, check color/channels,
+                                then export.
+                            </p>
                         </Section>
 
                         <Section id="canvas" title="Canvas Navigation">
+                            <p>
+                                Canvas controls are optimized for speed. Most users can stay in flow with keyboard + mouse only.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li>Use the mouse scroll wheel to zoom; zoom targets the cursor location.</li>
-                                <li>Hold Space and drag with the left mouse button to pan around the workspace.</li>
-                                <li>Double-click empty space to recentre the artboard under the pointer.</li>
-                                <li>The floating hint in the top-left reminds of pan and zoom gestures for new users.</li>
+                                <li><span className="font-medium">Pan:</span> Hold <span className="font-mono">Space</span> and drag, or use Hand mode.</li>
+                                <li><span className="font-medium">Zoom:</span> Mouse wheel zooms around the pointer for precision edits.</li>
+                                <li><span className="font-medium">Recenter:</span> Double-click empty workspace to recenter the artboard toward your click area.</li>
+                                <li><span className="font-medium">Artboard behavior:</span> The artboard stays locked at the bottom and is non-selectable, so it cannot be accidentally deleted.</li>
+                                <li><span className="font-medium">Selection dimensions:</span> Width/height of active selection appears as live overlay while transforming.</li>
+                                <li><span className="font-medium">Safe deletion behavior:</span> Delete/backspace is guarded while typing in text fields to avoid accidental object removal.</li>
                             </ul>
                         </Section>
 
                         <Section id="toolbar" title="Toolbar Tools">
+                            <p>
+                                The left toolbar is grouped by editing intent. If you know what outcome you want, choose the matching
+                                family below and the top strip will expose detailed controls.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li><span className="font-medium">Move (Select alias):</span> switches back to standard object manipulation and transform behavior.</li>
-                                <li><span className="font-medium">Path Select (A):</span> alias entry in tool switching surfaces that routes to Move/Select behavior.</li>
-                                <li><span className="font-medium">Crop:</span> drag directly in the workspace to draft crop bounds, then apply from the top options bar (or press Enter).</li>
-                                <li><span className="font-medium">Eyedropper / Picker:</span> clicking the canvas samples point color and keeps picker mode active without selecting underlying layers.</li>
-                                <li><span className="font-medium">Color wheel:</span> picker opens a full wheel panel with hue ring, saturation/value square, harmony presets, and quick swatches.</li>
-                                <li><span className="font-medium">Shapes:</span> quick-add rectangle, circle, triangle, or star geometry.</li>
-                                <li><span className="font-medium">Text:</span> inserts editable Fabric IText objects with live typing support.</li>
-                                <li><span className="font-medium">Fill / Gradient:</span> activates gradient painting mode handled in the properties panel.</li>
-                                <li><span className="font-medium">Gallery (Assets):</span> opens the Asset Library for uploads, generated images, and 3D models.</li>
-                                <li><span className="font-medium">AI Zone:</span> launches the draggable image generator with prompt controls and zone-based placement.</li>
-                                <li><span className="font-medium">AI 3D:</span> opens the 3D generator for Meshy or Tripo powered model creation.</li>
-                                <li><span className="font-medium">Library:</span> loads or saves templates that capture the current canvas layout.</li>
-                                <li><span className="font-medium">Layers/Adjustments/Color:</span> available from the right properties rail instead of the left toolbar.</li>
+                                <li><span className="font-medium">Selection family:</span> Select, Marquee, Lasso, Quick Select, and Wand for object and pixel-level targeting.</li>
+                                <li><span className="font-medium">Creation family:</span> Text, Shapes, Pen/Path, Gradient, and brush-based paint tools.</li>
+                                <li><span className="font-medium">Retouch family:</span> Healing, Clone Stamp, History Brush, Blur/Sharpen, and Dodge/Burn/Sponge-style effects.</li>
+                                <li><span className="font-medium">Utility family:</span> Eyedropper, Crop, Zoom, and Hand for measurement and navigation tasks.</li>
+                                <li><span className="font-medium">AI launchers:</span> Image Generation and 3D Generation can be opened directly from editor flow.</li>
                             </ul>
+                            <p className="text-xs bg-secondary/40 border border-border/60 p-3 rounded-md">
+                                Tip: learn only five shortcuts first (`V`, `T`, `B`, `H`, `Z`) and add the rest gradually as your speed grows.
+                            </p>
                         </Section>
 
                         <Section id="properties" title="Properties & Layers">
+                            <p>
+                                The right side is where professional finishing happens. Think of it as your control center for
+                                precision editing and layer management.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li>Edit fill, gradients, opacity, stroke, shadows, skew, curved text, and star parameters depending on selection.</li>
-                                <li><span className="font-medium">Masking:</span> Select two overlapping objects to activate Mask Mode. The top object (mask) clips the bottom object (content). Use the &quot;Masking Available&quot; banner to apply or invert the mask.</li>
-                                <li>Adjust canvas size, background colour, and export-safe artboard settings under Canvas Controls.</li>
-                                <li>Layer list supports drag-and-drop reordering, visibility toggles, colour tagging, renaming, and deletion.</li>
-                                <li><span className="font-medium">Multi-select:</span> Click a layer, then Shift-click another to select a range, or Ctrl/Cmd-click to toggle individual layers.</li>
-                                <li><span className="font-medium">Folders:</span> Create empty folders, drag layers into or out of folders, and apply visibility/lock/opacity to the whole folder.</li>
-                                <li><span className="font-medium">Paint folders:</span> Each paint session is grouped into a single folder; leaving Paint and returning starts a new folder.</li>
-                                <li>Double-click a layer grip to assign custom colour tags for quick visual grouping.</li>
+                                <li><span className="font-medium">Layers mode:</span> Reorder, group, lock, hide, rename, and delete layers. Use this first when composition feels messy.</li>
+                                <li><span className="font-medium">Properties mode:</span> Transform, fill/stroke, text styling, blend/opacity, shadows, and object-specific effects.</li>
+                                <li><span className="font-medium">Color and Swatches:</span> Work in RGB/HSB/CMYK/Lab, build reusable swatch sets, and keep color consistency across assets.</li>
+                                <li><span className="font-medium">Adjustments:</span> Add non-destructive looks like curves, levels, hue/saturation, exposure, black and white, and color balance.</li>
+                                <li><span className="font-medium">Channels:</span> Inspect Composite/R/G/B/Alpha/Luminosity, isolate channel behavior, and apply mask/invert actions.</li>
+                                <li><span className="font-medium">History, Navigator, Info:</span> Track edits, preview viewport position, and monitor scene details in real time.</li>
                             </ul>
                         </Section>
 
                         <Section id="assets" title="Asset Library">
+                            <p>
+                                Asset Library is multi-source and storage-aware, so teams can work locally, in cloud, or in hybrid mode
+                                without changing editing habits.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li>Tabs split workspace assets into Uploads, 3D Models, and AI Generated images.</li>
-                                <li><span className="font-medium">3D Preview:</span> Hover your mouse over any 3D model thumbnail to see a large, rotating 3D preview on the right side of the library.</li>
-                                <li>Uploads respect the “Save to Workspace Assets” toggle: disable to drop items straight on the canvas without persisting.</li>
-                                <li>Supports inline renaming, deletion, refresh, and double-click to edit filenames.</li>
-                                <li>Uploads push files into public/assets/... via /api/assets endpoints for consistent server storage.</li>
+                                <li><span className="font-medium">Tabs:</span> Uploads, Videos, Audio, 3D, and Generated.</li>
+                                <li><span className="font-medium">Scope and visibility filters:</span> Move quickly between personal/shared libraries and public/private assets.</li>
+                                <li><span className="font-medium">Core management:</span> Upload, rename, delete, toggle visibility, and download assets directly from the panel.</li>
+                                <li><span className="font-medium">Storage modes:</span> Local (IndexedDB), Hybrid (local + cloud), or Cloud (Drive-first) behavior comes from Settings.</li>
+                                <li><span className="font-medium">3D preview:</span> Hover 3D models to inspect before insertion.</li>
+                                <li><span className="font-medium">Insert workflow:</span> Click any asset to place it on canvas with provider-aware loading for local and cloud files.</li>
                             </ul>
                         </Section>
 
                         <Section id="ai-tools" title="AI Generation Tools">
+                            <p>
+                                AI tools are built for production workflows, not one-off experiments. You can generate, critique,
+                                and iterate while staying inside the same editor session.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li><span className="font-medium">Image Generator:</span> define a “magic zone” rectangle, enter prompts, and send to ComfyUI or available API providers (Stability, OpenAI, Google, Banana).</li>
-                                <li>Generated images are auto-saved into assets/generated/images and placed on the canvas sized to the zone.</li>
-                                <li><span className="font-medium">AI 3D Generator:</span> choose Meshy or Tripo, supply prompts or seed imagery, and monitor background job progress via the footer.</li>
-                                <li>Use the 3D Layer Editor to recapture higher-resolution thumbnails or replace existing Fabric placeholders.</li>
+                                <li><span className="font-medium">Image Generator:</span> Prompt-based generation with Comfy, Ollama, Stability, OpenAI, Google, or Banana (provider availability depends on setup).</li>
+                                <li><span className="font-medium">Comfy workflows:</span> Pick task and model presets, verify connection, inspect config, and resolve missing requirements from the UI.</li>
+                                <li><span className="font-medium">AI Edit Notes pipeline:</span> Add notes, masks, and annotation overlays to guide precise revision requests.</li>
+                                <li><span className="font-medium">AI Critique:</span> Review selected layer or full canvas with an Ollama vision-capable model and apply findings manually.</li>
+                                <li><span className="font-medium">3D generation:</span> Create models with Meshy, Tripo, or Hitem3D and insert results into both canvas and library.</li>
+                                <li><span className="font-medium">Background jobs:</span> Long tasks keep running with polling; progress is recoverable after refresh.</li>
                             </ul>
+                            <ol className="list-decimal list-inside space-y-2">
+                                <li><span className="font-medium">For best first results:</span> set provider keys in Settings, run runtime checks, then start with one short prompt and iterate.</li>
+                                <li><span className="font-medium">For repeatability:</span> keep prompt wording stable and change one variable at a time (style, subject, lighting, or composition).</li>
+                            </ol>
                         </Section>
 
                         <Section id="templates" title="Templates & Reuse">
+                            <p>
+                                Templates turn finished work into reusable production assets for teams and repeat campaigns.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li>Save the current canvas as a reusable template from the Library panel; thumbnails are auto-generated.</li>
-                                <li>Template selection clears the canvas and loads JSON definitions from /assets/templates.</li>
-                                <li>Missing asset detection prompts for replacements via the Asset Library before finalising the load.</li>
+                                <li><span className="font-medium">Load template:</span> Open saved template JSON with predefined dimensions, object structure, and linked assets.</li>
+                                <li><span className="font-medium">Handle missing assets:</span> If source files are unavailable, use replacement flow or continue without specific assets.</li>
+                                <li><span className="font-medium">Save as template:</span> Capture current design plus thumbnail for future reuse by you or your team.</li>
                             </ul>
                         </Section>
 
                         <Section id="saving" title="Saving & Exporting">
+                            <p>
+                                Save frequently and export with intent. This flow covers both quick delivery assets and campaign-ready
+                                frame variants.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li>Use the Save button to persist designs through /api/designs/save with canvas JSON plus low-res thumbnail.</li>
-                                <li>Exports support PNG, JPG, SVG, PDF, and JSON; downloads are named with timestamps for easy tracking.</li>
-                                <li>SVG and JSON exports retain Fabric metadata (e.g., 3D flags, gradients) for future re-import.</li>
+                                <li><span className="font-medium">Save design:</span> Stores design JSON plus thumbnail in design storage and refreshes your dashboard recents.</li>
+                                <li><span className="font-medium">Export formats:</span> PNG, JPG, SVG, PDF, JSON, and HTML bundle.</li>
+                                <li><span className="font-medium">Quality modal:</span> PNG/JPG export includes quality slider and estimated output size.</li>
+                                <li><span className="font-medium">Media Overlay workflow:</span> Build frame sets, apply safe areas, and export selected or all frames as ZIP.</li>
+                                <li><span className="font-medium">Variant bridge:</span> Convert current frame to a fresh variant draft in Fill, Fit, or Safe Area mode.</li>
+                                <li><span className="font-medium">Share action:</span> Exports PNG and opens Facebook/Instagram for manual posting flow.</li>
                             </ul>
+                            <p className="text-xs bg-secondary/40 border border-border/60 p-3 rounded-md">
+                                Reliability tip: save before every AI batch and before final export to avoid losing late-stage edits.
+                            </p>
                         </Section>
 
                         <Section id="settings" title="Settings & API Keys">
+                            <p>
+                                Settings controls providers, storage behavior, runtime health, and account-level system setup.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li>Store Meshy, Tripo, Stability, OpenAI, Google, and Banana keys locally with optional account sync.</li>
-                                <li>Configure local ComfyUI by storing the endpoint URL. The app proxies local ComfyUI requests, so you normally do not need to launch ComfyUI with --enable-cors-header.</li>
-                                <li>Connection badges in the editor header reflect whether image or 3D providers are ready.</li>
+                                <li><span className="font-medium">Provider keys:</span> Configure Meshy, Tripo, Hitem, Stability, OpenAI, Google, and Banana keys.</li>
+                                <li><span className="font-medium">Local AI:</span> Set Ollama URL/model, check runtime health, and install missing models.</li>
+                                <li><span className="font-medium">Comfy connection:</span> Local/cloud/auto modes, server URL/cloud URL, API key, install path, and workflow library management.</li>
+                                <li><span className="font-medium">Storage mode:</span> Choose Local, Hybrid, or Cloud-only asset storage behavior.</li>
+                                <li><span className="font-medium">Google Drive:</span> Connect/disconnect OAuth client for backups and cloud library operations.</li>
+                                <li><span className="font-medium">Desktop updates:</span> In desktop app, check and install available updates from settings.</li>
+                                <li><span className="font-medium">Setup wizard:</span> Re-open the guided setup flow anytime from settings.</li>
+                                <li><span className="font-medium">User state awareness:</span> Web mode uses authenticated sessions and role-aware controls; admin users see Admin area actions.</li>
                             </ul>
                         </Section>
 
                         <Section id="troubleshooting" title="Troubleshooting & Tips">
+                            <p>
+                                Use this checklist approach: identify symptom, verify setup, then retry with a minimal case.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li>If a template reports missing items, follow the replacement wizard or ignore to load placeholders.</li>
-                                <li>Stalled AI jobs can be dismissed from the footer; rerun once connectivity or credits are restored.</li>
-                                <li>CORS or API errors surface in the browser console—verify keys and endpoints in Settings.</li>
-                                <li>Use smaller artboard sizes when exporting large PDFs to manage browser memory usage.</li>
+                                <li><span className="font-medium">Generation fails:</span> Check API keys, credits, provider selection, and runtime URLs in Settings.</li>
+                                <li><span className="font-medium">Comfy issues:</span> Use Verify Connection and Inspect Config to find missing nodes/models or path problems.</li>
+                                <li><span className="font-medium">Ollama critique/model errors:</span> Use Check Runtime and install a vision-capable model if required.</li>
+                                <li><span className="font-medium">Cloud assets unavailable:</span> Reconnect Google Drive and confirm client ID/origin configuration.</li>
+                                <li><span className="font-medium">Template missing files:</span> Use replacement flow before load completes.</li>
+                                <li><span className="font-medium">Session expired:</span> Web mode logs out after inactivity; save work frequently.</li>
+                                <li><span className="font-medium">Unexpected export result:</span> Confirm artboard size, active frame selection, and PNG/JPG quality settings before rerun.</li>
                             </ul>
                         </Section>
 
                         <Section id="shortcuts" title="Productivity Shortcuts">
+                            <p>
+                                Learn shortcuts in layers. Start with navigation and history, then add tool aliases to cut edit time.
+                            </p>
                             <ul className="list-disc list-inside space-y-2">
-                                <li>Space + Drag to pan, Scroll to zoom, Double-click empty canvas to recenter.</li>
-                                <li>Alt/Option + Drag on a selected layer duplicates it in place, then drags the copy.</li>
-                                <li>Photoshop-style tool keys: V Move, M Marquee, L Lasso, W Quick Selection, Shift+W Magic Wand, A Path Select.</li>
-                                <li>Creation and utility keys: T Text, U Shapes, P Pen, B Brush, R Blur, J Healing, S Clone Stamp, O Dodge, G Gradient, I Eyedropper, C Crop, H Hand, Z Zoom.</li>
-                                <li>Editing keys: Cmd/Ctrl+J duplicates the active selection, Cmd/Ctrl+D deselects, Cmd/Ctrl+Z or Cmd/Ctrl+Alt+Z undoes, and Cmd/Ctrl+Shift+Z redoes.</li>
-                                <li>With Crop active, press Enter to apply the current crop draft bounds.</li>
-                                <li>Drag layer grips to reorder, or double-click names to rename elements quickly.</li>
-                                <li>Use Shift while resizing Fabric objects to maintain aspect ratio.</li>
+                                <li><span className="font-medium">Navigation:</span> Space + Drag pan, Scroll zoom, Double-click empty canvas to recenter.</li>
+                                <li><span className="font-medium">Duplicate with drag:</span> Alt/Option + Drag on a selected layer duplicates it in place, then drags the copy.</li>
+                                <li><span className="font-medium">Selection and tools:</span> V Select, M Marquee, L Lasso, W Quick Select, Shift+W Wand, A Path Select.</li>
+                                <li><span className="font-medium">Creation and utility:</span> T Text, U Shapes, P Pen, B Brush, R Blur, J Healing, S Clone Stamp, O Dodge, G Gradient, I Eyedropper, C Crop, H Hand, Z Zoom.</li>
+                                <li><span className="font-medium">History:</span> Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo, Cmd/Ctrl+Y redo alternate, Cmd/Ctrl+D deselect.</li>
+                                <li><span className="font-medium">Duplicate command:</span> Cmd/Ctrl+J duplicates the active selection.</li>
                             </ul>
                         </Section>
 
@@ -209,10 +275,22 @@ function IntroSection() {
     return (
         <Section id="introduction" title="Introduction">
             <p>
-                Image Express combines a Fabric.js design surface, AI image synthesis, and 3D model tooling to accelerate creative workflows. The app opens on a personal dashboard where you can start a blank project, resume saved designs, or adapt a template. Switching to the editor reveals a left-hand creation toolbar, central canvas, and right-hand inspector for precise adjustments.
+                Image Express combines layered 2D design, AI-assisted image workflows, and 3D generation in one production workspace.
+                This manual is written for real day-to-day use, not just feature discovery.
+            </p>
+            <ol className="list-decimal list-inside space-y-2">
+                <li><span className="font-medium">Start in Dashboard:</span> pick a launch path (custom size, upload, image generation, or 3D).</li>
+                <li><span className="font-medium">Build composition in Editor:</span> place assets, use layers, then refine with Properties and Adjustments.</li>
+                <li><span className="font-medium">Use AI intentionally:</span> generate, critique, or annotate edits with clear iteration goals.</li>
+                <li><span className="font-medium">Finish with confidence:</span> save design, export required formats, then publish via share/manual channel flow.</li>
+            </ol>
+            <p>
+                Recommended first session: create a custom-size design, add one asset, add one text layer, apply one adjustment,
+                run one AI generation, and export PNG + PDF. That single loop teaches the full product lifecycle.
             </p>
             <p className="mt-2 text-xs bg-yellow-500/10 border border-yellow-500/20 p-2 rounded text-yellow-600 dark:text-yellow-400">
-                <strong>Note:</strong> Web sessions include a security timer. If inactive for 30 minutes, you will be automatically logged out to protect your work and session.
+                <strong>Security note:</strong> In web mode, inactive sessions auto-logout after 30 minutes.
+                Save work frequently if you step away.
             </p>
         </Section>
     );

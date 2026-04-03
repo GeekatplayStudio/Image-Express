@@ -13,6 +13,9 @@ This is the single source of truth for implementation progress across:
 
 Use this file first for: what is done, what is pending, and what to do next.
 
+Future roadmap canonical source:
+- `docs/master_future_implementation_roadmap.md` (planned scope, sequencing, file-level future implementation map)
+
 
 ---
 
