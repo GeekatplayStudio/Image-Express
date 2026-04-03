@@ -141,16 +141,7 @@ describe('googleDrive (browser)', () => {
 
   it('fails when the Google Identity Services script cannot load', async () => {
     Object.defineProperty(window, 'google', { value: undefined, configurable: true });
-    const createElementSpy = jest.spyOn(document, 'createElement');
     const appendChildSpy = jest.spyOn(document.body, 'appendChild');
-
-    createElementSpy.mockImplementation(() => ({
-      src: '',
-      async: true,
-      defer: true,
-      onload: null,
-      onerror: null,
-    } as unknown as HTMLScriptElement));
 
     appendChildSpy.mockImplementation((node) => {
       const script = node as HTMLScriptElement;
