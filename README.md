@@ -22,6 +22,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Paint Folders**: Each paint session is grouped into a single folder; switching tools starts a new paint folder automatically.
 - **Advanced Masking**: Non-destructive masking functionality. Select two objects to mask the bottom one with the top one; includes support for inverting masks.
 - **Interactive Tools**: Gradient editor, expanded shapes (including cloud/thought bubble/hexagon/diamond), and text manipulation with multiline text editing in properties.
+- **Perspective Presets**: Selected layers can switch between Front and Back presentation in Properties to fake a backside view without adding extra skew.
 - **Retouching Suite**: Comprehensive canvas manipulation tools including Spot Healing, Remove, Clone Stamp, Blur, Sharpen, Dodge, Burn, Sponge, and History Brush.
 - **Export Options**: Export designs to PNG, JPG, SVG, PDF, JSON, and self-contained HTML bundles with all assets rewritten for offline playback.
 - **In-App Manual**: Contextual help modal with persistent chapter navigation and quick close actions.
@@ -40,7 +41,7 @@ Image Express is a professional content creation platform built with Next.js 16,
 - **Google Gemini Image Generation**: The shared generator route now supports Gemini image generation using your saved Google API key, including aspect-ratio mapping for the current prompt zone.
 - **Local AI Critique with Ollama**:
    - Persist local runtime settings for Ollama base URL and preferred model in Settings.
-   - Server-side Ollama routes retry between `localhost` and `host.docker.internal`, so the same saved setting can work when the app runs either directly on the host or inside Docker.
+   - Server-side Ollama routes retry transient network failures and hop between `localhost` and `host.docker.internal`, so the same saved setting can work when the app runs either directly on the host or inside Docker.
    - Use Ollama as a first-pass local SVG generation provider in the shared image-generation modal.
    - Run local critique against either the selected layer or the full canvas from the toolbar.
    - Validate local model availability before sending critique requests.
@@ -50,6 +51,9 @@ Image Express is a professional content creation platform built with Next.js 16,
    - Browse runnable server templates plus custom workflow-folder JSON imports from the app.
    - Inspect and manage configured Comfy custom-node/workflow repositories.
    - Use a same-origin Comfy proxy with loopback fallback handling for Docker/host setups.
+   - Image-based Comfy tasks hide the visible AI zone overlay during source export and now stop early if the captured source is almost entirely blank.
+   - Standard local Comfy runs persist the last prepared request snapshot in browser localStorage under `image-express-comfy-last-request`, including prepared positive/negative prompt text plus workflow and model metadata.
+   - `custom_nodes` and workflow-library settings can be entered as relative child paths of the configured Comfy install folder, which simplifies Docker-mounted installs.
 - **AI Edit Notes (Beta)**:
    - Create a reference layer directly from the currently selected canvas layer.
    - Annotate with a large notes workspace using point/manual notes.
@@ -174,7 +178,7 @@ This project includes a `Dockerfile` optimized for production.
      image-express
    ```
 
-For local ComfyUI folder management inside Docker, mount your Comfy install, `custom_nodes` folder, and optional workflow-library folder into the container. If ComfyUI itself runs on the host machine, prefer `host.docker.internal` over `localhost` for server-side template scans.
+For local ComfyUI folder management inside Docker, mount your Comfy install, `custom_nodes` folder, and optional workflow-library folder into the container. The configured install path must match the container-visible mount path, and relative `custom_nodes` / workflow-library values resolve from that install folder. If ComfyUI itself runs on the host machine, prefer `host.docker.internal` over `localhost` for server-side template scans.
 
 For host installs outside Docker, creating a local `.env.local` with the same `COMFY_CLOUD_URL` and `COMFY_CLOUD_API_KEY` values is enough for the app to preload the cloud configuration.
 
@@ -262,12 +266,13 @@ The Properties Panel provides comprehensive editing capabilities:
 - Editor ownership map for ongoing refactors: [docs/component_responsibility_map.md](docs/component_responsibility_map.md)
 - Current large-component audit and extraction plan: [docs/refactor_component_audit_2026-02-26.md](docs/refactor_component_audit_2026-02-26.md)
 - Current repo maintenance audit snapshot: [docs/repo_maintenance_audit.md](docs/repo_maintenance_audit.md)
-- Latest release notes (Apr 1 2026): [docs/release_notes_2026-04-01.md](docs/release_notes_2026-04-01.md)
+- Latest release notes (Apr 2 2026): [docs/release_notes_2026-04-02.md](docs/release_notes_2026-04-02.md)
 
-Validation status as of 2026-04-01:
-- `npm.cmd test -- --runInBand --ci` -> 57/57 suites passed
+Validation status as of 2026-04-02:
+- `npm.cmd test -- --runInBand --ci` -> 57/57 suites passed on the latest full-suite validation run
+- `npm.cmd test -- --runInBand src/components/__tests__/imageGeneratorModalUtils.test.ts src/lib/__tests__/ollamaServer.test.ts src/lib/comfyui/__tests__/registry.test.ts src/components/__tests__/PropertiesPanel.test.tsx src/components/properties/__tests__/SelectionProperties.test.tsx` -> passed (5 suites / 26 tests)
 - `npm.cmd run build` -> passed
-- `npm.cmd run lint -- .` -> passed with existing warnings only
+- Docker image rebuilt and `image-express-app` returned HTTP 200 on port 3000
 
 Maintenance audit:
 - `npm run audit:repo` -> reports oversized source/test files, large modules without a direct same-name test heuristic, and runtime `coming soon` / `not implemented yet` markers.

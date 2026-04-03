@@ -73,6 +73,8 @@ describe('/api/ai/ollama/status', () => {
             baseUrl: 'http://host.docker.internal:11434',
             requestedModel: 'qwen2.5:7b',
             modelFound: true,
+            visionCapable: false,
+            visionModels: [],
         }));
         expect(payload.attemptedBaseUrls).toEqual([
             'http://localhost:11434',

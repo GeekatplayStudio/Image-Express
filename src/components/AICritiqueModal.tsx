@@ -18,6 +18,8 @@ type RuntimeCheckState = {
     state: 'idle' | 'checking' | 'success' | 'warning';
     message: string;
     modelFound: boolean;
+    critiqueReady: boolean;
+    visionCapable: boolean;
 };
 
 type CanvasWithSelectionControls = fabric.Canvas & {
@@ -103,6 +105,8 @@ export default function AICritiqueModal({
         state: 'idle',
         message: '',
         modelFound: false,
+        critiqueReady: false,
+        visionCapable: false,
     });
     const [target, setTarget] = useState<CritiqueTarget>('canvas');
     const [selectionLabel, setSelectionLabel] = useState<string | null>(null);
@@ -136,6 +140,8 @@ export default function AICritiqueModal({
             state: 'checking',
             message: 'Checking saved Ollama runtime...',
             modelFound: false,
+            critiqueReady: false,
+            visionCapable: false,
         });
 
         try {
@@ -144,16 +150,20 @@ export default function AICritiqueModal({
                 model: requestedModel,
             });
             setRuntimeCheck({
-                state: result.modelFound ? 'success' : 'warning',
+                state: result.modelFound && result.visionCapable ? 'success' : 'warning',
                 message: formatOllamaRuntimeStatusMessage(result),
                 modelFound: result.modelFound,
+                critiqueReady: result.modelFound && result.visionCapable,
+                visionCapable: result.visionCapable,
             });
-            return result.modelFound;
+            return result.modelFound && result.visionCapable;
         } catch (error) {
             setRuntimeCheck({
                 state: 'warning',
                 message: error instanceof Error ? error.message : 'Failed to contact Ollama.',
                 modelFound: false,
+                critiqueReady: false,
+                visionCapable: false,
             });
             return false;
         }
@@ -169,6 +179,8 @@ export default function AICritiqueModal({
             state: 'idle',
             message: '',
             modelFound: false,
+            critiqueReady: false,
+            visionCapable: false,
         });
         setFocus('');
         setCritique('');
@@ -221,7 +233,7 @@ export default function AICritiqueModal({
         && (target === 'canvas' || Boolean(selectionLabel))
         && !isAnalyzing
         && runtimeCheck.state !== 'checking'
-        && runtimeCheck.modelFound;
+        && runtimeCheck.critiqueReady;
 
     const handleAnalyze = async () => {
         if (!canvas) {
@@ -236,7 +248,7 @@ export default function AICritiqueModal({
 
         const runtimeReady = runtimeCheck.modelFound || await checkRuntime();
         if (!runtimeReady) {
-            setErrorMessage(runtimeCheck.message || 'Ollama is not ready yet. Check the configured runtime and model in Settings.');
+            setErrorMessage(runtimeCheck.message || 'Ollama critique is not ready yet. Configure a vision-capable model in Settings and recheck.');
             return;
         }
 
@@ -297,6 +309,8 @@ export default function AICritiqueModal({
                 state: 'success',
                 message: result.message,
                 modelFound: true,
+                critiqueReady: true,
+                visionCapable: true,
             });
             await checkRuntime(ollamaBaseUrl, ollamaModel);
         } catch (error) {
@@ -375,6 +389,11 @@ export default function AICritiqueModal({
                             {isInstallingModel ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
                         </div>
                     ) : null}
+                    {runtimeCheck.modelFound && !runtimeCheck.visionCapable && runtimeCheck.state !== 'checking' ? (
+                        <div className="mt-3 text-xs text-muted-foreground">
+                            AI Critique needs a vision-capable Ollama model such as `llava`, `llama3.2-vision`, `gemma3`, or `qwen2.5-vl`. Update the saved Local AI Runtime model in Settings, then recheck.
+                        </div>
+                    ) : null}
                 </div>
 
                 <fieldset>
@@ -446,9 +465,9 @@ export default function AICritiqueModal({
                     {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <MessageSquare size={16} />}
                     {isAnalyzing ? 'Analyzing...' : 'Analyze with Ollama'}
                 </button>
-                {!runtimeCheck.modelFound && runtimeCheck.state !== 'checking' ? (
+                {!runtimeCheck.critiqueReady && runtimeCheck.state !== 'checking' ? (
                     <div className="text-xs text-muted-foreground">
-                        Critique is disabled until the saved Ollama model is reachable. Install the missing model here or update Local AI Runtime in Settings, then recheck.
+                        Critique is disabled until the saved Ollama model is reachable and supports image input. Install the missing model here or update Local AI Runtime in Settings, then recheck.
                     </div>
                 ) : null}
 

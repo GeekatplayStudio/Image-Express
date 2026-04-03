@@ -37,6 +37,7 @@ In Image Express:
 - Click `Verify ComfyUI Connection`.
 - The app now performs a **catalog sync** (Comfy version + workflow compatibility against registered workflows).
 - If you configure local paths in Settings, the app can also scan server template workflows, custom workflow JSON folders, and managed `custom_nodes` / workflow-library repositories.
+- For `img2img`, `inpaint`, `outpaint`, and `upscale`, the app exports the selected layer or AI zone as the source image. The visible AI zone overlay is hidden during capture, and nearly blank white captures are rejected before upload so ComfyUI does not receive an empty-looking source frame.
 
 ### Local Comfy folders (optional, but recommended)
 Configure these paths in Settings when you want the app to inspect or manage your local Comfy workspace:
@@ -45,6 +46,9 @@ Configure these paths in Settings when you want the app to inspect or manage you
 - `workflow library path`
 
 This enables repo install/update flows and custom workflow-folder scanning from the app UI.
+
+- Relative values such as `custom_nodes` or `user\default\workflows` are resolved from the configured `ComfyUI install path`.
+- If Image Express runs in Docker, the `ComfyUI install path` must be the path visible inside the container mount, not a host-only drive letter.
 
 If Image Express runs in Docker while ComfyUI lives on the host machine:
 - mount those folders into the container,
@@ -80,7 +84,7 @@ ollama pull qwen2.5:7b
 - The toolbar `AI Critique` panel can then review either the selected layer or the full canvas using that local runtime.
 - The app validates model availability through `/api/ai/ollama/status` before critique requests are sent.
 - If the saved model is missing, the app can now prompt to install it through Ollama from Settings, AI Critique, or the Ollama image-generation flow.
-- For mixed host/container setups, keep using your normal Ollama URL. Server-side Ollama routes now retry `localhost` through `host.docker.internal`, and retry `host.docker.internal` back to `localhost`, so the same saved setting works whether Image Express is running on the host or inside Docker on macOS/Windows.
+- For mixed host/container setups, keep using your normal Ollama URL. Server-side Ollama routes now retry transient network failures per candidate and also retry `localhost` through `host.docker.internal`, plus `host.docker.internal` back to `localhost`, so the same saved setting works whether Image Express is running on the host or inside Docker on macOS/Windows.
 
 ### Option B: LM Studio
 - Install LM Studio.
@@ -125,3 +129,6 @@ cmd /c npm.cmd run build
 - If local Comfy is unreachable, make sure ComfyUI is actually listening on port `8188` or update the saved URL.
 - If Comfy server scans fail only on the server side, check whether the app runtime is inside Docker and whether `localhost` should be replaced with `host.docker.internal`.
 - If local Comfy folders are unreadable, confirm the configured paths are mounted into the container or that the app is running directly on the host OS.
+- If an image-based Comfy task says the captured source is almost blank, move the AI zone over real image content or select an actual image layer before rerunning the task.
+- To inspect the exact prepared local Comfy prompt/model/workflow payload, open browser localStorage and read `image-express-comfy-last-request`.
+- If `custom_nodes` or workflow scans fail with relative paths, verify that the saved `ComfyUI install path` points at the correct host path or container mount first.

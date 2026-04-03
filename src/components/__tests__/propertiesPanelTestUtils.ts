@@ -34,11 +34,22 @@ export type MockCanvasObject = {
     skewY?: number;
     skewZ?: number;
     taperDirection?: number;
+    flipX?: boolean;
+    scaleX?: number;
+    scaleY?: number;
+    backsideBaseFlipX?: boolean;
+    pseudoBacksidePreset?: 'front' | 'back';
     filters?: Array<{ type: string; [key: string]: number }>;
     isAdjustmentLayer?: boolean;
     adjustmentType?: string;
     adjustmentSettings?: Record<string, unknown>;
     name?: string;
+    left?: number;
+    top?: number;
+    width?: number;
+    height?: number;
+    getCenterPoint?: jest.Mock;
+    setPositionByOrigin?: jest.Mock;
     set: jest.Mock;
     setCoords: jest.Mock;
 };
@@ -57,7 +68,16 @@ export const createMockObject = (overrides: Partial<MockCanvasObject> = {}): Moc
         skewY: 0,
         skewZ: 0,
         taperDirection: 0,
+        flipX: false,
+        scaleX: 1,
+        scaleY: 1,
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 100,
         filters: [],
+        getCenterPoint: jest.fn(() => ({ x: 50, y: 50 })),
+        setPositionByOrigin: jest.fn(),
         setCoords: jest.fn(),
         set: jest.fn((key: string | Record<string, unknown>, value?: unknown) => {
             if (typeof key === 'string') {

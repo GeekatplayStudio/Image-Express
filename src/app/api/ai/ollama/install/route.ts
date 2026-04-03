@@ -44,14 +44,11 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
     }
 
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), OLLAMA_INSTALL_TIMEOUT_MS);
-
     try {
         const tagsResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
             method: 'GET',
             cache: 'no-store',
-            signal: abortController.signal,
+            timeoutMs: OLLAMA_INSTALL_TIMEOUT_MS,
         });
 
         if (!tagsResult.ok || !tagsResult.response) {
@@ -91,7 +88,7 @@ export async function POST(request: NextRequest) {
                 'Content-Type': 'application/json',
             },
             cache: 'no-store',
-            signal: abortController.signal,
+            timeoutMs: OLLAMA_INSTALL_TIMEOUT_MS,
             body: JSON.stringify({
                 model: requestedModel,
                 stream: false,
@@ -125,7 +122,7 @@ export async function POST(request: NextRequest) {
         const verifyResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
             method: 'GET',
             cache: 'no-store',
-            signal: abortController.signal,
+            timeoutMs: OLLAMA_INSTALL_TIMEOUT_MS,
         });
 
         if (!verifyResult.ok || !verifyResult.response) {
@@ -164,7 +161,5 @@ export async function POST(request: NextRequest) {
                 ? `Timed out installing the Ollama model after ${Math.round(OLLAMA_INSTALL_TIMEOUT_MS / 60000)} minutes.`
                 : (error instanceof Error ? error.message : 'Failed to install Ollama model.'),
         }, { status: 502 });
-    } finally {
-        clearTimeout(timeoutId);
     }
 }

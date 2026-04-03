@@ -178,6 +178,61 @@ describe('/api/ai/generate-image', () => {
         }));
     });
 
+    it('retries Ollama generation once more after a transient transport failure', async () => {
+        let generateCalls = 0;
+
+        global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+            if (String(input) === 'http://ollama.internal:11434/api/tags') {
+                return {
+                    ok: true,
+                    json: async () => ({ models: [{ name: 'qwen2.5:7b' }] }),
+                } as Response;
+            }
+
+            if (String(input) === 'http://ollama.internal:11434/api/generate') {
+                generateCalls += 1;
+
+                if (generateCalls <= 4) {
+                    throw new TypeError('fetch failed');
+                }
+
+                return {
+                    ok: true,
+                    json: async () => ({
+                        response: '<svg width="640" height="480" viewBox="0 0 640 480"><rect width="640" height="480" fill="#112233" /></svg>',
+                    }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch call: ${String(input)}`);
+        }) as typeof global.fetch;
+
+        const request = new Request('http://localhost:3000/api/ai/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: 'A bold abstract sunrise',
+                width: 640,
+                height: 480,
+                provider: 'remote',
+                specificProvider: 'ollama',
+                localAiBaseUrl: 'http://ollama.internal:11434',
+                localAiModel: 'qwen2.5:7b',
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload).toEqual(expect.objectContaining({
+            success: true,
+            provider: 'ollama',
+            output: 'svg',
+        }));
+        expect(generateCalls).toBe(5);
+    }, 20000);
+
     it('returns an image data URL for the Google provider path', async () => {
         global.fetch = jest.fn(async (input: RequestInfo | URL) => {
             expect(String(input)).toContain('generativelanguage.googleapis.com');

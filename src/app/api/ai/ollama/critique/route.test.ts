@@ -123,6 +123,40 @@ describe('/api/ai/ollama/critique', () => {
         }));
     });
 
+    it('rejects text-only models for critique even when they are installed', async () => {
+        global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+            if (String(input) === 'http://localhost:11434/api/tags') {
+                return {
+                    ok: true,
+                    json: async () => ({ models: [{ name: 'qwen2.5:7b' }, { name: 'llava:7b' }] }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch call: ${String(input)}`);
+        }) as typeof global.fetch;
+
+        const request = new Request('http://localhost:3000/api/ai/ollama/critique', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                baseUrl: 'http://localhost:11434',
+                model: 'qwen2.5:7b',
+                target: 'canvas',
+                targetLabel: 'Full canvas',
+                imageDataUrl: 'data:image/png;base64,AAAAAA==',
+            }),
+        });
+
+        const response = await POST(request as never);
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(payload).toEqual(expect.objectContaining({
+            success: false,
+            message: expect.stringContaining('does not appear to support image input'),
+        }));
+    });
+
     it('falls back from host.docker.internal to localhost when the app is running outside Docker', async () => {
         global.fetch = jest.fn(async (input: RequestInfo | URL) => {
             if (String(input) === 'http://host.docker.internal:11434/api/tags') {

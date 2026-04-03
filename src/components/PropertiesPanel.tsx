@@ -1356,6 +1356,43 @@ export default function PropertiesPanel({
         canvas?.requestRenderAll();
     };
 
+    const applyPseudoBacksidePreset = (preset: 'front' | 'back') => {
+        if (!selectedObject) return;
+
+        const ext = selectedObject as ExtendedFabricObject;
+        const currentCenter = selectedObject.getCenterPoint();
+        const baseFlipX = typeof ext.backsideBaseFlipX === 'boolean'
+            ? ext.backsideBaseFlipX
+            : Boolean(selectedObject.flipX);
+
+        if (typeof ext.backsideBaseFlipX !== 'boolean') {
+            selectedObject.set('backsideBaseFlipX', baseFlipX);
+        }
+
+        if (preset === 'front') {
+            selectedObject.set({
+                flipX: baseFlipX,
+                pseudoBacksidePreset: 'front',
+            });
+            setSkewZ(0);
+            setTaperDirection(0);
+            applyTaper(0, 0);
+        } else {
+            selectedObject.set({
+                flipX: !baseFlipX,
+                pseudoBacksidePreset: preset,
+            });
+            setSkewZ(0);
+            setTaperDirection(0);
+            applyTaper(0, 0);
+        }
+
+        selectedObject.setPositionByOrigin(currentCenter, 'center', 'center');
+        selectedObject.setCoords();
+        selectedObject.set('dirty', true);
+        canvas?.requestRenderAll();
+    };
+
 
 
     const updateAdjustment = (updates: Partial<AdjustmentLayerSettings>) => {
@@ -1784,6 +1821,10 @@ export default function PropertiesPanel({
                  selectedObject.setCoords();
              }
         }
+
+           if (prop === 'pseudoBacksidePreset') {
+               applyPseudoBacksidePreset(value as 'front' | 'back');
+           }
         
         if (prop === 'taperDirection') {
              setTaperDirection(value);
@@ -3478,7 +3519,7 @@ export default function PropertiesPanel({
                  shadow: { 
                     enabled: shadowEnabled, color: shadowColor, blur: shadowBlur, offsetX: shadowOffsetX, offsetY: shadowOffsetY, opacity: shadowOpacity 
                  },
-                 skew: { x: skewX, y: skewY, z: skewZ, dir: taperDirection }
+                      skew: { x: skewX, y: skewY, z: skewZ, dir: taperDirection, preset: (selectedObject as ExtendedFabricObject | null)?.pseudoBacksidePreset || 'front' }
              }}
              // Need to pass extended state that SelectionProperties expects for new component
              shadowStrokeState={{

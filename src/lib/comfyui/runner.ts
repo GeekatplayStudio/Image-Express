@@ -10,8 +10,11 @@ import {
 import {
     comfyWorkflowRegistry,
     prepareWorkflowBlueprint,
+    readWorkflowInputBindingValues,
     type ComfyWorkflowInstallableModel,
     type ComfyModelPreset,
+    type ComfyPromptBlueprint,
+    type ComfyWorkflowInputSource,
     type ComfyTask,
     type ComfyWorkflowVariableParams,
     type RegisteredWorkflow,
@@ -34,9 +37,14 @@ export interface PreparedComfyTaskExecution {
     workflowJson: Record<string, unknown>;
 }
 
+export interface PreparedComfyTaskDiagnostics extends PreparedComfyTaskExecution {
+    boundInputValues: Partial<Record<ComfyWorkflowInputSource, unknown[]>>;
+}
+
 export interface ExecuteComfyTaskOptions extends PrepareComfyTaskOptions {
     onProgress?: (progress: ComfyExecutionProgress) => void;
     onQueued?: (promptId: string) => void;
+    onPrepared?: (prepared: PreparedComfyTaskDiagnostics) => void;
 }
 
 export interface ExecuteComfyTaskResult {
@@ -461,6 +469,14 @@ export const prepareComfyTask = async (options: PrepareComfyTaskOptions): Promis
 
 export const executeComfyTask = async (options: ExecuteComfyTaskOptions): Promise<ExecuteComfyTaskResult> => {
     const prepared = await prepareComfyTask(options);
+    options.onPrepared?.({
+        ...prepared,
+        boundInputValues: readWorkflowInputBindingValues(
+            prepared.workflowJson as ComfyPromptBlueprint,
+            prepared.workflow.inputBindings
+        ),
+    });
+
     const result = await prepared.client.executeWorkflow(
         prepared.workflowJson,
         prepared.workflow.outputNodeIds,

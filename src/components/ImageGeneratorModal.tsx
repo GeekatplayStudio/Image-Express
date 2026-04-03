@@ -5,6 +5,7 @@ import * as fabric from 'fabric';
 import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
 import ComfyWorkflowLibraryPanel from './ComfyWorkflowLibraryPanel';
+import { captureComfySourceImageFromCanvas, inspectCapturedSourceDataUrl } from './imageGeneratorModalUtils';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { APP_THEME } from '@/lib/theme-tokens';
 import {
@@ -79,6 +80,7 @@ type CanvasWithArtboard = fabric.Canvas & {
 const COMFY_TASK_STORAGE_KEY = 'image-express-comfy-task';
 const COMFY_PENDING_JOB_STORAGE_KEY = 'image-express-comfy-pending-job';
 const COMFY_CANCELLED_PROMPTS_STORAGE_KEY = 'image-express-comfy-cancelled-prompts';
+const COMFY_DEBUG_REQUEST_STORAGE_KEY = 'image-express-comfy-last-request';
 
 interface PendingComfyJobRecord {
     promptId: string;
@@ -92,6 +94,22 @@ interface PendingComfyJobRecord {
         cloudApiKey: string;
     };
     queuedAt: string;
+}
+
+interface ComfyPreparedRequestSnapshot {
+    createdAt: string;
+    task: ComfyTask;
+    workflowId: string;
+    workflowName: string;
+    modelPresetId: string;
+    modelPresetName: string;
+    uiPrompt: string;
+    preparedPositivePrompt: string;
+    preparedNegativePrompt: string;
+    width: number;
+    height: number;
+    hasImage: boolean;
+    hasMask: boolean;
 }
 
 interface CanvasLayerOption {
@@ -262,6 +280,23 @@ const formatComfyRequirementDetails = (
         return `${record.workflowId}:missing ${detailParts.join('; ') || 'requirements'}`;
     })
     .join(' | ');
+
+const readPreparedComfyText = (values: unknown[] | undefined): string => {
+    const textValue = values?.find((value): value is string => (
+        typeof value === 'string' && value.trim().length > 0
+    ));
+
+    return textValue ? textValue.trim() : '';
+};
+
+const truncateComfyPromptForStatus = (value: string, maxLength = 120): string => {
+    const trimmed = value.trim();
+    if (trimmed.length <= maxLength) {
+        return trimmed;
+    }
+
+    return `${trimmed.slice(0, maxLength - 3).trimEnd()}...`;
+};
 
 interface ComfyQualityProfile {
     width: number;
@@ -669,6 +704,14 @@ export default function ImageGeneratorModal({
       window.localStorage.removeItem(COMFY_PENDING_JOB_STORAGE_KEY);
   }, []);
 
+  const writePreparedComfyRequestSnapshot = useCallback((snapshot: ComfyPreparedRequestSnapshot) => {
+      if (typeof window === 'undefined') {
+          return;
+      }
+
+      window.localStorage.setItem(COMFY_DEBUG_REQUEST_STORAGE_KEY, JSON.stringify(snapshot));
+  }, []);
+
   const readCancelledComfyPrompts = useCallback((): string[] => {
       if (typeof window === 'undefined') {
           return [];
@@ -956,59 +999,7 @@ export default function ImageGeneratorModal({
   }, []);
 
   const captureComfySourceImage = useCallback((): string | null => {
-      if (!canvas) {
-          return null;
-      }
-
-      const originalVpt = canvas.viewportTransform;
-      canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
-      canvas.requestRenderAll();
-
-      try {
-          const activeObject = canvas.getActiveObject();
-          if (activeObject) {
-              const bounds = activeObject.getBoundingRect();
-              return canvas.toDataURL({
-                  format: 'png',
-                  multiplier: 1,
-                  left: Math.max(0, bounds.left),
-                  top: Math.max(0, bounds.top),
-                  width: Math.max(1, bounds.width),
-                  height: Math.max(1, bounds.height),
-              });
-          }
-
-          if (zoneObjectRef.current) {
-              const zone = zoneObjectRef.current;
-              return canvas.toDataURL({
-                  format: 'png',
-                  multiplier: 1,
-                  left: Math.max(0, zone.left || 0),
-                  top: Math.max(0, zone.top || 0),
-                  width: Math.max(1, (zone.width || zoneWidth) * (zone.scaleX || 1)),
-                  height: Math.max(1, (zone.height || zoneHeight) * (zone.scaleY || 1)),
-              });
-          }
-
-          const extCanvas = canvas as CanvasWithArtboard;
-          if (extCanvas.artboard) {
-              return canvas.toDataURL({
-                  format: 'png',
-                  multiplier: 1,
-                  left: 0,
-                  top: 0,
-                  width: Math.max(1, extCanvas.artboard.width),
-                  height: Math.max(1, extCanvas.artboard.height),
-              });
-          }
-
-          return canvas.toDataURL({ format: 'png', multiplier: 1 });
-      } finally {
-          if (originalVpt) {
-              canvas.setViewportTransform(originalVpt);
-              canvas.requestRenderAll();
-          }
-      }
+      return captureComfySourceImageFromCanvas(canvas, zoneObjectRef.current, zoneWidth, zoneHeight);
   }, [canvas, zoneHeight, zoneWidth]);
 
   const inspectComfyCatalog = useCallback(async () => {
@@ -2573,6 +2564,7 @@ export default function ImageGeneratorModal({
 
           const params: Record<string, unknown> = {
               prompt: comfyPrompt,
+              negativePrompt: globalNegativePrompt,
               width: currentW,
               height: currentH,
           };
@@ -2581,6 +2573,14 @@ export default function ImageGeneratorModal({
               const sourceImage = captureComfySourceImage();
               if (!sourceImage) {
                   throw new Error('Select an image or zone on the canvas before running this ComfyUI task.');
+              }
+
+              const sourceInspection = await inspectCapturedSourceDataUrl(sourceImage);
+              if (sourceInspection.looksBlank) {
+                  throw new Error(
+                      `The captured source for ${COMFY_TASK_OPTIONS.find((task) => task.id === selectedComfyTask)?.label || selectedComfyTask} is almost entirely blank. `
+                      + 'Move the zone over real image content, or switch the task to Text to Image for prompt-only generation.'
+                  );
               }
 
               const sourceDimensions = await readImageDimensions(sourceImage);
@@ -2698,6 +2698,37 @@ export default function ImageGeneratorModal({
               workflowId: selectedComfyWorkflowId,
               modelPresetId: selectedComfyModelPresetId,
               params,
+              onPrepared: (prepared) => {
+                  const preparedPositivePrompt = readPreparedComfyText(prepared.boundInputValues.prompt);
+                  const preparedNegativePrompt = readPreparedComfyText(prepared.boundInputValues.negativePrompt);
+
+                  if (!preparedPositivePrompt) {
+                      throw new Error(
+                          `Prepared ComfyUI workflow "${prepared.workflow.id}" has an empty positive prompt. `
+                          + 'This workflow is not binding the text prompt correctly.'
+                      );
+                  }
+
+                  const snapshot: ComfyPreparedRequestSnapshot = {
+                      createdAt: new Date().toISOString(),
+                      task: selectedComfyTask,
+                      workflowId: prepared.workflow.id,
+                      workflowName: prepared.workflow.name,
+                      modelPresetId: prepared.modelPreset.id,
+                      modelPresetName: prepared.modelPreset.name,
+                      uiPrompt: comfyPrompt,
+                      preparedPositivePrompt,
+                      preparedNegativePrompt,
+                      width: Number(params.width) || currentW,
+                      height: Number(params.height) || currentH,
+                      hasImage: typeof params.image === 'string' && params.image.length > 0,
+                      hasMask: typeof params.mask === 'string' && params.mask.length > 0,
+                  };
+
+                  writePreparedComfyRequestSnapshot(snapshot);
+                  console.info('Prepared ComfyUI workflow request', snapshot);
+                  setStatusMessage(`Sending workflow to ComfyUI... prompt: ${truncateComfyPromptForStatus(preparedPositivePrompt)}`);
+              },
               onQueued: (promptId) => {
                   queuedPromptId = promptId;
                   currentComfyPromptIdRef.current = promptId;
@@ -3511,6 +3542,12 @@ export default function ImageGeneratorModal({
                                </select>
                            </div>
                        </div>
+
+                       {selectedComfyTask !== 'generate' && (
+                           <div className="text-[10px] text-muted-foreground rounded border border-border/60 bg-background/40 px-2 py-1.5">
+                               {COMFY_TASK_OPTIONS.find((task) => task.id === selectedComfyTask)?.label || 'This task'} uses the current zone as a source image. If the zone is over empty canvas, switch the task to <span className="font-medium text-foreground">Text to Image</span>.
+                           </div>
+                       )}
 
                        <button
                            type="button"

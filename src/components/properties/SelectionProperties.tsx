@@ -86,7 +86,7 @@ interface SelectionPropertiesProps {
     effectState: { 
         stroke: { color: string; width: number; opacity: number; inside: boolean; blur?: number };
         shadow: { enabled: boolean; color: string; blur: number; offsetX: number; offsetY: number; opacity: number };
-        skew: { x: number; y: number; z: number; dir: number };
+        skew: { x: number; y: number; z: number; dir: number; preset?: 'front' | 'back' };
         filters: ImageFilterValues;
     };
     shadowStrokeState?: ShadowStrokeValues; // Start loose for rapid refactor binding
@@ -307,9 +307,11 @@ export function SelectionProperties({
                                 skewX: selectedObject.skewX || 0,
                                 skewY: selectedObject.skewY || 0,
                                 skewZ: effectState.skew.z || 0,
-                                taperDirection: effectState.skew.dir || 0
+                                taperDirection: effectState.skew.dir || 0,
+                                pseudoBacksidePreset: effectState.skew.preset || 'front'
                             }}
                             onChange={(k, v) => onPropChange(k, v)}
+                            onPresetChange={(preset) => onPropChange('pseudoBacksidePreset', preset)}
                         />
                      </div>
                 )}

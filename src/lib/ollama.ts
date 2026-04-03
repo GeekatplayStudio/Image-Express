@@ -59,6 +59,31 @@ export const formatOllamaModelList = (models: string[], maxItems = 8): string =>
     return remainder > 0 ? `${preview}, +${remainder} more` : preview;
 };
 
+const VISION_MODEL_PATTERNS = [
+    /(^|[:\-/])llava([:\-/]|$)/i,
+    /(^|[:\-/])bakllava([:\-/]|$)/i,
+    /(^|[:\-/])moondream([:\-/]|$)/i,
+    /(^|[:\-/])minicpm[-.]?v([:\-/]|$)/i,
+    /(^|[:\-/])llama3(?:\.[0-9]+)?-vision([:\-/]|$)/i,
+    /(^|[:\-/])gemma3([:\-/]|$)/i,
+    /(^|[:\-/])qwen(?:2(?:\.5)?)?[-.]?vl([:\-/]|$)/i,
+    /(^|[:\-/])qwen(?:2(?:\.5)?)?[-.]?vision([:\-/]|$)/i,
+    /(^|[:\-/])pixtral([:\-/]|$)/i,
+] as const;
+
+export const isOllamaVisionModel = (model: string): boolean => {
+    const normalized = model.trim().toLowerCase();
+    if (!normalized) {
+        return false;
+    }
+
+    return VISION_MODEL_PATTERNS.some((pattern) => pattern.test(normalized));
+};
+
+export const listOllamaVisionModels = (models: string[]): string[] => (
+    models.filter((model) => isOllamaVisionModel(model))
+);
+
 export const buildOllamaCritiquePrompt = (options: {
     target: 'selection' | 'canvas';
     targetLabel: string;
@@ -78,6 +103,7 @@ export const buildOllamaCritiquePrompt = (options: {
         'What Works',
         'Issues',
         'Next Edits',
+        'If the image is blank, transparent, missing, or unreadable, say that clearly and do not invent visual details.',
         'Keep it practical, specific, and brief. Mention composition, hierarchy, readability, color, spacing, and obvious production risks when relevant.',
     ].filter(Boolean).join('\n');
 };

@@ -236,9 +236,22 @@ const ensurePathInside = (basePath: string, targetPath: string): void => {
     }
 };
 
+const resolvePathRelativeToInstall = (installPath: string, targetPath: string): string => {
+    if (!targetPath) {
+        return '';
+    }
+
+    if (!installPath || path.isAbsolute(targetPath)) {
+        return targetPath;
+    }
+
+    return path.join(installPath, targetPath);
+};
+
 const resolveCustomNodesPath = async (installPath: string, customNodesPath: string): Promise<string> => {
-    if (customNodesPath) {
-        return customNodesPath;
+    const configuredPath = resolvePathRelativeToInstall(installPath, customNodesPath);
+    if (configuredPath) {
+        return configuredPath;
     }
 
     if (!installPath) {
@@ -283,7 +296,7 @@ export const resolveComfyLibraryPaths = async (
 ): Promise<ResolvedComfyLibraryPaths> => {
     const installPath = trimPath(input.installPath);
     const customNodesPath = await resolveCustomNodesPath(installPath, trimPath(input.customNodesPath));
-    const workflowLibraryPath = trimPath(input.workflowLibraryPath);
+    const workflowLibraryPath = resolvePathRelativeToInstall(installPath, trimPath(input.workflowLibraryPath));
 
     return {
         installPath,

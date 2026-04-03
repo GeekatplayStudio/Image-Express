@@ -4,13 +4,17 @@ export type OllamaRuntimeStatusResult = {
     baseUrl: string;
     requestedModel: string;
     modelFound: boolean;
+    visionCapable: boolean;
+    visionModels: string[];
     models: string[];
     count: number;
 };
 
 export const formatOllamaRuntimeStatusMessage = (result: OllamaRuntimeStatusResult): string => (
     result.modelFound
-        ? `Ollama is reachable. Found ${result.requestedModel}${typeof result.count === 'number' ? ` (${result.count} model${result.count === 1 ? '' : 's'} installed)` : ''}.`
+        ? result.visionCapable
+            ? `Ollama is reachable. Found ${result.requestedModel}${typeof result.count === 'number' ? ` (${result.count} model${result.count === 1 ? '' : 's'} installed)` : ''}.`
+            : `Ollama is reachable. Found ${result.requestedModel}, but it does not appear to support image input. AI Critique needs a vision model such as ${result.visionModels.slice(0, 3).join(', ') || 'llava, llama3.2-vision, or gemma3'}.`
         : `Ollama is reachable, but ${result.requestedModel} is not installed yet.${result.models.length > 0 ? ` Available: ${result.models.slice(0, 3).join(', ')}${result.models.length > 3 ? '…' : ''}.` : ''}`
 );
 
@@ -33,6 +37,8 @@ export const requestOllamaRuntimeStatus = async (options: {
         baseUrl?: string;
         requestedModel?: string;
         modelFound?: boolean;
+        visionCapable?: boolean;
+        visionModels?: string[];
         models?: string[];
         count?: number;
     };
@@ -49,6 +55,10 @@ export const requestOllamaRuntimeStatus = async (options: {
         baseUrl: payload.baseUrl || (options.baseUrl?.trim() || DEFAULT_OLLAMA_BASE_URL),
         requestedModel: payload.requestedModel || (options.model?.trim() || DEFAULT_OLLAMA_MODEL),
         modelFound: Boolean(payload.modelFound),
+        visionCapable: Boolean(payload.visionCapable),
+        visionModels: Array.isArray(payload.visionModels)
+            ? payload.visionModels.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+            : [],
         models,
         count: typeof payload.count === 'number' ? payload.count : models.length,
     };

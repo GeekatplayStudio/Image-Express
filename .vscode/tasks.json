@@ -4,8 +4,11 @@
 		{
 			"label": "Run Dev Server",
 			"type": "shell",
-			"command": "npm run dev",
-			"args": [],
+			"command": "npm.cmd",
+			"args": [
+				"run",
+				"dev"
+			],
 			"isBackground": true,
 			"problemMatcher": [
 				"$tsc-watch"
@@ -15,51 +18,7 @@
 		{
 			"label": "build",
 			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"build"
-			],
-			"isBackground": false,
-			"group": "build"
-		},
-		{
-			"label": "build",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"build"
-			],
-			"isBackground": false,
-			"group": "build"
-		},
-		{
-			"label": "build",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"build"
-			],
-			"isBackground": false,
-			"group": "build"
-		},
-		{
-			"label": "build",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"build"
-			],
-			"isBackground": false,
-			"group": "build"
-		},
-		{
-			"label": "build",
-			"type": "shell",
-			"command": "npm",
+			"command": "npm.cmd",
 			"args": [
 				"run",
 				"build"

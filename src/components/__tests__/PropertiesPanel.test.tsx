@@ -387,4 +387,46 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         expect(selectedObject.set).toHaveBeenCalledWith('fill', '#224466');
         expect(latestColorPanelProps?.hasEditableTarget).toBe(true);
     });
+
+    it('applies the pseudo backside preset and restores the front view', async () => {
+        const selectedObject = createMockObject({
+            type: 'image',
+            flipX: false,
+            skewX: 0,
+            skewY: 0,
+            skewZ: 0,
+            taperDirection: 0,
+        });
+        const canvas = createMockCanvas([selectedObject], [selectedObject]);
+
+        render(
+            <PropertiesPanel
+                canvas={canvas as unknown as fabric.Canvas}
+                activeTool="select"
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('selection-properties')).toBeInTheDocument();
+        });
+
+        act(() => {
+            latestSelectionProps?.onPropChange('pseudoBacksidePreset', 'back');
+        });
+
+        expect(selectedObject.flipX).toBe(true);
+        expect(selectedObject.skewZ).toBe(0);
+        expect(selectedObject.taperDirection).toBe(0);
+        expect(selectedObject.backsideBaseFlipX).toBe(false);
+        expect(selectedObject.pseudoBacksidePreset).toBe('back');
+
+        act(() => {
+            latestSelectionProps?.onPropChange('pseudoBacksidePreset', 'front');
+        });
+
+        expect(selectedObject.flipX).toBe(false);
+        expect(selectedObject.skewZ).toBe(0);
+        expect(selectedObject.taperDirection).toBe(0);
+        expect(selectedObject.pseudoBacksidePreset).toBe('front');
+    });
 });

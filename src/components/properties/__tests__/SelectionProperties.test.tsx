@@ -20,7 +20,7 @@ const baseProps = {
     effectState: {
         stroke: { color: '#000000', width: 0, opacity: 1, inside: true },
         shadow: { enabled: false, color: '#000000', blur: 0, offsetX: 0, offsetY: 0, opacity: 1 },
-        skew: { x: 0, y: 0, z: 0, dir: 0 },
+        skew: { x: 0, y: 0, z: 0, dir: 0, preset: 'front' },
         filters: { blur: 0, brightness: 0, contrast: 0, noise: 0, saturation: 0, vibrance: 0, pixelate: 0 }
     }
 };
@@ -228,5 +228,36 @@ describe('SelectionProperties', () => {
 
         fireEvent.click(screen.getByLabelText('Enable gradient mask'));
         expect(onPropChange).toHaveBeenCalledWith('maskGradient', { enabled: true });
+    });
+
+    it('offers reversible back side presets in the transform section', () => {
+        const onPropChange = jest.fn();
+        const selectedObject = {
+            type: 'image',
+            opacity: 1,
+            visible: true,
+            left: 0,
+            top: 0,
+            width: 100,
+            height: 100,
+            scaleX: 1,
+            scaleY: 1,
+        } as unknown as fabric.Object;
+
+        render(
+            <SelectionProperties
+                {...baseProps}
+                onPropChange={onPropChange}
+                selectedObject={selectedObject}
+                selectedObjects={[selectedObject]}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /Transform/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        expect(onPropChange).toHaveBeenCalledWith('pseudoBacksidePreset', 'back');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Front' }));
+        expect(onPropChange).toHaveBeenCalledWith('pseudoBacksidePreset', 'front');
     });
 });

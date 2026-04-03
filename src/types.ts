@@ -179,6 +179,8 @@ export type ExtendedFabricObject = fabric.Object & {
     skewZBaseScaleY?: number;
     skewZBaseSkewX?: number;
     skewZBaseSkewY?: number;
+    backsideBaseFlipX?: boolean;
+    pseudoBacksidePreset?: 'front' | 'back';
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -152,6 +152,8 @@ export default function EditorView({
         'skewZBaseScaleY',
         'skewZBaseSkewX',
         'skewZBaseSkewY',
+        'backsideBaseFlipX',
+        'pseudoBacksidePreset',
         'taperDirection',
         'taperBaseLeft',
         'taperBaseTop',

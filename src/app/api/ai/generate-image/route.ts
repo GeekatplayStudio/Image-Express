@@ -22,6 +22,31 @@ type OllamaGeneratePayload = {
     error?: string;
 };
 
+const OLLAMA_GENERATE_RETRY_DELAY_MS = 2000;
+
+const delay = async (ms: number): Promise<void> => {
+    await new Promise((resolve) => {
+        setTimeout(resolve, Math.max(0, ms));
+    });
+};
+
+const isRetryableOllamaTransportFailure = (error: unknown): boolean => {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+
+    const message = error.message.toLowerCase();
+    const causeMessage = error.cause instanceof Error ? error.cause.message.toLowerCase() : '';
+
+    return [message, causeMessage].some((value) => (
+        value.includes('fetch failed')
+        || value.includes('econnreset')
+        || value.includes('socket hang up')
+        || value.includes('other side closed')
+        || value.includes('terminated')
+    ));
+};
+
 /**
  * AI Generation Route
  * Handles requests for image generation via:
@@ -188,14 +213,11 @@ export async function POST(request: Request) {
                 }, { status: 400 });
             }
 
-            const abortController = new AbortController();
-            const timeoutId = setTimeout(() => abortController.abort(), OLLAMA_GENERATE_TIMEOUT_MS);
-
             try {
                 const tagsResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
                     method: 'GET',
                     cache: 'no-store',
-                    signal: abortController.signal,
+                    timeoutMs: OLLAMA_GENERATE_TIMEOUT_MS,
                 });
 
                 if (!tagsResult.ok || !tagsResult.response) {
@@ -229,26 +251,36 @@ export async function POST(request: Request) {
                     }, { status: 400 });
                 }
 
-                const generationResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/generate', {
+                const generationRequestBody = JSON.stringify({
+                    model: requestedModel,
+                    prompt: buildOllamaSvgGenerationPrompt({
+                        prompt: typeof prompt === 'string' ? prompt : '',
+                        width: targetWidth,
+                        height: targetHeight,
+                    }),
+                    stream: false,
+                    keep_alive: '15m',
+                    options: {
+                        temperature: 0.2,
+                    },
+                });
+
+                const requestGeneration = async () => fetchOllamaWithFallback(resolvedBaseUrl, '/api/generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     cache: 'no-store',
-                    signal: abortController.signal,
-                    body: JSON.stringify({
-                        model: requestedModel,
-                        prompt: buildOllamaSvgGenerationPrompt({
-                            prompt: typeof prompt === 'string' ? prompt : '',
-                            width: targetWidth,
-                            height: targetHeight,
-                        }),
-                        stream: false,
-                        options: {
-                            temperature: 0.2,
-                        },
-                    }),
+                    timeoutMs: OLLAMA_GENERATE_TIMEOUT_MS,
+                    body: generationRequestBody,
                 });
+
+                let generationResult = await requestGeneration();
+
+                if (!generationResult.ok && !generationResult.response && isRetryableOllamaTransportFailure(generationResult.error)) {
+                    await delay(OLLAMA_GENERATE_RETRY_DELAY_MS);
+                    generationResult = await requestGeneration();
+                }
 
                 if (!generationResult.ok || !generationResult.response) {
                     const attemptsSuffix = formatOllamaAttemptedBaseUrls(generationResult.attemptedBaseUrls);
@@ -297,8 +329,6 @@ export async function POST(request: Request) {
                         ? `Timed out contacting Ollama after ${Math.round(OLLAMA_GENERATE_TIMEOUT_MS / 1000)} seconds.`
                         : (error instanceof Error ? error.message : 'Failed to contact Ollama.'),
                 }, { status: 502 });
-            } finally {
-                clearTimeout(timeoutId);
             }
         }
 

@@ -394,6 +394,30 @@ export const applyWorkflowInputBindings = (
     return blueprint;
 };
 
+export const readWorkflowInputBindingValues = (
+    blueprint: ComfyPromptBlueprint,
+    bindings: WorkflowInputBinding[]
+): Partial<Record<ComfyWorkflowInputSource, unknown[]>> => {
+    const values: Partial<Record<ComfyWorkflowInputSource, unknown[]>> = {};
+
+    for (const binding of bindings) {
+        const node = blueprint[binding.nodeId];
+        if (!node) {
+            continue;
+        }
+
+        const value = node.inputs[binding.inputName];
+        if (value === undefined) {
+            continue;
+        }
+
+        const currentValues = values[binding.source] || [];
+        values[binding.source] = [...currentValues, value];
+    }
+
+    return values;
+};
+
 export const applyModelPresetToBlueprint = (
     blueprint: ComfyPromptBlueprint,
     modelPreset: ComfyModelPreset

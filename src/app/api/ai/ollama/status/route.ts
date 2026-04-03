@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
 import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
-import { normalizeOllamaBaseUrl } from '@/lib/ollama';
+import { listOllamaVisionModels, normalizeOllamaBaseUrl, isOllamaVisionModel } from '@/lib/ollama';
 
 const OLLAMA_STATUS_TIMEOUT_MS = 5000;
 
@@ -19,14 +19,11 @@ export async function GET(request: NextRequest) {
         }, { status: 400 });
     }
 
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), OLLAMA_STATUS_TIMEOUT_MS);
-
     try {
         const tagsResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
             method: 'GET',
             cache: 'no-store',
-            signal: abortController.signal,
+            timeoutMs: OLLAMA_STATUS_TIMEOUT_MS,
         });
 
         if (!tagsResult.ok || !tagsResult.response) {
@@ -52,13 +49,17 @@ export async function GET(request: NextRequest) {
                 .map((entry) => entry.name || entry.model || '')
                 .filter((entry) => entry.trim().length > 0)
             : [];
+        const modelFound = models.includes(requestedModel);
+        const visionModels = listOllamaVisionModels(models);
 
         return NextResponse.json({
             success: true,
             baseUrl: tagsResult.baseUrl,
             attemptedBaseUrls: tagsResult.attemptedBaseUrls,
             requestedModel,
-            modelFound: models.includes(requestedModel),
+            modelFound,
+            visionCapable: modelFound && isOllamaVisionModel(requestedModel),
+            visionModels,
             models,
             count: models.length,
         });
@@ -70,7 +71,5 @@ export async function GET(request: NextRequest) {
                 ? `Timed out contacting Ollama after ${Math.round(OLLAMA_STATUS_TIMEOUT_MS / 1000)} seconds.`
                 : (error instanceof Error ? error.message : 'Failed to contact Ollama.'),
         }, { status: 502 });
-    } finally {
-        clearTimeout(timeoutId);
     }
 }

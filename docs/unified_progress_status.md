@@ -1,9 +1,9 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-04-01  
+Last updated: 2026-04-02  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
-HEAD: 9b54543
+Reference commit at last full audit: 9b54543
 
 ## Purpose
 This is the single source of truth for implementation progress across:
@@ -12,6 +12,31 @@ This is the single source of truth for implementation progress across:
 - continuation handoff notes.
 
 Use this file first for: what is done, what is pending, and what to do next.
+
+
+---
+
+## Latest Delivery (2026-04-02)
+
+- Added a front/back pseudo-backside preset in the Properties panel so selected layers can flip to a backside presentation without introducing extra perspective skew.
+- Stored the original horizontal flip state as `backsideBaseFlipX` and added regression coverage for the new preset controls in `PropertiesPanel.test.tsx` and `SelectionProperties.test.tsx`.
+- Fixed local Comfy image-source export by hiding the visible AI zone overlay during capture, restoring visibility afterward, and moving the export logic into `imageGeneratorModalUtils.ts`.
+- Added blank-source inspection for local Comfy image-based tasks so nearly all-white captures fail fast with a corrective message instead of being uploaded as a bad img2img/inpaint source.
+- Standard local Comfy runs now persist the last prepared request snapshot in browser localStorage under `image-express-comfy-last-request`, including prepared positive/negative prompt text plus workflow/model metadata.
+- Local Comfy request params now forward the shared UI negative prompt into prepared workflow bindings.
+- Comfy local folder resolution now accepts relative child paths under the configured install path for `custom_nodes` and workflow-library scanning.
+- Server-side Ollama fetches now retry transient network failures/timeouts before falling back between `host.docker.internal` and `localhost`.
+- Added focused regression coverage in `imageGeneratorModalUtils.test.ts`, `ollamaServer.test.ts`, and `registry.test.ts`.
+
+Validation notes (2026-04-02):
+- Focused tests passed:
+  - `npm test -- --runInBand src/components/__tests__/imageGeneratorModalUtils.test.ts src/lib/__tests__/ollamaServer.test.ts src/lib/comfyui/__tests__/registry.test.ts src/components/__tests__/PropertiesPanel.test.tsx src/components/properties/__tests__/SelectionProperties.test.tsx`
+- Production build passed:
+  - `npm run build`
+- Local Docker deployment was refreshed successfully:
+  - rebuilt the `image-express` image
+  - replaced the `image-express-app` container
+  - verified HTTP 200 on port 3000
 
 ---
 

@@ -74,6 +74,8 @@ describe('AICritiqueModal', () => {
                         success: true,
                         requestedModel: 'llava:7b',
                         modelFound: true,
+                        visionCapable: true,
+                        visionModels: ['llava:7b'],
                         count: 1,
                         models: ['llava:7b'],
                     }),
@@ -153,6 +155,8 @@ describe('AICritiqueModal', () => {
                         success: true,
                         requestedModel: 'llava:7b',
                         modelFound: false,
+                        visionCapable: false,
+                        visionModels: [],
                         count: 1,
                         models: ['qwen2.5:7b'],
                     }),
@@ -188,6 +192,8 @@ describe('AICritiqueModal', () => {
                         success: true,
                         requestedModel: 'llava:7b',
                         modelFound: installCompleted,
+                        visionCapable: installCompleted,
+                        visionModels: installCompleted ? ['llava:7b'] : [],
                         count: installCompleted ? 2 : 1,
                         models: installCompleted ? ['qwen2.5:7b', 'llava:7b'] : ['qwen2.5:7b'],
                     }),
@@ -243,6 +249,8 @@ describe('AICritiqueModal', () => {
                         success: true,
                         requestedModel: 'llava:7b',
                         modelFound: true,
+                        visionCapable: true,
+                        visionModels: ['llava:7b'],
                         count: 1,
                         models: ['llava:7b'],
                     }),
@@ -278,5 +286,46 @@ describe('AICritiqueModal', () => {
             expect(screen.getByText('Headline Group')).toBeInTheDocument();
             expect((screen.getByLabelText('Selected Layer') as HTMLInputElement).disabled).toBe(false);
         });
+    });
+
+    it('blocks critique when the saved Ollama model is reachable but not vision-capable', async () => {
+        const canvas = createCanvasStub(createObjectStub());
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input.startsWith('/api/ai/ollama/status?')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        requestedModel: 'qwen2.5:7b',
+                        modelFound: true,
+                        visionCapable: false,
+                        visionModels: ['llava:7b', 'llama3.2-vision:latest'],
+                        count: 3,
+                        models: ['qwen2.5:7b', 'llava:7b', 'llama3.2-vision:latest'],
+                    }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        localStorage.setItem(LOCAL_AI_PREFERENCES_STORAGE_KEY, JSON.stringify({
+            ollamaBaseUrl: 'http://localhost:11434',
+            ollamaModel: 'qwen2.5:7b',
+        }));
+
+        render(
+            <AICritiqueModal
+                isOpen
+                canvas={canvas as unknown as never}
+                onClose={jest.fn()}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText(/does not appear to support image input/i)).toBeInTheDocument();
+        });
+        expect(screen.getByText(/AI Critique needs a vision-capable Ollama model/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Analyze with Ollama' })).toBeDisabled();
     });
 });

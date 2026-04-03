@@ -4,6 +4,8 @@ import {
     buildOllamaCritiquePrompt,
     extractBase64PayloadFromDataUrl,
     formatOllamaModelList,
+    isOllamaVisionModel,
+    listOllamaVisionModels,
     normalizeOllamaBaseUrl,
 } from '@/lib/ollama';
 import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
@@ -58,14 +60,11 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
     }
 
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), OLLAMA_CRITIQUE_TIMEOUT_MS);
-
     try {
         const tagsResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
             method: 'GET',
             cache: 'no-store',
-            signal: abortController.signal,
+            timeoutMs: OLLAMA_CRITIQUE_TIMEOUT_MS,
         });
 
         if (!tagsResult.ok || !tagsResult.response) {
@@ -99,13 +98,21 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
+        if (!isOllamaVisionModel(requestedModel)) {
+            const visionModels = listOllamaVisionModels(models);
+            return NextResponse.json({
+                success: false,
+                message: `Model "${requestedModel}" is installed in Ollama at ${resolvedBaseUrl}, but it does not appear to support image input. AI Critique requires a vision-capable model. Available vision models: ${formatOllamaModelList(visionModels)}.`,
+            }, { status: 400 });
+        }
+
         const critiqueResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/generate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             cache: 'no-store',
-            signal: abortController.signal,
+            timeoutMs: OLLAMA_CRITIQUE_TIMEOUT_MS,
             body: JSON.stringify({
                 model: requestedModel,
                 stream: false,
@@ -169,7 +176,5 @@ export async function POST(request: NextRequest) {
                 ? `Timed out contacting Ollama after ${Math.round(OLLAMA_CRITIQUE_TIMEOUT_MS / 1000)} seconds.`
                 : (error instanceof Error ? error.message : 'Failed to contact Ollama.'),
         }, { status: 502 });
-    } finally {
-        clearTimeout(timeoutId);
     }
 }

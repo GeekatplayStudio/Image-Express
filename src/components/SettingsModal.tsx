@@ -1442,7 +1442,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                             />
                             <p className="text-[11px] text-muted-foreground">
-                                Optional, but needed if you want the app to pull updates for your ComfyUI install.
+                                Optional, but needed if you want the app to pull updates for your ComfyUI install. If the app runs in Docker, use the path visible inside the container, not a host-only drive letter.
                             </p>
                         </div>
 
@@ -1456,7 +1456,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                             />
                             <p className="text-[11px] text-muted-foreground">
-                                GitHub node repos can be cloned here, and the manager will scan this folder for installed custom nodes.
+                                GitHub node repos can be cloned here, and the manager will scan this folder for installed custom nodes. Relative paths like <code className="font-mono">custom_nodes</code> resolve from the install folder.
                             </p>
                         </div>
 
@@ -1470,7 +1470,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                             />
                             <p className="text-[11px] text-muted-foreground">
-                                Any JSON workflows in this folder become available in the AI modal workflow library.
+                                Any JSON workflows in this folder become available in the AI modal workflow library. Relative paths like <code className="font-mono">user\default\workflows</code> resolve from the install folder.
                             </p>
                         </div>
 
