@@ -29,12 +29,22 @@ Future roadmap canonical source:
 - Added vault audit metadata for read/write operations (`readCount`, `writeCount`, `lastReadAt`, `lastWriteAt`) and store-level `updatedAt`.
 - Updated `src/app/api/user/keys/route.ts` to use the vault service for GET/POST with normalized object handling and error surfacing.
 - Added focused node-environment regression coverage in `src/lib/server/__tests__/user-key-vault.test.ts` for encrypted persistence, merge behavior, audit metadata, and env-secret mode.
+- Started `R-13` (Super Installer + first-run dependency orchestration) with script foundation:
+  - `scripts/super-installer.mjs` selector-based orchestrator,
+  - `scripts/installers/*` task scripts for Comfy install/update, bundled custom node/workflow sync, Comfy model download, and Ollama model pull,
+  - config-driven source/model definitions in `scripts/installers/config/sources.json`,
+  - post-install verification scaffold in `scripts/qa-installation.mjs`,
+  - package scripts: `npm run install:super` and `npm run qa:install`.
 
 Validation notes (2026-04-03):
 - Focused tests passed:
   - `npm test -- --runInBand src/lib/server/__tests__/user-key-vault.test.ts`
 - Focused lint passed:
   - `npm run lint -- src/lib/server/user-key-vault.ts src/app/api/user/keys/route.ts src/lib/server/__tests__/user-key-vault.test.ts`
+  - `npm run lint -- scripts/super-installer.mjs scripts/qa-installation.mjs scripts/installers/common.mjs scripts/installers/comfy/install-comfy.mjs scripts/installers/comfy/install-custom-bundles.mjs scripts/installers/models/install-comfy-models.mjs scripts/installers/models/install-ollama-models.mjs`
+- Installer dry-run checks passed:
+  - `node scripts/super-installer.mjs --yes --dry-run --skip-tests`
+  - `npm run qa:install -- --dry-run --auto-fix --skip-tests`
 - Production build passed:
   - `npm run build`
 

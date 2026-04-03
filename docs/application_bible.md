@@ -702,6 +702,9 @@ Technical notes:
 ### 12.12 Super Installer + First-Run Dependency Orchestration
 Priority: P0
 
+Status note:
+- script-level installer foundation is now in place (`scripts/super-installer.mjs`, task scripts, `scripts/qa-installation.mjs`); UI integration is still pending.
+
 Current gap:
 - setup steps are fragmented; users must manually coordinate installs, updates, and optional model downloads.
 

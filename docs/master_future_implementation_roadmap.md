@@ -40,7 +40,7 @@ Rule:
 | R-10 | Direct social posting connectors | P3 | Partial (manual flow only) | Bible 12.8, Tracker #15 | M3 |
 | R-11 | Provider QA hardening (Banana/NanoBanana + multi-provider) | P2 | Planned | Tracker queue + runtime rollout needs | M2 |
 | R-12 | Comfy custom workflows/nodes bundled integration | P1 | Partial foundation exists | Bible 12.11 | M1 |
-| R-13 | Super installer and first-run dependency orchestration | P0 | Not started | Bible 12.12 | M0 |
+| R-13 | Super installer and first-run dependency orchestration | P0 | In progress (script foundation delivered) | Bible 12.12 | M0 |
 | R-14 | Comfy model catalog + custom model upload in UI | P1 | Not started | Bible 12.13 | M1 |
 | R-15 | Global resizable popup/modal compliance | P2 | Partial (mixed) | Bible 12.14 | M2 |
 | R-16 | Interface customization (themes/colors/modes) | P2 | Not started | Bible 12.15 | M2 |
@@ -479,6 +479,10 @@ Dependencies:
 ### R-13: Super Installer + First-Run Dependency Orchestration (P0)
 Goal:
 - Provide a guided installer that pulls latest required components (ComfyUI, libraries, custom nodes/workflows, optional models) and validates readiness.
+
+Current implementation status:
+- Script-level foundation delivered (`super-installer`, task scripts, config, and `qa-installation` scaffold).
+- Remaining for completion: Setup Wizard + Settings UI integration, deeper readiness tests, and production trust/pinning policy enforcement.
 
 Primary current files:
 - `src/components/SetupWizardModal.tsx`

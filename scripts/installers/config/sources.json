@@ -1,0 +1,41 @@
+{
+  "comfyUi": {
+    "repo": "https://github.com/comfyanonymous/ComfyUI.git",
+    "branch": "master",
+    "targetDir": "external/ComfyUI"
+  },
+  "customBundles": [
+    {
+      "name": "image-express-custom-nodes",
+      "repo": "https://github.com/GeekatplayStudio/image-express-comfy-custom-nodes.git",
+      "branch": "main",
+      "targetPath": "custom_nodes/image-express-custom-nodes",
+      "bundleType": "custom-node"
+    },
+    {
+      "name": "image-express-workflows",
+      "repo": "https://github.com/GeekatplayStudio/image-express-comfy-workflows.git",
+      "branch": "main",
+      "targetPath": "user/default/workflows/image-express",
+      "bundleType": "workflow-library"
+    }
+  ],
+  "comfyModels": [
+    {
+      "id": "sdxl-base-1.0",
+      "displayName": "SDXL Base 1.0",
+      "downloadUrl": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
+      "targetPath": "models/checkpoints/sd_xl_base_1.0.safetensors"
+    }
+  ],
+  "ollamaModels": [
+    {
+      "id": "llava:13b",
+      "displayName": "LLaVA 13B"
+    },
+    {
+      "id": "qwen2.5vl:7b",
+      "displayName": "Qwen2.5 VL 7B"
+    }
+  ]
+}
