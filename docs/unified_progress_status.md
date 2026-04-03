@@ -1,6 +1,6 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-04-02  
+Last updated: 2026-04-03  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 Reference commit at last full audit: 9b54543
@@ -16,6 +16,27 @@ Use this file first for: what is done, what is pending, and what to do next.
 Future roadmap canonical source:
 - `docs/master_future_implementation_roadmap.md` (planned scope, sequencing, file-level future implementation map)
 
+
+---
+
+## Latest Delivery (2026-04-03)
+
+- Started roadmap implementation in priority order with `R-01` (Durable Encrypted User Key Vault) phase 1 delivery.
+- Replaced `/api/user/keys` in-memory storage with encrypted-at-rest filesystem vault persistence using new server service `src/lib/server/user-key-vault.ts`.
+- Added durable secret-key resolution strategy for vault encryption:
+  - uses `IMAGE_EXPRESS_KEY_VAULT_SECRET` when configured,
+  - otherwise creates/reuses `data/user-key-vault.secret` for local durable operation.
+- Added vault audit metadata for read/write operations (`readCount`, `writeCount`, `lastReadAt`, `lastWriteAt`) and store-level `updatedAt`.
+- Updated `src/app/api/user/keys/route.ts` to use the vault service for GET/POST with normalized object handling and error surfacing.
+- Added focused node-environment regression coverage in `src/lib/server/__tests__/user-key-vault.test.ts` for encrypted persistence, merge behavior, audit metadata, and env-secret mode.
+
+Validation notes (2026-04-03):
+- Focused tests passed:
+  - `npm test -- --runInBand src/lib/server/__tests__/user-key-vault.test.ts`
+- Focused lint passed:
+  - `npm run lint -- src/lib/server/user-key-vault.ts src/app/api/user/keys/route.ts src/lib/server/__tests__/user-key-vault.test.ts`
+- Production build passed:
+  - `npm run build`
 
 ---
 

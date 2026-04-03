@@ -28,7 +28,7 @@ Rule:
 
 | ID | Initiative | Priority | Current State | Source Alignment | Target Milestone |
 |---|---|---|---|---|---|
-| R-01 | Durable encrypted user key vault | P0 | Not started | Bible 12.9 | M0 |
+| R-01 | Durable encrypted user key vault | P0 | In progress (phase 1 encrypted file vault delivered) | Bible 12.9 | M0 |
 | R-02 | Campaign Workspace (Media Overlay B2) | P1 | In progress (B1 done) | Bible 12.1, Unified pending | M1 |
 | R-03 | AI critique quality program | P1 | In progress | Bible 12.2, Tracker #14 | M1 |
 | R-04 | Ollama local generation quality track | P1 | In progress | Bible 12.3, Tracker #13/#14 queue | M1 |
@@ -95,6 +95,10 @@ Exit criteria:
 ### R-01: Durable Encrypted User Key Vault (P0)
 Goal:
 - Replace ephemeral `/api/user/keys` in-memory storage with durable encrypted storage.
+
+Current implementation status:
+- Phase 1 delivered: encrypted filesystem-backed vault service and `/api/user/keys` migration are in place.
+- Remaining for completion: stronger authz controls, rotation policy, and externalized key-management path for scale/security hardening.
 
 Primary current files:
 - `src/app/api/user/keys/route.ts`

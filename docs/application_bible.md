@@ -78,7 +78,7 @@ Major extracted hook domains include:
 API is route-based under `src/app/api/*` and uses mixed persistence backends:
 - filesystem-backed JSON/assets for designs/templates/jobs/logs/users/metadata,
 - third-party provider pass-through/proxy routes,
-- one notable in-memory route for user key sync (`/api/user/keys`).
+- encrypted filesystem-backed key vault route for user API key sync (`/api/user/keys`).
 
 ### 3.4 Persistence Layers (Durability Matrix)
 - Durable (filesystem):
@@ -93,8 +93,9 @@ API is route-based under `src/app/api/*` and uses mixed persistence backends:
   - user preferences, API keys, setup state, panel state, overlay state, job store (localStorage/sessionStorage)
 - Cloud (user-owned):
   - Google Drive folders and file metadata via OAuth client-side flow.
-- Non-durable by design:
-  - `/api/user/keys` current storage is process-memory map (resets on restart/cold boot).
+- Semi-durable security-sensitive:
+  - `/api/user/keys` now uses encrypted filesystem vault persistence (`data/user-key-vault.json`) with read/write audit metadata.
+  - Phase-2 hardening remains open for stronger authz boundaries, rotation policy, and centralized key-management controls.
 
 ## 4. Session, User, and Role Model
 
@@ -477,13 +478,18 @@ Server job engine (`lib/agentic-edit/jobs.ts`):
 - `/api/user/auth/reset-password`
 - `/api/user/auth/change-password`
 - `/api/user/admin/users`
-- `/api/user/keys` (currently in-memory)
+- `/api/user/keys` (encrypted filesystem vault backed)
 - `/api/logs/login`
 
 ## 11. Operational Reality and Constraints
 
-### 11.1 Non-Durable Key Sync Caveat
-`/api/user/keys` is process-memory only. It is not durable across restarts and should not be treated as secure/persistent account key storage.
+### 11.1 User Key Vault Hardening Remaining
+`/api/user/keys` now persists in an encrypted filesystem-backed vault with read/write audit counters, which resolves the original process-memory durability gap.
+
+Remaining production hardening still required:
+- stronger authz boundaries around key read/update pathways,
+- explicit key rotation/expiry policy,
+- optional migration to dedicated external key management service for multi-node deployments.
 
 ### 11.2 Filesystem-Backed Scale Limits
 Design/template/asset/job/user/log persistence is local filesystem based in current edition. This is straightforward for local/single-node operation but not horizontally scalable without shared storage/database refactor.
@@ -646,10 +652,10 @@ Technical notes:
 Priority: P0
 
 Current gap:
-- `/api/user/keys` is in-memory and not suitable for production persistence.
+- Phase 1 is delivered (encrypted filesystem-backed vault), but phase-2 production hardening remains.
 
 Functional target:
-- durable per-user key storage with encryption-at-rest and audited update/read semantics.
+- complete production-grade per-user key storage with encryption-at-rest, auditable update/read semantics, stronger authz, and rotation policy.
 
 UI placement:
 - no major UI change required; Settings API-key UX remains, but backend persistence hardens.

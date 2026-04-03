@@ -67,6 +67,7 @@ Canonical future roadmap file: [docs/master_future_implementation_roadmap.md](do
 | 41 | Comfy model catalog + custom model upload/selection UI | Not started | src/components/ImageGeneratorModal.tsx, src/components/SettingsModal.tsx, src/lib/comfyui/registry.ts, src/lib/comfyui/preferences.ts, src/app/api/ai/comfy/library/route.ts | - | - | Let users select among multiple models (not only SDXL), register/upload custom models, and enforce workflow-model compatibility guards in UI. |
 | 42 | Global resizable popup/modal compliance | Not started | src/components/ui/DraggableResizablePanel.tsx, src/components/SettingsModal.tsx, src/components/LoginModal.tsx, src/components/UserProfileModal.tsx, src/components/AdminAreaModal.tsx, src/components/DocumentationModal.tsx, src/components/Editor/EditorExportQualityModal.tsx | - | - | Standardize resize behavior and constraints for major modals/popups via shared shell patterns with accessibility-safe focus/keyboard handling. |
 | 43 | Interface customization (themes/colors/modes) | Not started | src/app/ui-theme.css, src/app/globals.css, src/lib/theme-tokens.ts, src/components/SettingsModal.tsx, src/app/layout.tsx | - | - | Add user-selectable interface modes and color presets with persisted preferences and contrast-safe token application across dashboard/editor/modals. |
+| 44 | Durable encrypted user key vault (R-01 phase 1) | In Progress | src/lib/server/user-key-vault.ts, src/app/api/user/keys/route.ts, src/lib/server/__tests__/user-key-vault.test.ts | Pass | Pass | Replaced in-memory `/api/user/keys` storage with encrypted-at-rest filesystem vault persistence (`data/user-key-vault.json`) and durable secret resolution (env secret or generated secret file). Added read/write audit metadata (`readCount`, `writeCount`, timestamps) and focused regression coverage. Validation rerun: `npm test -- --runInBand src/lib/server/__tests__/user-key-vault.test.ts`, `npm run lint -- src/lib/server/user-key-vault.ts src/app/api/user/keys/route.ts src/lib/server/__tests__/user-key-vault.test.ts`, `npm run build`. |
 
 
 ---
@@ -101,6 +102,7 @@ The following items were explicitly requested and are tracked above. Use this se
 - Comfy model catalog with custom model upload/registration and model-workflow compatibility checks in UI.
 - Global resizable popup/modal compliance.
 - Interface customization with user-selectable colors/modes/themes.
+- Durable encrypted key vault Phase 2 hardening (authz/access controls + rotation/admin audit surfaces).
 
 
 ## Notes
