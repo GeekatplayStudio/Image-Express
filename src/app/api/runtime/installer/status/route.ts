@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getInstallerRuntimeStatus } from '@/lib/server/installerRuntimeStatus';
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
     try {
-        const status = await getInstallerRuntimeStatus();
+        const requestUrl = new URL(request.url);
+        const comfyDir = requestUrl.searchParams.get('comfyDir') || '';
+        const status = await getInstallerRuntimeStatus(comfyDir);
         return NextResponse.json(status, {
             headers: {
                 'cache-control': 'no-store',

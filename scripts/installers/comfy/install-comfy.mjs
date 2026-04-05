@@ -1,11 +1,11 @@
 import path from 'path';
 import {
-    REPO_ROOT,
     ensureDir,
     formatTaskLabel,
     parseInstallerFlags,
     pathExists,
     readInstallerConfig,
+    resolveComfyDirectory,
     runCommand,
 } from '../common.mjs';
 
@@ -23,21 +23,37 @@ async function syncComfyRepo({ comfyDir, repo, branch, dryRun }) {
 }
 
 async function installComfyPythonDependencies({ comfyDir, dryRun }) {
-    const pythonCheck = await runCommand('python3', ['--version'], {
-        dryRun,
-        allowFailure: true,
-        stdio: 'pipe',
-    });
-    if (pythonCheck.code !== 0) {
-        console.warn('Skipping python dependency install because python3 is unavailable.');
+    const pythonCandidates = [
+        { command: 'python', pipArgsPrefix: ['-m', 'pip'], versionArgs: ['--version'] },
+        { command: 'py', pipArgsPrefix: ['-3', '-m', 'pip'], versionArgs: ['-3', '--version'] },
+        { command: 'python3', pipArgsPrefix: ['-m', 'pip'], versionArgs: ['--version'] },
+    ];
+
+    let resolvedPython = pythonCandidates[0];
+    let foundPython = false;
+    for (const candidate of pythonCandidates) {
+        const pythonCheck = await runCommand(candidate.command, candidate.versionArgs, {
+            dryRun,
+            allowFailure: true,
+            stdio: 'pipe',
+        });
+        if (pythonCheck.code === 0 || dryRun) {
+            resolvedPython = candidate;
+            foundPython = true;
+            break;
+        }
+    }
+
+    if (!foundPython && !dryRun) {
+        console.warn('Skipping python dependency install because no supported Python executable was found.');
         return;
     }
 
-    await runCommand('python3', ['-m', 'pip', 'install', '--upgrade', 'pip'], {
+    await runCommand(resolvedPython.command, [...resolvedPython.pipArgsPrefix, 'install', '--upgrade', 'pip'], {
         dryRun,
         allowFailure: true,
     });
-    await runCommand('python3', ['-m', 'pip', 'install', '-r', 'requirements.txt'], {
+    await runCommand(resolvedPython.command, [...resolvedPython.pipArgsPrefix, 'install', '-r', 'requirements.txt'], {
         cwd: comfyDir,
         dryRun,
         allowFailure: true,
@@ -52,9 +68,7 @@ async function main() {
         throw new Error('Missing comfyUi repo/targetDir in installer config.');
     }
 
-    const comfyDir = flags.comfyDir
-        ? path.resolve(REPO_ROOT, flags.comfyDir)
-        : path.resolve(REPO_ROOT, comfyConfig.targetDir);
+    const comfyDir = resolveComfyDirectory(config, flags.comfyDir);
 
     console.log(formatTaskLabel('ComfyUI Install/Update'));
     console.log(`Target directory: ${comfyDir}`);

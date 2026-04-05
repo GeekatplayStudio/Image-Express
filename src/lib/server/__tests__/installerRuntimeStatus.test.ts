@@ -72,14 +72,17 @@ describe('installerRuntimeStatus', () => {
     it('returns installer runtime status with missing summaries', async () => {
         const { getInstallerRuntimeStatus } = await import('@/lib/server/installerRuntimeStatus');
         const status = await getInstallerRuntimeStatus();
+        const configuredModels = status.comfyModels.filter((model) => model.source === 'config');
 
         expect(status.comfyDirectory.exists).toBe(true);
         expect(status.comfyDirectory.gitRepo).toBe(true);
         expect(status.customBundles).toHaveLength(2);
         expect(status.customBundles.every((bundle) => bundle.exists)).toBe(true);
-        expect(status.comfyModels).toHaveLength(2);
+        expect(status.comfyModels.length).toBeGreaterThanOrEqual(2);
+        expect(configuredModels).toHaveLength(2);
         expect(status.comfyModels.find((model) => model.id === 'sdxl-base')?.exists).toBe(true);
         expect(status.comfyModels.find((model) => model.id === 'missing-model')?.exists).toBe(false);
+        expect(status.comfyModels.some((model) => model.source === 'workflow')).toBe(true);
         expect(status.summary.ready).toBe(false);
         expect(status.summary.missing.some((entry) => entry.includes('missing-model'))).toBe(true);
     });

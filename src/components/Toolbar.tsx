@@ -49,7 +49,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
-import { APP_THEME } from '@/lib/theme-tokens';
 import useAppTheme from '@/hooks/useAppTheme';
 import {
     PenPoint,
@@ -559,7 +558,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     activePalette,
     setActivePalette,
     currentUser,
-    enableHoverLabels = true,
+    enableHoverLabels = false,
     onRailExpandedChange,
     zoomCursorMode = 'in',
 }, ref) => {
@@ -2128,8 +2127,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         <div
             className="relative self-stretch origin-left flex min-h-0 w-full flex-col items-start pt-2"
             data-testid="toolbar-rail-host"
-            onMouseEnter={() => setIsRailHovered(true)}
-            onMouseLeave={() => setIsRailHovered(false)}
+            onMouseEnter={enableHoverLabels ? () => setIsRailHovered(true) : undefined}
+            onMouseLeave={enableHoverLabels ? () => setIsRailHovered(false) : undefined}
         >
             <input
                 type="file"

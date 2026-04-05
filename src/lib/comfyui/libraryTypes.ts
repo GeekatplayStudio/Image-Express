@@ -62,10 +62,20 @@ export interface ComfyLibraryNodeRepo {
     requirementsFile: boolean;
 }
 
+export interface ComfyLocalWorkspaceState {
+    path: string;
+    exists: boolean;
+    workflowFileCount: number;
+    syncedDirectories: string[];
+    syncedIntoInstall: boolean;
+}
+
 export interface ComfyLibrarySnapshot {
     customNodesPath: string;
     workflowLibraryPath: string;
+    workflowLibraryPaths?: string[];
     installPath: string;
+    localWorkspace?: ComfyLocalWorkspaceState;
     serverTemplates: ComfyLibraryWorkflowEntry[];
     customFolderWorkflows: ComfyLibraryWorkflowEntry[];
     nodeRepos: ComfyLibraryNodeRepo[];

@@ -16,6 +16,7 @@ interface ComfyWorkflowLibraryPanelProps {
     workflowLibraryPath: string;
     selectedTask: ComfyTask;
     onUseWorkflow: (registration: SerializedComfyWorkflowRegistration) => void;
+    onWorkflowsDiscovered?: (registrations: SerializedComfyWorkflowRegistration[]) => void;
 }
 
 interface LibraryResponseBody {
@@ -23,6 +24,15 @@ interface LibraryResponseBody {
     message?: string;
     snapshot?: ComfyLibrarySnapshot;
 }
+
+const WORKFLOW_LIBRARY_PATH_SPLIT_PATTERN = /[\r\n;]+/;
+
+const parseConfiguredWorkflowFolders = (value: string): string[] => Array.from(new Set(
+    value
+        .split(WORKFLOW_LIBRARY_PATH_SPLIT_PATTERN)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+));
 
 const TASK_LABELS: Record<ComfyTask, string> = {
     generate: 'Generate',
@@ -45,6 +55,7 @@ export default function ComfyWorkflowLibraryPanel(props: ComfyWorkflowLibraryPan
         workflowLibraryPath,
         selectedTask,
         onUseWorkflow,
+        onWorkflowsDiscovered,
     } = props;
 
     const [snapshot, setSnapshot] = useState<ComfyLibrarySnapshot | null>(null);
@@ -79,6 +90,15 @@ export default function ComfyWorkflowLibraryPanel(props: ComfyWorkflowLibraryPan
             }
 
             setSnapshot(body.snapshot);
+            const discoveredRegistrations = [
+                ...(body.snapshot.serverTemplates || []),
+                ...(body.snapshot.customFolderWorkflows || []),
+            ].flatMap((entry) => entry.registration ? [entry.registration] : []);
+
+            if (discoveredRegistrations.length > 0) {
+                onWorkflowsDiscovered?.(discoveredRegistrations);
+            }
+
             if (body.snapshot.warnings.length > 0) {
                 setMessage(body.snapshot.warnings[0]);
             }
@@ -95,12 +115,21 @@ export default function ComfyWorkflowLibraryPanel(props: ComfyWorkflowLibraryPan
         connectionMode,
         customNodesPath,
         installPath,
+        onWorkflowsDiscovered,
         workflowLibraryPath,
     ]);
 
     useEffect(() => {
         void refreshLibrary();
     }, [refreshLibrary]);
+
+    const configuredWorkflowFolders = useMemo(() => {
+        if (snapshot?.workflowLibraryPaths && snapshot.workflowLibraryPaths.length > 0) {
+            return snapshot.workflowLibraryPaths;
+        }
+
+        return parseConfiguredWorkflowFolders(workflowLibraryPath);
+    }, [snapshot, workflowLibraryPath]);
 
     const visibleEntries = useMemo(() => {
         const entries = [
@@ -119,7 +148,7 @@ export default function ComfyWorkflowLibraryPanel(props: ComfyWorkflowLibraryPan
                 <div>
                     <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Workflow Library</div>
                     <div className="text-[10px] text-muted-foreground">
-                        Server templates: {snapshot?.serverTemplates.length || 0} | Custom folder: {snapshot?.customFolderWorkflows.length || 0}
+                        Server templates: {snapshot?.serverTemplates.length || 0} | Workflow files: {snapshot?.customFolderWorkflows.length || 0}
                     </div>
                 </div>
                 <button
@@ -133,9 +162,11 @@ export default function ComfyWorkflowLibraryPanel(props: ComfyWorkflowLibraryPan
                 </button>
             </div>
 
-            {(workflowLibraryPath || customNodesPath || installPath) && (
+            {(configuredWorkflowFolders.length > 0 || customNodesPath || installPath) && (
                 <div className="text-[10px] text-muted-foreground rounded border border-border/40 bg-secondary/20 px-2 py-1">
-                    {workflowLibraryPath ? `Custom workflows: ${workflowLibraryPath}` : 'Add a custom workflow folder in Settings to scan local JSON workflows.'}
+                    {configuredWorkflowFolders.length > 0
+                        ? `Workflow folders: ${configuredWorkflowFolders.join(' | ')}`
+                        : 'Add one or more workflow folders in Settings to scan local JSON workflows.'}
                 </div>
             )}
 
@@ -148,7 +179,7 @@ export default function ComfyWorkflowLibraryPanel(props: ComfyWorkflowLibraryPan
             <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
                 {visibleEntries.length === 0 ? (
                     <div className="text-[10px] text-muted-foreground rounded border border-dashed border-border/60 px-2 py-3">
-                        No runnable server/custom workflows were discovered yet. Connect ComfyUI, or add a custom workflow folder in Settings.
+                        No runnable server/workflow-folder entries were discovered yet. Connect ComfyUI, or add workflow folder(s) in Settings.
                     </div>
                 ) : (
                     visibleEntries.map((entry) => (
@@ -157,7 +188,7 @@ export default function ComfyWorkflowLibraryPanel(props: ComfyWorkflowLibraryPan
                                 <div className="min-w-0">
                                     <div className="truncate text-xs font-medium">{entry.name}</div>
                                     <div className="text-[10px] text-muted-foreground">
-                                        {entry.source === 'server-template' ? 'Server template' : 'Custom folder'} | {TASK_LABELS[entry.task || 'generate']}
+                                        {entry.source === 'server-template' ? 'Server template' : (entry.category || 'Workflow folder')} | {TASK_LABELS[entry.task || 'generate']}
                                     </div>
                                 </div>
                                 {entry.registration ? (

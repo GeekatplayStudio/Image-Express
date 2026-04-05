@@ -1,13 +1,17 @@
 import path from 'path';
+import { cp } from 'fs/promises';
 import {
-    REPO_ROOT,
     ensureDir,
     formatTaskLabel,
     parseInstallerFlags,
     pathExists,
     readInstallerConfig,
+    resolveComfyDirectory,
+    resolveLocalWorkspaceDirectory,
     runCommand,
 } from '../common.mjs';
+
+const LOCAL_SYNC_DIRECTORIES = ['custom_nodes', 'user', 'models'];
 
 async function syncGitRepo({ targetDir, repo, branch, dryRun }) {
     const gitDir = path.join(targetDir, '.git');
@@ -35,9 +39,7 @@ async function main() {
         return;
     }
 
-    const comfyDir = flags.comfyDir
-        ? path.resolve(REPO_ROOT, flags.comfyDir)
-        : path.resolve(REPO_ROOT, comfyConfig.targetDir);
+    const comfyDir = resolveComfyDirectory(config, flags.comfyDir);
     if (!(await pathExists(comfyDir)) && !flags.dryRun) {
         throw new Error(`Comfy directory not found: ${comfyDir}. Run install-comfy first.`);
     }
@@ -59,6 +61,30 @@ async function main() {
             branch: bundle.branch || 'main',
             dryRun: flags.dryRun,
         });
+    }
+
+    const localWorkspacePath = resolveLocalWorkspaceDirectory(config);
+    if (!(await pathExists(localWorkspacePath)) && flags.dryRun) {
+        console.log(`[dry-run] Local workspace ${localWorkspacePath} does not exist yet; skipping workspace sync.`);
+    }
+
+    if (await pathExists(localWorkspacePath)) {
+        for (const directoryName of LOCAL_SYNC_DIRECTORIES) {
+            const sourcePath = path.join(localWorkspacePath, directoryName);
+            if (!(await pathExists(sourcePath))) {
+                continue;
+            }
+
+            const targetPath = path.join(comfyDir, directoryName);
+            if (flags.dryRun) {
+                console.log(`[dry-run] Sync local workspace ${sourcePath} -> ${targetPath}`);
+                continue;
+            }
+
+            console.log(`Syncing local workspace ${sourcePath} -> ${targetPath}`);
+            await ensureDir(path.dirname(targetPath));
+            await cp(sourcePath, targetPath, { recursive: true, force: true });
+        }
     }
 
     console.log('Custom bundle install/update step complete.');

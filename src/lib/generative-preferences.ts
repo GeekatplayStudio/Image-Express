@@ -36,6 +36,7 @@ export const GENERATIVE_PREFERENCES_CHANGED_EVENT = 'image-express:generative-pr
 const LEGACY_PROVIDER_STORAGE_KEYS = ['image-express-gen-provider', 'image-express-provider'] as const;
 const LEGACY_COMFY_URL_STORAGE_KEY = 'image-express-comfy-url';
 const LEGACY_DEFAULT_COMFY_URL = 'http://127.0.0.1:8188';
+const WORKFLOW_LIBRARY_PATH_SPLIT_PATTERN = /[\r\n;]+/;
 
 const GENERATIVE_PROVIDER_SET = new Set<GenerativeProviderId>(['comfy', 'ollama', 'stability', 'openai', 'google', 'banana']);
 const GENERATIVE_WORKFLOW_SET = new Set<GenerativeWorkflowId>([
@@ -152,6 +153,15 @@ const coerceComfyConnectionMode = (value: unknown): ComfyConnectionMode | null =
         : null
 );
 
+const normalizeWorkflowLibraryPathInput = (value: string): string => {
+    const configuredPaths = value
+        .split(WORKFLOW_LIBRARY_PATH_SPLIT_PATTERN)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
+    return Array.from(new Set(configuredPaths)).join('\n');
+};
+
 const resolveLegacyProvider = (): GenerativeProviderId | null => {
     if (typeof window === 'undefined') return null;
     for (const key of LEGACY_PROVIDER_STORAGE_KEYS) {
@@ -203,7 +213,7 @@ export const loadGenerativePreferences = (): GenerativePreferences => {
             ? parsed.comfyCustomNodesPath.trim()
             : DEFAULT_GENERATIVE_PREFERENCES.comfyCustomNodesPath;
         const comfyWorkflowLibraryPath = typeof parsed.comfyWorkflowLibraryPath === 'string'
-            ? parsed.comfyWorkflowLibraryPath.trim()
+            ? normalizeWorkflowLibraryPathInput(parsed.comfyWorkflowLibraryPath)
             : DEFAULT_GENERATIVE_PREFERENCES.comfyWorkflowLibraryPath;
 
         return {
@@ -250,7 +260,7 @@ export const saveGenerativePreferences = (updates: Partial<GenerativePreferences
         comfyCloudUrl: (updates.comfyCloudUrl ?? current.comfyCloudUrl).trim() || DEFAULT_GENERATIVE_PREFERENCES.comfyCloudUrl,
         comfyInstallPath: (updates.comfyInstallPath ?? current.comfyInstallPath).trim(),
         comfyCustomNodesPath: (updates.comfyCustomNodesPath ?? current.comfyCustomNodesPath).trim(),
-        comfyWorkflowLibraryPath: (updates.comfyWorkflowLibraryPath ?? current.comfyWorkflowLibraryPath).trim(),
+        comfyWorkflowLibraryPath: normalizeWorkflowLibraryPathInput(updates.comfyWorkflowLibraryPath ?? current.comfyWorkflowLibraryPath),
         comfyConnectionMode: coerceComfyConnectionMode(updates.comfyConnectionMode) || current.comfyConnectionMode,
     };
 

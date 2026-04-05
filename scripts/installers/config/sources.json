@@ -4,6 +4,9 @@
     "branch": "master",
     "targetDir": "external/ComfyUI"
   },
+  "localWorkspace": {
+    "sourceDir": "ComfyUI workflows"
+  },
   "customBundles": [
     {
       "name": "image-express-custom-nodes",
@@ -25,7 +28,74 @@
       "id": "sdxl-base-1.0",
       "displayName": "SDXL Base 1.0",
       "downloadUrl": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
-      "targetPath": "models/checkpoints/sd_xl_base_1.0.safetensors"
+      "targetPath": "models/checkpoints/sd_xl_base_1.0.safetensors",
+      "category": "Checkpoints",
+      "recommendedFor": [
+        "Basic Text To Image",
+        "SDXL Image To Image",
+        "SDXL Inpaint",
+        "SDXL Outpaint"
+      ]
+    },
+    {
+      "id": "flux1-dev-unet",
+      "displayName": "FLUX.1 Dev UNet",
+      "downloadUrl": "https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors",
+      "targetPath": "models/unet/flux1-dev.safetensors",
+      "category": "UNETs",
+      "recommendedFor": [
+        "FLUX Text To Image"
+      ]
+    },
+    {
+      "id": "flux1-schnell-unet",
+      "displayName": "FLUX.1 Schnell UNet",
+      "downloadUrl": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors",
+      "targetPath": "models/unet/flux1-schnell.safetensors",
+      "category": "UNETs",
+      "recommendedFor": [
+        "FLUX Text To Image"
+      ]
+    },
+    {
+      "id": "flux-ae",
+      "displayName": "FLUX Autoencoder",
+      "downloadUrl": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors",
+      "targetPath": "models/vae/ae.safetensors",
+      "category": "VAEs",
+      "recommendedFor": [
+        "FLUX Text To Image"
+      ]
+    },
+    {
+      "id": "flux-clip-l",
+      "displayName": "FLUX CLIP-L",
+      "downloadUrl": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors",
+      "targetPath": "models/clip/clip_l.safetensors",
+      "category": "CLIP Models",
+      "recommendedFor": [
+        "FLUX Text To Image"
+      ]
+    },
+    {
+      "id": "flux-t5xxl-fp16",
+      "displayName": "FLUX T5 XXL FP16",
+      "downloadUrl": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp16.safetensors",
+      "targetPath": "models/clip/t5xxl_fp16.safetensors",
+      "category": "Text Encoders",
+      "recommendedFor": [
+        "FLUX Text To Image"
+      ]
+    },
+    {
+      "id": "flux-t5xxl-fp8",
+      "displayName": "FLUX T5 XXL FP8",
+      "downloadUrl": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors",
+      "targetPath": "models/clip/t5xxl_fp8_e4m3fn.safetensors",
+      "category": "Text Encoders",
+      "recommendedFor": [
+        "FLUX Text To Image"
+      ]
     }
   ],
   "ollamaModels": [

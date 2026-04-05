@@ -1,6 +1,7 @@
 const mockCreateOneTimeToken = jest.fn(() => 'token');
 const mockIsValidEmail = jest.fn(() => true);
 const mockNormalizeEmail = jest.fn((email: string) => email.trim().toLowerCase());
+const mockCreateUserSessionToken = jest.fn(() => 'session-token');
 const mockLoadUsers = jest.fn();
 const mockFindUserByIdentifier = jest.fn();
 const mockToPublicUser = jest.fn((user: unknown) => user);
@@ -11,6 +12,10 @@ jest.mock('@/lib/server/auth-utils', () => ({
     createOneTimeToken: (...args: unknown[]) => mockCreateOneTimeToken(...args),
     isValidEmail: (...args: unknown[]) => mockIsValidEmail(...args),
     normalizeEmail: (...args: unknown[]) => mockNormalizeEmail(...args),
+}));
+
+jest.mock('@/lib/server/user-session', () => ({
+    createUserSessionToken: (...args: unknown[]) => mockCreateUserSessionToken(...args),
 }));
 
 jest.mock('@/lib/server/user-auth-store', () => ({
@@ -118,6 +123,7 @@ describe('/api/user/auth/google', () => {
             user: expect.objectContaining({
                 email: 'artist@example.com',
                 displayName: 'Artist',
+                sessionToken: 'session-token',
             }),
         });
     });

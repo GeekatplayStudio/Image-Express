@@ -232,6 +232,7 @@ export interface AuthUser {
     email: string;
     username?: string;
     displayName: string;
+    sessionToken?: string;
     status: UserStatus;
     roles: string[];
     rights: string[];

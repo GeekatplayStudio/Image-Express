@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -13,6 +13,7 @@ import {
     type ComfyDiagnosticsSnapshot,
     type ComfyLibraryAssetGroup,
     createComfyLibraryWorkflowEntry,
+    type ComfyLocalWorkspaceState,
     type ComfyLibraryNodeRepo,
     type ComfyLibraryPathStatus,
     type ComfyLibraryRepoKind,
@@ -25,7 +26,10 @@ import { ComfyUIClient } from '@/lib/comfyui/client';
 const execFile = promisify(execFileCallback);
 const MANIFEST_SUFFIX = '.manifest.json';
 const WORKFLOW_JSON_SUFFIX = '.json';
+const WORKFLOW_LIBRARY_PATH_SPLIT_PATTERN = /[\r\n;]+/;
 const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
+const LOCAL_COMFY_WORKSPACE_DIR = path.join(process.cwd(), 'ComfyUI workflows');
+const LOCAL_COMFY_SYNC_DIRECTORIES = ['custom_nodes', 'user', 'models'] as const;
 
 interface ComfyLibraryPathsInput {
     installPath?: string;
@@ -37,11 +41,14 @@ interface ResolvedComfyLibraryPaths {
     installPath: string;
     customNodesPath: string;
     workflowLibraryPath: string;
+    workflowLibraryPaths: string[];
 }
 
 interface ServerTemplateCandidate {
     idSeed: string;
     name: string;
+    templateId?: string;
+    sourceModule?: string;
     description?: string;
     category?: string;
     templateUrl?: string;
@@ -76,6 +83,11 @@ const parseJsonSafe = <T>(value: string): T | null => {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
     typeof value === 'object' && value !== null
+);
+
+const isTemplateNameList = (value: unknown): value is string[] => (
+    Array.isArray(value)
+    && value.every((item) => typeof item === 'string')
 );
 
 const extractStringChoices = (inputDefinition: unknown): string[] => {
@@ -248,6 +260,38 @@ const resolvePathRelativeToInstall = (installPath: string, targetPath: string): 
     return path.join(installPath, targetPath);
 };
 
+const resolveDefaultWorkflowLibraryPaths = async (installPath: string): Promise<string[]> => {
+    if (installPath) {
+        const installCandidates = [
+            path.join(installPath, 'user', 'default', 'workflows'),
+            path.join(installPath, 'ComfyUI', 'user', 'default', 'workflows'),
+        ];
+
+        for (const candidate of installCandidates) {
+            if (await fileExists(candidate)) {
+                return [candidate];
+            }
+        }
+
+        return [installCandidates[0]];
+    }
+
+    return [path.join(LOCAL_COMFY_WORKSPACE_DIR, 'user', 'default', 'workflows')];
+};
+
+const parseConfiguredWorkflowLibraryPaths = async (installPath: string, workflowLibraryPath: string): Promise<string[]> => {
+    const configuredPaths = workflowLibraryPath
+        .split(WORKFLOW_LIBRARY_PATH_SPLIT_PATTERN)
+        .map((value) => resolvePathRelativeToInstall(installPath, value.trim()))
+        .filter(Boolean);
+
+    if (configuredPaths.length > 0) {
+        return Array.from(new Set(configuredPaths));
+    }
+
+    return resolveDefaultWorkflowLibraryPaths(installPath);
+};
+
 const resolveCustomNodesPath = async (installPath: string, customNodesPath: string): Promise<string> => {
     const configuredPath = resolvePathRelativeToInstall(installPath, customNodesPath);
     if (configuredPath) {
@@ -255,7 +299,7 @@ const resolveCustomNodesPath = async (installPath: string, customNodesPath: stri
     }
 
     if (!installPath) {
-        return '';
+        return path.join(LOCAL_COMFY_WORKSPACE_DIR, 'custom_nodes');
     }
 
     const candidates = [
@@ -296,12 +340,56 @@ export const resolveComfyLibraryPaths = async (
 ): Promise<ResolvedComfyLibraryPaths> => {
     const installPath = trimPath(input.installPath);
     const customNodesPath = await resolveCustomNodesPath(installPath, trimPath(input.customNodesPath));
-    const workflowLibraryPath = resolvePathRelativeToInstall(installPath, trimPath(input.workflowLibraryPath));
+    const workflowLibraryPaths = await parseConfiguredWorkflowLibraryPaths(installPath, trimPath(input.workflowLibraryPath));
+    const workflowLibraryPath = workflowLibraryPaths[0] || '';
 
     return {
         installPath,
         customNodesPath,
         workflowLibraryPath,
+        workflowLibraryPaths,
+    };
+};
+
+const listLocalWorkspaceSyncDirectories = async (workspacePath: string): Promise<string[]> => {
+    const syncedDirectories: string[] = [];
+    for (const directoryName of LOCAL_COMFY_SYNC_DIRECTORIES) {
+        const targetPath = path.join(workspacePath, directoryName);
+        if (await fileExists(targetPath)) {
+            syncedDirectories.push(directoryName);
+        }
+    }
+    return syncedDirectories;
+};
+
+const syncLocalComfyWorkspaceToInstall = async (installPath: string): Promise<ComfyLocalWorkspaceState> => {
+    const exists = await fileExists(LOCAL_COMFY_WORKSPACE_DIR);
+    const syncedDirectories = exists ? await listLocalWorkspaceSyncDirectories(LOCAL_COMFY_WORKSPACE_DIR) : [];
+    const workflowFileCount = exists ? (await walkForWorkflowFiles(LOCAL_COMFY_WORKSPACE_DIR)).length : 0;
+
+    if (!exists || !installPath || !(await fileExists(installPath)) || syncedDirectories.length === 0) {
+        return {
+            path: LOCAL_COMFY_WORKSPACE_DIR,
+            exists,
+            workflowFileCount,
+            syncedDirectories,
+            syncedIntoInstall: false,
+        };
+    }
+
+    for (const directoryName of syncedDirectories) {
+        const sourcePath = path.join(LOCAL_COMFY_WORKSPACE_DIR, directoryName);
+        const targetPath = path.join(installPath, directoryName);
+        await mkdir(path.dirname(targetPath), { recursive: true });
+        await cp(sourcePath, targetPath, { recursive: true, force: true });
+    }
+
+    return {
+        path: LOCAL_COMFY_WORKSPACE_DIR,
+        exists,
+        workflowFileCount,
+        syncedDirectories,
+        syncedIntoInstall: true,
     };
 };
 
@@ -342,7 +430,8 @@ const readWorkflowManifest = async (workflowPath: string): Promise<ComfyWorkflow
 };
 
 export const scanCustomWorkflowFolder = async (
-    workflowLibraryPath: string
+    workflowLibraryPath: string,
+    category: string = 'Workflow Folder'
 ): Promise<ComfyLibraryWorkflowEntry[]> => {
     if (!workflowLibraryPath || !(await fileExists(workflowLibraryPath))) {
         return [];
@@ -361,7 +450,7 @@ export const scanCustomWorkflowFolder = async (
                     description: 'Workflow JSON could not be parsed.',
                     task: null,
                     runnable: false,
-                    category: 'Custom Folder',
+                    category,
                     location: workflowPath,
                     nodeTypes: [],
                     warning: 'Invalid JSON file.',
@@ -374,7 +463,7 @@ export const scanCustomWorkflowFolder = async (
                 source: 'custom-folder',
                 name: manifest?.name || path.basename(workflowPath, '.json'),
                 description: manifest?.description || `Imported from ${workflowPath}`,
-                category: 'Custom Folder',
+                category,
                 location: workflowPath,
                 blueprint,
                 manifest,
@@ -387,7 +476,7 @@ export const scanCustomWorkflowFolder = async (
                 description: error instanceof Error ? error.message : 'Failed to inspect workflow.',
                 task: null,
                 runnable: false,
-                category: 'Custom Folder',
+                category,
                 location: workflowPath,
                 nodeTypes: [],
                 warning: 'Inspection failed.',
@@ -396,6 +485,42 @@ export const scanCustomWorkflowFolder = async (
     }));
 
     return entries.sort((left, right) => left.name.localeCompare(right.name));
+};
+
+const buildWorkflowFolderCategory = (workflowLibraryPath: string, multipleFolders: boolean): string => {
+    if (!multipleFolders) {
+        return 'Workflow Folder';
+    }
+
+    const folderName = path.basename(workflowLibraryPath);
+    return folderName ? `Workflow Folder: ${folderName}` : 'Workflow Folder';
+};
+
+const scanConfiguredWorkflowFolders = async (
+    workflowLibraryPaths: string[]
+): Promise<ComfyLibraryWorkflowEntry[]> => {
+    if (workflowLibraryPaths.length === 0) {
+        return [];
+    }
+
+    const multipleFolders = workflowLibraryPaths.length > 1;
+    const scannedEntries = await Promise.all(workflowLibraryPaths.map((workflowLibraryPath) => (
+        scanCustomWorkflowFolder(
+            workflowLibraryPath,
+            buildWorkflowFolderCategory(workflowLibraryPath, multipleFolders)
+        )
+    )));
+
+    const entriesByLocation = new Map<string, ComfyLibraryWorkflowEntry>();
+    for (const entry of scannedEntries.flat()) {
+        const key = entry.location || `${entry.source}:${entry.id}`;
+        if (!entriesByLocation.has(key)) {
+            entriesByLocation.set(key, entry);
+        }
+    }
+
+    return Array.from(entriesByLocation.values())
+        .sort((left, right) => left.name.localeCompare(right.name));
 };
 
 const repoNameFromUrl = (repoUrl: string): string => {
@@ -435,13 +560,17 @@ const countWorkflowHints = async (repoPath: string): Promise<number> => {
 
 export const scanNodeRepos = async (
     customNodesPath: string,
-    workflowLibraryPath: string
+    workflowLibraryPaths: string[]
 ): Promise<ComfyLibraryNodeRepo[]> => {
     const results: ComfyLibraryNodeRepo[] = [];
     const scanTargets: Array<{ basePath: string; repoKind: ComfyLibraryRepoKind }> = [
         { basePath: customNodesPath, repoKind: 'custom-nodes' },
-        { basePath: workflowLibraryPath, repoKind: 'workflow-library' },
+        ...workflowLibraryPaths.map((workflowLibraryPath) => ({
+            basePath: workflowLibraryPath,
+            repoKind: 'workflow-library' as const,
+        })),
     ];
+    const seenRepoPaths = new Set<string>();
 
     for (const target of scanTargets) {
         if (!target.basePath || !(await fileExists(target.basePath))) {
@@ -455,6 +584,10 @@ export const scanNodeRepos = async (
             }
 
             const repoPath = path.join(target.basePath, entry.name);
+            if (seenRepoPaths.has(repoPath)) {
+                continue;
+            }
+            seenRepoPaths.add(repoPath);
             const gitManaged = await fileExists(path.join(repoPath, '.git'));
             const requirementsFile = await fileExists(path.join(repoPath, 'requirements.txt'));
             const workflowHintCount = await countWorkflowHints(repoPath);
@@ -478,6 +611,28 @@ const buildTemplateFetchCandidates = (transport: ResolvedComfyTransport): string
         `${transport.baseUrl}${transport.apiBasePath}/workflow_templates`,
         `${transport.baseUrl}/api/workflow_templates`,
         `${transport.baseUrl}/workflow_templates`,
+    ];
+
+    return Array.from(new Set(candidates));
+};
+
+const buildTemplateJsonFetchCandidates = (
+    transport: ResolvedComfyTransport,
+    sourceModule: string,
+    templateId: string
+): string[] => {
+    const normalizedSourceModule = sourceModule.trim();
+    const normalizedTemplateId = templateId.trim();
+    if (!normalizedSourceModule || !normalizedTemplateId) {
+        return [];
+    }
+
+    const encodedSourceModule = encodeURIComponent(normalizedSourceModule);
+    const encodedTemplateId = encodeURIComponent(normalizedTemplateId);
+    const candidates = [
+        `${transport.baseUrl}${transport.apiBasePath}/workflow_templates/${encodedSourceModule}/${encodedTemplateId}.json`,
+        `${transport.baseUrl}/api/workflow_templates/${encodedSourceModule}/${encodedTemplateId}.json`,
+        `${transport.baseUrl}/workflow_templates/${encodedSourceModule}/${encodedTemplateId}.json`,
     ];
 
     return Array.from(new Set(candidates));
@@ -523,6 +678,38 @@ const collectServerTemplateCandidates = (
     }
 
     const record = raw as Record<string, unknown>;
+    const shortFormTemplateGroups = Object.entries(record)
+        .filter(([, value]) => isTemplateNameList(value));
+
+    if (shortFormTemplateGroups.length > 0) {
+        for (const [sourceModule, templateNames] of shortFormTemplateGroups) {
+            const typedTemplateNames = templateNames as string[];
+            for (const templateName of typedTemplateNames) {
+                const normalizedTemplateName = templateName.trim();
+                if (!normalizedTemplateName) {
+                    continue;
+                }
+
+                bucket.push({
+                    idSeed: `${sourceModule}-${normalizedTemplateName}`,
+                    name: normalizedTemplateName,
+                    templateId: normalizedTemplateName,
+                    sourceModule,
+                    description: `Template exposed by ComfyUI module ${sourceModule}.`,
+                    category: sourceModule,
+                });
+            }
+        }
+
+        for (const value of Object.values(record)) {
+            if (value && typeof value === 'object' && !isTemplateNameList(value)) {
+                collectServerTemplateCandidates(value, category, bucket);
+            }
+        }
+
+        return bucket;
+    }
+
     const nestedCategory = typeof record.category === 'string'
         ? record.category
         : typeof record.name === 'string' && Array.isArray(record.templates)
@@ -538,11 +725,13 @@ const collectServerTemplateCandidates = (
         return bucket;
     }
 
-    const name = typeof record.name === 'string'
-        ? record.name
-        : typeof record.title === 'string'
-            ? record.title
-            : '';
+    const templateId = typeof record.name === 'string'
+        ? record.name.trim()
+        : '';
+    const name = templateId
+        || (typeof record.title === 'string'
+            ? record.title.trim()
+            : '');
     const embeddedWorkflow = extractEmbeddedWorkflow(record);
     const location = extractTemplateLocation(record);
 
@@ -550,6 +739,7 @@ const collectServerTemplateCandidates = (
         bucket.push({
             idSeed: name || location.templatePath || location.templateUrl || `template-${bucket.length + 1}`,
             name: name || location.templatePath || location.templateUrl || `Template ${bucket.length + 1}`,
+            templateId: templateId || undefined,
             description: typeof record.description === 'string' ? record.description : undefined,
             category: nestedCategory,
             templateUrl: location.templateUrl,
@@ -618,18 +808,31 @@ const resolveLibraryTransport = async (
     }
 };
 
-const resolveTemplateUrl = (
-    templateUrl: string | undefined,
-    templatePath: string | undefined,
+const resolveTemplateUrlCandidates = (
+    candidate: ServerTemplateCandidate,
+    transport: ResolvedComfyTransport
+): string[] => {
+    const candidates: string[] = [];
+
+    if (candidate.templateUrl) {
+        candidates.push(new URL(candidate.templateUrl, transport.baseUrl).toString());
+    }
+    if (candidate.templatePath) {
+        candidates.push(new URL(candidate.templatePath, transport.baseUrl).toString());
+    }
+    if (candidate.sourceModule && candidate.templateId) {
+        candidates.push(...buildTemplateJsonFetchCandidates(transport, candidate.sourceModule, candidate.templateId));
+    }
+
+    return Array.from(new Set(candidates));
+};
+
+const resolvePrimaryTemplateUrl = (
+    candidate: ServerTemplateCandidate,
     transport: ResolvedComfyTransport
 ): string | null => {
-    if (templateUrl) {
-        return new URL(templateUrl, transport.baseUrl).toString();
-    }
-    if (templatePath) {
-        return new URL(templatePath, transport.baseUrl).toString();
-    }
-    return null;
+    const candidates = resolveTemplateUrlCandidates(candidate, transport);
+    return candidates[0] || null;
 };
 
 const importServerTemplateCandidate = async (
@@ -637,14 +840,14 @@ const importServerTemplateCandidate = async (
     transport: ResolvedComfyTransport
 ): Promise<ComfyLibraryWorkflowEntry> => {
     let workflowPayload = candidate.embeddedWorkflow;
+    const resolvedTemplateUrl = resolvePrimaryTemplateUrl(candidate, transport);
 
     if (!workflowPayload) {
-        const resolvedTemplateUrl = resolveTemplateUrl(candidate.templateUrl, candidate.templatePath, transport);
-        if (resolvedTemplateUrl) {
-            const response = await fetch(resolvedTemplateUrl, {
-                headers: transport.defaultHeaders,
-            });
-            if (!response.ok) {
+        const resolvedTemplateUrls = resolveTemplateUrlCandidates(candidate, transport);
+        if (resolvedTemplateUrls.length > 0) {
+            try {
+                workflowPayload = await fetchJsonWithFallback(resolvedTemplateUrls, transport.defaultHeaders);
+            } catch (error) {
                 return {
                     id: candidate.idSeed,
                     source: 'server-template',
@@ -653,18 +856,15 @@ const importServerTemplateCandidate = async (
                     task: null,
                     runnable: false,
                     category: candidate.category || 'Server Templates',
-                    location: resolvedTemplateUrl,
+                    location: resolvedTemplateUrl || undefined,
                     nodeTypes: [],
                     importRef: {
                         templateUrl: candidate.templateUrl,
                         templatePath: candidate.templatePath,
                     },
-                    warning: `Template metadata was found, but its JSON could not be downloaded (${response.status}).`,
+                    warning: `Template metadata was found, but its JSON could not be downloaded (${error instanceof Error ? error.message : 'unknown error'}).`,
                 };
             }
-
-            const rawText = await response.text();
-            workflowPayload = parseJsonSafe<unknown>(rawText);
         }
     }
 
@@ -677,7 +877,7 @@ const importServerTemplateCandidate = async (
             task: null,
             runnable: false,
             category: candidate.category || 'Server Templates',
-            location: candidate.templateUrl || candidate.templatePath,
+            location: resolvedTemplateUrl || candidate.templateUrl || candidate.templatePath,
             nodeTypes: [],
             importRef: {
                 templateUrl: candidate.templateUrl,
@@ -693,7 +893,7 @@ const importServerTemplateCandidate = async (
         name: candidate.name,
         description: candidate.description || 'Imported from the connected ComfyUI template library.',
         category: candidate.category || 'Server Templates',
-        location: candidate.templateUrl || candidate.templatePath,
+        location: resolvedTemplateUrl || candidate.templateUrl || candidate.templatePath,
         blueprint: workflowPayload,
         importRef: {
             templateUrl: candidate.templateUrl,
@@ -726,6 +926,7 @@ export const buildComfyLibrarySnapshot = async (
 ): Promise<ComfyLibrarySnapshot> => {
     const warnings: string[] = [];
     const resolvedPaths = await resolveComfyLibraryPaths(pathInput);
+    const localWorkspace = await syncLocalComfyWorkspaceToInstall(resolvedPaths.installPath);
 
     if (resolvedPaths.installPath && !(await fileExists(resolvedPaths.installPath))) {
         warnings.push(
@@ -739,11 +940,13 @@ export const buildComfyLibrarySnapshot = async (
             + 'Generation through the Comfy proxy can still work, but repo installs and node scans need the folder mounted or the app running on the host.'
         );
     }
-    if (resolvedPaths.workflowLibraryPath && !(await fileExists(resolvedPaths.workflowLibraryPath))) {
-        warnings.push(
-            `Configured workflow folder is not readable from this app runtime: ${resolvedPaths.workflowLibraryPath}. `
-            + 'Mount the folder into Docker if you want the app to scan host-side workflow JSON files.'
-        );
+    for (const workflowLibraryPath of resolvedPaths.workflowLibraryPaths) {
+        if (!(await fileExists(workflowLibraryPath))) {
+            warnings.push(
+                `Configured workflow folder is not readable from this app runtime: ${workflowLibraryPath}. `
+                + 'Mount the folder into Docker if you want the app to scan host-side workflow JSON files.'
+            );
+        }
     }
 
     let serverTemplates: ComfyLibraryWorkflowEntry[] = [];
@@ -760,20 +963,21 @@ export const buildComfyLibrarySnapshot = async (
 
     let customFolderWorkflows: ComfyLibraryWorkflowEntry[] = [];
     try {
-        customFolderWorkflows = await scanCustomWorkflowFolder(resolvedPaths.workflowLibraryPath);
+        customFolderWorkflows = await scanConfiguredWorkflowFolders(resolvedPaths.workflowLibraryPaths);
     } catch (error) {
-        warnings.push(error instanceof Error ? error.message : 'Failed to inspect the custom workflow folder.');
+        warnings.push(error instanceof Error ? error.message : 'Failed to inspect the configured workflow folders.');
     }
 
     let nodeRepos: ComfyLibraryNodeRepo[] = [];
     try {
-        nodeRepos = await scanNodeRepos(resolvedPaths.customNodesPath, resolvedPaths.workflowLibraryPath);
+        nodeRepos = await scanNodeRepos(resolvedPaths.customNodesPath, resolvedPaths.workflowLibraryPaths);
     } catch (error) {
         warnings.push(error instanceof Error ? error.message : 'Failed to inspect ComfyUI repositories.');
     }
 
     return {
         ...resolvedPaths,
+        localWorkspace,
         serverTemplates,
         customFolderWorkflows,
         nodeRepos,
@@ -796,12 +1000,21 @@ export const buildComfyDiagnosticsSnapshot = async (
         resolveModelsPath(library.installPath),
     ]);
 
-    const pathStatuses = await Promise.all([
-        buildPathStatus('Install Path', library.installPath, 'Configured ComfyUI install root used for repo updates.'),
-        buildPathStatus('Custom Nodes Path', library.customNodesPath, 'Folder scanned for installed custom node repositories.'),
-        buildPathStatus('Workflow Library Path', library.workflowLibraryPath, 'Folder scanned for custom workflow JSON files.'),
-        buildPathStatus('Models Path', modelsPath, 'Expected root for checkpoints, LoRAs, VAEs, ControlNets, and other model assets.'),
-    ]);
+    const workflowLibraryPaths = library.workflowLibraryPaths || (library.workflowLibraryPath ? [library.workflowLibraryPath] : []);
+    const workflowPathStatuses = workflowLibraryPaths.length > 0
+        ? await Promise.all(workflowLibraryPaths.map((workflowLibraryPath, index) => buildPathStatus(
+            workflowLibraryPaths.length > 1 ? `Workflow Folder ${index + 1}` : 'Workflow Folder',
+            workflowLibraryPath,
+            'Folder scanned for official or custom workflow JSON files.'
+        )))
+        : [await buildPathStatus('Workflow Folder', '', 'Folder scanned for official or custom workflow JSON files.')];
+
+    const pathStatuses = [
+        await buildPathStatus('Install Path', library.installPath, 'Configured ComfyUI install root used for repo updates.'),
+        await buildPathStatus('Custom Nodes Path', library.customNodesPath, 'Folder scanned for installed custom node repositories.'),
+        ...workflowPathStatuses,
+        await buildPathStatus('Models Path', modelsPath, 'Expected root for checkpoints, LoRAs, VAEs, ControlNets, and other model assets.'),
+    ];
 
     return {
         generatedAt: new Date().toISOString(),
@@ -868,7 +1081,7 @@ export const installComfyRepository = async (options: {
     const resolvedPaths = await resolveComfyLibraryPaths(options);
     const targetRootPath = options.repoKind === 'custom-nodes'
         ? resolvedPaths.customNodesPath
-        : resolvedPaths.workflowLibraryPath;
+        : (resolvedPaths.workflowLibraryPaths[0] || resolvedPaths.workflowLibraryPath);
 
     const installedPath = await cloneIntoDirectory({
         repoUrl: options.repoUrl,
@@ -888,7 +1101,7 @@ export const updateManagedRepository = async (options: {
     const allowedRoots = [
         resolvedPaths.installPath,
         resolvedPaths.customNodesPath,
-        resolvedPaths.workflowLibraryPath,
+        ...resolvedPaths.workflowLibraryPaths,
     ].filter(Boolean);
 
     if (allowedRoots.length === 0) {

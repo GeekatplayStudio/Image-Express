@@ -44,3 +44,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Expo mobile companion
+/mobile-companion/node_modules
+/mobile-companion/.expo
+/mobile-companion/dist
+/mobile-companion/web-build

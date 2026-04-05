@@ -6,16 +6,31 @@ import { LOCAL_AI_PREFERENCES_STORAGE_KEY } from '@/lib/localAiPreferences';
 const mockImageFromURL = jest.fn();
 const mockUseEscapeKey = jest.fn();
 const mockDialogConfirm = jest.fn(async () => false);
-const mockVerifyAvailableComfyConnection = jest.fn(async () => ({ ok: true, message: 'Connected to ComfyUI.' }));
-const mockInspectComfyServerCatalog = jest.fn(async () => ({
-    detectedVersion: '0.18.1',
-    serverUrl: 'http://localhost:8188',
-    workflowCount: 10,
-    compatibleWorkflowCount: 8,
-    transportKind: 'local',
-    records: [],
+const mockHydrateComfyCloudSettingsFromRuntime = jest.fn(() => ({
+    then: (onFulfilled: (value: { cloudApiKey?: string; cloudUrl?: string }) => unknown) => {
+        onFulfilled({});
+        return Promise.resolve({});
+    },
 }));
+const mockLoadComfyCloudApiKey = jest.fn(() => '');
+const mockVerifyAvailableComfyConnection = jest.fn(async () => ({ ok: true, message: 'Connected to ComfyUI.' }));
+const mockInspectComfyServerCatalog = jest.fn(() => new Promise<never>(() => undefined));
 const mockPersistAssetToLibrary = jest.fn(async () => ({ savedProviders: ['local'], warnings: [] }));
+
+const mockComfyWorkflowRegistration = {
+    id: 'server-upscale',
+    task: 'upscale',
+    name: 'Server Upscale',
+    description: 'Upscale workflow',
+    blueprint: {
+        '1': { class_type: 'LoadImage', inputs: { image: 'input.png' } },
+        '2': { class_type: 'SaveImage', inputs: { images: ['1', 0], filename_prefix: 'ComfyUI' } },
+    },
+    inputBindings: [{ source: 'image', nodeId: '1', inputName: 'image' }],
+    outputNodeIds: ['2'],
+    modelPresetIds: ['default'],
+    defaultModelPresetId: 'default',
+};
 
 jest.mock('@/providers/DialogProvider', () => ({
     __esModule: true,
@@ -34,6 +49,8 @@ jest.mock('@/lib/comfyui/connection', () => {
     return {
         __esModule: true,
         ...actual,
+        hydrateComfyCloudSettingsFromRuntime: (...args: unknown[]) => mockHydrateComfyCloudSettingsFromRuntime(...args),
+        loadComfyCloudApiKey: (...args: unknown[]) => mockLoadComfyCloudApiKey(...args),
         verifyAvailableComfyConnection: (...args: unknown[]) => mockVerifyAvailableComfyConnection(...args),
     };
 });
@@ -73,6 +90,31 @@ jest.mock('../AI/StabilityGenerator', () => ({
         <div data-testid="stability-generator">
             <span data-testid="stability-api-key">{apiKey || ''}</span>
             <span data-testid="stability-embedded">{String(Boolean(embedded))}</span>
+        </div>
+    ),
+}));
+
+jest.mock('../ComfyWorkflowLibraryPanel', () => ({
+    __esModule: true,
+    default: ({
+        selectedTask,
+        onUseWorkflow,
+        onWorkflowsDiscovered,
+    }: {
+        selectedTask: string;
+        onUseWorkflow: (registration: typeof mockComfyWorkflowRegistration) => void;
+        onWorkflowsDiscovered?: (registrations: Array<typeof mockComfyWorkflowRegistration>) => void;
+    }) => (
+        <div data-testid="mock-comfy-workflow-library-panel">
+            <div>Workflow Library</div>
+            <div>{selectedTask}</div>
+            <div>Server Upscale</div>
+            <button type="button" onClick={() => onUseWorkflow(mockComfyWorkflowRegistration)}>
+                Use Mock Workflow
+            </button>
+            <button type="button" onClick={() => onWorkflowsDiscovered?.([mockComfyWorkflowRegistration])}>
+                Discover Mock Workflows
+            </button>
         </div>
     ),
 }));
@@ -263,6 +305,16 @@ describe('ImageGeneratorModal', () => {
         expect(container.firstChild).toBeNull();
     });
 
+    it('renders a larger resizable modal frame by default', () => {
+        render(<ImageGeneratorModal onClose={jest.fn()} />);
+
+        expect(screen.getByTestId('generative-modal')).toHaveStyle({
+            width: 'min(94vw, 760px)',
+            height: 'min(84vh, 760px)',
+            resize: 'both',
+        });
+    });
+
     it('creates a new zone rectangle when no active rect exists and cleans it up on unmount', () => {
         const onClose = jest.fn();
         const canvas = createCanvasStub();
@@ -354,14 +406,26 @@ describe('ImageGeneratorModal', () => {
         const canvas = createCanvasStub();
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Use' })).toBeInTheDocument();
-        });
-
-        fireEvent.click(screen.getByRole('button', { name: 'Use' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Use Mock Workflow' }));
 
         await waitFor(() => {
             expect(screen.getByText('Comfy workflow "Server Upscale" is ready.')).toBeInTheDocument();
+        });
+    });
+
+    it('adds discovered library workflows to the main Comfy workflow selector', async () => {
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Discover Mock Workflows' }));
+
+        const taskSelect = screen.getAllByRole('combobox')[2];
+        fireEvent.change(taskSelect, { target: { value: 'upscale' } });
+
+        await waitFor(() => {
+            const workflowSelect = screen.getAllByRole('combobox')[3] as HTMLSelectElement;
+            const optionLabels = Array.from(workflowSelect.options).map((option) => option.text);
+            expect(optionLabels).toContain('Server Upscale');
         });
     });
 
@@ -728,7 +792,7 @@ describe('ImageGeneratorModal', () => {
             records: [
                 {
                     workflowId: 'image_flux2_klein_image_edit_4b_base',
-                    workflowName: 'FLUX 2 Klein Image Edit (4B Template)',
+                    workflowName: 'Z Image Turbo / FLUX 2 Klein Image Edit (4B Template)',
                     task: 'img2img',
                     requiredNodeTypes: ['Flux2Scheduler', 'UNETLoader'],
                     missingNodeTypes: [],
@@ -763,7 +827,7 @@ describe('ImageGeneratorModal', () => {
             records: [
                 {
                     workflowId: 'image_flux2_klein_image_edit_4b_base',
-                    workflowName: 'FLUX 2 Klein Image Edit (4B Template)',
+                    workflowName: 'Z Image Turbo / FLUX 2 Klein Image Edit (4B Template)',
                     task: 'img2img',
                     requiredNodeTypes: ['Flux2Scheduler', 'UNETLoader'],
                     missingNodeTypes: [],
@@ -892,7 +956,7 @@ describe('ImageGeneratorModal', () => {
                                         description: 'Local workflow',
                                         task: 'img2img',
                                         runnable: true,
-                                        category: 'Custom Folder',
+                                        category: 'Workflow Folder',
                                         location: 'D:\\ComfyUI\\user\\default\\workflows\\my-local-workflow.json',
                                         nodeTypes: ['LoraLoaderModelOnly'],
                                     },

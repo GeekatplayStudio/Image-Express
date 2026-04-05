@@ -7,7 +7,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const REPO_ROOT = path.resolve(__dirname, '..', '..');
-export const INSTALLER_CONFIG_FILE = path.join(__dirname, 'config', 'sources.json');
+export const INSTALLER_CONFIG_FILE = process.env.IMAGE_EXPRESS_INSTALLER_CONFIG_FILE?.trim()
+    ? path.resolve(REPO_ROOT, process.env.IMAGE_EXPRESS_INSTALLER_CONFIG_FILE.trim())
+    : path.join(__dirname, 'config', 'sources.json');
 
 export function parseInstallerFlags(argv) {
     const flags = {
@@ -72,6 +74,28 @@ export function parseModelIdList(csvValue) {
 export async function readInstallerConfig() {
     const raw = await fs.readFile(INSTALLER_CONFIG_FILE, 'utf8');
     return JSON.parse(raw);
+}
+
+export function resolveInstallerPath(targetPath) {
+    const trimmed = typeof targetPath === 'string' ? targetPath.trim() : '';
+    if (!trimmed) {
+        return '';
+    }
+    if (path.isAbsolute(trimmed)) {
+        return path.normalize(trimmed);
+    }
+    return path.resolve(REPO_ROOT, trimmed);
+}
+
+export function resolveComfyDirectory(config, override = '') {
+    const envOverride = process.env.IMAGE_EXPRESS_COMFY_DIR?.trim() || '';
+    const configured = override.trim() || envOverride || config?.comfyUi?.targetDir || 'external/ComfyUI';
+    return resolveInstallerPath(configured);
+}
+
+export function resolveLocalWorkspaceDirectory(config) {
+    const configured = config?.localWorkspace?.sourceDir?.trim() || 'ComfyUI workflows';
+    return resolveInstallerPath(configured);
 }
 
 export async function pathExists(targetPath) {

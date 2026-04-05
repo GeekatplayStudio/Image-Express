@@ -27,6 +27,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // External reference repo cloned for analysis only:
     "Imageprocessingui/**",
+    // Standalone Expo mobile companion app:
+    "mobile-companion/**",
   ]),
 ]);
 

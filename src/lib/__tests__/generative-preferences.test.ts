@@ -60,6 +60,15 @@ describe('generative-preferences', () => {
         window.removeEventListener(GENERATIVE_PREFERENCES_CHANGED_EVENT, listener);
     });
 
+    it('normalizes multiple workflow folders into a deduplicated newline-separated list', () => {
+        const next = saveGenerativePreferences({
+            comfyWorkflowLibraryPath: 'O:\\ComfyUI\\user\\default\\workflows;D:\\MyComfyWorkflows\nO:\\ComfyUI\\user\\default\\workflows',
+        });
+
+        expect(next.comfyWorkflowLibraryPath).toBe('O:\\ComfyUI\\user\\default\\workflows\nD:\\MyComfyWorkflows');
+        expect(loadGenerativePreferences().comfyWorkflowLibraryPath).toBe('O:\\ComfyUI\\user\\default\\workflows\nD:\\MyComfyWorkflows');
+    });
+
     it('falls back to legacy keys', () => {
         window.localStorage.setItem('image-express-gen-provider', 'openai');
         window.localStorage.setItem('image-express-comfy-url', 'http://127.0.0.1:8288');

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
+import { normalizeEmail } from '@/lib/server/auth-utils';
+import { resolveRequestUser } from '@/lib/server/user-session';
 import {
   VALID_ASSET_TYPES,
   VALID_ASSET_CATEGORIES,
@@ -12,6 +14,7 @@ import {
 
 export async function POST(request: Request) {
   try {
+    const authenticatedUser = await resolveRequestUser(request);
     const { type, category, name, isPublic, owner } = await request.json();
 
     if (!type || !category || !name || typeof isPublic !== 'boolean') {
@@ -26,6 +29,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid asset name' }, { status: 400 });
     }
 
+    const requestedOwner = typeof owner === 'string' && owner.trim().length > 0 ? owner.trim() : 'Guest';
+    if (requestedOwner !== 'Guest' && !authenticatedUser) {
+      return NextResponse.json({ success: false, message: 'Authentication required for user-owned assets.' }, { status: 401 });
+    }
+
+    if (
+      authenticatedUser
+      && requestedOwner !== 'Guest'
+      && normalizeEmail(requestedOwner) !== normalizeEmail(authenticatedUser.email)
+    ) {
+      return NextResponse.json({ success: false, message: 'Authenticated user does not match the requested owner.' }, { status: 403 });
+    }
+
+    const effectiveOwner = authenticatedUser?.email || requestedOwner;
+
     const assetType = type as AssetType;
     const assetCategory = category as AssetCategory;
     const safeName = String(name);
@@ -35,8 +53,7 @@ export async function POST(request: Request) {
     }
 
     const existing = await getAssetMetadata(assetCategory, assetType, safeName);
-    const requestedOwner = typeof owner === 'string' && owner.trim().length > 0 ? owner.trim() : 'Guest';
-    if (existing?.owner && existing.owner !== requestedOwner) {
+    if (existing?.owner && normalizeEmail(existing.owner) !== normalizeEmail(effectiveOwner)) {
       return NextResponse.json({ success: false, message: 'Only the owner can change visibility' }, { status: 403 });
     }
 
@@ -44,7 +61,7 @@ export async function POST(request: Request) {
       category: assetCategory,
       type: assetType,
       name: safeName,
-      owner: existing?.owner ?? requestedOwner,
+      owner: existing?.owner ?? effectiveOwner,
       isPublic
     });
 

@@ -636,7 +636,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         setInstallerStatusState('loading');
         setInstallerStatusMessage('');
         try {
-            const status = await fetchInstallerRuntimeStatus();
+            const status = await fetchInstallerRuntimeStatus(comfyInstallPath.trim());
             setInstallerStatus(status);
             setInstallerStatusState('success');
         } catch (error) {
@@ -645,7 +645,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 error instanceof Error ? error.message : 'Failed to load installer runtime status.',
             );
         }
-    }, []);
+    }, [comfyInstallPath]);
 
     const handleRunInstallerWorkflow = useCallback(async (
         payload: {
@@ -667,6 +667,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                 ...payload,
                 comfyModelIds: installerStatus?.comfyModels.map((model) => model.id) || [],
                 ollamaModelIds: installerStatus?.ollama.configuredModels.map((model) => model.id) || [],
+                comfyDir: comfyInstallPath.trim() || undefined,
                 force: false,
                 continueOnError: false,
             });
@@ -683,7 +684,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             setInstallerRunState('error');
             setInstallerRunMessage(error instanceof Error ? error.message : 'Installer workflow failed.');
         }
-    }, [installerStatus, loadInstallerStatus]);
+    }, [comfyInstallPath, installerStatus, loadInstallerStatus]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -1563,16 +1564,16 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-xs font-semibold">Custom Workflow Folder</label>
-                            <input
-                                type="text"
+                            <label className="text-xs font-semibold">Workflow Folder(s)</label>
+                            <textarea
                                 value={comfyWorkflowLibraryPath}
                                 onChange={(event) => setComfyWorkflowLibraryPath(event.target.value)}
-                                placeholder="D:\\ComfyUI\\user\\default\\workflows"
-                                className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
+                                placeholder={"O:\\ComfyUI\\user\\default\\workflows\nD:\\MyComfyWorkflows"}
+                                rows={3}
+                                className="w-full min-h-19 px-3 py-2 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono resize-y"
                             />
                             <p className="text-[11px] text-muted-foreground">
-                                Any JSON workflows in this folder become available in the AI modal workflow library. Relative paths like <code className="font-mono">user\default\workflows</code> resolve from the install folder.
+                                Scan one or more workflow folders for official ComfyUI JSON workflows now and your own folders later. Put one folder per line, or separate folders with semicolons. Relative paths like <code className="font-mono">user\default\workflows</code> resolve from the install folder. If the app runs in Docker, use paths visible inside the container rather than a host-only O:\ drive path.
                             </p>
                         </div>
 
@@ -1631,9 +1632,9 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                         <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/10 p-3">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
-                                    <h5 className="text-xs font-semibold">Installer Runtime Readiness</h5>
+                                    <h5 className="text-xs font-semibold">ComfyUI Installer</h5>
                                     <p className="text-[11px] text-muted-foreground">
-                                        Validates Super Installer targets (Comfy checkout, bundles, models, and Ollama CLI) against the current machine.
+                                        Validates the current local Comfy install target, synced workflow workspace, recommended model packs, and Ollama CLI.
                                     </p>
                                 </div>
                                 <button
@@ -1669,7 +1670,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                             </div>
                                         </div>
                                         <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
-                                            <div className="text-[10px] uppercase text-muted-foreground">Comfy Git</div>
+                                            <div className="text-[10px] uppercase text-muted-foreground">Installer Target</div>
                                             <div className="text-sm font-semibold">
                                                 {installerStatus.comfyDirectory.gitRepo ? 'Detected' : 'Missing'}
                                             </div>
@@ -1681,11 +1682,17 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                             </div>
                                         </div>
                                         <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
-                                            <div className="text-[10px] uppercase text-muted-foreground">Comfy Models</div>
+                                            <div className="text-[10px] uppercase text-muted-foreground">Workflow Drop Folder</div>
                                             <div className="text-sm font-semibold">
-                                                {installerStatus.comfyModels.filter((model) => model.exists).length}/{installerStatus.comfyModels.length}
+                                                {installerStatus.localWorkspace.workflowFileCount} file{installerStatus.localWorkspace.workflowFileCount === 1 ? '' : 's'}
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 text-[11px] text-muted-foreground space-y-1">
+                                        <div>Install target: <span className="font-mono text-foreground">{installerStatus.comfyDirectory.path}</span></div>
+                                        <div>Workflow drop folder: <span className="font-mono text-foreground">{installerStatus.localWorkspace.path}</span></div>
+                                        <div>Auto-sync folders: <span className="font-medium text-foreground">{installerStatus.localWorkspace.syncedDirectories.length > 0 ? installerStatus.localWorkspace.syncedDirectories.join(', ') : 'custom_nodes, user, models'}</span></div>
                                     </div>
 
                                     {installerStatus.summary.missing.length > 0 ? (
@@ -1701,8 +1708,24 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         </div>
                                     )}
 
+                                    <div className="rounded-md border border-border/60 bg-background/70 p-2 space-y-2">
+                                        <div className="text-[11px] font-semibold text-foreground">Tracked local model packs</div>
+                                        <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                                            {installerStatus.comfyModels.map((model) => (
+                                                <div key={model.id} className="rounded border border-border/50 bg-background px-2 py-1 text-[10px]">
+                                                    <div className="font-semibold text-foreground">
+                                                        {model.displayName} {model.exists ? '(installed)' : '(missing)'}
+                                                    </div>
+                                                    <div className="text-muted-foreground">
+                                                        {(model.category || 'Model')} · {model.recommendedFor && model.recommendedFor.length > 0 ? model.recommendedFor.join(', ') : 'General local workflow support'}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
                                     <p className="text-[11px] text-muted-foreground">
-                                        To repair missing dependencies, run <code className="font-mono">npm run install:super -- --yes</code> followed by <code className="font-mono">npm run qa:install -- --auto-fix</code>.
+                                        The installer also syncs the local workspace folder into your Comfy install before library scans, so new custom workflows and nodes are picked up on refresh.
                                     </p>
 
                                     <div className="flex flex-wrap gap-2">
@@ -1802,7 +1825,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 <div>
                                     <h5 className="text-xs font-semibold">Comfy Workflow Manager</h5>
                                     <p className="text-[11px] text-muted-foreground">
-                                        Browse server templates, scan your custom workflow folder, and install GitHub repos into custom nodes or workflow storage.
+                                        Browse server templates, scan your configured workflow folders, and install GitHub repos into custom nodes or workflow storage.
                                     </p>
                                 </div>
                                 <button
@@ -1825,7 +1848,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <div className="text-sm font-semibold">{comfyLibrarySnapshot?.serverTemplates.length || 0}</div>
                                 </div>
                                 <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
-                                    <div className="text-[10px] uppercase text-muted-foreground">Custom Folder</div>
+                                    <div className="text-[10px] uppercase text-muted-foreground">Workflow Files</div>
                                     <div className="text-sm font-semibold">{comfyLibrarySnapshot?.customFolderWorkflows.length || 0}</div>
                                 </div>
                                 <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
@@ -1860,6 +1883,10 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 </button>
                             </div>
 
+                            <p className="text-[11px] text-muted-foreground">
+                                Workflow repo installs go into the first configured workflow folder. When no install path is configured yet, the placeholder workspace folder is used.
+                            </p>
+
                             <div className="flex flex-wrap gap-2">
                                 <button
                                     onClick={() => void handleUpdateComfyInstall()}
@@ -1888,6 +1915,12 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             {comfyLibrarySnapshot?.warnings?.length ? (
                                 <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700">
                                     {comfyLibrarySnapshot.warnings[0]}
+                                </div>
+                            ) : null}
+
+                            {comfyLibrarySnapshot?.localWorkspace ? (
+                                <div className="rounded-md border border-border/60 bg-background/70 px-2.5 py-2 text-[11px] text-muted-foreground">
+                                    Local workspace: <span className="font-mono text-foreground">{comfyLibrarySnapshot.localWorkspace.path}</span> · synced {comfyLibrarySnapshot.localWorkspace.syncedIntoInstall ? 'into install' : 'as a standalone workspace'} · {comfyLibrarySnapshot.localWorkspace.workflowFileCount} workflow file{comfyLibrarySnapshot.localWorkspace.workflowFileCount === 1 ? '' : 's'}
                                 </div>
                             ) : null}
 

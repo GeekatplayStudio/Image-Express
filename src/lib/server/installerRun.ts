@@ -1,15 +1,6 @@
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { promises as fs } from 'node:fs';
-
-type InstallerConfigModel = {
-    id: string;
-};
-
-type InstallerConfig = {
-    comfyModels?: InstallerConfigModel[];
-    ollamaModels?: InstallerConfigModel[];
-};
+import { readInstallerConfig, type InstallerConfig } from '@/lib/server/comfyInstallerCatalog';
 
 export type InstallerRunPayload = {
     installComfy?: boolean;
@@ -54,8 +45,6 @@ export type InstallerRunResult = {
 };
 
 const MAX_LOG_BYTES = 150_000;
-const DEFAULT_CONFIG_FILE = path.join(process.cwd(), 'scripts', 'installers', 'config', 'sources.json');
-
 class InstallerRunValidationError extends Error {
     statusCode: number;
 
@@ -80,7 +69,7 @@ function coerceStringList(value: unknown) {
         .filter(Boolean);
 }
 
-function sanitizeRelativeComfyDir(value: unknown) {
+function sanitizeComfyDir(value: unknown) {
     if (typeof value !== 'string') {
         return '';
     }
@@ -89,17 +78,10 @@ function sanitizeRelativeComfyDir(value: unknown) {
         return '';
     }
 
-    const normalized = path.normalize(trimmed);
-    if (path.isAbsolute(normalized) || normalized.startsWith('..')) {
-        throw new InstallerRunValidationError('Comfy directory override must be a relative path inside the repository.');
+    if (trimmed.includes('\u0000')) {
+        throw new InstallerRunValidationError('Comfy directory override is invalid.');
     }
-    return normalized;
-}
-
-async function readInstallerConfig(configFile = DEFAULT_CONFIG_FILE): Promise<InstallerConfig> {
-    const raw = await fs.readFile(configFile, 'utf8');
-    const parsed = JSON.parse(raw) as InstallerConfig;
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    return path.normalize(trimmed);
 }
 
 function appendLogChunk(current: string, chunk: string) {
@@ -113,10 +95,7 @@ function appendLogChunk(current: string, chunk: string) {
     return combined.slice(combined.length - MAX_LOG_BYTES);
 }
 
-function resolveRequestedModelIds(requested: string[], configured: string[], modelKind: 'Comfy' | 'Ollama') {
-    if (configured.length === 0) {
-        return [];
-    }
+function resolveRequestedModelIds(requested: string[], configured: string[], modelKind: 'Ollama') {
     if (requested.length === 0) {
         return configured;
     }
@@ -144,7 +123,7 @@ function buildStepPlan(payload: InstallerRunPayload, config: InstallerConfig): I
     const force = coerceBoolean(payload.force, false);
     const skipTests = coerceBoolean(payload.skipTests, false);
     const autoFix = coerceBoolean(payload.autoFix, false);
-    const comfyDir = sanitizeRelativeComfyDir(payload.comfyDir);
+    const comfyDir = sanitizeComfyDir(payload.comfyDir);
 
     const sharedArgs: string[] = [];
     if (dryRun) {
@@ -154,20 +133,12 @@ function buildStepPlan(payload: InstallerRunPayload, config: InstallerConfig): I
         sharedArgs.push(`--comfy-dir=${comfyDir}`);
     }
 
-    const configuredComfyModelIds = (Array.isArray(config.comfyModels) ? config.comfyModels : [])
-        .map((model) => model?.id)
-        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-        .map((id) => id.trim());
     const configuredOllamaModelIds = (Array.isArray(config.ollamaModels) ? config.ollamaModels : [])
         .map((model) => model?.id)
         .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
         .map((id) => id.trim());
 
-    const selectedComfyModelIds = resolveRequestedModelIds(
-        coerceStringList(payload.comfyModelIds),
-        configuredComfyModelIds,
-        'Comfy',
-    );
+    const selectedComfyModelIds = Array.from(new Set(coerceStringList(payload.comfyModelIds)));
     const selectedOllamaModelIds = resolveRequestedModelIds(
         coerceStringList(payload.ollamaModelIds),
         configuredOllamaModelIds,

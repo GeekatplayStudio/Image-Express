@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 
 import type { ThreeDGroup, ThreeDImage, ExtendedFabricObject } from '@/types';
 import type { CanvasWithArtboard } from '@/components/Editor/editorView.types';
+import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import type { ToastOptions } from '@/providers/ToastProvider';
 
 type Toast = (options: ToastOptions) => void;
@@ -91,7 +92,12 @@ export function useEditorCanvasAssetActions({
             formData.append('owner', user);
 
             try {
-                const res = await fetch('/api/assets/upload', { method: 'POST', body: formData });
+                const authorization = buildSessionAuthorizationHeader();
+                const res = await fetch('/api/assets/upload', {
+                    method: 'POST',
+                    headers: authorization ? { Authorization: authorization } : undefined,
+                    body: formData,
+                });
                 const json = await res.json();
                 const assetUrl = json.path || json.url;
 

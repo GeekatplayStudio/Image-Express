@@ -567,7 +567,7 @@ describe('Toolbar', () => {
     });
 
     it('expands and reveals tool labels on hover when enabled', () => {
-        renderToolbar();
+        renderToolbar({ enableHoverLabels: true });
         const railHost = screen.getByTestId('toolbar-rail-host');
 
         expect(screen.queryByText('AI 3D')).not.toBeInTheDocument();

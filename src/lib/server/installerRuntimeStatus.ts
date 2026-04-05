@@ -6,29 +6,16 @@ import type {
     RuntimeBundleStatus,
     RuntimeModelStatus,
 } from '@/lib/installerRuntimeStatus';
-
-type InstallerConfigModel = {
-    id: string;
-    displayName?: string;
-    targetPath?: string;
-};
-
-type InstallerConfigBundle = {
-    name?: string;
-    targetPath?: string;
-    bundleType?: string;
-};
-
-type InstallerConfig = {
-    comfyUi?: {
-        targetDir?: string;
-    };
-    customBundles?: InstallerConfigBundle[];
-    comfyModels?: InstallerConfigModel[];
-    ollamaModels?: InstallerConfigModel[];
-};
-
-const DEFAULT_CONFIG_FILE = path.join(process.cwd(), 'scripts', 'installers', 'config', 'sources.json');
+import {
+    collectInstallerComfyModels,
+    countInstallerWorkspaceWorkflowFiles,
+    listInstallerWorkspaceSyncDirectories,
+    readInstallerConfig,
+    resolveConfigFilePath,
+    resolveInstallerComfyDirectory,
+    resolveInstallerLocalWorkspaceDirectory,
+    type InstallerConfig,
+} from '@/lib/server/comfyInstallerCatalog';
 
 async function pathExists(targetPath: string) {
     try {
@@ -37,29 +24,6 @@ async function pathExists(targetPath: string) {
     } catch {
         return false;
     }
-}
-
-function resolveConfigFilePath() {
-    const configured = process.env.IMAGE_EXPRESS_INSTALLER_CONFIG_FILE?.trim();
-    if (configured) {
-        return path.resolve(configured);
-    }
-    return DEFAULT_CONFIG_FILE;
-}
-
-function resolveComfyDirectory(config: InstallerConfig) {
-    const configured = process.env.IMAGE_EXPRESS_COMFY_DIR?.trim();
-    if (configured) {
-        return path.resolve(configured);
-    }
-    const fallback = config.comfyUi?.targetDir || 'external/ComfyUI';
-    return path.resolve(process.cwd(), fallback);
-}
-
-async function readConfig(filePath: string): Promise<InstallerConfig> {
-    const raw = await fs.readFile(filePath, 'utf8');
-    const parsed = JSON.parse(raw) as InstallerConfig;
-    return parsed && typeof parsed === 'object' ? parsed : {};
 }
 
 function checkOllamaCliAvailable() {
@@ -71,10 +35,10 @@ function checkOllamaCliAvailable() {
     }
 }
 
-export async function getInstallerRuntimeStatus(): Promise<InstallerRuntimeStatus> {
+export async function getInstallerRuntimeStatus(comfyDirOverride = ''): Promise<InstallerRuntimeStatus> {
     const configFile = resolveConfigFilePath();
-    const config = await readConfig(configFile);
-    const comfyDir = resolveComfyDirectory(config);
+    const config = await readInstallerConfig(configFile);
+    const comfyDir = resolveInstallerComfyDirectory(config, comfyDirOverride);
     const comfyExists = await pathExists(comfyDir);
     const gitRepo = comfyExists && await pathExists(path.join(comfyDir, '.git'));
 
@@ -94,7 +58,7 @@ export async function getInstallerRuntimeStatus(): Promise<InstallerRuntimeStatu
     );
 
     const comfyModels = await Promise.all(
-        (Array.isArray(config.comfyModels) ? config.comfyModels : [])
+        (await collectInstallerComfyModels(config))
             .filter((model) => typeof model?.targetPath === 'string' && model.targetPath.trim())
             .map(async (model) => {
                 const targetPath = model.targetPath!.trim();
@@ -104,9 +68,22 @@ export async function getInstallerRuntimeStatus(): Promise<InstallerRuntimeStatu
                     displayName: model.displayName || model.id,
                     targetPath,
                     exists: await pathExists(absolutePath),
+                    category: model.category,
+                    recommendedFor: model.recommendedFor,
+                    source: model.source,
                 } satisfies RuntimeModelStatus;
             }),
     );
+
+    const localWorkspacePath = resolveInstallerLocalWorkspaceDirectory(config);
+    const localWorkspaceExists = await pathExists(localWorkspacePath);
+    const localWorkspace = {
+        path: localWorkspacePath,
+        exists: localWorkspaceExists,
+        installTargetPath: comfyDir,
+        workflowFileCount: localWorkspaceExists ? await countInstallerWorkspaceWorkflowFiles(localWorkspacePath) : 0,
+        syncedDirectories: localWorkspaceExists ? await listInstallerWorkspaceSyncDirectories(localWorkspacePath) : [],
+    };
 
     const ollama = {
         cliAvailable: checkOllamaCliAvailable(),
@@ -148,6 +125,7 @@ export async function getInstallerRuntimeStatus(): Promise<InstallerRuntimeStatu
         },
         customBundles,
         comfyModels,
+        localWorkspace,
         ollama,
         summary: {
             ready: missing.length === 0,

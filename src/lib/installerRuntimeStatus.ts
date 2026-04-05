@@ -10,6 +10,17 @@ export type RuntimeModelStatus = {
     displayName: string;
     targetPath: string;
     exists: boolean;
+    category?: string;
+    recommendedFor?: string[];
+    source?: 'config' | 'workflow';
+};
+
+export type RuntimeLocalWorkspaceStatus = {
+    path: string;
+    exists: boolean;
+    installTargetPath: string;
+    workflowFileCount: number;
+    syncedDirectories: string[];
 };
 
 export type InstallerRuntimeStatus = {
@@ -21,6 +32,7 @@ export type InstallerRuntimeStatus = {
     };
     customBundles: RuntimeBundleStatus[];
     comfyModels: RuntimeModelStatus[];
+    localWorkspace: RuntimeLocalWorkspaceStatus;
     ollama: {
         cliAvailable: boolean;
         configuredModels: Array<{ id: string; displayName: string }>;
@@ -31,8 +43,11 @@ export type InstallerRuntimeStatus = {
     };
 };
 
-export async function fetchInstallerRuntimeStatus(): Promise<InstallerRuntimeStatus> {
-    const response = await fetch('/api/runtime/installer/status', {
+export async function fetchInstallerRuntimeStatus(comfyDir?: string): Promise<InstallerRuntimeStatus> {
+    const query = typeof comfyDir === 'string' && comfyDir.trim().length > 0
+        ? `?comfyDir=${encodeURIComponent(comfyDir.trim())}`
+        : '';
+    const response = await fetch(`/api/runtime/installer/status${query}`, {
         cache: 'no-store',
     });
     const data = await response.json();

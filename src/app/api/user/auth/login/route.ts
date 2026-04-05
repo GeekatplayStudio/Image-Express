@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { loadUsers, findUserByIdentifier, toPublicUser } from '@/lib/server/user-auth-store';
 import { verifyPassword } from '@/lib/server/auth-utils';
+import { createUserSessionToken } from '@/lib/server/user-session';
 
 type LoginPayload = {
     identifier?: string;
@@ -49,7 +50,10 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             success: true,
-            user: toPublicUser(user)
+            user: {
+                ...toPublicUser(user),
+                sessionToken: createUserSessionToken(user),
+            }
         });
     } catch (error) {
         console.error('User login failed', error);

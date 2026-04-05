@@ -6,6 +6,7 @@ import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
 import { AssetDescriptor, AssetType, AssetCategory } from '@/types';
+import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
@@ -444,7 +445,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 includePublic: String(includePublic),
                 visibility: resolvedVisibility,
                 search,
-            }).toString()}`)
+            }).toString()}`, {
+                headers: (() => {
+                    const authorization = buildSessionAuthorizationHeader();
+                    return authorization ? { Authorization: authorization } : undefined;
+                })(),
+            })
                 .then((res) => res.json())
                 .then((data) => (data.success ? (data.files || []) as AssetDescriptor[] : []))
                 .catch((error) => {
@@ -734,9 +740,13 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     return;
                 }
                 const config = TAB_CONFIG[activeTab];
+                const authorization = buildSessionAuthorizationHeader();
                 const res = await fetch('/api/assets/rename', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authorization ? { Authorization: authorization } : {}),
+                    },
                     body: JSON.stringify({
                         type: config.type,
                         category: config.category,
@@ -806,9 +816,13 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     await deleteDriveAsset(resolvedDriveClientId, entry.storageId);
                     return;
                 }
+                const authorization = buildSessionAuthorizationHeader();
                 const res = await fetch('/api/assets/delete', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authorization ? { Authorization: authorization } : {}),
+                    },
                     body: JSON.stringify({ filePath: entry.path, owner: normalizedUser }),
                 });
                 const data = await res.json();
@@ -892,9 +906,13 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     await setDriveAssetVisibility(resolvedDriveClientId, entry.storageId, nextPublicState);
                     return;
                 }
+                const authorization = buildSessionAuthorizationHeader();
                 const res = await fetch('/api/assets/visibility', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authorization ? { Authorization: authorization } : {}),
+                    },
                     body: JSON.stringify({
                         type: entry.type,
                         category: entry.category,

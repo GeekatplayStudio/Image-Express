@@ -27,7 +27,7 @@ jest.mock('@/lib/assetStorageSettings', () => ({
         { id: 's3-compatible', label: 'S3-compatible', availability: 'planned', description: 'S3 planned.' },
     ],
     getAssetCloudProviderLabel: (provider: string) => ({
-        'google-drive': 'Google Drive',
+                    workflowName: 'Z Image Turbo / FLUX 2 Klein Image Edit (4B Template)',
         dropbox: 'Dropbox',
         onedrive: 'OneDrive',
         's3-compatible': 'S3-compatible',
@@ -146,7 +146,7 @@ describe('SettingsModal', () => {
                     text: async () => 'login-entry-1',
                 } as Response;
             }
-            if (url === '/api/runtime/installer/status') {
+            if (url.startsWith('/api/runtime/installer/status')) {
                 return {
                     ok: true,
                     json: async () => ({
@@ -165,6 +165,13 @@ describe('SettingsModal', () => {
                             },
                         ],
                         comfyModels: [],
+                        localWorkspace: {
+                            path: '/tmp/ComfyUI workflows',
+                            exists: true,
+                            installTargetPath: '/tmp/ComfyUI',
+                            workflowFileCount: 1,
+                            syncedDirectories: ['custom_nodes', 'user', 'models'],
+                        },
                         ollama: {
                             cliAvailable: true,
                             configuredModels: [],
@@ -228,6 +235,13 @@ describe('SettingsModal', () => {
                             installPath: 'D:\\ComfyUI',
                             customNodesPath: 'D:\\ComfyUI\\custom_nodes',
                             workflowLibraryPath: 'D:\\ComfyUI\\user\\default\\workflows',
+                            localWorkspace: {
+                                path: 'D:\\Adobe-Express-Remake\\ComfyUI workflows',
+                                exists: true,
+                                workflowFileCount: 1,
+                                syncedDirectories: ['custom_nodes', 'user', 'models'],
+                                syncedIntoInstall: true,
+                            },
                             serverTemplates: [
                                 {
                                     id: 'server-upscale',
@@ -287,7 +301,7 @@ describe('SettingsModal', () => {
         await waitFor(() => {
             expect(screen.getByText('Synced with Account')).toBeInTheDocument();
         });
-        expect(screen.getByText('Installer Runtime Readiness')).toBeInTheDocument();
+        expect(screen.getByText('ComfyUI Installer')).toBeInTheDocument();
         await waitFor(() => {
             expect(screen.getByText('1 missing')).toBeInTheDocument();
         });
@@ -344,7 +358,7 @@ describe('SettingsModal', () => {
         render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
 
         await waitFor(() => {
-            expect(screen.getByText('Installer Runtime Readiness')).toBeInTheDocument();
+            expect(screen.getByText('ComfyUI Installer')).toBeInTheDocument();
         });
 
         fireEvent.click(screen.getByRole('button', { name: /Dry Run Installer/i }));
@@ -408,7 +422,7 @@ describe('SettingsModal', () => {
                     text: async () => 'login-entry-1',
                 } as Response;
             }
-            if (url === '/api/runtime/installer/status') {
+            if (url.startsWith('/api/runtime/installer/status')) {
                 return {
                     ok: true,
                     json: async () => ({
@@ -420,6 +434,13 @@ describe('SettingsModal', () => {
                         },
                         customBundles: [],
                         comfyModels: [],
+                        localWorkspace: {
+                            path: '/tmp/ComfyUI workflows',
+                            exists: true,
+                            installTargetPath: '/tmp/ComfyUI',
+                            workflowFileCount: 0,
+                            syncedDirectories: ['custom_nodes', 'user', 'models'],
+                        },
                         ollama: {
                             cliAvailable: true,
                             configuredModels: [],
@@ -561,7 +582,7 @@ describe('SettingsModal', () => {
             records: [
                 {
                     workflowId: 'image_flux2_klein_image_edit_4b_base',
-                    workflowName: 'FLUX 2 Klein Image Edit (4B Template)',
+                    workflowName: 'Z Image Turbo / FLUX 2 Klein Image Edit (4B Template)',
                     task: 'img2img',
                     requiredNodeTypes: ['UNETLoader'],
                     missingNodeTypes: ['Flux2Scheduler'],

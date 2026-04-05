@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Cloud, HardDrive, Loader2, RefreshCcw, Sparkles, X } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { connectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
@@ -102,17 +102,39 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     const [installerRunState, setInstallerRunState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
     const [installerRunMessage, setInstallerRunMessage] = useState('');
     const [installerRunResult, setInstallerRunResult] = useState<InstallerRunResult | null>(null);
+    const installerStatusRequestIdRef = useRef(0);
+    const isOpenRef = useRef(isOpen);
+    const step = STEPS[stepIndex];
 
     useEscapeKey(onClose, { enabled: isOpen });
 
+    useEffect(() => {
+        isOpenRef.current = isOpen;
+        if (!isOpen) {
+            installerStatusRequestIdRef.current += 1;
+        }
+    }, [isOpen]);
+
     const loadInstallerStatus = useCallback(async () => {
+        if (!isOpenRef.current) {
+            return;
+        }
+
+        const requestId = installerStatusRequestIdRef.current + 1;
+        installerStatusRequestIdRef.current = requestId;
         setInstallerStatusState('loading');
         setInstallerStatusMessage('');
         try {
             const status = await fetchInstallerRuntimeStatus();
+            if (!isOpenRef.current || installerStatusRequestIdRef.current !== requestId) {
+                return;
+            }
             setInstallerStatus(status);
             setInstallerStatusState('success');
         } catch (error) {
+            if (!isOpenRef.current || installerStatusRequestIdRef.current !== requestId) {
+                return;
+            }
             setInstallerStatusState('error');
             setInstallerStatusMessage(
                 error instanceof Error ? error.message : 'Failed to load runtime readiness.',
@@ -138,6 +160,9 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
         setInstallerRunState('idle');
         setInstallerRunMessage('');
         setInstallerRunResult(null);
+        setInstallerStatus(null);
+        setInstallerStatusState('idle');
+        setInstallerStatusMessage('');
 
         const storageSettings = loadAssetStorageSettings();
         setStorageMode(storageSettings.mode);
@@ -166,8 +191,14 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
             setGoogleKey(window.localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
             setBananaKey(window.localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
         }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || step.id !== 'runtime' || installerStatus || installerStatusState !== 'idle') {
+            return;
+        }
         void loadInstallerStatus();
-    }, [isOpen, loadInstallerStatus]);
+    }, [installerStatus, installerStatusState, isOpen, loadInstallerStatus, step.id]);
 
     useEffect(() => {
         if (!installerStatus) {
@@ -256,7 +287,6 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
 
     const canGoBack = stepIndex > 0;
     const isLastStep = stepIndex === STEPS.length - 1;
-    const step = STEPS[stepIndex];
 
     const isDriveStepOptional = storageMode === 'local';
     const shouldNudgeDriveConnection = useMemo(() => {

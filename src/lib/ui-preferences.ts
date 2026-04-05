@@ -7,7 +7,7 @@ export const UI_PREFERENCES_STORAGE_KEY = 'image-express-ui-preferences';
 export const UI_PREFERENCES_CHANGED_EVENT = 'image-express:ui-preferences-changed';
 
 const DEFAULT_UI_PREFERENCES: UiPreferences = {
-    expandToolRailLabelsOnHover: true,
+    expandToolRailLabelsOnHover: false,
     suppressNumberDragHints: false,
 };
 

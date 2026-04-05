@@ -43,6 +43,7 @@ import { persistAssetToLibrary } from '@/lib/assetPersistence';
 import { compileAnnotationPrompts } from '@/lib/agentic-edit/promptCompiler';
 import type { AnnotationDocument, AnnotationRecord, ReferenceRecord } from '@/lib/agentic-edit/types';
 import { buildAnnotatedReferenceLayerDataUrl, buildAnnotationLayerArtifacts, clamp01, readBoxGeometry, renderAnnotationShape } from '@/components/image-generator/annotationCanvasUtils';
+import { buildComfyTaskModelOptions, findComfyTaskModelOption } from '@/lib/comfyui/localModelOptions';
 
 /**
  * ImageGeneratorModal
@@ -185,13 +186,13 @@ const formatComfyDiagnosticsText = (diagnostics: ComfyDiagnosticsSnapshot): stri
         ])
         : ['No custom node/workflow repositories were discovered in configured folders.']);
 
-    pushSection('Custom Workflow Files', diagnostics.library.customFolderWorkflows.length > 0
+    pushSection('Workflow Library Files', diagnostics.library.customFolderWorkflows.length > 0
         ? diagnostics.library.customFolderWorkflows.flatMap((workflow) => [
             `${workflow.name} | runnable=${workflow.runnable ? 'yes' : 'no'} | task=${workflow.task || 'unknown'}`,
             `  Location: ${workflow.location || '(unknown)'}`,
             workflow.warning ? `  Warning: ${workflow.warning}` : '',
         ].filter(Boolean))
-        : ['No custom workflow JSON files were discovered.']);
+        : ['No workflow JSON files were discovered in the configured workflow folders.']);
 
     pushSection('Server Workflow Templates', diagnostics.library.serverTemplates.length > 0
         ? diagnostics.library.serverTemplates.flatMap((workflow) => [
@@ -599,6 +600,7 @@ export default function ImageGeneratorModal({
   const [comfyWorkflowLibraryPath, setComfyWorkflowLibraryPath] = useState('');
   const [availableComfyWorkflowIds, setAvailableComfyWorkflowIds] = useState<string[]>([]);
     const [selectedComfyTask, setSelectedComfyTask] = useState<ComfyTask>('generate');
+    const selectedComfyTaskRef = useRef<ComfyTask>('generate');
   const [selectedComfyWorkflowId, setSelectedComfyWorkflowId] = useState('');
   const [selectedComfyModelPresetId, setSelectedComfyModelPresetId] = useState('');
   const adaptManualSizeToSelectedModel = useCallback((rawWidth: number, rawHeight: number) => {
@@ -867,6 +869,10 @@ export default function ImageGeneratorModal({
   }, [syncComfyTaskSelections]);
 
   useEffect(() => {
+      selectedComfyTaskRef.current = selectedComfyTask;
+  }, [selectedComfyTask]);
+
+  useEffect(() => {
       syncComfyTaskSelections(selectedComfyTask);
   }, [selectedComfyTask, syncComfyTaskSelections]);
 
@@ -965,10 +971,16 @@ export default function ImageGeneratorModal({
       });
   };
 
-  const handleComfyModelPresetChange = (modelPresetId: string) => {
+  const handleComfyModelChoiceChange = (modelChoiceId: string) => {
+      const [workflowId, modelPresetId] = modelChoiceId.split('::');
+      if (!workflowId || !modelPresetId) {
+          return;
+      }
+
+      setSelectedComfyWorkflowId(workflowId);
       setSelectedComfyModelPresetId(modelPresetId);
       saveComfyTaskPreference(selectedComfyTask, {
-          workflowId: selectedComfyWorkflowId || undefined,
+          workflowId,
           modelPresetId,
       });
   };
@@ -998,6 +1010,18 @@ export default function ImageGeneratorModal({
       });
       setStatusMessage(`Comfy workflow "${registration.name}" is ready.`);
   }, []);
+
+  const handleDiscoveredComfyWorkflows = useCallback((registrations: SerializedComfyWorkflowRegistration[]) => {
+      if (registrations.length === 0) {
+          return;
+      }
+
+      for (const registration of registrations) {
+          registerSerializedComfyWorkflow(registration);
+      }
+
+      syncComfyTaskSelections(selectedComfyTaskRef.current);
+  }, [syncComfyTaskSelections]);
 
   const captureComfySourceImage = useCallback((): string | null => {
       return captureComfySourceImageFromCanvas(canvas, zoneObjectRef.current, zoneWidth, zoneHeight);
@@ -2886,9 +2910,16 @@ export default function ImageGeneratorModal({
   const selectedComfyWorkflow = selectedComfyWorkflowId
       ? comfyWorkflowRegistry.getWorkflow(selectedComfyWorkflowId)
       : null;
-  const availableComfyModelPresets = selectedComfyWorkflow
-      ? comfyWorkflowRegistry.getModelPresetsForWorkflow(selectedComfyWorkflow.id)
-      : [];
+  const availableComfyModelOptions = buildComfyTaskModelOptions(selectedComfyTask, availableComfyWorkflowIds);
+  const selectedComfyModelChoiceId = selectedComfyWorkflowId && selectedComfyModelPresetId
+      ? `${selectedComfyWorkflowId}::${selectedComfyModelPresetId}`
+      : (availableComfyModelOptions[0]?.id || '');
+  const selectedComfyModelOption = findComfyTaskModelOption(
+      selectedComfyTask,
+      availableComfyWorkflowIds,
+      selectedComfyWorkflowId,
+      selectedComfyModelPresetId,
+  );
   const selectedProviderOption = getGenerativeProviderOption(selectedProvider);
     const selectedProviderSupportedWorkflows = getSupportedWorkflowsForProvider(selectedProvider);
   const isSelectedProviderReady = isGenerativeProviderReady(selectedProvider);
@@ -2921,15 +2952,46 @@ export default function ImageGeneratorModal({
         : zoneHeight;
     const isCurrentSizeModelPerfect = zoneWidth === adaptiveQualityPreview.width
         && zoneHeight === adaptiveQualityPreview.height;
+    const modalWidth = isAiNotesExpandedLayout ? 'min(96vw, 1180px)' : 'min(94vw, 760px)';
+    const modalHeight = isAiNotesExpandedLayout ? 'min(88vh, 900px)' : 'min(84vh, 760px)';
+    const modalMinWidth = isAiNotesExpandedLayout ? 'min(760px, 96vw)' : 'min(520px, 94vw)';
+    const modalMinHeight = isAiNotesExpandedLayout ? 'min(560px, 88vh)' : 'min(520px, 84vh)';
+
+  useEffect(() => {
+      if (availableComfyModelOptions.length === 0) {
+          return;
+      }
+
+      const currentSelection = availableComfyModelOptions.find((option) => option.id === `${selectedComfyWorkflowId}::${selectedComfyModelPresetId}`);
+      if (currentSelection) {
+          return;
+      }
+
+      const fallbackSelection = availableComfyModelOptions[0];
+      setSelectedComfyWorkflowId(fallbackSelection.workflowId);
+      setSelectedComfyModelPresetId(fallbackSelection.modelPresetId);
+      saveComfyTaskPreference(selectedComfyTask, {
+          workflowId: fallbackSelection.workflowId,
+          modelPresetId: fallbackSelection.modelPresetId,
+      });
+  }, [availableComfyModelOptions, selectedComfyModelPresetId, selectedComfyTask, selectedComfyWorkflowId]);
 
   if (!isOpen) return null;
 
   return (
         <div 
-            className={`fixed z-[100] bg-card border border-border shadow-2xl rounded-xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 ${isAiNotesExpandedLayout ? 'w-[980px] max-w-[95vw]' : 'w-[350px]'}`}
+                        className="fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+                        data-testid="generative-modal"
       style={{
           left: position.x,
-          top: position.y
+                    top: position.y,
+                    width: modalWidth,
+                    height: modalHeight,
+                    minWidth: modalMinWidth,
+                    minHeight: modalMinHeight,
+                    maxWidth: '96vw',
+                    maxHeight: '88vh',
+                    resize: 'both',
       }}
     >
       {/* 
@@ -2948,7 +3010,7 @@ export default function ImageGeneratorModal({
         </button>
       </div>
       
-    <div className={`p-4 bg-background overflow-y-auto no-drag ${isAiNotesExpandedLayout ? 'max-h-[85vh]' : 'max-h-[70vh]'}`}>
+    <div className="flex-1 min-h-0 overflow-y-auto bg-background p-4 no-drag">
         <div className="space-y-3">
             <div className="space-y-1">
                 <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">AI Provider</label>
@@ -3511,7 +3573,22 @@ export default function ImageGeneratorModal({
                                    </div>
 
                            <div className="space-y-1">
-                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Workflow</label>
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Model</label>
+                               <select
+                                   className="w-full text-xs p-2 rounded-md border bg-background"
+                                   value={selectedComfyModelChoiceId}
+                                   onChange={(event) => handleComfyModelChoiceChange(event.target.value)}
+                               >
+                                   {availableComfyModelOptions.map((option) => (
+                                       <option key={option.id} value={option.id}>
+                                           {option.label}{option.memoryLabel ? ` - ${option.memoryLabel}` : ''}
+                                       </option>
+                                   ))}
+                               </select>
+                           </div>
+
+                           <div className="space-y-1">
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Workflow Variant</label>
                                <select
                                    className="w-full text-xs p-2 rounded-md border bg-background"
                                    value={selectedComfyWorkflowId}
@@ -3527,22 +3604,18 @@ export default function ImageGeneratorModal({
                                    })}
                                </select>
                            </div>
-
-                           <div className="space-y-1">
-                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Model</label>
-                               <select
-                                   className="w-full text-xs p-2 rounded-md border bg-background"
-                                   value={selectedComfyModelPresetId}
-                                   onChange={(event) => handleComfyModelPresetChange(event.target.value)}
-                               >
-                                   {availableComfyModelPresets.map((modelPreset) => (
-                                       <option key={modelPreset.id} value={modelPreset.id}>
-                                           {modelPreset.name}
-                                       </option>
-                                   ))}
-                               </select>
-                           </div>
                        </div>
+
+                       {selectedComfyModelOption && (
+                           <div className="text-[10px] text-muted-foreground rounded border border-border/60 bg-background/40 px-2 py-1.5 space-y-1">
+                               <div>
+                                   <span className="font-medium text-foreground">{selectedComfyModelOption.label}</span>
+                                   {selectedComfyModelOption.memoryLabel ? ` · Expected memory: ${selectedComfyModelOption.memoryLabel}` : ''}
+                               </div>
+                               <div>{selectedComfyModelOption.description}</div>
+                               <div>Workflow variant: <span className="font-medium text-foreground">{selectedComfyModelOption.workflowName}</span></div>
+                           </div>
+                       )}
 
                        {selectedComfyTask !== 'generate' && (
                            <div className="text-[10px] text-muted-foreground rounded border border-border/60 bg-background/40 px-2 py-1.5">
@@ -3636,6 +3709,7 @@ export default function ImageGeneratorModal({
                            workflowLibraryPath={comfyWorkflowLibraryPath}
                            selectedTask={selectedComfyTask}
                            onUseWorkflow={handleUseComfyLibraryWorkflow}
+                           onWorkflowsDiscovered={handleDiscoveredComfyWorkflows}
                        />
                    </div>
                )}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createOneTimeToken, isValidEmail, normalizeEmail } from '@/lib/server/auth-utils';
+import { createUserSessionToken } from '@/lib/server/user-session';
 import {
     createPendingUser,
     findUserByIdentifier,
@@ -93,7 +94,10 @@ export async function POST(request: Request) {
 
             return NextResponse.json({
                 success: true,
-                user: toPublicUser(user)
+                user: {
+                    ...toPublicUser(user),
+                    sessionToken: createUserSessionToken(user),
+                }
             });
         }
 

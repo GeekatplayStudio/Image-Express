@@ -4,23 +4,33 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import EditorWorkspaceShell from '../EditorWorkspaceShell';
 
 jest.mock('@/components/Toolbar', () => {
-    const React = require('react');
+    const MockToolbar = React.forwardRef<HTMLDivElement, {
+        enableHoverLabels?: boolean;
+        onRailExpandedChange?: (expanded: boolean) => void;
+    }>(({ enableHoverLabels, onRailExpandedChange }, ref) => (
+        <div
+            ref={ref}
+            data-testid="mock-toolbar"
+            onMouseEnter={() => {
+                if (enableHoverLabels) {
+                    onRailExpandedChange?.(true);
+                }
+            }}
+            onMouseLeave={() => {
+                if (enableHoverLabels) {
+                    onRailExpandedChange?.(false);
+                }
+            }}
+        >
+            Toolbar
+        </div>
+    ));
+
+    MockToolbar.displayName = 'MockToolbar';
 
     return {
         __esModule: true,
-        default: React.forwardRef(({
-            onRailExpandedChange,
-        }: {
-            onRailExpandedChange?: (expanded: boolean) => void;
-        }, _ref: React.ForwardedRef<unknown>) => (
-            <div
-                data-testid="mock-toolbar"
-                onMouseEnter={() => onRailExpandedChange?.(true)}
-                onMouseLeave={() => onRailExpandedChange?.(false)}
-            >
-                Toolbar
-            </div>
-        )),
+        default: MockToolbar,
     };
 });
 
@@ -35,7 +45,7 @@ jest.mock('@/components/JobStatusFooter', () => ({
 }));
 
 describe('EditorWorkspaceShell', () => {
-    it('widens the toolbar shell when the rail expands', () => {
+    it('keeps the toolbar shell fixed width by default when the rail is hovered', () => {
         render(
             <EditorWorkspaceShell
                 toolbarRef={{ current: null }}
@@ -63,9 +73,6 @@ describe('EditorWorkspaceShell', () => {
         expect(toolbarShell.className).toContain('w-[60px]');
 
         fireEvent.mouseEnter(toolbar);
-        expect(toolbarShell.className).toContain('w-[236px]');
-
-        fireEvent.mouseLeave(toolbar);
         expect(toolbarShell.className).toContain('w-[60px]');
     });
 });

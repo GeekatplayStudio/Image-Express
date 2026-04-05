@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { normalizeEmail } from '@/lib/server/auth-utils';
+import { resolveRequestUser } from '@/lib/server/user-session';
 import {
   VALID_ASSET_CATEGORIES,
   type AssetCategory,
@@ -12,8 +14,14 @@ const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.sv
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v', '.ogv']);
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.oga']);
 const MODEL_EXTENSIONS = new Set(['.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply']);
+const MAX_UPLOAD_BYTES: Record<AssetType, number> = {
+  images: 50 * 1024 * 1024,
+  videos: 200 * 1024 * 1024,
+  audio: 100 * 1024 * 1024,
+  models: 250 * 1024 * 1024,
+};
 
-const detectAssetType = (filename: string, mimeType?: string): AssetType => {
+const detectAssetType = (filename: string, mimeType?: string): AssetType | null => {
   const ext = path.extname(filename || '').toLowerCase();
 
   if (mimeType) {
@@ -28,7 +36,23 @@ const detectAssetType = (filename: string, mimeType?: string): AssetType => {
   if (MODEL_EXTENSIONS.has(ext)) return 'models';
   if (IMAGE_EXTENSIONS.has(ext)) return 'images';
 
-  return 'images';
+  return null;
+};
+
+const normalizeRequestedOwner = (value: FormDataEntryValue | null) => {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+};
+
+const sanitizeFilenameStem = (value: string) => {
+  const normalized = value
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
+  return normalized || 'upload';
 };
 
 export async function POST(request: Request) {
@@ -36,15 +60,38 @@ export async function POST(request: Request) {
     const data = await request.formData();
     const file: File | null = data.get('file') as unknown as File;
     const rawCategory = (data.get('category') as string) || 'uploads';
-    const owner = (data.get('owner') as string) || 'Guest';
+    const requestedOwner = normalizeRequestedOwner(data.get('owner'));
     const isPublic = (data.get('isPublic') as string) === 'true';
+    const authenticatedUser = await resolveRequestUser(request);
 
     if (!file) {
       return NextResponse.json({ success: false, message: 'No file uploaded' }, { status: 400 });
     }
 
-    const type = detectAssetType(file.name, (file as unknown as { type?: string }).type) as AssetType;
+    if (requestedOwner && requestedOwner !== 'Guest' && !authenticatedUser) {
+      return NextResponse.json({ success: false, message: 'Authentication required for user-owned uploads.' }, { status: 401 });
+    }
+
+    if (
+      authenticatedUser
+      && requestedOwner
+      && requestedOwner !== 'Guest'
+      && normalizeEmail(requestedOwner) !== normalizeEmail(authenticatedUser.email)
+    ) {
+      return NextResponse.json({ success: false, message: 'Authenticated user does not match the requested owner.' }, { status: 403 });
+    }
+
+    const type = detectAssetType(file.name, (file as unknown as { type?: string }).type);
+    if (!type) {
+      return NextResponse.json({ success: false, message: 'Unsupported file type.' }, { status: 415 });
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES[type]) {
+      return NextResponse.json({ success: false, message: 'File is too large for this asset type.' }, { status: 413 });
+    }
+
     const category = (VALID_ASSET_CATEGORIES.includes(rawCategory as AssetCategory) ? rawCategory : 'uploads') as AssetCategory;
+    const owner = authenticatedUser?.email || requestedOwner || 'Guest';
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
@@ -52,7 +99,7 @@ export async function POST(request: Request) {
     // Create unique filename
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.name);
-    const filename = `${path.basename(file.name, ext)}-${uniqueSuffix}${ext}`;
+    const filename = `${sanitizeFilenameStem(path.basename(file.name, ext))}-${uniqueSuffix}${ext.toLowerCase()}`;
     
     // Determine directory
     const uploadDir = path.join(process.cwd(), 'public', 'assets', category, type);

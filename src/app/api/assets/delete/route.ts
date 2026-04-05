@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { unlink } from 'fs/promises';
 import path from 'path';
+import { normalizeEmail } from '@/lib/server/auth-utils';
+import { resolveRequestUser } from '@/lib/server/user-session';
 import {
   VALID_ASSET_TYPES,
   VALID_ASSET_CATEGORIES,
@@ -12,6 +14,7 @@ import {
 
 export async function POST(request: Request) {
   try {
+    const authenticatedUser = await resolveRequestUser(request);
     const { filePath, owner } = await request.json();
 
     if (!filePath) {
@@ -19,6 +22,22 @@ export async function POST(request: Request) {
     }
 
     const normalizedInput = String(filePath).trim().replace(/^\/+/, '');
+
+    const requestedOwner = typeof owner === 'string' ? owner.trim() : '';
+    if (requestedOwner && requestedOwner !== 'Guest' && !authenticatedUser) {
+      return NextResponse.json({ success: false, message: 'Authentication required for user-owned assets.' }, { status: 401 });
+    }
+
+    if (
+      authenticatedUser
+      && requestedOwner
+      && requestedOwner !== 'Guest'
+      && normalizeEmail(requestedOwner) !== normalizeEmail(authenticatedUser.email)
+    ) {
+      return NextResponse.json({ success: false, message: 'Authenticated user does not match the requested owner.' }, { status: 403 });
+    }
+
+    const effectiveOwner = authenticatedUser?.email || requestedOwner || 'Guest';
 
     let assetRelativePath = normalizedInput;
     if (normalizedInput.startsWith('api/assets/serve/')) {
@@ -46,8 +65,7 @@ export async function POST(request: Request) {
     ) {
       const name = nameParts.join('/');
       const metadata = await getAssetMetadata(category as AssetCategory, type as AssetType, name);
-      const requestedOwner = typeof owner === 'string' ? owner.trim() : '';
-      if (requestedOwner && metadata?.owner && metadata.owner !== requestedOwner) {
+      if (effectiveOwner && metadata?.owner && normalizeEmail(metadata.owner) !== normalizeEmail(effectiveOwner)) {
         return NextResponse.json({ success: false, message: 'Only the owner can delete this asset' }, { status: 403 });
       }
     }

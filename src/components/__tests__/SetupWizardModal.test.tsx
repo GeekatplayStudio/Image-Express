@@ -52,6 +52,13 @@ describe('SetupWizardModal', () => {
                 },
                 customBundles: [],
                 comfyModels: [],
+                localWorkspace: {
+                    path: '/tmp/ComfyUI workflows',
+                    exists: true,
+                    installTargetPath: '/tmp/ComfyUI',
+                    workflowFileCount: 0,
+                    syncedDirectories: ['custom_nodes', 'user', 'models'],
+                },
                 ollama: {
                     cliAvailable: true,
                     configuredModels: [],
@@ -84,6 +91,7 @@ describe('SetupWizardModal', () => {
 
         expect(screen.getByText('First-Time Setup Wizard')).toBeInTheDocument();
         expect(mockUseEscapeKey).toHaveBeenCalled();
+        expect(global.fetch).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByTitle('Close setup wizard'));
         expect(onClose).toHaveBeenCalledTimes(1);
@@ -92,6 +100,8 @@ describe('SetupWizardModal', () => {
     it('persists settings, validates drive client id, and finishes setup', async () => {
         const onComplete = jest.fn();
         render(<SetupWizardModal isOpen={true} onClose={jest.fn()} onComplete={onComplete} />);
+
+        expect(global.fetch).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByRole('button', { name: /Next/i })); // welcome -> storage
         fireEvent.click(screen.getByRole('button', { name: /Cloud only/i }));
@@ -123,7 +133,12 @@ describe('SetupWizardModal', () => {
         fireEvent.change(screen.getAllByPlaceholderText('sk-...')[1], {
             target: { value: 'sk-openai' },
         });
+        expect(global.fetch).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole('button', { name: /Next/i })); // api -> runtime
+
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+        });
         await waitFor(() => {
             expect(screen.getByText('Runtime ready')).toBeInTheDocument();
         });

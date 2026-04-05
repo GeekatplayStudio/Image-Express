@@ -17,6 +17,35 @@ import {
 
 let builtInCatalogRegistered = false;
 
+const SDXL_BASE_INSTALLABLE_MODEL: ComfyWorkflowInstallableModel = {
+    name: 'sd_xl_base_1.0.safetensors',
+    downloadUrl: 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors',
+    directory: 'checkpoints',
+};
+
+const FLUX_DEV_INSTALLABLE_MODELS: ComfyWorkflowInstallableModel[] = [
+    {
+        name: 'ae.safetensors',
+        downloadUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors',
+        directory: 'vae',
+    },
+    {
+        name: 'clip_l.safetensors',
+        downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors',
+        directory: 'clip',
+    },
+    {
+        name: 't5xxl_fp16.safetensors',
+        downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp16.safetensors',
+        directory: 'clip',
+    },
+    {
+        name: 'flux1-dev.safetensors',
+        downloadUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors',
+        directory: 'unet',
+    },
+];
+
 const isRecord = (value: unknown): value is Record<string, unknown> => (
     typeof value === 'object' && value !== null
 );
@@ -187,7 +216,10 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         ],
         outputNodeIds: ['9'],
         modelPresetIds: ['default', 'sdxl'],
-        defaultModelPresetId: 'default',
+        defaultModelPresetId: 'sdxl',
+        setupRequirements: {
+            models: [SDXL_BASE_INSTALLABLE_MODEL],
+        },
     },
     {
         id: 'image_flux2_text_to_image',
@@ -206,6 +238,9 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         outputNodeIds: ['21'],
         modelPresetIds: ['flux-dev', 'flux-schnell', 'default'],
         defaultModelPresetId: 'flux-dev',
+        setupRequirements: {
+            models: FLUX_DEV_INSTALLABLE_MODELS,
+        },
     },
     {
         id: 'img2img-sdxl',
@@ -225,6 +260,9 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         outputNodeIds: ['9'],
         modelPresetIds: ['default', 'sdxl'],
         defaultModelPresetId: 'sdxl',
+        setupRequirements: {
+            models: [SDXL_BASE_INSTALLABLE_MODEL],
+        },
     },
     {
         id: 'inpaint-sdxl',
@@ -244,6 +282,9 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         outputNodeIds: ['9'],
         modelPresetIds: ['default', 'sdxl'],
         defaultModelPresetId: 'sdxl',
+        setupRequirements: {
+            models: [SDXL_BASE_INSTALLABLE_MODEL],
+        },
     },
     {
         id: 'outpaint-sdxl',
@@ -263,6 +304,9 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
         outputNodeIds: ['9'],
         modelPresetIds: ['default', 'sdxl'],
         defaultModelPresetId: 'sdxl',
+        setupRequirements: {
+            models: [SDXL_BASE_INSTALLABLE_MODEL],
+        },
     },
     {
         id: 'upscale-image',
@@ -297,8 +341,8 @@ const BUILT_IN_WORKFLOWS: RegisteredWorkflow[] = [
     {
         id: 'image_flux2_klein_image_edit_4b_base',
         task: 'img2img',
-        name: 'FLUX 2 Klein Image Edit (4B Template)',
-        description: 'FLUX 2 Klein 4B image-edit template. Requires matching Comfy custom nodes/models.',
+        name: 'Z Image Turbo / FLUX 2 Klein Image Edit (4B Template)',
+        description: 'Z Image Turbo-backed FLUX 2 Klein 4B image-edit template. Requires matching Comfy custom nodes/models.',
         loadBlueprint: () => fluxKleinEdit4bBlueprint as unknown as ComfyPromptBlueprint,
         inputBindings: [],
         outputNodeIds: ['9'],

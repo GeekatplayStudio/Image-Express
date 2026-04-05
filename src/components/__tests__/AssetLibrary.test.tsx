@@ -7,6 +7,7 @@ import type { AssetStorageSettings } from '@/lib/assetStorageSettings';
 import type { DriveAssetRecord } from '@/lib/googleDrive';
 import type { LocalAssetRecord } from '@/lib/localAssetStore';
 
+const mockBuildSessionAuthorizationHeader = jest.fn();
 const mockUseEscapeKey = jest.fn();
 const mockDialogConfirm = jest.fn();
 const mockToast = jest.fn();
@@ -32,6 +33,10 @@ const mockOnAssetStorageSettingsChanged = jest.fn();
 jest.mock('@/hooks/useEscapeKey', () => ({
     __esModule: true,
     default: (...args: unknown[]) => mockUseEscapeKey(...args),
+}));
+
+jest.mock('@/lib/authSession', () => ({
+    buildSessionAuthorizationHeader: (...args: unknown[]) => mockBuildSessionAuthorizationHeader(...args),
 }));
 
 jest.mock('@/providers/DialogProvider', () => ({
@@ -66,6 +71,13 @@ jest.mock('@/lib/localAssetStore', () => ({
 }));
 
 jest.mock('@/lib/assetStorageSettings', () => ({
+    getAssetCloudProviderLabel: (provider: string) => ({
+        'google-drive': 'Google Drive',
+        dropbox: 'Dropbox',
+        onedrive: 'OneDrive',
+        's3-compatible': 'S3-compatible',
+    }[provider] || 'Cloud'),
+    isImplementedAssetCloudProvider: (provider: string) => provider === 'google-drive',
     loadAssetStorageSettings: (...args: unknown[]) => mockLoadAssetStorageSettings(...args),
     onAssetStorageSettingsChanged: (...args: unknown[]) => mockOnAssetStorageSettingsChanged(...args),
 }));
@@ -133,6 +145,7 @@ describe('AssetLibrary', () => {
         };
 
         mockDialogConfirm.mockResolvedValue(true);
+        mockBuildSessionAuthorizationHeader.mockReturnValue('Bearer session-token');
         mockLoadAssetStorageSettings.mockImplementation(() => storageSettings);
         mockOnAssetStorageSettingsChanged.mockImplementation((listener: () => void) => {
             settingsListener = listener;
@@ -272,6 +285,10 @@ describe('AssetLibrary', () => {
             allowInteractiveAuth: false,
         }));
         expect(hasFetchCall(fetchMock, (url) => url.startsWith('/api/assets/list?'))).toBe(true);
+        expect(hasFetchCall(fetchMock, (url, init) => (
+            url.startsWith('/api/assets/list?')
+            && (init?.headers as Record<string, string> | undefined)?.Authorization === 'Bearer session-token'
+        ))).toBe(true);
 
         fireEvent.click(screen.getByRole('button', { name: 'Shared' }));
         fireEvent.change(screen.getByRole('combobox'), { target: { value: 'private' } });
@@ -500,7 +517,8 @@ describe('AssetLibrary', () => {
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, (url, init) => (
                 url === '/api/assets/rename' &&
-                init?.method === 'POST'
+                init?.method === 'POST' &&
+                (init.headers as Record<string, string> | undefined)?.Authorization === 'Bearer session-token'
             ))).toBe(true);
         });
         await waitFor(() => {
@@ -511,7 +529,8 @@ describe('AssetLibrary', () => {
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, (url, init) => (
                 url === '/api/assets/visibility' &&
-                init?.method === 'POST'
+                init?.method === 'POST' &&
+                (init.headers as Record<string, string> | undefined)?.Authorization === 'Bearer session-token'
             ))).toBe(true);
         });
 
@@ -519,7 +538,8 @@ describe('AssetLibrary', () => {
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, (url, init) => (
                 url === '/api/assets/delete' &&
-                init?.method === 'POST'
+                init?.method === 'POST' &&
+                (init.headers as Record<string, string> | undefined)?.Authorization === 'Bearer session-token'
             ))).toBe(true);
         });
 
