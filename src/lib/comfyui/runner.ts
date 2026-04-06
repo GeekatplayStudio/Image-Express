@@ -410,6 +410,7 @@ export const prepareComfyTask = async (options: PrepareComfyTaskOptions): Promis
         }
     );
     const client = new ComfyUIClient(resolvedTransport);
+    const canAutoFallbackWorkflow = !options.workflowId;
     let selection = comfyWorkflowRegistry.resolveWorkflowSelection({
         task: options.task,
         workflowId: options.workflowId,
@@ -430,22 +431,24 @@ export const prepareComfyTask = async (options: PrepareComfyTaskOptions): Promis
         const missingNodeTypes = findMissingNodeTypes(workflowJson, objectInfo);
 
         if (missingNodeTypes.length > 0) {
-            const candidates = comfyWorkflowRegistry.getWorkflowsForTask(options.task)
-                .filter((workflow) => workflow.id !== selection.workflow.id);
-
             let resolvedFallback = false;
-            for (const candidateWorkflow of candidates) {
-                const candidateModelPreset = resolveModelPresetForWorkflow(candidateWorkflow, options.modelPresetId);
-                const candidateBlueprint = await prepareWorkflowBlueprint(candidateWorkflow, params, candidateModelPreset);
-                const candidateMissing = findMissingNodeTypes(candidateBlueprint, objectInfo);
-                if (candidateMissing.length === 0) {
-                    selection = {
-                        workflow: candidateWorkflow,
-                        modelPreset: candidateModelPreset,
-                    };
-                    workflowJson = candidateBlueprint;
-                    resolvedFallback = true;
-                    break;
+            if (canAutoFallbackWorkflow) {
+                const candidates = comfyWorkflowRegistry.getWorkflowsForTask(options.task)
+                    .filter((workflow) => workflow.id !== selection.workflow.id);
+
+                for (const candidateWorkflow of candidates) {
+                    const candidateModelPreset = resolveModelPresetForWorkflow(candidateWorkflow, options.modelPresetId);
+                    const candidateBlueprint = await prepareWorkflowBlueprint(candidateWorkflow, params, candidateModelPreset);
+                    const candidateMissing = findMissingNodeTypes(candidateBlueprint, objectInfo);
+                    if (candidateMissing.length === 0) {
+                        selection = {
+                            workflow: candidateWorkflow,
+                            modelPreset: candidateModelPreset,
+                        };
+                        workflowJson = candidateBlueprint;
+                        resolvedFallback = true;
+                        break;
+                    }
                 }
             }
 

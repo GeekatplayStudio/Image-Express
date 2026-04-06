@@ -23,6 +23,7 @@ import {
     type SerializedComfyWorkflowRegistration,
 } from '@/lib/comfyui/libraryTypes';
 import { getComfyTaskPreference, saveComfyTaskPreference } from '@/lib/comfyui/preferences';
+import { workflowRequiresPositivePrompt } from '@/lib/comfyui/promptRequirements';
 import { executeComfyTask, inspectComfyServerCatalog, recoverComfyTaskByPromptId } from '@/lib/comfyui/runner';
 import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
 import { useDialog } from '@/providers/DialogProvider';
@@ -2727,7 +2728,7 @@ export default function ImageGeneratorModal({
                   const preparedPositivePrompt = readPreparedComfyText(prepared.boundInputValues.prompt);
                   const preparedNegativePrompt = readPreparedComfyText(prepared.boundInputValues.negativePrompt);
 
-                  if (!preparedPositivePrompt) {
+                  if (workflowRequiresPositivePrompt(prepared.workflow.inputBindings) && !preparedPositivePrompt) {
                       throw new Error(
                           `Prepared ComfyUI workflow "${prepared.workflow.id}" has an empty positive prompt. `
                           + 'This workflow is not binding the text prompt correctly.'
@@ -2752,7 +2753,11 @@ export default function ImageGeneratorModal({
 
                   writePreparedComfyRequestSnapshot(snapshot);
                   console.info('Prepared ComfyUI workflow request', snapshot);
-                  setStatusMessage(`Sending workflow to ComfyUI... prompt: ${truncateComfyPromptForStatus(preparedPositivePrompt)}`);
+                  setStatusMessage(
+                      preparedPositivePrompt
+                          ? `Sending workflow to ComfyUI... prompt: ${truncateComfyPromptForStatus(preparedPositivePrompt)}`
+                          : 'Sending workflow to ComfyUI...'
+                  );
               },
               onQueued: (promptId) => {
                   queuedPromptId = promptId;
