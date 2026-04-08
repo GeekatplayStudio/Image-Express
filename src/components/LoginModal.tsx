@@ -5,6 +5,7 @@ import { User, Lock, ArrowRight, Loader2, Mail, UserPlus, KeyRound, CheckCircle2
 import { AuthUser } from '@/types';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import { loadDriveConfig } from '@/lib/googleDrive';
+import { requestOpenSetupWizard } from '@/lib/setupWizard';
 
 type GoogleCredentialResponse = {
     credential?: string;
@@ -45,7 +46,7 @@ const TAB_LABELS: Record<AuthMode, string> = {
 
 export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps) {
     const modalRef = useRef<HTMLDivElement | null>(null);
-    const googleInitializedRef = useRef(false);
+    const googleInitializedClientIdRef = useRef<string>('');
     const [mode, setMode] = useState<AuthMode>('login');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -162,6 +163,23 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
         setMessage('');
     };
 
+    const resolveGoogleClientId = () => {
+        if (googleClientId) {
+            return googleClientId;
+        }
+        const latestClientId = (loadDriveConfig().clientId || '').trim();
+        if (latestClientId && latestClientId !== storedGoogleClientId) {
+            setStoredGoogleClientId(latestClientId);
+        }
+        return latestClientId;
+    };
+
+    const handleOpenInitialSetup = () => {
+        resetFeedback();
+        setMessage('Complete Initial Setup, then try social sign-in again.');
+        requestOpenSetupWizard();
+    };
+
     const startAccessRequest = (provider: 'email') => {
         resetFeedback();
         setMode('register');
@@ -201,8 +219,9 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
 
     const handleGoogleSignIn = () => {
         resetFeedback();
-        if (!googleClientId) {
-            setError('Google login is not configured. Set NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID, NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID, or configure the Google client ID in Settings.');
+        const activeGoogleClientId = resolveGoogleClientId();
+        if (!activeGoogleClientId) {
+            setError('Google login is not configured. Open Initial Setup to add your Google client ID.');
             return;
         }
         const googleApi = getGoogleApi();
@@ -211,9 +230,9 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
             return;
         }
 
-        if (!googleInitializedRef.current) {
+        if (googleInitializedClientIdRef.current !== activeGoogleClientId) {
             googleApi.initialize({
-                client_id: googleClientId,
+                client_id: activeGoogleClientId,
                 callback: (response: GoogleCredentialResponse) => {
                     if (!response.credential) {
                         setError('Google did not return a credential.');
@@ -223,7 +242,7 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
                 },
                 auto_select: false,
             });
-            googleInitializedRef.current = true;
+            googleInitializedClientIdRef.current = activeGoogleClientId;
         }
 
         setIsGoogleLoading(true);
@@ -425,6 +444,16 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
                     >
                         <Facebook className="w-4 h-4" />
                         Facebook (Soon)
+                    </button>
+                </div>
+                <div className="flex items-center justify-between mb-5 text-xs text-muted-foreground">
+                    <span>Google/Facebook auth issue?</span>
+                    <button
+                        type="button"
+                        onClick={handleOpenInitialSetup}
+                        className="font-semibold text-primary hover:underline"
+                    >
+                        Initial Setup
                     </button>
                 </div>
 

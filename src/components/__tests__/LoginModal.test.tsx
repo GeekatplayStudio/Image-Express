@@ -3,10 +3,16 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import LoginModal from '../LoginModal';
 
 const mockUseEscapeKey = jest.fn();
+const mockRequestOpenSetupWizard = jest.fn();
 
 jest.mock('@/hooks/useEscapeKey', () => ({
     __esModule: true,
     default: (...args: unknown[]) => mockUseEscapeKey(...args),
+}));
+
+jest.mock('@/lib/setupWizard', () => ({
+    __esModule: true,
+    requestOpenSetupWizard: (...args: unknown[]) => mockRequestOpenSetupWizard(...args),
 }));
 
 type MockFetchResponse = {
@@ -196,6 +202,15 @@ describe('LoginModal', () => {
 
         (handler as () => void)();
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens initial setup from the login shortcut', () => {
+        render(<LoginModal isOpen onLogin={jest.fn()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Initial Setup' }));
+
+        expect(mockRequestOpenSetupWizard).toHaveBeenCalledTimes(1);
+        expect(screen.getByText('Complete Initial Setup, then try social sign-in again.')).toBeInTheDocument();
     });
 
     it('uses the persisted Drive client ID for Google sign-in when auth env vars are not set', async () => {
