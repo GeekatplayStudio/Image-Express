@@ -377,9 +377,12 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="w-full max-w-3xl rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 border-b border-border/60 bg-secondary/20 flex items-center justify-between">
+        <div className="fixed inset-0 z-[110] flex items-start sm:items-center justify-center overflow-y-auto bg-black/65 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div
+                data-testid="setup-wizard-modal-shell"
+                className="w-full max-w-3xl max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
+            >
+                <div className="shrink-0 px-6 py-4 border-b border-border/60 bg-secondary/20 flex items-center justify-between">
                     <div>
                         <h2 className="text-lg font-bold flex items-center gap-2">
                             <Sparkles size={18} className="text-primary" />
@@ -399,7 +402,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                     </button>
                 </div>
 
-                <div className="px-6 py-4 border-b border-border/50">
+                <div className="shrink-0 px-6 py-4 border-b border-border/50">
                     <div
                         className="grid gap-2"
                         style={{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))` }}
@@ -417,7 +420,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                     </div>
                 </div>
 
-                <div className="p-6 min-h-[340px]">
+                <div data-testid="setup-wizard-modal-content" className="flex-1 min-h-0 overflow-y-auto p-6">
                     {step.id === 'welcome' && (
                         <div className="space-y-4">
                             <p className="text-sm text-foreground/90">
@@ -969,7 +972,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                     )}
                 </div>
 
-                <div className="px-6 py-4 border-t border-border/60 bg-secondary/10 flex items-center justify-between">
+                <div className="shrink-0 px-6 py-4 border-t border-border/60 bg-secondary/10 flex items-center justify-between">
                     <button
                         onClick={goBack}
                         disabled={!canGoBack}

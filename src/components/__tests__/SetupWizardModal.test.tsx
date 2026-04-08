@@ -97,6 +97,19 @@ describe('SetupWizardModal', () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
+    it('uses viewport-bounded shell and scrollable content layout', () => {
+        render(<SetupWizardModal isOpen={true} onClose={jest.fn()} onComplete={jest.fn()} />);
+
+        const shell = screen.getByTestId('setup-wizard-modal-shell');
+        const content = screen.getByTestId('setup-wizard-modal-content');
+
+        expect(shell.className).toContain('max-h-[calc(100vh-2rem)]');
+        expect(shell.className).toContain('flex');
+        expect(shell.className).toContain('flex-col');
+        expect(content.className).toContain('overflow-y-auto');
+        expect(content.className).toContain('flex-1');
+    });
+
     it('persists settings, validates drive client id, and finishes setup', async () => {
         const onComplete = jest.fn();
         render(<SetupWizardModal isOpen={true} onClose={jest.fn()} onComplete={onComplete} />);
