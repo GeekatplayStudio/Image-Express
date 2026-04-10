@@ -92,6 +92,7 @@ export const STORAGE_KEYS = {
 
 type ValidationProvider = 'meshy' | 'tripo' | 'hitems' | 'google';
 type ValidationState = 'idle' | 'checking' | 'valid' | 'invalid';
+type SettingsTabId = 'comfy' | 'services' | 'storage' | 'workspace' | 'admin';
 
 const sanitizeHeaderValue = (value: string) => value.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
 
@@ -208,6 +209,8 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     });
 
     const isAdmin = !!userRoles?.includes('admin') && !!userId && userId.includes('@');
+    const showAdminSection = isAdmin && !!userId && userId !== 'Guest';
+    const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabId>('comfy');
 
     useEscapeKey(onClose, { enabled: isOpen });
 
@@ -1091,48 +1094,176 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         || ASSET_CLOUD_PROVIDER_OPTIONS[0];
     const selectedCloudProviderLabel = getAssetCloudProviderLabel(assetCloudProvider);
     const selectedCloudProviderIsImplemented = isImplementedAssetCloudProvider(assetCloudProvider);
+    const modalSectionClass = 'space-y-4 rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm sm:p-5';
+    const accentSectionClass = 'space-y-4 rounded-2xl border border-primary/15 bg-primary/[0.04] p-4 shadow-sm sm:p-5';
+    const fieldCardClass = 'rounded-xl border border-border/50 bg-secondary/20 p-3 transition-colors hover:bg-secondary/30';
+    const saveStatusMessage = status === 'saving'
+        ? 'Saving settings...'
+        : status === 'saved'
+            ? userId && userId !== 'Guest'
+                ? 'Settings saved locally and synced to your account.'
+                : 'Settings saved locally in this browser.'
+            : userId && userId !== 'Guest'
+                ? 'Changes save locally and sync to your account when possible.'
+                : 'Changes save locally in this browser.';
+    const settingsTabs: Array<{
+        id: SettingsTabId;
+        label: string;
+        shortLabel: string;
+        description: string;
+        badge: string;
+    }> = [
+        {
+            id: 'comfy',
+            label: 'Comfy & Defaults',
+            shortLabel: 'Comfy',
+            description: 'Provider defaults, Comfy connection paths, installer status, and workflow management.',
+            badge: 'Automation',
+        },
+        {
+            id: 'services',
+            label: 'AI Services',
+            shortLabel: 'Services',
+            description: '3D providers, image runtimes, and local Ollama credentials in one place.',
+            badge: '3D + Vision',
+        },
+        {
+            id: 'storage',
+            label: 'Storage & Cloud',
+            shortLabel: 'Storage',
+            description: 'Drive connection, upload strategy, setup shortcuts, and desktop update controls.',
+            badge: isDesktopApp ? 'Cloud + Desktop' : 'Cloud',
+        },
+        {
+            id: 'workspace',
+            label: 'Workspace',
+            shortLabel: 'Workspace',
+            description: 'Theme, rail behavior, hint preferences, and activity visibility for the editor.',
+            badge: 'Appearance',
+        },
+        ...(showAdminSection
+            ? [{
+                id: 'admin' as const,
+                label: 'Admin',
+                shortLabel: 'Admin',
+                description: 'User approvals, role edits, and rights management for the current account.',
+                badge: 'Access',
+            }]
+            : []),
+    ];
+    const activeSettingsTabMeta = settingsTabs.find((tab) => tab.id === activeSettingsTab) || settingsTabs[0];
+
+    useEffect(() => {
+        if (!showAdminSection && activeSettingsTab === 'admin') {
+            setActiveSettingsTab('comfy');
+        }
+    }, [activeSettingsTab, showAdminSection]);
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-card w-full max-w-md max-h-[85vh] rounded-xl border border-border shadow-2xl p-6 relative animate-in zoom-in-95 duration-200 flex flex-col">
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                    <X size={20} />
-                </button>
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="flex min-h-full items-start justify-center p-0 sm:p-6">
+                <div className="relative flex h-dvh w-full max-w-7xl flex-col overflow-hidden bg-card shadow-2xl animate-in zoom-in-95 duration-200 sm:h-auto sm:max-h-[calc(100vh-3rem)] sm:rounded-2xl sm:border sm:border-border">
+                    <button
+                        onClick={onClose}
+                        className="absolute top-5 right-5 z-10 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
 
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                        <Key size={24} />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold">API Configurations</h2>
-                        <div className="flex flex-col">
-                            <p className="text-xs text-muted-foreground">Manage your keys for external AI services</p>
-                            {userId && userId !== 'Guest' && (
-                                <span className={`text-[10px] flex items-center gap-1 mt-1 ${syncStatus === 'synced' ? 'text-green-500' : 'text-amber-500'}`}>
-                                    <Server size={10} />
-                                    {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'synced' ? 'Synced with Account' : 'Local Storage Only'}
-                                </span>
-                            )}
+                <div className="shrink-0 border-b border-border/60 bg-card/95 px-5 py-5 pr-14 backdrop-blur sm:px-6 lg:px-8">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+                                <Key size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold">API Configurations</h2>
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-sm text-muted-foreground">Manage AI runtimes, cloud storage, and interface preferences in one workspace layout.</p>
+                                    {userId && userId !== 'Guest' && (
+                                        <span className={`text-[11px] flex items-center gap-1.5 ${syncStatus === 'synced' ? 'text-green-500' : 'text-amber-500'}`}>
+                                            <Server size={11} />
+                                            {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'synced' ? 'Synced with Account' : 'Local Storage Only'}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-3 lg:max-w-xl lg:text-right">
+                            <div className="rounded-xl border border-border/60 bg-background/70 px-3 py-2">
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Default AI</div>
+                                <div className="text-sm font-semibold text-foreground capitalize">{defaultGenerativeProvider}</div>
+                            </div>
+                            <div className="rounded-xl border border-border/60 bg-background/70 px-3 py-2">
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Storage</div>
+                                <div className="text-sm font-semibold text-foreground capitalize">{assetStorageMode}</div>
+                            </div>
+                            <div className="rounded-xl border border-border/60 bg-background/70 px-3 py-2">
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Theme</div>
+                                <div className="text-sm font-semibold text-foreground capitalize">{themeMode}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+                <div className="flex-1 overflow-y-auto px-3 pb-5 sm:px-6 sm:pb-6 lg:px-8">
+                    <div className="sticky top-0 z-20 -mx-3 border-b border-border/60 bg-card/95 px-3 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                            {settingsTabs.map((tab) => {
+                                const isActive = activeSettingsTab === tab.id;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        role="tab"
+                                        id={`settings-tab-${tab.id}`}
+                                        aria-controls={`settings-panel-${tab.id}`}
+                                        aria-selected={isActive}
+                                        onClick={() => setActiveSettingsTab(tab.id)}
+                                        className={`min-w-40 rounded-2xl border px-3 py-2 text-left transition-colors sm:min-w-44 ${isActive ? 'border-primary bg-primary/10 text-foreground shadow-sm' : 'border-border/60 bg-background/80 text-muted-foreground hover:bg-secondary'}`}
+                                    >
+                                        <div className="text-xs font-semibold">
+                                            <span className="sm:hidden">{tab.shortLabel}</span>
+                                            <span className="hidden sm:inline">{tab.label}</span>
+                                        </div>
+                                        <div className="mt-1 text-[10px] leading-4 opacity-80">{tab.badge}</div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-3 rounded-2xl border border-border/60 bg-background/70 px-3 py-3 sm:flex sm:items-start sm:justify-between sm:gap-4">
+                            <div>
+                                <div className="text-sm font-semibold text-foreground">{activeSettingsTabMeta.label}</div>
+                                <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{activeSettingsTabMeta.description}</p>
+                            </div>
+                            <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground sm:mt-0 sm:pt-1">
+                                {activeSettingsTabMeta.badge}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        role="tabpanel"
+                        id={`settings-panel-${activeSettingsTabMeta.id}`}
+                        aria-labelledby={`settings-tab-${activeSettingsTabMeta.id}`}
+                        className="grid gap-6 py-5 xl:grid-cols-12"
+                    >
+                    {activeSettingsTab === 'services' && (
+                        <>
                     {/* 3D Generation Section */}
-                    <div className="space-y-4">
+                    <section className={`${modalSectionClass} xl:col-span-4`}>
                         <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
                             <Box size={16} className="text-primary" />
                             3D Services
                         </h4>
 
-                        <div className="grid gap-3">
+                        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                             {/* Meshy */}
-                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className={fieldCardClass}>
                                 <label className="text-xs font-semibold mb-1.5 block">Meshy AI</label>
                                 <input
                                     type="password"
@@ -1162,7 +1293,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
 
                             {/* Tripo */}
-                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className={fieldCardClass}>
                                 <label className="text-xs font-semibold mb-1.5 block">Tripo AI</label>
                                 <input
                                     type="password"
@@ -1192,7 +1323,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
 
                             {/* Hitem3D */}
-                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className={`${fieldCardClass} lg:col-span-2 xl:col-span-1 2xl:col-span-2`}>
                                 <div className="flex justify-between mb-1.5 items-center">
                                     <label className="text-xs font-semibold">Hitem3D</label>
                                     <div className="flex gap-2 text-[10px] bg-secondary rounded p-0.5">
@@ -1277,20 +1408,18 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <div className="h-px bg-border/50" />
+                    </section>
 
                     {/* Image Generation Config */}
-                    <div className="space-y-4">
+                    <section className={`${modalSectionClass} xl:col-span-8`}>
                         <h4 className="font-semibold text-sm flex items-center gap-2 text-foreground/90 uppercase tracking-wider">
                             <Cloud size={16} className="text-primary" />
                             Image & Vision
                         </h4>
 
-                        <div className="grid gap-3">
+                        <div className="grid gap-3 lg:grid-cols-2">
                             {/* Stability AI */}
-                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className={fieldCardClass}>
                                 <div className="flex justify-between mb-1.5">
                                     <label className="text-xs font-semibold">Stability AI</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">SD3 / Core</span>
@@ -1305,7 +1434,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
 
                             {/* OpenAI */}
-                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className={fieldCardClass}>
                                 <div className="flex justify-between mb-1.5">
                                     <label className="text-xs font-semibold">OpenAI</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">DALL-E 3</span>
@@ -1320,7 +1449,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
 
                             {/* Google Nano */}
-                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className={fieldCardClass}>
                                 <div className="flex justify-between mb-1.5">
                                     <label className="text-xs font-semibold">Google Gemini / Vertex</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">Nano / Imagen</span>
@@ -1353,7 +1482,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
 
                             {/* Banana.dev */}
-                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className={fieldCardClass}>
                                 <div className="flex justify-between mb-1.5">
                                     <label className="text-xs font-semibold">Banana.dev</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">GPU Cloud</span>
@@ -1367,7 +1496,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 />
                             </div>
 
-                            <div className="bg-secondary/20 p-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className={`${fieldCardClass} lg:col-span-2`}>
                                 <div className="flex justify-between mb-1.5">
                                     <label className="text-xs font-semibold">Local AI Runtime (Ollama)</label>
                                     <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">Local</span>
@@ -1425,9 +1554,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 </p>
                             </div>
                         </div>
-                    </div>
+                    </section>
+                        </>
+                    )}
 
-                    <div className="space-y-4 border border-border/50 rounded-lg p-3 bg-secondary/10">
+                    {activeSettingsTab === 'comfy' && (
+                        <>
+                    <section className={`${accentSectionClass} xl:col-span-12`}>
                         <div className="flex items-start justify-between gap-2">
                             <div>
                                 <h5 className="text-xs font-semibold uppercase tracking-wider text-foreground/90">
@@ -1442,6 +1575,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </span>
                         </div>
 
+                        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                         <div className="space-y-1.5">
                             <label className="text-xs font-semibold">Default AI Provider</label>
                             <select
@@ -1496,7 +1630,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </p>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 xl:col-span-2">
                             <label className="text-xs font-semibold">Local ComfyUI URL</label>
                             <input
                                 type="text"
@@ -1563,7 +1697,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </p>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 lg:col-span-2 xl:col-span-3">
                             <label className="text-xs font-semibold">Workflow Folder(s)</label>
                             <textarea
                                 value={comfyWorkflowLibraryPath}
@@ -1576,8 +1710,9 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 Scan one or more workflow folders for official ComfyUI JSON workflows now and your own folders later. Put one folder per line, or separate folders with semicolons. Relative paths like <code className="font-mono">user\default\workflows</code> resolve from the install folder. If the app runs in Docker, use paths visible inside the container rather than a host-only O:\ drive path.
                             </p>
                         </div>
+                        </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-3">
                             <button
                                 onClick={() => void handleVerifyComfyConnection()}
                                 disabled={comfyConnectionCheck.state === 'checking'}
@@ -1629,7 +1764,8 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             )}
                         </div>
 
-                        <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/10 p-3">
+                        <div className="grid gap-4 2xl:grid-cols-2">
+                            <div className="space-y-2 rounded-xl border border-border/60 bg-secondary/10 p-3 h-full">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
                                     <h5 className="text-xs font-semibold">ComfyUI Installer</h5>
@@ -1820,7 +1956,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             )}
                         </div>
 
-                        <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/10 p-3">
+                            <div className="space-y-2 rounded-xl border border-border/60 bg-secondary/10 p-3 h-full">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
                                     <h5 className="text-xs font-semibold">Comfy Workflow Manager</h5>
@@ -1957,43 +2093,53 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             <p className="text-[11px] text-muted-foreground">
                                 New custom nodes usually need a ComfyUI restart before the connected server can expose them in its template/catalog APIs.
                             </p>
+                            </div>
+
                         </div>
 
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                checked={autoStartInpaintMasking}
-                                onChange={(event) => setAutoStartInpaintMasking(event.target.checked)}
-                                className="rounded border-border text-primary focus:ring-primary/20"
-                            />
-                            Auto-start mask brush when opening Generative Fill
-                        </label>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none rounded-xl border border-border/50 bg-background/50 px-3 py-2">
+                                <input
+                                    type="checkbox"
+                                    checked={autoStartInpaintMasking}
+                                    onChange={(event) => setAutoStartInpaintMasking(event.target.checked)}
+                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                />
+                                Auto-start mask brush when opening Generative Fill
+                            </label>
 
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                checked={showInpaintPromptDock}
-                                onChange={(event) => setShowInpaintPromptDock(event.target.checked)}
-                                className="rounded border-border text-primary focus:ring-primary/20"
-                            />
-                            Show quick prompt dock for Generative Fill
-                        </label>
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none rounded-xl border border-border/50 bg-background/50 px-3 py-2">
+                                <input
+                                    type="checkbox"
+                                    checked={showInpaintPromptDock}
+                                    onChange={(event) => setShowInpaintPromptDock(event.target.checked)}
+                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                />
+                                Show quick prompt dock for Generative Fill
+                            </label>
+                        </div>
 
                         <div className="text-[11px] rounded-md border border-border/60 bg-background/70 px-2.5 py-2 text-muted-foreground">
                             Selected provider status: {isGenerativeProviderReady(defaultGenerativeProvider) ? 'runtime ready' : 'coming soon'}
                             {providerHasConfiguredKey(defaultGenerativeProvider) ? ' + configured' : ' + missing key/config (fallback applies)'}
                         </div>
-                    </div>
+                    </section>
+                        </>
+                    )}
 
-                    <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md flex items-start gap-3">
+                    {(activeSettingsTab === 'services' || activeSettingsTab === 'comfy') && (
+                    <div className="flex items-start gap-3 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4 xl:col-span-12">
                         <AlertCircle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
                         <p className="text-xs text-muted-foreground">
                             Keys are stored locally in your browser. We never transmit them to our servers, only directly to the AI providers.
                         </p>
                     </div>
+                    )}
 
+                    {activeSettingsTab === 'storage' && (
+                        <>
                     {isDesktopApp && (
-                        <div className="border-t border-border/40 pt-4 space-y-3">
+                        <section className={`${modalSectionClass} xl:col-span-12`}>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -2027,10 +2173,10 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     Restart & Install Update
                                 </button>
                             )}
-                        </div>
+                        </section>
                     )}
 
-                    <div className="border-t border-border/40 pt-4 space-y-3">
+                    <section className={`${modalSectionClass} xl:col-span-6`}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -2140,9 +2286,9 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 {driveError}
                             </div>
                         )}
-                    </div>
+                    </section>
 
-                    <div className="border-t border-border/40 pt-4 space-y-3">
+                    <section className={`${modalSectionClass} xl:col-span-6`}>
                         <div>
                             <h4 className="text-sm font-semibold flex items-center gap-2">
                                 <HardDrive size={16} className="text-primary" />
@@ -2230,10 +2376,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             <Key size={13} />
                             Launch Setup Wizard
                         </button>
-                    </div>
+                    </section>
+                        </>
+                    )}
 
-                    <div className="border-t border-border/40 pt-4">
-                        <div className="mb-6 border-b border-border/40 pb-6 space-y-3">
+                    {activeSettingsTab === 'workspace' && (
+                    <div className="grid gap-6 xl:col-span-12 xl:grid-cols-2">
+                        <section className={modalSectionClass}>
                             <div>
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
                                     <Server size={16} className="text-primary" />
@@ -2268,7 +2417,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
                                         Accent palette
                                     </label>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                                         {THEME_ACCENT_OPTIONS.map((option) => {
                                             const isActive = themeAccentPreset === option.value;
                                             return (
@@ -2293,25 +2442,27 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 </div>
                             </div>
 
-                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={expandToolRailLabelsOnHover}
-                                    onChange={(event) => setExpandToolRailLabelsOnHover(event.target.checked)}
-                                    className="rounded border-border text-primary focus:ring-primary/20"
-                                />
-                                Expand side tool rails on hover
-                            </label>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none rounded-xl border border-border/50 bg-background/50 px-3 py-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={expandToolRailLabelsOnHover}
+                                        onChange={(event) => setExpandToolRailLabelsOnHover(event.target.checked)}
+                                        className="rounded border-border text-primary focus:ring-primary/20"
+                                    />
+                                    Expand side tool rails on hover
+                                </label>
 
-                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={suppressNumberDragHints}
-                                    onChange={(event) => setSuppressNumberDragHints(event.target.checked)}
-                                    className="rounded border-border text-primary focus:ring-primary/20"
-                                />
-                                Don’t remind me about number-drag tips
-                            </label>
+                                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none rounded-xl border border-border/50 bg-background/50 px-3 py-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={suppressNumberDragHints}
+                                        onChange={(event) => setSuppressNumberDragHints(event.target.checked)}
+                                        className="rounded border-border text-primary focus:ring-primary/20"
+                                    />
+                                    Don’t remind me about number-drag tips
+                                </label>
+                            </div>
 
                             <button
                                 onClick={() => {
@@ -2326,81 +2477,104 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                 <RefreshCcw size={13} />
                                 Reset Number-Drag Hint
                             </button>
-                        </div>
+                        </section>
+                        <div className="space-y-3 xl:col-span-2">
+                            <button
+                                onClick={handleToggleLog}
+                                className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                            >
+                                {isLogVisible ? 'Hide Login Activity Log' : 'View Login Activity Log'}
+                            </button>
 
-                        {isAdmin && userId && userId !== 'Guest' && (
-                            <div className="mb-6 border-b border-border/40 pb-6 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h4 className="text-sm font-semibold flex items-center gap-2">
-                                            <ShieldCheck size={16} className="text-primary" />
-                                            User Management
-                                        </h4>
-                                        <p className="text-[11px] text-muted-foreground">
-                                            Admin roles, approval queue, and per-user rights.
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => void loadAdminUsers()}
-                                        className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1"
-                                        disabled={isAdminUsersLoading}
-                                    >
-                                        <RefreshCcw size={14} className={isAdminUsersLoading ? 'animate-spin' : ''} />
-                                        Refresh
-                                    </button>
+                            {isLogVisible && (
+                                <div className="bg-secondary/20 border border-border/60 rounded-lg p-3 max-h-48 overflow-y-auto">
+                                    {isLogLoading ? (
+                                        <p className="text-xs text-muted-foreground">Loading log...</p>
+                                    ) : logError ? (
+                                        <p className="text-xs text-destructive">{logError}</p>
+                                    ) : (
+                                        <pre className="text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground">{logContent}</pre>
+                                    )}
                                 </div>
+                            )}
+                        </div>
+                    </div>
+                    )}
 
-                                {adminError && (
-                                    <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-                                        {adminError}
-                                    </div>
-                                )}
+                    {activeSettingsTab === 'admin' && showAdminSection && (
+                        <section className={`${modalSectionClass} xl:col-span-12`}>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                                        <ShieldCheck size={16} className="text-primary" />
+                                        User Management
+                                    </h4>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Admin roles, approval queue, and per-user rights.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => void loadAdminUsers()}
+                                    className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1"
+                                    disabled={isAdminUsersLoading}
+                                >
+                                    <RefreshCcw size={14} className={isAdminUsersLoading ? 'animate-spin' : ''} />
+                                    Refresh
+                                </button>
+                            </div>
 
-                                {isAdminUsersLoading ? (
-                                    <div className="text-xs text-muted-foreground">Loading users...</div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {adminUsers.map((user) => {
-                                            const busy = adminBusyUser === user.email;
-                                            const rolesText = adminDraftRoles[user.email] ?? (user.roles || []).join(', ');
-                                            const rightsText = adminDraftRights[user.email] ?? (user.rights || []).join(', ');
-                                            const isPending = user.status === 'pending';
-                                            const isDisabled = user.status === 'disabled';
+                            {adminError && (
+                                <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+                                    {adminError}
+                                </div>
+                            )}
 
-                                            return (
-                                                <div key={user.email} className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-2">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <p className="text-xs font-semibold text-foreground truncate">{user.displayName}</p>
-                                                            <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
-                                                        </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded ${user.status === 'approved'
-                                                                ? 'bg-emerald-500/15 text-emerald-600'
-                                                                : user.status === 'pending'
-                                                                    ? 'bg-amber-500/15 text-amber-600'
-                                                                    : 'bg-red-500/15 text-red-600'
-                                                            }`}>
-                                                            {user.status}
-                                                        </span>
+                            {isAdminUsersLoading ? (
+                                <div className="text-xs text-muted-foreground">Loading users...</div>
+                            ) : (
+                                <div className="grid gap-3 xl:grid-cols-2">
+                                    {adminUsers.map((user) => {
+                                        const busy = adminBusyUser === user.email;
+                                        const rolesText = adminDraftRoles[user.email] ?? (user.roles || []).join(', ');
+                                        const rightsText = adminDraftRights[user.email] ?? (user.rights || []).join(', ');
+                                        const isPending = user.status === 'pending';
+                                        const isDisabled = user.status === 'disabled';
+
+                                        return (
+                                            <div key={user.email} className="rounded-xl border border-border/60 bg-secondary/20 p-3 space-y-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-semibold text-foreground truncate">{user.displayName}</p>
+                                                        <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
                                                     </div>
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded ${user.status === 'approved'
+                                                            ? 'bg-emerald-500/15 text-emerald-600'
+                                                            : user.status === 'pending'
+                                                                ? 'bg-amber-500/15 text-amber-600'
+                                                                : 'bg-red-500/15 text-red-600'
+                                                        }`}>
+                                                        {user.status}
+                                                    </span>
+                                                </div>
 
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <button
-                                                            onClick={() => void executeAdminAction(user.email, isPending ? 'approve' : 'enable')}
-                                                            disabled={busy}
-                                                            className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
-                                                        >
-                                                            {isPending ? 'Approve' : 'Enable'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => void executeAdminAction(user.email, isPending ? 'reject' : 'disable')}
-                                                            disabled={busy}
-                                                            className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
-                                                        >
-                                                            {isPending ? 'Reject' : (isDisabled ? 'Disabled' : 'Disable')}
-                                                        </button>
-                                                    </div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <button
+                                                        onClick={() => void executeAdminAction(user.email, isPending ? 'approve' : 'enable')}
+                                                        disabled={busy}
+                                                        className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
+                                                    >
+                                                        {isPending ? 'Approve' : 'Enable'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => void executeAdminAction(user.email, isPending ? 'reject' : 'disable')}
+                                                        disabled={busy}
+                                                        className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
+                                                    >
+                                                        {isPending ? 'Reject' : (isDisabled ? 'Disabled' : 'Disable')}
+                                                    </button>
+                                                </div>
 
+                                                <div className="grid gap-3 lg:grid-cols-2">
                                                     <div className="space-y-1">
                                                         <label className="text-[10px] uppercase text-muted-foreground">Roles</label>
                                                         <input
@@ -2435,48 +2609,36 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                                         </button>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <button
-                            onClick={handleToggleLog}
-                            className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-                        >
-                            {isLogVisible ? 'Hide Login Activity Log' : 'View Login Activity Log'}
-                        </button>
-
-                        {isLogVisible && (
-                            <div className="mt-3 bg-secondary/20 border border-border/60 rounded-lg p-3 max-h-48 overflow-y-auto">
-                                {isLogLoading ? (
-                                    <p className="text-xs text-muted-foreground">Loading log...</p>
-                                ) : logError ? (
-                                    <p className="text-xs text-destructive">{logError}</p>
-                                ) : (
-                                    <pre className="text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground">{logContent}</pre>
-                                )}
-                            </div>
-                        )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </section>
+                    )}
                     </div>
                 </div>
 
-                <div className="mt-8 flex justify-end gap-3">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-lg shadow-primary/20 flex items-center gap-2 transition-all"
-                    >
-                        {status === 'saved' ? 'Saved!' : 'Save Configurations'}
-                        {status !== 'saved' && <Save size={16} />}
-                    </button>
+                <div className="shrink-0 border-t border-border/60 bg-card/95 px-4 py-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs text-muted-foreground">{saveStatusMessage}</p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={onClose}
+                                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={status === 'saving'}
+                                className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-lg shadow-primary/20 flex items-center gap-2 transition-all disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                                {status === 'saving' ? 'Saving...' : status === 'saved' ? 'Saved!' : 'Save Configurations'}
+                                {status === 'saving' ? <Loader2 size={16} className="animate-spin" /> : status !== 'saved' && <Save size={16} />}
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <HelpPopup
@@ -2484,6 +2646,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                     onClose={() => setHelpType(null)}
                     type={helpType || 'comfy'}
                 />
+            </div>
             </div>
         </div>
     );

@@ -65,6 +65,12 @@ jest.mock('../HelpPopup', () => ({
 
 describe('SettingsModal', () => {
     const originalEnv = process.env;
+    const openTab = async (name: RegExp) => {
+        fireEvent.click(screen.getByRole('tab', { name }));
+        await waitFor(() => {
+            expect(screen.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true');
+        });
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -306,13 +312,10 @@ describe('SettingsModal', () => {
             expect(screen.getByText('1 missing')).toBeInTheDocument();
         });
 
+        await openTab(/AI Services/i);
         fireEvent.change(screen.getByPlaceholderText('Enter Meshy API Key'), {
             target: { value: 'new-meshy' },
         });
-        fireEvent.change(screen.getByLabelText('Theme mode'), {
-            target: { value: 'light' },
-        });
-        fireEvent.click(screen.getByRole('button', { name: 'Accent palette Meadow' }));
         fireEvent.change(screen.getByPlaceholderText('http://127.0.0.1:11434'), {
             target: { value: 'http://localhost:11434' },
         });
@@ -323,6 +326,14 @@ describe('SettingsModal', () => {
         await waitFor(() => {
             expect(screen.getByText(/Ollama is reachable/i)).toBeInTheDocument();
         });
+
+        await openTab(/Workspace/i);
+        fireEvent.change(screen.getByLabelText('Theme mode'), {
+            target: { value: 'light' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Accent palette Meadow' }));
+
+        await openTab(/Storage & Cloud/i);
         fireEvent.change(screen.getByDisplayValue('Hybrid (local + optional cloud per upload)'), {
             target: { value: 'cloud' },
         });
@@ -358,7 +369,7 @@ describe('SettingsModal', () => {
         render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
 
         await waitFor(() => {
-            expect(screen.getByText('ComfyUI Installer')).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /Dry Run Installer/i })).toBeInTheDocument();
         });
 
         fireEvent.click(screen.getByRole('button', { name: /Dry Run Installer/i }));
@@ -381,6 +392,7 @@ describe('SettingsModal', () => {
     it('saves a planned cloud provider selection without forcing broken cloud-only mode', async () => {
         render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
 
+        await openTab(/Storage & Cloud/i);
         await waitFor(() => {
             expect(screen.getByText('Asset Storage Strategy')).toBeInTheDocument();
         });
@@ -509,6 +521,7 @@ describe('SettingsModal', () => {
 
         render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
 
+        await openTab(/AI Services/i);
         fireEvent.click(screen.getByRole('button', { name: /Check Ollama/i }));
 
         await waitFor(() => {
@@ -531,6 +544,7 @@ describe('SettingsModal', () => {
     it('handles drive connect flow and launches setup wizard', async () => {
         render(<SettingsModal isOpen={true} onClose={jest.fn()} userId="Guest" />);
 
+        await openTab(/Storage & Cloud/i);
         fireEvent.click(screen.getByRole('button', { name: /^Connect$/i }));
         expect(screen.getByText('Add a Google OAuth client ID before connecting.')).toBeInTheDocument();
 
@@ -649,9 +663,9 @@ describe('SettingsModal', () => {
             />
         );
 
+        await openTab(/Storage & Cloud/i);
         await waitFor(() => {
-            expect(screen.getByText('User Management')).toBeInTheDocument();
-            expect(screen.getByText('member@example.com')).toBeInTheDocument();
+            expect(screen.getByText('Desktop Updates')).toBeInTheDocument();
         });
 
         fireEvent.click(screen.getByRole('button', { name: /Check Now/i }));
@@ -662,6 +676,12 @@ describe('SettingsModal', () => {
         fireEvent.click(screen.getByRole('button', { name: /Restart & Install Update/i }));
         await waitFor(() => {
             expect(desktopApi.installUpdate).toHaveBeenCalled();
+        });
+
+        await openTab(/Admin/i);
+        await waitFor(() => {
+            expect(screen.getByText('User Management')).toBeInTheDocument();
+            expect(screen.getByText('member@example.com')).toBeInTheDocument();
         });
 
         fireEvent.change(screen.getByPlaceholderText('admin, creator'), {
@@ -676,11 +696,13 @@ describe('SettingsModal', () => {
             );
         });
 
+        await openTab(/Workspace/i);
         fireEvent.click(screen.getByRole('button', { name: /View Login Activity Log/i }));
         await waitFor(() => {
             expect(screen.getByText('login-entry-1')).toBeInTheDocument();
         });
 
+        await openTab(/Storage & Cloud/i);
         fireEvent.click(screen.getByRole('button', { name: /Disconnect/i }));
         await waitFor(() => {
             expect(mockDisconnectGoogleDrive).toHaveBeenCalledTimes(1);
