@@ -631,6 +631,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const [penAutoAddDelete, setPenAutoAddDelete] = useState(true);
     const [penRubberBand, setPenRubberBand] = useState(true);
     const [penCursorPoint, setPenCursorPoint] = useState<PenPoint | null>(null);
+    const railButtonLayoutClass = 'h-8 w-full items-center justify-start gap-2 px-2';
+    const railLabelClass = cn(
+        'truncate whitespace-nowrap text-[11px] font-medium transition-[max-width,opacity] duration-150 ease-out',
+        isRailExpanded ? 'max-w-[140px] opacity-100' : 'max-w-0 overflow-hidden opacity-0'
+    );
+    const railMetaLabelClass = cn(
+        'ml-1 truncate whitespace-nowrap text-[10px] text-muted-foreground transition-[max-width,opacity] duration-150 ease-out',
+        isRailExpanded ? 'max-w-[56px] opacity-100' : 'max-w-0 overflow-hidden opacity-0'
+    );
 
     useEffect(() => {
         penAnchorsRef.current = penAnchors;
@@ -2178,7 +2187,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             ref={groupButtonRef}
                             className={cn(
                                 'relative rounded-sm flex transition-colors z-20',
-                                isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
+                                railButtonLayoutClass,
                                 (isGroupActive || openToolGroup === group.id)
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
@@ -2189,11 +2198,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
                                 <primaryTool.icon size={16} />
                             </span>
-                            {isRailExpanded && (
-                                <span className="truncate text-[11px] font-medium">
-                                    {primaryTool.shortLabel ?? primaryTool.label}
-                                </span>
-                            )}
+                            <span className={railLabelClass}>
+                                {primaryTool.shortLabel ?? primaryTool.label}
+                            </span>
                             <span className="pointer-events-none absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-current opacity-70" />
                         </button>
                     );
@@ -2210,7 +2217,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             ref={tool.name === 'shapes' ? shapesButtonRef : tool.name === 'adjustments' ? adjustmentsButtonRef : undefined}
                             className={cn(
                                 'rounded-sm flex transition-colors z-20',
-                                isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
+                                railButtonLayoutClass,
                                 isToolActive
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
@@ -2221,11 +2228,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
                                 <tool.icon size={16} />
                             </span>
-                            {isRailExpanded && (
-                                <span className="truncate text-[11px] font-medium">
-                                    {tool.shortLabel ?? tool.label}
-                                </span>
-                            )}
+                            <span className={railLabelClass}>
+                                {tool.shortLabel ?? tool.label}
+                            </span>
                         </button>
                     );
                 })}
@@ -2240,7 +2245,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             onClick={() => handleToolClick(tool.name)}
                             className={cn(
                                 'rounded-sm flex transition-colors z-20',
-                                isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
+                                railButtonLayoutClass,
                                 isToolActive
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
@@ -2251,11 +2256,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
                                 <tool.icon size={16} />
                             </span>
-                            {isRailExpanded && (
-                                <span className="truncate text-[11px] font-medium">
-                                    {tool.shortLabel ?? tool.label}
-                                </span>
-                            )}
+                            <span className={railLabelClass}>
+                                {tool.shortLabel ?? tool.label}
+                            </span>
                         </button>
                     );
                 })}
@@ -2270,7 +2273,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             onClick={() => handleToolClick(tool.name)}
                             className={cn(
                                 'rounded-sm flex transition-colors z-20',
-                                isRailExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-full items-center justify-start px-2',
+                                railButtonLayoutClass,
                                 isToolActive
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
@@ -2281,11 +2284,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
                                 <tool.icon size={16} />
                             </span>
-                            {isRailExpanded && (
-                                <span className="truncate text-[11px] font-medium">
-                                    {tool.shortLabel ?? tool.label}
-                                </span>
-                            )}
+                            <span className={railLabelClass}>
+                                {tool.shortLabel ?? tool.label}
+                            </span>
                         </button>
                     );
                 })}
@@ -2332,9 +2333,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         )}
                         style={{ backgroundColor: backgroundColor }}
                     />
-                    {isRailExpanded && (
-                        <span className="truncate text-[10px] text-muted-foreground ml-1">FG/BG</span>
-                    )}
+                    <span className={railMetaLabelClass}>FG/BG</span>
                 </div>
             </div>
 

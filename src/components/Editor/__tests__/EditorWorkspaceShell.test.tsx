@@ -53,6 +53,7 @@ describe('EditorWorkspaceShell', () => {
                     canvas: null,
                     activeTool: 'select',
                     setActiveTool: jest.fn(),
+                    enableHoverLabels: true,
                 }}
                 workspace={<div>Workspace</div>}
                 jobFooterProps={{ jobs: [], onClear: jest.fn() }}
@@ -71,6 +72,7 @@ describe('EditorWorkspaceShell', () => {
         const toolbar = screen.getByTestId('mock-toolbar');
 
         expect(toolbarShell.className).toContain('w-[60px]');
+        expect(toolbarShell.className).toContain('overflow-visible');
 
         fireEvent.mouseEnter(toolbar);
         expect(toolbarShell.className).toContain('w-[60px]');

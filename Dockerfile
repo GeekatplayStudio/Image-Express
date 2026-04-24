@@ -4,6 +4,10 @@ FROM node:24-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
+# The web container does not need Playwright browsers or Electron binaries.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+	ELECTRON_SKIP_BINARY_DOWNLOAD=1
+
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
 RUN npm ci
@@ -34,9 +38,9 @@ RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
+# Set the correct permissions for runtime-generated files.
+RUN mkdir -p .next data logs public/assets
+RUN chown -R nextjs:nodejs .next data logs public
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
