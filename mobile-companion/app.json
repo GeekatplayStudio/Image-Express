@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Image Express Mobile Companion",
+    "slug": "image-express-mobile-companion",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "imageexpressmobile",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.imageexpress.mobilecompanion",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Capture photos and videos to import directly into Image Express.",
+        "NSMicrophoneUsageDescription": "Record audio notes and clips to import directly into Image Express.",
+        "NSPhotoLibraryUsageDescription": "Pick existing media to import into Image Express."
+      }
+    },
+    "android": {
+      "package": "com.imageexpress.mobilecompanion",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
+    },
+    "extra": {
+      "defaultApiBaseUrl": ""
+    }
+  }
+}

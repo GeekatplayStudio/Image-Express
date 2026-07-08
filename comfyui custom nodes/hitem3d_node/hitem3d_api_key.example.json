@@ -1,0 +1,6 @@
+{
+  "api_key": "ak_xxx:sk_xxx_or_bearer_token",
+  "app_id": "",
+  "timeout_seconds": 1200,
+  "poll_interval_seconds": 8
+}

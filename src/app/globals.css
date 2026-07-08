@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-tool-accent: var(--tool-accent);
+  --color-tool-accent-foreground: var(--tool-accent-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+:root {
+  --background: hsl(240 5% 6%);
+  --foreground: hsl(0 0% 98%);
+  --card: hsl(240 4% 10%);
+  --card-foreground: hsl(0 0% 98%);
+  --popover: hsl(240 4% 10%);
+  --popover-foreground: hsl(0 0% 98%);
+  --primary: hsl(193 63% 43%);
+  --primary-foreground: hsl(0 0% 100%);
+  --tool-accent: hsl(193 58% 39%);
+  --tool-accent-foreground: hsl(0 0% 100%);
+  --secondary: hsl(240 4% 16%);
+  --secondary-foreground: hsl(0 0% 98%);
+  --muted: hsl(240 4% 16%);
+  --muted-foreground: hsl(240 5% 65%);
+  --accent: hsl(240 4% 16%);
+  --accent-foreground: hsl(0 0% 98%);
+  --destructive: hsl(0 63% 31%);
+  --destructive-foreground: hsl(0 0% 98%);
+  --border: hsl(240 4% 16%);
+  --input: hsl(240 4% 16%);
+  --ring: hsl(240 5% 84%);
+  --radius: 0.5rem;
+}
+
+:root[data-theme-mode='light'] {
+  --background: hsl(210 40% 98%);
+  --foreground: hsl(222 47% 11%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(222 47% 11%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(222 47% 11%);
+  --secondary: hsl(210 40% 96%);
+  --secondary-foreground: hsl(222 47% 11%);
+  --muted: hsl(210 40% 96%);
+  --muted-foreground: hsl(215 16% 40%);
+  --accent: hsl(210 40% 96%);
+  --accent-foreground: hsl(222 47% 11%);
+  --destructive: hsl(0 72% 45%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(214 32% 91%);
+  --input: hsl(214 32% 91%);
+  --ring: hsl(215 20% 65%);
+}
+
+/* Base styles */
+* {
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--secondary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+input[type="range"] {
+  accent-color: var(--tool-accent);
+}
+
+.brand-icon-shell {
+  background: linear-gradient(
+    135deg,
+    var(--ui-brand-gradient-start) 0%,
+    var(--ui-brand-gradient-mid) 54%,
+    var(--ui-brand-gradient-end) 100%
+  );
+}
+
+.brand-spark {
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(-2px) scale(0.3);
+}
+
+.group\/brand:hover .brand-spark {
+  animation: brand-spark 850ms ease-out infinite;
+  animation-delay: var(--spark-delay);
+}
+
+.brand-notice {
+  opacity: 0;
+  transform: translate(2px, -50%);
+  filter: hue-rotate(0deg);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.group\/brand:hover .brand-notice {
+  opacity: 1;
+  transform: translate(0, -50%);
+  animation: brand-cycle 2.8s linear infinite;
+}
+
+@keyframes brand-spark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(0) scale(0.3);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(calc(-1 * var(--spark-distance))) scale(1);
+  }
+}
+
+@keyframes brand-cycle {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}

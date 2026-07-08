@@ -1,0 +1,31 @@
+{
+  "30": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "image-express-input.png"
+    }
+  },
+  "31": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "30",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "width": 2048,
+      "height": 2048,
+      "crop": "disabled"
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ImageExpressUpscale",
+      "images": [
+        "31",
+        0
+      ]
+    }
+  }
+}

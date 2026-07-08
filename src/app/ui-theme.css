@@ -1,0 +1,96 @@
+:root {
+  --ui-brand-gradient-start: #6366f1;
+  --ui-brand-gradient-mid: #8b5cf6;
+  --ui-brand-gradient-end: #ec4899;
+  --ui-avatar-gradient-start: hsl(196 62% 55%);
+  --ui-avatar-gradient-end: hsl(183 52% 46%);
+  --ui-slider-accent: var(--tool-accent);
+}
+
+:root[data-theme-accent='ocean'] {
+  --primary: hsl(193 63% 43%);
+  --primary-foreground: hsl(0 0% 100%);
+  --tool-accent: hsl(193 58% 39%);
+  --tool-accent-foreground: hsl(0 0% 100%);
+  --ui-brand-gradient-start: #0f766e;
+  --ui-brand-gradient-mid: #0891b2;
+  --ui-brand-gradient-end: #2563eb;
+  --ui-avatar-gradient-start: hsl(196 62% 55%);
+  --ui-avatar-gradient-end: hsl(183 52% 46%);
+}
+
+:root[data-theme-accent='ember'] {
+  --primary: hsl(21 90% 48%);
+  --primary-foreground: hsl(0 0% 100%);
+  --tool-accent: hsl(11 82% 48%);
+  --tool-accent-foreground: hsl(0 0% 100%);
+  --ui-brand-gradient-start: #c2410c;
+  --ui-brand-gradient-mid: #ea580c;
+  --ui-brand-gradient-end: #dc2626;
+  --ui-avatar-gradient-start: hsl(24 95% 61%);
+  --ui-avatar-gradient-end: hsl(2 78% 58%);
+}
+
+:root[data-theme-accent='meadow'] {
+  --primary: hsl(142 71% 36%);
+  --primary-foreground: hsl(0 0% 100%);
+  --tool-accent: hsl(173 80% 28%);
+  --tool-accent-foreground: hsl(0 0% 100%);
+  --ui-brand-gradient-start: #15803d;
+  --ui-brand-gradient-mid: #16a34a;
+  --ui-brand-gradient-end: #0f766e;
+  --ui-avatar-gradient-start: hsl(142 58% 54%);
+  --ui-avatar-gradient-end: hsl(173 72% 34%);
+}
+
+:root[data-theme-accent='violet'] {
+  --primary: hsl(244 75% 58%);
+  --primary-foreground: hsl(0 0% 100%);
+  --tool-accent: hsl(271 81% 56%);
+  --tool-accent-foreground: hsl(0 0% 100%);
+  --ui-brand-gradient-start: #4338ca;
+  --ui-brand-gradient-mid: #7c3aed;
+  --ui-brand-gradient-end: #db2777;
+  --ui-avatar-gradient-start: hsl(249 84% 67%);
+  --ui-avatar-gradient-end: hsl(328 74% 55%);
+}
+
+.ui-brand-gradient-text {
+  background-image: linear-gradient(
+    135deg,
+    var(--ui-brand-gradient-start) 0%,
+    var(--ui-brand-gradient-mid) 54%,
+    var(--ui-brand-gradient-end) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ui-brand-gradient-surface {
+  background-image: linear-gradient(
+    135deg,
+    var(--ui-brand-gradient-start) 0%,
+    var(--ui-brand-gradient-mid) 54%,
+    var(--ui-brand-gradient-end) 100%
+  );
+}
+
+.ui-avatar-gradient {
+  background-image: linear-gradient(
+    135deg,
+    var(--ui-avatar-gradient-start) 0%,
+    var(--ui-avatar-gradient-end) 100%
+  );
+}
+
+.ui-focus-accent:focus,
+.ui-focus-accent:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.ui-slider {
+  accent-color: var(--ui-slider-accent);
+}

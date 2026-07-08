@@ -1,0 +1,46 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Dev Server",
+			"type": "shell",
+			"command": "npm.cmd",
+			"args": [
+				"run",
+				"dev"
+			],
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc-watch"
+			],
+			"group": "run"
+		},
+		{
+			"label": "build",
+			"type": "shell",
+			"command": "npm.cmd",
+			"args": [
+				"run",
+				"build"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "jest focused comfy folders",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				".\\node_modules\\jest\\bin\\jest.js",
+				"--runInBand",
+				"src/lib/__tests__/generative-preferences.test.ts",
+				"src/lib/comfyui/__tests__/libraryServer.test.ts",
+				"src/components/__tests__/ImageGeneratorModal.test.tsx",
+				"src/components/__tests__/SettingsModal.test.tsx"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

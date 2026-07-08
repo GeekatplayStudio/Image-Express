@@ -1,0 +1,80 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+/test-results
+/playwright-report
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# local ComfyUI custom node secrets
+/comfyui custom nodes/hitem3d_node/hitem3d_api_key.local.json
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Expo mobile companion
+/mobile-companion/node_modules
+/mobile-companion/.expo
+/mobile-companion/dist
+/mobile-companion/web-build
+
+# user API key vault (contains secrets)
+/data/user-key-vault.json
+/data/user-key-vault.secret
+
+# local state, logs, and tool output (never commit)
+/data/
+/logs/
+*.log
+build_output.*
+lint_output.txt
+lint-results.json
+jest-results.json
+jest-*.json
+googleDrive-results.json
+.tmp-comfy-tests.json
+failure_details.txt
+test_failures.txt
+test_output.txt
+test_results.json
+test-results.json
+tool-probe.txt
+tsc_test_output.txt
+ollama-fix-build-output.txt
+footer-jest*
+jest-editorview-output.txt
+.claude/
+/public/assets/

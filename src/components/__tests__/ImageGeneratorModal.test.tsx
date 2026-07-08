@@ -1,0 +1,1071 @@
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import ImageGeneratorModal from '../ImageGeneratorModal';
+import { LOCAL_AI_PREFERENCES_STORAGE_KEY } from '@/lib/localAiPreferences';
+
+const mockImageFromURL = jest.fn();
+const mockUseEscapeKey = jest.fn();
+const mockDialogConfirm = jest.fn(async () => false);
+const mockHydrateComfyCloudSettingsFromRuntime = jest.fn(() => ({
+    then: (onFulfilled: (value: { cloudApiKey?: string; cloudUrl?: string }) => unknown) => {
+        onFulfilled({});
+        return Promise.resolve({});
+    },
+}));
+const mockLoadComfyCloudApiKey = jest.fn(() => '');
+const mockVerifyAvailableComfyConnection = jest.fn(async () => ({ ok: true, message: 'Connected to ComfyUI.' }));
+const mockInspectComfyServerCatalog = jest.fn(() => new Promise<never>(() => undefined));
+const mockPersistAssetToLibrary = jest.fn(async () => ({ savedProviders: ['local'], warnings: [] }));
+const mockInstallerRuntimeStatus = {
+    configFile: 'scripts/installers/config/sources.json',
+    comfyDirectory: {
+        path: 'D:\\ComfyUI',
+        exists: true,
+        gitRepo: true,
+    },
+    customBundles: [],
+    comfyModels: [
+        {
+            id: 'flux-1-dev.safetensors',
+            displayName: 'FLUX 1 Dev',
+            targetPath: 'models/checkpoints/flux-1-dev.safetensors',
+            exists: true,
+        },
+    ],
+    localWorkspace: {
+        path: 'D:\\Adobe-Express-Remake\\ComfyUI workflows',
+        exists: true,
+        installTargetPath: 'D:\\ComfyUI',
+        workflowFileCount: 4,
+        syncedDirectories: ['custom_nodes', 'user', 'models'],
+    },
+    ollama: {
+        cliAvailable: true,
+        configuredModels: [],
+    },
+    summary: {
+        ready: true,
+        missing: [],
+    },
+};
+
+const mockComfyWorkflowRegistration = {
+    id: 'server-upscale',
+    task: 'upscale',
+    name: 'Server Upscale',
+    description: 'Upscale workflow',
+    blueprint: {
+        '1': { class_type: 'LoadImage', inputs: { image: 'input.png' } },
+        '2': { class_type: 'SaveImage', inputs: { images: ['1', 0], filename_prefix: 'ComfyUI' } },
+    },
+    inputBindings: [{ source: 'image', nodeId: '1', inputName: 'image' }],
+    outputNodeIds: ['2'],
+    modelPresetIds: ['default'],
+    defaultModelPresetId: 'default',
+};
+
+jest.mock('@/providers/DialogProvider', () => ({
+    __esModule: true,
+    useDialog: () => ({
+        confirm: (...args: unknown[]) => mockDialogConfirm(...args),
+    }),
+}));
+
+jest.mock('@/lib/assetPersistence', () => ({
+    __esModule: true,
+    persistAssetToLibrary: (...args: unknown[]) => mockPersistAssetToLibrary(...args),
+}));
+
+jest.mock('@/lib/comfyui/connection', () => {
+    const actual = jest.requireActual('@/lib/comfyui/connection');
+    return {
+        __esModule: true,
+        ...actual,
+        hydrateComfyCloudSettingsFromRuntime: (...args: unknown[]) => mockHydrateComfyCloudSettingsFromRuntime(...args),
+        loadComfyCloudApiKey: (...args: unknown[]) => mockLoadComfyCloudApiKey(...args),
+        verifyAvailableComfyConnection: (...args: unknown[]) => mockVerifyAvailableComfyConnection(...args),
+    };
+});
+
+jest.mock('@/lib/comfyui/runner', () => {
+    const actual = jest.requireActual('@/lib/comfyui/runner');
+    return {
+        __esModule: true,
+        ...actual,
+        inspectComfyServerCatalog: (...args: unknown[]) => mockInspectComfyServerCatalog(...args),
+    };
+});
+
+jest.mock('next/image', () => ({
+    __esModule: true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    default: ({ src, alt, fill, unoptimized }: any) => (
+        <div
+            data-testid="mock-next-image"
+            data-src={String(src)}
+            data-alt={String(alt)}
+            data-fill={String(fill)}
+            data-unoptimized={String(unoptimized)}
+        />
+    ),
+}));
+
+jest.mock('../AI/StabilityGenerator', () => ({
+    __esModule: true,
+    default: ({
+        apiKey,
+        embedded,
+    }: {
+        apiKey?: string;
+        embedded?: boolean;
+    }) => (
+        <div data-testid="stability-generator">
+            <span data-testid="stability-api-key">{apiKey || ''}</span>
+            <span data-testid="stability-embedded">{String(Boolean(embedded))}</span>
+        </div>
+    ),
+}));
+
+jest.mock('../ComfyWorkflowLibraryPanel', () => ({
+    __esModule: true,
+    default: ({
+        selectedTask,
+        onUseWorkflow,
+        onWorkflowsDiscovered,
+    }: {
+        selectedTask: string;
+        onUseWorkflow: (registration: typeof mockComfyWorkflowRegistration) => void;
+        onWorkflowsDiscovered?: (registrations: Array<typeof mockComfyWorkflowRegistration>) => void;
+    }) => (
+        <div data-testid="mock-comfy-workflow-library-panel">
+            <div>Workflow Library</div>
+            <div>{selectedTask}</div>
+            <div>Server Upscale</div>
+            <button type="button" onClick={() => onUseWorkflow(mockComfyWorkflowRegistration)}>
+                Use Mock Workflow
+            </button>
+            <button type="button" onClick={() => onWorkflowsDiscovered?.([mockComfyWorkflowRegistration])}>
+                Discover Mock Workflows
+            </button>
+        </div>
+    ),
+}));
+
+jest.mock('@/hooks/useEscapeKey', () => ({
+    __esModule: true,
+    default: (...args: unknown[]) => mockUseEscapeKey(...args),
+}));
+
+jest.mock('fabric', () => {
+    class MockRect {
+        type = 'rect';
+        width = 0;
+        height = 0;
+        left = 0;
+        top = 0;
+        scaleX = 1;
+        scaleY = 1;
+        listeners = new Map<string, (...args: unknown[]) => void>();
+
+        constructor(options: Partial<MockRect> = {}) {
+            Object.assign(this, options);
+        }
+
+        on = jest.fn((event: string, cb: (...args: unknown[]) => void) => {
+            this.listeners.set(event, cb);
+        });
+
+        set = jest.fn((patch: Record<string, unknown>) => {
+            Object.assign(this, patch);
+            return this;
+        });
+    }
+
+    class MockImage {
+        width = 1024;
+        height = 768;
+        scaleX = 1;
+        scaleY = 1;
+        left = 0;
+        top = 0;
+
+        set = jest.fn((patch: Record<string, unknown>) => {
+            Object.assign(this, patch);
+            return this;
+        });
+
+        scale = jest.fn((value: number) => {
+            this.scaleX = value;
+            this.scaleY = value;
+            return this;
+        });
+    }
+
+    return {
+        Rect: MockRect,
+        Image: {
+            fromURL: (...args: unknown[]) => mockImageFromURL(...args),
+        },
+        __MockImage: MockImage,
+    };
+});
+
+type RectLike = {
+    type: string;
+    width: number;
+    height: number;
+    scaleX: number;
+    scaleY: number;
+    left: number;
+    top: number;
+};
+
+type CanvasLike = {
+    width: number;
+    height: number;
+    artboard?: { width: number; height: number };
+    defaultCursor?: string;
+    hoverCursor?: string;
+    selection?: boolean;
+    isDrawingMode?: boolean;
+    getActiveObject: jest.Mock;
+    getObjects: jest.Mock;
+    add: jest.Mock;
+    remove: jest.Mock;
+    setActiveObject: jest.Mock;
+    requestRenderAll: jest.Mock;
+    contains: jest.Mock;
+    centerObject: jest.Mock;
+    renderAll: jest.Mock;
+    toDataURL: jest.Mock;
+    viewportTransform?: number[];
+};
+
+const createCanvasStub = (
+    activeObject: RectLike | null = null,
+    objects: Array<Record<string, unknown>> = []
+): CanvasLike => ({
+    width: 1200,
+    height: 800,
+    artboard: { width: 1000, height: 700 },
+    defaultCursor: 'crosshair',
+    hoverCursor: 'crosshair',
+    selection: false,
+    isDrawingMode: true,
+    getActiveObject: jest.fn(() => activeObject),
+    getObjects: jest.fn(() => objects),
+    add: jest.fn(),
+    remove: jest.fn(),
+    setActiveObject: jest.fn(),
+    requestRenderAll: jest.fn(),
+    contains: jest.fn(() => true),
+    centerObject: jest.fn(),
+    renderAll: jest.fn(),
+    toDataURL: jest.fn(() => 'data:image/png;base64,mock'),
+    viewportTransform: [1, 0, 0, 1, 0, 0],
+});
+
+describe('ImageGeneratorModal', () => {
+    const originalFetch = global.fetch;
+
+    const mockJsonResponse = (body: unknown) => ({
+        ok: true,
+        json: async () => body,
+    });
+
+    const mockComfyLibraryResponse = () => mockJsonResponse({
+        success: true,
+        snapshot: {
+            installPath: 'D:\\ComfyUI',
+            customNodesPath: 'D:\\ComfyUI\\custom_nodes',
+            workflowLibraryPath: 'D:\\ComfyUI\\user\\default\\workflows',
+            serverTemplates: [
+                {
+                    id: 'server-upscale',
+                    source: 'server-template',
+                    name: 'Server Upscale',
+                    description: 'Upscale workflow',
+                    task: 'upscale',
+                    runnable: true,
+                    category: 'Server Templates',
+                    nodeTypes: ['LoadImage', 'SaveImage'],
+                    registration: {
+                        id: 'server-upscale',
+                        task: 'upscale',
+                        name: 'Server Upscale',
+                        description: 'Upscale workflow',
+                        blueprint: {
+                            '1': { class_type: 'LoadImage', inputs: { image: 'input.png' } },
+                            '2': { class_type: 'SaveImage', inputs: { images: ['1', 0], filename_prefix: 'ComfyUI' } },
+                        },
+                        inputBindings: [{ source: 'image', nodeId: '1', inputName: 'image' }],
+                        outputNodeIds: ['2'],
+                        modelPresetIds: ['default'],
+                        defaultModelPresetId: 'default',
+                    },
+                },
+            ],
+            customFolderWorkflows: [],
+            nodeRepos: [],
+            warnings: [],
+        },
+    });
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
+        const fabricModule = jest.requireMock('fabric') as {
+            __MockImage: new () => unknown;
+        };
+        mockImageFromURL.mockResolvedValue(new fabricModule.__MockImage());
+        global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+            if (String(input) === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+
+            if (String(input).startsWith('/api/runtime/installer/status')) {
+                return mockJsonResponse(mockInstallerRuntimeStatus) as Response;
+            }
+
+            return mockJsonResponse({}) as Response;
+        });
+        mockPersistAssetToLibrary.mockResolvedValue({ savedProviders: ['local'], warnings: [] });
+    });
+
+    afterAll(() => {
+        global.fetch = originalFetch;
+    });
+
+    it('returns null when closed', () => {
+        const { container } = render(<ImageGeneratorModal isOpen={false} onClose={jest.fn()} />);
+        expect(container.firstChild).toBeNull();
+    });
+
+    it('renders a larger resizable modal frame by default', () => {
+        render(<ImageGeneratorModal onClose={jest.fn()} />);
+
+        expect(screen.getByTestId('generative-modal')).toHaveStyle({
+            width: 'min(94vw, 760px)',
+            height: 'min(84vh, 760px)',
+            resize: 'both',
+        });
+    });
+
+    it('creates a new zone rectangle when no active rect exists and cleans it up on unmount', () => {
+        const onClose = jest.fn();
+        const canvas = createCanvasStub();
+        const { unmount } = render(
+            <ImageGeneratorModal onClose={onClose} canvas={canvas as unknown as never} />
+        );
+
+        expect(canvas.add).toHaveBeenCalledTimes(1);
+        expect(canvas.setActiveObject).toHaveBeenCalledTimes(1);
+        expect(canvas.requestRenderAll).toHaveBeenCalled();
+
+        const createdZone = canvas.add.mock.calls[0][0];
+        unmount();
+
+        expect(canvas.contains).toHaveBeenCalledWith(createdZone);
+        expect(canvas.remove).toHaveBeenCalledWith(createdZone);
+    });
+
+    it('uses the active accent palette for newly created AI zones', () => {
+        document.documentElement.dataset.themeAccent = 'meadow';
+        const canvas = createCanvasStub();
+
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        const createdZone = canvas.add.mock.calls[0][0];
+        expect(createdZone.fill).toBe('rgba(21, 128, 61, 0.14)');
+        expect(createdZone.stroke).toBe('#15803d');
+        expect(createdZone.cornerColor).toBe('#15803d');
+
+        document.documentElement.dataset.themeAccent = 'ocean';
+    });
+
+    it('uses selected rectangle as zone dimensions', () => {
+        const existingRect = {
+            type: 'rect',
+            width: 300,
+            height: 200,
+            scaleX: 1.5,
+            scaleY: 0.8,
+            left: 40,
+            top: 50,
+        };
+        const canvas = createCanvasStub(existingRect);
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        expect(screen.getByText('450x160')).toBeInTheDocument();
+        expect(canvas.add).not.toHaveBeenCalled();
+    });
+
+    it('forces the canvas back into selectable mode when the AI modal opens', () => {
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        expect(canvas.isDrawingMode).toBe(false);
+        expect(canvas.selection).toBe(true);
+        expect(canvas.defaultCursor).toBe('default');
+        expect(canvas.hoverCursor).toBe('move');
+        expect(canvas.requestRenderAll).toHaveBeenCalled();
+    });
+
+    it('loads provider options from localStorage and persists provider selection', () => {
+        localStorage.setItem('stability_api_key', 'stability-key');
+        localStorage.setItem('openai_api_key', 'openai-key');
+        localStorage.setItem(
+            'image-express-generative-preferences',
+            JSON.stringify({
+                defaultProvider: 'openai',
+                defaultWorkflow: 'zone',
+                comfyServerUrl: 'http://localhost:8188',
+                autoStartInpaintMasking: true,
+                showInpaintPromptDock: true,
+            })
+        );
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        const providerSelect = screen.getAllByRole('combobox')[0];
+        expect(providerSelect).toHaveValue('openai');
+        expect(screen.getByRole('option', { name: 'ComfyUI' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'Ollama (Local SVG)' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'Stability AI' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'ChatGPT / OpenAI' })).toBeInTheDocument();
+
+        fireEvent.change(providerSelect, { target: { value: 'comfy' } });
+        expect(localStorage.getItem('image-express-gen-provider')).toBe('comfy');
+    });
+
+    it('imports a runnable workflow from the Comfy workflow library', async () => {
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Use Mock Workflow' }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Comfy workflow "Server Upscale" is ready.')).toBeInTheDocument();
+        });
+    });
+
+    it('adds discovered library workflows to the main Comfy workflow selector', async () => {
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Discover Mock Workflows' }));
+
+        const taskSelect = screen.getAllByRole('combobox')[2];
+        fireEvent.change(taskSelect, { target: { value: 'upscale' } });
+
+        await waitFor(() => {
+            const workflowSelect = screen.getAllByRole('combobox')[3] as HTMLSelectElement;
+            const optionLabels = Array.from(workflowSelect.options).map((option) => option.text);
+            expect(optionLabels).toContain('Server Upscale');
+        });
+    });
+
+    it('generates image via remote provider and shows preview', async () => {
+        localStorage.setItem('openai_api_key', 'openai-123');
+        localStorage.setItem('image-express-gen-provider', 'openai');
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'https://cdn.example/generated.png' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A robot in watercolor' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('mock-next-image')).toBeInTheDocument();
+            expect(screen.getByText('Generation complete!')).toBeInTheDocument();
+        });
+
+        const generateCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/generate-image');
+        expect(generateCall).toBeDefined();
+        const payload = JSON.parse(generateCall?.[1].body as string);
+        expect(payload).toEqual(
+            expect.objectContaining({
+                provider: 'remote',
+                specificProvider: 'openai',
+                apiKey: 'openai-123',
+                prompt: 'A robot in watercolor',
+            })
+        );
+    });
+
+    it('treats Banana as a ready provider and forwards the saved Banana key', async () => {
+        localStorage.setItem('banana_api_key', 'banana-123');
+        localStorage.setItem('image-express-gen-provider', 'banana');
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'data:image/png;base64,AQIDBA==' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        expect(screen.getByText('Ready for generation')).toBeInTheDocument();
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A glossy product hero shot' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('mock-next-image')).toBeInTheDocument();
+        });
+
+        const generateCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/generate-image');
+        expect(generateCall).toBeDefined();
+        const payload = JSON.parse(generateCall?.[1].body as string);
+        expect(payload).toEqual(
+            expect.objectContaining({
+                provider: 'remote',
+                specificProvider: 'banana',
+                apiKey: 'banana-123',
+                prompt: 'A glossy product hero shot',
+            })
+        );
+    });
+
+    it('forwards saved Ollama runtime settings when generating through the local provider', async () => {
+        localStorage.setItem('image-express-gen-provider', 'ollama');
+        localStorage.setItem(LOCAL_AI_PREFERENCES_STORAGE_KEY, JSON.stringify({
+            ollamaBaseUrl: 'http://localhost:11434',
+            ollamaModel: 'qwen2.5:7b',
+        }));
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A geometric fox poster' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('mock-next-image')).toBeInTheDocument();
+            expect(screen.getByText('Generation complete!')).toBeInTheDocument();
+        });
+
+        const generateCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/generate-image');
+        expect(generateCall).toBeDefined();
+        const payload = JSON.parse(generateCall?.[1].body as string);
+        expect(payload).toEqual(expect.objectContaining({
+            provider: 'remote',
+            specificProvider: 'ollama',
+            localAiBaseUrl: 'http://localhost:11434',
+            localAiModel: 'qwen2.5:7b',
+            prompt: 'A geometric fox poster',
+        }));
+    });
+
+    it('prompts to install a missing Ollama model and runs the install request', async () => {
+        localStorage.setItem('image-express-gen-provider', 'ollama');
+        localStorage.setItem(LOCAL_AI_PREFERENCES_STORAGE_KEY, JSON.stringify({
+            ollamaBaseUrl: 'http://localhost:11434',
+            ollamaModel: 'qwen2.5:7b',
+        }));
+        mockDialogConfirm.mockResolvedValue(true);
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({
+                    success: false,
+                    message: 'Model "qwen2.5:7b" is not installed in Ollama at http://localhost:11434. Available models: qwen2.5-coder:7b, llama3.1:8b.',
+                });
+            }
+            if (input === '/api/ai/ollama/install') {
+                return mockJsonResponse({
+                    success: true,
+                    message: 'Installed "qwen2.5:7b" in Ollama at http://localhost:11434.',
+                    model: 'qwen2.5:7b',
+                    baseUrl: 'http://localhost:11434',
+                });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A geometric fox poster' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(mockDialogConfirm).toHaveBeenCalledWith(
+                'Model "qwen2.5:7b" is not installed in Ollama yet. Download and install it now?',
+                expect.objectContaining({ title: 'Install missing Ollama model' })
+            );
+        });
+        await waitFor(() => {
+            expect((global.fetch as jest.Mock).mock.calls.find(([url]) => url === '/api/ai/ollama/install')).toBeDefined();
+            expect(screen.getByText(/Installed "qwen2.5:7b" in Ollama/i)).toBeInTheDocument();
+        });
+    });
+
+    it('shows error message when generation fails', async () => {
+        localStorage.setItem('openai_api_key', 'openai-123');
+        localStorage.setItem('image-express-gen-provider', 'openai');
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: false, message: 'Generation failed upstream' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'Bad request' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Error: Generation failed upstream')).toBeInTheDocument();
+        });
+    });
+
+    it('verifies the local ComfyUI runtime during generate and shows a user-facing error if it is unavailable', async () => {
+        window.localStorage.setItem('image-express-generative-preferences', JSON.stringify({
+            defaultProvider: 'comfy',
+            defaultWorkflow: 'zone',
+            comfyServerUrl: 'http://127.0.0.1:8188',
+            comfyConnectionMode: 'local',
+            comfyCloudUrl: 'https://cloud.comfy.org',
+            autoStartInpaintMasking: true,
+            showInpaintPromptDock: true,
+        }));
+
+        mockVerifyAvailableComfyConnection.mockResolvedValueOnce({
+            ok: false,
+            message: 'Could not reach local ComfyUI at http://127.0.0.1:8188. If this app is running in Docker while ComfyUI is on the host machine, keep the URL as localhost or switch to host.docker.internal and the app proxy will retry it server-side.',
+        });
+
+        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Use Mock Workflow' }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Comfy workflow "Server Upscale" is ready.')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(mockVerifyAvailableComfyConnection).toHaveBeenCalledWith(expect.objectContaining({
+                mode: 'local',
+                localUrl: 'http://localhost:8188',
+            }));
+            expect(screen.getByText(/^Error: Could not reach local ComfyUI at http:\/\/127\.0\.0\.1:8188\./)).toBeInTheDocument();
+        });
+
+        expect(consoleErrorSpy).not.toHaveBeenCalled();
+        consoleErrorSpy.mockRestore();
+    });
+
+    it('places generated image on canvas, persists it to the configured asset library, and closes modal', async () => {
+        localStorage.setItem('openai_api_key', 'openai-123');
+        localStorage.setItem('image-express-gen-provider', 'openai');
+        const onClose = jest.fn();
+        const canvas = createCanvasStub();
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'https://cdn.example/generated.png' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        render(
+            <ImageGeneratorModal
+                onClose={onClose}
+                canvas={canvas as unknown as never}
+                currentUser="artist@example.com"
+            />
+        );
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A mountain logo' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Place on Canvas' })).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Place on Canvas' }));
+
+        await waitFor(() => {
+            expect(mockImageFromURL).toHaveBeenCalledWith('https://cdn.example/generated.png', {
+                crossOrigin: 'anonymous',
+            });
+            expect(canvas.remove).toHaveBeenCalled();
+            expect(canvas.add).toHaveBeenCalledTimes(2);
+            expect(canvas.setActiveObject).toHaveBeenCalled();
+            expect(canvas.requestRenderAll).toHaveBeenCalled();
+            expect(onClose).toHaveBeenCalled();
+        });
+
+        expect(mockPersistAssetToLibrary).toHaveBeenCalledWith(expect.objectContaining({
+            source: 'https://cdn.example/generated.png',
+            type: 'images',
+            category: 'generated',
+            owner: 'artist@example.com',
+        }));
+    });
+
+    it('calls onGenerate fallback when no canvas is provided', async () => {
+        localStorage.setItem('openai_api_key', 'openai-123');
+        localStorage.setItem('image-express-gen-provider', 'openai');
+        const onGenerate = jest.fn();
+        const onClose = jest.fn();
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input === '/api/ai/comfy/library') {
+                return mockComfyLibraryResponse() as Response;
+            }
+            if (input === '/api/ai/generate-image') {
+                return mockJsonResponse({ success: true, imageUrl: 'https://cdn.example/generated.png' });
+            }
+
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        render(<ImageGeneratorModal onClose={onClose} onGenerate={onGenerate} />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            { target: { value: 'A skyline at dusk' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Place on Canvas' })).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Place on Canvas' }));
+
+        await waitFor(() => {
+            expect(onGenerate).toHaveBeenCalledWith('https://cdn.example/generated.png');
+            expect(onClose).toHaveBeenCalled();
+        });
+    });
+
+    it('switches to stability mode and renders embedded generator with configured key', () => {
+        localStorage.setItem('stability_api_key', 'stab-abc');
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'stability' } });
+
+        expect(screen.getByTestId('stability-generator')).toBeInTheDocument();
+        expect(screen.getByTestId('stability-api-key')).toHaveTextContent('stab-abc');
+        expect(screen.getByTestId('stability-embedded')).toHaveTextContent('true');
+    });
+
+    it('shows a configure-action for unconfigured providers', () => {
+        const onOpenSettings = jest.fn();
+        render(<ImageGeneratorModal onClose={jest.fn()} onOpenSettings={onOpenSettings} />);
+
+        fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'openai' } });
+
+        expect(screen.getByText(/Add the ChatGPT \/ OpenAI API key in Settings before generating\./i)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Configure AI Service' }));
+
+        expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows AI Edit Notes step flow and keeps layer actions disabled without canvas layers', async () => {
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('checkbox'));
+
+        expect(screen.getByText('Step 1 · Create Reference Layer')).toBeInTheDocument();
+        expect(screen.getByText('Step 2 · Notes Workspace')).toBeInTheDocument();
+        expect(screen.getByText('Step 3 · Note Tools')).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Make Reference Layer' })).toBeDisabled();
+            expect(screen.getByRole('button', { name: /Pointer Notes:/i })).toBeDisabled();
+            expect(
+                screen.getByRole('button', {
+                    name: 'Step 4 · Save Ref Notes Layer to Canvas (embedded notes + metadata)',
+                })
+            ).toBeDisabled();
+        });
+    });
+
+    it('auto-selects a canvas layer for AI Edit Notes when layers are present', async () => {
+        const layerObject = {
+            type: 'image',
+            visible: true,
+            getBoundingRect: jest.fn(() => ({ left: 0, top: 0, width: 512, height: 512 })),
+        };
+        const canvas = createCanvasStub(null, [layerObject]);
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('checkbox'));
+
+        await waitFor(() => {
+            expect(screen.getByText(/Selected layer:/i)).not.toHaveTextContent('None selected');
+            expect(screen.getByRole('button', { name: 'Make Reference Layer' })).toBeEnabled();
+        });
+    });
+
+    it('prompts to install missing Comfy requirements from the Comfy panel', async () => {
+        mockDialogConfirm.mockResolvedValueOnce(true);
+        mockInspectComfyServerCatalog.mockResolvedValue({
+            detectedVersion: '0.18.1',
+            serverUrl: 'http://localhost:8188',
+            workflowCount: 10,
+            compatibleWorkflowCount: 7,
+            transportKind: 'local',
+            records: [
+                {
+                    workflowId: 'image_flux2_klein_image_edit_4b_base',
+                    workflowName: 'Z Image Turbo / FLUX 2 Klein Image Edit (4B Template)',
+                    task: 'img2img',
+                    requiredNodeTypes: ['Flux2Scheduler', 'UNETLoader'],
+                    missingNodeTypes: [],
+                    missingModels: [
+                        {
+                            name: 'flux-2-klein-base-4b-fp8.safetensors',
+                            downloadUrl: 'https://example.com/flux-2-klein-base-4b-fp8.safetensors',
+                            directory: 'diffusion_models',
+                        },
+                    ],
+                    compatible: false,
+                    canAutoUpdateInstall: false,
+                },
+                {
+                    workflowId: 'image_flux2_klein_image_edit_9b_base',
+                    workflowName: 'FLUX 2 Klein Image Edit (9B Template)',
+                    task: 'img2img',
+                    requiredNodeTypes: ['Flux2Scheduler', 'UNETLoader'],
+                    missingNodeTypes: ['Flux2Scheduler'],
+                    missingModels: [],
+                    compatible: false,
+                    canAutoUpdateInstall: true,
+                },
+            ],
+        });
+
+        (global.fetch as jest.Mock).mockImplementation(async (input: string, init?: RequestInit) => {
+            if (String(input).startsWith('/api/runtime/installer/status')) {
+                return mockJsonResponse(mockInstallerRuntimeStatus) as Response;
+            }
+
+            if (input === '/api/ai/comfy/library') {
+                const body = init?.body ? JSON.parse(init.body as string) : {};
+                if (body.action === 'install-requirements') {
+                    return mockJsonResponse({ success: true, message: 'Installed Comfy requirements.' }) as Response;
+                }
+
+                return mockComfyLibraryResponse() as Response;
+            }
+
+            return mockJsonResponse({}) as Response;
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Verify ComfyUI Connection' }));
+
+        await waitFor(() => {
+            expect(mockDialogConfirm).toHaveBeenCalled();
+        });
+
+        expect(global.fetch).toHaveBeenCalledWith(
+            '/api/ai/comfy/library',
+            expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining('install-requirements'),
+            })
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Installed Comfy requirements.')).toBeInTheDocument();
+        });
+    });
+
+    it('shows ComfyUI diagnostics in a popup text window', async () => {
+        (global.fetch as jest.Mock).mockImplementation(async (input: string, init?: RequestInit) => {
+            if (String(input).startsWith('/api/runtime/installer/status')) {
+                return mockJsonResponse(mockInstallerRuntimeStatus) as Response;
+            }
+
+            if (input === '/api/ai/comfy/library') {
+                const body = init?.body ? JSON.parse(init.body as string) : {};
+                if (body.action === 'inspect-config') {
+                    return mockJsonResponse({
+                        success: true,
+                        diagnostics: {
+                            generatedAt: '2026-04-01T12:00:00.000Z',
+                            connection: {
+                                serverUrl: 'http://localhost:8188',
+                                transportKind: 'local',
+                                apiBasePath: '',
+                                historyPathBase: '/history',
+                            },
+                            paths: {
+                                modelsPath: 'D:\\ComfyUI\\models',
+                                statuses: [
+                                    {
+                                        label: 'Models Path',
+                                        path: 'D:\\ComfyUI\\models',
+                                        exists: true,
+                                        readable: true,
+                                        note: 'Expected root for checkpoints, LoRAs, VAEs, ControlNets, and other model assets.',
+                                    },
+                                ],
+                            },
+                            runtime: {
+                                features: { api: true },
+                                systemStats: { devices: [{ name: 'RTX 4090' }] },
+                                nodeTypes: ['CheckpointLoaderSimple', 'LoraLoaderModelOnly'],
+                            },
+                            assets: [
+                                {
+                                    id: 'checkpoints',
+                                    label: 'Checkpoints',
+                                    expectedSubdirectory: 'checkpoints',
+                                    values: ['flux1-dev.safetensors'],
+                                    sourceInputs: ['CheckpointLoaderSimple.ckpt_name'],
+                                },
+                                {
+                                    id: 'loras',
+                                    label: 'LoRAs',
+                                    expectedSubdirectory: 'loras',
+                                    values: ['detailer.safetensors'],
+                                    sourceInputs: ['LoraLoaderModelOnly.lora_name'],
+                                },
+                            ],
+                            library: {
+                                installPath: 'D:\\ComfyUI',
+                                customNodesPath: 'D:\\ComfyUI\\custom_nodes',
+                                workflowLibraryPath: 'D:\\ComfyUI\\user\\default\\workflows',
+                                serverTemplates: [
+                                    {
+                                        id: 'server-template',
+                                        source: 'server-template',
+                                        name: 'Server Template',
+                                        description: 'From ComfyUI',
+                                        task: 'generate',
+                                        runnable: true,
+                                        category: 'Server Templates',
+                                        location: 'http://localhost:8188/workflow_templates/server-template.json',
+                                        nodeTypes: ['CheckpointLoaderSimple'],
+                                    },
+                                ],
+                                customFolderWorkflows: [
+                                    {
+                                        id: 'custom-workflow',
+                                        source: 'custom-folder',
+                                        name: 'My Local Workflow',
+                                        description: 'Local workflow',
+                                        task: 'img2img',
+                                        runnable: true,
+                                        category: 'Workflow Folder',
+                                        location: 'D:\\ComfyUI\\user\\default\\workflows\\my-local-workflow.json',
+                                        nodeTypes: ['LoraLoaderModelOnly'],
+                                    },
+                                ],
+                                nodeRepos: [
+                                    {
+                                        name: 'ComfyUI-Manager',
+                                        path: 'D:\\ComfyUI\\custom_nodes\\ComfyUI-Manager',
+                                        repoKind: 'custom-nodes',
+                                        gitManaged: true,
+                                        workflowHintCount: 3,
+                                        requirementsFile: true,
+                                    },
+                                ],
+                                warnings: [],
+                            },
+                        },
+                    }) as Response;
+                }
+
+                return mockComfyLibraryResponse() as Response;
+            }
+
+            return mockJsonResponse({}) as Response;
+        });
+
+        const canvas = createCanvasStub();
+        render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show ComfyUI Diagnostics' }));
+
+        await waitFor(() => {
+            expect(screen.getByLabelText('ComfyUI diagnostics output')).toBeInTheDocument();
+        });
+
+        expect(global.fetch).toHaveBeenCalledWith(
+            '/api/ai/comfy/library',
+            expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining('inspect-config'),
+            })
+        );
+
+        const diagnosticsOutput = screen.getByLabelText('ComfyUI diagnostics output') as HTMLTextAreaElement;
+        expect(diagnosticsOutput.value).toContain('Server URL: http://localhost:8188');
+        expect(diagnosticsOutput.value).toContain('flux1-dev.safetensors');
+        expect(diagnosticsOutput.value).toContain('detailer.safetensors');
+        expect(diagnosticsOutput.value).toContain('My Local Workflow');
+        expect(diagnosticsOutput.value).toContain('CheckpointLoaderSimple');
+    });
+});
