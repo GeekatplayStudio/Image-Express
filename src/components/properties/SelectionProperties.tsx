@@ -79,7 +79,7 @@ interface SelectionPropertiesProps {
     onMake3D?: (imageUrl: string) => void;
     
     // Specific state overrides that might not be on object directly or need React state
-    textState?: { text: string; font: string; weight: string; curve: number; center: number; span: number; spellcheck: boolean };
+    textState?: { text: string; font: string; weight: string; curve: number; center: number; span: number; spellcheck: boolean; bgEnabled: boolean; bgColor: string; bgPadding: number; bgCorners: number; bgStyle: 'rect' | 'pill' | 'speech' };
     activeTextEffects?: string[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     textEffectConfigs?: Record<string, any>;
@@ -252,6 +252,11 @@ export function SelectionProperties({
                     curveCenter={textState.center}
                     curveSpan={textState.span}
                     spellcheckEnabled={textState.spellcheck}
+                    textBgEnabled={textState.bgEnabled}
+                    textBgColor={textState.bgColor}
+                    textBgPadding={textState.bgPadding}
+                    textBgCorners={textState.bgCorners}
+                    textBgStyle={textState.bgStyle}
                     pathOptions={textPathOptions}
                     selectedPathId={selectedTextPathId}
                     hasAttachedPath={!!hasAttachedTextPath}
@@ -260,6 +265,11 @@ export function SelectionProperties({
                     onFontWeightChange={(w) => onPropChange('fontWeight', w)}
                     onCurveChange={(s, c, sp) => onPropChange('curve', { strength: s, center: c, span: sp })}
                     onSpellcheckChange={(enabled) => onPropChange('textSpellcheck', enabled)}
+                    onTextBgEnabledChange={(enabled) => onPropChange('textBgEnabled', enabled)}
+                    onTextBgColorChange={(color) => onPropChange('textBgColor', color)}
+                    onTextBgPaddingChange={(padding) => onPropChange('textBgPadding', padding)}
+                    onTextBgCornersChange={(corners) => onPropChange('textBgCorners', corners)}
+                    onTextBgStyleChange={(style) => onPropChange('textBgStyle', style)}
                     onAttachPath={onAttachTextToPath}
                     onDetachPath={onDetachTextPath}
                 />
