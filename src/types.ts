@@ -191,6 +191,11 @@ export type ExtendedFabricObject = fabric.Object & {
     skewZBaseSkewY?: number;
     backsideBaseFlipX?: boolean;
     pseudoBacksidePreset?: 'front' | 'back';
+    textBgEnabled?: boolean;
+    textBgColor?: string;
+    textBgPadding?: number;
+    textBgCorners?: number;
+    textBgStyle?: 'rect' | 'pill' | 'speech';
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

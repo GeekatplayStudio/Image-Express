@@ -7,6 +7,69 @@ import { ensureObjectId } from '@/lib/fabric-utils';
 import { duplicateCanvasObjects } from '@/components/Editor/duplicateCanvasSelection';
 import { ExtendedFabricObject } from '@/types';
 
+// Patch IText and Textbox to support dynamic background shapes (Photoshop / Adobe Express Style)
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+function patchTextRender(Class: any) {
+    if (!Class || !Class.prototype || Class.prototype._renderBgPatched) return;
+    Class.prototype._renderBgPatched = true;
+    const originalRender = Class.prototype._render;
+    Class.prototype._render = function(ctx: CanvasRenderingContext2D) {
+        const self = this as unknown as ExtendedFabricObject;
+        if (self.textBgEnabled) {
+            const w = this.width || 0;
+            const h = this.height || 0;
+            const pad = Number(self.textBgPadding ?? 10);
+            const corners = Number(self.textBgCorners ?? 0);
+            const color = self.textBgColor || '#ff0000';
+            const style = self.textBgStyle || 'rect';
+
+            ctx.save();
+            ctx.fillStyle = color;
+            
+            const x = -w / 2 - pad;
+            const y = -h / 2 - pad;
+            const width = w + pad * 2;
+            const height = h + pad * 2;
+            
+            ctx.beginPath();
+            if (style === 'pill') {
+                const rx = height / 2;
+                if (typeof ctx.roundRect === 'function') {
+                    ctx.roundRect(x, y, width, height, rx);
+                } else {
+                    ctx.rect(x, y, width, height);
+                }
+            } else if (style === 'speech') {
+                const rx = corners;
+                const tailHeight = 12;
+                const rectHeight = height - tailHeight;
+                if (typeof ctx.roundRect === 'function') {
+                    ctx.roundRect(x, y, width, rectHeight, rx);
+                } else {
+                    ctx.rect(x, y, width, rectHeight);
+                }
+                const tailWidth = 14;
+                ctx.moveTo(0 - tailWidth / 2, y + rectHeight);
+                ctx.lineTo(0 + tailWidth / 2, y + rectHeight);
+                ctx.lineTo(0, y + height);
+                ctx.closePath();
+            } else {
+                const rx = corners;
+                if (typeof ctx.roundRect === 'function') {
+                    ctx.roundRect(x, y, width, height, rx);
+                } else {
+                    ctx.rect(x, y, width, height);
+                }
+            }
+            ctx.fill();
+            ctx.restore();
+        }
+        originalRender.call(this, ctx);
+    };
+}
+patchTextRender(fabric.IText);
+patchTextRender(fabric.Textbox);
+
 type ArtboardInfo = {
     width: number;
     height: number;

@@ -525,6 +525,11 @@ export default function PropertiesPanel({
     const [fontWeight, setFontWeight] = useState('normal');
     const [textContent, setTextContent] = useState('');
     const [textSpellcheck, setTextSpellcheck] = useState(true);
+    const [textBgEnabled, setTextBgEnabled] = useState(false);
+    const [textBgColor, setTextBgColor] = useState('#ff0000');
+    const [textBgPadding, setTextBgPadding] = useState(10);
+    const [textBgCorners, setTextBgCorners] = useState(0);
+    const [textBgStyle, setTextBgStyle] = useState<'rect' | 'pill' | 'speech'>('rect');
 
     const [adjustmentSettings, setAdjustmentSettings] = useState<AdjustmentLayerSettings | null>(null);
 
@@ -1326,6 +1331,11 @@ export default function PropertiesPanel({
                     setCurveCenter(target.curveCenter || 0);
                     setCurveSpan(target.curveSpan || 180);
                     setTextSpellcheck(target.textSpellcheck !== false);
+                    setTextBgEnabled(Boolean(target.textBgEnabled));
+                    setTextBgColor(target.textBgColor || '#ff0000');
+                    setTextBgPadding(target.textBgPadding !== undefined ? target.textBgPadding : 10);
+                    setTextBgCorners(target.textBgCorners !== undefined ? target.textBgCorners : 0);
+                    setTextBgStyle(target.textBgStyle || 'rect');
                     
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const d = (target as any).data || {};
@@ -1917,13 +1927,42 @@ export default function PropertiesPanel({
             canvas.requestRenderAll();
             return;
         }
+        if (prop === 'textBgEnabled') {
+            selectedObject.set('textBgEnabled', value);
+            setTextBgEnabled(value);
+            selectedObject.set('dirty', true);
+            canvas.requestRenderAll();
+        }
+        if (prop === 'textBgColor') {
+            selectedObject.set('textBgColor', value);
+            setTextBgColor(value);
+            selectedObject.set('dirty', true);
+            canvas.requestRenderAll();
+        }
+        if (prop === 'textBgPadding') {
+            selectedObject.set('textBgPadding', value);
+            setTextBgPadding(value);
+            selectedObject.set('dirty', true);
+            canvas.requestRenderAll();
+        }
+        if (prop === 'textBgCorners') {
+            selectedObject.set('textBgCorners', value);
+            setTextBgCorners(value);
+            selectedObject.set('dirty', true);
+            canvas.requestRenderAll();
+        }
+        if (prop === 'textBgStyle') {
+            selectedObject.set('textBgStyle', value as 'rect' | 'pill' | 'speech');
+            setTextBgStyle(value as 'rect' | 'pill' | 'speech');
+            selectedObject.set('dirty', true);
+            canvas.requestRenderAll();
+        }
         
         if (prop === 'curve') {
              const { strength, center, span } = value as { strength: number; center?: number; span?: number };
              const extended = selectedObject as ExtendedFabricObject;
              const nextCenter = center ?? 0;
              const nextSpan = Math.max(15, Math.min(359, Math.round(span ?? curveSpan ?? 180)));
-               const normalizedStrength = Math.max(0, Math.min(1, Math.abs(strength) / 100));
              extended.set({ curveStrength: strength, curveCenter: nextCenter, curveSpan: nextSpan, textPathSourceId: undefined });
              setCurveStrength(strength);
              setCurveCenter(nextCenter);
@@ -1934,46 +1973,51 @@ export default function PropertiesPanel({
                  (selectedObject as fabric.IText).set('pathStartOffset', 0);
                  clearTextPathRenderSafetyIfUnused(selectedObject as fabric.IText);
              } else {
-                 const textObj = selectedObject as fabric.IText;
-                 const baseWidth = typeof textObj.calcTextWidth === 'function'
-                     ? textObj.calcTextWidth()
-                     : (textObj.width ?? 0);
-                 const textWidth = Math.max(baseWidth || 0, 1);
-                 const angle = (Math.max(15, Math.min(359, nextSpan)) * Math.PI) / 180;
-                 // Add a generous length buffer at stronger curves to keep text from wrapping on itself or clipping end characters.
-                 // Glyphs on curve edges often need more room.
-                 const fontSize = typeof textObj.fontSize === 'number' ? textObj.fontSize : 16;
-                 const padding = Math.max(24, fontSize * 1.5, textWidth * 0.25); 
-                 const arcLength = textWidth + padding;
-                 const startX = -(arcLength / 2);
-                 const endX = arcLength / 2;
-                 const baseRadius = arcLength / angle;
-                 const maxSagitta = Math.max(fontSize * 0.35, baseRadius * (1 - Math.cos(angle / 2)));
-                 // Linear mapping: the previous pow(x, 1.4) easing left the lower
-                 // half of the slider with no visible bend, which read as broken.
-                 const curveDepth = maxSagitta * normalizedStrength;
-                 const direction = strength >= 0 ? -1 : 1;
-                 const controlY = direction * curveDepth;
-                 const originX = (selectedObject.originX ?? 'center') as 'left' | 'center' | 'right';
-                 const originY = (selectedObject.originY ?? 'center') as 'top' | 'center' | 'bottom';
-                 const anchorPoint = selectedObject.getPointByOrigin(originX, originY);
+                  const textObj = selectedObject as fabric.IText;
+                  const baseWidth = typeof textObj.calcTextWidth === 'function'
+                      ? textObj.calcTextWidth()
+                      : (textObj.width ?? 0);
+                  const textWidth = Math.max(baseWidth || 0, 1);
+                  const angle = (Math.max(15, Math.min(359.5, nextSpan)) * Math.PI) / 180;
+                  // Add a generous length buffer at stronger curves to keep text from wrapping on itself or clipping end characters.
+                  // Glyphs on curve edges often need more room.
+                  const fontSize = typeof textObj.fontSize === 'number' ? textObj.fontSize : 16;
+                  const padding = Math.max(24, fontSize * 1.5, textWidth * 0.25); 
+                  const arcLength = textWidth + padding;
+                  
+                  const baseRadius = arcLength / angle;
+                  const direction = strength >= 0 ? -1 : 1;
+                  const R = baseRadius;
+                  const halfAngle = angle / 2;
+                  
+                  const largeArcFlag = nextSpan > 180 ? 1 : 0;
+                  const sweepFlag = direction === -1 ? 1 : 0;
+                  
+                  const startX = -R * Math.sin(halfAngle);
+                  const startY = -direction * R * (1 - Math.cos(halfAngle));
+                  const endX = R * Math.sin(halfAngle);
+                  const endY = -direction * R * (1 - Math.cos(halfAngle));
 
-                 const pathData = `M ${startX} 0 Q 0 ${controlY} ${endX} 0`;
+                  const originX = (selectedObject.originX ?? 'center') as 'left' | 'center' | 'right';
+                  const originY = (selectedObject.originY ?? 'center') as 'top' | 'center' | 'bottom';
+                  const anchorPoint = selectedObject.getPointByOrigin(originX, originY);
 
-                 const path = new fabric.Path(pathData);
-                 path.set({ visible: false });
-                 selectedObject.set('path', path);
-                 applyTextPathRenderSafety(textObj);
-                 const pathLength = Math.max(1, arcLength);
-                 const slack = Math.max(0, pathLength - textWidth);
-                 const align = (textObj.textAlign || 'left').toLowerCase();
-                 let baseOffset = 0;
-                 if (align.includes('left')) baseOffset = slack / 2;
-                 else if (align.includes('right')) baseOffset = -(slack / 2);
-                 const centerShift = (nextCenter / 100) * (pathLength * 0.5);
-                 textObj.set('pathStartOffset', baseOffset + centerShift);
-                 selectedObject.setPositionByOrigin(anchorPoint, originX, originY);
-                 selectedObject.setCoords();
+                  const pathData = `M ${startX} ${startY} A ${R} ${R} 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY}`;
+
+                  const path = new fabric.Path(pathData);
+                  path.set({ visible: false });
+                  selectedObject.set('path', path);
+                  applyTextPathRenderSafety(textObj);
+                  const pathLength = Math.max(1, arcLength);
+                  const slack = Math.max(0, pathLength - textWidth);
+                  const align = (textObj.textAlign || 'left').toLowerCase();
+                  let baseOffset = 0;
+                  if (align.includes('left')) baseOffset = slack / 2;
+                  else if (align.includes('right')) baseOffset = -(slack / 2);
+                  const centerShift = (nextCenter / 100) * (pathLength * 0.5);
+                  textObj.set('pathStartOffset', baseOffset + centerShift);
+                  selectedObject.setPositionByOrigin(anchorPoint, originX, originY);
+                  selectedObject.setCoords();
              }
         }
 
@@ -3683,7 +3727,7 @@ export default function PropertiesPanel({
              updateAdjustment={updateAdjustment}
              onAdjustmentTypeChange={handleAdjustmentTypeChange}
              onCreateAdjustmentLayer={handleCreateAdjustmentLayer}
-             textState={{ text: textContent, font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter, span: curveSpan, spellcheck: textSpellcheck }}
+             textState={{ text: textContent, font: fontFamily, weight: fontWeight, curve: curveStrength, center: curveCenter, span: curveSpan, spellcheck: textSpellcheck, bgEnabled: textBgEnabled, bgColor: textBgColor, bgPadding: textBgPadding, bgCorners: textBgCorners, bgStyle: textBgStyle }}
              activeTextEffects={activeTextEffects}
              textEffectConfigs={textEffectConfigs}
              effectState={{ 

@@ -25,6 +25,11 @@ interface TextPropertiesProps {
     curveCenter: number;
     curveSpan?: number;
     spellcheckEnabled: boolean;
+    textBgEnabled?: boolean;
+    textBgColor?: string;
+    textBgPadding?: number;
+    textBgCorners?: number;
+    textBgStyle?: 'rect' | 'pill' | 'speech';
     pathOptions?: PathOption[];
     selectedPathId?: string | null;
     hasAttachedPath?: boolean;
@@ -33,6 +38,11 @@ interface TextPropertiesProps {
     onTextContentChange: (text: string) => void;
     onCurveChange: (strength: number, center?: number, span?: number) => void;
     onSpellcheckChange: (enabled: boolean) => void;
+    onTextBgEnabledChange?: (enabled: boolean) => void;
+    onTextBgColorChange?: (color: string) => void;
+    onTextBgPaddingChange?: (padding: number) => void;
+    onTextBgCornersChange?: (corners: number) => void;
+    onTextBgStyleChange?: (style: 'rect' | 'pill' | 'speech') => void;
     onAttachPath?: (pathId: string) => void;
     onDetachPath?: () => void;
 }
@@ -45,6 +55,11 @@ export function TextProperties({
     curveCenter,
     curveSpan,
     spellcheckEnabled,
+    textBgEnabled = false,
+    textBgColor = '#ff0000',
+    textBgPadding = 10,
+    textBgCorners = 0,
+    textBgStyle = 'rect',
     pathOptions = [],
     selectedPathId = null,
     hasAttachedPath = false,
@@ -53,6 +68,11 @@ export function TextProperties({
     onTextContentChange,
     onCurveChange,
     onSpellcheckChange,
+    onTextBgEnabledChange,
+    onTextBgColorChange,
+    onTextBgPaddingChange,
+    onTextBgCornersChange,
+    onTextBgStyleChange,
     onAttachPath,
     onDetachPath
 }: TextPropertiesProps) {
@@ -249,13 +269,16 @@ export function TextProperties({
                 
                 <div className="space-y-1">
                     <label className="text-[10px] text-muted-foreground">Weight</label>
-                    <select
-                        value={fontWeight}
-                        onChange={(e) => onFontWeightChange(e.target.value)}
-                        className="w-full text-xs bg-transparent border border-border rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
-                    >
-                        {TOP_TEXT_FONT_STYLES.map((weightOption) => <option key={weightOption} value={weightOption} className="bg-card text-foreground">{weightOption}</option>)}
-                    </select>
+                    <Select value={fontWeight} onValueChange={onFontWeightChange}>
+                        <SelectTrigger className="w-full text-xs">
+                            <SelectValue placeholder="Weight" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {TOP_TEXT_FONT_STYLES.map((weightOption) => (
+                                <SelectItem key={weightOption} value={weightOption}>{weightOption}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 <div className="pt-2 border-t border-border/30">
@@ -264,24 +287,27 @@ export function TextProperties({
                     <div className="space-y-3">
                         <div className="space-y-2 pb-2 border-b border-border/30">
                             <div className="text-[10px] text-muted-foreground">Align to existing pen path</div>
-                            <select
-                                value={selectedPathId || ''}
-                                onChange={(e) => {
-                                    const nextId = e.target.value;
-                                    if (nextId) onAttachPath?.(nextId);
+                            <Select
+                                value={selectedPathId || 'none'}
+                                onValueChange={(val) => {
+                                    if (val && val !== 'none') onAttachPath?.(val);
                                 }}
-                                className="w-full text-xs bg-transparent border border-border rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
                                 disabled={pathOptions.length === 0}
                             >
-                                <option value="" className="bg-card text-foreground">
-                                    {pathOptions.length === 0 ? 'No pen paths on canvas' : 'Select a pen path'}
-                                </option>
-                                {pathOptions.map((path) => (
-                                    <option key={path.id} value={path.id} className="bg-card text-foreground">
-                                        {path.label}
-                                    </option>
-                                ))}
-                            </select>
+                                <SelectTrigger className="w-full text-xs">
+                                    <SelectValue placeholder="Select a pen path" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">
+                                        {pathOptions.length === 0 ? 'No pen paths on canvas' : 'Select a pen path'}
+                                    </SelectItem>
+                                    {pathOptions.map((path) => (
+                                        <SelectItem key={path.id} value={path.id}>
+                                            {path.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             {hasAttachedPath && (
                                 <button
                                     onClick={onDetachPath}
@@ -389,6 +415,90 @@ export function TextProperties({
                             </button>
                         </div>
                     </div>
+                </div>
+
+                {/* Text Background Shape */}
+                <div className="pt-2 mt-2 border-t border-border/30">
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Background Shape</label>
+                        <input
+                            type="checkbox"
+                            checked={textBgEnabled}
+                            onChange={(e) => onTextBgEnabledChange?.(e.target.checked)}
+                            className="h-3 w-3 accent-primary cursor-pointer"
+                        />
+                    </div>
+
+                    {textBgEnabled && (
+                        <div className="space-y-3 animate-in fade-in-50 duration-200">
+                            {/* Color & Shape Preset Row */}
+                            <div className="flex gap-2 items-center">
+                                <div className="space-y-1 flex-1">
+                                    <label className="text-[9px] text-muted-foreground">Background Color</label>
+                                    <div className="flex items-center gap-1.5">
+                                        <input
+                                            type="color"
+                                            value={textBgColor}
+                                            onChange={(e) => onTextBgColorChange?.(e.target.value)}
+                                            className="h-6 w-8 rounded border border-border cursor-pointer bg-transparent"
+                                        />
+                                        <span className="text-[10px] font-mono uppercase text-muted-foreground">{textBgColor}</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-1 flex-1">
+                                    <label className="text-[9px] text-muted-foreground">Style</label>
+                                    <Select 
+                                        value={textBgStyle} 
+                                        onValueChange={(val) => onTextBgStyleChange?.(val as 'rect' | 'pill' | 'speech')}
+                                    >
+                                        <SelectTrigger className="w-full text-xs">
+                                            <SelectValue placeholder="Style" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="rect">Rectangle</SelectItem>
+                                            <SelectItem value="pill">Pill</SelectItem>
+                                            <SelectItem value="speech">Bubble</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            {/* Padding Slider */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-[10px] text-muted-foreground">
+                                    <span>Padding</span>
+                                    <span className="font-mono">{textBgPadding}px</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="80"
+                                    value={textBgPadding}
+                                    onChange={(e) => onTextBgPaddingChange?.(parseInt(e.target.value))}
+                                    className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                                />
+                            </div>
+
+                            {/* Corner Roundness Slider */}
+                            {textBgStyle !== 'pill' && (
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                                        <span>Roundness</span>
+                                        <span className="font-mono">{textBgCorners}px</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="60"
+                                        value={textBgCorners}
+                                        onChange={(e) => onTextBgCornersChange?.(parseInt(e.target.value))}
+                                        className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
