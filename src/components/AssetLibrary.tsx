@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import JSZip from 'jszip';
-import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square } from 'lucide-react';
+import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square, SlidersHorizontal, ChevronDown, AlertTriangle, CheckSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
 import { AssetDescriptor, AssetType, AssetCategory } from '@/types';
@@ -171,6 +171,7 @@ type ModelPreviewPopupState = {
     key: string;
     name: string;
     url: string;
+    type: AssetType;
     x: number;
     y: number;
     width: number;
@@ -298,6 +299,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     const [isExportingLibrary, setIsExportingLibrary] = useState(false);
     const [isImportingLibrary, setIsImportingLibrary] = useState(false);
     const [lastImportSummary, setLastImportSummary] = useState<AssetLibraryImportSummary | null>(null);
+    const [showFilters, setShowFilters] = useState(false);
+    const [isCleaningUp, setIsCleaningUp] = useState(false);
 
     const dialog = useDialog();
     const { toast } = useToast();
@@ -1028,6 +1031,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 key: assetKey,
                 name: asset.name,
                 url: previewUrl,
+                type: asset.type,
                 x,
                 y,
                 width: previewWidth,
@@ -1074,6 +1078,55 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     };
 
     const selectedAssetsInView = assets.filter((asset) => selectedAssetKeys.includes(getAssetKey(asset)));
+    const manageableSelectedAssets = selectedAssetsInView.filter(canManageAsset);
+
+    const toggleSelectAllInView = useCallback(() => {
+        setSelectedAssetKeys((current) => {
+            const allKeys = assets.map((asset) => getAssetKey(asset));
+            const allSelected = allKeys.length > 0 && allKeys.every((key) => current.includes(key));
+            return allSelected ? [] : allKeys;
+        });
+    }, [assets, getAssetKey]);
+
+    const handleBulkDelete = useCallback(async () => {
+        if (manageableSelectedAssets.length === 0) return;
+        const confirmed = await dialog.confirm(
+            `Delete ${manageableSelectedAssets.length} selected asset(s)? This cannot be undone.`,
+            { title: 'Delete Assets', variant: 'destructive' }
+        );
+        if (!confirmed) return;
+
+        let failures = 0;
+        for (const asset of manageableSelectedAssets) {
+            try {
+                await deleteAsset(asset);
+            } catch {
+                failures += 1;
+            }
+        }
+        clearAssetSelection();
+        toast({
+            title: failures === 0 ? 'Assets deleted' : 'Some deletions failed',
+            description: `Deleted ${manageableSelectedAssets.length - failures} of ${manageableSelectedAssets.length} selected asset(s).`,
+            variant: failures === 0 ? 'success' : 'warning',
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [manageableSelectedAssets, dialog, clearAssetSelection, toast]);
+
+    const handleBulkVisibility = useCallback(async (makePublic: boolean) => {
+        const targets = manageableSelectedAssets.filter((asset) => Boolean(asset.isPublic) !== makePublic);
+        for (const asset of targets) {
+            await toggleAssetVisibility(asset);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [manageableSelectedAssets]);
+
+    const handleBulkDownload = useCallback(async () => {
+        for (const asset of selectedAssetsInView) {
+            await downloadAsset(asset);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedAssetsInView]);
 
     const loadAllTabAssetsForBundle = useCallback(async (searchOverride?: string) => {
         const assetGroups = await Promise.all(
@@ -1344,6 +1397,94 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         }
     }, [buildExistingImportCollisionSet, driveClientId, fetchAssets, normalizedUser, toast, uploadToCloud]);
 
+    /**
+     * Scans every tab for assets whose underlying file can no longer be
+     * resolved (deleted on disk/Drive but still listed) and deletes those
+     * broken library entries after confirmation.
+     */
+    const handleCleanupMissingAssets = useCallback(async () => {
+        setIsCleaningUp(true);
+        try {
+            const allAssets = await loadAllTabAssetsForBundle('');
+            const ownedAssets = allAssets.filter(canManageAsset);
+
+            const brokenAssets: LibraryAsset[] = [];
+            await Promise.all(ownedAssets.map(async (asset) => {
+                try {
+                    await resolveAssetBlob(pickRepresentativeAsset(asset));
+                } catch {
+                    brokenAssets.push(asset);
+                }
+            }));
+
+            if (brokenAssets.length === 0) {
+                toast({ title: 'Nothing to clean up', description: 'No missing or broken assets were found.' });
+                return;
+            }
+
+            const confirmed = await dialog.confirm(
+                `Found ${brokenAssets.length} asset(s) that can no longer be loaded (missing files). Remove them from the library?`,
+                { title: 'Remove missing assets', variant: 'destructive' }
+            );
+            if (!confirmed) return;
+
+            const driveConfig = loadDriveConfig();
+            const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
+            let removedCount = 0;
+
+            for (const asset of brokenAssets) {
+                const targetSources = getSourceAssets(asset).filter(canManageSingleAsset);
+                const results = await Promise.allSettled(targetSources.map(async (entry) => {
+                    if (entry.storageProvider === 'local') {
+                        if (!entry.storageId) throw new Error('Missing local asset id.');
+                        await deleteLocalAsset(entry.storageId);
+                        return;
+                    }
+                    if (entry.storageProvider === 'google-drive') {
+                        if (!entry.storageId) throw new Error('Missing Google Drive asset id.');
+                        if (!driveConfig.enabled || !resolvedDriveClientId) {
+                            throw new Error('Google Drive is not connected.');
+                        }
+                        await deleteDriveAsset(resolvedDriveClientId, entry.storageId);
+                        return;
+                    }
+                    const authorization = buildSessionAuthorizationHeader();
+                    const res = await fetch('/api/assets/delete', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(authorization ? { Authorization: authorization } : {}),
+                        },
+                        body: JSON.stringify({ filePath: entry.path, owner: normalizedUser }),
+                    });
+                    const data = await res.json();
+                    if (!(data.success || res.ok)) {
+                        throw new Error(data.message || 'Unknown error');
+                    }
+                }));
+                if (results.some((result) => result.status === 'fulfilled')) {
+                    removedCount += 1;
+                }
+            }
+
+            await fetchAssets();
+            toast({
+                title: 'Cleanup complete',
+                description: `Removed ${removedCount} of ${brokenAssets.length} missing asset(s) from the library.`,
+                variant: removedCount === brokenAssets.length ? 'success' : 'warning',
+            });
+        } catch (error) {
+            console.error('Asset cleanup failed', error);
+            toast({
+                title: 'Cleanup failed',
+                description: 'Could not scan or remove missing assets.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsCleaningUp(false);
+        }
+    }, [canManageAsset, canManageSingleAsset, dialog, driveClientId, fetchAssets, loadAllTabAssetsForBundle, normalizedUser, resolveAssetBlob, toast]);
+
     return (
         <>
         <DraggableResizablePanel
@@ -1380,7 +1521,33 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         {isExportingLibrary ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                         Export Library
                     </button>
-                     <button 
+                    <button
+                        onClick={() => void handleCleanupMissingAssets()}
+                        disabled={isCleaningUp}
+                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background/80 text-[11px] font-semibold text-foreground inline-flex items-center gap-1.5 hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Remove missing assets"
+                        title="Scan and remove assets whose files can no longer be found"
+                    >
+                        {isCleaningUp ? <Loader2 size={12} className="animate-spin" /> : <AlertTriangle size={12} />}
+                        Clean Up
+                    </button>
+                    <button
+                        onClick={() => setShowFilters((prev) => !prev)}
+                        className={cn(
+                            "h-7 px-2.5 rounded-md border text-[11px] font-semibold inline-flex items-center gap-1.5 transition-colors",
+                            showFilters
+                                ? "bg-primary/10 border-primary/40 text-primary"
+                                : "border-border/60 bg-background/80 text-foreground hover:bg-secondary"
+                        )}
+                        aria-label="Toggle filters"
+                        aria-expanded={showFilters}
+                        title="Filters (personal/shared, search, visibility)"
+                    >
+                        <SlidersHorizontal size={12} />
+                        Filters
+                        <ChevronDown size={12} className={cn("transition-transform", showFilters && "rotate-180")} />
+                    </button>
+                     <button
                         onClick={() => fetchAssets()}
                         className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors"
                         title="Refresh"
@@ -1397,116 +1564,177 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 </div>
             </div>
 
-            {/* Compact Control Bar */}
-            <div className="p-2 border-b border-border/50 space-y-1.5 bg-secondary/5">
-                <div className="flex items-center gap-1.5">
-                    <div className="grid grid-cols-2 gap-1.5 w-[220px] shrink-0">
-                        <button
-                            onClick={() => setScopeTab('personal')}
-                            className={cn(
-                                "flex items-center justify-center gap-1.5 h-7 text-[11px] font-semibold rounded-md border transition-colors",
-                                scopeTab === 'personal'
-                                    ? "bg-primary/10 border-primary/40 text-primary"
-                                    : "bg-background border-border text-muted-foreground hover:bg-secondary"
-                            )}
-                        >
-                            <User size={13} />
-                            Personal
-                        </button>
-                        <button
-                            onClick={() => setScopeTab('shared')}
-                            className={cn(
-                                "flex items-center justify-center gap-1.5 h-7 text-[11px] font-semibold rounded-md border transition-colors",
-                                scopeTab === 'shared'
-                                    ? "bg-primary/10 border-primary/40 text-primary"
-                                    : "bg-background border-border text-muted-foreground hover:bg-secondary"
-                            )}
-                        >
-                            <Users size={13} />
-                            Shared
-                        </button>
+            {/* Collapsible Filters (personal/shared, search, visibility) — hidden by default since rarely changed */}
+            {showFilters && (
+                <div className="p-2 border-b border-border/50 space-y-1.5 bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="flex items-center gap-1.5">
+                        <div className="grid grid-cols-2 gap-1.5 w-[220px] shrink-0">
+                            <button
+                                onClick={() => setScopeTab('personal')}
+                                className={cn(
+                                    "flex items-center justify-center gap-1.5 h-7 text-[11px] font-semibold rounded-md border transition-colors",
+                                    scopeTab === 'personal'
+                                        ? "bg-primary/10 border-primary/40 text-primary"
+                                        : "bg-background border-border text-muted-foreground hover:bg-secondary"
+                                )}
+                            >
+                                <User size={13} />
+                                Personal
+                            </button>
+                            <button
+                                onClick={() => setScopeTab('shared')}
+                                className={cn(
+                                    "flex items-center justify-center gap-1.5 h-7 text-[11px] font-semibold rounded-md border transition-colors",
+                                    scopeTab === 'shared'
+                                        ? "bg-primary/10 border-primary/40 text-primary"
+                                        : "bg-background border-border text-muted-foreground hover:bg-secondary"
+                                )}
+                            >
+                                <Users size={13} />
+                                Shared
+                            </button>
+                        </div>
+
+                        <div className="relative flex-1 min-w-0">
+                            <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <input
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search assets or owner..."
+                                className="w-full h-7 rounded-md border border-border bg-background pl-7 pr-2 text-[11px] outline-none focus:border-primary/50"
+                            />
+                        </div>
                     </div>
 
-                    <div className="relative flex-1 min-w-0">
-                        <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search assets or owner..."
-                            className="w-full h-7 rounded-md border border-border bg-background pl-7 pr-2 text-[11px] outline-none focus:border-primary/50"
-                        />
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                        <select
+                            value={visibilityFilter}
+                            onChange={(e) => setVisibilityFilter(e.target.value as VisibilityFilter)}
+                            className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:border-primary/50 shrink-0"
+                        >
+                            <option value="all">All Visibility</option>
+                            <option value="public">Public Only</option>
+                            <option value="private">Private Only</option>
+                        </select>
+
+                        {scopeTab === 'personal' && (
+                            <label className="h-7 px-2 flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none rounded-md border border-border/50 bg-background/70 shrink-0">
+                                <input
+                                    type="checkbox"
+                                    checked={showPublicAssets}
+                                    onChange={(e) => setShowPublicAssets(e.target.checked)}
+                                    className="rounded border-border text-primary focus:ring-primary/20"
+                                />
+                                Show public assets
+                            </label>
+                        )}
+
+                        <span className="h-7 px-2 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
+                            <HardDrive size={12} className="text-primary" />
+                            Storage: <span className="font-semibold text-foreground/90 capitalize">{storageSettings.mode}</span>
+                        </span>
+
+                        <span className="h-7 px-2 inline-flex items-center rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
+                            Signed in as <span className="font-semibold text-foreground/80 ml-1">{normalizedUser}</span>
+                        </span>
                     </div>
                 </div>
+            )}
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-                    <select
-                        value={visibilityFilter}
-                        onChange={(e) => setVisibilityFilter(e.target.value as VisibilityFilter)}
-                        className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:border-primary/50 shrink-0"
+            {/* Bulk selection action bar — appears only when assets are selected, replacing hover-only controls */}
+            {selectedAssetKeys.length > 0 && (
+                <div className="px-2 py-1.5 border-b border-border/50 bg-primary/5 flex items-center gap-1.5 overflow-x-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                    <span
+                        className="h-7 px-2 inline-flex items-center rounded-md border border-primary/30 bg-primary/10 text-[11px] font-semibold text-primary shrink-0"
+                        data-testid="asset-library-selection-count"
                     >
-                        <option value="all">All Visibility</option>
-                        <option value="public">Public Only</option>
-                        <option value="private">Private Only</option>
-                    </select>
-
-                    {scopeTab === 'personal' && (
-                        <label className="h-7 px-2 flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none rounded-md border border-border/50 bg-background/70 shrink-0">
-                            <input
-                                type="checkbox"
-                                checked={showPublicAssets}
-                                onChange={(e) => setShowPublicAssets(e.target.checked)}
-                                className="rounded border-border text-primary focus:ring-primary/20"
-                            />
-                            Show public assets
-                        </label>
+                        {selectedAssetKeys.length} selected
+                    </span>
+                    <button
+                        onClick={() => void handleBulkDownload()}
+                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                    >
+                        <Download size={12} />
+                        Download
+                    </button>
+                    {manageableSelectedAssets.length === 1 && (
+                        <button
+                            onClick={() => {
+                                const target = manageableSelectedAssets[0];
+                                setEditingAsset(getAssetKey(target));
+                                setEditName(target.name);
+                            }}
+                            className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                        >
+                            <Pen size={12} />
+                            Rename
+                        </button>
                     )}
-
-                    <span className="h-7 px-2 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
-                        <HardDrive size={12} className="text-primary" />
-                        Storage: <span className="font-semibold text-foreground/90 capitalize">{storageSettings.mode}</span>
-                    </span>
-
-                    <span className="h-7 px-2 inline-flex items-center rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
-                        Signed in as <span className="font-semibold text-foreground/80 ml-1">{normalizedUser}</span>
-                    </span>
-
-                    {selectedAssetKeys.length > 0 && (
+                    {manageableSelectedAssets.length > 0 && (
                         <>
-                            <span
-                                className="h-7 px-2 inline-flex items-center rounded-md border border-primary/30 bg-primary/10 text-[11px] font-semibold text-primary shrink-0"
-                                data-testid="asset-library-selection-count"
-                            >
-                                {selectedAssetKeys.length} selected
-                            </span>
                             <button
-                                onClick={clearAssetSelection}
-                                className="h-7 px-2 rounded-md border border-border/50 bg-background/70 text-[11px] font-medium text-muted-foreground hover:bg-secondary shrink-0"
+                                onClick={() => void handleBulkVisibility(true)}
+                                className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
                             >
-                                Clear Selection
+                                <Globe size={12} />
+                                Make Public
+                            </button>
+                            <button
+                                onClick={() => void handleBulkVisibility(false)}
+                                className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                            >
+                                <Lock size={12} />
+                                Make Private
+                            </button>
+                            <button
+                                onClick={() => void handleBulkDelete()}
+                                className="h-7 px-2.5 rounded-md border border-red-500/40 bg-red-500/10 text-[11px] font-medium text-red-500 inline-flex items-center gap-1.5 hover:bg-red-500/20 shrink-0"
+                            >
+                                <Trash2 size={12} />
+                                Delete
                             </button>
                         </>
                     )}
+                    <button
+                        onClick={toggleSelectAllInView}
+                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                    >
+                        <CheckSquare size={12} />
+                        Select All
+                    </button>
+                    <button
+                        onClick={clearAssetSelection}
+                        className="h-7 px-2 rounded-md border border-border/50 bg-background/70 text-[11px] font-medium text-muted-foreground hover:bg-secondary shrink-0 ml-auto"
+                    >
+                        Clear Selection
+                    </button>
                 </div>
-            </div>
+            )}
 
-            {/* Media Type Tabs */}
-            <div className="flex p-1.5 gap-1 border-b border-border/50 overflow-x-auto bg-card/50">
-                {LIBRARY_TABS.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key)}
-                            className={cn(
-                                "flex-1 min-w-20 flex items-center justify-center gap-1 py-1 text-[11px] font-medium rounded-md transition-colors",
-                                activeTab === tab.key ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"
-                            )}
-                        >
-                            <Icon size={14} /> {tab.label}
-                        </button>
-                    );
-                })}
-            </div>
+            {/* Body: vertical media-type icon rail on the left, content on the right */}
+            <div className="flex flex-1 min-h-0">
+                <div className="flex flex-col items-center gap-1 p-1.5 border-r border-border/50 bg-card/50 shrink-0">
+                    {LIBRARY_TABS.map((tab) => {
+                        const Icon = tab.icon;
+                        return (
+                            <button
+                                key={tab.key}
+                                onClick={() => setActiveTab(tab.key)}
+                                className={cn(
+                                    "w-10 h-10 flex flex-col items-center justify-center gap-0.5 rounded-md transition-colors",
+                                    activeTab === tab.key ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"
+                                )}
+                                title={tab.label}
+                                aria-label={tab.label}
+                                aria-pressed={activeTab === tab.key}
+                            >
+                                <Icon size={16} />
+                                <span className="text-[8px] font-medium leading-none">{tab.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
             {/* Upload Row */}
             <div className="p-2 border-b border-border/50 bg-secondary/5">
@@ -1629,12 +1857,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     className="group relative aspect-square bg-secondary/25 rounded-lg overflow-hidden border border-border/60 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
                                     title={asset.name}
                                     onMouseEnter={(event) => {
-                                        if (asset.type === 'models') {
+                                        if (asset.type === 'models' || asset.type === 'videos' || asset.type === 'audio') {
                                             void openModelPreviewPopup(asset, assetKey, event.currentTarget.getBoundingClientRect());
                                         }
                                     }}
                                     onMouseLeave={() => {
-                                        if (asset.type !== 'models') return;
+                                        if (asset.type !== 'models' && asset.type !== 'videos' && asset.type !== 'audio') return;
                                         window.setTimeout(() => {
                                             setModelPreviewPopup((current) => {
                                                 if (!current || current.key !== assetKey) return current;
@@ -1935,6 +2163,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     </div>
                 )}
             </div>
+                </div>
+            </div>
         </DraggableResizablePanel>
         {modelPreviewPopup && (
             <div
@@ -1953,19 +2183,30 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             >
                 <div className="p-2 border-b border-border flex items-center justify-between bg-secondary/10">
                     <h3 className="font-semibold text-xs flex items-center gap-2 min-w-0">
-                        <Box size={14} className="text-primary shrink-0" />
+                        {modelPreviewPopup.type === 'videos' ? <Video size={14} className="text-primary shrink-0" />
+                            : modelPreviewPopup.type === 'audio' ? <Music size={14} className="text-primary shrink-0" />
+                            : <Box size={14} className="text-primary shrink-0" />}
                         <span className="truncate" title={modelPreviewPopup.name}>{modelPreviewPopup.name}</span>
                     </h3>
                     <button
                         onClick={() => setModelPreviewPopup(null)}
                         className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground"
-                        aria-label="Close model preview"
+                        aria-label="Close preview"
                     >
                         <X size={14} />
                     </button>
                 </div>
-                <div className="h-[calc(100%-41px)] p-2 bg-secondary/10">
-                    <Asset3DPreview url={modelPreviewPopup.url} />
+                <div className="h-[calc(100%-41px)] p-2 bg-secondary/10 flex items-center justify-center">
+                    {modelPreviewPopup.type === 'videos' ? (
+                        <video src={modelPreviewPopup.url} className="max-w-full max-h-full" controls autoPlay muted playsInline />
+                    ) : modelPreviewPopup.type === 'audio' ? (
+                        <div className="w-full flex flex-col items-center gap-3 text-muted-foreground">
+                            <Music size={32} />
+                            <audio src={modelPreviewPopup.url} className="w-full" controls autoPlay />
+                        </div>
+                    ) : (
+                        <Asset3DPreview url={modelPreviewPopup.url} />
+                    )}
                 </div>
             </div>
         )}

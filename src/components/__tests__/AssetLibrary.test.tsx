@@ -290,6 +290,7 @@ describe('AssetLibrary', () => {
             && (init?.headers as Record<string, string> | undefined)?.Authorization === 'Bearer session-token'
         ))).toBe(true);
 
+        fireEvent.click(screen.getByRole('button', { name: 'Toggle filters' }));
         fireEvent.click(screen.getByRole('button', { name: 'Shared' }));
         fireEvent.change(screen.getByRole('combobox'), { target: { value: 'private' } });
 
