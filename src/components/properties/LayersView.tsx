@@ -75,7 +75,9 @@ export function LayersView({
     
     const [localExpanded, setLocalExpanded] = useState<Set<string>>(new Set());
     const [inspectorLayerId, setInspectorLayerId] = useState<string | null>(null);
-    const [arrangeMode, setArrangeMode] = useState(false);
+    // Defaults on so drag-to-reorder works immediately; the toggle still lets
+    // users lock ordering off to avoid accidental drags.
+    const [arrangeMode, setArrangeMode] = useState(true);
     const expanded = externalExpanded ?? localExpanded;
 
     const selectedLayerId = selectedObject ? ensureObjectId(selectedObject) : null;

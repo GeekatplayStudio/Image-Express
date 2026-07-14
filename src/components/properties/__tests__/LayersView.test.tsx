@@ -107,10 +107,10 @@ describe('LayersView', () => {
         );
 
         const arrangeButton = screen.getByRole('button', { name: 'Arrange layers' });
-        expect(arrangeButton).toHaveAttribute('aria-pressed', 'false');
+        expect(arrangeButton).toHaveAttribute('aria-pressed', 'true');
 
         fireEvent.click(arrangeButton);
-        expect(arrangeButton).toHaveAttribute('aria-pressed', 'true');
+        expect(arrangeButton).toHaveAttribute('aria-pressed', 'false');
     });
 
     it('triggers quick layer order controls from the top toolbar', () => {

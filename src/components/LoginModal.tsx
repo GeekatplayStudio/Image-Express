@@ -426,6 +426,19 @@ export default function LoginModal({ isOpen, onLogin, onClose }: LoginModalProps
                     <p className="text-sm text-muted-foreground mt-2">Sign in with Email/Google. Facebook is coming soon.</p>
                 </div>
 
+                {onClose && (
+                    // Explicit guest bypass for self-hosted/local use — same path as
+                    // dismissing the modal, just made discoverable instead of hidden.
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="w-full mb-4 py-2.5 rounded-lg text-sm font-semibold border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 hover:bg-secondary/40 transition-all"
+                        title="Skip sign-in and use this app locally on this device"
+                    >
+                        Continue with Local Access
+                    </button>
+                )}
+
                 <div className="grid grid-cols-2 gap-2 mb-4">
                     <button
                         type="button"

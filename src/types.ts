@@ -31,6 +31,11 @@ export type ThreeDSettings = {
     resolution: { width: number; height: number };
     cameraPosition?: { x: number; y: number; z: number };
     cameraTarget?: { x: number; y: number; z: number };
+    ambientIntensity?: number;
+    environment?: string;
+    envIntensity?: number;
+    modelRotationY?: number;
+    modelScale?: number;
 };
 
 export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white' | 'brightness-contrast' | 'color-balance' | 'light-and-color' | 'solid-color';
