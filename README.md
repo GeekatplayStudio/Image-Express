@@ -174,8 +174,8 @@ graph TD
 
 The easiest way to run Image Express — no terminal required. Double-click:
 
-* **macOS**: `Launch Image Express.command`
-* **Windows**: `Launch Image Express.bat`
+* **macOS**: `LaunchImageExpress.command`
+* **Windows**: `LaunchImageExpress.bat`
 
 This single click will:
 1. Check that Node.js is installed (and tell you where to get it if not).
