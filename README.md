@@ -170,6 +170,38 @@ graph TD
 
 ## 🚀 Deployment
 
+### ⚡ One-Click Launcher (Recommended)
+
+The easiest way to run Image Express — no terminal required. Double-click:
+
+* **macOS**: `Launch Image Express.command`
+* **Windows**: `Launch Image Express.bat`
+
+This single click will:
+1. Check that Node.js is installed (and tell you where to get it if not).
+2. Pull the latest updates from GitHub, if it's safe to do so (skips automatically if you have local changes or a diverged branch, so it never overwrites your work).
+3. Install/update dependencies only when needed (fast on repeat runs).
+4. Build and start the app, then open it in your browser automatically.
+
+On first run on macOS, right-click the `.command` file and choose **Open** once to satisfy Gatekeeper; after that, double-clicking works normally.
+
+### 🛠️ Interactive Scripts (Start & Build)
+
+For convenience, helper scripts are provided to start and build the application on macOS, Linux, and Windows. They automatically check for dependencies (`node_modules`) and prompt to install them if missing, then offer an interactive menu of start/build options (Desktop/Web and Development/Production modes).
+
+#### On macOS / Linux (Standard Terminal):
+On macOS, it is normal and recommended to run commands directly via `npm`, but you can also use the interactive shell scripts:
+* **Interactive Start**: `./start.sh`
+* **Interactive Build**: `./build.sh`
+* **Normal Web Dev**: `npm run dev` (Starts development server on [http://localhost:3000](http://localhost:3000))
+* **Normal Web Prod Build**: `npm run build` && `npm run start`
+* **Normal Desktop Dev**: `npm run desktop:dev` (Starts local Next.js dev server and launches Electron app)
+* **Normal Desktop Build**: `npm run desktop:build` (Builds and packages desktop installers)
+
+#### On Windows (PC):
+* **Interactive Start**: Run `start.bat` (from command line/PowerShell or by double-clicking it)
+* **Interactive Build**: Run `build.bat` (from command line/PowerShell or by double-clicking it)
+
 ### Quick Start (Local)
 
 1. **Install dependencies**:

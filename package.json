@@ -11,9 +11,10 @@
     "tar": "^7.5.6"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/start-web.mjs dev",
+    "launch": "node scripts/launch.mjs",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/start-web.mjs prod",
     "audit:repo": "node scripts/repo-audit.mjs",
     "install:super": "node scripts/super-installer.mjs",
     "qa:install": "node scripts/qa-installation.mjs",
