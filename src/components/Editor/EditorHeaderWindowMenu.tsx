@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { WINDOW_PANEL_ITEMS } from '@/components/Editor/editorViewConfig';
 import type { PanelDockMode } from '@/components/Editor/editorView.types';
 import type { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
+import { useI18n } from '@/providers/I18nProvider';
 
 type PanelState = {
     mode: PanelDockMode;
@@ -33,6 +34,7 @@ export default function EditorHeaderWindowMenu({
     panelState,
     handleWindowDockMode,
 }: EditorHeaderWindowMenuProps) {
+    const { t } = useI18n();
     return (
         <div className="relative order-8">
             <button
@@ -40,7 +42,7 @@ export default function EditorHeaderWindowMenu({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                 aria-expanded={showWindowMenu}
             >
-                <span>Window</span>
+                <span>{t('menu.window')}</span>
                 <ChevronDown size={14} className={`transition-transform duration-200 ${showWindowMenu ? 'rotate-180' : ''}`} />
             </button>
             {showWindowMenu && (

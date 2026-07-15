@@ -9,7 +9,7 @@ import { APP_VERSION_INFO, formatHubVersionLabel } from '@/lib/appVersion';
 import {
     addProject,
     createProjectsState,
-    getActiveProject,
+    findEmptyProject,
     loadProjectsState,
     saveProjectsState,
     setActiveProject,
@@ -138,14 +138,22 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         return () => window.removeEventListener(PROJECT_CHANGED_EVENT, sync);
     }, []);
 
-    // Every new design becomes its own project in the federation.
+    // Every new design becomes its own project — unless there's already an
+    // untouched empty project (e.g. the user clicked a quick-start action,
+    // went back without drawing anything, and clicked another one), in which
+    // case that one is reused instead of piling up empty projects.
     const startNewProject = (tool?: string, size?: { width: number; height: number }) => {
         const width = size?.width ?? 1080;
         const height = size?.height ?? 1080;
         const current = loadProjectsState();
-        const name = `Project ${(current?.projects.length ?? 0) + 1}`;
-        const next = current ? addProject(current, name, width, height) : createProjectsState(name, width, height);
-        saveProjectsState(next);
+        const reusable = current ? findEmptyProject(current) : null;
+        if (current && reusable) {
+            saveProjectsState(setActiveProject(current, reusable.id));
+        } else {
+            const name = `Project ${(current?.projects.length ?? 0) + 1}`;
+            const next = current ? addProject(current, name, width, height) : createProjectsState(name, width, height);
+            saveProjectsState(next);
+        }
         onNewDesign(tool, size);
     };
 

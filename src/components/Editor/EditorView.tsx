@@ -25,6 +25,8 @@ import { useMultiCanvasProject } from '@/components/Editor/useMultiCanvasProject
 import { useI18n } from '@/providers/I18nProvider';
 import CanvasTabsBar from '@/components/Editor/CanvasTabsBar';
 import CanvasStackView from '@/components/Editor/CanvasStackView';
+import OpenDesignModal, { type OpenableDesign } from '@/components/Editor/OpenDesignModal';
+import ShareWithProjectsModal from '@/components/Editor/ShareWithProjectsModal';
 import { useEditorMenuActions } from '@/components/Editor/useEditorMenuActions';
 import { useEditorMediaPreview } from '@/components/Editor/useEditorMediaPreview';
 import { useEditorKeyboardShortcuts } from '@/components/Editor/useEditorKeyboardShortcuts';
@@ -123,6 +125,15 @@ export default function EditorView({
     const { toast } = useToast();
     const { t } = useI18n();
 
+    // Local project storage (image-express-projects) can fill up with large
+    // embedded images; warn once per session instead of on every edit.
+    const storageFullWarnedRef = useRef(false);
+    const handleProjectStorageFull = useCallback(() => {
+        if (storageFullWarnedRef.current) return;
+        storageFullWarnedRef.current = true;
+        toast({ title: t('stack.storageFullTitle'), description: t('stack.storageFullBody'), variant: 'destructive' });
+    }, [t, toast]);
+
     const getDisplayName = useCallback((url: string) => {
         const withoutQuery = url.split('?')[0];
         const last = decodeURIComponent(withoutQuery.split('/').pop() || 'Media');
@@ -205,6 +216,7 @@ export default function EditorView({
     const shareRef = useRef<HTMLDivElement>(null);
     const [gridType, setGridType] = useState<GridType>('none');
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [showOpenDesignModal, setShowOpenDesignModal] = useState(false);
     const {
         autoSelectEnabled, setAutoSelectEnabled, selectionMode, setSelectionMode,
         showTransformControls, setShowTransformControls, selectFeather, setSelectFeather,
@@ -611,6 +623,7 @@ export default function EditorView({
     const {
         handleBack,
         handleSave,
+        handleOpenDesign,
         showMissingAssetsModal,
         missingItems,
         closeMissingAssetsModal,
@@ -636,6 +649,11 @@ export default function EditorView({
         safeCanvasToDataURL,
     });
 
+    const handleOpenDesignFromMenu = useCallback((design: OpenableDesign) => {
+        void handleOpenDesign(design);
+        onUpdateDesignInfo(design.id, design.name);
+    }, [handleOpenDesign, onUpdateDesignInfo]);
+
     const {
         projectsState: multiProjectsState,
         project: multiCanvasProject,
@@ -655,6 +673,7 @@ export default function EditorView({
         handleDeleteProject,
         handleRenameProject,
         toggleShareActiveLayer,
+        shareActiveLayerWithProjects,
     } = useMultiCanvasProject({
         canvas,
         designName: propDesignName,
@@ -662,6 +681,7 @@ export default function EditorView({
         initialHeight: initialSize?.height ?? 1080,
         customHistoryProps,
         restoreOnMount: !initialDesign && !initialTemplateJsonUrl,
+        onStorageFull: handleProjectStorageFull,
     });
 
     const handleToggleShareLayer = useCallback(async () => {
@@ -683,6 +703,17 @@ export default function EditorView({
             });
         }
     }, [canvas, dialog, multiCanvasProject, t, toast, toggleShareActiveLayer]);
+
+    const [showShareWithProjectsModal, setShowShareWithProjectsModal] = useState(false);
+    const otherProjects = (multiProjectsState?.projects ?? []).filter((p) => p.id !== multiProjectsState?.activeProjectId);
+    const handleConfirmShareWithProjects = useCallback((targetProjectIds: string[]) => {
+        const result = shareActiveLayerWithProjects(targetProjectIds);
+        if (result === null) {
+            toast({ title: t('stack.shareNoSelection'), variant: 'warning' });
+        } else {
+            toast({ title: t('stack.layerSharedWithProjects'), variant: 'success' });
+        }
+    }, [shareActiveLayerWithProjects, t, toast]);
 
     const { autosaveEnabled, setAutosaveEnabled } = useEditorAutosave({
         isDirty,
@@ -1103,6 +1134,8 @@ export default function EditorView({
                             setShowSettingsMenu={setShowSettingsMenu}
                             setShowHelpMenu={setShowHelpMenu}
                             handleSave={handleSave}
+                            onOpenDesignPicker={() => setShowOpenDesignModal(true)}
+                            onOpenRecentDesign={handleOpenDesignFromMenu}
                             autosaveEnabled={autosaveEnabled}
                             onToggleAutosave={setAutosaveEnabled}
                             handleFitToScreen={handleFitToScreen}
@@ -1239,6 +1272,8 @@ export default function EditorView({
                                 onAddCanvas={handleAddCanvas}
                                 onOpenStackView={openStackView}
                                 onToggleShareLayer={handleToggleShareLayer}
+                                onShareWithProjects={() => setShowShareWithProjectsModal(true)}
+                                hasOtherProjects={otherProjects.length > 0}
                             />
                         )}
                         <div className="relative flex-1 min-h-0 flex">
@@ -1286,6 +1321,17 @@ export default function EditorView({
                 )}
                 jobFooterProps={workspaceShellJobFooterProps}
                 contextMenuProps={workspaceShellContextMenuProps}
+            />
+            <OpenDesignModal
+                isOpen={showOpenDesignModal}
+                onClose={() => setShowOpenDesignModal(false)}
+                onOpenDesign={handleOpenDesignFromMenu}
+            />
+            <ShareWithProjectsModal
+                isOpen={showShareWithProjectsModal}
+                onClose={() => setShowShareWithProjectsModal(false)}
+                otherProjects={otherProjects}
+                onConfirm={handleConfirmShareWithProjects}
             />
         </div>
     );

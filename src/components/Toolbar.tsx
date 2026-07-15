@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardR
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
 import { placeAtViewportCenter } from '@/lib/canvas-placement';
+import { useI18n } from '@/providers/I18nProvider';
 import {
     Type,
     Square,
@@ -571,6 +572,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     zoomCursorMode = 'in',
 }, ref) => {
     const { toast } = useToast();
+    const { t } = useI18n();
     const appTheme = useAppTheme();
     const [showShapesMenu, setShowShapesMenu] = useState(false);
     const [showAdjustmentMenu, setShowAdjustmentMenu] = useState(false);
@@ -2356,8 +2358,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 >
                     <button
                         type="button"
-                        title="Foreground color"
-                        aria-label="Foreground color"
+                        title={t('toolbar.foregroundColor')}
+                        aria-label={t('toolbar.foregroundColor')}
                         onClick={() => foregroundColorInputRef.current?.click()}
                         className={cn(
                             'relative shrink-0 overflow-hidden rounded-full border border-border/70 shadow-sm',
@@ -2367,8 +2369,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     />
                     <button
                         type="button"
-                        title="Swap colors"
-                        aria-label="Swap colors"
+                        title={t('toolbar.swapColors')}
+                        aria-label={t('toolbar.swapColors')}
                         onClick={handleSwapToolbarColors}
                         className={cn(
                             'inline-flex items-center justify-center rounded-sm text-muted-foreground hover:bg-secondary/70 hover:text-foreground transition-colors',
@@ -2379,8 +2381,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     </button>
                     <button
                         type="button"
-                        title="Background color"
-                        aria-label="Background color"
+                        title={t('toolbar.backgroundColor')}
+                        aria-label={t('toolbar.backgroundColor')}
                         onClick={() => backgroundColorInputRef.current?.click()}
                         className={cn(
                             'relative shrink-0 overflow-hidden rounded-full border border-border/70 shadow-sm',
@@ -2479,10 +2481,10 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             {showSaveModal && (
                 <InputModal
                     isOpen={showSaveModal}
-                    title="Save Template"
-                    description="Enter a name for your custom template."
-                    placeholder="My Awesome Template"
-                    confirmLabel="Save Template"
+                    title={t('toolbar.saveTemplate')}
+                    description={t('toolbar.saveTemplateDescription')}
+                    placeholder={t('toolbar.saveTemplatePlaceholder')}
+                    confirmLabel={t('toolbar.saveTemplate')}
                     onConfirm={handleSaveTemplateConfirm}
                     onCancel={() => setShowSaveModal(false)}
                 />

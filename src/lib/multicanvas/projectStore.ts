@@ -238,6 +238,17 @@ export const renameProject = (state: ProjectsState, projectId: string, name: str
     projects: state.projects.map((p) => (p.id === projectId ? { ...p, name } : p)),
 });
 
+/** A project with no real content yet: one default canvas, never drawn on. */
+export const isProjectEmpty = (project: Project): boolean => (
+    project.canvases.length <= 1
+    && project.canvases.every((c) => !c.json || !c.json.objects || c.json.objects.length === 0)
+);
+
+/** Find an untouched project to reuse instead of spawning a new one. */
+export const findEmptyProject = (state: ProjectsState): Project | null => (
+    state.projects.find((p) => isProjectEmpty(p)) ?? null
+);
+
 export const deleteProject = (state: ProjectsState, projectId: string): ProjectsState => {
     if (state.projects.length <= 1) return state;
     const projects = state.projects.filter((p) => p.id !== projectId);
@@ -322,12 +333,35 @@ export const loadProjectsState = (): ProjectsState | null => {
     }
 };
 
-export const saveProjectsState = (state: ProjectsState): void => {
-    if (typeof window === 'undefined') return;
+/**
+ * Persist the workspace. Returns true on success. Thumbnails are pure
+ * previews (regenerable from the canvas), so on quota-exceeded they are
+ * stripped and the save is retried once before giving up — layer/canvas/
+ * project data is never silently dropped to make room.
+ */
+export const saveProjectsState = (state: ProjectsState): boolean => {
+    if (typeof window === 'undefined') return false;
     try {
         window.localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(state));
         window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
+        return true;
     } catch {
-        // Quota errors are non-fatal: the in-memory state stays authoritative.
+        try {
+            const withoutThumbnails: ProjectsState = {
+                ...state,
+                projects: state.projects.map((project) => ({
+                    ...project,
+                    canvases: project.canvases.map((c) => ({ ...c, thumbnail: null })),
+                })),
+            };
+            window.localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(withoutThumbnails));
+            window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
+            return true;
+        } catch {
+            // Storage is full even without thumbnails: the in-memory state
+            // stays authoritative for this session; the caller should warn
+            // the user that changes are not being saved to disk.
+            return false;
+        }
     }
 };

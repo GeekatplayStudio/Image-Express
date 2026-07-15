@@ -3,7 +3,7 @@
 // canvases (newest on top), plus add-canvas, 3D stack view and layer-share
 // controls.
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Boxes, Link2, ChevronDown, Check } from 'lucide-react';
+import { Plus, Boxes, Link2, Globe2, ChevronDown, Check } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { Project } from '@/lib/multicanvas/projectStore';
 
@@ -13,10 +13,12 @@ type CanvasTabsBarProps = {
     onAddCanvas: () => void;
     onOpenStackView: () => void;
     onToggleShareLayer: () => void;
+    onShareWithProjects: () => void;
+    hasOtherProjects: boolean;
 };
 
 export default function CanvasTabsBar({
-    project, onOpenCanvas, onAddCanvas, onOpenStackView, onToggleShareLayer,
+    project, onOpenCanvas, onAddCanvas, onOpenStackView, onToggleShareLayer, onShareWithProjects, hasOtherProjects,
 }: CanvasTabsBarProps) {
     const { t } = useI18n();
     const [isListOpen, setIsListOpen] = useState(false);
@@ -103,6 +105,16 @@ export default function CanvasTabsBar({
                 <Link2 size={14} />
                 <span>{t('stack.share')}</span>
             </button>
+            {hasOtherProjects && (
+                <button
+                    onClick={onShareWithProjects}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-md text-muted-foreground hover:text-primary hover:bg-secondary transition-colors font-medium"
+                    title={t('stack.shareWithProjects')}
+                    data-testid="canvas-share-with-projects"
+                >
+                    <Globe2 size={14} />
+                </button>
+            )}
         </div>
     );
 }

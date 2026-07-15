@@ -375,6 +375,7 @@ export function useEditorPersistence({
     return {
         handleBack,
         handleSave,
+        handleOpenDesign,
         showMissingAssetsModal,
         missingItems,
         closeMissingAssetsModal,

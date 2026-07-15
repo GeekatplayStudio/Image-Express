@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
 
 type EditorHeaderSettingsMenuProps = {
     showSettingsMenu: boolean;
@@ -17,6 +18,7 @@ export default function EditorHeaderSettingsMenu({
     isAdminUser,
     onOpenAdminArea,
 }: EditorHeaderSettingsMenuProps) {
+    const { t } = useI18n();
     return (
         <div className="relative order-9">
             <button
@@ -24,7 +26,7 @@ export default function EditorHeaderSettingsMenu({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                 aria-expanded={showSettingsMenu}
             >
-                <span>Settings</span>
+                <span>{t('menu.settings')}</span>
                 <ChevronDown size={14} className={`transition-transform duration-200 ${showSettingsMenu ? 'rotate-180' : ''}`} />
             </button>
             {showSettingsMenu && (

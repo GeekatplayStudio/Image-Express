@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
 
 type EditorHeaderSelectMenuProps = {
     showSelectMenu: boolean;
@@ -19,6 +20,7 @@ export default function EditorHeaderSelectMenu({
     handleSelectionModify,
     triggerToolbarTool,
 }: EditorHeaderSelectMenuProps) {
+    const { t } = useI18n();
     return (
         <div className="relative order-5">
             <button
@@ -26,7 +28,7 @@ export default function EditorHeaderSelectMenu({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                 aria-expanded={showSelectMenu}
             >
-                <span>Select</span>
+                <span>{t('menu.select')}</span>
                 <ChevronDown size={14} className={`transition-transform duration-200 ${showSelectMenu ? 'rotate-180' : ''}`} />
             </button>
             {showSelectMenu && (

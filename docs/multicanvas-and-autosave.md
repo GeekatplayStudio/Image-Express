@@ -2,27 +2,28 @@
 
 ## Concepts
 
-The workspace hierarchy is **Federation → Projects → Canvases → Layers**:
+The workspace hierarchy is **Projects → Canvases → Layers**:
 
-- The **Federation** is the whole local workspace: every project you have.
-  In the 3D view, zooming all the way out (or the **Federation** button)
-  shows each project as a wireframe cube with its canvases as glass slices;
-  projects that share linked layers are connected by glowing channels.
-  Arrow keys move between cubes, Enter/double-click dives into a project's
-  stack.
-- A **Project** holds any number of canvases. The whole federation is
-  persisted locally (`image-express-projects` in localStorage; the older
-  single-project storage migrates automatically).
+- **Projects** is the whole local workspace: every project you have. In the
+  3D view, zooming all the way out (or the **Projects** button) shows each
+  project as a wireframe cube with its canvases as glass slices; projects
+  that share linked layers are connected by glowing channels. Arrow keys
+  move between cubes, Enter/double-click dives into a project's stack.
+- A **Project** holds any number of canvases. All projects are persisted
+  locally (`image-express-projects` in localStorage; the older single-project
+  storage migrates automatically). Starting a new design creates its own
+  project — unless the current project is still empty (untouched), in which
+  case it's reused instead of piling up blank projects.
 - Each **Canvas** is a full artboard with its own layer stack. Only the active
   canvas lives inside the Fabric editor; the rest are kept as serialized
   snapshots.
 - **Layers** can be marked *shared*. Sharing broadcasts a linked copy into
-  every other canvas of the project, and shared layers are linked across
-  projects too: adjustment and appearance changes (adjustment settings,
-  filters, opacity, visibility, fill) propagate to every instance with the
-  same `sharedLayerId` anywhere in the federation. Geometry (position/scale)
-  stays per-canvas. Duplicating a shared layer keeps the link, so copies stay
-  synchronized.
+  every other canvas of the project, and shared layers can also be linked
+  across OTHER projects: adjustment and appearance changes (adjustment
+  settings, filters, opacity, visibility, fill) propagate to every instance
+  with the same `sharedLayerId` anywhere in the workspace. Geometry
+  (position/scale) stays per-canvas. Duplicating a shared layer keeps the
+  link, so copies stay synchronized.
 
 ## Using it
 
@@ -49,14 +50,31 @@ The workspace hierarchy is **Federation → Projects → Canvases → Layers**:
   and a teal share icon in the Layers panel row.
 - Clicking **Share** with multiple canvases asks whether to add the linked
   layer to every canvas; declining still marks it shared without copies.
-- The **Dashboard** lists every project in the federation (thumbnail from
+- The **Dashboard** lists every project in the workspace (thumbnail from
   its first canvas). Clicking one opens it in the editor with its content
   restored; every new design started from the dashboard becomes its own
   project automatically.
 - Snapshots inline `blob:` image sources as data URLs so images added from
-  the asset library survive canvas switches and reloads, and each snapshot
-  refreshes the stored canvas width/height so 3D plane ratios stay correct
-  after artboard resizes.
+  the asset library survive canvas switches and reloads (capped to 2048px
+  for uncropped images to keep localStorage usage bounded), and each
+  snapshot refreshes the stored canvas width/height so 3D plane ratios stay
+  correct after artboard resizes.
+- **Share with other projects** (globe icon next to Share, canvas tabs bar):
+  pick which other projects should also link to the selected layer. Linked
+  copies land in each target project's active canvas and stay synchronized
+  the same way as same-project sharing.
+- If localStorage fills up, saves fall back to dropping thumbnails (they're
+  regenerable) before giving up; a one-time toast warns if a save still
+  can't be persisted so work isn't silently lost.
+- Starting a new design from the Dashboard reuses the current project if
+  it's still empty (no layers drawn yet) instead of creating a fresh one on
+  every click — prevents blank projects from piling up.
+
+## File menu
+
+`File → Open...` lists your saved designs (same source as the Dashboard) and
+loads one directly into the current editor. `File → Recent Files` is a quick
+submenu of your 5 most recently modified designs.
 
 ## Autosave
 

@@ -220,3 +220,81 @@ describe('projectStore federation level', () => {
         expect(window.localStorage.getItem(PROJECTS_STORAGE_KEY)).toBeTruthy();
     });
 });
+
+describe('projectStore empty-project reuse and storage safety', () => {
+    const {
+        createProjectsState, addProject, isProjectEmpty, findEmptyProject,
+        updateCanvasSnapshot: updateSnap, saveProjectsState, loadProjectsState,
+        PROJECTS_STORAGE_KEY,
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+    } = require('@/lib/multicanvas/projectStore');
+
+    beforeEach(() => {
+        window.localStorage.clear();
+    });
+
+    it('treats a freshly created project as empty', () => {
+        const state = createProjectsState('P1', 100, 100);
+        expect(isProjectEmpty(state.projects[0])).toBe(true);
+        expect(findEmptyProject(state)).toBe(state.projects[0]);
+    });
+
+    it('stops treating a project as empty once a canvas has real objects', () => {
+        let state = createProjectsState('P1', 100, 100);
+        const p = state.projects[0];
+        const withObjects = updateSnap(p, p.activeCanvasId, { objects: [{ id: 'a', type: 'rect' }] });
+        state = { ...state, projects: [withObjects] };
+        expect(isProjectEmpty(state.projects[0])).toBe(false);
+        expect(findEmptyProject(state)).toBeNull();
+    });
+
+    it('finds an empty project among several non-empty ones', () => {
+        let state = createProjectsState('P1', 100, 100);
+        const p1 = updateSnap(state.projects[0], state.projects[0].activeCanvasId, { objects: [{ id: 'x' }] });
+        state = { ...state, projects: [p1] };
+        state = addProject(state, 'P2', 100, 100); // empty
+        const empty = findEmptyProject(state);
+        expect(empty?.name).toBe('P2');
+    });
+
+    it('saves successfully under normal conditions', () => {
+        const state = createProjectsState('P1', 100, 100);
+        expect(saveProjectsState(state)).toBe(true);
+        expect(loadProjectsState()).toEqual(state);
+    });
+
+    it('drops thumbnails and retries when the primary save exceeds quota', () => {
+        const state = createProjectsState('P1', 100, 100);
+        const withThumbnail = {
+            ...state,
+            projects: [{ ...state.projects[0], canvases: [{ ...state.projects[0].canvases[0], thumbnail: 'data:image/jpeg;base64,abc' }] }],
+        };
+
+        const realSetItem = window.localStorage.setItem.bind(window.localStorage);
+        let calls = 0;
+        jest.spyOn(window.localStorage.__proto__, 'setItem').mockImplementation((key: string, value: string) => {
+            calls += 1;
+            if (calls === 1) {
+                throw new DOMException('exceeded', 'QuotaExceededError');
+            }
+            realSetItem(key, value);
+        });
+
+        expect(saveProjectsState(withThumbnail)).toBe(true);
+        const saved = JSON.parse(window.localStorage.getItem(PROJECTS_STORAGE_KEY)!);
+        expect(saved.projects[0].canvases[0].thumbnail).toBeNull();
+
+        (window.localStorage.setItem as jest.Mock).mockRestore();
+    });
+
+    it('returns false when storage is full even without thumbnails', () => {
+        const state = createProjectsState('P1', 100, 100);
+        jest.spyOn(window.localStorage.__proto__, 'setItem').mockImplementation(() => {
+            throw new DOMException('exceeded', 'QuotaExceededError');
+        });
+
+        expect(saveProjectsState(state)).toBe(false);
+
+        (window.localStorage.setItem as jest.Mock).mockRestore();
+    });
+});

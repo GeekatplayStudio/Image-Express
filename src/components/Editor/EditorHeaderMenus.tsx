@@ -1,6 +1,7 @@
-import type { Dispatch, SetStateAction } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
+import type { OpenableDesign } from '@/components/Editor/OpenDesignModal';
 
 import type { GridType } from '@/components/GridOverlay';
 import type { EditorMenuId } from '@/components/Editor/useEditorMenus';
@@ -40,6 +41,8 @@ type EditorHeaderMenusProps = {
     setShowSettingsMenu: BooleanStateSetter;
     setShowHelpMenu: BooleanStateSetter;
     handleSave: () => Promise<void>;
+    onOpenDesignPicker: () => void;
+    onOpenRecentDesign: (design: OpenableDesign) => void;
     autosaveEnabled: boolean;
     onToggleAutosave: (enabled: boolean) => void;
     handleFitToScreen: () => void;
@@ -79,7 +82,7 @@ export default function EditorHeaderMenus({
     showFileMenu, showEditMenu, showImageMenu, showLayerMenu, showSelectMenu, showFilterMenu, showViewMenu, showWindowMenu,
     showSettingsMenu, showHelpMenu, toggleEditorMenu, openEditorMenu, setShowFileMenu, setShowEditMenu, setShowImageMenu,
     setShowLayerMenu, setShowSelectMenu, setShowFilterMenu, setShowViewMenu, setShowWindowMenu, setShowSettingsMenu,
-    setShowHelpMenu, handleSave, autosaveEnabled, onToggleAutosave, handleFitToScreen, handleResetZoomFromMenu, openPanelModeFromMenu, triggerToolbarTool,
+    setShowHelpMenu, handleSave, onOpenDesignPicker, onOpenRecentDesign, autosaveEnabled, onToggleAutosave, handleFitToScreen, handleResetZoomFromMenu, openPanelModeFromMenu, triggerToolbarTool,
     handleDuplicate, handleLayerDeleteFromMenu, handleLayerToggleLockFromMenu, menuLayerTarget, activeLayerOrderState,
     handleLayerOrderAction, handleSelectAllFromMenu, handleDeselectFromMenu, handleSelectionModify, handleUndo, handleRedo,
     historyState, handleZoom, gridType, setGridType, isPropertiesPanelVisible, propertiesPanelMode, handleWindowPanelToggle,
@@ -87,6 +90,38 @@ export default function EditorHeaderMenus({
     handleShowShortcutsFromMenu, handleShowAboutFromMenu,
 }: EditorHeaderMenusProps) {
     const { t } = useI18n();
+    const [recentDesigns, setRecentDesigns] = useState<OpenableDesign[]>([]);
+    const [showRecentSubmenu, setShowRecentSubmenu] = useState(false);
+
+    // Fetch once per menu open — cheap, and always fresh for "recent".
+    useEffect(() => {
+        if (!showFileMenu) {
+            // Close the submenu when the File menu itself closes.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setShowRecentSubmenu(false);
+            return;
+        }
+        let cancelled = false;
+        fetch('/api/designs/list')
+            .then(async (res) => {
+                if (!res.ok) return { designs: [] };
+                const contentType = res.headers.get('content-type') || '';
+                if (!contentType.toLowerCase().includes('application/json')) return { designs: [] };
+                return res.json() as Promise<{ designs?: OpenableDesign[] }>;
+            })
+            .then((json) => {
+                if (cancelled) return;
+                const sorted = [...(json.designs ?? [])].sort((a, b) => (
+                    new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
+                ));
+                setRecentDesigns(sorted.slice(0, 5));
+            })
+            .catch(() => {
+                if (!cancelled) setRecentDesigns([]);
+            });
+        return () => { cancelled = true; };
+    }, [showFileMenu]);
+
     return (
         <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
             <div className="relative order-1">
@@ -95,7 +130,7 @@ export default function EditorHeaderMenus({
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                     aria-expanded={showFileMenu}
                 >
-                    <span>File</span>
+                    <span>{t('menu.file')}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showFileMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showFileMenu && (
@@ -103,11 +138,60 @@ export default function EditorHeaderMenus({
                         <button
                             onClick={() => {
                                 setShowFileMenu(false);
+                                onOpenDesignPicker();
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                            data-testid="menu-file-open"
+                        >
+                            {t('editor.openDesign')}
+                        </button>
+                        <div
+                            className="relative"
+                            onMouseEnter={() => setShowRecentSubmenu(true)}
+                            onMouseLeave={() => setShowRecentSubmenu(false)}
+                        >
+                            <button
+                                onClick={() => setShowRecentSubmenu((prev) => !prev)}
+                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between"
+                                disabled={recentDesigns.length === 0}
+                                data-testid="menu-file-recent"
+                            >
+                                <span className={recentDesigns.length === 0 ? 'text-muted-foreground/50' : undefined}>
+                                    {t('editor.recentFiles')}
+                                </span>
+                                {recentDesigns.length > 0 && <ChevronRight size={14} />}
+                            </button>
+                            {showRecentSubmenu && recentDesigns.length > 0 && (
+                                <div
+                                    data-testid="menu-file-recent-list"
+                                    className="absolute left-full top-0 ml-1 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-left-2 z-50"
+                                >
+                                    {recentDesigns.map((design) => (
+                                        <button
+                                            key={design.id}
+                                            onClick={() => {
+                                                setShowFileMenu(false);
+                                                setShowRecentSubmenu(false);
+                                                onOpenRecentDesign(design);
+                                            }}
+                                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 truncate"
+                                            title={design.name}
+                                        >
+                                            {design.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="my-1 border-t border-border/50" />
+                        <button
+                            onClick={() => {
+                                setShowFileMenu(false);
                                 void handleSave();
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Save
+                            {t('common.save')}
                         </button>
                         <button
                             onClick={() => {
@@ -126,7 +210,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Export As...
+                            {t('editor.exportAs')}
                         </button>
                     </div>
                 )}
@@ -137,7 +221,7 @@ export default function EditorHeaderMenus({
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                     aria-expanded={showImageMenu}
                 >
-                    <span>Image</span>
+                    <span>{t('menu.image')}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showImageMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showImageMenu && (
@@ -197,7 +281,7 @@ export default function EditorHeaderMenus({
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                     aria-expanded={showLayerMenu}
                 >
-                    <span>Layer</span>
+                    <span>{t('menu.layer')}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showLayerMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showLayerMenu && (
@@ -290,7 +374,7 @@ export default function EditorHeaderMenus({
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                     aria-expanded={showFilterMenu}
                 >
-                    <span>Filter</span>
+                    <span>{t('menu.filter')}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showFilterMenu && (
@@ -386,7 +470,7 @@ export default function EditorHeaderMenus({
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                     aria-expanded={showEditMenu}
                 >
-                    <span>Edit</span>
+                    <span>{t('menu.edit')}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showEditMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showEditMenu && (
@@ -429,7 +513,7 @@ export default function EditorHeaderMenus({
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                     aria-expanded={showViewMenu}
                 >
-                    <span>View</span>
+                    <span>{t('menu.view')}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showViewMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showViewMenu && (

@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
 
 type EditorHeaderHelpMenuProps = {
     showHelpMenu: boolean;
@@ -17,6 +18,7 @@ export default function EditorHeaderHelpMenu({
     handleShowShortcutsFromMenu,
     handleShowAboutFromMenu,
 }: EditorHeaderHelpMenuProps) {
+    const { t } = useI18n();
     return (
         <div className="relative order-10">
             <button
@@ -24,7 +26,7 @@ export default function EditorHeaderHelpMenu({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
                 aria-expanded={showHelpMenu}
             >
-                <span>Help</span>
+                <span>{t('menu.help')}</span>
                 <ChevronDown size={14} className={`transition-transform duration-200 ${showHelpMenu ? 'rotate-180' : ''}`} />
             </button>
             {showHelpMenu && (
