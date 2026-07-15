@@ -201,6 +201,9 @@ export type ExtendedFabricObject = fabric.Object & {
     textBgPadding?: number;
     textBgCorners?: number;
     textBgStyle?: 'rect' | 'pill' | 'speech';
+    /** Shared-layer id: layers with the same sharedLayerId are linked across
+     *  canvases in the project; adjustment settings propagate globally. */
+    sharedLayerId?: string;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,6 +1,7 @@
 export type UiPreferences = {
     expandToolRailLabelsOnHover: boolean;
     suppressNumberDragHints: boolean;
+    autosaveEnabled: boolean;
 };
 
 export const UI_PREFERENCES_STORAGE_KEY = 'image-express-ui-preferences';
@@ -9,6 +10,7 @@ export const UI_PREFERENCES_CHANGED_EVENT = 'image-express:ui-preferences-change
 const DEFAULT_UI_PREFERENCES: UiPreferences = {
     expandToolRailLabelsOnHover: false,
     suppressNumberDragHints: false,
+    autosaveEnabled: false,
 };
 
 const coerceBoolean = (value: unknown, fallback: boolean): boolean => (
@@ -29,6 +31,10 @@ export const loadUiPreferences = (): UiPreferences => {
             suppressNumberDragHints: coerceBoolean(
                 parsed.suppressNumberDragHints,
                 DEFAULT_UI_PREFERENCES.suppressNumberDragHints
+            ),
+            autosaveEnabled: coerceBoolean(
+                parsed.autosaveEnabled,
+                DEFAULT_UI_PREFERENCES.autosaveEnabled
             ),
         };
     } catch {

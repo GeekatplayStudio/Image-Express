@@ -599,7 +599,7 @@ describe('Toolbar', () => {
                 crossOrigin: 'anonymous',
             });
             expect(canvas.add).toHaveBeenCalled();
-            expect(canvas.centerObject).toHaveBeenCalled();
+            expect(canvas.setActiveObject).toHaveBeenCalled();
         });
     });
 

@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import * as fabric from 'fabric';
+import { placeAtViewportCenter } from '@/lib/canvas-placement';
 
 import type { ThreeDGroup, ThreeDImage, ExtendedFabricObject } from '@/types';
 import type { CanvasWithArtboard } from '@/components/Editor/editorView.types';
@@ -31,7 +32,7 @@ export function useEditorCanvasAssetActions({
         if (type === 'models' || type === 'model' || url.endsWith('.glb') || url.endsWith('.gltf')) {
             fabric.FabricImage.fromURL(url).then((img) => {
                 img.scaleToWidth(300);
-                canvas.centerObject(img);
+                placeAtViewportCenter(canvas, img);
                 const threeDImg = img as ThreeDImage;
                 threeDImg.is3DModel = true;
                 threeDImg.modelUrl = url;
@@ -50,7 +51,7 @@ export function useEditorCanvasAssetActions({
                 if (img.width! > viewW * 0.5) {
                     img.scaleToWidth(viewW * 0.5);
                 }
-                canvas.centerObject(img);
+                placeAtViewportCenter(canvas, img);
                 if (name) (img as ExtendedFabricObject).name = name;
                 canvas.add(img);
                 canvas.setActiveObject(img);
@@ -109,7 +110,7 @@ export function useEditorCanvasAssetActions({
                         fabric.FabricImage.fromURL(assetUrl, { crossOrigin: 'anonymous' }).then((img) => {
                             if (!img) return;
                             img.scaleToWidth(Math.min(300, (canvas.width || 800) / 3));
-                            canvas.centerObject(img);
+                            placeAtViewportCenter(canvas, img);
                             const ext = img as ExtendedFabricObject;
                             ext.id = crypto.randomUUID();
                             ext.name = file.name;
@@ -130,7 +131,7 @@ export function useEditorCanvasAssetActions({
                         threeDGroup.id = crypto.randomUUID();
                         threeDGroup.name = file.name;
 
-                        canvas.centerObject(threeDGroup);
+                        placeAtViewportCenter(canvas, threeDGroup);
                         canvas.add(threeDGroup);
                         canvas.setActiveObject(threeDGroup);
                         canvas.requestRenderAll();

@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
+import { placeAtViewportCenter } from '@/lib/canvas-placement';
 import {
     Type,
     Square,
@@ -593,11 +594,16 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         onRequestPropertiesPanel?.('properties');
     }, [onRequestPropertiesPanel]);
 
-    const focusInsertedObject = useCallback((object: fabric.Object | null | undefined) => {
+    const focusInsertedObject = useCallback((object: fabric.Object | null | undefined, options?: { center?: boolean }) => {
         if (!canvas || !object) {
             return;
         }
 
+        // Center new layers in the visible viewport by default so they never
+        // spawn off-screen or in the artboard's top-left corner.
+        if (options?.center !== false) {
+            placeAtViewportCenter(canvas, object);
+        }
         canvas.setActiveObject(object);
         canvas.requestRenderAll();
         openPropertiesPanel();
@@ -834,7 +840,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         namedObject.isPenPath = true;
 
         canvas.add(createdObject);
-        focusInsertedObject(createdObject);
+        focusInsertedObject(createdObject, { center: false });
 
         // Ensure new layer is clearly visible and editable
         canvas.requestRenderAll();
@@ -1979,9 +1985,6 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 img.scale(finalScale);
             }
 
-            // Center it (this centers in the Viewport, which is aligned with Artboard center)
-            canvas.centerObject(img);
-
             canvas.add(img);
             focusInsertedObject(img);
         }).catch((err) => {
@@ -2066,7 +2069,6 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         (group as ExtendedFabricObject).name = `${labelText}: ${fileName}`;
 
         canvas.add(group);
-        canvas.centerObject(group);
         focusInsertedObject(group);
     };
 

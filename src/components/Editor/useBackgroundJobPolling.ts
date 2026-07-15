@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as fabric from 'fabric';
+import { placeAtViewportCenter } from '@/lib/canvas-placement';
 
 import type { BackgroundJob, ThreeDGroup, ThreeDImage } from '@/types';
 import { persistAssetToLibrary } from '@/lib/assetPersistence';
@@ -336,7 +337,7 @@ export function useBackgroundJobPolling({
                                     .then((img) => {
                                         if (!img) throw new Error('Image loaded but null');
                                         img.scaleToWidth(200);
-                                        img.set({ left: 100, top: 100 });
+                                        placeAtViewportCenter(canvas, img);
                                         const threeDImg = img as ThreeDImage;
                                         threeDImg.is3DModel = true;
                                         threeDImg.modelUrl = resultUrl;

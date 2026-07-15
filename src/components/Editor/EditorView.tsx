@@ -20,6 +20,11 @@ import useAppTheme from '@/hooks/useAppTheme';
 import { useMediaOverlay } from '@/components/Editor/useMediaOverlay';
 import { useEditorExport } from '@/components/Editor/useEditorExport';
 import { useEditorPersistence } from '@/components/Editor/useEditorPersistence';
+import { useEditorAutosave } from '@/components/Editor/useEditorAutosave';
+import { useMultiCanvasProject } from '@/components/Editor/useMultiCanvasProject';
+import { useI18n } from '@/providers/I18nProvider';
+import CanvasTabsBar from '@/components/Editor/CanvasTabsBar';
+import CanvasStackView from '@/components/Editor/CanvasStackView';
 import { useEditorMenuActions } from '@/components/Editor/useEditorMenuActions';
 import { useEditorMediaPreview } from '@/components/Editor/useEditorMediaPreview';
 import { useEditorKeyboardShortcuts } from '@/components/Editor/useEditorKeyboardShortcuts';
@@ -115,6 +120,7 @@ export default function EditorView({
     const appTheme = useAppTheme();
     const dialog = useDialog();
     const { toast } = useToast();
+    const { t } = useI18n();
 
     const getDisplayName = useCallback((url: string) => {
         const withoutQuery = url.split('?')[0];
@@ -132,6 +138,7 @@ export default function EditorView({
 
     const customHistoryProps = useMemo(() => [
         'id',
+        'sharedLayerId',
         'gradient',
         'pattern',
         'is3DModel',
@@ -687,6 +694,45 @@ export default function EditorView({
     });
 
     const {
+        project: multiCanvasProject,
+        isStackViewOpen,
+        openStackView,
+        closeStackView,
+        openCanvas: openProjectCanvas,
+        selectCanvas: selectProjectCanvas,
+        handleAddCanvas,
+        handleDuplicateCanvas,
+        handleDeleteCanvas,
+        handleRenameCanvas,
+        toggleShareActiveLayer,
+    } = useMultiCanvasProject({
+        canvas,
+        designName: propDesignName,
+        initialWidth: initialSize?.width ?? 1080,
+        initialHeight: initialSize?.height ?? 1080,
+        customHistoryProps,
+    });
+
+    const handleToggleShareLayer = useCallback(() => {
+        const result = toggleShareActiveLayer();
+        if (result === null) {
+            toast({ title: t('stack.shareNoSelection'), variant: 'warning' });
+        } else {
+            toast({
+                title: result ? t('stack.layerShared') : t('stack.layerUnshared'),
+                variant: 'success',
+            });
+        }
+    }, [t, toast, toggleShareActiveLayer]);
+
+    const { autosaveEnabled, setAutosaveEnabled } = useEditorAutosave({
+        isDirty,
+        designId: propDesignId,
+        designName: propDesignName,
+        handleSave,
+    });
+
+    const {
         isRenamingDesignTitle,
         setIsRenamingDesignTitle,
         designTitleDraft,
@@ -1098,6 +1144,8 @@ export default function EditorView({
                             setShowSettingsMenu={setShowSettingsMenu}
                             setShowHelpMenu={setShowHelpMenu}
                             handleSave={handleSave}
+                            autosaveEnabled={autosaveEnabled}
+                            onToggleAutosave={setAutosaveEnabled}
                             handleFitToScreen={handleFitToScreen}
                             handleResetZoomFromMenu={handleResetZoomFromMenu}
                             openPanelModeFromMenu={openPanelModeFromMenu}
@@ -1224,15 +1272,40 @@ export default function EditorView({
                     />
                 )}
                 workspace={(
-                    <EditorCanvasWorkspace
-                        isDraggingPanel={isDraggingPanel}
-                        canvasControls={canvasWorkspaceCanvasControls}
-                        threeDControls={canvasWorkspaceThreeDControls}
-                        textControls={canvasWorkspaceTextControls}
-                        lockOverlayControls={canvasWorkspaceLockOverlayControls}
-                        cursorPreview={cursorPreview}
-                        utilityControls={canvasWorkspaceUtilityControls}
-                    />
+                    <div className="relative flex flex-col flex-1 min-h-0 h-full">
+                        {multiCanvasProject && (
+                            <CanvasTabsBar
+                                project={multiCanvasProject}
+                                onOpenCanvas={openProjectCanvas}
+                                onAddCanvas={handleAddCanvas}
+                                onOpenStackView={openStackView}
+                                onToggleShareLayer={handleToggleShareLayer}
+                            />
+                        )}
+                        <div className="relative flex-1 min-h-0 flex">
+                            <EditorCanvasWorkspace
+                                isDraggingPanel={isDraggingPanel}
+                                canvasControls={canvasWorkspaceCanvasControls}
+                                threeDControls={canvasWorkspaceThreeDControls}
+                                textControls={canvasWorkspaceTextControls}
+                                lockOverlayControls={canvasWorkspaceLockOverlayControls}
+                                cursorPreview={cursorPreview}
+                                utilityControls={canvasWorkspaceUtilityControls}
+                            />
+                            {isStackViewOpen && multiCanvasProject && (
+                                <CanvasStackView
+                                    project={multiCanvasProject}
+                                    onSelectCanvas={selectProjectCanvas}
+                                    onOpenCanvas={openProjectCanvas}
+                                    onAddCanvas={handleAddCanvas}
+                                    onDuplicateCanvas={handleDuplicateCanvas}
+                                    onDeleteCanvas={handleDeleteCanvas}
+                                    onRenameCanvas={handleRenameCanvas}
+                                    onClose={closeStackView}
+                                />
+                            )}
+                        </div>
+                    </div>
                 )}
                 afterWorkspace={(
                     <EditorPropertiesPanels

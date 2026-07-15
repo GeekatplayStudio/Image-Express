@@ -9,6 +9,7 @@ describe('ui-preferences', () => {
         expect(loadUiPreferences()).toEqual({
             expandToolRailLabelsOnHover: false,
             suppressNumberDragHints: false,
+            autosaveEnabled: false,
         });
     });
 

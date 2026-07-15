@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
 
 import type { GridType } from '@/components/GridOverlay';
 import type { EditorMenuId } from '@/components/Editor/useEditorMenus';
@@ -39,6 +40,8 @@ type EditorHeaderMenusProps = {
     setShowSettingsMenu: BooleanStateSetter;
     setShowHelpMenu: BooleanStateSetter;
     handleSave: () => Promise<void>;
+    autosaveEnabled: boolean;
+    onToggleAutosave: (enabled: boolean) => void;
     handleFitToScreen: () => void;
     handleResetZoomFromMenu: () => void;
     openPanelModeFromMenu: (mode: PanelRailMode) => void;
@@ -76,13 +79,14 @@ export default function EditorHeaderMenus({
     showFileMenu, showEditMenu, showImageMenu, showLayerMenu, showSelectMenu, showFilterMenu, showViewMenu, showWindowMenu,
     showSettingsMenu, showHelpMenu, toggleEditorMenu, openEditorMenu, setShowFileMenu, setShowEditMenu, setShowImageMenu,
     setShowLayerMenu, setShowSelectMenu, setShowFilterMenu, setShowViewMenu, setShowWindowMenu, setShowSettingsMenu,
-    setShowHelpMenu, handleSave, handleFitToScreen, handleResetZoomFromMenu, openPanelModeFromMenu, triggerToolbarTool,
+    setShowHelpMenu, handleSave, autosaveEnabled, onToggleAutosave, handleFitToScreen, handleResetZoomFromMenu, openPanelModeFromMenu, triggerToolbarTool,
     handleDuplicate, handleLayerDeleteFromMenu, handleLayerToggleLockFromMenu, menuLayerTarget, activeLayerOrderState,
     handleLayerOrderAction, handleSelectAllFromMenu, handleDeselectFromMenu, handleSelectionModify, handleUndo, handleRedo,
     historyState, handleZoom, gridType, setGridType, isPropertiesPanelVisible, propertiesPanelMode, handleWindowPanelToggle,
     setPanelState, panelState, handleWindowDockMode, onOpenSettings, isAdminUser, onOpenAdminArea, onOpenDocumentation,
     handleShowShortcutsFromMenu, handleShowAboutFromMenu,
 }: EditorHeaderMenusProps) {
+    const { t } = useI18n();
     return (
         <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
             <div className="relative order-1">
@@ -104,6 +108,17 @@ export default function EditorHeaderMenus({
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
                             Save
+                        </button>
+                        <button
+                            onClick={() => {
+                                onToggleAutosave(!autosaveEnabled);
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center justify-between"
+                            aria-pressed={autosaveEnabled}
+                            data-testid="menu-file-autosave"
+                        >
+                            <span>{t('editor.autosave')}</span>
+                            {autosaveEnabled && <Check size={14} className="text-primary" />}
                         </button>
                         <button
                             onClick={() => {
