@@ -117,6 +117,11 @@ export default function EditorPropertiesPanels({
             panelMode={propertiesPanelMode}
             onPanelModeChange={setPropertiesPanelMode}
             onLayerDblClick={handleLayerDblClick(exitLayersToolOnFocus)}
+            onFocusProperties={() => {
+                if (activeTool === 'layers') {
+                    setActiveTool('select');
+                }
+            }}
             onMake3D={onOpenThreeDFromSelection}
             onDuplicate={handleDuplicate}
             onAssetSelect={handleAssetSelect}

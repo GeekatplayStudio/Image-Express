@@ -6,6 +6,7 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { LayerNode } from '@/types';
 import { ensureObjectId } from '@/lib/fabric-utils';
 import { SortableLayerItem } from './SortableLayerItem'; // Fix Import Path if needed
+import { useI18n } from '@/providers/I18nProvider';
 
 interface LayersViewProps {
     objects: fabric.Object[];
@@ -25,6 +26,8 @@ interface LayersViewProps {
     onLayerBlendChange: (value: string) => void;
     onLayerNumericPropChange?: (prop: 'left' | 'top' | 'width' | 'height', value: number) => void;
     onDblClick?: (obj: fabric.Object) => void;
+    /** Open the layer's full properties view (arrow button / double-click). */
+    onOpenProperties?: (obj: fabric.Object) => void;
     onDuplicate?: () => void;
     onToggleClip?: (obj: fabric.Object) => void;
     /** Photoshop "Add layer mask" (reveal-all vector mask). */
@@ -71,6 +74,7 @@ export function LayersView({
     onLayerBlendChange,
     onLayerNumericPropChange,
     onDblClick,
+    onOpenProperties,
     onDuplicate,
     onToggleClip,
     onAddMask,
@@ -91,6 +95,7 @@ export function LayersView({
     onToggleFolder: externalToggleFolder
 }: LayersViewProps) {
     
+    const { t } = useI18n();
     const [localExpanded, setLocalExpanded] = useState<Set<string>>(new Set());
     const [inspectorLayerId, setInspectorLayerId] = useState<string | null>(null);
     const expanded = externalExpanded ?? localExpanded;
@@ -246,24 +251,24 @@ export function LayersView({
             {/* Header */}
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex justify-between items-center">
                 <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase flex items-center gap-2">
-                    <Layers size={14} /> Layers
+                    <Layers size={14} /> {t('layers.title')}
                 </h2>
-                <span className="text-[10px] text-muted-foreground">{objects.length} elements</span>
+                <span className="text-[10px] text-muted-foreground">{objects.length} {t('layers.elements')}</span>
             </div>
 
             {/* Toolbar */}
              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/30 bg-secondary/5">
                  <div className="flex items-center gap-1">
-                    <button onClick={onCreateFolder} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="New Folder">
+                    <button onClick={onCreateFolder} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title={t('layers.newFolder')}>
                      <FolderPlus size={14} />
                     </button>
-                    <button onClick={onGroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Group">
+                    <button onClick={onGroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title={t('common.group')}>
                      <Folder size={14} />
                     </button>
-                    <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Ungroup">
+                    <button onClick={onUngroup} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title={t('common.ungroup')}>
                      <Layers size={14} />
                     </button>
-                    <button onClick={onDuplicate} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title="Duplicate">
+                    <button onClick={onDuplicate} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title={t('common.duplicate')}>
                      <Copy size={14} />
                     </button>
                     <div className="w-px h-5 bg-border/60 mx-1" />
@@ -271,7 +276,7 @@ export function LayersView({
                         onClick={onMoveLayerUp}
                         disabled={!selectedObject || !canMoveLayerUp || !onMoveLayerUp}
                         className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Move selected layer up"
+                        title={t('layers.moveUp')}
                     >
                         <ArrowUp size={14} />
                     </button>
@@ -279,7 +284,7 @@ export function LayersView({
                         onClick={onMoveLayerDown}
                         disabled={!selectedObject || !canMoveLayerDown || !onMoveLayerDown}
                         className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Move selected layer down"
+                        title={t('layers.moveDown')}
                     >
                         <ArrowDown size={14} />
                     </button>
@@ -287,7 +292,7 @@ export function LayersView({
                         onClick={onBringLayerToFront}
                         disabled={!selectedObject || !canBringLayerToFront || !onBringLayerToFront}
                         className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Bring selected layer to front"
+                        title={t('layers.toFront')}
                     >
                         <ChevronsUp size={14} />
                     </button>
@@ -295,7 +300,7 @@ export function LayersView({
                         onClick={onSendLayerToBack}
                         disabled={!selectedObject || !canSendLayerToBack || !onSendLayerToBack}
                         className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Send selected layer to back"
+                        title={t('layers.toBack')}
                     >
                         <ChevronsDown size={14} />
                     </button>
@@ -351,7 +356,7 @@ export function LayersView({
                         onClick={() => selectedObject && onDelete(selectedObject)}
                         disabled={!selectedObject}
                         className="p-1.5 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Delete selected layer"
+                        title={t('layers.deleteSelected')}
                     >
                         <Trash2 size={14} />
                     </button>
@@ -361,7 +366,7 @@ export function LayersView({
              {/* Layer Controls */}
              <div className="px-3 py-2 border-b border-border/30 bg-secondary/5 space-y-2">
                  <div className="flex items-center gap-2">
-                     <span className="text-[10px] text-muted-foreground w-14">Opacity</span>
+                     <span className="text-[10px] text-muted-foreground w-14">{t('layers.opacity')}</span>
                      <input
                          type="range"
                          min={0}
@@ -377,7 +382,7 @@ export function LayersView({
                      </span>
                  </div>
                  <div className="flex items-center gap-2">
-                     <span className="text-[10px] text-muted-foreground w-14">Blend</span>
+                     <span className="text-[10px] text-muted-foreground w-14">{t('layers.blend')}</span>
                      <select
                          value={selectedObject?.globalCompositeOperation || 'source-over'}
                          onChange={(e) => onLayerBlendChange(e.target.value)}
@@ -406,7 +411,7 @@ export function LayersView({
 
              {isInspectorOpen && selectedObject && (
                 <div className="px-3 py-2 border-b border-border/30 bg-secondary/5 space-y-2">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Selected Layer Properties</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{t('layers.selectedLayerProps')}</div>
                     <div className="grid grid-cols-2 gap-2">
                         <label className="flex flex-col gap-1 text-[10px] text-muted-foreground">
                             X
@@ -487,6 +492,7 @@ export function LayersView({
                                  expandedIds={expanded}
                                  onToggleExpand={handleToggleExpand}
                                  onDblClick={() => onDblClick && onDblClick(node.obj)}
+                                 onOpenProperties={onOpenProperties}
                                  onToggleClip={onToggleClip}
                                  onToggleInspector={handleToggleInspector}
                                  inspectorLayerId={inspectorLayerId}
@@ -525,31 +531,31 @@ export function LayersView({
                      >
                          {!ext.isAdjustmentLayer && (ext.isClippedToBelow ? (
                              <button role="menuitem" className={itemClass} onClick={() => runContextAction((obj) => onReleaseClip?.(obj))} disabled={!onReleaseClip}>
-                                 <CornerLeftDown size={13} className="text-primary" /> Release Clipping Mask
+                                 <CornerLeftDown size={13} className="text-primary" /> {t('layers.releaseClippingMask')}
                              </button>
                          ) : (
                              <button role="menuitem" className={itemClass} onClick={() => runContextAction((obj) => onClipToBelow?.(obj))} disabled={!onClipToBelow}>
-                                 <CornerLeftDown size={13} /> Clip to Layer Below
+                                 <CornerLeftDown size={13} /> {t('layers.clipToLayerBelow')}
                              </button>
                          ))}
                          <button role="menuitem" className={itemClass} onClick={() => runContextAction((obj) => onClipLayerAbove?.(obj))} disabled={!onClipLayerAbove}>
-                             <CornerRightUp size={13} /> Clip Layer Above to This
+                             <CornerRightUp size={13} /> {t('layers.clipLayerAbove')}
                          </button>
                          {!!contextMenu.obj.clipPath && !ext.isClippedToBelow && onEditMask && (
                              <button role="menuitem" className={itemClass} onClick={() => runContextAction((obj) => onEditMask(obj))}>
-                                 <Brush size={13} /> Edit Mask
+                                 <Brush size={13} /> {t('layers.editMask')}
                              </button>
                          )}
                          <div className="my-1 h-px bg-border/60" />
                          <button role="menuitem" className={itemClass} onClick={() => runContextAction(() => onDuplicate?.())} disabled={!onDuplicate}>
-                             <Copy size={13} /> Duplicate
+                             <Copy size={13} /> {t('common.duplicate')}
                              <span className="ml-auto text-[10px] text-muted-foreground">Ctrl+J</span>
                          </button>
                          <button role="menuitem" className={itemClass} onClick={() => runContextAction((obj) => onToggleLock(obj))}>
-                             {ext.locked ? <Unlock size={13} /> : <Lock size={13} />} {ext.locked ? 'Unlock' : 'Lock'}
+                             {ext.locked ? <Unlock size={13} /> : <Lock size={13} />} {ext.locked ? t('common.unlock') : t('common.lock')}
                          </button>
                          <button role="menuitem" className={itemClass} onClick={() => runContextAction((obj) => onToggleVisibility(obj))}>
-                             {isVisible ? <EyeOff size={13} /> : <Eye size={13} />} {isVisible ? 'Hide' : 'Show'}
+                             {isVisible ? <EyeOff size={13} /> : <Eye size={13} />} {isVisible ? t('common.hide') : t('common.show')}
                          </button>
                          <div className="my-1 h-px bg-border/60" />
                          <button
@@ -557,7 +563,7 @@ export function LayersView({
                              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10 transition-colors"
                              onClick={() => runContextAction((obj) => onDelete(obj))}
                          >
-                             <Trash2 size={13} /> Delete
+                             <Trash2 size={13} /> {t('common.delete')}
                              <span className="ml-auto text-[10px] text-muted-foreground">Del</span>
                          </button>
                      </div>

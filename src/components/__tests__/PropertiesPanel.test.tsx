@@ -356,7 +356,9 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         });
 
         expect(canvas.add).toHaveBeenCalledTimes(1);
-        expect(canvas.setActiveObject).toHaveBeenCalledTimes(1);
+        // Called on create and again after the tool switch settles (the
+        // deferred re-select keeps the new layer focused).
+        expect(canvas.setActiveObject).toHaveBeenCalled();
         expect(latestSelectionProps?.selectedObject?.isAdjustmentLayer).toBe(true);
     });
 

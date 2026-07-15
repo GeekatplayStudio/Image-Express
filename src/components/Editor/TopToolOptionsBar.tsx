@@ -7,6 +7,15 @@ import GradientControls from '@/components/Editor/top-tool-options/GradientContr
 import AdvancedToolControls from '@/components/Editor/top-tool-options/AdvancedToolControls';
 import { Redo2, Save, Undo2 } from 'lucide-react';
 import type { TopToolOptionsBarProps } from '@/components/Editor/TopToolOptionsBar.types';
+import { useI18n } from '@/providers/I18nProvider';
+
+/** Tools with a translated display name in the pill; others show their raw id. */
+const TOOL_LABEL_KEYS = new Set([
+    'select', 'path-select', 'clone-stamp', 'spot-healing', 'remove', 'blur',
+    'sharpen', 'dodge', 'burn', 'sponge', 'history-brush', 'healing',
+    'quick-select', 'selection-brush', 'marquee', 'lasso', 'wand', 'paint',
+    'gradient', 'pen', 'text', 'shapes', 'crop', 'eyedropper', 'zoom', 'hand',
+]);
 
 export default function TopToolOptionsBar({
     activeTool,
@@ -105,36 +114,11 @@ export default function TopToolOptionsBar({
     handOptions,
     onHandLockPanChange,
 }: TopToolOptionsBarProps) {
+    const { t } = useI18n();
     const normalizedActiveTool = activeTool || 'select';
-    const displayToolName = normalizedActiveTool === 'select'
-        ? 'move'
-        : normalizedActiveTool === 'path-select'
-            ? 'path select'
-            : normalizedActiveTool === 'clone-stamp'
-                ? 'clone stamp'
-                : normalizedActiveTool === 'spot-healing'
-                    ? 'spot healing'
-                    : normalizedActiveTool === 'remove'
-                        ? 'remove'
-                        : normalizedActiveTool === 'blur'
-                            ? 'blur tool'
-                            : normalizedActiveTool === 'sharpen'
-                                ? 'sharpen tool'
-                                : normalizedActiveTool === 'dodge'
-                                    ? 'dodge tool'
-                                    : normalizedActiveTool === 'burn'
-                                        ? 'burn tool'
-                                        : normalizedActiveTool === 'sponge'
-                                            ? 'sponge tool'
-                                            : normalizedActiveTool === 'history-brush'
-                                                ? 'history brush'
-                                                : normalizedActiveTool === 'healing'
-                                                    ? 'healing brush'
-                                                    : normalizedActiveTool === 'quick-select'
-                                                        ? 'quick selection'
-                                                        : normalizedActiveTool === 'selection-brush'
-                                                            ? 'selection brush'
-                                                            : normalizedActiveTool;
+    const displayToolName = TOOL_LABEL_KEYS.has(normalizedActiveTool)
+        ? t(`tool.${normalizedActiveTool}`)
+        : normalizedActiveTool;
 
     const hasQuickControls = Boolean(
         (activeTool === 'select' && selectOptions)
@@ -181,8 +165,8 @@ export default function TopToolOptionsBar({
                                 onClick={() => onSave?.()}
                                 disabled={!onSave}
                                 className={`h-8 w-8 rounded-full border border-border/60 flex items-center justify-center transition-colors ${onSave ? (isDirty ? 'text-primary hover:bg-secondary/60' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60') : 'text-muted-foreground/40 cursor-not-allowed'}`}
-                                title="Save Design"
-                                aria-label="Save design"
+                                title={t('topbar.saveDesign')}
+                                aria-label={t('topbar.saveDesign')}
                             >
                                 <Save size={14} />
                             </button>
@@ -190,8 +174,8 @@ export default function TopToolOptionsBar({
                                 onClick={() => onUndo?.()}
                                 disabled={!onUndo || !canUndo}
                                 className={`h-8 w-8 rounded-full border border-border/60 flex items-center justify-center transition-colors ${onUndo && canUndo ? 'text-muted-foreground hover:text-foreground hover:bg-secondary/60' : 'text-muted-foreground/40 cursor-not-allowed'}`}
-                                title="Undo"
-                                aria-label="Undo"
+                                title={t('common.undo')}
+                                aria-label={t('common.undo')}
                             >
                                 <Undo2 size={14} />
                             </button>
@@ -199,8 +183,8 @@ export default function TopToolOptionsBar({
                                 onClick={() => onRedo?.()}
                                 disabled={!onRedo || !canRedo}
                                 className={`h-8 w-8 rounded-full border border-border/60 flex items-center justify-center transition-colors ${onRedo && canRedo ? 'text-muted-foreground hover:text-foreground hover:bg-secondary/60' : 'text-muted-foreground/40 cursor-not-allowed'}`}
-                                title="Redo"
-                                aria-label="Redo"
+                                title={t('common.redo')}
+                                aria-label={t('common.redo')}
                             >
                                 <Redo2 size={14} />
                             </button>
@@ -210,7 +194,7 @@ export default function TopToolOptionsBar({
                 )}
                 <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
-                        Tool Options
+                        {t('topbar.toolOptions')}
                     </span>
                     <span className="text-xs px-2 py-1 rounded-full bg-tool-accent text-tool-accent-foreground border border-border/60 truncate">
                         {displayToolName}
@@ -336,7 +320,7 @@ export default function TopToolOptionsBar({
                 />
                 {!hasQuickControls && (
                     <span className="shrink-0 text-xs text-muted-foreground px-2">
-                        No quick properties for this tool.
+                        {t('topbar.noQuickProps')}
                     </span>
                 )}
             </div>

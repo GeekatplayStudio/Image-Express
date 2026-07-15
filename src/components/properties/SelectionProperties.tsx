@@ -13,6 +13,7 @@ import { AdjustmentControls } from './AdjustmentControls';
 import { readMaskGradientSettings } from './maskGradientUtils';
 import { Folder, Layers, Blend, ChevronDown, ChevronRight, Lock, Unlock, Box, Type, CornerLeftDown, Pencil, Check } from 'lucide-react';
 import { ColorPicker } from './ColorPicker';
+import { useI18n } from '@/providers/I18nProvider';
 
 const ADJUSTMENT_ACTION_ITEMS: Array<{ type: AdjustmentLayerType; enabled: boolean }> = [
     { type: 'curves', enabled: true },
@@ -26,20 +27,6 @@ const ADJUSTMENT_ACTION_ITEMS: Array<{ type: AdjustmentLayerType; enabled: boole
     { type: 'light-and-color', enabled: false },
     { type: 'solid-color', enabled: false },
 ];
-
-const getAdjustmentTypeLabel = (type: AdjustmentLayerType) => {
-    if (type === 'curves') return 'Curves';
-    if (type === 'levels') return 'Levels';
-    if (type === 'saturation-vibrance') return 'Vibrance';
-    if (type === 'hue-saturation') return 'Hue/Saturation';
-    if (type === 'exposure') return 'Exposure';
-    if (type === 'black-white') return 'Black & White';
-    if (type === 'brightness-contrast') return 'Brightness/Contrast';
-    if (type === 'color-balance') return 'Color Balance';
-    if (type === 'light-and-color') return 'Light and Color';
-    if (type === 'solid-color') return 'Solid Color';
-    return 'Adjustment';
-};
 
 interface SelectionPropertiesProps {
     selectedObject: fabric.Object | null;
@@ -133,6 +120,8 @@ export function SelectionProperties({
     onDetachTextPath
 }: SelectionPropertiesProps) {
 
+    const { t } = useI18n();
+    const getAdjustmentTypeLabel = (type: AdjustmentLayerType) => t(`adjust.${type}`);
     const [isTransformOpen, setIsTransformOpen] = useState(true);
     const [colorMode, setColorMode] = useState<'RGB' | 'HSB' | 'CMYK' | 'Lab'>('RGB');
 
@@ -174,25 +163,25 @@ export function SelectionProperties({
             <div className="h-full bg-card overflow-y-auto">
                  <div className="p-4 border-b border-border/50 bg-secondary/10">
                     <h2 className="font-semibold text-xs uppercase flex items-center gap-2">
-                        <Layers size={14} /> Multiple Selection ({selectedObjects.length})
+                        <Layers size={14} /> {t('panel.multipleSelection')} ({selectedObjects.length})
                     </h2>
                 </div>
                 
                 <div className="p-4 flex gap-2 justify-center border-b border-border/50">
                     <button onClick={onGroup} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]">
-                        <Folder size={20} /> Group
+                        <Folder size={20} /> {t('common.group')}
                     </button>
                     {selectedObjects.length === 2 && (
                         <>
                             <div className="w-px bg-border mx-2" />
                             <button onClick={onCreateMask} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Mask Image with Shape">
-                                <Blend size={20} /> Mask
+                                <Blend size={20} /> {t('panel.mask')}
                             </button>
                             {hasTextAndPath && onTextOnPath && (
                                 <>
                                     <div className="w-px bg-border mx-2" />
                                     <button onClick={onTextOnPath} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Put Text on Path">
-                                         <Type size={20} /> Path
+                                         <Type size={20} /> {t('panel.path')}
                                     </button>
                                 </>
                             )}
@@ -210,7 +199,7 @@ export function SelectionProperties({
     }
 
     if (!selectedObject) {
-         return <div className="p-8 text-center text-muted-foreground text-sm">Select an object to edit properties</div>;
+         return <div className="p-8 text-center text-muted-foreground text-sm">{t('panel.selectPrompt')}</div>;
     }
 
     return (
@@ -219,7 +208,7 @@ export function SelectionProperties({
             <div className="p-4 border-b border-border/50 bg-secondary/10">
                 <div className="flex items-center justify-between">
                     <h2 className="font-semibold text-xs uppercase truncate max-w-[150px]" title={extended?.name || selectedObject.type}>
-                         {extended?.name || (isAdjustment ? 'Adjustment Layer' : selectedObject.type)}
+                         {extended?.name || (isAdjustment ? t('panel.adjustmentLayer') : selectedObject.type)}
                     </h2>
                     <span className="text-[10px] text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border">
                         {selectedObject.type}
@@ -231,13 +220,13 @@ export function SelectionProperties({
             {isMaskEditingObject && onApplyEditedMask && (
                 <div className="p-2 border-b border-border/50 bg-tool-accent/10 space-y-1.5">
                     <p className="text-[10px] text-muted-foreground text-center">
-                        You are editing a mask shape. Move, scale, or rotate it, then apply.
+                        {t('panel.maskEditingHint')}
                     </p>
                     <button
                         onClick={onApplyEditedMask}
                         className="w-full px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded text-xs flex items-center justify-center gap-2 transition-colors"
                     >
-                        <Check size={14} /> Apply Mask
+                        <Check size={14} /> {t('panel.applyMask')}
                     </button>
                 </div>
             )}
@@ -245,7 +234,7 @@ export function SelectionProperties({
                 <div className="p-2 border-b border-border/50 flex flex-wrap gap-2 justify-center bg-secondary/10">
                     {isGroup && (
                         <button onClick={onUngroup} className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded text-xs flex items-center gap-2 border border-border/50 transition-colors">
-                            <Layers size={14} /> Ungroup
+                            <Layers size={14} /> {t('common.ungroup')}
                         </button>
                     )}
                     {!isAdjustment && (isClippedToBelow ? (
@@ -255,7 +244,7 @@ export function SelectionProperties({
                                 className="px-3 py-1.5 bg-tool-accent/20 text-tool-accent border-tool-accent/30 rounded text-xs flex items-center gap-2 border transition-colors"
                                 title="Release the clipping mask (stop clipping to the layer below)"
                             >
-                                <CornerLeftDown size={14} /> Release Clip
+                                <CornerLeftDown size={14} /> {t('panel.releaseClip')}
                             </button>
                         )
                     ) : (
@@ -265,7 +254,7 @@ export function SelectionProperties({
                                 className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded text-xs flex items-center gap-2 border border-border/50 transition-colors"
                                 title="Clip this layer to the layer below it (Photoshop clipping mask)"
                             >
-                                <CornerLeftDown size={14} /> Clip to Below
+                                <CornerLeftDown size={14} /> {t('panel.clipToBelow')}
                             </button>
                         )
                     ))}
@@ -278,7 +267,7 @@ export function SelectionProperties({
                                     title={!isMaskAbsolute ? "Mask is locked to layer (Attached)" : "Mask is fixed on canvas (Detached/Window)"}
                                 >
                                     {!isMaskAbsolute ? <Lock size={14} /> : <Unlock size={14} />}
-                                    {!isMaskAbsolute ? 'Attached' : 'Detached'}
+                                    {!isMaskAbsolute ? t('panel.attached') : t('panel.detached')}
                                 </button>
                             )}
                             {onEditMask && (
@@ -287,62 +276,50 @@ export function SelectionProperties({
                                     className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded text-xs flex items-center gap-2 border border-border/50 transition-colors"
                                     title="Detach the mask shape onto the canvas to reshape it"
                                 >
-                                    <Pencil size={14} /> Edit Mask
+                                    <Pencil size={14} /> {t('panel.editMask')}
                                 </button>
                             )}
                             <button onClick={onReleaseMask} className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded text-xs flex items-center gap-2 border border-border/50 transition-colors">
-                                <Blend size={14} /> Release
+                                <Blend size={14} /> {t('panel.release')}
                             </button>
                         </>
                     )}
                 </div>
             )}
 
-            {/* Transform Group (Collapsible) — kept near the top so position,
-                scale, rotation and skew are reachable without scrolling past
-                the style/effect sections. */}
-            <div className="bg-background border-b border-border/30">
-                <div className="flex items-center justify-between w-full p-3 hover:bg-secondary/30 transition-colors group">
-                     <button
-                         onClick={() => setIsTransformOpen(!isTransformOpen)}
-                         className="flex items-center gap-2 flex-1"
-                    >
-                        {isTransformOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Transform</span>
-                    </button>
-                    <div className="flex gap-2 text-[10px] text-muted-foreground">
-                        {Math.round(selectedObject.left || 0)}, {Math.round(selectedObject.top || 0)}
-                    </div>
-                </div>
+            {/* PRIMARY SECTION — the main controls for the selected item
+                always come first (adjustment settings, text, fill, filters).
+                Generic transform/layout live further down. */}
 
-                {isTransformOpen && (
-                     <div className="p-3 bg-secondary/5 animate-in slide-in-from-top-1 duration-150 space-y-3">
-                         <TransformProperties
-                            x={selectedObject.left || 0}
-                            y={selectedObject.top || 0}
-                            width={selectedObject.width || 0}
-                            height={selectedObject.height || 0}
-                            rotation={selectedObject.angle || 0}
-                            scaleX={selectedObject.scaleX || 1}
-                            scaleY={selectedObject.scaleY || 1}
-                            isLocked={!!selectedObject.lockMovementX}
-                            pseudoBacksidePreset={effectState.skew.preset || 'front'}
-                            onChange={handleTransform}
-                            onPresetChange={(preset) => onPropChange('pseudoBacksidePreset', preset)}
-                        />
-                         <SkewTaperProperties
-                            values={{
-                                skewX: selectedObject.skewX || 0,
-                                skewY: selectedObject.skewY || 0,
-                                skewZ: effectState.skew.z || 0,
-                                taperDirection: effectState.skew.dir || 0,
-                                pseudoBacksidePreset: effectState.skew.preset || 'front'
-                            }}
-                            onChange={(k, v) => onPropChange(k, v)}
-                        />
-                     </div>
-                )}
-            </div>
+            {isAdjustment && extended?.adjustmentType && (
+                 <div className="p-4 border-b border-border/50 space-y-3 bg-secondary/5">
+                    <h3 className="font-medium text-sm">{t('panel.adjustmentSettings')}</h3>
+                    <AdjustmentControls
+                        type={extended.adjustmentType}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        settings={extended.adjustmentSettings || ({} as any)}
+                        onChange={updateAdjustment}
+                    />
+                    {onAdjustmentTypeChange && (
+                        <div className="space-y-2 pt-2 border-t border-border/30">
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('panel.switchAdjustmentType')}</div>
+                            <div className="grid grid-cols-2 gap-2">
+                                {ADJUSTMENT_ACTION_ITEMS.filter((item) => item.enabled).map((item) => (
+                                    <button
+                                        key={item.type}
+                                        type="button"
+                                        aria-label={`Adjustment action ${getAdjustmentTypeLabel(item.type)}`}
+                                        onClick={() => onAdjustmentTypeChange(item.type)}
+                                        className={`rounded border px-2 py-1.5 text-[11px] text-left transition-colors ${extended.adjustmentType === item.type ? 'border-tool-accent/40 bg-tool-accent/20 text-tool-accent' : 'border-border/60 bg-secondary/20 hover:bg-secondary/40 text-foreground'}`}
+                                    >
+                                        {getAdjustmentTypeLabel(item.type)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                 </div>
+            )}
 
             {isText && textState && (
                 <TextProperties
@@ -389,9 +366,9 @@ export function SelectionProperties({
 
             {isPenObject && (
                  <div className="p-4 border-b border-border/50 space-y-3">
-                    <h3 className="font-medium text-sm">Pen Path</h3>
+                    <h3 className="font-medium text-sm">{t('panel.penPath')}</h3>
                     <div className="space-y-2">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('panel.mode')}</div>
                         <div className="grid grid-cols-3 gap-1">
                             {(['straight', 'smooth', 'bezier'] as const).map((mode) => (
                                 <button
@@ -411,18 +388,18 @@ export function SelectionProperties({
                                 onClick={() => onPropChange('penPathUpdate', { closed: false })}
                                 className={`text-[10px] px-2 py-1 rounded border transition-colors ${!penClosed ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                             >
-                                Open
+                                {t('panel.pathOpen')}
                             </button>
                             <button
                                 onClick={() => onPropChange('penPathUpdate', { closed: true })}
                                 className={`text-[10px] px-2 py-1 rounded border transition-colors ${penClosed ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                             >
-                                Closed
+                                {t('panel.pathClosed')}
                             </button>
                         </div>
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                        Bezier mode supports point and handle editing directly on canvas.
+                        {t('panel.bezierHint')}
                     </div>
                  </div>
             )}
@@ -431,12 +408,12 @@ export function SelectionProperties({
             {!isImage && !isGroup && !isAdjustment && (
                  <div className="p-4 border-b border-border/50 space-y-3">
                     <div className="flex items-center justify-between">
-                        <h3 className="font-medium text-sm">Fill</h3>
+                        <h3 className="font-medium text-sm">{t('panel.fill')}</h3>
                         <div className="flex bg-secondary rounded p-0.5">
                             <button 
                                 className={`px-2 py-0.5 text-[10px] rounded ${!isGradient ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'}`}
                                 onClick={() => onPropChange('fill', color)}
-                            >Solid</button>
+                            >{t('panel.solid')}</button>
                             <button 
                                 className={`px-2 py-0.5 text-[10px] rounded ${isGradient ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'}`}
                                 onClick={() => onPropChange('gradient', { 
@@ -445,7 +422,7 @@ export function SelectionProperties({
                                     angle: gradientState?.angle || 0,
                                     type: gradientState?.type || 'linear'
                                 })}
-                            >Gradient</button>
+                            >{t('panel.gradient')}</button>
                         </div>
                     </div>
                     
@@ -623,6 +600,14 @@ export function SelectionProperties({
                  </div>
             )}
             
+            {/* Image adjustments are the primary controls for image layers. */}
+            {isImage && !isAdjustment && (
+                <ImageFilterProperties
+                    values={effectState.filters}
+                    onChange={(type, value) => onPropChange('filter', { type, value })}
+                />
+            )}
+
             {/* Strokes & Shadows - Rendered lower in hierarchy now */}
             {!isGroup && !isAdjustment && (
                 <ShadowStrokeProperties 
@@ -659,22 +644,65 @@ export function SelectionProperties({
                 onMaskGradientChange={isMasked ? (vals) => onPropChange('maskGradient', vals) : undefined}
             />
 
-            <LayoutProperties 
-                onAlign={(align) => onLayoutAction('align', align)}
-                onDistribute={() => {}} 
-                canDistribute={false}
-            />
+            {/* Transform Group (Collapsible) — generic geometry controls live
+                below the item-specific sections; adjustment layers are
+                full-canvas overlays and don't need them. */}
+            {!isAdjustment && (
+            <div className="bg-background border-b border-border/30">
+                <div className="flex items-center justify-between w-full p-3 hover:bg-secondary/30 transition-colors group">
+                     <button
+                         onClick={() => setIsTransformOpen(!isTransformOpen)}
+                         className="flex items-center gap-2 flex-1"
+                    >
+                        {isTransformOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('panel.transform')}</span>
+                    </button>
+                    <div className="flex gap-2 text-[10px] text-muted-foreground">
+                        {Math.round(selectedObject.left || 0)}, {Math.round(selectedObject.top || 0)}
+                    </div>
+                </div>
 
-            {isImage && !isAdjustment && (
-                <ImageFilterProperties 
-                    values={effectState.filters}
-                    onChange={(type, value) => onPropChange('filter', { type, value })}
+                {isTransformOpen && (
+                     <div className="p-3 bg-secondary/5 animate-in slide-in-from-top-1 duration-150 space-y-3">
+                         <TransformProperties
+                            x={selectedObject.left || 0}
+                            y={selectedObject.top || 0}
+                            width={selectedObject.width || 0}
+                            height={selectedObject.height || 0}
+                            rotation={selectedObject.angle || 0}
+                            scaleX={selectedObject.scaleX || 1}
+                            scaleY={selectedObject.scaleY || 1}
+                            isLocked={!!selectedObject.lockMovementX}
+                            pseudoBacksidePreset={effectState.skew.preset || 'front'}
+                            onChange={handleTransform}
+                            onPresetChange={(preset) => onPropChange('pseudoBacksidePreset', preset)}
+                        />
+                         <SkewTaperProperties
+                            values={{
+                                skewX: selectedObject.skewX || 0,
+                                skewY: selectedObject.skewY || 0,
+                                skewZ: effectState.skew.z || 0,
+                                taperDirection: effectState.skew.dir || 0,
+                                pseudoBacksidePreset: effectState.skew.preset || 'front'
+                            }}
+                            onChange={(k, v) => onPropChange(k, v)}
+                        />
+                     </div>
+                )}
+            </div>
+            )}
+
+            {!isAdjustment && (
+                <LayoutProperties
+                    onAlign={(align) => onLayoutAction('align', align)}
+                    onDistribute={() => {}}
+                    canDistribute={false}
                 />
             )}
 
             {!isAdjustment && onCreateAdjustmentLayer && (
                 <div className="p-4 border-b border-border/50 space-y-3">
-                    <h3 className="font-medium text-sm">Adjustments</h3>
+                    <h3 className="font-medium text-sm">{t('panel.addAdjustment')}</h3>
                     <div className="grid grid-cols-2 gap-2">
                         {ADJUSTMENT_ACTION_ITEMS.map((item) => (
                             <button
@@ -692,56 +720,11 @@ export function SelectionProperties({
                 </div>
             )}
 
-            {isAdjustment && extended?.adjustmentType && (
-                 <div className="p-4 border-b border-border/50 space-y-3">
-                    <h3 className="font-medium text-sm">Adjustment Settings</h3>
-                    {onAdjustmentTypeChange && (
-                        <div className="grid grid-cols-3 gap-2">
-                            {(['curves', 'levels', 'exposure'] as const).map((type) => (
-                                <button
-                                    key={type}
-                                    type="button"
-                                    aria-label={`Quick adjustment ${getAdjustmentTypeLabel(type)}`}
-                                    onClick={() => onAdjustmentTypeChange(type)}
-                                    className={`rounded border px-2 py-1 text-[10px] transition-colors ${extended.adjustmentType === type ? 'border-tool-accent/40 bg-tool-accent/20 text-tool-accent' : 'border-border/50 bg-secondary/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground'}`}
-                                >
-                                    {getAdjustmentTypeLabel(type)}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    {onAdjustmentTypeChange && (
-                        <div className="grid grid-cols-2 gap-2">
-                            {ADJUSTMENT_ACTION_ITEMS.filter((item) => item.enabled).map((item) => (
-                                <button
-                                    key={item.type}
-                                    type="button"
-                                    aria-label={`Adjustment action ${getAdjustmentTypeLabel(item.type)}`}
-                                    onClick={() => onAdjustmentTypeChange(item.type)}
-                                    className={`rounded border px-2 py-1.5 text-[11px] text-left transition-colors ${extended.adjustmentType === item.type ? 'border-tool-accent/40 bg-tool-accent/20 text-tool-accent' : 'border-border/60 bg-secondary/20 hover:bg-secondary/40 text-foreground'}`}
-                                >
-                                    {getAdjustmentTypeLabel(item.type)}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    <div className="text-[11px] text-muted-foreground">
-                        Type: {getAdjustmentTypeLabel(extended.adjustmentType)}
-                    </div>
-                    <AdjustmentControls 
-                        type={extended.adjustmentType}
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        settings={extended.adjustmentSettings || ({} as any)}
-                        onChange={updateAdjustment}
-                    />
-                 </div>
-            )}
-
             {/* AI Action for Text/Image */}
             {(isText || isImage) && onMake3D && !isAdjustment && (
                  <div className="p-4 border-b border-border/50">
                      <h3 className="font-medium text-xs text-muted-foreground uppercase mb-3 flex items-center gap-2">
-                         AI Features
+                         {t('panel.aiFeatures')}
                      </h3>
                      <button 
                         onClick={() => {
@@ -754,7 +737,7 @@ export function SelectionProperties({
                         className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-tool-accent hover:from-primary/90 hover:to-tool-accent/90 text-white text-xs py-2 rounded shadow-sm transition-all"
                      >
                         <Box size={14} />
-                        Convert to 3D
+                        {t('panel.convertTo3D')}
                      </button>
                  </div>
             )}

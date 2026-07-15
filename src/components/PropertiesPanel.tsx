@@ -125,6 +125,10 @@ interface PropertiesPanelProps {
     enablePanelRailHoverLabels?: boolean;
     onPanelModeChange?: (mode: PanelMode) => void;
     onLayerDblClick?: (obj?: fabric.Object) => void;
+    /** Called when the panel wants the properties view focused (e.g. after
+     *  creating an adjustment layer) so the editor can exit tools like
+     *  'layers' that would otherwise keep their own view on top. */
+    onFocusProperties?: () => void;
     onMake3D?: (imageUrl: string) => void;
     onDuplicate?: () => void;
     onAssetSelect?: (url: string, type: string, name?: string) => void;
@@ -172,6 +176,7 @@ export default function PropertiesPanel({
     enablePanelRailHoverLabels = true,
     onPanelModeChange,
     onLayerDblClick,
+    onFocusProperties,
     onMake3D,
     onDuplicate,
     historyState,
@@ -239,6 +244,10 @@ export default function PropertiesPanel({
             setPanelMode('brushes');
         }
     }, [activeTool, panelMode, setPanelMode]);
+
+    // Ref keeps the adjustment:create canvas handler stable across renders.
+    const onFocusPropertiesRef = useRef(onFocusProperties);
+    onFocusPropertiesRef.current = onFocusProperties;
 
     const panelRailHostRef = useRef<HTMLDivElement | null>(null);
     const railDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
@@ -397,7 +406,9 @@ export default function PropertiesPanel({
             {content}
             {isClient && !isRailDetached && dockedRailAnchor && createPortal(
                 <div
-                    className="fixed z-[140]"
+                    // Same stacking tier as the docked panel chrome: above the
+                    // canvas but BELOW every popup/window (those start at z-100).
+                    className="fixed z-[60]"
                     style={{ left: dockedRailAnchor.left, top: dockedRailAnchor.top }}
                 >
                     <div className="mb-1 flex w-10 flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm">
@@ -1419,7 +1430,18 @@ export default function PropertiesPanel({
              setSelectedObject(rect as ExtendedFabricObject);
              setSelectedIds(new Set([ensureObjectId(rect)]));
              setAdjustmentSettings(ext.adjustmentSettings ?? null);
+             // Always land the user on the new layer's settings.
              setPanelMode('properties');
+             onFocusPropertiesRef.current?.();
+             // The tool switch above may clear the canvas selection; re-select
+             // the new layer once the switch settles so its settings stay open.
+             window.setTimeout(() => {
+                 canvas.setActiveObject(rect);
+                 setSelectedObject(rect as ExtendedFabricObject);
+                 setSelectedIds(new Set([ensureObjectId(rect)]));
+                 setAdjustmentSettings(ext.adjustmentSettings ?? null);
+                 canvas.requestRenderAll();
+             }, 0);
                canvas.requestRenderAll();
                updateObjects();
                applyAdjustmentLayers();
@@ -3607,7 +3629,15 @@ export default function PropertiesPanel({
                 onGroup={handleGroup}
                 onUngroup={handleUngroup}
                 onCreateFolder={handleCreateFolder}
-                onDblClick={(obj) => onLayerDblClick && onLayerDblClick(obj)}
+                onDblClick={(obj) => {
+                    // Double-click a layer row = jump to that layer's properties.
+                    setPanelMode('properties');
+                    onLayerDblClick?.(obj);
+                }}
+                onOpenProperties={(obj) => {
+                    setPanelMode('properties');
+                    onLayerDblClick?.(obj);
+                }}
                 expandedFolders={expandedFolders}
                 onToggleFolder={(obj) => {
                      const id = ensureObjectId(obj);

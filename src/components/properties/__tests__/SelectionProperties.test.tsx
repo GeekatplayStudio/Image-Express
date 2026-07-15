@@ -116,7 +116,7 @@ describe('SelectionProperties', () => {
             />
         );
 
-        expect(screen.getByText('Adjustments')).toBeInTheDocument();
+        expect(screen.getByText('Add Adjustment Layer')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Adjustment action Curves' }));
         expect(onCreateAdjustmentLayer).toHaveBeenCalledWith('curves');
 
@@ -150,7 +150,7 @@ describe('SelectionProperties', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Quick adjustment Levels' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Adjustment action Levels' }));
         expect(onAdjustmentTypeChange).toHaveBeenCalledWith('levels');
 
         fireEvent.click(screen.getByRole('button', { name: 'Adjustment action Exposure' }));

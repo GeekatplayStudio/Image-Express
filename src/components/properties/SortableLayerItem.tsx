@@ -2,8 +2,9 @@ import React, { useState, useRef } from 'react';
 import * as fabric from 'fabric';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft, Link2, SlidersHorizontal, MoreHorizontal, CornerLeftDown } from 'lucide-react';
+import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft, Link2, SlidersHorizontal, MoreHorizontal, CornerLeftDown, CircleChevronDown } from 'lucide-react';
 import { ExtendedFabricObject, LayerNode } from '@/types';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface SortableLayerItemProps {
     id: string;
@@ -24,6 +25,8 @@ interface SortableLayerItemProps {
     removeFromFolder?: (id: string) => void;
     onToggleClip?: (obj: fabric.Object) => void;
     onToggleInspector?: (obj: fabric.Object) => void;
+    /** Open the layer's full properties view (small arrow button, same as double-click). */
+    onOpenProperties?: (obj: fabric.Object) => void;
     inspectorLayerId?: string | null;
     sortableEnabled?: boolean;
     /** Right-click on the row: open the layer context menu at screen coords. */
@@ -34,7 +37,8 @@ interface SortableLayerItemProps {
     onEditMask?: (obj: fabric.Object) => void;
 }
 
-export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [], removeFromFolder, onToggleClip, onToggleInspector, inspectorLayerId = null, sortableEnabled = true, onRowContextMenu, clipBaseIds, onEditMask }: SortableLayerItemProps) {
+export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, toggleVisibility, toggleLock, deleteLayer, total, onDblClick, depth = 0, onToggleExpand, expanded = false, expandedIds, childrenNodes = [], removeFromFolder, onToggleClip, onToggleInspector, onOpenProperties, inspectorLayerId = null, sortableEnabled = true, onRowContextMenu, clipBaseIds, onEditMask }: SortableLayerItemProps) {
+    const { t } = useI18n();
     const extendedObj = obj as ExtendedFabricObject;
     const {
         attributes,
@@ -258,10 +262,24 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleVisibility(obj); }}
                     className={`p-1.5 hover:bg-secondary rounded-md ${isVisible ? 'text-emerald-500 hover:text-emerald-600' : 'text-rose-500 hover:text-rose-600'}`}
-                    title={isVisible ? "Hide" : "Show"}
+                    title={isVisible ? t('common.hide') : t('common.show')}
                 >
                     {isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
                 </button>
+                {onOpenProperties && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            selectLayer(obj);
+                            onOpenProperties(obj);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground"
+                        title={t('layers.openProperties')}
+                        aria-label={t('layers.openProperties')}
+                    >
+                        <CircleChevronDown size={14} />
+                    </button>
+                )}
                 {isSelected && (
                     <button
                         onClick={(e) => {
@@ -269,7 +287,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             onToggleInspector?.(obj);
                         }}
                         className={`p-1.5 hover:bg-secondary rounded-md ${inspectorOpen ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                        title="Layer settings"
+                        title={t('layers.layerSettings')}
                     >
                         <SlidersHorizontal size={14} />
                     </button>
@@ -280,7 +298,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                         setShowQuickActions((prev) => !prev);
                     }}
                     className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground"
-                    title="More layer actions"
+                    title={t('layers.moreActions')}
                 >
                     <MoreHorizontal size={14} />
                 </button>
@@ -295,7 +313,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             toggleLock(obj);
                         }}
                         className={`p-1.5 hover:bg-secondary rounded-md ${isLocked ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground hover:text-foreground'}`}
-                        title={isLocked ? 'Unlock' : 'Lock'}
+                        title={isLocked ? t('common.unlock') : t('common.lock')}
                     >
                         {isLocked ? <Lock size={13} /> : <Unlock size={13} />}
                     </button>
@@ -316,7 +334,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                                 removeFromFolder(id);
                             }}
                             className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-primary"
-                            title="Move out of folder"
+                            title={t('layers.moveOutOfFolder')}
                         >
                             <ArrowLeft size={13} />
                         </button>
@@ -327,7 +345,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             deleteLayer(obj);
                         }}
                         className="p-1.5 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive"
-                        title="Delete"
+                        title={t('common.delete')}
                     >
                         <Trash2 size={13} />
                     </button>
@@ -358,6 +376,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             expandedIds={expandedIds}
                             onToggleClip={onToggleClip}
                             onToggleInspector={onToggleInspector}
+                            onOpenProperties={onOpenProperties}
                             inspectorLayerId={inspectorLayerId}
                             sortableEnabled={sortableEnabled}
                             childrenNodes={child.children}
