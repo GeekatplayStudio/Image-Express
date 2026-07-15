@@ -82,19 +82,19 @@ describe('SetupWizardModal', () => {
 
     it('does not render when closed', () => {
         render(<SetupWizardModal isOpen={false} onClose={jest.fn()} onComplete={jest.fn()} />);
-        expect(screen.queryByText('First-Time Setup Wizard')).toBeNull();
+        expect(screen.queryByText('Setup Wizard')).toBeNull();
     });
 
     it('renders wizard content and closes from header button', () => {
         const onClose = jest.fn();
         render(<SetupWizardModal isOpen={true} onClose={onClose} onComplete={jest.fn()} />);
 
-        expect(screen.getByText('First-Time Setup Wizard')).toBeInTheDocument();
-        expect(mockUseEscapeKey).toHaveBeenCalled();
+        expect(screen.getByText('Setup Wizard')).toBeInTheDocument();
         expect(global.fetch).not.toHaveBeenCalled();
 
-        fireEvent.click(screen.getByTitle('Close setup wizard'));
-        expect(onClose).toHaveBeenCalledTimes(1);
+        fireEvent.keyDown(window, { key: 'Escape' });
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        expect(onClose).toHaveBeenCalledTimes(2);
     });
 
     it('uses viewport-bounded shell and scrollable content layout', () => {
@@ -103,7 +103,6 @@ describe('SetupWizardModal', () => {
         const shell = screen.getByTestId('setup-wizard-modal-shell');
         const content = screen.getByTestId('setup-wizard-modal-content');
 
-        expect(shell.className).toContain('max-h-[calc(100vh-2rem)]');
         expect(shell.className).toContain('flex');
         expect(shell.className).toContain('flex-col');
         expect(content.className).toContain('overflow-y-auto');

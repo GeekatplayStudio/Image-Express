@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import { Switch } from '@/components/ui/switch';
+import LanguageSelector from '@/components/LanguageSelector';
 import {
     MEDIA_OVERLAY_NAMING_TEMPLATES,
     MEDIA_OVERLAY_PRESETS,
@@ -329,6 +330,7 @@ export default function EditorHeaderActions({
                     </div>
                 )}
             </div>
+            <LanguageSelector className="ml-1" />
             <button
                 onClick={() => setShowProfileModal(true)}
                 className="relative w-9 h-9 rounded-full ui-avatar-gradient ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"

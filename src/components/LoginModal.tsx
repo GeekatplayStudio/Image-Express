@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { User, Lock, ArrowRight, Loader2, Mail, UserPlus, KeyRound, CheckCircle2, Chrome, Facebook, Laptop } from 'lucide-react';
+import { User, Lock, ArrowRight, Loader2, Mail, UserPlus, KeyRound, CheckCircle2, Chrome, Facebook, Laptop, LogIn } from 'lucide-react';
 import { AuthUser } from '@/types';
-import useEscapeKey from '@/hooks/useEscapeKey';
 import { loadDriveConfig } from '@/lib/googleDrive';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
+import ModalShell from '@/components/ui/ModalShell';
+import { useI18n } from '@/providers/I18nProvider';
 
 type GoogleCredentialResponse = {
     credential?: string;
@@ -60,6 +61,7 @@ const TAB_LABELS: Record<AuthMode, string> = {
 };
 
 export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: LoginModalProps) {
+    const { t } = useI18n();
     const modalRef = useRef<HTMLDivElement | null>(null);
     const googleInitializedClientIdRef = useRef<string>('');
     const [mode, setMode] = useState<AuthMode>('login');
@@ -100,10 +102,6 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
         if (!debugToken) return null;
         return `Dev reset code: ${debugToken}`;
     }, [debugToken]);
-
-    useEscapeKey(() => {
-        onClose?.();
-    }, { enabled: isOpen && typeof onClose === 'function' });
 
     useEffect(() => {
         if (!isOpen) return;
@@ -485,34 +483,57 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
     };
 
     return (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose ?? (() => undefined)}
+            title={t('auth.signIn')}
+            icon={<LogIn size={14} className="text-primary" />}
+            initialWidth={460}
+            initialHeight={720}
+            minWidth={380}
+            minHeight={420}
+            zIndex={100}
+            closeOnBackdrop={Boolean(onClose)}
+        >
             <div
                 ref={modalRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label="Authentication"
                 onKeyDown={handleModalKeyDown}
-                className="bg-card w-full max-w-md p-8 rounded-2xl shadow-2xl border border-border/50 animate-in zoom-in-95 duration-300"
+                className="p-6"
             >
-                <div className="text-center mb-6">
+                <div className="text-center mb-5">
                     <h1 className="text-2xl font-bold ui-brand-gradient-text">Creative Flow</h1>
-                    <p className="text-sm text-muted-foreground mt-2">Sign in with Email/Google. Facebook is coming soon.</p>
+                    <p className="text-sm text-muted-foreground mt-1.5">Sign in with Email/Google. Facebook is coming soon.</p>
                 </div>
 
-                {onClose && (
-                    // Explicit guest bypass for self-hosted/local use — same path as
-                    // dismissing the modal, just made discoverable instead of hidden.
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="w-full mb-4 py-2.5 rounded-lg text-sm font-semibold border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 hover:bg-secondary/40 transition-all"
-                        title="Skip sign-in and use this app locally on this device"
-                    >
-                        Continue with Local Access
-                    </button>
+                {/* Group 1 — use without an account (single, unambiguous entry) */}
+                {(onLocalUse || onClose) && (
+                    <div className="mb-5">
+                        <button
+                            type="button"
+                            onClick={onLocalUse ?? onClose}
+                            className="w-full h-10 rounded-md text-sm font-semibold border border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
+                            title="Skip sign-in and use this app locally on this device"
+                        >
+                            <Laptop className="w-4 h-4" />
+                            {t('auth.continueLocal')}
+                        </button>
+                        <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+                            Running on your own computer? Skip the account. Google sign-in is only
+                            needed later if you connect Google Drive.
+                        </p>
+                    </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2 mb-4">
+                {/* Group 2 — provider accounts */}
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="h-px flex-1 bg-border/60" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Accounts</span>
+                    <div className="h-px flex-1 bg-border/60" />
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
                     <button
                         type="button"
                         onClick={handleGoogleSignIn}
@@ -532,22 +553,6 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                         Facebook (Soon)
                     </button>
                 </div>
-                {onLocalUse && (
-                    <div className="mb-4">
-                        <button
-                            type="button"
-                            onClick={onLocalUse}
-                            className="w-full h-10 rounded-md text-sm font-semibold border border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Laptop className="w-4 h-4" />
-                            Use Locally — no sign-in
-                        </button>
-                        <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                            Running on your own computer? Skip the account. Google sign-in is only
-                            needed later if you connect Google Drive.
-                        </p>
-                    </div>
-                )}
                 <div className="flex items-center justify-between mb-5 text-xs text-muted-foreground">
                     <span>Google/Facebook auth issue?</span>
                     <button
@@ -559,6 +564,12 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                     </button>
                 </div>
 
+                {/* Group 3 — email account (sign in / register / recover) */}
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="h-px flex-1 bg-border/60" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Email</span>
+                    <div className="h-px flex-1 bg-border/60" />
+                </div>
                 <div className="grid grid-cols-3 gap-2 mb-5">
                     {(['login', 'register', 'reset-request'] as const).map((value) => (
                         <button
@@ -796,6 +807,6 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                     </div>
                 )}
             </div>
-        </div>
+        </ModalShell>
     );
 }

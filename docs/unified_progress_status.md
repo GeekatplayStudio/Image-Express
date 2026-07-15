@@ -1,9 +1,9 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-05-16  
+Last updated: 2026-07-14  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
-Reference commit at last full audit: 9b54543
+App version: 0.2.0
 
 ## Purpose
 This is the single source of truth for implementation progress across:
@@ -18,6 +18,31 @@ Future roadmap canonical source:
 
 Current-state baseline audit:
 - `docs/current_application_baseline_audit_2026-05-16.md` (verified feature inventory, workflow map, status reconciliation, priority buckets, and UI simplification plan)
+
+## Latest Delivery (2026-07-14) — v0.2.0
+
+**Login/startup rework**
+- App now always opens straight to the dashboard as a local guest — no automatic login popup or setup wizard on first run, local or server (`src/app/page.tsx`).
+- Sign-in is opt-in only, via the user icon (top right); the same icon opens the profile once signed in.
+- The Setup Wizard no longer auto-opens; it's reachable from **Settings → Workspace → Preferences → Open Setup Wizard**.
+- `LoginModal` reorganized into three clear groups: Local Access, Accounts (Google/Facebook), Email (sign in/register/recover).
+
+**Uniform resizable window system**
+- New `src/components/ui/ModalShell.tsx`: draggable, resizable (corner handle), double-click-to-maximize, always clamped inside the viewport, scrollable body, Esc/X close. Built on the existing `DraggableResizablePanel` used by the Asset Library.
+- Converted every application window to it: Login, User Profile, Settings, Setup Wizard, Admin Area, Documentation.
+- Escape now closes only the topmost stacked window (fixes double-close when e.g. the wizard is open over Settings).
+
+**i18n foundation**
+- New `src/lib/i18n/` (dictionaries + `translate()`), `src/providers/I18nProvider.tsx` (`useI18n()`), and a globe language dropdown (`src/components/LanguageSelector.tsx`) in both the dashboard and editor top bars.
+- 11 languages shipped: English, Russian, Ukrainian, Spanish, French, German, Italian, Portuguese, Polish, Chinese (Simplified), Japanese.
+- See `docs/i18n_multilanguage_support.md` for conventions and the incremental translation-as-you-go policy.
+
+**Asset Library redesign** (from the prior session, included in this version)
+- Redesigned buttons/layout, right-click + "…" context menu per asset, asset groups with filter chips, robust menu positioning (fixed a CSS-transition bug that could leave menus stuck off-screen).
+
+**Self-update**
+- `scripts/update.mjs` (`npm run update` / `npm run update:check`): safe git fast-forward-only updater, refuses to run over uncommitted changes.
+- New `GET /api/system/update` endpoint + Settings → Workspace → Updates section showing current commit and whether a newer version exists.
 
 ## Documentation Sync (2026-05-16)
 

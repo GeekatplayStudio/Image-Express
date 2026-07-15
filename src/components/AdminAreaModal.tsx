@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyRound, Loader2, RefreshCcw, ShieldCheck, UserCog, Users, X } from 'lucide-react';
+import { KeyRound, Loader2, RefreshCcw, ShieldCheck, UserCog, Users } from 'lucide-react';
+import ModalShell from '@/components/ui/ModalShell';
 import type { AuthUser } from '@/types';
 
 interface AdminAreaModalProps {
@@ -135,18 +136,6 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
         void loadAdminUsers();
     }, [isOpen, hasAccess, loadAdminUsers]);
 
-    useEffect(() => {
-        if (!isOpen) return;
-        const handler = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                onClose();
-            }
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [isOpen, onClose]);
-
     const allKnownRights = useMemo(() => {
         const rights = new Set<string>();
         adminUsers.forEach((user) => {
@@ -172,29 +161,20 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="w-full max-w-5xl h-[86vh] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="h-16 border-b border-border/60 px-5 flex items-center justify-between bg-secondary/15">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                            <ShieldCheck size={20} />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-bold">Admin Area</h2>
-                            <p className="text-xs text-muted-foreground">User approvals, roles, and rights management</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                        aria-label="Close admin area"
-                    >
-                        <X size={18} />
-                    </button>
-                </div>
-
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Admin Area"
+            icon={<ShieldCheck size={14} className="text-primary" />}
+            initialWidth={1024}
+            initialHeight={760}
+            minWidth={520}
+            minHeight={400}
+            zIndex={95}
+            bodyClassName="overflow-hidden flex flex-col"
+        >
                 {!hasAccess ? (
-                    <div className="h-[calc(86vh-4rem)] flex items-center justify-center px-6">
+                    <div className="flex-1 flex items-center justify-center px-6">
                         <div className="max-w-md rounded-xl border border-destructive/40 bg-destructive/10 px-5 py-4 text-center">
                             <p className="font-semibold text-destructive">Admin access required</p>
                             <p className="mt-1 text-sm text-muted-foreground">
@@ -203,7 +183,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                         </div>
                     </div>
                 ) : (
-                    <div className="h-[calc(86vh-4rem)] flex flex-col">
+                    <div className="flex-1 min-h-0 flex flex-col">
                         <div className="px-5 py-3 border-b border-border/60 flex items-center justify-between">
                             <div className="flex items-center gap-2 rounded-lg bg-secondary/40 p-1 border border-border/60">
                                 <button
@@ -435,7 +415,6 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                         </div>
                     </div>
                 )}
-            </div>
-        </div>
+        </ModalShell>
     );
 }

@@ -278,7 +278,7 @@ describe('AdminAreaModal', () => {
         });
 
         fireEvent.keyDown(window, { key: 'Escape' });
-        fireEvent.click(screen.getByRole('button', { name: 'Close admin area' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
         expect(onClose).toHaveBeenCalledTimes(2);
     });
 

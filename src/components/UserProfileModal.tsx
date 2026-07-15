@@ -1,10 +1,11 @@
 'use client';
 
-import { X, User, Mail, Camera, Save, KeyRound, Loader2, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Camera, Save, KeyRound, Loader2, CheckCircle2 } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { loadProfileSettings, saveProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
-import useEscapeKey from '@/hooks/useEscapeKey';
+import ModalShell from '@/components/ui/ModalShell';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface UserProfileModalProps {
     isOpen: boolean;
@@ -15,6 +16,7 @@ interface UserProfileModalProps {
 }
 
 export default function UserProfileModal({ isOpen, onClose, username, onLogout, onProfileUpdate }: UserProfileModalProps) {
+    const { t } = useI18n();
     const [name, setName] = useState(username === 'test' ? 'Test User' : username);
     const [handle, setHandle] = useState(username);
     const [email, setEmail] = useState('user@example.com');
@@ -49,8 +51,6 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
         setPasswordMessage('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
-
-    useEscapeKey(onClose, { enabled: isOpen });
 
     if (!isOpen) return null;
 
@@ -131,15 +131,33 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-card w-full max-w-md rounded-xl border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 relative">
-                <button 
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors z-10"
-                >
-                    <X size={20} />
-                </button>
-
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose}
+            title={t('auth.userProfile')}
+            icon={<User size={14} className="text-primary" />}
+            initialWidth={460}
+            initialHeight={680}
+            minWidth={380}
+            minHeight={420}
+            zIndex={50}
+            footer={
+                <div className="flex gap-3 px-5 py-3">
+                    <button
+                        onClick={handleSave}
+                        className="flex-1 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Save size={16} /> {t('common.saveChanges')}
+                    </button>
+                    <button
+                        onClick={onLogout}
+                        className="px-4 py-2 bg-destructive/10 text-destructive rounded-md text-sm font-medium hover:bg-destructive/20 transition-colors"
+                    >
+                        {t('auth.signOut')}
+                    </button>
+                </div>
+            }
+        >
                 {/* Header / Cover */}
                 <div className="h-32 ui-brand-gradient-surface relative">
                      <div className="absolute -bottom-12 left-8">
@@ -166,7 +184,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                      </div>
                 </div>
 
-                <div className="pt-16 pb-8 px-8 space-y-6">
+                <div className="pt-16 pb-6 px-6 space-y-6">
                     <div>
                          <h2 className="text-xl font-bold">{name}</h2>
                          <p className="text-sm text-muted-foreground">@{username}</p>
@@ -314,23 +332,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                             Update Password
                         </button>
                     </div>
-
-                    <div className="pt-4 flex gap-3 border-t border-border/50">
-                        <button
-                            onClick={handleSave}
-                            className="flex-1 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Save size={16} /> Save Changes
-                        </button>
-                        <button 
-                            onClick={onLogout}
-                            className="px-4 py-2 bg-destructive/10 text-destructive rounded-md text-sm font-medium hover:bg-destructive/20 transition-colors"
-                        >
-                            Sign Out
-                        </button>
-                    </div>
                 </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }

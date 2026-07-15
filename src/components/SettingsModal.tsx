@@ -1,12 +1,12 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud, HardDrive, Loader2, HelpCircle } from 'lucide-react';
+import { Save, Key, ShieldCheck, AlertCircle, Server, Cloud, Box, RefreshCcw, DownloadCloud, HardDrive, Loader2, HelpCircle } from 'lucide-react';
 import HelpPopup from './HelpPopup';
 import type { AuthUser, DesktopUpdatePayload, DesktopUpdateStatus, GoogleDriveConfig } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { connectGoogleDrive, disconnectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
-import useEscapeKey from '@/hooks/useEscapeKey';
+
 import {
     ASSET_CLOUD_PROVIDER_OPTIONS,
     getAssetCloudProviderLabel,
@@ -42,6 +42,9 @@ import type { ComfyDiagnosticsSnapshot, ComfyLibraryRepoKind, ComfyLibrarySnapsh
 import { inspectComfyServerCatalog } from '@/lib/comfyui/runner';
 import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
+import UpdatesSection from '@/components/settings/UpdatesSection';
+import ModalShell from '@/components/ui/ModalShell';
+import { useI18n } from '@/providers/I18nProvider';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 import {
     THEME_ACCENT_OPTIONS,
@@ -111,6 +114,7 @@ const envDriveClientId = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
 type ComfyCatalogSnapshot = Awaited<ReturnType<typeof inspectComfyServerCatalog>>;
 
 export default function SettingsModal({ isOpen, onClose, userId, userRoles }: SettingsModalProps) {
+    const { t } = useI18n();
     const dialog = useDialog();
     // 3D Keys
     const [meshyKey, setMeshyKey] = useState('');
@@ -244,7 +248,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         workflowLibraryPath: '',
     });
 
-    useEscapeKey(onClose, { enabled: isOpen });
+    // Escape handling is owned by ModalShell (topmost-window-only stack).
 
     // Load keys on mount
     useEffect(() => {
@@ -1170,7 +1174,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
             const requestedModel = data.requestedModel || (ollamaModel.trim() || DEFAULT_OLLAMA_MODEL);
             const summary = data.modelFound
                 ? `Ollama is reachable. Found ${requestedModel}${typeof data.count === 'number' ? ` (${data.count} model${data.count === 1 ? '' : 's'} installed)` : ''}.`
-                : `Ollama is reachable, but ${requestedModel} is not installed yet.${Array.isArray(data.models) && data.models.length > 0 ? ` Available: ${data.models.slice(0, 3).join(', ')}${data.models.length > 3 ? '…' : ''}.` : ''}`;
+                : `Ollama is reachable, but ${requestedModel} is not installed yet.${Array.isArray(data.models) && data.models.length > 0 ? ` Available: ${data.models.slice(0, 3).join(', ')}${data.models.length > 3 ? 'â€¦' : ''}.` : ''}`;
 
             setOllamaCheck({
                 state: data.modelFound ? 'success' : 'error',
@@ -1246,7 +1250,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         const api = typeof window !== 'undefined' ? window.desktop : undefined;
         if (!api?.checkForUpdates) return;
         setUpdateStatus('checking');
-        setUpdateMessage('Checking for updates…');
+        setUpdateMessage('Checking for updatesâ€¦');
         try {
             const result = await api.checkForUpdates();
             if (result?.message) {
@@ -1267,7 +1271,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         if (!api?.installUpdate) return;
         try {
             setUpdateStatus('ready');
-            setUpdateMessage('Restarting to apply update…');
+            setUpdateMessage('Restarting to apply updateâ€¦');
             await api.installUpdate();
         } catch (error) {
             setUpdateStatus('error');
@@ -1455,17 +1459,19 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="flex min-h-full items-start justify-center p-0 sm:p-6">
-                <div className="relative flex h-dvh w-full max-w-7xl flex-col overflow-hidden bg-card shadow-2xl animate-in zoom-in-95 duration-200 sm:h-auto sm:max-h-[calc(100vh-3rem)] sm:rounded-2xl sm:border sm:border-border">
-                    <button
-                        onClick={onClose}
-                        className="absolute top-5 right-5 z-10 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                        <X size={20} />
-                    </button>
-
-                <div className="shrink-0 border-b border-border/60 bg-card/95 px-5 py-5 pr-14 backdrop-blur sm:px-6 lg:px-8">
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose}
+            title={t('settings.title')}
+            icon={<Key size={14} className="text-primary" />}
+            initialWidth={1180}
+            initialHeight={820}
+            minWidth={560}
+            minHeight={420}
+            zIndex={50}
+            bodyClassName="overflow-hidden flex flex-col"
+        >
+                <div className="shrink-0 border-b border-border/60 bg-card/95 px-5 py-5 backdrop-blur sm:px-6 lg:px-8">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="flex items-start gap-3">
                             <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
@@ -2138,7 +2144,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                     <div>
                                         <div className="font-semibold text-foreground">App-specific Comfy path verification</div>
                                         <div className="text-muted-foreground">
-                                            Validates the configured install, custom nodes, workflow, and models folders against the app's expected Comfy layout.
+                                            Validates the configured install, custom nodes, workflow, and models folders against the{" app's "}expected Comfy layout.
                                         </div>
                                     </div>
                                     <div className="space-y-2">
@@ -2279,7 +2285,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                                         {model.displayName} {model.exists ? '(installed)' : '(missing)'}
                                                     </div>
                                                     <div className="text-muted-foreground">
-                                                        {(model.category || 'Model')} · {model.recommendedFor && model.recommendedFor.length > 0 ? model.recommendedFor.join(', ') : 'General local workflow support'}
+                                                        {(model.category || 'Model')} Â· {model.recommendedFor && model.recommendedFor.length > 0 ? model.recommendedFor.join(', ') : 'General local workflow support'}
                                                     </div>
                                                 </div>
                                             ))}
@@ -2482,7 +2488,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
 
                             {comfyLibrarySnapshot?.localWorkspace ? (
                                 <div className="rounded-md border border-border/60 bg-background/70 px-2.5 py-2 text-[11px] text-muted-foreground">
-                                    Local workspace: <span className="font-mono text-foreground">{comfyLibrarySnapshot.localWorkspace.path}</span> · synced {comfyLibrarySnapshot.localWorkspace.syncedIntoInstall ? 'into install' : 'as a standalone workspace'} · {comfyLibrarySnapshot.localWorkspace.workflowFileCount} workflow file{comfyLibrarySnapshot.localWorkspace.workflowFileCount === 1 ? '' : 's'}
+                                    Local workspace: <span className="font-mono text-foreground">{comfyLibrarySnapshot.localWorkspace.path}</span> Â· synced {comfyLibrarySnapshot.localWorkspace.syncedIntoInstall ? 'into install' : 'as a standalone workspace'} Â· {comfyLibrarySnapshot.localWorkspace.workflowFileCount} workflow file{comfyLibrarySnapshot.localWorkspace.workflowFileCount === 1 ? '' : 's'}
                                 </div>
                             ) : null}
 
@@ -2795,19 +2801,31 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             </div>
                         )}
 
-                        <button
-                            onClick={() => requestOpenSetupWizard()}
-                            className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5"
-                        >
-                            <Key size={13} />
-                            Launch Setup Wizard
-                        </button>
                     </section>
                         </>
                     )}
 
                     {activeSettingsTab === 'workspace' && (
                     <div className="grid gap-6 xl:col-span-12 xl:grid-cols-2">
+                        <section className={modalSectionClass}>
+                            <div>
+                                <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <Key size={16} className="text-primary" />
+                                    {t('settings.preferences')}
+                                </h4>
+                                <p className="text-[11px] text-muted-foreground">
+                                    First-time setup and guided configuration.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => requestOpenSetupWizard()}
+                                className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 self-start"
+                            >
+                                <Key size={13} />
+                                {t('settings.openSetupWizard')}
+                            </button>
+                        </section>
+                        <UpdatesSection className={modalSectionClass} />
                         <section className={modalSectionClass}>
                             <div>
                                 <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -2886,7 +2904,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                         onChange={(event) => setSuppressNumberDragHints(event.target.checked)}
                                         className="rounded border-border text-primary focus:ring-primary/20"
                                     />
-                                    Don’t remind me about number-drag tips
+                                    Donâ€™t remind me about number-drag tips
                                 </label>
                             </div>
 
@@ -2969,7 +2987,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                                                     <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{pkg.section}</div>
                                                 </div>
                                                 <div className="text-muted-foreground">
-                                                    {pkg.current} → {pkg.latest}
+                                                    {pkg.current} â†’ {pkg.latest}
                                                 </div>
                                             </div>
                                         ))}
@@ -3201,9 +3219,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                     onClose={() => setHelpType(null)}
                     type={helpType || 'comfy'}
                 />
-            </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }
 

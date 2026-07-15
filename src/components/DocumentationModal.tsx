@@ -2,7 +2,7 @@
 
 import { X, HelpCircle, ExternalLink, PanelRightOpen } from "lucide-react";
 import Link from "next/link";
-import useEscapeKey from '@/hooks/useEscapeKey';
+import ModalShell from '@/components/ui/ModalShell';
 
 const sections = [
     { id: "introduction", title: "Introduction" },
@@ -26,28 +26,20 @@ interface DocumentationModalProps {
 }
 
 export default function DocumentationModal({ isOpen, onClose }: DocumentationModalProps) {
-    useEscapeKey(onClose, { enabled: isOpen });
-
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm md:p-4">
-            <div className="relative flex h-[min(92vh,920px)] w-full max-w-6xl min-h-0 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <div className="flex items-center justify-between border-b border-border bg-secondary/20 px-5 py-4">
-                        <div className="flex items-center gap-3">
-                            <div className="rounded-full bg-primary/10 p-2 text-primary">
-                                <HelpCircle size={20} />
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-semibold">Image Express Manual</h2>
-                                <p className="text-xs text-muted-foreground">Guided tour of the dashboard, editor, AI tools, and asset workflow.</p>
-                            </div>
-                        </div>
-                        <button onClick={onClose} className="rounded-full p-2 transition-colors hover:bg-secondary" aria-label="Close documentation">
-                            <X size={18} />
-                        </button>
-                    </div>
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Image Express Manual"
+            icon={<HelpCircle size={14} className="text-primary" />}
+            initialWidth={1100}
+            initialHeight={860}
+            minWidth={520}
+            minHeight={400}
+            zIndex={70}
+            bodyClassName="overflow-hidden flex flex-col"
+        >
+                <div className="flex min-w-0 flex-1 min-h-0 flex-col">
 
                     <div className="border-b border-border/60 bg-background/50 px-5 py-3 lg:hidden">
                         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
@@ -236,7 +228,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                                         <X size={14} />
                                     </button>
                                 </div>
-                                <nav className="max-h-[calc(92vh-9rem)] overflow-y-auto px-3 py-3 text-sm text-muted-foreground scrollbar-thin">
+                                <nav className="max-h-[60vh] overflow-y-auto px-3 py-3 text-sm text-muted-foreground scrollbar-thin">
                                     {sections.map((section) => (
                                         <a key={section.id} href={`#${section.id}`} className="block rounded-xl px-3 py-2 transition-colors hover:bg-secondary hover:text-foreground">
                                             {section.title}
@@ -247,8 +239,7 @@ export default function DocumentationModal({ isOpen, onClose }: DocumentationMod
                         </aside>
                     </div>
                 </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }
 

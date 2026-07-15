@@ -23,6 +23,7 @@ export const metadata: Metadata = {
 
 import { DialogProvider } from "@/providers/DialogProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
+import { I18nProvider } from "@/providers/I18nProvider";
 import ThemePreferenceSync from '@/components/ThemePreferenceSync';
 import RangeResetListener from "@/components/ui/RangeResetListener";
 import { buildRuntimePerformanceShimSource } from '@/lib/runtimePerformanceShim';
@@ -65,13 +66,15 @@ export default function RootLayout({
         className="antialiased"
         suppressHydrationWarning
       >
-        <DialogProvider>
-          <ToastProvider>
-            <ThemePreferenceSync />
-            <RangeResetListener />
-            {children}
-          </ToastProvider>
-        </DialogProvider>
+        <I18nProvider>
+          <DialogProvider>
+            <ToastProvider>
+              <ThemePreferenceSync />
+              <RangeResetListener />
+              {children}
+            </ToastProvider>
+          </DialogProvider>
+        </I18nProvider>
       </body>
     </html>
   );

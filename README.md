@@ -185,6 +185,19 @@ This single click will:
 
 On first run on macOS, right-click the `.command` file and choose **Open** once to satisfy Gatekeeper; after that, double-clicking works normally.
 
+### 🔄 Updating
+
+Image Express can update itself from GitHub:
+
+* **In the app**: open **Settings → Workspace → Updates** to see whether a newer version is available (it shows your current branch/commit and how many commits behind you are).
+* **From a terminal** in the install folder:
+  ```bash
+  npm run update          # pull latest code + reinstall deps if they changed
+  npm run update:check    # just report whether an update exists
+  ```
+  The updater is safe: it refuses to run over uncommitted local changes and only fast-forwards (it can never create merge conflicts). Restart the app afterwards.
+* The **One-Click Launcher** also pulls safe updates automatically on every start.
+
 ### 🛠️ Interactive Scripts (Start & Build)
 
 For convenience, helper scripts are provided to start and build the application on macOS, Linux, and Windows. They automatically check for dependencies (`node_modules`) and prompt to install them if missing, then offer an interactive menu of start/build options (Desktop/Web and Development/Production modes).

@@ -10,32 +10,20 @@ import SettingsModal from '@/components/SettingsModal';
 import AdminAreaModal from '@/components/AdminAreaModal';
 import BrandIcon from '@/components/BrandIcon';
 import SetupWizardModal from '@/components/SetupWizardModal';
+import LanguageSelector from '@/components/LanguageSelector';
+import { useI18n } from '@/providers/I18nProvider';
 import { User, Settings, Box, Cloud, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/providers/ToastProvider';
 import { AuthUser } from '@/types';
-import { loadDriveConfig } from '@/lib/googleDrive';
 import {
   dismissSetupWizardForSession,
   markSetupWizardCompleted,
-  onSetupWizardOpenRequest,
-  shouldAutoOpenSetupWizard
+  onSetupWizardOpenRequest
 } from '@/lib/setupWizard';
-
-
-function isGoogleLoginConfigured(): boolean {
-  const envClientId =
-    (process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID || '').trim() ||
-    (process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID || '').trim();
-  if (envClientId) return true;
-  try {
-    return Boolean((loadDriveConfig().clientId || '').trim());
-  } catch {
-    return false;
-  }
-}
 
 export default function Home() {
   const { toast } = useToast();
+  const { t } = useI18n();
   // Auth State
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -114,11 +102,10 @@ export default function Home() {
             setUserRoles([]);
           }
         }
-      } else if (isGoogleLoginConfigured()) {
-        setShowLoginModal(true);
       } else {
-        // No Google client ID configured: run in local mode without an
-        // account. Login only becomes required once Google is set up.
+        // No stored session: open straight to the dashboard as a local
+        // guest. Signing in is always opt-in via the user icon (top right),
+        // regardless of whether Google login is configured.
         setUsername('Guest');
         setDisplayName('Local User');
         setUserRoles(['admin']);
@@ -165,10 +152,11 @@ export default function Home() {
     localStorage.removeItem('image-express-local-mode');
     setUsername(isDesktopApp ? 'Local Desktop' : 'Guest');
     setDisplayName(isDesktopApp ? 'Local Desktop' : 'Guest');
-    const requireLogin = !isDesktopApp && isGoogleLoginConfigured();
-    setUserRoles(isDesktopApp || !requireLogin ? ['admin'] : []);
+    // Signing out returns to the guest dashboard; signing back in is
+    // always opt-in via the user icon — never a forced popup.
+    setUserRoles(['admin']);
     setShowProfileModal(false);
-    setShowLoginModal(requireLogin);
+    setShowLoginModal(false);
     setCurrentView('dashboard');
     setCurrentDesignId(null);
     setCurrentDesignName('Untitled Design');
@@ -247,14 +235,8 @@ export default function Home() {
     }
   }, [showSettings, currentView, connectionStatus.has2D, connectionStatus.has3D]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (showLoginModal) return;
-    if (shouldAutoOpenSetupWizard(setupWizardScope)) {
-      setShowSetupWizard(true);
-    }
-  }, [showLoginModal, setupWizardScope, currentView]);
-
+  // The setup wizard never auto-opens; it is reachable from Settings
+  // (Preferences → Setup Wizard) via requestOpenSetupWizard().
   useEffect(() => {
     const unsubscribe = onSetupWizardOpenRequest(() => {
       setShowSetupWizard(true);
@@ -354,17 +336,18 @@ export default function Home() {
                 {connectionStatus.has2D && <span className="text-[10px] font-bold">AI</span>}
               </div>
             </div>
-             <button 
+             <button
                onClick={() => setShowDocumentation(true)}
                className="w-9 h-9 rounded-full border border-border/60 flex items-center justify-center text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-               title="How to use Image Express"
+               title={t('dashboard.howToUse')}
              >
                ?
              </button>
-             <button 
+             <LanguageSelector />
+             <button
                 onClick={() => setShowSettings(true)}
                 className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
-                title="Settings"
+                title={t('common.settings')}
              >
                 <Settings size={20} />
              </button>
@@ -372,15 +355,22 @@ export default function Home() {
                <button
                   onClick={() => setShowAdminArea(true)}
                   className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
-                  title="Admin Area"
+                  title={t('dashboard.adminArea')}
                >
                   <ShieldCheck size={20} />
                </button>
              )}
-             <button 
-                onClick={() => setShowProfileModal(true)}
+             <button
+                onClick={() => {
+                  // Guests get the sign-in window; signed-in users get their profile.
+                  if (!isDesktopApp && username === 'Guest') {
+                    setShowLoginModal(true);
+                  } else {
+                    setShowProfileModal(true);
+                  }
+                }}
                 className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground ml-1"
-                title="User Profile"
+                title={!isDesktopApp && username === 'Guest' ? t('auth.signIn') : t('auth.userProfile')}
              >
                 <User size={20} />
              </button>

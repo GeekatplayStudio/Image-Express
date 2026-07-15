@@ -24,6 +24,13 @@ Open `http://localhost:3000`.
 npm run desktop:dev
 ```
 
+### Updating
+```bash
+npm run update          # pull latest code + reinstall deps if changed
+npm run update:check    # just report whether an update exists
+```
+Or check **Settings → Workspace → Updates** in the app. See the README's "Updating" section for details.
+
 ## 2) Optional ComfyUI (Local or Cloud)
 
 ### Local ComfyUI (recommended for power users)

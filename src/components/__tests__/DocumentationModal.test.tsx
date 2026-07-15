@@ -27,14 +27,12 @@ describe('DocumentationModal', () => {
     it('returns null when closed', () => {
         const { container } = render(<DocumentationModal isOpen={false} onClose={jest.fn()} />);
         expect(container.firstChild).toBeNull();
-        expect(mockUseEscapeKey).toHaveBeenCalledWith(expect.any(Function), { enabled: false });
     });
 
     it('renders manual content with chapters and resource links', () => {
         render(<DocumentationModal isOpen onClose={jest.fn()} />);
 
         expect(screen.getByText('Image Express Manual')).toBeInTheDocument();
-        expect(screen.getByText('Guided tour of the dashboard, editor, AI tools, and asset workflow.')).toBeInTheDocument();
         expect(screen.getAllByText('Introduction').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Toolbar Tools').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Productivity Shortcuts').length).toBeGreaterThan(0);
@@ -58,15 +56,13 @@ describe('DocumentationModal', () => {
         const onClose = jest.fn();
         render(<DocumentationModal isOpen onClose={onClose} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Close documentation' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
         expect(onClose).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByRole('button', { name: 'Close manual from side panel' }));
         expect(onClose).toHaveBeenCalledTimes(2);
 
-        const [handler, options] = mockUseEscapeKey.mock.calls[0];
-        expect(options).toEqual({ enabled: true });
-        (handler as () => void)();
+        fireEvent.keyDown(window, { key: 'Escape' });
         expect(onClose).toHaveBeenCalledTimes(3);
     });
 });

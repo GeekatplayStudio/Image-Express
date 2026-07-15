@@ -165,7 +165,7 @@ describe('UserProfileModal', () => {
     it('calls logout and close actions', () => {
         const onClose = jest.fn();
         const onLogout = jest.fn();
-        const { container } = render(
+        render(
             <UserProfileModal
                 isOpen
                 onClose={onClose}
@@ -177,13 +177,11 @@ describe('UserProfileModal', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Sign Out' }));
         expect(onLogout).toHaveBeenCalledTimes(1);
 
-        const closeButton = container.querySelector('button.absolute');
-        expect(closeButton).not.toBeNull();
-        fireEvent.click(closeButton as HTMLButtonElement);
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
-    it('wires escape hook to close handler', () => {
+    it('closes on Escape key', () => {
         const onClose = jest.fn();
         render(
             <UserProfileModal
@@ -194,10 +192,7 @@ describe('UserProfileModal', () => {
             />
         );
 
-        expect(mockUseEscapeKey).toHaveBeenCalled();
-        const [handler, options] = mockUseEscapeKey.mock.calls[0];
-        expect(options).toEqual({ enabled: true });
-        (handler as () => void)();
+        fireEvent.keyDown(window, { key: 'Escape' });
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 

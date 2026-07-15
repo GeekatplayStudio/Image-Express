@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
-import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square, SlidersHorizontal, ChevronDown, AlertTriangle, CheckSquare } from 'lucide-react';
+import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square, SlidersHorizontal, AlertTriangle, CheckSquare, MoreHorizontal, Folder, FolderPlus, FolderMinus, ImagePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
 import { AssetDescriptor, AssetType, AssetCategory } from '@/types';
@@ -252,9 +252,55 @@ const mergeDuplicateAssets = (items: LibraryAsset[]): LibraryAsset[] => {
     return merged.sort((a, b) => Date.parse(b.updatedAt || '') - Date.parse(a.updatedAt || ''));
 };
 
+const GROUPS_STORAGE_PREFIX = 'imageExpressAssetGroups:';
+
+/** Stable identity for group membership that survives re-listing and storage merges. */
+const getAssetGroupKey = (asset: LibraryAsset) => [
+    asset.type,
+    asset.category,
+    (asset.owner || '').toLowerCase(),
+    asset.name.trim().toLowerCase(),
+].join('|');
+
+type AssetGroupMap = Record<string, string[]>;
+
+const loadAssetGroups = (user: string): AssetGroupMap => {
+    if (typeof window === 'undefined') return {};
+    try {
+        const raw = window.localStorage.getItem(`${GROUPS_STORAGE_PREFIX}${user.toLowerCase()}`);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        const result: AssetGroupMap = {};
+        Object.entries(parsed as Record<string, unknown>).forEach(([name, keys]) => {
+            if (Array.isArray(keys)) {
+                result[name] = keys.filter((key): key is string => typeof key === 'string');
+            }
+        });
+        return result;
+    } catch {
+        return {};
+    }
+};
+
+const saveAssetGroups = (user: string, groups: AssetGroupMap) => {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.setItem(`${GROUPS_STORAGE_PREFIX}${user.toLowerCase()}`, JSON.stringify(groups));
+    } catch {
+        // Best-effort persistence; groups are a convenience layer.
+    }
+};
+
+type AssetContextMenuState = {
+    asset: LibraryAsset;
+    clickX: number;
+    clickY: number;
+};
+
 /**
  * AssetLibrary Component
- * 
+ *
  * Displays a gallery of assets (Images, Video, Audio, 3D Models, Generated Content).
  * Allows users to Upload, Delete, Rename, and Select assets.
  * 
@@ -301,6 +347,16 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     const [lastImportSummary, setLastImportSummary] = useState<AssetLibraryImportSummary | null>(null);
     const [showFilters, setShowFilters] = useState(false);
     const [isCleaningUp, setIsCleaningUp] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [contextMenu, setContextMenu] = useState<AssetContextMenuState | null>(null);
+    // Set only after the menu has mounted and its real size is measured, so it never
+    // renders clipped off the bottom/right edge regardless of content length or trigger position.
+    const [contextMenuPosition, setContextMenuPosition] = useState<{ left: number; top: number } | null>(null);
+    const [assetGroups, setAssetGroups] = useState<AssetGroupMap>(() => loadAssetGroups(currentUser?.trim() || 'Guest'));
+    const [activeGroup, setActiveGroup] = useState<string | null>(null);
+
+    const contextMenuRef = useRef<HTMLDivElement | null>(null);
+    const moreMenuRef = useRef<HTMLDivElement | null>(null);
 
     const dialog = useDialog();
     const { toast } = useToast();
@@ -574,6 +630,57 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
     useEscapeKey(onClose);
 
+    // Close the asset context menu / header overflow menu on outside clicks, based on
+    // whether the click actually landed inside each menu's DOM — not on every opener
+    // remembering to stopPropagation, which is what made this flaky before (any one
+    // interactive element inside a tile that forgot it would blow the menu away).
+    useEffect(() => {
+        if (!contextMenu && !showMoreMenu) return;
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node | null;
+            if (contextMenu && !(contextMenuRef.current && target && contextMenuRef.current.contains(target))) {
+                setContextMenu(null);
+            }
+            if (showMoreMenu && !(moreMenuRef.current && target && moreMenuRef.current.contains(target))) {
+                setShowMoreMenu(false);
+            }
+        };
+        // Capture phase: runs before any element's own stopPropagation, so this can't
+        // be silently defeated by a descendant that doesn't call it.
+        window.addEventListener('pointerdown', handlePointerDown, true);
+        return () => window.removeEventListener('pointerdown', handlePointerDown, true);
+    }, [contextMenu, showMoreMenu]);
+
+    const openAssetContextMenu = useCallback((asset: LibraryAsset, event: React.MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setContextMenuPosition(null);
+        setContextMenu({ asset, clickX: event.clientX, clickY: event.clientY });
+    }, []);
+
+    // After the menu mounts (invisible), measure its real size and clamp it fully
+    // inside the viewport. Guessing a height in advance is what caused it to render
+    // cropped on small thumbnails and other edge positions.
+    useLayoutEffect(() => {
+        if (!contextMenu) {
+            setContextMenuPosition(null);
+            return;
+        }
+        const el = contextMenuRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const viewportPadding = 8;
+        const left = Math.min(
+            Math.max(viewportPadding, contextMenu.clickX),
+            Math.max(viewportPadding, window.innerWidth - rect.width - viewportPadding)
+        );
+        const top = Math.min(
+            Math.max(viewportPadding, contextMenu.clickY),
+            Math.max(viewportPadding, window.innerHeight - rect.height - viewportPadding)
+        );
+        setContextMenuPosition({ left, top });
+    }, [contextMenu]);
+
     const toggleAssetSelection = useCallback((assetKey: string, checked: boolean) => {
         setSelectedAssetKeys((current) => {
             if (checked) {
@@ -791,12 +898,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
      * Works for local, cloud, and legacy server providers.
      * @param e Event to stop propagation
      */
-    const deleteAsset = async (asset: LibraryAsset, e?: React.MouseEvent) => {
-        e?.stopPropagation(); // Prevent selection when clicking delete
-        const confirmed = await dialog.confirm('Are you sure you want to delete this asset?', { title: 'Delete Asset', variant: 'destructive' });
-        if (!confirmed) return;
-
-        try {
+    const deleteAssetSources = async (asset: LibraryAsset) => {
             const targetSources = getSourceAssets(asset).filter(canManageSingleAsset);
             if (targetSources.length === 0) {
                 throw new Error('No writable source available for delete.');
@@ -839,8 +941,6 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 throw new Error('Delete failed for all linked sources.');
             }
 
-            await fetchAssets();
-
             if (successCount !== targetSources.length) {
                 toast({
                     title: 'Delete partially applied',
@@ -848,6 +948,19 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     variant: 'warning'
                 });
             }
+    };
+
+    /**
+     * Confirms and deletes a single asset across its storage providers.
+     */
+    const deleteAsset = async (asset: LibraryAsset, e?: React.MouseEvent) => {
+        e?.stopPropagation(); // Prevent selection when clicking delete
+        const confirmed = await dialog.confirm('Are you sure you want to delete this asset?', { title: 'Delete Asset', variant: 'destructive' });
+        if (!confirmed) return;
+
+        try {
+            await deleteAssetSources(asset);
+            await fetchAssets();
         } catch (error) {
             console.error('Error deleting asset:', error);
             toast({ title: 'Delete failed', description: 'Could not delete asset.', variant: 'destructive' });
@@ -1099,11 +1212,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         let failures = 0;
         for (const asset of manageableSelectedAssets) {
             try {
-                await deleteAsset(asset);
+                await deleteAssetSources(asset);
             } catch {
                 failures += 1;
             }
         }
+        await fetchAssets();
         clearAssetSelection();
         toast({
             title: failures === 0 ? 'Assets deleted' : 'Some deletions failed',
@@ -1128,14 +1242,70 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedAssetsInView]);
 
+    const persistGroups = useCallback((next: AssetGroupMap) => {
+        // Drop groups that ended up empty so stale names don't linger in the chip row.
+        const cleaned: AssetGroupMap = {};
+        Object.entries(next).forEach(([name, keys]) => {
+            if (keys.length > 0) cleaned[name] = keys;
+        });
+        setAssetGroups(cleaned);
+        saveAssetGroups(normalizedUser, cleaned);
+        setActiveGroup((current) => (current && !cleaned[current] ? null : current));
+    }, [normalizedUser]);
+
+    const addAssetsToGroup = useCallback((groupName: string, targets: LibraryAsset[]) => {
+        if (targets.length === 0) return;
+        const nextKeys = new Set(assetGroups[groupName] || []);
+        // An asset lives in at most one group; joining a group leaves the previous one.
+        const targetKeys = new Set(targets.map(getAssetGroupKey));
+        const next: AssetGroupMap = {};
+        Object.entries(assetGroups).forEach(([name, keys]) => {
+            next[name] = name === groupName ? keys : keys.filter((key) => !targetKeys.has(key));
+        });
+        targetKeys.forEach((key) => nextKeys.add(key));
+        next[groupName] = Array.from(nextKeys);
+        persistGroups(next);
+        toast({ title: 'Assets grouped', description: `Added ${targets.length} asset(s) to "${groupName}".`, variant: 'success' });
+    }, [assetGroups, persistGroups, toast]);
+
+    const createGroupForAssets = useCallback(async (targets: LibraryAsset[]) => {
+        const name = (await dialog.prompt('Name the new group:', { title: 'New Asset Group', confirmText: 'Create' }))?.trim();
+        if (!name) return;
+        addAssetsToGroup(name, targets);
+    }, [addAssetsToGroup, dialog]);
+
+    const removeAssetsFromGroups = useCallback((targets: LibraryAsset[]) => {
+        if (targets.length === 0) return;
+        const targetKeys = new Set(targets.map(getAssetGroupKey));
+        const next: AssetGroupMap = {};
+        Object.entries(assetGroups).forEach(([name, keys]) => {
+            next[name] = keys.filter((key) => !targetKeys.has(key));
+        });
+        persistGroups(next);
+    }, [assetGroups, persistGroups]);
+
+    const groupNameForAsset = useCallback((asset: LibraryAsset) => {
+        const key = getAssetGroupKey(asset);
+        const entry = Object.entries(assetGroups).find(([, keys]) => keys.includes(key));
+        return entry ? entry[0] : null;
+    }, [assetGroups]);
+
+    const groupNames = useMemo(() => Object.keys(assetGroups).sort((a, b) => a.localeCompare(b)), [assetGroups]);
+
+    const displayedAssets = useMemo(() => {
+        if (!activeGroup) return assets;
+        const keys = new Set(assetGroups[activeGroup] || []);
+        return assets.filter((asset) => keys.has(getAssetGroupKey(asset)));
+    }, [activeGroup, assetGroups, assets]);
+
     const loadAllTabAssetsForBundle = useCallback(async (searchOverride?: string) => {
-        const assetGroups = await Promise.all(
+        const assetGroupsByTab = await Promise.all(
             LIBRARY_TABS.map((tab) => queryAssetsForTab(tab.key, {
                 includePreviewPaths: false,
                 search: searchOverride,
             }))
         );
-        return assetGroups.flat();
+        return assetGroupsByTab.flat();
     }, [queryAssetsForTab]);
 
     const buildExistingImportCollisionSet = useCallback(async () => {
@@ -1500,63 +1670,99 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     <ImageIcon size={14} className="text-primary" />
                     Asset Library
                 </h3>
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={() => importInputRef.current?.click()}
-                        disabled={isImportingLibrary}
-                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background/80 text-[11px] font-semibold text-foreground inline-flex items-center gap-1.5 hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Import Library"
-                        title="Import Library"
-                    >
-                        {isImportingLibrary ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-                        Import Library
-                    </button>
-                    <button
-                        onClick={() => void handleExportLibrary()}
-                        disabled={isExportingLibrary}
-                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background/80 text-[11px] font-semibold text-foreground inline-flex items-center gap-1.5 hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Export Library"
-                        title="Export Library"
-                    >
-                        {isExportingLibrary ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                        Export Library
-                    </button>
-                    <button
-                        onClick={() => void handleCleanupMissingAssets()}
-                        disabled={isCleaningUp}
-                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background/80 text-[11px] font-semibold text-foreground inline-flex items-center gap-1.5 hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Remove missing assets"
-                        title="Scan and remove assets whose files can no longer be found"
-                    >
-                        {isCleaningUp ? <Loader2 size={12} className="animate-spin" /> : <AlertTriangle size={12} />}
-                        Clean Up
-                    </button>
+                <div className="flex items-center gap-0.5">
                     <button
                         onClick={() => setShowFilters((prev) => !prev)}
                         className={cn(
-                            "h-7 px-2.5 rounded-md border text-[11px] font-semibold inline-flex items-center gap-1.5 transition-colors",
+                            "h-7 w-7 rounded-md inline-flex items-center justify-center transition-colors",
                             showFilters
-                                ? "bg-primary/10 border-primary/40 text-primary"
-                                : "border-border/60 bg-background/80 text-foreground hover:bg-secondary"
+                                ? "bg-primary/15 text-primary"
+                                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                         )}
                         aria-label="Toggle filters"
                         aria-expanded={showFilters}
                         title="Filters (personal/shared, search, visibility)"
                     >
-                        <SlidersHorizontal size={12} />
-                        Filters
-                        <ChevronDown size={12} className={cn("transition-transform", showFilters && "rotate-180")} />
-                    </button>
-                     <button
-                        onClick={() => fetchAssets()}
-                        className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors"
-                        title="Refresh"
-                     >
-                        <RotateCw size={14} className={isLoading ? "animate-spin" : ""} />
+                        <SlidersHorizontal size={14} />
                     </button>
                     <button
+                        onClick={() => fetchAssets()}
+                        className="h-7 w-7 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                        title="Refresh"
+                        aria-label="Refresh"
+                    >
+                        <RotateCw size={14} className={isLoading ? "animate-spin" : ""} />
+                    </button>
+                    <div className="relative" ref={moreMenuRef}>
+                        <button
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setShowMoreMenu((prev) => !prev);
+                            }}
+                            className={cn(
+                                "h-7 w-7 rounded-md inline-flex items-center justify-center transition-colors",
+                                showMoreMenu
+                                    ? "bg-primary/15 text-primary"
+                                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            )}
+                            aria-label="More actions"
+                            aria-expanded={showMoreMenu}
+                            title="Import, export, and cleanup"
+                        >
+                            {(isImportingLibrary || isExportingLibrary || isCleaningUp)
+                                ? <Loader2 size={14} className="animate-spin" />
+                                : <MoreHorizontal size={14} />}
+                        </button>
+                        {showMoreMenu && (
+                            <div
+                                className="absolute right-0 top-8 z-40 w-52 rounded-lg border border-border bg-popover shadow-xl p-1 animate-in fade-in zoom-in-95 duration-100"
+                                onPointerDown={(event) => event.stopPropagation()}
+                            >
+                                <button
+                                    onClick={() => {
+                                        setShowMoreMenu(false);
+                                        importInputRef.current?.click();
+                                    }}
+                                    disabled={isImportingLibrary}
+                                    className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary disabled:opacity-50"
+                                    aria-label="Import Library"
+                                >
+                                    <Upload size={13} className="text-muted-foreground" />
+                                    Import Library…
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowMoreMenu(false);
+                                        void handleExportLibrary();
+                                    }}
+                                    disabled={isExportingLibrary}
+                                    className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary disabled:opacity-50"
+                                    aria-label="Export Library"
+                                >
+                                    <Download size={13} className="text-muted-foreground" />
+                                    Export Library
+                                </button>
+                                <div className="my-1 h-px bg-border/60" />
+                                <button
+                                    onClick={() => {
+                                        setShowMoreMenu(false);
+                                        void handleCleanupMissingAssets();
+                                    }}
+                                    disabled={isCleaningUp}
+                                    className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary disabled:opacity-50"
+                                    aria-label="Remove missing assets"
+                                    title="Scan and remove assets whose files can no longer be found"
+                                >
+                                    <AlertTriangle size={13} className="text-amber-500" />
+                                    Clean Up Missing Assets
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    <div className="mx-0.5 h-4 w-px bg-border/70" />
+                    <button
                         onClick={onClose}
-                        className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground"
+                        className="h-7 w-7 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground"
                         aria-label="Close asset library"
                     >
                         <X size={14} />
@@ -1652,7 +1858,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     </span>
                     <button
                         onClick={() => void handleBulkDownload()}
-                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                        className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                        title="Download selected"
                     >
                         <Download size={12} />
                         Download
@@ -1664,7 +1871,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 setEditingAsset(getAssetKey(target));
                                 setEditName(target.name);
                             }}
-                            className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                            className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                            title="Rename selected asset"
                         >
                             <Pen size={12} />
                             Rename
@@ -1673,22 +1881,43 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     {manageableSelectedAssets.length > 0 && (
                         <>
                             <button
+                                onClick={() => void createGroupForAssets(selectedAssetsInView)}
+                                className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                                title="Group selected assets"
+                            >
+                                <FolderPlus size={12} />
+                                Group
+                            </button>
+                            {selectedAssetsInView.some((asset) => groupNameForAsset(asset)) && (
+                                <button
+                                    onClick={() => removeAssetsFromGroups(selectedAssetsInView)}
+                                    className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                                    title="Remove selected assets from their groups"
+                                >
+                                    <FolderMinus size={12} />
+                                    Ungroup
+                                </button>
+                            )}
+                            <button
                                 onClick={() => void handleBulkVisibility(true)}
-                                className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                                className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                                title="Make selected assets public"
                             >
                                 <Globe size={12} />
-                                Make Public
+                                Public
                             </button>
                             <button
                                 onClick={() => void handleBulkVisibility(false)}
-                                className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                                className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                                title="Make selected assets private"
                             >
                                 <Lock size={12} />
-                                Make Private
+                                Private
                             </button>
                             <button
                                 onClick={() => void handleBulkDelete()}
-                                className="h-7 px-2.5 rounded-md border border-red-500/40 bg-red-500/10 text-[11px] font-medium text-red-500 inline-flex items-center gap-1.5 hover:bg-red-500/20 shrink-0"
+                                className="h-7 px-2 rounded-md text-[11px] font-medium text-red-500 inline-flex items-center gap-1.5 hover:bg-red-500/15 shrink-0"
+                                title="Delete selected assets"
                             >
                                 <Trash2 size={12} />
                                 Delete
@@ -1697,16 +1926,19 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     )}
                     <button
                         onClick={toggleSelectAllInView}
-                        className="h-7 px-2.5 rounded-md border border-border/60 bg-background text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
+                        className="h-7 px-2 rounded-md text-[11px] font-medium text-muted-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0 ml-auto"
+                        title="Select or deselect all assets in view"
                     >
                         <CheckSquare size={12} />
-                        Select All
+                        All
                     </button>
                     <button
                         onClick={clearAssetSelection}
-                        className="h-7 px-2 rounded-md border border-border/50 bg-background/70 text-[11px] font-medium text-muted-foreground hover:bg-secondary shrink-0 ml-auto"
+                        className="h-7 w-7 rounded-md text-muted-foreground inline-flex items-center justify-center hover:bg-secondary shrink-0"
+                        title="Clear selection"
+                        aria-label="Clear selection"
                     >
-                        Clear Selection
+                        <X size={13} />
                     </button>
                 </div>
             )}
@@ -1822,19 +2054,57 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 </div>
             </div>
 
+            {/* Group filter chips — shown only once the user has created groups */}
+            {groupNames.length > 0 && (
+                <div className="px-3 pt-2 flex items-center gap-1.5 flex-wrap">
+                    <button
+                        onClick={() => setActiveGroup(null)}
+                        className={cn(
+                            "h-6 px-2.5 rounded-full text-[11px] font-medium transition-colors",
+                            activeGroup === null
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        )}
+                    >
+                        All
+                    </button>
+                    {groupNames.map((name) => (
+                        <button
+                            key={name}
+                            onClick={() => setActiveGroup((current) => (current === name ? null : name))}
+                            className={cn(
+                                "h-6 px-2.5 rounded-full text-[11px] font-medium inline-flex items-center gap-1 transition-colors",
+                                activeGroup === name
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            )}
+                            title={`Show only assets in "${name}"`}
+                        >
+                            <Folder size={11} />
+                            {name}
+                            <span className={cn("text-[10px]", activeGroup === name ? "text-primary-foreground/80" : "text-muted-foreground/70")}>
+                                {(assetGroups[name] || []).length}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {/* Asset Grid Display */}
             <div className="flex-1 overflow-y-auto p-3">
                 {isLoading ? (
                     <div className="flex justify-center py-8 text-muted-foreground">
                         <Loader2 className="animate-spin" size={20} />
                     </div>
-                ) : assets.length === 0 ? (
+                ) : displayedAssets.length === 0 ? (
                     <div className="text-center py-8 text-xs text-muted-foreground">
-                        No assets found. Upload one to get started.
+                        {activeGroup
+                            ? `No assets from "${activeGroup}" in this tab.`
+                            : 'No assets found. Upload one to get started.'}
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                        {assets.map((asset, index) => {
+                        {displayedAssets.map((asset, index) => {
                             const assetKey = getAssetKey(asset);
                             const sourceAssets = getSourceAssets(asset);
                             const representative = pickRepresentativeAsset(asset);
@@ -1850,12 +2120,20 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             ))));
                             const ownerShort = (asset.owner || 'Unknown').trim();
                             const sourceCountLabel = sourceLabels.length > 1 ? `${sourceLabels.length} sources` : null;
+                            const isSelected = selectedAssetKeys.includes(assetKey);
+                            const memberGroup = groupNameForAsset(asset);
 
                             return (
                                 <div
                                     key={assetKey || `${asset.path}-${index}`}
-                                    className="group relative aspect-square bg-secondary/25 rounded-lg overflow-hidden border border-border/60 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
+                                    className={cn(
+                                        "group relative aspect-square bg-secondary/25 rounded-lg overflow-hidden border transition-all cursor-pointer",
+                                        isSelected
+                                            ? "border-primary ring-2 ring-primary/40 shadow-md"
+                                            : "border-border/60 hover:border-primary/50 hover:shadow-md"
+                                    )}
                                     title={asset.name}
+                                    onContextMenu={(event) => openAssetContextMenu(asset, event)}
                                     onMouseEnter={(event) => {
                                         if (asset.type === 'models' || asset.type === 'videos' || asset.type === 'audio') {
                                             void openModelPreviewPopup(asset, assetKey, event.currentTarget.getBoundingClientRect());
@@ -1885,20 +2163,31 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     }}
                                 >
                                     <label
-                                        className="absolute left-1.5 top-1.5 z-30 inline-flex items-center gap-1 rounded-md bg-black/65 px-1.5 py-1 text-[10px] font-medium text-white"
+                                        className={cn(
+                                            "absolute left-1.5 top-1.5 z-30 flex h-6 w-6 items-center justify-center rounded-md bg-black/55 backdrop-blur-[2px] transition-opacity",
+                                            isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
+                                        )}
                                         onClick={(event) => {
                                             event.stopPropagation();
                                         }}
                                     >
                                         <input
                                             type="checkbox"
-                                            checked={selectedAssetKeys.includes(assetKey)}
+                                            checked={isSelected}
                                             onChange={(event) => toggleAssetSelection(assetKey, event.target.checked)}
                                             aria-label={`Select asset ${asset.name}`}
-                                            className="rounded border-white/40 text-primary focus:ring-primary/30"
+                                            className="h-3.5 w-3.5 rounded border-white/50 text-primary focus:ring-primary/30"
                                         />
-                                        Select
                                     </label>
+                                    <button
+                                        type="button"
+                                        onClick={(event) => openAssetContextMenu(asset, event)}
+                                        className="absolute right-1.5 top-1.5 z-30 flex h-6 w-6 items-center justify-center rounded-md bg-black/55 text-white/90 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-black/75 transition-opacity"
+                                        aria-label={`Asset actions for ${asset.name}`}
+                                        title="Asset actions"
+                                    >
+                                        <MoreHorizontal size={13} />
+                                    </button>
                                     {editingAsset === assetKey ? (
                                         <div className="absolute inset-0 z-30 bg-background/95 flex flex-col items-center justify-center p-1" onClick={(e) => e.stopPropagation()}>
                                             <div className="w-full flex items-center justify-center gap-1 mb-1">
@@ -1941,7 +2230,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                             <img
                                                                 src={imagePreviewUrl}
                                                                 alt={asset.name}
-                                                                className="w-full h-full object-cover"
+                                                                className="w-full h-full object-contain"
                                                                 loading="lazy"
                                                             />
                                                         </div>
@@ -1957,14 +2246,14 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                             <video
                                                                 src={imagePreviewUrl}
                                                                 ref={bindMediaPreviewRef(assetKey)}
-                                                                className="w-full h-full object-cover"
+                                                                className="w-full h-full object-contain"
                                                                 onPlay={() => setPlayingMediaKey(assetKey)}
                                                                 onPause={() => setPlayingMediaKey((current) => (current === assetKey ? null : current))}
                                                                 onEnded={() => setPlayingMediaKey((current) => (current === assetKey ? null : current))}
                                                                 playsInline
                                                                 preload="metadata"
                                                             />
-                                                            <div className="absolute left-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md bg-black/65 p-1">
+                                                            <div className="absolute left-1.5 top-9 z-20 flex items-center gap-1 rounded-md bg-black/65 p-1">
                                                                 <button
                                                                     type="button"
                                                                     onClick={(event) => handleMediaPreviewAction(assetKey, 'play', event)}
@@ -2010,7 +2299,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                             onPause={() => setPlayingMediaKey((current) => (current === assetKey ? null : current))}
                                                             onEnded={() => setPlayingMediaKey((current) => (current === assetKey ? null : current))}
                                                         />
-                                                        <div className="absolute left-1.5 top-1.5 z-30 flex items-center gap-1 rounded-md bg-black/65 p-1">
+                                                        <div className="absolute left-1.5 top-9 z-20 flex items-center gap-1 rounded-md bg-black/65 p-1">
                                                             <button
                                                                 type="button"
                                                                 onClick={(event) => handleMediaPreviewAction(assetKey, 'play', event)}
@@ -2065,85 +2354,18 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                 )}
                                             </div>
 
-                                            <div className="absolute inset-x-0 bottom-0 z-20 h-2/3 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
-                                                <div
-                                                    className="h-full bg-zinc-900/90 text-white p-2 flex flex-col gap-2"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                    }}
-                                                >
-                                                    <div className="space-y-1 text-[10px] leading-tight">
-                                                        <div className="font-semibold text-[11px] truncate">{asset.name}</div>
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <span className="text-white/70">Visibility</span>
-                                                            <span className="inline-flex items-center gap-1 font-medium">
-                                                                {isUpdatingVisibility ? <Loader2 size={10} className="animate-spin" /> : (asset.isPublic ? <Globe size={10} /> : <Lock size={10} />)}
-                                                                {asset.isPublic ? 'Public' : 'Private'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <span className="text-white/70">Owner</span>
-                                                            <span className="font-medium text-right break-all whitespace-normal max-w-[65%]" title={ownerShort}>{ownerShort}</span>
-                                                        </div>
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <span className="text-white/70">Sources</span>
-                                                            <span className="font-medium text-right break-words whitespace-normal max-w-[65%]" title={sourceLabels.join(', ')}>{sourceLabels.join(', ')}</span>
-                                                        </div>
-                                                        {sourceCountLabel && (
-                                                            <div className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[9px]">
-                                                                <Cloud size={9} />
-                                                                {sourceCountLabel}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="mt-auto grid grid-cols-2 gap-1">
-                                                        <button
-                                                            onClick={() => void toggleAssetVisibility(asset)}
-                                                            className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
-                                                            title={asset.isPublic ? 'Set private' : 'Set public'}
-                                                        >
-                                                            {asset.isPublic ? <Lock size={10} /> : <Globe size={10} />}
-                                                            {asset.isPublic ? 'Private' : 'Public'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => void downloadAsset(asset)}
-                                                            className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
-                                                            title="Download Asset"
-                                                        >
-                                                            <Download size={10} />
-                                                            Download
-                                                        </button>
-                                                        {managedByUser && (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setEditingAsset(assetKey);
-                                                                        setEditName(asset.name);
-                                                                    }}
-                                                                    className="h-7 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-medium inline-flex items-center justify-center gap-1"
-                                                                    title="Rename Asset"
-                                                                >
-                                                                    <Pen size={10} />
-                                                                    Rename
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => void deleteAsset(asset)}
-                                                                    className="h-7 rounded-md bg-red-500/25 hover:bg-red-500/35 text-[10px] font-medium inline-flex items-center justify-center gap-1"
-                                                                    title="Delete Asset"
-                                                                >
-                                                                    <Trash2 size={10} />
-                                                                    Delete
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/65 via-black/25 to-transparent text-white px-2 py-1 pointer-events-none">
+                                            <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/75 via-black/35 to-transparent text-white px-2 pb-1.5 pt-4 pointer-events-none">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="text-[10px] truncate flex-1">{asset.name}</span>
+                                                    <span className="text-[10px] font-medium truncate flex-1">{asset.name}</span>
+                                                    {memberGroup && (
+                                                        <span className="inline-flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-px text-[9px]" title={`In group "${memberGroup}"`}>
+                                                            <Folder size={8} />
+                                                            <span className="max-w-[64px] truncate">{memberGroup}</span>
+                                                        </span>
+                                                    )}
+                                                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50" title={asset.isPublic ? `Public · ${ownerShort}` : `Private · ${ownerShort}`}>
+                                                        {isUpdatingVisibility ? <Loader2 size={8} className="animate-spin" /> : (asset.isPublic ? <Globe size={8} /> : <Lock size={8} />)}
+                                                    </span>
                                                     <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50" title={sourceCountLabel || sourceLabels.join(', ')}>
                                                         {sourceLabels.length > 1 ? <Cloud size={8} /> : <HardDrive size={8} />}
                                                     </span>
@@ -2166,6 +2388,177 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 </div>
             </div>
         </DraggableResizablePanel>
+        {contextMenu && (() => {
+            const menuAsset = contextMenu.asset;
+            const menuAssetKey = getAssetKey(menuAsset);
+            const menuManaged = canManageAsset(menuAsset);
+            const menuGroup = groupNameForAsset(menuAsset);
+            const menuIsMulti = selectedAssetKeys.length > 1 && selectedAssetKeys.includes(menuAssetKey);
+            const menuTargets = menuIsMulti ? selectedAssetsInView : [menuAsset];
+            const closeMenu = () => setContextMenu(null);
+
+            return (
+                <div
+                    ref={contextMenuRef}
+                    className="fixed z-[130] w-52 rounded-lg border border-border bg-popover shadow-xl p-1 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
+                    style={
+                        contextMenuPosition
+                            ? {
+                                left: contextMenuPosition.left,
+                                top: contextMenuPosition.top,
+                                maxHeight: 'calc(100vh - 16px)',
+                                // The "duration-100" class below is meant only for the
+                                // fade/zoom entrance *animation*; without this, it also makes
+                                // this position jump an animated *transition*, which can visibly
+                                // stall at the off-screen starting point instead of snapping.
+                                transition: 'none',
+                            }
+                            : {
+                                // Off-screen but still laid out and measurable for the initial
+                                // pass, until the useLayoutEffect above knows its real size and
+                                // clamps it fully on-screen.
+                                left: -9999,
+                                top: -9999,
+                                maxHeight: 'calc(100vh - 16px)',
+                                transition: 'none',
+                            }
+                    }
+                    onContextMenu={(event) => event.preventDefault()}
+                    role="menu"
+                    aria-label={`Actions for ${menuAsset.name}`}
+                >
+                    {menuIsMulti && (
+                        <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {selectedAssetKeys.length} assets selected
+                        </div>
+                    )}
+                    {!menuIsMulti && (
+                        <button
+                            onClick={() => {
+                                closeMenu();
+                                void handleAssetSelect(menuAsset);
+                            }}
+                            className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
+                            role="menuitem"
+                            title="Add to Canvas"
+                        >
+                            <ImagePlus size={13} className="text-muted-foreground" />
+                            Add to Canvas
+                        </button>
+                    )}
+                    <button
+                        onClick={() => {
+                            closeMenu();
+                            if (menuIsMulti) {
+                                void handleBulkDownload();
+                            } else {
+                                void downloadAsset(menuAsset);
+                            }
+                        }}
+                        className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
+                        role="menuitem"
+                        title="Download Asset"
+                    >
+                        <Download size={13} className="text-muted-foreground" />
+                        Download
+                    </button>
+                    {!menuIsMulti && menuManaged && (
+                        <button
+                            onClick={() => {
+                                closeMenu();
+                                setEditingAsset(menuAssetKey);
+                                setEditName(menuAsset.name);
+                            }}
+                            className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
+                            role="menuitem"
+                            title="Rename Asset"
+                        >
+                            <Pen size={13} className="text-muted-foreground" />
+                            Rename
+                        </button>
+                    )}
+                    <button
+                        onClick={() => {
+                            closeMenu();
+                            if (menuIsMulti) {
+                                void handleBulkVisibility(!menuAsset.isPublic);
+                            } else {
+                                void toggleAssetVisibility(menuAsset);
+                            }
+                        }}
+                        className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
+                        role="menuitem"
+                        title={menuAsset.isPublic ? 'Set private' : 'Set public'}
+                    >
+                        {menuAsset.isPublic ? <Lock size={13} className="text-muted-foreground" /> : <Globe size={13} className="text-muted-foreground" />}
+                        {menuAsset.isPublic ? 'Make Private' : 'Make Public'}
+                    </button>
+                    <div className="my-1 h-px bg-border/60" />
+                    {groupNames.filter((name) => name !== menuGroup).map((name) => (
+                        <button
+                            key={name}
+                            onClick={() => {
+                                closeMenu();
+                                addAssetsToGroup(name, menuTargets);
+                            }}
+                            className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
+                            role="menuitem"
+                            title={`Add to group "${name}"`}
+                        >
+                            <Folder size={13} className="text-muted-foreground" />
+                            <span className="truncate">Add to &quot;{name}&quot;</span>
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => {
+                            closeMenu();
+                            void createGroupForAssets(menuTargets);
+                        }}
+                        className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
+                        role="menuitem"
+                        title="Add to a new group"
+                    >
+                        <FolderPlus size={13} className="text-muted-foreground" />
+                        New Group…
+                    </button>
+                    {(menuGroup || (menuIsMulti && menuTargets.some((target) => groupNameForAsset(target)))) && (
+                        <button
+                            onClick={() => {
+                                closeMenu();
+                                removeAssetsFromGroups(menuTargets);
+                            }}
+                            className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
+                            role="menuitem"
+                            title="Remove from group"
+                        >
+                            <FolderMinus size={13} className="text-muted-foreground" />
+                            Remove from Group
+                        </button>
+                    )}
+                    {menuManaged && (
+                        <>
+                            <div className="my-1 h-px bg-border/60" />
+                            <button
+                                onClick={() => {
+                                    closeMenu();
+                                    if (menuIsMulti) {
+                                        void handleBulkDelete();
+                                    } else {
+                                        void deleteAsset(menuAsset);
+                                    }
+                                }}
+                                className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 text-red-500 hover:bg-red-500/10"
+                                role="menuitem"
+                                title="Delete Asset"
+                            >
+                                <Trash2 size={13} />
+                                Delete
+                            </button>
+                        </>
+                    )}
+                </div>
+            );
+        })()}
         {modelPreviewPopup && (
             <div
                 className="fixed z-[120] bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"

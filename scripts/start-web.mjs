@@ -47,8 +47,12 @@ async function main() {
         console.log('[INFO] Build complete. Continuing to start server...');
     }
 
-    const startPort = 3000;
-    const port = await findAvailablePort(startPort);
+    // Honor an explicit `-p <port>` argument (e.g. `npm run dev -- -p 3457`);
+    // otherwise pick the first free port from 3000 upward.
+    const portFlagIndex = process.argv.indexOf('-p');
+    const requestedPort = portFlagIndex >= 0 ? Number.parseInt(process.argv[portFlagIndex + 1], 10) : NaN;
+    const startPort = Number.isFinite(requestedPort) ? requestedPort : 3000;
+    const port = Number.isFinite(requestedPort) ? requestedPort : await findAvailablePort(startPort);
 
     console.log(`[INFO] Target port: ${port} (Selected starting from ${startPort})`);
 
@@ -59,9 +63,11 @@ async function main() {
 
     console.log(`[INFO] Starting Next.js in ${mode} mode...`);
     
-    // Spawn the next process without shell: true to prevent deprecation warning DEP0190
+    // Windows blocks spawning .cmd files without a shell (Node CVE-2024-27980 fix),
+    // so a shell is required there; elsewhere skip it to avoid DEP0190.
     const child = spawn(cmd, args, {
-        stdio: 'inherit'
+        stdio: 'inherit',
+        shell: process.platform === 'win32'
     });
 
     let hasExited = false;

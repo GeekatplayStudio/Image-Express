@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight, Cloud, HardDrive, Loader2, RefreshCcw, Sparkles, X } from 'lucide-react';
-import useEscapeKey from '@/hooks/useEscapeKey';
+import { CheckCircle2, ChevronLeft, ChevronRight, Cloud, HardDrive, Loader2, RefreshCcw, Sparkles } from 'lucide-react';
+import ModalShell from '@/components/ui/ModalShell';
+import { useI18n } from '@/providers/I18nProvider';
 import { connectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 import {
     ASSET_CLOUD_PROVIDER_OPTIONS,
@@ -62,6 +63,7 @@ const STEPS = [
 type SetupWizardStepId = (typeof STEPS)[number]['id'];
 
 export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupWizardModalProps) {
+    const { t } = useI18n();
     const [stepIndex, setStepIndex] = useState(0);
     const [storageMode, setStorageMode] = useState<AssetStorageMode>('hybrid');
     const [cloudProvider, setCloudProvider] = useState<AssetCloudProvider>('google-drive');
@@ -106,8 +108,6 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     const installerStatusRequestIdRef = useRef(0);
     const isOpenRef = useRef(isOpen);
     const step = STEPS[stepIndex];
-
-    useEscapeKey(onClose, { enabled: isOpen });
 
     useEffect(() => {
         isOpenRef.current = isOpen;
@@ -380,29 +380,24 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-start sm:items-center justify-center overflow-y-auto bg-black/65 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div
-                data-testid="setup-wizard-modal-shell"
-                className="w-full max-w-3xl max-h-[calc(100vh-2rem)] max-h-[calc(100dvh-2rem)] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
-            >
-                <div className="shrink-0 px-6 py-4 border-b border-border/60 bg-secondary/20 flex items-center justify-between">
-                    <div>
-                        <h2 className="text-lg font-bold flex items-center gap-2">
-                            <Sparkles size={18} className="text-primary" />
-                            First-Time Setup Wizard
-                        </h2>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Step {stepIndex + 1} of {STEPS.length}: {step.title}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-1">{step.description}</p>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                        title="Close setup wizard"
-                    >
-                        <X size={18} />
-                    </button>
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose}
+            title={t('settings.setupWizard')}
+            icon={<Sparkles size={14} className="text-primary" />}
+            initialWidth={780}
+            initialHeight={720}
+            minWidth={480}
+            minHeight={400}
+            zIndex={110}
+            bodyClassName="overflow-hidden flex flex-col"
+        >
+            <div data-testid="setup-wizard-modal-shell" className="flex flex-col flex-1 min-h-0">
+                <div className="shrink-0 px-6 py-3 border-b border-border/60 bg-secondary/20">
+                    <p className="text-xs text-muted-foreground">
+                        Step {stepIndex + 1} of {STEPS.length}: <span className="font-semibold text-foreground">{step.title}</span>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-1">{step.description}</p>
                 </div>
 
                 <div className="shrink-0 px-6 py-4 border-b border-border/50">
@@ -1011,6 +1006,6 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                     </button>
                 </div>
             </div>
-        </div>
+        </ModalShell>
     );
 }

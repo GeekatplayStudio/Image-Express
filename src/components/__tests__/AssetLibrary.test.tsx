@@ -411,6 +411,7 @@ describe('AssetLibrary', () => {
         });
         expect(onClose).toHaveBeenCalledTimes(1);
 
+        fireEvent.contextMenu(screen.getByTitle('clip.mp4'));
         fireEvent.click(screen.getByTitle('Download Asset'));
         await waitFor(() => {
             expect(mockGetLocalAssetBlob).toHaveBeenCalledWith('local-video-1');
@@ -471,7 +472,8 @@ describe('AssetLibrary', () => {
         });
 
         const readOnlyCard = screen.getByTitle('shared-photo.png');
-        fireEvent.click(within(readOnlyCard).getByTitle('Set private'));
+        fireEvent.contextMenu(readOnlyCard);
+        fireEvent.click(screen.getByTitle('Set private'));
 
         await waitFor(() => {
             expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
@@ -482,7 +484,8 @@ describe('AssetLibrary', () => {
         expect(mockSetLocalAssetVisibility).not.toHaveBeenCalled();
 
         const driveCard = screen.getByTitle('drive-photo.png');
-        fireEvent.click(within(driveCard).getByTitle('Rename Asset'));
+        fireEvent.contextMenu(driveCard);
+        fireEvent.click(screen.getByTitle('Rename Asset'));
         const driveRenameInput = within(driveCard).getByDisplayValue('drive-photo.png');
         fireEvent.change(driveRenameInput, { target: { value: 'drive-renamed.png' } });
         fireEvent.keyDown(driveRenameInput, { key: 'Enter' });
@@ -494,23 +497,27 @@ describe('AssetLibrary', () => {
             expect(within(screen.getByTitle('drive-photo.png')).queryByTitle('Save')).toBeNull();
         });
 
-        fireEvent.click(within(screen.getByTitle('drive-photo.png')).getByTitle('Set public'));
+        fireEvent.contextMenu(screen.getByTitle('drive-photo.png'));
+        fireEvent.click(screen.getByTitle('Set public'));
         await waitFor(() => {
             expect(mockSetDriveAssetVisibility).toHaveBeenCalledWith('drive-client', 'drive-1', true);
         });
 
-        fireEvent.click(within(screen.getByTitle('drive-photo.png')).getByTitle('Delete Asset'));
+        fireEvent.contextMenu(screen.getByTitle('drive-photo.png'));
+        fireEvent.click(screen.getByTitle('Delete Asset'));
         await waitFor(() => {
             expect(mockDeleteDriveAsset).toHaveBeenCalledWith('drive-client', 'drive-1');
         });
 
-        fireEvent.click(within(screen.getByTitle('drive-photo.png')).getByTitle('Download Asset'));
+        fireEvent.contextMenu(screen.getByTitle('drive-photo.png'));
+        fireEvent.click(screen.getByTitle('Download Asset'));
         await waitFor(() => {
             expect(mockDownloadDriveAssetBlob).toHaveBeenCalledWith('drive-client', 'drive-1');
         });
 
         const serverCard = screen.getByTitle('server-photo.png');
-        fireEvent.click(within(serverCard).getByTitle('Rename Asset'));
+        fireEvent.contextMenu(serverCard);
+        fireEvent.click(screen.getByTitle('Rename Asset'));
         const serverRenameInput = within(serverCard).getByDisplayValue('server-photo.png');
         fireEvent.change(serverRenameInput, { target: { value: 'server-renamed.png' } });
         fireEvent.keyDown(serverRenameInput, { key: 'Enter' });
@@ -526,7 +533,8 @@ describe('AssetLibrary', () => {
             expect(within(screen.getByTitle('server-photo.png')).queryByTitle('Save')).toBeNull();
         });
 
-        fireEvent.click(within(screen.getByTitle('server-photo.png')).getByTitle('Set public'));
+        fireEvent.contextMenu(screen.getByTitle('server-photo.png'));
+        fireEvent.click(screen.getByTitle('Set public'));
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, (url, init) => (
                 url === '/api/assets/visibility' &&
@@ -535,7 +543,8 @@ describe('AssetLibrary', () => {
             ))).toBe(true);
         });
 
-        fireEvent.click(within(screen.getByTitle('server-photo.png')).getByTitle('Delete Asset'));
+        fireEvent.contextMenu(screen.getByTitle('server-photo.png'));
+        fireEvent.click(screen.getByTitle('Delete Asset'));
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, (url, init) => (
                 url === '/api/assets/delete' &&
@@ -544,7 +553,8 @@ describe('AssetLibrary', () => {
             ))).toBe(true);
         });
 
-        fireEvent.click(within(screen.getByTitle('server-photo.png')).getByTitle('Download Asset'));
+        fireEvent.contextMenu(screen.getByTitle('server-photo.png'));
+        fireEvent.click(screen.getByTitle('Download Asset'));
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, (url) => url === '/server-assets/server-photo.png')).toBe(true);
         });
@@ -575,6 +585,7 @@ describe('AssetLibrary', () => {
         });
 
         fireEvent.click(screen.getByRole('checkbox', { name: /Select asset exportable.png/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
         fireEvent.click(screen.getByRole('button', { name: /Export Library/i }));
 
         await waitFor(() => {

@@ -192,15 +192,11 @@ describe('LoginModal', () => {
         });
     });
 
-    it('wires escape handler to onClose when provided', () => {
+    it('closes on Escape when onClose is provided', () => {
         const onClose = jest.fn();
         render(<LoginModal isOpen onLogin={jest.fn()} onClose={onClose} />);
 
-        expect(mockUseEscapeKey).toHaveBeenCalled();
-        const [handler, options] = mockUseEscapeKey.mock.calls[0];
-        expect(options).toEqual({ enabled: true });
-
-        (handler as () => void)();
+        fireEvent.keyDown(window, { key: 'Escape' });
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 

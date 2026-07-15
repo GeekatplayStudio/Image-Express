@@ -850,7 +850,8 @@ describe('SettingsModal', () => {
             expect(mockConnectGoogleDrive).toHaveBeenCalledWith('client-1');
         });
 
-        fireEvent.click(screen.getByRole('button', { name: /Launch Setup Wizard/i }));
+        await openTab(/Workspace/i);
+        fireEvent.click(screen.getByRole('button', { name: /Open Setup Wizard/i }));
         expect(mockRequestOpenSetupWizard).toHaveBeenCalledTimes(1);
     });
 

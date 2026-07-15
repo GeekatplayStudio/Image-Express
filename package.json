@@ -1,6 +1,6 @@
 {
   "name": "creative-flow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "engines": {
     "node": ">=24 <25",
@@ -29,7 +29,9 @@
     "desktop:dev": "concurrently \"cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 next dev -p 3927\" \"wait-on http://localhost:3927 && cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 electron .\"",
     "desktop:serve": "concurrently \"cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 next start -p 3927\" \"wait-on http://localhost:3927 && cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 electron .\"",
     "desktop:start": "npm run build && npm run desktop:serve",
-    "desktop:build": "next build && electron-builder"
+    "desktop:build": "next build && electron-builder",
+    "update": "node scripts/update.mjs",
+    "update:check": "node scripts/update.mjs --check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -59,7 +61,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.4.0",
-    "three": "^0.182.0"
+    "three": "^0.182.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
