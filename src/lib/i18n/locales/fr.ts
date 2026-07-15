@@ -97,6 +97,23 @@ const fr: LocaleDictionary = {
     'dashboard.uploadMedia': 'Importer des médias',
     'dashboard.create3d': 'Créer en 3D',
     'dashboard.generateImage': 'Générer une image',
+    'dashboard.projects': 'Projets',
+    'dashboard.projectCount': '{count} projets',
+    'dashboard.canvasCount': '{count} canevas',
+    'dashboard.openProject': 'Ouvrir ce projet dans l’éditeur',
+    'dashboard.savedDesigns': 'Créations enregistrées',
+    'dashboard.savedCount': '{count} enregistrées',
+    'dashboard.noDesigns': 'Aucune création enregistrée.',
+    'dashboard.noDesignsHint': 'Démarrez un nouveau projet pour le voir ici.',
+    'dashboard.popularTemplates': 'Modèles populaires',
+    'dashboard.showLess': 'Afficher moins',
+    'dashboard.showAll': 'Afficher toutes les créations ({count})',
+    'dashboard.deleteDesign': 'Supprimer la création',
+    'dashboard.createDesign': 'Créer le design',
+    'dashboard.widthPx': 'Largeur (px)',
+    'dashboard.heightPx': 'Hauteur (px)',
+    'stack.sharedBadge': 'Partagé dans le projet — les modifications se synchronisent partout',
+    'stack.shareBroadcastQuestion': 'Ajouter ce calque partagé à tous les canevas du projet ? Les copies liées restent synchronisées.',
 };
 
 export default fr;

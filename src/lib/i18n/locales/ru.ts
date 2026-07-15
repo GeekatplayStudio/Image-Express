@@ -97,6 +97,23 @@ const ru: LocaleDictionary = {
     'dashboard.uploadMedia': 'Загрузить файлы',
     'dashboard.create3d': 'Создать 3D',
     'dashboard.generateImage': 'Сгенерировать изображение',
+    'dashboard.projects': 'Проекты',
+    'dashboard.projectCount': '{count} проектов',
+    'dashboard.canvasCount': '{count} холстов',
+    'dashboard.openProject': 'Открыть этот проект в редакторе',
+    'dashboard.savedDesigns': 'Сохранённые дизайны',
+    'dashboard.savedCount': '{count} сохранено',
+    'dashboard.noDesigns': 'Сохранённых дизайнов пока нет.',
+    'dashboard.noDesignsHint': 'Начните новый проект, и он появится здесь.',
+    'dashboard.popularTemplates': 'Популярные шаблоны',
+    'dashboard.showLess': 'Показать меньше',
+    'dashboard.showAll': 'Показать все дизайны ({count})',
+    'dashboard.deleteDesign': 'Удалить дизайн',
+    'dashboard.createDesign': 'Создать дизайн',
+    'dashboard.widthPx': 'Ширина (px)',
+    'dashboard.heightPx': 'Высота (px)',
+    'stack.sharedBadge': 'Общий слой проекта — изменения синхронизируются со всеми копиями',
+    'stack.shareBroadcastQuestion': 'Добавить этот общий слой на все холсты проекта? Связанные копии останутся синхронизированными.',
 };
 
 export default ru;

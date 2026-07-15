@@ -97,6 +97,23 @@ const uk: LocaleDictionary = {
     'dashboard.uploadMedia': 'Завантажити файли',
     'dashboard.create3d': 'Створити 3D',
     'dashboard.generateImage': 'Згенерувати зображення',
+    'dashboard.projects': 'Проєкти',
+    'dashboard.projectCount': '{count} проєктів',
+    'dashboard.canvasCount': '{count} полотен',
+    'dashboard.openProject': 'Відкрити цей проєкт у редакторі',
+    'dashboard.savedDesigns': 'Збережені дизайни',
+    'dashboard.savedCount': '{count} збережено',
+    'dashboard.noDesigns': 'Збережених дизайнів ще немає.',
+    'dashboard.noDesignsHint': 'Почніть новий проєкт, і він зʼявиться тут.',
+    'dashboard.popularTemplates': 'Популярні шаблони',
+    'dashboard.showLess': 'Показати менше',
+    'dashboard.showAll': 'Показати всі дизайни ({count})',
+    'dashboard.deleteDesign': 'Видалити дизайн',
+    'dashboard.createDesign': 'Створити дизайн',
+    'dashboard.widthPx': 'Ширина (px)',
+    'dashboard.heightPx': 'Висота (px)',
+    'stack.sharedBadge': 'Спільний шар проєкту — зміни синхронізуються з усіма копіями',
+    'stack.shareBroadcastQuestion': 'Додати цей спільний шар на всі полотна проєкту? Звʼязані копії залишаться синхронізованими.',
 };
 
 export default uk;

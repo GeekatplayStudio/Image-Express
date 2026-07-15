@@ -97,6 +97,23 @@ const de: LocaleDictionary = {
     'dashboard.uploadMedia': 'Medien hochladen',
     'dashboard.create3d': '3D erstellen',
     'dashboard.generateImage': 'Bild generieren',
+    'dashboard.projects': 'Projekte',
+    'dashboard.projectCount': '{count} Projekte',
+    'dashboard.canvasCount': '{count} Leinwände',
+    'dashboard.openProject': 'Dieses Projekt im Editor öffnen',
+    'dashboard.savedDesigns': 'Gespeicherte Designs',
+    'dashboard.savedCount': '{count} gespeichert',
+    'dashboard.noDesigns': 'Noch keine gespeicherten Designs.',
+    'dashboard.noDesignsHint': 'Starte ein neues Projekt, um es hier zu sehen.',
+    'dashboard.popularTemplates': 'Beliebte Vorlagen',
+    'dashboard.showLess': 'Weniger anzeigen',
+    'dashboard.showAll': 'Alle Designs anzeigen ({count})',
+    'dashboard.deleteDesign': 'Design löschen',
+    'dashboard.createDesign': 'Design erstellen',
+    'dashboard.widthPx': 'Breite (px)',
+    'dashboard.heightPx': 'Höhe (px)',
+    'stack.sharedBadge': 'Im Projekt geteilt — Änderungen werden überall synchronisiert',
+    'stack.shareBroadcastQuestion': 'Diese geteilte Ebene zu allen Leinwänden des Projekts hinzufügen? Verknüpfte Kopien bleiben synchron.',
 };
 
 export default de;

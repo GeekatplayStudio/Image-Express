@@ -80,6 +80,8 @@ const en: LocaleDictionary = {
     'stack.toFederation': 'Zoom out to the Federation level (all projects)',
     'stack.toStack': 'Dive into the selected project',
     'stack.switchCanvas': 'Switch between canvases in this project',
+    'stack.sharedBadge': 'Shared across the project — edits sync to every linked instance',
+    'stack.shareBroadcastQuestion': 'Add this shared layer to all canvases in the project? Linked copies stay synchronized.',
     'editor.undo': 'Undo',
     'editor.redo': 'Redo',
 
@@ -609,6 +611,21 @@ const en: LocaleDictionary = {
     'dashboard.uploadMedia': 'Upload Media',
     'dashboard.create3d': 'Create 3D',
     'dashboard.generateImage': 'Generate Image',
+    'dashboard.projects': 'Projects',
+    'dashboard.projectCount': '{count} projects',
+    'dashboard.canvasCount': '{count} canvases',
+    'dashboard.openProject': 'Open this project in the editor',
+    'dashboard.savedDesigns': 'Saved Designs',
+    'dashboard.savedCount': '{count} saved',
+    'dashboard.noDesigns': 'No saved designs yet.',
+    'dashboard.noDesignsHint': 'Start a new project to see it here.',
+    'dashboard.popularTemplates': 'Popular Templates',
+    'dashboard.showLess': 'Show Less',
+    'dashboard.showAll': 'Show All Designs ({count})',
+    'dashboard.deleteDesign': 'Delete design',
+    'dashboard.createDesign': 'Create Design',
+    'dashboard.widthPx': 'Width (px)',
+    'dashboard.heightPx': 'Height (px)',
 };
 
 export default en;

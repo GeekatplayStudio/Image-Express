@@ -2111,6 +2111,11 @@ export default function PropertiesPanel({
                 const imgExt = img as ExtendedFabricObject;
                 imgExt.baseFilters = [...(img.filters || [])];
                 selectedObject.set('dirty', true);
+                // Shared (linked) layers must propagate filter edits to their
+                // instances on other canvases/projects.
+                if (imgExt.sharedLayerId) {
+                    canvas.fire('object:modified', { target: img } as never);
+                }
 
                 // Update Local State for UI
                 if (type === 'Blur') setBlurValue(filterVal);

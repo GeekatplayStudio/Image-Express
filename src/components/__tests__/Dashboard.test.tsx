@@ -98,11 +98,11 @@ describe('Dashboard Component', () => {
         // Reset mock
         mockOnNewDesign.mockClear();
         fireEvent.click(screen.getByText('Upload Media'));
-        expect(mockOnNewDesign).toHaveBeenCalledWith('upload');
+        expect(mockOnNewDesign).toHaveBeenCalledWith('upload', undefined);
 
         // Create 3D
         fireEvent.click(screen.getByText('Create 3D'));
-        expect(mockOnNewDesign).toHaveBeenCalledWith('3d');
+        expect(mockOnNewDesign).toHaveBeenCalledWith('3d', undefined);
     });
 
     it('lets users clear and retype custom size without forced zero', async () => {

@@ -43,6 +43,21 @@ The workspace hierarchy is **Federation → Projects → Canvases → Layers**:
   - Click a plane to select it; double-click (or **Open**) to load it in the
     editor. Rename/duplicate/delete/add from the control strip.
 
+## Shared-layer indicators & dashboard
+
+- Shared layers show a **link badge** at their top-left corner on the canvas
+  and a teal share icon in the Layers panel row.
+- Clicking **Share** with multiple canvases asks whether to add the linked
+  layer to every canvas; declining still marks it shared without copies.
+- The **Dashboard** lists every project in the federation (thumbnail from
+  its first canvas). Clicking one opens it in the editor with its content
+  restored; every new design started from the dashboard becomes its own
+  project automatically.
+- Snapshots inline `blob:` image sources as data URLs so images added from
+  the asset library survive canvas switches and reloads, and each snapshot
+  refreshes the stored canvas width/height so 3D plane ratios stay correct
+  after artboard resizes.
+
 ## Autosave
 
 `File → Autosave` toggles automatic saving. When enabled, dirty work is saved

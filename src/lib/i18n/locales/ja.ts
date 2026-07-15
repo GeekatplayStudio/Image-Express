@@ -97,6 +97,23 @@ const ja: LocaleDictionary = {
     'dashboard.uploadMedia': 'メディアをアップロード',
     'dashboard.create3d': '3Dを作成',
     'dashboard.generateImage': '画像を生成',
+    'dashboard.projects': 'プロジェクト',
+    'dashboard.projectCount': '{count} プロジェクト',
+    'dashboard.canvasCount': '{count} キャンバス',
+    'dashboard.openProject': 'このプロジェクトをエディタで開く',
+    'dashboard.savedDesigns': '保存済みデザイン',
+    'dashboard.savedCount': '{count} 件保存',
+    'dashboard.noDesigns': '保存されたデザインはまだありません。',
+    'dashboard.noDesignsHint': '新しいプロジェクトを開始するとここに表示されます。',
+    'dashboard.popularTemplates': '人気のテンプレート',
+    'dashboard.showLess': '表示を減らす',
+    'dashboard.showAll': 'すべてのデザインを表示（{count}）',
+    'dashboard.deleteDesign': 'デザインを削除',
+    'dashboard.createDesign': 'デザインを作成',
+    'dashboard.widthPx': '幅 (px)',
+    'dashboard.heightPx': '高さ (px)',
+    'stack.sharedBadge': 'プロジェクト内で共有 — 変更はすべてのインスタンスに同期',
+    'stack.shareBroadcastQuestion': 'この共有レイヤーをプロジェクトのすべてのキャンバスに追加しますか？リンクされたコピーは同期されます。',
 };
 
 export default ja;

@@ -97,6 +97,23 @@ const es: LocaleDictionary = {
     'dashboard.uploadMedia': 'Subir archivos',
     'dashboard.create3d': 'Crear 3D',
     'dashboard.generateImage': 'Generar imagen',
+    'dashboard.projects': 'Proyectos',
+    'dashboard.projectCount': '{count} proyectos',
+    'dashboard.canvasCount': '{count} lienzos',
+    'dashboard.openProject': 'Abrir este proyecto en el editor',
+    'dashboard.savedDesigns': 'Diseños guardados',
+    'dashboard.savedCount': '{count} guardados',
+    'dashboard.noDesigns': 'Aún no hay diseños guardados.',
+    'dashboard.noDesignsHint': 'Inicia un nuevo proyecto para verlo aquí.',
+    'dashboard.popularTemplates': 'Plantillas populares',
+    'dashboard.showLess': 'Mostrar menos',
+    'dashboard.showAll': 'Mostrar todos los diseños ({count})',
+    'dashboard.deleteDesign': 'Eliminar diseño',
+    'dashboard.createDesign': 'Crear diseño',
+    'dashboard.widthPx': 'Ancho (px)',
+    'dashboard.heightPx': 'Alto (px)',
+    'stack.sharedBadge': 'Compartida en el proyecto: los cambios se sincronizan en todas las instancias',
+    'stack.shareBroadcastQuestion': '¿Añadir esta capa compartida a todos los lienzos del proyecto? Las copias vinculadas permanecen sincronizadas.',
 };
 
 export default es;

@@ -661,10 +661,19 @@ export default function EditorView({
         initialWidth: initialSize?.width ?? 1080,
         initialHeight: initialSize?.height ?? 1080,
         customHistoryProps,
+        restoreOnMount: !initialDesign && !initialTemplateJsonUrl,
     });
 
-    const handleToggleShareLayer = useCallback(() => {
-        const result = toggleShareActiveLayer();
+    const handleToggleShareLayer = useCallback(async () => {
+        const alreadyShared = Boolean((canvas?.getActiveObject() as { sharedLayerId?: string } | null | undefined)?.sharedLayerId);
+        let broadcast = false;
+        if (!alreadyShared && canvas?.getActiveObject() && (multiCanvasProject?.canvases.length ?? 0) > 1) {
+            // Ask whether the shared layer should be added to every canvas.
+            broadcast = await dialog.confirm(t('stack.shareBroadcastQuestion'), {
+                title: t('stack.shareLayer'),
+            });
+        }
+        const result = toggleShareActiveLayer(broadcast);
         if (result === null) {
             toast({ title: t('stack.shareNoSelection'), variant: 'warning' });
         } else {
@@ -673,7 +682,7 @@ export default function EditorView({
                 variant: 'success',
             });
         }
-    }, [t, toast, toggleShareActiveLayer]);
+    }, [canvas, dialog, multiCanvasProject, t, toast, toggleShareActiveLayer]);
 
     const { autosaveEnabled, setAutosaveEnabled } = useEditorAutosave({
         isDirty,

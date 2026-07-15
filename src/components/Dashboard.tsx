@@ -6,6 +6,17 @@ import { useToast } from '@/providers/ToastProvider';
 import { useI18n } from '@/providers/I18nProvider';
 import quotes from '@/data/quotes.json';
 import { APP_VERSION_INFO, formatHubVersionLabel } from '@/lib/appVersion';
+import {
+    addProject,
+    createProjectsState,
+    getActiveProject,
+    loadProjectsState,
+    saveProjectsState,
+    setActiveProject,
+    PROJECT_CHANGED_EVENT,
+    type ProjectsState,
+} from '@/lib/multicanvas/projectStore';
+import { Boxes } from 'lucide-react';
 
 type IconType = React.ComponentType<{ size?: number; className?: string }>;
 
@@ -118,6 +129,32 @@ const POPULAR_TEMPLATES: TemplateDescriptor[] = [
 
 export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign }: DashboardProps) {
     const { t } = useI18n();
+    // Federation projects (Projects > Canvases > Layers) created in the editor.
+    const [projectsState, setProjectsState] = useState<ProjectsState | null>(null);
+    useEffect(() => {
+        const sync = () => setProjectsState(loadProjectsState());
+        sync();
+        window.addEventListener(PROJECT_CHANGED_EVENT, sync);
+        return () => window.removeEventListener(PROJECT_CHANGED_EVENT, sync);
+    }, []);
+
+    // Every new design becomes its own project in the federation.
+    const startNewProject = (tool?: string, size?: { width: number; height: number }) => {
+        const width = size?.width ?? 1080;
+        const height = size?.height ?? 1080;
+        const current = loadProjectsState();
+        const name = `Project ${(current?.projects.length ?? 0) + 1}`;
+        const next = current ? addProject(current, name, width, height) : createProjectsState(name, width, height);
+        saveProjectsState(next);
+        onNewDesign(tool, size);
+    };
+
+    const openProjectFromDashboard = (projectId: string) => {
+        const current = loadProjectsState();
+        if (!current) return;
+        saveProjectsState(setActiveProject(current, projectId));
+        onNewDesign();
+    };
     const dialog = useDialog();
     const { toast } = useToast();
     const [recentDesigns, setRecentDesigns] = useState<DesignSummary[]>([]);
@@ -370,7 +407,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                  {START_ACTIONS.map((action) => (
                      <button
                         key={action.id}
-                        onClick={() => action.action === 'new' ? setShowCustomSizeModal(true) : onNewDesign(action.action)}
+                        onClick={() => action.action === 'new' ? setShowCustomSizeModal(true) : startNewProject(action.action)}
                         className={`group relative h-32 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left p-0 ${action.color}`}
                      >
                         <div className="absolute inset-0 bg-white/10 group-hover:bg-transparent transition-colors" />
@@ -408,14 +445,61 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
             ))}
         </div>
 
+        {/* Federation Projects Row */}
+        {projectsState && projectsState.projects.length > 0 && (
+        <section className="space-y-4">
+           <div className="flex items-center justify-between px-2">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Boxes size={20} className="text-primary" />
+                    {t('dashboard.projects')}
+                </h2>
+                <div className="text-sm text-muted-foreground">
+                    {t('dashboard.projectCount').replace('{count}', String(projectsState.projects.length))}
+                </div>
+           </div>
+           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {projectsState.projects.map((project) => {
+                    const active = project.id === projectsState.activeProjectId;
+                    const thumb = project.canvases.find((c) => c.thumbnail)?.thumbnail;
+                    return (
+                        <button
+                            key={project.id}
+                            onClick={() => openProjectFromDashboard(project.id)}
+                            className={`group text-left rounded-xl border overflow-hidden transition-all hover:shadow-md ${
+                                active ? 'border-primary/40 ring-1 ring-primary/30' : 'border-border/60 hover:border-primary/30'
+                            }`}
+                            title={t('dashboard.openProject')}
+                            data-testid={`dashboard-project-${project.id}`}
+                        >
+                            <div className="aspect-square bg-secondary/40 flex items-center justify-center overflow-hidden">
+                                {thumb ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={thumb} alt={project.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Boxes size={28} className="text-muted-foreground/40" />
+                                )}
+                            </div>
+                            <div className="p-2">
+                                <h3 className="font-medium text-xs truncate">{project.name}</h3>
+                                <p className="text-[10px] text-muted-foreground">
+                                    {t('dashboard.canvasCount').replace('{count}', String(project.canvases.length))}
+                                </p>
+                            </div>
+                        </button>
+                    );
+                })}
+           </div>
+        </section>
+        )}
+
         {/* Recent Designs Row */}
         <section className="space-y-4">
            <div className="flex items-center justify-between px-2">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                     <Clock size={20} className="text-primary" />
-                    Your Projects
+                    {t('dashboard.savedDesigns')}
                 </h2>
-                <div className="text-sm text-muted-foreground">{recentDesigns.length} saved</div>
+                <div className="text-sm text-muted-foreground">{t('dashboard.savedCount').replace('{count}', String(recentDesigns.length))}</div>
            </div>
            
            {recentDesigns.length === 0 ? (
@@ -424,8 +508,8 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         <Plus size={32} className="text-primary/50" />
                    </div>
                    <div>
-                       <p className="font-medium">No saved designs yet.</p>
-                       <p className="text-sm mt-1">Start a new project to see it here.</p>
+                       <p className="font-medium">{t('dashboard.noDesigns')}</p>
+                       <p className="text-sm mt-1">{t('dashboard.noDesignsHint')}</p>
                    </div>
                </div>
            ) : (
@@ -470,7 +554,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                                   <button 
                                         onClick={(e) => handleDelete(design.id, e)}
                                         className="text-muted-foreground hover:text-destructive p-1 rounded-full hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
-                                        title="Delete Project"
+                                        title={t('dashboard.deleteDesign')}
                                     >
                                       <Trash2 size={12} />
                                    </button>
@@ -494,9 +578,9 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                             className="relative bg-background border border-border rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex items-center gap-2 shadow-sm"
                         >
                             {showAllDesigns ? (
-                                <>Show Less <ChevronUp size={14} /></>
+                                <>{t('dashboard.showLess')} <ChevronUp size={14} /></>
                             ) : (
-                                <>Show All Designs ({recentDesigns.length}) <ChevronDown size={14} /></>
+                                <>{t('dashboard.showAll').replace('{count}', String(recentDesigns.length))} <ChevronDown size={14} /></>
                             )}
                         </button>
                     </div>
@@ -510,7 +594,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
              <div className="flex items-center justify-between px-2">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                     <Layout size={20} className="text-primary" />
-                    Popular Templates
+                    {t('dashboard.popularTemplates')}
                 </h2>
              </div>
              
@@ -624,7 +708,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                 <h3 className="text-xl font-bold mb-4">{t('dashboard.customSize')}</h3>
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-muted-foreground">Width (px)</label>
+                        <label className="text-sm font-medium text-muted-foreground">{t('dashboard.widthPx')}</label>
                         <input 
                             type="number" 
                             min={1}
@@ -640,7 +724,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-muted-foreground">Height (px)</label>
+                        <label className="text-sm font-medium text-muted-foreground">{t('dashboard.heightPx')}</label>
                         <input 
                             type="number" 
                             min={1}
@@ -666,13 +750,13 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                     <button 
                         onClick={() => {
                             if (!canCreateCustomDesign) return;
-                            onNewDesign(undefined, { width: parsedCustomWidth, height: parsedCustomHeight });
+                            startNewProject(undefined, { width: parsedCustomWidth, height: parsedCustomHeight });
                             setShowCustomSizeModal(false);
                         }}
                         disabled={!canCreateCustomDesign}
                         className="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-sm transition-colors"
                     >
-                        Create Design
+                        {t('dashboard.createDesign')}
                     </button>
                 </div>
             </div>

@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
 import * as fabric from 'fabric';
+import { useI18n } from '@/providers/I18nProvider';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft, Link2, SlidersHorizontal, MoreHorizontal, CornerLeftDown, CircleChevronDown } from 'lucide-react';
+import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft, Link2, SlidersHorizontal, MoreHorizontal, CornerLeftDown, CircleChevronDown, Share2 } from 'lucide-react';
 import { ExtendedFabricObject, LayerNode } from '@/types';
-import { useI18n } from '@/providers/I18nProvider';
 
 interface SortableLayerItemProps {
     id: string;
@@ -230,6 +230,11 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                         <span>{isGroup ? `${children.length} items` : `Layer ${total - index}`}</span>
                         {isLocked && <Lock size={12} className="text-amber-500" />}
                         {extendedObj.clipped && <Link2 size={12} className="text-primary" />}
+                        {extendedObj.sharedLayerId && (
+                            <span title={t('stack.sharedBadge')} data-testid="layer-shared-badge">
+                                <Share2 size={12} className="text-teal-400" />
+                            </span>
+                        )}
                         {hasShapeMask && (
                             onEditMask ? (
                                 <button

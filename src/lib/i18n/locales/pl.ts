@@ -97,6 +97,23 @@ const pl: LocaleDictionary = {
     'dashboard.uploadMedia': 'Prześlij pliki',
     'dashboard.create3d': 'Utwórz 3D',
     'dashboard.generateImage': 'Generuj obraz',
+    'dashboard.projects': 'Projekty',
+    'dashboard.projectCount': '{count} projektów',
+    'dashboard.canvasCount': '{count} płócien',
+    'dashboard.openProject': 'Otwórz ten projekt w edytorze',
+    'dashboard.savedDesigns': 'Zapisane projekty graficzne',
+    'dashboard.savedCount': '{count} zapisanych',
+    'dashboard.noDesigns': 'Brak zapisanych projektów.',
+    'dashboard.noDesignsHint': 'Rozpocznij nowy projekt, aby zobaczyć go tutaj.',
+    'dashboard.popularTemplates': 'Popularne szablony',
+    'dashboard.showLess': 'Pokaż mniej',
+    'dashboard.showAll': 'Pokaż wszystkie ({count})',
+    'dashboard.deleteDesign': 'Usuń projekt',
+    'dashboard.createDesign': 'Utwórz projekt',
+    'dashboard.widthPx': 'Szerokość (px)',
+    'dashboard.heightPx': 'Wysokość (px)',
+    'stack.sharedBadge': 'Udostępniona w projekcie — zmiany synchronizują się wszędzie',
+    'stack.shareBroadcastQuestion': 'Dodać tę udostępnioną warstwę do wszystkich płócien projektu? Połączone kopie pozostają zsynchronizowane.',
 };
 
 export default pl;

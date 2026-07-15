@@ -97,6 +97,23 @@ const zh: LocaleDictionary = {
     'dashboard.uploadMedia': '上传媒体',
     'dashboard.create3d': '创建3D',
     'dashboard.generateImage': '生成图像',
+    'dashboard.projects': '项目',
+    'dashboard.projectCount': '{count} 个项目',
+    'dashboard.canvasCount': '{count} 个画布',
+    'dashboard.openProject': '在编辑器中打开此项目',
+    'dashboard.savedDesigns': '已保存的设计',
+    'dashboard.savedCount': '已保存 {count} 个',
+    'dashboard.noDesigns': '还没有保存的设计。',
+    'dashboard.noDesignsHint': '开始新项目后将在此显示。',
+    'dashboard.popularTemplates': '热门模板',
+    'dashboard.showLess': '收起',
+    'dashboard.showAll': '显示全部设计（{count}）',
+    'dashboard.deleteDesign': '删除设计',
+    'dashboard.createDesign': '创建设计',
+    'dashboard.widthPx': '宽度 (px)',
+    'dashboard.heightPx': '高度 (px)',
+    'stack.sharedBadge': '已在项目中共享 — 编辑将同步到所有链接实例',
+    'stack.shareBroadcastQuestion': '将此共享图层添加到项目的所有画布吗？链接副本将保持同步。',
 };
 
 export default zh;

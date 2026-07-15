@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 
 import { serializeCanvas, ensureObjectId } from '@/lib/fabric-utils';
 import { captureCanvasThumbnail } from '@/lib/multicanvas/canvasThumbnail';
+import { inlineVolatileImageSources } from '@/lib/multicanvas/inlineImageSources';
 import type { ExtendedFabricObject } from '@/types';
 import type { Project, ProjectsState, SerializedCanvasJson, SerializedLayer } from '@/lib/multicanvas/projectStore';
 import {
@@ -33,6 +34,8 @@ type UseMultiCanvasProjectArgs = {
     initialWidth: number;
     initialHeight: number;
     customHistoryProps: string[];
+    /** Restore the persisted active canvas into the editor on mount (off when a design/template is being loaded instead). */
+    restoreOnMount?: boolean;
 };
 
 /**
@@ -43,7 +46,7 @@ type UseMultiCanvasProjectArgs = {
  * adjustment/appearance settings to every instance in the workspace.
  */
 export function useMultiCanvasProject({
-    canvas, designName, initialWidth, initialHeight, customHistoryProps,
+    canvas, designName, initialWidth, initialHeight, customHistoryProps, restoreOnMount = false,
 }: UseMultiCanvasProjectArgs) {
     const [projectsState, setProjectsState] = useState<ProjectsState | null>(null);
     const [isStackViewOpen, setIsStackViewOpen] = useState(false);
@@ -76,7 +79,9 @@ export function useMultiCanvasProject({
 
     const serializeEditorCanvas = useCallback((): SerializedCanvasJson | null => {
         if (!canvas) return null;
-        return serializeCanvas<SerializedCanvasJson>(canvas, customHistoryProps);
+        const json = serializeCanvas<SerializedCanvasJson>(canvas, customHistoryProps);
+        // blob: URLs die with the session — inline them so snapshots reload.
+        return inlineVolatileImageSources(canvas, json);
     }, [canvas, customHistoryProps]);
 
     // Snapshot the canvas that is actually loaded in the editor, into the
@@ -88,12 +93,24 @@ export function useMultiCanvasProject({
         if (!json) return current;
         const thumbnail = canvas ? captureCanvasThumbnail(canvas) : undefined;
         const loadedProjectId = loadedProjectIdRef.current ?? current.activeProjectId;
+        // Keep the stored canvas size in sync with the artboard so the 3D
+        // stack renders the correct aspect ratio after a resize.
+        const artboard = (canvas as fabric.Canvas & { artboard?: { width: number; height: number } } | null)?.artboard;
         return {
             ...current,
             projects: current.projects.map((project) => {
                 if (project.id !== loadedProjectId) return project;
                 const loadedCanvasId = loadedCanvasIdRef.current ?? project.activeCanvasId;
-                return updateCanvasSnapshot(project, loadedCanvasId, json, thumbnail);
+                const updated = updateCanvasSnapshot(project, loadedCanvasId, json, thumbnail);
+                if (!artboard?.width || !artboard?.height) return updated;
+                return {
+                    ...updated,
+                    canvases: updated.canvases.map((entry) => (
+                        entry.id === loadedCanvasId
+                            ? { ...entry, width: artboard.width, height: artboard.height }
+                            : entry
+                    )),
+                };
             }),
         };
     }, [canvas, serializeEditorCanvas]);
@@ -124,6 +141,24 @@ export function useMultiCanvasProject({
         loadedProjectIdRef.current = project.id;
         loadedCanvasIdRef.current = canvasId;
     }, [canvas]);
+
+    const loadCanvasIntoEditorRef = useRef(loadCanvasIntoEditor);
+    useEffect(() => {
+        loadCanvasIntoEditorRef.current = loadCanvasIntoEditor;
+    }, [loadCanvasIntoEditor]);
+
+    // Restore the persisted active canvas into a fresh editor (e.g. opening a
+    // project from the dashboard). Skipped while a design/template loads.
+    const restoredRef = useRef(false);
+    useEffect(() => {
+        if (!restoreOnMount || restoredRef.current || !canvas || !projectsState) return;
+        restoredRef.current = true;
+        const active = getActiveProject(projectsState);
+        const target = active.canvases.find((c) => c.id === active.activeCanvasId);
+        if (target?.json) {
+            loadCanvasIntoEditor(active, active.activeCanvasId);
+        }
+    }, [canvas, loadCanvasIntoEditor, projectsState, restoreOnMount]);
 
     const openCanvas = useCallback((canvasId: string) => {
         const current = snapshotLoadedCanvas();
@@ -247,7 +282,7 @@ export function useMultiCanvasProject({
      * the 3D stack immediately shows the connections and adjustments stay in
      * sync everywhere.
      */
-    const toggleShareActiveLayer = useCallback((): boolean | null => {
+    const toggleShareActiveLayer = useCallback((broadcast: boolean = true): boolean | null => {
         if (!canvas) return null;
         const active = canvas.getActiveObject() as ExtendedFabricObject | null;
         if (!active) return null;
@@ -260,7 +295,7 @@ export function useMultiCanvasProject({
         active.sharedLayerId = sharedId;
         canvas.requestRenderAll();
 
-        const current = snapshotLoadedCanvas();
+        const current = broadcast ? snapshotLoadedCanvas() : null;
         if (current) {
             const serialized = (active as unknown as { toObject: (props?: string[]) => SerializedLayer }).toObject(customHistoryProps);
             const loadedProjectId = loadedProjectIdRef.current ?? current.activeProjectId;

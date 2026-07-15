@@ -5,6 +5,7 @@ import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { patchTextRender } from '@/components/canvas/designCanvasWarp';
 import { installDeleteHotkeys, installPanZoomNavigation } from '@/components/canvas/designCanvasInteractions';
+import { installSharedLayerBadges } from '@/components/canvas/sharedLayerBadges';
 import { ExtendedFabricObject } from '@/types';
 
 patchTextRender(fabric.IText);
@@ -108,6 +109,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
         // Text free-distort controls are disabled (unstable); see designCanvasWarp.ts for the warp renderer.
 
         const cleanupDeleteHotkeys = installDeleteHotkeys(canvas, container);
+        const cleanupSharedBadges = installSharedLayerBadges(canvas);
 
         // Attach custom property to canvas for other components to know the "Page" dimensions
         extendedCanvas.artboard = { width: DESIGN_WIDTH, height: DESIGN_HEIGHT, left: 0, top: 0 };
@@ -420,6 +422,7 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     canvas.off('object:modified', markInteractedOnEdit);
             canvas.off('text:editing:entered', enableTextSpellcheck);
       cleanupDeleteHotkeys();
+      cleanupSharedBadges();
       cleanupPanZoom();
       canvas.dispose();
       resizeObserver.disconnect();
