@@ -4,17 +4,24 @@ import * as fabric from 'fabric';
 import { serializeCanvas, ensureObjectId } from '@/lib/fabric-utils';
 import { captureCanvasThumbnail } from '@/lib/multicanvas/canvasThumbnail';
 import type { ExtendedFabricObject } from '@/types';
-import type { Project, SerializedCanvasJson, SerializedLayer } from '@/lib/multicanvas/projectStore';
+import type { Project, ProjectsState, SerializedCanvasJson, SerializedLayer } from '@/lib/multicanvas/projectStore';
 import {
     addCanvas as addCanvasToProject,
-    createProject,
+    addProject as addProjectToState,
+    createProjectsState,
     deleteCanvas as deleteCanvasFromProject,
+    deleteProject as deleteProjectFromState,
     duplicateCanvas as duplicateCanvasInProject,
-    loadProject,
+    duplicateProject as duplicateProjectInState,
+    getActiveProject,
+    loadProjectsState,
     renameCanvas as renameCanvasInProject,
-    saveProject,
+    renameProject as renameProjectInState,
+    saveProjectsState,
     setActiveCanvas,
-    syncSharedLayerAcrossCanvases,
+    setActiveProject,
+    syncSharedLayerAcrossProjects,
+    updateActiveProject,
     updateCanvasSnapshot,
 } from '@/lib/multicanvas/projectStore';
 
@@ -29,39 +36,42 @@ type UseMultiCanvasProjectArgs = {
 };
 
 /**
- * Multi-canvas project state: a Project contains Canvases, each Canvas holds
- * its own layer stack. The active canvas lives in the fabric editor; inactive
- * canvases are kept as serialized snapshots. Shared layers (sharedLayerId)
- * stay linked: modifying one propagates its adjustment/appearance settings to
- * every canvas in the project.
+ * Federation → Projects → Canvases → Layers.
+ * The active project's active canvas lives in the fabric editor; everything
+ * else is kept as serialized snapshots. Shared layers (sharedLayerId) stay
+ * linked across canvases AND projects: modifying one propagates its
+ * adjustment/appearance settings to every instance in the workspace.
  */
 export function useMultiCanvasProject({
     canvas, designName, initialWidth, initialHeight, customHistoryProps,
 }: UseMultiCanvasProjectArgs) {
-    const [project, setProject] = useState<Project | null>(null);
+    const [projectsState, setProjectsState] = useState<ProjectsState | null>(null);
     const [isStackViewOpen, setIsStackViewOpen] = useState(false);
-    const projectRef = useRef<Project | null>(null);
+    const stateRef = useRef<ProjectsState | null>(null);
     // The canvas whose content actually lives in the fabric editor right now.
-    // project.activeCanvasId is the *selection* (e.g. in the stack view) and
-    // can differ until the user opens the selected canvas.
+    // activeCanvasId/activeProjectId are the *selection* (e.g. in the stack
+    // view) and can differ until the user opens the selected canvas.
     const loadedCanvasIdRef = useRef<string | null>(null);
+    const loadedProjectIdRef = useRef<string | null>(null);
 
     useEffect(() => {
-        projectRef.current = project;
-    }, [project]);
+        stateRef.current = projectsState;
+    }, [projectsState]);
 
-    // Bootstrap: restore the persisted project or start a fresh one.
+    // Bootstrap: restore the persisted workspace or start a fresh one.
     useEffect(() => {
-        const existing = loadProject();
-        const initial = existing ?? createProject(designName || 'Untitled Project', initialWidth, initialHeight);
-        loadedCanvasIdRef.current = initial.activeCanvasId;
-        setProject(initial);
+        const existing = loadProjectsState();
+        const initial = existing ?? createProjectsState(designName || 'Untitled Project', initialWidth, initialHeight);
+        const active = getActiveProject(initial);
+        loadedProjectIdRef.current = active.id;
+        loadedCanvasIdRef.current = active.activeCanvasId;
+        setProjectsState(initial);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const commit = useCallback((next: Project) => {
-        setProject(next);
-        saveProject(next);
+    const commit = useCallback((next: ProjectsState) => {
+        setProjectsState(next);
+        saveProjectsState(next);
     }, []);
 
     const serializeEditorCanvas = useCallback((): SerializedCanvasJson | null => {
@@ -69,20 +79,28 @@ export function useMultiCanvasProject({
         return serializeCanvas<SerializedCanvasJson>(canvas, customHistoryProps);
     }, [canvas, customHistoryProps]);
 
-    // Snapshot the canvas that is actually loaded in the editor.
-    const snapshotLoadedCanvas = useCallback((base?: Project): Project | null => {
-        const current = base ?? projectRef.current;
+    // Snapshot the canvas that is actually loaded in the editor, into the
+    // project it belongs to (which may not be the selected project).
+    const snapshotLoadedCanvas = useCallback((base?: ProjectsState): ProjectsState | null => {
+        const current = base ?? stateRef.current;
         if (!current) return null;
-        const loadedId = loadedCanvasIdRef.current ?? current.activeCanvasId;
         const json = serializeEditorCanvas();
         if (!json) return current;
         const thumbnail = canvas ? captureCanvasThumbnail(canvas) : undefined;
-        return updateCanvasSnapshot(current, loadedId, json, thumbnail);
+        const loadedProjectId = loadedProjectIdRef.current ?? current.activeProjectId;
+        return {
+            ...current,
+            projects: current.projects.map((project) => {
+                if (project.id !== loadedProjectId) return project;
+                const loadedCanvasId = loadedCanvasIdRef.current ?? project.activeCanvasId;
+                return updateCanvasSnapshot(project, loadedCanvasId, json, thumbnail);
+            }),
+        };
     }, [canvas, serializeEditorCanvas]);
 
-    const loadCanvasIntoEditor = useCallback((next: Project, canvasId: string) => {
+    const loadCanvasIntoEditor = useCallback((project: Project, canvasId: string) => {
         if (!canvas) return;
-        const target = next.canvases.find((c) => c.id === canvasId);
+        const target = project.canvases.find((c) => c.id === canvasId);
         if (!target) return;
         const extended = canvas as CanvasWithArtboard;
         const restoreArtboard = () => {
@@ -103,60 +121,118 @@ export function useMultiCanvasProject({
             canvas.discardActiveObject();
             restoreArtboard();
         }
+        loadedProjectIdRef.current = project.id;
+        loadedCanvasIdRef.current = canvasId;
     }, [canvas]);
 
     const openCanvas = useCallback((canvasId: string) => {
         const current = snapshotLoadedCanvas();
         if (!current) return;
-        const next = setActiveCanvas(current, canvasId);
+        const next = updateActiveProject(current, (p) => setActiveCanvas(p, canvasId));
         commit(next);
-        if (canvasId !== loadedCanvasIdRef.current) {
-            loadCanvasIntoEditor(next, canvasId);
-            loadedCanvasIdRef.current = canvasId;
+        const activeProject = getActiveProject(next);
+        if (canvasId !== loadedCanvasIdRef.current || activeProject.id !== loadedProjectIdRef.current) {
+            loadCanvasIntoEditor(activeProject, canvasId);
         }
         setIsStackViewOpen(false);
     }, [commit, loadCanvasIntoEditor, snapshotLoadedCanvas]);
 
     const selectCanvas = useCallback((canvasId: string) => {
-        const current = projectRef.current;
+        const current = snapshotLoadedCanvas();
         if (!current) return;
-        commit(setActiveCanvas(snapshotLoadedCanvas(current) ?? current, canvasId));
+        commit(updateActiveProject(current, (p) => setActiveCanvas(p, canvasId)));
     }, [commit, snapshotLoadedCanvas]);
 
     const handleAddCanvas = useCallback(() => {
         const current = snapshotLoadedCanvas();
         if (!current) return;
-        const name = `Canvas ${current.canvases.length + 1}`;
-        const next = addCanvasToProject(current, name, initialWidth, initialHeight);
+        const active = getActiveProject(current);
+        const name = `Canvas ${active.canvases.length + 1}`;
+        const next = updateActiveProject(current, (p) => addCanvasToProject(p, name, initialWidth, initialHeight));
         commit(next);
-        loadCanvasIntoEditor(next, next.activeCanvasId);
-        loadedCanvasIdRef.current = next.activeCanvasId;
+        const project = getActiveProject(next);
+        loadCanvasIntoEditor(project, project.activeCanvasId);
     }, [commit, initialHeight, initialWidth, loadCanvasIntoEditor, snapshotLoadedCanvas]);
 
     const handleDuplicateCanvas = useCallback((canvasId: string) => {
         const current = snapshotLoadedCanvas();
         if (!current) return;
-        const next = duplicateCanvasInProject(current, canvasId);
+        const next = updateActiveProject(current, (p) => duplicateCanvasInProject(p, canvasId));
         commit(next);
-        loadCanvasIntoEditor(next, next.activeCanvasId);
-        loadedCanvasIdRef.current = next.activeCanvasId;
+        const project = getActiveProject(next);
+        loadCanvasIntoEditor(project, project.activeCanvasId);
     }, [commit, loadCanvasIntoEditor, snapshotLoadedCanvas]);
 
     const handleDeleteCanvas = useCallback((canvasId: string) => {
-        const current = projectRef.current;
-        if (!current || current.canvases.length <= 1) return;
-        const next = deleteCanvasFromProject(current, canvasId);
+        const current = stateRef.current;
+        if (!current) return;
+        const next = updateActiveProject(current, (p) => deleteCanvasFromProject(p, canvasId));
         commit(next);
         if (canvasId === loadedCanvasIdRef.current) {
-            loadCanvasIntoEditor(next, next.activeCanvasId);
-            loadedCanvasIdRef.current = next.activeCanvasId;
+            const project = getActiveProject(next);
+            loadCanvasIntoEditor(project, project.activeCanvasId);
         }
     }, [commit, loadCanvasIntoEditor]);
 
     const handleRenameCanvas = useCallback((canvasId: string, name: string) => {
-        const current = projectRef.current;
+        const current = stateRef.current;
         if (!current) return;
-        commit(renameCanvasInProject(current, canvasId, name));
+        commit(updateActiveProject(current, (p) => renameCanvasInProject(p, canvasId, name)));
+    }, [commit]);
+
+    // --- Project (federation) level -----------------------------------------
+
+    const selectProject = useCallback((projectId: string) => {
+        const current = snapshotLoadedCanvas();
+        if (!current) return;
+        commit(setActiveProject(current, projectId));
+    }, [commit, snapshotLoadedCanvas]);
+
+    const openProject = useCallback((projectId: string) => {
+        const current = snapshotLoadedCanvas();
+        if (!current) return;
+        const next = setActiveProject(current, projectId);
+        commit(next);
+        const project = getActiveProject(next);
+        if (project.id !== loadedProjectIdRef.current) {
+            loadCanvasIntoEditor(project, project.activeCanvasId);
+        }
+    }, [commit, loadCanvasIntoEditor, snapshotLoadedCanvas]);
+
+    const handleAddProject = useCallback(() => {
+        const current = snapshotLoadedCanvas();
+        if (!current) return;
+        const name = `Project ${current.projects.length + 1}`;
+        const next = addProjectToState(current, name, initialWidth, initialHeight);
+        commit(next);
+        const project = getActiveProject(next);
+        loadCanvasIntoEditor(project, project.activeCanvasId);
+    }, [commit, initialHeight, initialWidth, loadCanvasIntoEditor, snapshotLoadedCanvas]);
+
+    const handleDuplicateProject = useCallback((projectId: string) => {
+        const current = snapshotLoadedCanvas();
+        if (!current) return;
+        const next = duplicateProjectInState(current, projectId);
+        commit(next);
+        const project = getActiveProject(next);
+        loadCanvasIntoEditor(project, project.activeCanvasId);
+    }, [commit, loadCanvasIntoEditor, snapshotLoadedCanvas]);
+
+    const handleDeleteProject = useCallback((projectId: string) => {
+        const current = stateRef.current;
+        if (!current) return;
+        const next = deleteProjectFromState(current, projectId);
+        commit(next);
+        if (projectId === loadedProjectIdRef.current) {
+            const project = getActiveProject(next);
+            loadCanvasIntoEditor(project, project.activeCanvasId);
+        }
+    }, [commit, loadCanvasIntoEditor]);
+
+    const handleRenameProject = useCallback((projectId: string, name: string) => {
+        const current = stateRef.current;
+        if (!current) return;
+        commit(renameProjectInState(current, projectId, name));
     }, [commit]);
 
     const openStackView = useCallback(() => {
@@ -165,7 +241,12 @@ export function useMultiCanvasProject({
         setIsStackViewOpen(true);
     }, [commit, snapshotLoadedCanvas]);
 
-    /** Mark/unmark the active layer as shared across the project. */
+    /**
+     * Mark/unmark the active layer as shared. Sharing broadcasts a linked copy
+     * into every other canvas of the active project (same sharedLayerId), so
+     * the 3D stack immediately shows the connections and adjustments stay in
+     * sync everywhere.
+     */
     const toggleShareActiveLayer = useCallback((): boolean | null => {
         if (!canvas) return null;
         const active = canvas.getActiveObject() as ExtendedFabricObject | null;
@@ -175,22 +256,53 @@ export function useMultiCanvasProject({
             canvas.requestRenderAll();
             return false;
         }
-        active.sharedLayerId = ensureObjectId(active);
+        const sharedId = ensureObjectId(active);
+        active.sharedLayerId = sharedId;
         canvas.requestRenderAll();
+
+        const current = snapshotLoadedCanvas();
+        if (current) {
+            const serialized = (active as unknown as { toObject: (props?: string[]) => SerializedLayer }).toObject(customHistoryProps);
+            const loadedProjectId = loadedProjectIdRef.current ?? current.activeProjectId;
+            const loadedCanvasId = loadedCanvasIdRef.current;
+            const next: ProjectsState = {
+                ...current,
+                projects: current.projects.map((project) => {
+                    if (project.id !== loadedProjectId) return project;
+                    return {
+                        ...project,
+                        canvases: project.canvases.map((entry) => {
+                            if (entry.id === loadedCanvasId) return entry;
+                            const json = entry.json ?? { objects: [] };
+                            const objects = json.objects ?? [];
+                            if (objects.some((layer) => layer.sharedLayerId === sharedId)) return entry;
+                            const copy = JSON.parse(JSON.stringify(serialized)) as SerializedLayer;
+                            return { ...entry, json: { ...json, objects: [...objects, copy] } };
+                        }),
+                    };
+                }),
+            };
+            commit(next);
+        }
         return true;
-    }, [canvas]);
+    }, [canvas, commit, customHistoryProps, snapshotLoadedCanvas]);
 
     // Linked-layer adjustments are global: propagate shared-layer changes to
-    // every other canvas snapshot in the project.
+    // every canvas snapshot in every project of the workspace.
     useEffect(() => {
         if (!canvas) return undefined;
         const handleModified = (event: { target?: fabric.Object }) => {
             const target = event.target as ExtendedFabricObject | undefined;
             if (!target?.sharedLayerId) return;
-            const current = projectRef.current;
+            const current = stateRef.current;
             if (!current) return;
             const serialized = (target as unknown as { toObject: (props?: string[]) => SerializedLayer }).toObject(customHistoryProps);
-            const next = syncSharedLayerAcrossCanvases(current, loadedCanvasIdRef.current ?? current.activeCanvasId, serialized);
+            const next = syncSharedLayerAcrossProjects(
+                current,
+                loadedProjectIdRef.current ?? current.activeProjectId,
+                loadedCanvasIdRef.current ?? '',
+                serialized,
+            );
             commit(next);
         };
         canvas.on('object:modified', handleModified);
@@ -199,7 +311,10 @@ export function useMultiCanvasProject({
         };
     }, [canvas, commit, customHistoryProps]);
 
+    const project = projectsState ? getActiveProject(projectsState) : null;
+
     return {
+        projectsState,
         project,
         isStackViewOpen,
         openStackView,
@@ -210,6 +325,12 @@ export function useMultiCanvasProject({
         handleDuplicateCanvas,
         handleDeleteCanvas,
         handleRenameCanvas,
+        selectProject,
+        openProject,
+        handleAddProject,
+        handleDuplicateProject,
+        handleDeleteProject,
+        handleRenameProject,
         toggleShareActiveLayer,
     };
 }

@@ -54,6 +54,7 @@ import { useEditorPanelModePersistence } from '@/components/Editor/useEditorPane
 import { useEditorWorkspaceCompositionProps } from '@/components/Editor/useEditorWorkspaceCompositionProps';
 import { useEditorTopToolOptionsBridgeProps } from '@/components/Editor/useEditorTopToolOptionsBridgeProps';
 import type { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
+import { CUSTOM_SERIALIZED_PROPS } from '@/components/Editor/editorViewConfig';
 
 interface EditorViewProps {
     initialDesign: { data?: unknown } | null;
@@ -136,65 +137,7 @@ export default function EditorView({
     const [zoom, setZoom] = useState(1);
     const [isDirty, setIsDirty] = useState(false);
 
-    const customHistoryProps = useMemo(() => [
-        'id',
-        'sharedLayerId',
-        'gradient',
-        'pattern',
-        'is3DModel',
-        'modelUrl',
-        'isStar',
-        'starPoints',
-        'starInnerRadius',
-        'mediaType',
-        'mediaSource',
-        'layerTagColor',
-        'name',
-        'locked',
-        'curveStrength',
-        'curveCenter',
-        'curveSpan',
-        'textSpellcheck',
-        'textBgEnabled',
-        'textBgColor',
-        'textBgPadding',
-        'textBgCorners',
-        'textBgStyle',
-        'skewZ',
-        'skewZBaseScale',
-        'skewZBaseScaleX',
-        'skewZBaseScaleY',
-        'skewZBaseSkewX',
-        'skewZBaseSkewY',
-        'backsideBaseFlipX',
-        'pseudoBacksidePreset',
-        'taperDirection',
-        'taperBaseLeft',
-        'taperBaseTop',
-        'threeDSettings',
-        'isAdjustmentLayer',
-        'adjustmentType',
-        'adjustmentSettings',
-        'clipped',
-        'isClippedToBelow',
-        'clipSourceId',
-        'baseFilters',
-        'channelSettings',
-        'aiGenerated',
-        'aiProvider',
-        'isPenPath',
-        'penMode',
-        'penClosed',
-        'penNodes',
-        'penSourcePoints',
-        'textPathSourceId',
-        'shapeCornerRadius',
-        'isRetouchLayer',
-        'isPaintLayer',
-        'gradientTypeHint',
-        'gradientReversed',
-        'gradientDitherEnabled'
-    ], []);
+    const customHistoryProps = useMemo(() => CUSTOM_SERIALIZED_PROPS, []);
 
     const {
         historyReadyRef,
@@ -694,6 +637,7 @@ export default function EditorView({
     });
 
     const {
+        projectsState: multiProjectsState,
         project: multiCanvasProject,
         isStackViewOpen,
         openStackView,
@@ -704,6 +648,12 @@ export default function EditorView({
         handleDuplicateCanvas,
         handleDeleteCanvas,
         handleRenameCanvas,
+        selectProject,
+        openProject,
+        handleAddProject,
+        handleDuplicateProject,
+        handleDeleteProject,
+        handleRenameProject,
         toggleShareActiveLayer,
     } = useMultiCanvasProject({
         canvas,
@@ -1292,15 +1242,22 @@ export default function EditorView({
                                 cursorPreview={cursorPreview}
                                 utilityControls={canvasWorkspaceUtilityControls}
                             />
-                            {isStackViewOpen && multiCanvasProject && (
+                            {isStackViewOpen && multiCanvasProject && multiProjectsState && (
                                 <CanvasStackView
                                     project={multiCanvasProject}
+                                    projectsState={multiProjectsState}
                                     onSelectCanvas={selectProjectCanvas}
                                     onOpenCanvas={openProjectCanvas}
                                     onAddCanvas={handleAddCanvas}
                                     onDuplicateCanvas={handleDuplicateCanvas}
                                     onDeleteCanvas={handleDeleteCanvas}
                                     onRenameCanvas={handleRenameCanvas}
+                                    onSelectProject={selectProject}
+                                    onOpenProject={openProject}
+                                    onAddProject={handleAddProject}
+                                    onDuplicateProject={handleDuplicateProject}
+                                    onDeleteProject={handleDeleteProject}
+                                    onRenameProject={handleRenameProject}
                                     onClose={closeStackView}
                                 />
                             )}

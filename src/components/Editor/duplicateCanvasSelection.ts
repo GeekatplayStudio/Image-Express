@@ -1,6 +1,7 @@
 import * as fabric from 'fabric';
 
 import type { ExtendedFabricObject } from '@/types';
+import { CUSTOM_SERIALIZED_PROPS } from '@/components/Editor/editorViewConfig';
 
 type DuplicateCanvasObjectsOptions = {
     offsetX?: number;
@@ -32,7 +33,8 @@ export async function duplicateCanvasObjects(
 
     const clones: fabric.Object[] = [];
     for (const object of objects) {
-        const cloned = await object.clone();
+        // Keep custom props (shared-layer links, names, adjustment settings, ...)
+        const cloned = await object.clone(CUSTOM_SERIALIZED_PROPS);
         cloned.set({
             left: (cloned.left || 0) + offsetX,
             top: (cloned.top || 0) + offsetY,

@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { Plus, Image as ImageIcon, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
+import { useI18n } from '@/providers/I18nProvider';
 import quotes from '@/data/quotes.json';
 import { APP_VERSION_INFO, formatHubVersionLabel } from '@/lib/appVersion';
 
@@ -37,7 +38,7 @@ interface DashboardProps {
 const START_ACTIONS = [
     {
         id: 'start-custom',
-        label: 'Custom Size',
+        labelKey: 'dashboard.customSize',
         icon: Plus,
         color: 'bg-gradient-to-br from-yellow-400 to-orange-500',
         textColor: 'text-yellow-950',
@@ -45,7 +46,7 @@ const START_ACTIONS = [
     },
     {
         id: 'start-upload',
-        label: 'Upload Media',
+        labelKey: 'dashboard.uploadMedia',
         icon: Upload,
         color: 'bg-gradient-to-br from-primary/80 to-tool-accent',
          textColor: 'text-blue-50',
@@ -53,7 +54,7 @@ const START_ACTIONS = [
     },
     {
         id: 'start-ai-3d',
-        label: 'Create 3D',
+        labelKey: 'dashboard.create3d',
         icon: Box,
         color: 'bg-gradient-to-br from-emerald-400 to-teal-500',
          textColor: 'text-emerald-50',
@@ -61,7 +62,7 @@ const START_ACTIONS = [
     },
     {
         id: 'start-ai-img',
-        label: 'Generate Image',
+        labelKey: 'dashboard.generateImage',
         icon: Sparkles,
         color: 'bg-gradient-to-br from-primary to-tool-accent',
          textColor: 'text-primary-foreground',
@@ -116,6 +117,7 @@ const POPULAR_TEMPLATES: TemplateDescriptor[] = [
 // ];
 
 export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign }: DashboardProps) {
+    const { t } = useI18n();
     const dialog = useDialog();
     const { toast } = useToast();
     const [recentDesigns, setRecentDesigns] = useState<DesignSummary[]>([]);
@@ -345,7 +347,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search templates (Instagram, Resume, Poster...)"
+                    placeholder={t('dashboard.searchTemplates')}
                     className="w-full h-12 pl-12 pr-36 rounded-full border border-border bg-card shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
                 />
                 <div className="absolute right-2 top-2 bottom-2">
@@ -353,7 +355,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         onClick={() => setShowCustomSizeModal(true)}
                         className="h-full px-4 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
-                        Custom Size
+                        {t('dashboard.customSize')}
                     </button>
                 </div>
             </div>
@@ -362,7 +364,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         {/* Start Creating Section (Adobe Style) */}
         <section>
              <div className="flex items-center justify-between mb-4 px-1">
-                <h2 className="text-xl font-bold text-foreground">How would you like to start?</h2>
+                <h2 className="text-xl font-bold text-foreground">{t('dashboard.howToStart')}</h2>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                  {START_ACTIONS.map((action) => (
@@ -378,7 +380,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                              </div>
                         </div>
                         <div className="absolute bottom-4 left-4 right-4">
-                            <h3 className={`font-bold text-lg ${action.textColor}`}>{action.label}</h3>
+                            <h3 className={`font-bold text-lg ${action.textColor}`}>{t(action.labelKey)}</h3>
                         </div>
                         {/* Decorative Icon Background */}
                         <div className="absolute -bottom-4 -right-4 opacity-20 transform rotate-12 scale-150 pointer-events-none text-white">
@@ -619,7 +621,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
       {showCustomSizeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-card w-full max-w-md p-6 rounded-2xl shadow-2xl border border-border scale-100 animate-in zoom-in-95 duration-200">
-                <h3 className="text-xl font-bold mb-4">Custom Size</h3>
+                <h3 className="text-xl font-bold mb-4">{t('dashboard.customSize')}</h3>
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-muted-foreground">Width (px)</label>

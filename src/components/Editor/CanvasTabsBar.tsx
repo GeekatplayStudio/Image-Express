@@ -43,6 +43,7 @@ export default function CanvasTabsBar({
                     onClick={() => setIsListOpen((open) => !open)}
                     className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary/15 text-primary font-semibold border border-primary/30 transition-colors"
                     aria-expanded={isListOpen}
+                    title={t('stack.switchCanvas')}
                     data-testid="canvas-dropdown-toggle"
                 >
                     <span className="max-w-[160px] truncate">{activeCanvas?.name ?? ''}</span>

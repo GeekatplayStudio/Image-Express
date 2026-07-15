@@ -67,7 +67,19 @@ const en: LocaleDictionary = {
     'stack.layerShared': 'Layer is now shared across the project',
     'stack.layerUnshared': 'Layer is no longer shared',
     'stack.summary': '{layers} layers · {links} linked',
-    'stack.hints': 'Drag to orbit · Shift+drag to pan · Scroll to zoom · ↑/↓ move between canvases · Enter to open · Click plane to select · Double-click to open · Esc to close',
+    'stack.hints': 'Drag to orbit · Shift+drag to pan · Scroll to zoom (out = Federation) · ↑/↓ move between canvases · Enter to open · Click plane to select · Double-click to open · Esc to close',
+    'stack.hintsFederation': 'Drag to orbit · Shift+drag to pan · Scroll in to dive · ↑/↓ move between projects · Click cube to select project · Double-click or Enter to open its stack · Esc back to stack',
+    'stack.federation': 'Federation',
+    'stack.projectLabel': 'Project',
+    'stack.projectCount': '{count} projects',
+    'stack.cubeCaption': '{canvases} canvases · {linked} linked',
+    'stack.newProject': 'New project',
+    'stack.renameProject': 'Rename project',
+    'stack.duplicateProject': 'Duplicate project',
+    'stack.deleteProject': 'Delete project',
+    'stack.toFederation': 'Zoom out to the Federation level (all projects)',
+    'stack.toStack': 'Dive into the selected project',
+    'stack.switchCanvas': 'Switch between canvases in this project',
     'editor.undo': 'Undo',
     'editor.redo': 'Redo',
 
@@ -593,6 +605,10 @@ const en: LocaleDictionary = {
     'help.api.stability.title': 'Option B: Stability AI (2D)',
     'help.api.stability.desc': 'Used for high-quality 2D image generation (SDXL).',
     'help.api.stability.cta': 'Get Stability Key',
+    'dashboard.howToStart': 'How would you like to start?',
+    'dashboard.uploadMedia': 'Upload Media',
+    'dashboard.create3d': 'Create 3D',
+    'dashboard.generateImage': 'Generate Image',
 };
 
 export default en;

@@ -2,17 +2,27 @@
 
 ## Concepts
 
-The workspace hierarchy is **Project → Canvases → Layers**:
+The workspace hierarchy is **Federation → Projects → Canvases → Layers**:
 
-- A **Project** holds any number of canvases and is persisted locally
-  (`image-express-project` in localStorage).
+- The **Federation** is the whole local workspace: every project you have.
+  In the 3D view, zooming all the way out (or the **Federation** button)
+  shows each project as a wireframe cube with its canvases as glass slices;
+  projects that share linked layers are connected by glowing channels.
+  Arrow keys move between cubes, Enter/double-click dives into a project's
+  stack.
+- A **Project** holds any number of canvases. The whole federation is
+  persisted locally (`image-express-projects` in localStorage; the older
+  single-project storage migrates automatically).
 - Each **Canvas** is a full artboard with its own layer stack. Only the active
   canvas lives inside the Fabric editor; the rest are kept as serialized
   snapshots.
-- **Layers** can be marked *shared* across the project. Shared layers are
-  linked: adjustment and appearance changes (adjustment settings, filters,
-  opacity, visibility, fill) propagate to every canvas that contains a layer
-  with the same `sharedLayerId`. Geometry (position/scale) stays per-canvas.
+- **Layers** can be marked *shared*. Sharing broadcasts a linked copy into
+  every other canvas of the project, and shared layers are linked across
+  projects too: adjustment and appearance changes (adjustment settings,
+  filters, opacity, visibility, fill) propagate to every instance with the
+  same `sharedLayerId` anywhere in the federation. Geometry (position/scale)
+  stays per-canvas. Duplicating a shared layer keeps the link, so copies stay
+  synchronized.
 
 ## Using it
 

@@ -136,3 +136,87 @@ describe('projectStore', () => {
         expect(loadProject()).toBeNull();
     });
 });
+
+describe('projectStore federation level', () => {
+    const {
+        createProjectsState, addProject, renameProject, deleteProject, duplicateProject,
+        setActiveProject, getActiveProject, updateActiveProject, listProjectLinks,
+        syncSharedLayerAcrossProjects, loadProjectsState, saveProjectsState,
+        PROJECTS_STORAGE_KEY,
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+    } = require('@/lib/multicanvas/projectStore');
+
+    beforeEach(() => {
+        window.localStorage.clear();
+    });
+
+    it('creates a workspace with one active project', () => {
+        const state = createProjectsState('P1', 1080, 1080);
+        expect(state.projects).toHaveLength(1);
+        expect(getActiveProject(state).name).toBe('P1');
+    });
+
+    it('adds, renames, duplicates and deletes projects', () => {
+        let state = createProjectsState('P1', 100, 100);
+        state = addProject(state, 'P2', 200, 200);
+        expect(state.projects).toHaveLength(2);
+        expect(getActiveProject(state).name).toBe('P2');
+
+        state = renameProject(state, state.projects[1].id, 'Campaign');
+        expect(state.projects[1].name).toBe('Campaign');
+
+        state = duplicateProject(state, state.projects[1].id);
+        expect(state.projects).toHaveLength(3);
+        expect(state.projects[2].name).toBe('Campaign copy');
+
+        state = deleteProject(state, state.projects[2].id);
+        expect(state.projects).toHaveLength(2);
+        // never deletes the last project
+        state = deleteProject(state, state.projects[0].id);
+        expect(deleteProject(state, state.projects[0].id).projects).toHaveLength(1);
+    });
+
+    it('updateActiveProject only touches the active project', () => {
+        let state = createProjectsState('P1', 100, 100);
+        state = addProject(state, 'P2', 100, 100);
+        const renamed = updateActiveProject(state, (p: { name: string }) => ({ ...p, name: 'X' }));
+        expect(renamed.projects[1].name).toBe('X');
+        expect(renamed.projects[0].name).toBe('P1');
+    });
+
+    it('links projects that share a linked layer and syncs settings across them', () => {
+        let state = createProjectsState('P1', 100, 100);
+        state = addProject(state, 'P2', 100, 100);
+        const [p1, p2] = state.projects;
+        state = {
+            ...state,
+            projects: [
+                { ...p1, canvases: [{ ...p1.canvases[0], json: { objects: [{ id: 'a', sharedLayerId: 's', opacity: 1 }] } }] },
+                { ...p2, canvases: [{ ...p2.canvases[0], json: { objects: [{ id: 'b', sharedLayerId: 's', opacity: 1 }] } }] },
+            ],
+        };
+
+        const links = listProjectLinks(state);
+        expect(links).toHaveLength(1);
+        expect(links[0].sharedLayerId).toBe('s');
+
+        const synced = syncSharedLayerAcrossProjects(state, p1.id, p1.canvases[0].id, { sharedLayerId: 's', opacity: 0.4 });
+        expect(synced.projects[1].canvases[0].json.objects[0].opacity).toBe(0.4);
+        // source canvas untouched
+        expect(synced.projects[0].canvases[0].json.objects[0].opacity).toBe(1);
+    });
+
+    it('round-trips through storage and migrates the legacy single project', () => {
+        const state = createProjectsState('P1', 100, 100);
+        saveProjectsState(state);
+        expect(loadProjectsState()).toEqual(state);
+
+        // legacy migration
+        window.localStorage.clear();
+        const legacy = createProject('Old Project', 50, 50);
+        saveProject(legacy);
+        const migrated = loadProjectsState();
+        expect(migrated.projects[0].name).toBe('Old Project');
+        expect(window.localStorage.getItem(PROJECTS_STORAGE_KEY)).toBeTruthy();
+    });
+});

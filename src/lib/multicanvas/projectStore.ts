@@ -41,7 +41,12 @@ const newId = () => `cnv-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
 export const createProject = (name: string, width: number, height: number): Project => {
     const canvas = createCanvasEntry('Canvas 1', width, height);
-    return { id: `prj-${Date.now()}`, name, canvases: [canvas], activeCanvasId: canvas.id };
+    return {
+        id: `prj-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+        name,
+        canvases: [canvas],
+        activeCanvasId: canvas.id,
+    };
 };
 
 export const createCanvasEntry = (name: string, width: number, height: number): ProjectCanvas => ({
@@ -196,4 +201,133 @@ export const clearProject = (): void => {
     if (typeof window === 'undefined') return;
     window.localStorage.removeItem(PROJECT_STORAGE_KEY);
     window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
+};
+
+// --- Federation level: a workspace holds many Projects -----------------------
+// Hierarchy (matches the LogiTensor reference): Federation (all projects) →
+// Project (cube) → Canvases (planes) → Layers.
+
+export type ProjectsState = {
+    projects: Project[];
+    activeProjectId: string;
+};
+
+export const PROJECTS_STORAGE_KEY = 'image-express-projects';
+
+export const createProjectsState = (name: string, width: number, height: number): ProjectsState => {
+    const project = createProject(name, width, height);
+    return { projects: [project], activeProjectId: project.id };
+};
+
+export const getActiveProject = (state: ProjectsState): Project => (
+    state.projects.find((p) => p.id === state.activeProjectId) ?? state.projects[0]
+);
+
+export const updateActiveProject = (state: ProjectsState, updater: (project: Project) => Project): ProjectsState => ({
+    ...state,
+    projects: state.projects.map((p) => (p.id === state.activeProjectId ? updater(p) : p)),
+});
+
+export const addProject = (state: ProjectsState, name: string, width: number, height: number): ProjectsState => {
+    const project = createProject(name, width, height);
+    return { projects: [...state.projects, project], activeProjectId: project.id };
+};
+
+export const renameProject = (state: ProjectsState, projectId: string, name: string): ProjectsState => ({
+    ...state,
+    projects: state.projects.map((p) => (p.id === projectId ? { ...p, name } : p)),
+});
+
+export const deleteProject = (state: ProjectsState, projectId: string): ProjectsState => {
+    if (state.projects.length <= 1) return state;
+    const projects = state.projects.filter((p) => p.id !== projectId);
+    const activeProjectId = state.activeProjectId === projectId ? projects[0].id : state.activeProjectId;
+    return { projects, activeProjectId };
+};
+
+export const duplicateProject = (state: ProjectsState, projectId: string): ProjectsState => {
+    const source = state.projects.find((p) => p.id === projectId);
+    if (!source) return state;
+    const copy = JSON.parse(JSON.stringify(source)) as Project;
+    copy.id = `prj-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    copy.name = `${source.name} copy`;
+    const index = state.projects.findIndex((p) => p.id === projectId);
+    const projects = [...state.projects];
+    projects.splice(index + 1, 0, copy);
+    return { projects, activeProjectId: copy.id };
+};
+
+export const setActiveProject = (state: ProjectsState, projectId: string): ProjectsState => (
+    state.projects.some((p) => p.id === projectId)
+        ? { ...state, activeProjectId: projectId }
+        : state
+);
+
+/** Federation links: projects that share a linked layer (same sharedLayerId). */
+export type ProjectLink = { sharedLayerId: string; a: string; b: string };
+
+export const listProjectLinks = (state: ProjectsState): ProjectLink[] => {
+    const byShared = new Map<string, Set<string>>();
+    for (const project of state.projects) {
+        for (const canvas of project.canvases) {
+            for (const layer of canvas.json?.objects ?? []) {
+                if (!layer.sharedLayerId) continue;
+                if (!byShared.has(layer.sharedLayerId)) byShared.set(layer.sharedLayerId, new Set());
+                byShared.get(layer.sharedLayerId)!.add(project.id);
+            }
+        }
+    }
+    const links: ProjectLink[] = [];
+    for (const [sharedLayerId, ids] of byShared) {
+        const list = [...ids];
+        for (let i = 0; i < list.length - 1; i += 1) {
+            links.push({ sharedLayerId, a: list[i], b: list[i + 1] });
+        }
+    }
+    return links;
+};
+
+/** Propagate a shared layer's linked settings to every project in the workspace. */
+export const syncSharedLayerAcrossProjects = (
+    state: ProjectsState,
+    sourceProjectId: string,
+    sourceCanvasId: string,
+    sourceLayer: SerializedLayer,
+): ProjectsState => ({
+    ...state,
+    projects: state.projects.map((project) => (
+        syncSharedLayerAcrossCanvases(project, project.id === sourceProjectId ? sourceCanvasId : '', sourceLayer)
+    )),
+});
+
+export const loadProjectsState = (): ProjectsState | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = window.localStorage.getItem(PROJECTS_STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw) as ProjectsState;
+            if (parsed && Array.isArray(parsed.projects) && parsed.projects.length > 0) return parsed;
+        }
+        // Migrate the single-project era storage.
+        const legacy = loadProject();
+        if (legacy) {
+            const migrated: ProjectsState = { projects: [legacy], activeProjectId: legacy.id };
+            window.localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(migrated));
+            window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+            return migrated;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+};
+
+export const saveProjectsState = (state: ProjectsState): void => {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(state));
+        window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
+    } catch {
+        // Quota errors are non-fatal: the in-memory state stays authoritative.
+    }
 };
