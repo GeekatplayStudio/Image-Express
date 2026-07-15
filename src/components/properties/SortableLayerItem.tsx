@@ -228,12 +228,6 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                     )}
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <span>{isGroup ? `${children.length} items` : `Layer ${total - index}`}</span>
-                        {/* <typeInfo.icon size={12} className={typeInfo.className} /> */}
-                        {isVisible ? (
-                            <Eye size={12} className="text-emerald-500" />
-                        ) : (
-                            <EyeOff size={12} className="text-rose-500" />
-                        )}
                         {isLocked && <Lock size={12} className="text-amber-500" />}
                         {extendedObj.clipped && <Link2 size={12} className="text-primary" />}
                         {hasShapeMask && (
@@ -258,7 +252,8 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                 </div>
             </div>
             
-            <div className={`flex items-center gap-1 ${isSelected ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'} transition-opacity ml-2`}>
+            <div className="flex items-center gap-1 ml-2">
+                {/* Always visible: this is now the only visibility indicator for the row. */}
                 <button
                     onClick={(e) => { e.stopPropagation(); toggleVisibility(obj); }}
                     className={`p-1.5 hover:bg-secondary rounded-md ${isVisible ? 'text-emerald-500 hover:text-emerald-600' : 'text-rose-500 hover:text-rose-600'}`}
@@ -266,6 +261,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                 >
                     {isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
                 </button>
+                <div className={`flex items-center gap-1 ${isSelected ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'} transition-opacity`}>
                 {onOpenProperties && (
                     <button
                         onClick={(e) => {
@@ -302,6 +298,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                 >
                     <MoreHorizontal size={14} />
                 </button>
+                </div>
             </div>
             </div>
 
