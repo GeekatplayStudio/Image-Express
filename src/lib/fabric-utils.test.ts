@@ -1,4 +1,4 @@
-import { ensureObjectId, getNextIndexedName, normalizeColorValue, getGroupNames } from './fabric-utils';
+import { ensureObjectId, getNextIndexedName, normalizeColorValue, getGroupNames, applyImageFiltersPreservingGeometry } from './fabric-utils';
 import * as fabric from 'fabric';
 
 // Mock fabric
@@ -91,6 +91,78 @@ describe('fabric-utils', () => {
 
             const names = getGroupNames(mockCanvas);
             expect(names).toEqual(['Group 1', 'Folder']);
+        });
+    });
+
+    describe('applyImageFiltersPreservingGeometry', () => {
+        type MockImage = {
+            width: number;
+            height: number;
+            scaleX: number;
+            scaleY: number;
+            left: number;
+            top: number;
+            cropX: number;
+            cropY: number;
+            setCoords: jest.Mock;
+            set: jest.Mock;
+            applyFilters: jest.Mock;
+        };
+
+        const createMockImage = (overrides: Partial<MockImage> = {}): MockImage => {
+            const image: MockImage = {
+                width: 1200,
+                height: 750,
+                scaleX: 0.72,
+                scaleY: 0.72,
+                left: 50,
+                top: 50,
+                cropX: 0,
+                cropY: 0,
+                setCoords: jest.fn(),
+                set: jest.fn(),
+                applyFilters: jest.fn(),
+                ...overrides,
+            };
+            image.set.mockImplementation((patch: Record<string, unknown>) => {
+                Object.assign(image, patch);
+            });
+            return image;
+        };
+
+        it('restores geometry if applyFilters mutates it', () => {
+            const image = createMockImage();
+            image.applyFilters.mockImplementation(() => {
+                // Simulate a buggy backend clipping the image to a square.
+                image.width = 750;
+                image.height = 750;
+                image.scaleX = 1;
+                image.scaleY = 1;
+            });
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            applyImageFiltersPreservingGeometry(image as any);
+
+            expect(image.applyFilters).toHaveBeenCalledTimes(1);
+            expect(image.width).toBe(1200);
+            expect(image.height).toBe(750);
+            expect(image.scaleX).toBe(0.72);
+            expect(image.scaleY).toBe(0.72);
+            expect(image.setCoords).toHaveBeenCalledTimes(1);
+        });
+
+        it('leaves geometry untouched when applyFilters behaves correctly', () => {
+            const image = createMockImage();
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            applyImageFiltersPreservingGeometry(image as any);
+
+            expect(image.width).toBe(1200);
+            expect(image.height).toBe(750);
+            expect(image.scaleX).toBe(0.72);
+            expect(image.scaleY).toBe(0.72);
+            expect(image.left).toBe(50);
+            expect(image.top).toBe(50);
         });
     });
 });

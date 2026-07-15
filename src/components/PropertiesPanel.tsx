@@ -44,7 +44,8 @@ import {
     getAdjustmentLabel,
     getDefaultAdjustmentSettings,
     moveObjectToGroup,
-    moveObjectToCanvas
+    moveObjectToCanvas,
+    applyImageFiltersPreservingGeometry
 } from '@/lib/fabric-utils';
 
 import { CurvesFilter } from '@/lib/fabric-filters';
@@ -1036,7 +1037,7 @@ export default function PropertiesPanel({
                     if (shouldSwapBackend) {
                         fabric.setFilterBackend(canvas2dFilterBackend);
                     }
-                    image.applyFilters();
+                    applyImageFiltersPreservingGeometry(image);
                     if (shouldSwapBackend) {
                         fabric.setFilterBackend(defaultFilterBackend);
                     }
@@ -2114,7 +2115,7 @@ export default function PropertiesPanel({
                      }
                 }
                 
-                img.applyFilters();
+                applyImageFiltersPreservingGeometry(img);
                 const imgExt = img as ExtendedFabricObject;
                 imgExt.baseFilters = [...(img.filters || [])];
                 selectedObject.set('dirty', true);

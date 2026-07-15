@@ -17,7 +17,7 @@ import {
     FabricBaseFilter,
 } from '@/types';
 import { CurvesFilter } from '@/lib/fabric-filters';
-import { applyAlphaToColor } from '@/lib/fabric-utils';
+import { applyAlphaToColor, applyImageFiltersPreservingGeometry } from '@/lib/fabric-utils';
 
 /**
  * Build an array of Fabric.js image filters that implement a given
@@ -242,7 +242,7 @@ export function useApplyAdjustmentLayers(canvas: fabric.Canvas | null) {
                     if (shouldSwapBackend) {
                         fabric.setFilterBackend(canvas2dFilterBackend);
                     }
-                    image.applyFilters();
+                    applyImageFiltersPreservingGeometry(image);
                     if (shouldSwapBackend) {
                         fabric.setFilterBackend(defaultFilterBackend);
                     }

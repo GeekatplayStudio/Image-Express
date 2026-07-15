@@ -174,3 +174,23 @@ export const getGradientPointFromCanvas = (obj: fabric.Object, canvasX: number, 
      const y = (local.y / height) + 0.5;
      return { x, y };
 };
+
+/**
+ * Runs `image.applyFilters()` while guaranteeing the object's on-canvas
+ * geometry (dimensions, scale, position, crop) is unchanged afterward.
+ *
+ * Filters (brightness, contrast, pixelate, etc.) must only ever change
+ * pixels, never the object's size or position. Fabric's filter pipeline
+ * legitimately resizes its *internal* cached element for some filters
+ * (see `_filterScalingX/Y`), but nothing about that should ever leak into
+ * the object's own `width`/`height`/`scaleX`/`scaleY`/`cropX`/`cropY` — if
+ * it ever does (a fabric quirk, a future regression, GPU-specific WebGL
+ * behavior), this restores the pre-filter geometry so the image never
+ * visibly resizes or clips.
+ */
+export const applyImageFiltersPreservingGeometry = (image: fabric.Image): void => {
+     const { width, height, scaleX, scaleY, left, top, cropX, cropY } = image;
+     image.applyFilters();
+     image.set({ width, height, scaleX, scaleY, left, top, cropX, cropY });
+     image.setCoords();
+};
