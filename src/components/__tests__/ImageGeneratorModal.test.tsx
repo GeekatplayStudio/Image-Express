@@ -314,6 +314,8 @@ describe('ImageGeneratorModal', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         localStorage.clear();
+        // Skip the first-run "no AI configured" gate for behavior tests.
+        localStorage.setItem('image-express-generator-gate-dismissed', '1');
         const fabricModule = jest.requireMock('fabric') as {
             __MockImage: new () => unknown;
         };
@@ -341,14 +343,28 @@ describe('ImageGeneratorModal', () => {
         expect(container.firstChild).toBeNull();
     });
 
-    it('renders a larger resizable modal frame by default', () => {
+    it('renders a draggable, resizable window sized to the viewport', () => {
         render(<ImageGeneratorModal onClose={jest.fn()} />);
 
-        expect(screen.getByTestId('generative-modal')).toHaveStyle({
-            width: 'min(94vw, 760px)',
-            height: 'min(84vh, 760px)',
-            resize: 'both',
-        });
+        const modal = screen.getByTestId('generative-modal');
+        const panel = modal.parentElement as HTMLElement;
+        expect(panel.className).toContain('fixed');
+        expect(panel.style.width).toMatch(/^\d+px$/);
+        expect(panel.style.height).toMatch(/^\d+px$/);
+        expect(panel.querySelector('.draggable-handle')).not.toBeNull();
+    });
+
+    it('shows the setup gate when no AI service is configured and opens the wizard', () => {
+        localStorage.removeItem('image-express-generator-gate-dismissed');
+        render(<ImageGeneratorModal onClose={jest.fn()} />);
+
+        expect(screen.getByText('No AI service is connected yet')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Generate Image/i })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continue without AI' }));
+
+        expect(screen.getByRole('button', { name: /Generate Image/i })).toBeInTheDocument();
+        expect(localStorage.getItem('image-express-generator-gate-dismissed')).toBe('1');
     });
 
     it('creates a new zone rectangle when no active rect exists and cleans it up on unmount', () => {
@@ -396,7 +412,7 @@ describe('ImageGeneratorModal', () => {
         const canvas = createCanvasStub(existingRect);
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
-        expect(screen.getByText('450x160')).toBeInTheDocument();
+        expect(screen.getByText('450×160')).toBeInTheDocument();
         expect(canvas.add).not.toHaveBeenCalled();
     });
 
@@ -483,7 +499,7 @@ describe('ImageGeneratorModal', () => {
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
         fireEvent.change(
-            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            screen.getByPlaceholderText('Describe what you want to appear in the zone…'),
             { target: { value: 'A robot in watercolor' } }
         );
         fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
@@ -526,7 +542,7 @@ describe('ImageGeneratorModal', () => {
         expect(screen.getByText('Ready for generation')).toBeInTheDocument();
 
         fireEvent.change(
-            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            screen.getByPlaceholderText('Describe what you want to appear in the zone…'),
             { target: { value: 'A glossy product hero shot' } }
         );
         fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
@@ -569,7 +585,7 @@ describe('ImageGeneratorModal', () => {
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
         fireEvent.change(
-            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            screen.getByPlaceholderText('Describe what you want to appear in the zone…'),
             { target: { value: 'A geometric fox poster' } }
         );
         fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
@@ -624,7 +640,7 @@ describe('ImageGeneratorModal', () => {
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
         fireEvent.change(
-            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            screen.getByPlaceholderText('Describe what you want to appear in the zone…'),
             { target: { value: 'A geometric fox poster' } }
         );
         fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
@@ -658,7 +674,7 @@ describe('ImageGeneratorModal', () => {
         render(<ImageGeneratorModal onClose={jest.fn()} canvas={canvas as unknown as never} />);
 
         fireEvent.change(
-            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            screen.getByPlaceholderText('Describe what you want to appear in the zone…'),
             { target: { value: 'Bad request' } }
         );
         fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
@@ -734,7 +750,7 @@ describe('ImageGeneratorModal', () => {
         );
 
         fireEvent.change(
-            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            screen.getByPlaceholderText('Describe what you want to appear in the zone…'),
             { target: { value: 'A mountain logo' } }
         );
         fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
@@ -783,7 +799,7 @@ describe('ImageGeneratorModal', () => {
         render(<ImageGeneratorModal onClose={onClose} onGenerate={onGenerate} />);
 
         fireEvent.change(
-            screen.getByPlaceholderText('Describe what you want to appear in the zone...'),
+            screen.getByPlaceholderText('Describe what you want to appear in the zone…'),
             { target: { value: 'A skyline at dusk' } }
         );
         fireEvent.click(screen.getByRole('button', { name: /Generate Image/i }));
@@ -818,7 +834,7 @@ describe('ImageGeneratorModal', () => {
 
         fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'openai' } });
 
-        expect(screen.getByText(/Add the ChatGPT \/ OpenAI API key in Settings before generating\./i)).toBeInTheDocument();
+        expect(screen.getByText(/ChatGPT \/ OpenAI: Add this provider’s API key in Settings before generating\./i)).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Configure AI Service' }));
 

@@ -1,10 +1,16 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { X, Wand2, Loader2 } from 'lucide-react';
 import * as fabric from 'fabric';
 import { ExtendedFabricObject } from '@/types';
 import StabilityGenerator from './AI/StabilityGenerator';
 import ComfyWorkflowLibraryPanel from './ComfyWorkflowLibraryPanel';
+import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
+import GeneratorSection from './image-generator/GeneratorSection';
+import GeneratorSetupGate from './image-generator/GeneratorSetupGate';
+import { useI18n } from '@/providers/I18nProvider';
+import { isSetupWizardCompleted, requestOpenSetupWizard } from '@/lib/setupWizard';
 import { captureComfySourceImageFromCanvas, inspectCapturedSourceDataUrl } from './imageGeneratorModalUtils';
 import useAppTheme from '@/hooks/useAppTheme';
 import useEscapeKey from '@/hooks/useEscapeKey';
@@ -86,6 +92,7 @@ type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number };
 };
 
+const GENERATOR_GATE_DISMISSED_KEY = 'image-express-generator-gate-dismissed';
 const COMFY_TASK_STORAGE_KEY = 'image-express-comfy-task';
 const COMFY_PENDING_JOB_STORAGE_KEY = 'image-express-comfy-pending-job';
 const COMFY_CANCELLED_PROMPTS_STORAGE_KEY = 'image-express-comfy-cancelled-prompts';
@@ -540,6 +547,7 @@ export default function ImageGeneratorModal({
 }: ImageGeneratorModalProps) {
     const appTheme = useAppTheme();
     const dialog = useDialog();
+    const { t } = useI18n();
     const formatElapsedSeconds = (elapsedMs?: number): string => {
             if (!elapsedMs || elapsedMs <= 0) {
                     return '0s';
@@ -569,12 +577,18 @@ export default function ImageGeneratorModal({
     const aiEditNotesAbortControllerRef = useRef<AbortController | null>(null);
     const aiEditNotesAbortRequestedRef = useRef(false);
   
-  // --- UI State (Draggable Window) ---
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [hasMoved, setHasMoved] = useState(false);
-  const dragStartPos = useRef({ x: 0, y: 0 });
-  
+  // --- First-run gate (no AI service configured yet) ---
+  const [setupGateDismissed, setSetupGateDismissed] = useState<boolean>(() => (
+      typeof window !== 'undefined'
+      && window.localStorage.getItem(GENERATOR_GATE_DISMISSED_KEY) === '1'
+  ));
+  const dismissSetupGate = useCallback(() => {
+      setSetupGateDismissed(true);
+      if (typeof window !== 'undefined') {
+          window.localStorage.setItem(GENERATOR_GATE_DISMISSED_KEY, '1');
+      }
+  }, []);
+
   // --- Canvas Zone Management ---
   const [zoneWidth, setZoneWidth] = useState(initialWidth);
   const [zoneHeight, setZoneHeight] = useState(initialHeight);
@@ -2219,16 +2233,6 @@ export default function ImageGeneratorModal({
     canvas.requestRenderAll();
   }, [canvas, isOpen]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !hasMoved) {
-       // Position next to the AI Zone icon (approx 5th item in toolbar)
-       setPosition({ 
-           x: 90, 
-           y: 220 
-       });
-    }
-  }, [hasMoved]); 
-
   // --- Zone Logic: Create/Destroy on Canvas ---
   useEffect(() => {
     if (!canvas) return;
@@ -2286,45 +2290,6 @@ export default function ImageGeneratorModal({
         }
     };
   }, [canvas, mode]);
-
-  // --- Draggable Window Handlers ---
-  const handleMouseDown = (e: React.MouseEvent) => {
-      if ((e.target as HTMLElement).closest('.no-drag')) return; // Prevent drag interaction on inputs
-      setIsDragging(true);
-      setHasMoved(true);
-      dragStartPos.current = {
-          x: e.clientX - position.x,
-          y: e.clientY - position.y
-      };
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-        if (!isDragging) return;
-        
-        // Compute new position based on delta
-        const newX = e.clientX - dragStartPos.current.x;
-        const newY = e.clientY - dragStartPos.current.y;
-        
-        setPosition({ x: newX, y: newY });
-    };
-
-    const handleMouseUp = () => {
-        setIsDragging(false);
-    };
-
-    // Attach global listeners while dragging to catch mouse leaving the window
-    if (isDragging) {
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-    }
-    
-    return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
-
 
   // --- Helper Functions ---
 
@@ -3043,13 +3008,13 @@ export default function ImageGeneratorModal({
   const stabilityBadge = getGenerativeProviderOption('stability')?.label || 'Stability AI';
     const isStabilityProviderSelected = selectedProvider === 'stability';
         const selectedProviderStatusLabel = !isSelectedProviderReady
-                        ? 'Coming soon'
+                        ? t('generator.provider.comingSoon')
                         : isSelectedProviderConfigured
-                                ? 'Ready for generation'
-                                : 'Configuration required';
+                                ? t('generator.provider.ready')
+                                : t('generator.provider.configRequired');
         const selectedProviderSetupMessage = selectedProvider === 'comfy'
-                        ? 'Choose a local URL, tunnel, or web-service connection before generating.'
-                        : `Add the ${selectedProviderLabel} API key in Settings before generating.`;
+                        ? t('generator.provider.comfySetupMessage')
+                        : `${selectedProviderLabel}: ${t('generator.provider.apiKeySetupMessage')}`;
         const comfyEndpointLabel = comfyConnectionMode === 'local'
                         ? 'local endpoint'
                         : comfyConnectionMode === 'tunnel'
@@ -3077,10 +3042,42 @@ export default function ImageGeneratorModal({
         : zoneHeight;
     const isCurrentSizeModelPerfect = zoneWidth === adaptiveQualityPreview.width
         && zoneHeight === adaptiveQualityPreview.height;
-    const modalWidth = isAiNotesExpandedLayout ? 'min(96vw, 1180px)' : 'min(94vw, 760px)';
-    const modalHeight = isAiNotesExpandedLayout ? 'min(88vh, 900px)' : 'min(84vh, 760px)';
-    const modalMinWidth = isAiNotesExpandedLayout ? 'min(760px, 96vw)' : 'min(520px, 94vw)';
-    const modalMinHeight = isAiNotesExpandedLayout ? 'min(560px, 88vh)' : 'min(520px, 84vh)';
+    // Window frame sized to the workspace (like Settings / Asset Library),
+    // recomputed when the layout mode changes or the window reopens.
+    const panelFrame = useMemo(() => {
+        const viewportPadding = 16;
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+        const width = Math.min(isAiNotesExpandedLayout ? 1180 : 820, vw - viewportPadding * 2);
+        const height = Math.min(isAiNotesExpandedLayout ? 920 : Math.round(vh * 0.86), vh - viewportPadding * 2);
+        return {
+            size: { width, height },
+            position: {
+                x: Math.max(viewportPadding, Math.round((vw - width) / 2)),
+                y: Math.max(viewportPadding, Math.round((vh - height) / 2)),
+            },
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAiNotesExpandedLayout, isOpen]);
+
+    // First-run gate: shown until there is real evidence of an AI setup —
+    // a saved provider API key, a Comfy cloud key, or a completed Setup
+    // Wizard. (Comfy/Ollama report "configured" from default URLs alone,
+    // so they are not reliable signals here.)
+    const hasAnyConfiguredAiService = Boolean(apiKey)
+        || Boolean(comfyCloudApiKey.trim())
+        || availableProviders.some((provider) => (
+            provider !== 'comfy' && provider !== 'ollama' && Boolean(getProviderKey(provider))
+        ));
+    const showSetupGate = availableProviders.length > 0
+        && !hasAnyConfiguredAiService
+        && !setupGateDismissed
+        && !isSetupWizardCompleted(currentUser);
+
+    const handleOpenSetupWizard = useCallback(() => {
+        onClose();
+        requestOpenSetupWizard();
+    }, [onClose]);
 
   useEffect(() => {
       if (availableComfyModelOptions.length === 0) {
@@ -3101,44 +3098,57 @@ export default function ImageGeneratorModal({
       });
   }, [availableComfyModelOptions, selectedComfyModelPresetId, selectedComfyTask, selectedComfyWorkflowId]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-        <div 
-                        className="fixed z-[100] flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200"
-                        data-testid="generative-modal"
-      style={{
-          left: position.x,
-                    top: position.y,
-                    width: modalWidth,
-                    height: modalHeight,
-                    minWidth: modalMinWidth,
-                    minHeight: modalMinHeight,
-                    maxWidth: '96vw',
-                    maxHeight: '88vh',
-                    resize: 'both',
-      }}
+  // Portal to <body> so the window escapes the toolbar's stacking context
+  // and stacks above the editor panels like the other app windows.
+  return createPortal(
+    <DraggableResizablePanel
+        key={`${isAiNotesExpandedLayout ? 'wide' : 'default'}-${panelFrame.size.width}x${panelFrame.size.height}`}
+        className="z-[150] rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        initialPosition={panelFrame.position}
+        initialSize={panelFrame.size}
+        minWidth={480}
+        minHeight={420}
     >
-      {/* 
-        Modal Header - Draggable Handle 
-      */}
-        <div 
-        className="h-10 bg-secondary/50 border-b flex items-center justify-between px-3 cursor-move select-none"
-        onMouseDown={handleMouseDown}
-      >
+      <div className="flex h-full min-h-0 flex-col" data-testid="generative-modal">
+      {/* Header — drag to move, double-click to maximize (shared panel behavior) */}
+      <div className="h-11 shrink-0 px-3 border-b border-border flex items-center justify-between bg-secondary/10 draggable-handle cursor-move select-none">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
            <Wand2 size={16} className="text-primary"/>
-           Generative
+           {t('generator.title')}
         </div>
-        <button onClick={onClose} className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors no-drag">
-           <X size={16} />
+        <button
+            onClick={onClose}
+            className="h-7 w-7 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            aria-label={t('common.close')}
+            title={t('common.close')}
+        >
+           <X size={15} />
         </button>
       </div>
-      
-    <div className="flex-1 min-h-0 overflow-y-auto bg-background p-4 no-drag">
-        <div className="space-y-3">
+
+    {showSetupGate ? (
+        <div className="flex-1 min-h-0 overflow-y-auto bg-background">
+            <GeneratorSetupGate
+                onOpenWizard={handleOpenSetupWizard}
+                onOpenSettings={onOpenSettings ? handleOpenSettingsFromModal : undefined}
+                onContinueAnyway={dismissSetupGate}
+            />
+        </div>
+    ) : (
+    <div className="flex-1 min-h-0 overflow-y-auto bg-background p-3 space-y-3 relative">
+        <GeneratorSection
+            title={t('generator.section.provider')}
+            hint={t('generator.section.providerHint')}
+            badge={(
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isSelectedProviderConfigured && isSelectedProviderReady ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'}`}>
+                    {selectedProviderStatusLabel}
+                </span>
+            )}
+        >
             <div className="space-y-1">
-                <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">AI Provider</label>
+                <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.provider.label')}</label>
                 <select
                     className="w-full text-xs p-2 rounded-md border bg-background"
                     value={selectedProvider}
@@ -3146,14 +3156,14 @@ export default function ImageGeneratorModal({
                 >
                     {availableProviders.map((provider) => (
                         <option className="bg-zinc-950 text-white" key={provider} value={provider}>
-                            {`${GENERATIVE_PROVIDER_OPTIONS.find((item) => item.id === provider)?.label || provider}${!isGenerativeProviderReady(provider) ? ' (Coming soon)' : isProviderConfigured(provider) ? '' : ' (Setup required)'}`}
+                            {`${GENERATIVE_PROVIDER_OPTIONS.find((item) => item.id === provider)?.label || provider}${!isGenerativeProviderReady(provider) ? ` (${t('generator.provider.comingSoon')})` : isProviderConfigured(provider) ? '' : ` (${t('generator.provider.setupRequired')})`}`}
                         </option>
                     ))}
                 </select>
             </div>
 
             <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
-                Requests route to <span className="font-semibold text-foreground">{selectedProviderLabel}</span>. Supported workflows: {selectedProviderSupportedWorkflows.join(', ')}.
+                {t('generator.provider.routesTo')} <span className="font-semibold text-foreground">{selectedProviderLabel}</span>. {t('generator.provider.supportedWorkflows')} {selectedProviderSupportedWorkflows.join(', ')}.
             </div>
 
             {!isSelectedProviderConfigured && isSelectedProviderReady && (
@@ -3165,12 +3175,18 @@ export default function ImageGeneratorModal({
                             onClick={handleOpenSettingsFromModal}
                             className="rounded-md border border-amber-500/40 px-3 py-1.5 text-[10px] font-medium text-foreground hover:bg-amber-500/10"
                         >
-                            Configure AI Service
+                            {t('generator.provider.configure')}
                         </button>
                     )}
                 </div>
             )}
-        </div>
+
+            {!isSelectedProviderReady && (
+                <div className="text-[10px] text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-md px-2 py-1 bg-amber-500/10">
+                    {selectedProviderLabel}: {t('generator.provider.notActiveYet')}
+                </div>
+            )}
+        </GeneratorSection>
 
         {isStabilityProviderSelected ? (
              /* Stability AI Specific UI */
@@ -3189,68 +3205,115 @@ export default function ImageGeneratorModal({
                  />
              ) : (
                  <div className="text-xs border border-amber-500/30 bg-amber-500/10 rounded-lg p-3 text-amber-700 dark:text-amber-300">
-                     Add a Stability API key in Settings to use Generative Fill and inpaint workflows.
+                     {t('generator.provider.stabilityKeyMissing')}
                  </div>
              )
         ) : (
         <>
-            {/* 
-              Generic / ComfyUI Zone Content 
-              Renders controls for dimensions based on canvas selection
-            */}
-            <div className="space-y-4">
-               {/* Controls */}
-               <div className="space-y-2">
-                 <label className="text-xs font-medium text-muted-foreground flex justify-between">
-                    Prompt
-                    <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground">{zoneWidth}x{zoneHeight}</span>
-                 </label>
-                 <textarea 
-                    className="w-full text-sm p-3 rounded-lg border bg-background focus:ring-2 focus:ring-primary/20 min-h-[80px] resize-none transition-all placeholder:text-muted-foreground/50"
-                    placeholder="Describe what you want to appear in the zone..."
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                 />
-               </div>
+            {/* Generic / ComfyUI zone content */}
+            <div className="space-y-3">
+               <GeneratorSection
+                   title={t('generator.section.prompt')}
+                   hint={t('generator.section.promptHint')}
+                   badge={<span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground">{zoneWidth}×{zoneHeight}</span>}
+               >
+                 <div className="space-y-2">
+                   <label className="text-xs font-medium text-muted-foreground">{t('generator.prompt.label')}</label>
+                   <textarea
+                      className="w-full text-sm p-3 rounded-lg border bg-background focus:ring-2 focus:ring-primary/20 min-h-[80px] resize-none transition-all placeholder:text-muted-foreground/50"
+                      placeholder={t('generator.prompt.placeholder')}
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                   />
+                 </div>
 
-               <div className="space-y-2 rounded-md border border-border/70 bg-secondary/20 p-2">
-                   <label className="flex items-center justify-between text-[11px] font-medium text-foreground/80">
-                       <span>AI Edit Notes (beta)</span>
-                       <input
-                           type="checkbox"
-                           checked={useAgenticEditNotes}
-                           onChange={(event) => setUseAgenticEditNotes(event.target.checked)}
-                       />
-                   </label>
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.size.aspect')}</label>
+                    <div className="space-y-1 rounded-md border bg-secondary/20 p-2">
+                        <div className="grid grid-cols-2 gap-1">
+                            <input
+                                type="number"
+                                min={1}
+                                className="w-full rounded border bg-background p-1 text-xs"
+                                value={zoneWidth}
+                                onChange={(event) => {
+                                    const parsed = Number(event.target.value);
+                                    if (Number.isFinite(parsed)) {
+                                        applyManualZoneWidthLocked(parsed);
+                                    }
+                                }}
+                                title={t('generator.size.widthTitle')}
+                            />
+                            <input
+                                type="number"
+                                min={1}
+                                className="w-full rounded border bg-secondary/40 p-1 text-xs text-muted-foreground"
+                                value={autoAdjustedZoneHeight}
+                                readOnly
+                                title={t('generator.size.heightTitle')}
+                            />
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                            {t('generator.size.customAspect')} {zoneWidth}×{zoneHeight}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                            {t('generator.size.modelAdapted')} {adaptiveQualityPreview.width}×{adaptiveQualityPreview.height}
+                        </div>
+                        {selectedProvider === 'comfy' && !isCurrentSizeModelPerfect && (
+                            <div className="text-[10px] text-amber-400">
+                                {t('generator.size.notPerfect')} {adaptiveQualityPreview.width}×{adaptiveQualityPreview.height}.
+                            </div>
+                        )}
+                    </div>
+                 </div>
+               </GeneratorSection>
 
+               <GeneratorSection
+                   title={t('generator.section.notes')}
+                   hint={t('generator.section.notesHint')}
+                   defaultOpen={false}
+                   badge={(
+                       <label
+                           className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground"
+                           onClick={(event) => event.stopPropagation()}
+                       >
+                           {t('generator.notes.enable')}
+                           <input
+                               type="checkbox"
+                               checked={useAgenticEditNotes}
+                               onChange={(event) => setUseAgenticEditNotes(event.target.checked)}
+                           />
+                       </label>
+                   )}
+               >
                    {!useAgenticEditNotes && (
                        <div className="rounded border border-border/60 bg-background/50 px-2 py-1 text-[10px] text-muted-foreground">
-                           Turn on <span className="font-medium text-foreground">AI Edit Notes</span> to access the <span className="font-medium text-foreground">Create Reference Layer</span> action from selected canvas layer.
+                           {t('generator.notes.enableHint')}
                        </div>
                    )}
 
                    {useAgenticEditNotes && (
                        <div className="space-y-2">
                            <div className="space-y-1">
-                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Routed Agentic Provider</label>
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.notes.routedProvider')}</label>
                                <div className="w-full text-xs p-2 rounded-md border bg-background text-muted-foreground">
-                                   {mapGenerativeProviderToAgenticProvider(selectedProvider)} (derived from AI Provider)
+                                   {mapGenerativeProviderToAgenticProvider(selectedProvider)} {t('generator.notes.routedProviderSuffix')}
                                </div>
                            </div>
 
                            <div className="space-y-1">
-                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Global Negative Prompt</label>
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.notes.negativePrompt')}</label>
                                <input
                                    className="w-full text-xs p-2 rounded-md border bg-background"
                                    value={globalNegativePrompt}
                                    onChange={(event) => setGlobalNegativePrompt(event.target.value)}
-                                   placeholder="Optional negatives"
+                                   placeholder={t('generator.notes.negativePlaceholder')}
                                />
                            </div>
 
                            <div className="space-y-1 rounded border border-border/60 bg-background/50 p-2">
-                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Step 1 · Create Reference Layer</label>
-                               <div className="text-[10px] text-muted-foreground">Selected layer: {selectedCanvasLayerLabel || 'None selected'}</div>
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.notes.step1')}</label>
+                               <div className="text-[10px] text-muted-foreground">{t('generator.notes.selectedLayer')} {selectedCanvasLayerLabel || t('generator.notes.noneSelected')}</div>
                                <div className="grid grid-cols-[1fr,auto] gap-1">
                                    <select
                                        className="w-full rounded border bg-background p-1 text-[10px]"
@@ -3258,7 +3321,7 @@ export default function ImageGeneratorModal({
                                        onChange={(event) => setSelectedCanvasLayerId(event.target.value)}
                                    >
                                        {canvasLayerOptions.length === 0 ? (
-                                           <option value="">No canvas layers detected</option>
+                                           <option value="">{t('generator.notes.noLayers')}</option>
                                        ) : (
                                            canvasLayerOptions.map((layer) => (
                                                <option key={layer.id} value={layer.id}>{layer.label}</option>
@@ -3273,17 +3336,17 @@ export default function ImageGeneratorModal({
                                        }}
                                        className="rounded border border-border px-2 py-1 text-[10px] disabled:cursor-not-allowed disabled:opacity-60"
                                    >
-                                       Make Reference Layer
+                                       {t('generator.notes.makeReference')}
                                    </button>
                                </div>
                                {!hasCanvasLayerSelection && (
-                                   <div className="text-[10px] text-muted-foreground">Pick a layer first, then click <span className="font-medium text-foreground">Make Reference Layer</span>.</div>
+                                   <div className="text-[10px] text-muted-foreground">{t('generator.notes.pickLayerFirst')}</div>
                                )}
                            </div>
 
                            <div className="space-y-1">
                                <div className="flex items-center justify-between">
-                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 · Notes Workspace</label>
+                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.notes.step2')}</label>
                                    <button
                                        type="button"
                                        onClick={() => {
@@ -3291,11 +3354,11 @@ export default function ImageGeneratorModal({
                                        }}
                                        className="rounded border border-border px-2 py-1 text-[10px] hover:bg-background"
                                    >
-                                       Load From Canvas
+                                       {t('generator.notes.loadFromCanvas')}
                                    </button>
                                </div>
                                <div className="rounded border border-border/60 bg-background/50 px-2 py-1 text-[10px] text-muted-foreground">
-                                   Large workspace for notes: left click to add/move notes, right click on a point note to remove it.
+                                   {t('generator.notes.workspaceHelp')}
                                </div>
                                <div className="rounded border border-border/60 bg-background/40 p-2 min-h-[460px]">
                                    {annotationBaseImage ? (
@@ -3333,7 +3396,7 @@ export default function ImageGeneratorModal({
                                                                onChange={(event) => updateAnnotationNote(note.id, { instruction: event.target.value })}
                                                                onPointerDown={(event) => event.stopPropagation()}
                                                                onContextMenu={(event) => handleInlinePointNoteContextMenu(event, note.id)}
-                                                               placeholder="Point note text"
+                                                               placeholder={t('generator.notes.pointPlaceholder')}
                                                            />
                                                        </div>
                                                    );
@@ -3341,7 +3404,7 @@ export default function ImageGeneratorModal({
                                        </div>
                                    ) : (
                                        <div className="text-[10px] text-muted-foreground">
-                                           Load image from current canvas selection/zone, then draw notes directly here.
+                                           {t('generator.notes.workspaceEmpty')}
                                        </div>
                                    )}
                                </div>
@@ -3349,7 +3412,7 @@ export default function ImageGeneratorModal({
 
                            <div className="space-y-1">
                                <div className="flex items-center justify-between">
-                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Step 3 · Note Tools</label>
+                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.notes.step3')}</label>
                                    <div className="flex items-center gap-1">
                                        <button
                                            type="button"
@@ -3357,14 +3420,14 @@ export default function ImageGeneratorModal({
                                            onClick={() => setIsPointNoteMode((previous) => !previous)}
                                            className={`rounded border border-border px-2 py-1 text-[10px] disabled:cursor-not-allowed disabled:opacity-60 ${isPointNoteMode ? 'bg-primary/20 text-primary' : 'hover:bg-background'}`}
                                        >
-                                           Pointer Notes: {isPointNoteMode ? 'On' : 'Off'}
+                                           {t('generator.notes.pointerNotes')} {isPointNoteMode ? t('generator.notes.on') : t('generator.notes.off')}
                                        </button>
                                        <button
                                            type="button"
                                            onClick={addAnnotationNote}
                                            className="rounded border border-border px-2 py-1 text-[10px] hover:bg-background"
                                        >
-                                           Add Manual Note
+                                           {t('generator.notes.addManual')}
                                        </button>
                                    </div>
                                </div>
@@ -3377,14 +3440,14 @@ export default function ImageGeneratorModal({
                                    }}
                                    className="w-full rounded border border-border px-2 py-1.5 text-[10px] font-medium hover:bg-background disabled:cursor-not-allowed disabled:opacity-60"
                                >
-                                   Step 4 · Save Ref Notes Layer to Canvas (embedded notes + metadata)
+                                   {t('generator.notes.step4')}
                                </button>
                                <div className="rounded border border-border/60 bg-background/50 px-2 py-1 text-[10px] text-muted-foreground">
-                                   Saves a flattened reference-note layer directly on canvas and stores instruction data for forwarding into ComfyUI workflows.
+                                   {t('generator.notes.saveHelp')}
                                </div>
 
                                {annotationNotes.length === 0 && (
-                                   <div className="text-[10px] text-muted-foreground">No notes added. Prompt text will be used as fallback.</div>
+                                   <div className="text-[10px] text-muted-foreground">{t('generator.notes.noNotes')}</div>
                                )}
 
                                {annotationNotes.map((note, index) => (
@@ -3443,7 +3506,7 @@ export default function ImageGeneratorModal({
                                                    const nextStrength = Number(event.target.value);
                                                    updateAnnotationNote(note.id, { strength: Number.isFinite(nextStrength) ? clamp01(nextStrength) : 0.8 });
                                                }}
-                                               title="Strength"
+                                               title={t('generator.notes.strength')}
                                            />
                                        </div>
 
@@ -3496,7 +3559,7 @@ export default function ImageGeneratorModal({
                                            className="w-full min-h-[56px] resize-none rounded border bg-background p-2 text-xs"
                                            value={note.instruction}
                                            onChange={(event) => updateAnnotationNote(note.id, { instruction: event.target.value })}
-                                           placeholder={`Edit note ${index + 1}`}
+                                           placeholder={`${t('generator.notes.notePlaceholder')} ${index + 1}`}
                                        />
                                        <div className="flex items-center justify-between gap-1">
                                            <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -3505,12 +3568,12 @@ export default function ImageGeneratorModal({
                                                    checked={note.enabled}
                                                    onChange={(event) => updateAnnotationNote(note.id, { enabled: event.target.checked })}
                                                />
-                                               Enabled
+                                               {t('generator.notes.enabled')}
                                            </label>
                                            <div className="flex items-center gap-1">
                                                <button type="button" onClick={() => moveAnnotationNote(note.id, 'up')} className="rounded border border-border px-2 py-0.5 text-[10px]">↑</button>
                                                <button type="button" onClick={() => moveAnnotationNote(note.id, 'down')} className="rounded border border-border px-2 py-0.5 text-[10px]">↓</button>
-                                               <button type="button" onClick={() => removeAnnotationNote(note.id)} className="rounded border border-border px-2 py-0.5 text-[10px]">Remove</button>
+                                               <button type="button" onClick={() => removeAnnotationNote(note.id)} className="rounded border border-border px-2 py-0.5 text-[10px]">{t('generator.notes.remove')}</button>
                                            </div>
                                        </div>
                                    </div>
@@ -3519,21 +3582,21 @@ export default function ImageGeneratorModal({
 
                            <div className="space-y-1">
                                <div className="flex items-center justify-between">
-                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Reference Files (Optional)</label>
+                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.notes.references')}</label>
                                    <div className="flex items-center gap-1">
                                        <button
                                            type="button"
                                            onClick={refreshCanvasLayerOptions}
                                            className="rounded border border-border px-2 py-1 text-[10px] hover:bg-background"
                                        >
-                                           Refresh Layers
+                                           {t('generator.notes.refreshLayers')}
                                        </button>
                                        <button
                                            type="button"
                                            onClick={addReferenceSlot}
                                            className="rounded border border-border px-2 py-1 text-[10px] hover:bg-background"
                                        >
-                                           Add Upload Ref
+                                           {t('generator.notes.addUploadRef')}
                                        </button>
                                    </div>
                                </div>
@@ -3565,7 +3628,7 @@ export default function ImageGeneratorModal({
                                                <div className="text-[10px] text-muted-foreground truncate" title={reference.name}>{reference.name}</div>
                                            )}
                                            {reference.sourceLayerId && (
-                                               <div className="text-[10px] text-muted-foreground">Layer source: {reference.sourceLayerId}</div>
+                                               <div className="text-[10px] text-muted-foreground">{t('generator.notes.layerSource')} {reference.sourceLayerId}</div>
                                            )}
                                        </div>
                                        <button
@@ -3573,67 +3636,22 @@ export default function ImageGeneratorModal({
                                            onClick={() => removeReferenceSlot(reference.id)}
                                            className="rounded border border-border px-2 py-1 text-[10px]"
                                        >
-                                           Remove
+                                           {t('generator.notes.remove')}
                                        </button>
                                    </div>
                                ))}
                            </div>
                        </div>
                    )}
-               </div>
-
-               <div className="grid grid-cols-2 gap-2">
-                   <div className="space-y-1">
-                      <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Aspect</label>
-                      <div className="space-y-1 rounded-md border bg-secondary/20 p-2">
-                          <div className="grid grid-cols-2 gap-1">
-                              <input
-                                  type="number"
-                                  min={1}
-                                  className="w-full rounded border bg-background p-1 text-xs"
-                                  value={zoneWidth}
-                                  onChange={(event) => {
-                                      const parsed = Number(event.target.value);
-                                      if (Number.isFinite(parsed)) {
-                                          applyManualZoneWidthLocked(parsed);
-                                      }
-                                  }}
-                                  title="Custom width (free input)"
-                              />
-                              <input
-                                  type="number"
-                                  min={1}
-                                  className="w-full rounded border bg-secondary/40 p-1 text-xs text-muted-foreground"
-                                  value={autoAdjustedZoneHeight}
-                                  readOnly
-                                  title="Auto-adjusted model-optimized height"
-                              />
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                              Custom aspect: {zoneWidth}×{zoneHeight}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                              Model-adapted: {adaptiveQualityPreview.width}×{adaptiveQualityPreview.height}
-                          </div>
-                          {selectedProvider === 'comfy' && !isCurrentSizeModelPerfect && (
-                              <div className="text-[10px] text-amber-400">
-                                  Size is not perfect for selected model; render will snap to {adaptiveQualityPreview.width}×{adaptiveQualityPreview.height}.
-                              </div>
-                          )}
-                      </div>
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Provider Status</label>
-                      <div className="w-full text-xs p-2 rounded-md border bg-secondary/20 text-muted-foreground truncate">
-                          {selectedProviderStatusLabel}
-                      </div>
-                   </div>
-               </div>
+               </GeneratorSection>
 
               {selectedProvider === 'comfy' && (
-                   <div className="space-y-2">
+                   <GeneratorSection
+                       title={t('generator.section.comfy')}
+                       hint={t('generator.section.comfyHint')}
+                   >
                        <div className="space-y-1">
-                           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Connection</label>
+                           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.comfy.connection')}</label>
                            <select
                                className="w-full text-xs p-2 rounded-md border bg-background"
                                value={comfyConnectionMode}
@@ -3655,7 +3673,7 @@ export default function ImageGeneratorModal({
                        </div>
 
                        <div className="space-y-1">
-                           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Local ComfyUI URL</label>
+                           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.comfy.localUrl')}</label>
                            <input
                                className="w-full text-xs p-2 rounded-md border bg-background font-mono"
                                value={comfyServerUrl}
@@ -3669,7 +3687,7 @@ export default function ImageGeneratorModal({
                        </div>
 
                        <div className="space-y-1">
-                           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Comfy Tunnel URL</label>
+                           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.comfy.tunnelUrl')}</label>
                            <input
                                className="w-full text-xs p-2 rounded-md border bg-background font-mono"
                                value={comfyTunnelUrl}
@@ -3681,13 +3699,13 @@ export default function ImageGeneratorModal({
                                placeholder="https://comfy.tailnet.ts.net"
                            />
                            <div className="text-[10px] text-muted-foreground rounded border border-border/60 bg-background/40 px-2 py-1.5">
-                               Optional browser-facing URL for Tailscale, Funnel, or a reverse proxy. The generator uses it for local websocket access while official template scans can still reuse the local server URL.
+                               {t('generator.comfy.tunnelHelp')}
                            </div>
                        </div>
 
                        <div className="space-y-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-[10px] text-muted-foreground">
                            <div className="flex items-center justify-between gap-2">
-                               <div className="font-medium text-foreground">Detected local Comfy install</div>
+                               <div className="font-medium text-foreground">{t('generator.comfy.detectedInstall')}</div>
                                <button
                                    type="button"
                                    onClick={() => {
@@ -3695,14 +3713,14 @@ export default function ImageGeneratorModal({
                                    }}
                                    className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground hover:bg-secondary"
                                >
-                                   {isLoadingComfyInstallerStatus ? 'Refreshing...' : 'Refresh'}
+                                   {isLoadingComfyInstallerStatus ? t('generator.comfy.refreshing') : t('generator.comfy.refresh')}
                                </button>
                            </div>
                            {comfyInstallerStatus ? (
                                <>
-                                   <div>Install target: <span className="font-mono text-foreground">{comfyInstallerStatus.comfyDirectory.path}</span></div>
-                                   <div>Workflow sync folder: <span className="font-mono text-foreground">{comfyInstallerStatus.localWorkspace.path}</span></div>
-                                   <div>Tracked local model packs: <span className="font-medium text-foreground">{comfyInstallerStatus.comfyModels.filter((model) => model.exists).length}/{comfyInstallerStatus.comfyModels.length}</span></div>
+                                   <div>{t('generator.comfy.installTarget')} <span className="font-mono text-foreground">{comfyInstallerStatus.comfyDirectory.path}</span></div>
+                                   <div>{t('generator.comfy.workflowSyncFolder')} <span className="font-mono text-foreground">{comfyInstallerStatus.localWorkspace.path}</span></div>
+                                   <div>{t('generator.comfy.trackedModelPacks')} <span className="font-medium text-foreground">{comfyInstallerStatus.comfyModels.filter((model) => model.exists).length}/{comfyInstallerStatus.comfyModels.length}</span></div>
                                    {comfyInstallPath.trim() !== comfyInstallerStatus.comfyDirectory.path && (
                                        <button
                                            type="button"
@@ -3713,15 +3731,15 @@ export default function ImageGeneratorModal({
                                            }}
                                            className="w-full rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary"
                                        >
-                                           Use detected install target
+                                           {t('generator.comfy.useDetectedTarget')}
                                        </button>
                                    )}
                                </>
                            ) : (
                                <div>
                                    {isLoadingComfyInstallerStatus
-                                       ? 'Checking the installer-configured local ComfyUI target...'
-                                       : 'Local installer status is unavailable right now.'}
+                                       ? t('generator.comfy.checkingInstaller')
+                                       : t('generator.comfy.installerUnavailable')}
                                </div>
                            )}
                        </div>
@@ -3729,7 +3747,7 @@ export default function ImageGeneratorModal({
                        {comfyConnectionMode !== 'local' && (
                            <>
                                <div className="space-y-1">
-                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Comfy Cloud URL</label>
+                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.comfy.cloudUrl')}</label>
                                    <input
                                        className="w-full text-xs p-2 rounded-md border bg-background font-mono"
                                        value={comfyCloudUrl}
@@ -3743,7 +3761,7 @@ export default function ImageGeneratorModal({
                                </div>
 
                                <div className="space-y-1">
-                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Comfy Cloud API Key</label>
+                                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.comfy.cloudApiKey')}</label>
                                    <input
                                        type="password"
                                        className="w-full text-xs p-2 rounded-md border bg-background font-mono"
@@ -3765,13 +3783,13 @@ export default function ImageGeneratorModal({
                                onClick={handleOpenSettingsFromModal}
                                className="w-full rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary"
                            >
-                               {isComfyProviderConfigured ? 'Open AI Service Settings' : 'Configure AI Service'}
+                               {isComfyProviderConfigured ? t('generator.provider.openSettings') : t('generator.provider.configure')}
                            </button>
                        )}
 
                        <div className="grid grid-cols-3 gap-2">
                                    <div className="space-y-1">
-                                       <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Task</label>
+                                       <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.comfy.task')}</label>
                                        <select
                                            className="w-full text-xs p-2 rounded-md border bg-background"
                                            value={selectedComfyTask}
@@ -3786,7 +3804,7 @@ export default function ImageGeneratorModal({
                                    </div>
 
                            <div className="space-y-1">
-                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Model</label>
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.comfy.model')}</label>
                                <select
                                    className="w-full text-xs p-2 rounded-md border bg-background"
                                    value={selectedComfyModelChoiceId}
@@ -3801,7 +3819,7 @@ export default function ImageGeneratorModal({
                            </div>
 
                            <div className="space-y-1">
-                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Workflow Variant</label>
+                               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t('generator.comfy.workflowVariant')}</label>
                                <select
                                    className="w-full text-xs p-2 rounded-md border bg-background"
                                    value={selectedComfyWorkflowId}
@@ -3823,16 +3841,16 @@ export default function ImageGeneratorModal({
                            <div className="text-[10px] text-muted-foreground rounded border border-border/60 bg-background/40 px-2 py-1.5 space-y-1">
                                <div>
                                    <span className="font-medium text-foreground">{selectedComfyModelOption.label}</span>
-                                   {selectedComfyModelOption.memoryLabel ? ` · Expected memory: ${selectedComfyModelOption.memoryLabel}` : ''}
+                                   {selectedComfyModelOption.memoryLabel ? ` · ${t('generator.comfy.expectedMemory')} ${selectedComfyModelOption.memoryLabel}` : ''}
                                </div>
                                <div>{selectedComfyModelOption.description}</div>
-                               <div>Workflow variant: <span className="font-medium text-foreground">{selectedComfyModelOption.workflowName}</span></div>
+                               <div>{t('generator.comfy.workflowVariant')}: <span className="font-medium text-foreground">{selectedComfyModelOption.workflowName}</span></div>
                            </div>
                        )}
 
                        {selectedComfyTask !== 'generate' && (
                            <div className="text-[10px] text-muted-foreground rounded border border-border/60 bg-background/40 px-2 py-1.5">
-                               {COMFY_TASK_OPTIONS.find((task) => task.id === selectedComfyTask)?.label || 'This task'} uses the current zone as a source image. If the zone is over empty canvas, switch the task to <span className="font-medium text-foreground">Text to Image</span>.
+                               <span className="font-medium text-foreground">{COMFY_TASK_OPTIONS.find((task) => task.id === selectedComfyTask)?.label || selectedComfyTask}</span>: {t('generator.comfy.sourceTaskHint')}
                            </div>
                        )}
 
@@ -3842,7 +3860,7 @@ export default function ImageGeneratorModal({
                            disabled={isCheckingComfyConnection || isGenerating}
                            className="w-full rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                        >
-                           {isCheckingComfyConnection ? 'Checking connection...' : 'Verify ComfyUI Connection'}
+                           {isCheckingComfyConnection ? t('generator.comfy.verifying') : t('generator.comfy.verify')}
                        </button>
 
                        <button
@@ -3853,7 +3871,7 @@ export default function ImageGeneratorModal({
                            disabled={isInspectingComfyDiagnostics || isGenerating}
                            className="w-full rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                        >
-                           {isInspectingComfyDiagnostics ? 'Loading ComfyUI diagnostics...' : 'Show ComfyUI Diagnostics'}
+                           {isInspectingComfyDiagnostics ? t('generator.comfy.diagnosticsLoading') : t('generator.comfy.diagnostics')}
                        </button>
 
                        {isGenerating && selectedProvider === 'comfy' && !useAgenticEditNotes && (
@@ -3862,7 +3880,7 @@ export default function ImageGeneratorModal({
                                onClick={handleCancelComfyRun}
                                className="w-full rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary"
                            >
-                               Cancel Active Comfy Job
+                               {t('generator.comfy.cancelJob')}
                            </button>
                        )}
 
@@ -3881,13 +3899,13 @@ export default function ImageGeneratorModal({
                        {comfyMissingRequirements && (
                            <div className="text-[10px] text-muted-foreground border border-amber-500/30 rounded-md px-2 py-2 bg-amber-500/10 space-y-2">
                                <div>
-                                   Missing Comfy requirements detected for {comfyMissingRequirements.workflows.join(', ')}.
+                                   {t('generator.comfy.missingDetected')} {comfyMissingRequirements.workflows.join(', ')}.
                                </div>
                                <div>
-                                   {comfyMissingRequirements.updateInstall ? 'ComfyUI install update required. ' : ''}
+                                   {comfyMissingRequirements.updateInstall ? `${t('generator.comfy.updateRequired')} ` : ''}
                                    {comfyMissingRequirements.models.length > 0
-                                       ? `Missing models: ${comfyMissingRequirements.models.map((model) => model.name).join(', ')}.`
-                                       : 'No model downloads required.'}
+                                       ? `${t('generator.comfy.missingModels')} ${comfyMissingRequirements.models.map((model) => model.name).join(', ')}.`
+                                       : t('generator.comfy.noModelDownloads')}
                                </div>
                                <button
                                    type="button"
@@ -3897,7 +3915,7 @@ export default function ImageGeneratorModal({
                                    disabled={isCheckingComfyConnection || isInstallingComfyRequirements || isGenerating}
                                    className="w-full rounded-md border border-amber-500/40 px-3 py-2 text-xs font-medium text-foreground hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-60"
                                >
-                                   {isInstallingComfyRequirements ? 'Installing missing requirements...' : 'Install Missing Requirements'}
+                                   {isInstallingComfyRequirements ? t('generator.comfy.installingMissing') : t('generator.comfy.installMissing')}
                                </button>
                            </div>
                        )}
@@ -3909,9 +3927,17 @@ export default function ImageGeneratorModal({
                        )}
 
                        <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
-                           Task chooses operation type; workflow is the pipeline graph; model selects checkpoint preset.
+                           {t('generator.comfy.taskHelp')}
                        </div>
+                   </GeneratorSection>
+               )}
 
+              {selectedProvider === 'comfy' && (
+                   <GeneratorSection
+                       title={t('generator.section.workflows')}
+                       hint={t('generator.section.workflowsHint')}
+                       defaultOpen={false}
+                   >
                        <ComfyWorkflowLibraryPanel
                            connectionMode={comfyConnectionMode}
                            comfyServerUrl={comfyServerUrl}
@@ -3925,41 +3951,40 @@ export default function ImageGeneratorModal({
                            onUseWorkflow={handleUseComfyLibraryWorkflow}
                            onWorkflowsDiscovered={handleDiscoveredComfyWorkflows}
                        />
-                   </div>
+                   </GeneratorSection>
                )}
 
                {/* Generate Button */}
-               <button 
+               <button
                   onClick={handleGenerate}
                     disabled={isGenerating || (!prompt && !(selectedProvider === 'comfy' && selectedComfyTask === 'upscale')) || !isSelectedProviderReady || !isSelectedProviderConfigured || (selectedProvider === 'comfy' && !canRunComfyGeneration)}
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm"
                >
                   {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                  {isGenerating ? 'Dreaming...' : 'Generate Image'}
+                  {isGenerating ? t('generator.generating') : t('generator.generate')}
                </button>
 
                     {useAgenticEditNotes && (
                          <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
-                              AI Edit Notes jobs may take up to 30+ minutes. Use <span className="font-medium text-foreground">Abort</span> in status to stop a running request.
+                              {t('generator.notes.longRunHint')}
                          </div>
                     )}
-
 
                     {showComfyDiagnosticsPopup && (
                         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 p-4">
                             <div className="flex h-full max-h-[80vh] w-full max-w-4xl flex-col rounded-xl border border-border bg-card shadow-2xl">
                                 <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                                     <div>
-                                        <h3 className="text-sm font-semibold text-foreground">ComfyUI Diagnostics</h3>
+                                        <h3 className="text-sm font-semibold text-foreground">{t('generator.comfy.diagnosticsTitle')}</h3>
                                         <p className="text-[11px] text-muted-foreground">
-                                            Runtime config, resolved paths, assets, workflows, and node inventory from the connected ComfyUI server.
+                                            {t('generator.comfy.diagnosticsSubtitle')}
                                         </p>
                                     </div>
                                     <button
                                         type="button"
                                         onClick={() => setShowComfyDiagnosticsPopup(false)}
                                         className="rounded-md border border-border p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                                        aria-label="Close ComfyUI diagnostics"
+                                        aria-label={t('common.close')}
                                     >
                                         <X size={14} />
                                     </button>
@@ -3986,7 +4011,7 @@ export default function ImageGeneratorModal({
                                   onClick={undoLastRemovedAnnotation}
                                   className="rounded border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-medium hover:bg-background"
                               >
-                                  Undo
+                                  {t('generator.notes.undo')}
                               </button>
                           )}
                           {isGenerating && useAgenticEditNotes && (
@@ -3995,7 +4020,7 @@ export default function ImageGeneratorModal({
                                   onClick={handleAbortAiEditNotes}
                                   className="rounded border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-medium hover:bg-background"
                               >
-                                  Abort
+                                  {t('generator.notes.abort')}
                               </button>
                           )}
                           {isGenerating && !useAgenticEditNotes && selectedProvider === 'comfy' && (
@@ -4004,55 +4029,50 @@ export default function ImageGeneratorModal({
                                   onClick={handleCancelComfyRun}
                                   className="rounded border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-medium hover:bg-background"
                               >
-                                  Cancel Job
+                                  {t('generator.comfy.cancelJob')}
                               </button>
                           )}
                       </div>
                   </div>
                )}
 
-               <div className="text-[10px] text-muted-foreground border border-border/60 rounded-md px-2 py-1 bg-background/60">
-                   Active default provider: {selectedProviderLabel}
-               </div>
-
-               {!isSelectedProviderReady && (
-                  <div className="text-[10px] text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-md px-2 py-1 bg-amber-500/10">
-                      {selectedProviderLabel} integration is configured for future support and is not active yet.
-                  </div>
-               )}
-               
                {/* Result Preview Area */}
                {generatedImage && (
-                   <div className="relative group rounded-lg overflow-hidden border bg-checkerboard aspect-square animate-in zoom-in-95">
-                       <Image
-                           src={generatedImage}
-                           alt="Generated"
-                           fill
-                           sizes="256px"
-                           className="object-contain"
-                           unoptimized
-                       />
-                       
-                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                           <button 
-                              onClick={placeImageOnCanvas}
-                              className="bg-white text-black px-4 py-1.5 rounded-full text-xs font-bold hover:bg-white/90 transform hover:scale-105 transition-all"
-                           >
-                              Place on Canvas
-                           </button>
-                           <button 
-                              onClick={() => setGeneratedImage(null)}
-                              className="text-white/70 hover:text-white text-xs underline"
-                           >
-                              Discard
-                           </button>
+                   <GeneratorSection title={t('generator.section.result')}>
+                       <div className="relative group rounded-lg overflow-hidden border bg-checkerboard aspect-square animate-in zoom-in-95">
+                           <Image
+                               src={generatedImage}
+                               alt="Generated"
+                               fill
+                               sizes="256px"
+                               className="object-contain"
+                               unoptimized
+                           />
+
+                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                               <button
+                                  onClick={placeImageOnCanvas}
+                                  className="bg-white text-black px-4 py-1.5 rounded-full text-xs font-bold hover:bg-white/90 transform hover:scale-105 transition-all"
+                               >
+                                  {t('generator.result.place')}
+                               </button>
+                               <button
+                                  onClick={() => setGeneratedImage(null)}
+                                  className="text-white/70 hover:text-white text-xs underline"
+                               >
+                                  {t('generator.result.discard')}
+                               </button>
+                           </div>
                        </div>
-                   </div>
+                   </GeneratorSection>
                )}
             </div>
         </>
         )}
-      </div>
     </div>
+    )}
+      </div>
+    </DraggableResizablePanel>,
+    document.body
   );
 }
