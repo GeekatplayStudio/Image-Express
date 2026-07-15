@@ -3,7 +3,7 @@
 // world space that the camera orbits around. Unselected planes render in
 // x-ray; shared (linked) layers are drawn as flowing bridge paths between
 // planes, node-editor style. Adapted from GeekatplayStudio/LogiTensor.
-import React, { useMemo, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { Copy, Trash2, Plus, X, Layers } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import {
@@ -88,6 +88,30 @@ export default function CanvasStackView({
     const onWheel = (e: React.WheelEvent) => {
         setCam((c) => ({ ...c, zoom: clampZoom(c.zoom * (e.deltaY < 0 ? 1.08 : 0.92)) }));
     };
+
+    // Keyboard: arrows step between canvas planes, Enter opens, Esc closes.
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const idx = canvases.findIndex((c) => c.id === activeCanvasId);
+            if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const next = canvases[Math.max(0, idx - 1)];
+                if (next) onSelectCanvas(next.id);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                const next = canvases[Math.min(canvases.length - 1, idx + 1)];
+                if (next) onSelectCanvas(next.id);
+            } else if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter') {
+                e.preventDefault();
+                onOpenCanvas(activeCanvasId);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeCanvasId, canvases, onClose, onOpenCanvas, onSelectCanvas]);
 
     const layerCount = activeCanvas?.json?.objects?.length ?? 0;
 
@@ -178,6 +202,15 @@ export default function CanvasStackView({
                         const c01 = project3d(-PLANE_W / 2 + xOff, yWorld, PLANE_D / 2, cam);
                         const xray = selected ? 1 : 0.38;
                         const objects = canvas.json?.objects ?? [];
+                        // Affine map of the unit square onto the projected plane
+                        // (c00 -> u0v0, c10 -> u1v0, c01 -> u0v1) so the canvas
+                        // thumbnail renders as the plane's surface.
+                        const thumbTransform = `matrix(${c10.x - c00.x} ${c10.y - c00.y} ${c01.x - c00.x} ${c01.y - c00.y} ${c00.x} ${c00.y})`;
+                        // In-canvas layer chain: connect layers in stacking order.
+                        const chainPoints = objects.map((layer) => {
+                            const w = worldOf(layer, idx, xOff, canvas.width, canvas.height);
+                            return project3d(w.x, w.y, w.z, cam);
+                        });
 
                         return (
                             <g
@@ -189,13 +222,35 @@ export default function CanvasStackView({
                                 className="cursor-pointer"
                                 data-testid={`stack-plane-${canvas.id}`}
                             >
+                                {canvas.thumbnail && (
+                                    <image
+                                        href={canvas.thumbnail}
+                                        width={1}
+                                        height={1}
+                                        preserveAspectRatio="none"
+                                        transform={thumbTransform}
+                                        opacity={selected ? 0.95 : 0.55}
+                                        style={{ imageRendering: 'auto' }}
+                                    />
+                                )}
                                 <path
                                     d={`M ${c00.x} ${c00.y} L ${c10.x} ${c10.y} L ${c11.x} ${c11.y} L ${c01.x} ${c01.y} Z`}
-                                    fill={selected ? 'rgba(127,170,176,0.06)' : 'rgba(127,127,140,0.04)'}
+                                    fill={canvas.thumbnail ? 'none' : (selected ? 'rgba(127,170,176,0.06)' : 'rgba(127,127,140,0.04)')}
                                     stroke={selected ? 'rgba(127,170,176,0.55)' : 'rgba(120,130,150,0.28)'}
                                     strokeWidth={selected ? 1.4 : 0.8}
                                     filter={selected ? 'url(#csv-glow)' : undefined}
                                 />
+                                {chainPoints.length > 1 && (
+                                    <path
+                                        d={chainPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+                                        fill="none"
+                                        stroke="#9AC0C4"
+                                        strokeWidth={selected ? 1.2 : 0.7}
+                                        opacity={selected ? 0.6 : 0.35}
+                                        strokeDasharray="3 5"
+                                        pointerEvents="none"
+                                    />
+                                )}
                                 <text x={c00.x} y={c00.y - 10} fontSize={selected ? 15 : 12} fontWeight={600} fill={selected ? 'currentColor' : '#71717a'} className="text-foreground fill-current">
                                     {canvas.name}
                                 </text>

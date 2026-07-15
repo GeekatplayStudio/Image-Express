@@ -23,6 +23,8 @@ export type ProjectCanvas = {
     width: number;
     height: number;
     json: SerializedCanvasJson | null;
+    /** Small JPEG data URL of the artboard, rendered on the 3D stack plane. */
+    thumbnail?: string | null;
 };
 
 export type Project = {
@@ -92,9 +94,14 @@ export const updateCanvasSnapshot = (
     project: Project,
     canvasId: string,
     json: SerializedCanvasJson,
+    thumbnail?: string | null,
 ): Project => ({
     ...project,
-    canvases: project.canvases.map((c) => (c.id === canvasId ? { ...c, json } : c)),
+    canvases: project.canvases.map((c) => (
+        c.id === canvasId
+            ? { ...c, json, ...(thumbnail !== undefined ? { thumbnail } : {}) }
+            : c
+    )),
 });
 
 /** Groups of linked (shared) layers across canvases: sharedLayerId -> members. */

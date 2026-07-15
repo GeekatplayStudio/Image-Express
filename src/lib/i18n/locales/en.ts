@@ -67,7 +67,7 @@ const en: LocaleDictionary = {
     'stack.layerShared': 'Layer is now shared across the project',
     'stack.layerUnshared': 'Layer is no longer shared',
     'stack.summary': '{layers} layers · {links} linked',
-    'stack.hints': 'Drag to orbit · Shift+drag to pan · Scroll to zoom · Click plane to select · Double-click to open',
+    'stack.hints': 'Drag to orbit · Shift+drag to pan · Scroll to zoom · ↑/↓ move between canvases · Enter to open · Click plane to select · Double-click to open · Esc to close',
     'editor.undo': 'Undo',
     'editor.redo': 'Redo',
 

@@ -16,14 +16,20 @@ The workspace hierarchy is **Project → Canvases → Layers**:
 
 ## Using it
 
-- **Canvas tabs bar** (above the workspace): click a tab to switch canvases,
-  `+` to create a new canvas, **Stack** to open the 3D stack view, **Share**
-  to toggle sharing for the selected layer.
+- **Canvas bar** (above the workspace): a dropdown lists all canvases with
+  the newest on top — pick one to open it. `+` creates a new canvas,
+  **Stack** opens the 3D stack view, **Share** toggles sharing for the
+  selected layer.
 - **3D Stack view**: every canvas renders as a plane in a 3D stack
-  (adapted from the LogiTensor dimension-stack viewer). The selected canvas
-  slides out of the stack and renders fully; the rest render in x-ray.
-  Shared layers are connected by animated node-style paths between planes.
+  (adapted from the LogiTensor dimension-stack viewer). Each plane shows the
+  canvas's actual rendered content (an artboard thumbnail captured on every
+  snapshot). The selected canvas slides out of the stack and renders fully;
+  the rest render in x-ray. Layers within a canvas are chained by dashed
+  in-plane links in stacking order, and shared layers are connected by
+  animated node-style paths between planes (documents).
   - Drag to orbit, Shift+drag to pan, scroll to zoom.
+  - ↑/↓ (or ←/→) move the selection between canvases, Enter opens the
+    selected canvas, Esc closes the view.
   - Click a plane to select it; double-click (or **Open**) to load it in the
     editor. Rename/duplicate/delete/add from the control strip.
 

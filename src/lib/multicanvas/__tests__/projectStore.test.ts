@@ -72,6 +72,16 @@ describe('projectStore', () => {
         expect(project.canvases[0].json).toEqual(json);
     });
 
+    it('stores and preserves thumbnails with snapshots', () => {
+        let project = createProject('P', 100, 100);
+        const id = project.canvases[0].id;
+        project = updateCanvasSnapshot(project, id, { objects: [] }, 'data:image/jpeg;base64,abc');
+        expect(project.canvases[0].thumbnail).toBe('data:image/jpeg;base64,abc');
+        // Omitting the thumbnail argument keeps the previous one.
+        project = updateCanvasSnapshot(project, id, { objects: [{ id: 'x' }] });
+        expect(project.canvases[0].thumbnail).toBe('data:image/jpeg;base64,abc');
+    });
+
     it('lists shared-layer bridges only for layers linked across more than one canvas', () => {
         let project = makeProjectWithTwoCanvases();
         project = updateCanvasSnapshot(project, project.canvases[0].id, {

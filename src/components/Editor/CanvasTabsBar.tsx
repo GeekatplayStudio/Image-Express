@@ -1,7 +1,9 @@
 'use client';
-// Canvas tabs for the multi-canvas project: switch canvases, add a new one,
-// open the 3D stack view, and toggle layer sharing across the project.
-import { Plus, Boxes, Link2 } from 'lucide-react';
+// Canvas switcher for the multi-canvas project: a dropdown listing all
+// canvases (newest on top), plus add-canvas, 3D stack view and layer-share
+// controls.
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Boxes, Link2, ChevronDown, Check } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { Project } from '@/lib/multicanvas/projectStore';
 
@@ -17,26 +19,61 @@ export default function CanvasTabsBar({
     project, onOpenCanvas, onAddCanvas, onOpenStackView, onToggleShareLayer,
 }: CanvasTabsBarProps) {
     const { t } = useI18n();
+    const [isListOpen, setIsListOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const activeCanvas = project.canvases.find((c) => c.id === project.activeCanvasId);
+    // Newest canvases appear at the top of the dropdown.
+    const listedCanvases = [...project.canvases].reverse();
+
+    useEffect(() => {
+        if (!isListOpen) return undefined;
+        const handlePointerDown = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsListOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handlePointerDown);
+        return () => document.removeEventListener('mousedown', handlePointerDown);
+    }, [isListOpen]);
+
     return (
-        <div className="flex items-center gap-1 px-2 py-1 border-b bg-card/60 backdrop-blur-sm text-xs" data-testid="canvas-tabs-bar">
-            <div className="flex items-center gap-1 overflow-x-auto">
-                {project.canvases.map((canvasEntry) => {
-                    const active = canvasEntry.id === project.activeCanvasId;
-                    return (
-                        <button
-                            key={canvasEntry.id}
-                            onClick={() => onOpenCanvas(canvasEntry.id)}
-                            className={`px-3 py-1 rounded-md whitespace-nowrap transition-colors ${
-                                active
-                                    ? 'bg-primary/15 text-primary font-semibold border border-primary/30'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary border border-transparent'
-                            }`}
-                            data-testid={`canvas-tab-${canvasEntry.id}`}
-                        >
-                            {canvasEntry.name}
-                        </button>
-                    );
-                })}
+        <div className="relative z-30 flex items-center gap-1 px-2 py-1 border-b bg-card/60 backdrop-blur-sm text-xs" data-testid="canvas-tabs-bar">
+            <div ref={containerRef} className="relative">
+                <button
+                    onClick={() => setIsListOpen((open) => !open)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary/15 text-primary font-semibold border border-primary/30 transition-colors"
+                    aria-expanded={isListOpen}
+                    data-testid="canvas-dropdown-toggle"
+                >
+                    <span className="max-w-[160px] truncate">{activeCanvas?.name ?? ''}</span>
+                    <ChevronDown size={12} className={`transition-transform ${isListOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isListOpen && (
+                    <div
+                        className="absolute left-0 top-full mt-1 w-56 max-h-72 overflow-y-auto bg-card border border-border/60 rounded-lg shadow-xl py-1 z-50"
+                        data-testid="canvas-dropdown-list"
+                    >
+                        {listedCanvases.map((canvasEntry) => {
+                            const active = canvasEntry.id === project.activeCanvasId;
+                            return (
+                                <button
+                                    key={canvasEntry.id}
+                                    onClick={() => {
+                                        setIsListOpen(false);
+                                        if (!active) onOpenCanvas(canvasEntry.id);
+                                    }}
+                                    className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${
+                                        active ? 'text-primary font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                                    }`}
+                                    data-testid={`canvas-tab-${canvasEntry.id}`}
+                                >
+                                    <span className="truncate">{canvasEntry.name}</span>
+                                    {active && <Check size={12} className="shrink-0" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
             <button
                 onClick={onAddCanvas}
