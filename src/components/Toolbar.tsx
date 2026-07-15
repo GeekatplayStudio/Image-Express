@@ -71,6 +71,8 @@ import { ColorWheelTool } from './ColorWheelTool';
 import { useToast } from '@/providers/ToastProvider';
 import { loadProfileSettings } from '@/lib/profile-utils';
 import { TOP_TEXT_FONT_FAMILIES } from '@/lib/typography';
+import { ensureDisplayableImage } from '@/lib/imageFormats/universalImageDecoder';
+import { buildImageAcceptAttribute, getImageFormatEntry } from '@/lib/imageFormats/supportedFormats';
 
 /**
  * Toolbar
@@ -1901,29 +1903,53 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         // Reset file input
         if (fileInputRef.current) fileInputRef.current.value = '';
 
-        // If 'media' tool button was used, we assume it's a direct upload. 
+        // If 'media' tool button was used, we assume it's a direct upload.
         // User asked: "when i select add asset it should have check box ask if i want store on server"
         // The Asset Library component handles this best.
         // But if we stick to the old 'media' button just putting it on canvas, we miss the feature.
         // Let's rely on the new Asset Library for uploading with options.
         // The old media button behavior is preserved here for quick ephemeral access.
 
-        const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
-        if (!supportedTypes.includes(file.type)) {
+        const looksLikeImage = file.type.startsWith('image/') || !!getImageFormatEntry(file.name);
+        if (!looksLikeImage) {
             toast({
                 title: 'Unsupported file',
-                description: 'Please upload JPEG, PNG, WEBP, or SVG.',
+                description: 'Please upload a supported image file (JPEG, PNG, WebP, SVG, HEIC, TIFF, PSD, PDF, RAW, and more).',
                 variant: 'warning'
             });
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (f) => {
-            const data = f.target?.result as string;
-            loadDataUrlToCanvas(data, file.name);
-        };
-        reader.readAsDataURL(file);
+        void (async () => {
+            let blob: Blob = file;
+            try {
+                const decoded = await ensureDisplayableImage(file);
+                blob = decoded.blob;
+                if (decoded.convertedFromLabel) {
+                    toast({
+                        title: `Converted from ${decoded.convertedFromLabel}`,
+                        description: decoded.isPreviewOnly
+                            ? 'Placed the embedded preview image on the canvas.'
+                            : 'Converted to PNG for editing.',
+                        variant: 'default'
+                    });
+                }
+            } catch (error) {
+                toast({
+                    title: 'Unsupported file',
+                    description: error instanceof Error ? error.message : 'Could not open this file.',
+                    variant: 'warning'
+                });
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (f) => {
+                const data = f.target?.result as string;
+                loadDataUrlToCanvas(data, file.name);
+            };
+            reader.readAsDataURL(blob);
+        })();
     };
 
     const loadDataUrlToCanvas = (data: string, nameOverride?: string) => {
@@ -2162,7 +2188,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 type="file"
                 ref={fileInputRef}
                 className="hidden"
-                accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                accept={buildImageAcceptAttribute()}
                 onChange={handleFileChange}
             />
             <input

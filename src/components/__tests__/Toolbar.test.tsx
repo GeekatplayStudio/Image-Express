@@ -624,7 +624,7 @@ describe('Toolbar', () => {
 
         expect(mockToast).toHaveBeenCalledWith({
             title: 'Unsupported file',
-            description: 'Please upload JPEG, PNG, WEBP, or SVG.',
+            description: 'Please upload a supported image file (JPEG, PNG, WebP, SVG, HEIC, TIFF, PSD, PDF, RAW, and more).',
             variant: 'warning',
         });
     });

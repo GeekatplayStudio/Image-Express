@@ -44,7 +44,7 @@ describe('DocumentationModal', () => {
             const href = link.getAttribute('href');
             return href?.startsWith('#');
         });
-        expect(Array.from(new Set(chapterLinks.map((link) => link.getAttribute('href'))))).toHaveLength(13);
+        expect(Array.from(new Set(chapterLinks.map((link) => link.getAttribute('href'))))).toHaveLength(14);
         expect(screen.getAllByRole('link', { name: 'Dashboard Overview' }).every((link) => link.getAttribute('href') === '#dashboard')).toBe(true);
         expect(screen.getByText('Floating chapter options')).toBeInTheDocument();
 

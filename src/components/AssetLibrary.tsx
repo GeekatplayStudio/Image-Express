@@ -36,6 +36,8 @@ import {
     type AssetStorageSettings,
 } from '@/lib/assetStorageSettings';
 import { ASSET_LIBRARY_CHANGED_EVENT, dispatchAssetLibraryChanged } from '@/lib/assetLibraryEvents';
+import { ensureDisplayableImage } from '@/lib/imageFormats/universalImageDecoder';
+import { ALL_IMAGE_EXTENSIONS, buildImageAcceptAttribute, getExtension } from '@/lib/imageFormats/supportedFormats';
 import {
     ASSET_LIBRARY_BUNDLE_KIND,
     ASSET_LIBRARY_BUNDLE_MANIFEST_PATH,
@@ -48,7 +50,7 @@ import {
     type AssetLibraryBundleManifest,
 } from '@/lib/assetLibraryBundle';
 
-const ACCEPTED_FILE_TYPES = 'image/*,video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply';
+const ACCEPTED_FILE_TYPES = `${buildImageAcceptAttribute()},video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply`;
 
 /**
  * Media tab configuration describing available asset categories and upload behavior.
@@ -113,7 +115,7 @@ const typeToTabKey: Record<AssetType, LibraryTab> = {
     models: 'models'
 };
 
-const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.tif', '.tiff', '.heic']);
+const IMAGE_EXTENSIONS = ALL_IMAGE_EXTENSIONS;
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v', '.ogv']);
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.oga']);
 const MODEL_EXTENSIONS = new Set(['.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply']);
@@ -737,12 +739,39 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
      * Uploads to local, cloud, or both depending on storage settings.
      */
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const originalFile = e.target.files?.[0];
+        if (!originalFile) return;
 
         const config = TAB_CONFIG[activeTab];
-        const detectedType = inferAssetType(file.name, file.type);
+        const detectedType = inferAssetType(originalFile.name, originalFile.type);
         setIsUploading(true);
+
+        let file: File = originalFile;
+        if (detectedType === 'images') {
+            try {
+                const decoded = await ensureDisplayableImage(originalFile);
+                if (decoded.convertedFromLabel) {
+                    const baseName = originalFile.name.slice(0, originalFile.name.length - getExtension(originalFile.name).length);
+                    file = new File([decoded.blob], `${baseName}.png`, { type: 'image/png' });
+                    toast({
+                        title: `Converted from ${decoded.convertedFromLabel}`,
+                        description: decoded.isPreviewOnly
+                            ? 'Imported the embedded preview image; the original file was not modified.'
+                            : 'Converted to PNG so it can be edited and previewed.',
+                        variant: 'default'
+                    });
+                }
+            } catch (error) {
+                toast({
+                    title: 'Unsupported file',
+                    description: error instanceof Error ? error.message : 'Could not open this file.',
+                    variant: 'warning'
+                });
+                setIsUploading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                return;
+            }
+        }
 
         try {
             const settings = loadAssetStorageSettings();
