@@ -4,6 +4,7 @@ import * as fabric from 'fabric';
 import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import type { DesignJson, ExportDataUrlOptions, MissingItem, SerializedObject } from '@/components/Editor/editorView.types';
+import { serializeCanvas } from '@/lib/fabric-utils';
 
 type Toast = (options: ToastOptions) => void;
 
@@ -150,7 +151,7 @@ export function useEditorPersistence({
             if (inputName) nextName = inputName;
         }
 
-        const json = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps);
+        const json = serializeCanvas<DesignJson>(canvas, customHistoryProps);
         const jsonString = JSON.stringify(json);
 
         let thumbnailDataUrl = '';

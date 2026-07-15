@@ -10,6 +10,12 @@ import { ExtendedFabricObject } from '@/types';
 patchTextRender(fabric.IText);
 patchTextRender(fabric.Textbox);
 
+// Fabric's WebGL filter backend crops any image larger than textureSize
+// (default 4096) when a filter is applied — e.g. changing Brightness visibly
+// cropped large photos. Raise it to a modern GPU ceiling; when a GPU can't
+// support it, fabric automatically falls back to the (uncropped) 2D backend.
+fabric.config?.configure?.({ textureSize: 16384 });
+
 type ArtboardInfo = {
     width: number;
     height: number;
@@ -391,6 +397,10 @@ export default function DesignCanvas({ onCanvasReady, onModified, onRightClick, 
     }
 
     fabricRef.current = canvas;
+    if (process.env.NODE_ENV !== 'production') {
+        // Dev-only handle for debugging/e2e scripts.
+        (window as unknown as { __imageExpressCanvas?: fabric.Canvas }).__imageExpressCanvas = canvas;
+    }
     onCanvasReadyRef.current(canvas);
 
     return () => {

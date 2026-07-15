@@ -19,6 +19,7 @@ import type {
 } from '@/components/Editor/editorView.types';
 import { useEditorCanvasExportSupport } from '@/components/Editor/useEditorCanvasExportSupport';
 import { useMediaOverlay } from '@/components/Editor/useMediaOverlay';
+import { serializeCanvas } from '@/lib/fabric-utils';
 
 const CANVAS_WIDTH = 2200;
 const CANVAS_HEIGHT = 1600;
@@ -326,7 +327,7 @@ export default function MediaOverlayVerificationHarness() {
                 body: JSON.stringify({
                     id: designId,
                     name: designName,
-                    canvasData: (canvas as unknown as { toJSON: (properties?: string[]) => unknown }).toJSON(CUSTOM_HISTORY_PROPS),
+                    canvasData: serializeCanvas(canvas, CUSTOM_HISTORY_PROPS),
                     thumbnailDataUrl,
                 }),
             });

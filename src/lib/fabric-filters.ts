@@ -128,3 +128,39 @@ export class CurvesFilter extends fabric.filters.BaseFilter<'Curves', { points: 
         return { type: 'Curves', points: this.points, channel: this.channel, intensity: this.intensity };
     }
 }
+
+/**
+ * Adjustment-layer filters are rebuilt from layer settings on every refresh,
+ * so they are tagged rather than identified by type: a user's own Brightness
+ * filter must never be confused with a Brightness/Contrast adjustment layer's
+ * generated filter (that confusion used to wipe direct image filters).
+ */
+export type TaggableFilter = { isAdjustmentFilter?: boolean; type?: string };
+
+export const tagAdjustmentFilters = <T extends TaggableFilter>(filters: T[]): T[] => {
+    filters.forEach((filter) => { filter.isAdjustmentFilter = true; });
+    return filters;
+};
+
+export const isAdjustmentGeneratedFilter = (filter: TaggableFilter | null | undefined): boolean => (
+    Boolean(filter && filter.isAdjustmentFilter)
+);
+
+/**
+ * baseFilters round-trips through JSON (design saves, multi-canvas
+ * snapshots), which turns filter instances into plain objects. Revive plain
+ * entries back into fabric filter instances; drop anything unknown.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const reviveImageFilters = (list: any[] | undefined | null): any[] => {
+    if (!Array.isArray(list)) return [];
+    return list.map((raw) => {
+        if (!raw) return null;
+        if (typeof raw.applyTo === 'function') return raw; // already an instance
+        const type = String(raw.type || '');
+        if (type === 'Curves') return new CurvesFilter(raw);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const FilterClass = (fabric.filters as Record<string, any>)[type];
+        return FilterClass ? new FilterClass(raw) : null;
+    }).filter(Boolean);
+};

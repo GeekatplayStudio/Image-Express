@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 
 import type { DesignJson } from '@/components/Editor/editorView.types';
 import { duplicateActiveCanvasSelection } from '@/components/Editor/duplicateCanvasSelection';
+import { serializeCanvas } from '@/lib/fabric-utils';
 
 type UseEditorHistoryArgs = {
     canvas: fabric.Canvas | null;
@@ -23,7 +24,7 @@ export function useEditorHistory({
 
     const getHistorySnapshot = useCallback(() => {
         if (!canvas) return null;
-        const json = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps);
+        const json = serializeCanvas<DesignJson>(canvas, customHistoryProps);
         return JSON.stringify(json);
     }, [canvas, customHistoryProps]);
 

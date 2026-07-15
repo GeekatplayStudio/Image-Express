@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 
-import { ensureObjectId } from '@/lib/fabric-utils';
+import { serializeCanvas, ensureObjectId } from '@/lib/fabric-utils';
 import { captureCanvasThumbnail } from '@/lib/multicanvas/canvasThumbnail';
 import type { ExtendedFabricObject } from '@/types';
 import type { Project, SerializedCanvasJson, SerializedLayer } from '@/lib/multicanvas/projectStore';
@@ -64,9 +64,9 @@ export function useMultiCanvasProject({
         saveProject(next);
     }, []);
 
-    const serializeCanvas = useCallback((): SerializedCanvasJson | null => {
+    const serializeEditorCanvas = useCallback((): SerializedCanvasJson | null => {
         if (!canvas) return null;
-        return (canvas as unknown as { toJSON: (props?: string[]) => SerializedCanvasJson }).toJSON(customHistoryProps);
+        return serializeCanvas<SerializedCanvasJson>(canvas, customHistoryProps);
     }, [canvas, customHistoryProps]);
 
     // Snapshot the canvas that is actually loaded in the editor.
@@ -74,11 +74,11 @@ export function useMultiCanvasProject({
         const current = base ?? projectRef.current;
         if (!current) return null;
         const loadedId = loadedCanvasIdRef.current ?? current.activeCanvasId;
-        const json = serializeCanvas();
+        const json = serializeEditorCanvas();
         if (!json) return current;
         const thumbnail = canvas ? captureCanvasThumbnail(canvas) : undefined;
         return updateCanvasSnapshot(current, loadedId, json, thumbnail);
-    }, [canvas, serializeCanvas]);
+    }, [canvas, serializeEditorCanvas]);
 
     const loadCanvasIntoEditor = useCallback((next: Project, canvasId: string) => {
         if (!canvas) return;

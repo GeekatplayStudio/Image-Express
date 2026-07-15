@@ -194,3 +194,21 @@ export const applyImageFiltersPreservingGeometry = (image: fabric.Image): void =
      image.set({ width, height, scaleX, scaleY, left, top, cropX, cropY });
      image.setCoords();
 };
+
+/**
+ * Serialize a canvas including custom properties. IMPORTANT: fabric v6+'s
+ * canvas.toJSON() takes NO arguments (it exists for JSON.stringify), so
+ * calling toJSON(props) silently DROPS every custom property — ids, names,
+ * shared flags, adjustment settings. Always serialize through toObject.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const serializeCanvas = <T = any>(canvas: fabric.Canvas, propertiesToInclude: string[]): T => {
+    const target = canvas as unknown as {
+        toObject?: (props?: string[]) => T;
+        toJSON?: (props?: string[]) => T;
+    };
+    if (typeof target.toObject === 'function') {
+        return target.toObject(propertiesToInclude);
+    }
+    return target.toJSON!(propertiesToInclude);
+};

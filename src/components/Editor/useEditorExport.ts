@@ -15,6 +15,7 @@ import {
 } from '@/components/Editor/editorExportUtils';
 import type { UserProfileSettings } from '@/lib/profile-utils';
 import type { ToastOptions } from '@/providers/ToastProvider';
+import { serializeCanvas } from '@/lib/fabric-utils';
 import type {
     CanvasWithArtboard,
     ExportDataUrlOptions,
@@ -313,7 +314,7 @@ export function useEditorExport({
                     break;
                 }
                 case 'json': {
-                    const json = JSON.stringify((canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps));
+                    const json = JSON.stringify(serializeCanvas<DesignJson>(canvas, customHistoryProps));
                     const jsonBlob = new Blob([json], { type: 'application/json' });
                     const jsonUrl = URL.createObjectURL(jsonBlob);
                     downloadFile(jsonUrl, `design-${timestamp}.json`);

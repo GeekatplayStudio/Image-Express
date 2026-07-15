@@ -2,6 +2,7 @@ import * as fabric from 'fabric';
 import JSZip from 'jszip';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import type { DesignJson, SerializedFill, SerializedObject } from '@/components/Editor/editorView.types';
+import { serializeCanvas } from '@/lib/fabric-utils';
 import {
     buildHtmlExportDocument,
     buildHtmlExportMainScript,
@@ -33,7 +34,7 @@ export async function exportHtmlBundle({
     const libsFolder = zip.folder('libs');
     const scriptsFolder = zip.folder('scripts');
 
-    const designJson = (canvas as unknown as { toJSON: (properties?: string[]) => DesignJson }).toJSON(customHistoryProps);
+    const designJson = serializeCanvas<DesignJson>(canvas, customHistoryProps);
 
     const metadata = {
         canvasWidth: canvas.getWidth(),

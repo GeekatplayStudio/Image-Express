@@ -7,6 +7,8 @@ import type {
     CampaignWorkspace,
     MediaOverlayFrameConfig,
 } from '@/components/Editor/mediaOverlayTypes';
+import type * as fabric from 'fabric';
+import { serializeCanvas } from '@/lib/fabric-utils';
 import {
     buildCampaignWorkspaceStorageKey,
     createEmptyCampaignWorkspace,
@@ -19,7 +21,7 @@ type Toast = (options: ToastOptions) => void;
 
 type UseMediaOverlayCampaignVariantsArgs = {
     mediaOverlayStorageKey: string;
-    canvas: { toJSON: (properties?: string[]) => DesignJson } | null;
+    canvas: fabric.Canvas | null;
     customHistoryProps: string[];
     mediaOverlayFrames: MediaOverlayFrameConfig[];
     activeMediaOverlayFrameId: string | null;
@@ -120,7 +122,7 @@ export function useMediaOverlayCampaignVariants({
         }
 
         const frameIndex = Math.max(0, mediaOverlayFrames.findIndex((frame) => frame.id === activeFrame.id));
-        const snapshot = canvas.toJSON(customHistoryProps);
+        const snapshot = serializeCanvas(canvas, customHistoryProps);
         const result = upsertCampaignVariantFromFrame({
             workspace: campaignWorkspace,
             frame: activeFrame,

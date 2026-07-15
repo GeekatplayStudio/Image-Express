@@ -48,7 +48,7 @@ import {
     applyImageFiltersPreservingGeometry
 } from '@/lib/fabric-utils';
 
-import { CurvesFilter } from '@/lib/fabric-filters';
+import { CurvesFilter, isAdjustmentGeneratedFilter, reviveImageFilters, tagAdjustmentFilters } from '@/lib/fabric-filters';
 
 import { PenModeSetting, extractScenePenPoints, PEN_DEFAULT_FILL, PEN_DEFAULT_STROKE, buildSmoothPathData, extractSceneBezierNodes, buildBezierPathData, buildAutoBezierNodes } from '@/lib/pen-utils';
 import { PanelMode, PanelModeRail } from './properties/PanelModeRail';
@@ -747,16 +747,6 @@ export default function PropertiesPanel({
         if (!canvas) return;
         const objs = canvas.getObjects();
 
-        const adjustmentFilterTypes = new Set([
-            'Curves',
-            'Brightness',
-            'Contrast',
-            'HueRotation',
-            'Saturation',
-            'Vibrance',
-            'BlackWhite'
-        ]);
-
         const filtersRegistry = fabric.filters as unknown as Record<string, new (options?: Record<string, unknown>) => FabricBaseFilter>;
 
         const buildFiltersForAdjustment = (
@@ -967,7 +957,7 @@ export default function PropertiesPanel({
                 }
 
                 const opacity = typeof obj.opacity === 'number' ? obj.opacity : 1;
-                const newFilters = buildFiltersForAdjustment(ext.adjustmentType, ext.adjustmentSettings, opacity);
+                const newFilters = tagAdjustmentFilters(buildFiltersForAdjustment(ext.adjustmentType, ext.adjustmentSettings, opacity));
 
                 if (ext.clipped) {
                      // Add to Current Clip Stack
@@ -1015,7 +1005,9 @@ export default function PropertiesPanel({
                  // Init Base Filters if needed
                  if (!imageExt.baseFilters) {
                      const existing = image.filters || [];
-                     imageExt.baseFilters = existing.filter((f) => !adjustmentFilterTypes.has(f.type));
+                     imageExt.baseFilters = existing.filter((f) => !isAdjustmentGeneratedFilter(f));
+                 } else {
+                     imageExt.baseFilters = reviveImageFilters(imageExt.baseFilters);
                  }
                  
                  // Apply: Base + Global + LocalClipped
