@@ -269,6 +269,7 @@ type MockCanvas = {
     toObject: jest.Mock;
     toDataURL: jest.Mock;
     getScenePoint: jest.Mock;
+    getZoom: jest.Mock;
 };
 
 const createCanvasStub = (activeObject: { set: jest.Mock } | null = null): MockCanvas => ({
@@ -294,6 +295,7 @@ const createCanvasStub = (activeObject: { set: jest.Mock } | null = null): MockC
     toObject: jest.fn(() => ({ objects: [] })),
     toDataURL: jest.fn(() => 'data:image/png;base64,AAAAAA=='),
     getScenePoint: jest.fn(() => ({ x: 321, y: 654 })),
+    getZoom: jest.fn(() => 1),
 });
 
 const renderToolbar = (options?: {
@@ -884,5 +886,74 @@ describe('Toolbar', () => {
             left: 200,
             top: 160,
         }));
+    });
+
+    it('closes the path when clicking the start anchor, even with the Open/Closed toggle left at its default (open)', () => {
+        const { canvas } = renderToolbar();
+        fireEvent.click(screen.getByTitle('Pen'));
+
+        const getLatestHandler = (eventName: string) => [...canvas.on.mock.calls]
+            .reverse()
+            .find((call) => call[0] === eventName)?.[1] as ((opt?: unknown) => void) | undefined;
+        expect(getLatestHandler('mouse:down')).toBeDefined();
+
+        act(() => {
+            getLatestHandler('mouse:down')?.({ scenePoint: { x: 100, y: 100 }, target: null, e: { button: 0 } });
+        });
+        act(() => {
+            getLatestHandler('mouse:down')?.({ scenePoint: { x: 200, y: 100 }, target: null, e: { button: 0 } });
+        });
+        act(() => {
+            getLatestHandler('mouse:down')?.({ scenePoint: { x: 200, y: 200 }, target: null, e: { button: 0 } });
+        });
+
+        const startAnchor = canvas.add.mock.calls
+            .map((call) => call[0] as { isPenDraftAnchor?: boolean; penAnchorIndex?: number })
+            .find((obj) => obj?.isPenDraftAnchor && obj.penAnchorIndex === 0);
+        expect(startAnchor).toBeDefined();
+
+        act(() => {
+            getLatestHandler('mouse:down')?.({ scenePoint: { x: 100, y: 100 }, target: startAnchor, e: { button: 0 } });
+        });
+
+        const createdPath = canvas.add.mock.calls
+            .map((call) => call[0] as Record<string, unknown>)
+            .reverse()
+            .find((obj) => obj?.type === 'path');
+
+        expect(createdPath).toEqual(expect.objectContaining({ isPenPath: true, penClosed: true }));
+    });
+
+    it('closes the path on a click near (but not directly on) the start anchor, scaled for the current zoom', () => {
+        const { canvas } = renderToolbar();
+        canvas.getZoom.mockReturnValue(0.25);
+        fireEvent.click(screen.getByTitle('Pen'));
+
+        const getLatestHandler = (eventName: string) => [...canvas.on.mock.calls]
+            .reverse()
+            .find((call) => call[0] === eventName)?.[1] as ((opt?: unknown) => void) | undefined;
+
+        act(() => {
+            getLatestHandler('mouse:down')?.({ scenePoint: { x: 100, y: 100 }, target: null, e: { button: 0 } });
+        });
+        act(() => {
+            getLatestHandler('mouse:down')?.({ scenePoint: { x: 200, y: 100 }, target: null, e: { button: 0 } });
+        });
+        act(() => {
+            getLatestHandler('mouse:down')?.({ scenePoint: { x: 200, y: 200 }, target: null, e: { button: 0 } });
+        });
+
+        // Missed the (tiny, zoomed-out) anchor object itself, but landed
+        // within the zoom-adjusted proximity radius (14 / 0.25 = 56 scene units).
+        act(() => {
+            getLatestHandler('mouse:down')?.({ scenePoint: { x: 140, y: 100 }, target: null, e: { button: 0 } });
+        });
+
+        const createdPath = canvas.add.mock.calls
+            .map((call) => call[0] as Record<string, unknown>)
+            .reverse()
+            .find((obj) => obj?.type === 'path');
+
+        expect(createdPath).toEqual(expect.objectContaining({ isPenPath: true, penClosed: true }));
     });
 });

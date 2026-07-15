@@ -750,12 +750,12 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         setPenCursorPoint(null);
     }, [canvas]);
 
-    const finishPenPath = useCallback(() => {
+    const finishPenPath = useCallback((forceClosed = false) => {
         if (!canvas) {
             clearPenDraft();
             return;
         }
-        const isClosed = penClosure === 'closed';
+        const isClosed = forceClosed || penClosure === 'closed';
         const minPoints = isClosed ? 3 : 2;
         if (penPoints.length < minPoints) {
             clearPenDraft();
@@ -866,13 +866,17 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         if (!canvas) return;
 
         const createAnchor = (point: PenPoint, index: number) => {
+            // Keep anchors at a roughly constant screen size (~10px radius)
+            // so the start anchor stays easy to click when zoomed out.
+            const zoom = canvas.getZoom() || 1;
+            const radius = Math.min(12, Math.max(5, 5 / zoom));
             const anchor = new fabric.Circle({
                 left: point.x,
                 top: point.y,
-                radius: 5,
+                radius,
                 fill: PEN_HANDLE_COLOR,
                 stroke: PEN_ANCHOR_COLOR,
-                strokeWidth: 2,
+                strokeWidth: Math.min(4, Math.max(2, 2 / zoom)),
                 originX: 'center',
                 originY: 'center',
                 hasControls: false,
@@ -897,8 +901,12 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             if (!pointer) return;
             const target = opt.target as fabric.Object | null | undefined;
             if (isPenDraftAnchor(target)) {
-                if (penClosure === 'closed' && target.penAnchorIndex === 0 && penPoints.length > 2) {
-                    finishPenPath();
+                // Clicking back on the start anchor always closes the path —
+                // this is the standard pen-tool gesture and shouldn't depend
+                // on the Open/Closed toggle (which only sets the default
+                // outcome when finishing via Enter/double-click instead).
+                if (target.penAnchorIndex === 0 && penPoints.length > 2) {
+                    finishPenPath(true);
                 } else if (penAutoAddDelete && typeof target.penAnchorIndex === 'number') {
                     const anchorIndex = target.penAnchorIndex;
                     const minPoints = penClosure === 'closed' ? 3 : 2;
@@ -922,12 +930,18 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             }
             const pointerPoint = { x: pointer.x, y: pointer.y };
 
-            // Check validity of closing loop
-            if (penClosure === 'closed' && penPoints.length > 2) {
+            // Fallback close check: the start anchor can be tiny on screen
+            // when zoomed out, so a click that misses the anchor object
+            // itself (no Fabric target hit) still closes the path if the
+            // pointer landed within a zoom-adjusted radius of the start
+            // point. Threshold is scene units for ~14 screen px at any zoom.
+            if (penPoints.length > 2) {
                 const first = penPoints[0];
                 const dist = distanceBetween(pointerPoint, first);
-                if (dist < 20) {
-                    finishPenPath();
+                const zoom = canvas.getZoom() || 1;
+                const closeThreshold = 14 / zoom;
+                if (dist < closeThreshold) {
+                    finishPenPath(true);
                     return;
                 }
             }
