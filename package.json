@@ -11,9 +11,12 @@
     "tar": "^7.5.6"
   },
   "scripts": {
+    "predev": "node scripts/ensure-deps.mjs",
     "dev": "node scripts/start-web.mjs dev",
     "launch": "node scripts/launch.mjs",
+    "prebuild": "node scripts/ensure-deps.mjs",
     "build": "next build",
+    "prestart": "node scripts/ensure-deps.mjs",
     "start": "node scripts/start-web.mjs prod",
     "audit:repo": "node scripts/repo-audit.mjs",
     "install:super": "node scripts/super-installer.mjs",

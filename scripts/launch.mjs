@@ -2,13 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { ensureDependencies } from './ensure-deps.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 process.chdir(rootDir);
 
 const isWin = process.platform === 'win32';
-const npmCmd = isWin ? 'npm.cmd' : 'npm';
 const gitCmd = 'git';
 
 function log(msg) {
@@ -74,39 +74,6 @@ function checkForUpdates() {
     }
     log('Updated successfully.');
     return true;
-}
-
-function ensureDependencies(forceInstall) {
-    const nodeModulesPath = path.join(rootDir, 'node_modules');
-    const markerPath = path.join(nodeModulesPath, '.install-complete');
-    const lockPath = path.join(rootDir, 'package-lock.json');
-
-    const needsInstall =
-        forceInstall ||
-        !fs.existsSync(nodeModulesPath) ||
-        !fs.existsSync(markerPath) ||
-        (fs.existsSync(lockPath) &&
-            fs.statSync(lockPath).mtimeMs > (fs.existsSync(markerPath) ? fs.statSync(markerPath).mtimeMs : 0));
-
-    if (!needsInstall) {
-        log('Dependencies already up to date.');
-        return;
-    }
-
-    log('Installing dependencies (this may take a few minutes on first run)...');
-    // Electron's postinstall downloads a large binary and is only needed for
-    // the desktop app shell, not the web app. Skipping it avoids failures
-    // behind corporate proxies/firewalls with custom SSL certs.
-    const installEnv = { ...process.env, ELECTRON_SKIP_BINARY_DOWNLOAD: '1' };
-    const install = run(npmCmd, ['install'], { env: installEnv });
-
-    if (install.status !== 0) {
-        console.error('[ERROR] npm install failed. See output above for details.');
-        process.exit(install.status || 1);
-    }
-
-    fs.writeFileSync(markerPath, new Date().toISOString());
-    log('Dependencies installed.');
 }
 
 function main() {
