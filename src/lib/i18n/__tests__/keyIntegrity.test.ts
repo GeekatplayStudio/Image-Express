@@ -103,7 +103,14 @@ describe('i18n key integrity', () => {
         const bare = templated.filter((key) => {
             const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             // t('key') closed immediately — no second argument.
-            return new RegExp(`\\bt\\(\\s*'${escaped}'\\s*\\)`).test(sources);
+            const bareCall = new RegExp(`\\bt\\(\\s*'${escaped}'\\s*\\)`);
+            if (!bareCall.test(sources)) return false;
+            // `template={t('key')}` is legitimate: RichText performs the
+            // substitution itself so the placeholders are still filled, just
+            // with React nodes instead of strings.
+            const richTextUse = new RegExp(`template=\\{\\s*t\\(\\s*'${escaped}'\\s*\\)\\s*\\}`);
+            if (richTextUse.test(sources)) return false;
+            return true;
         });
         expect(bare).toEqual([]);
     });

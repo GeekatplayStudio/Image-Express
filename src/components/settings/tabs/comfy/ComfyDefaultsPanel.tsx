@@ -2,6 +2,7 @@
 
 import { DownloadCloud, Loader2, RefreshCcw, Server, ShieldCheck } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
+import { RichText } from '@/lib/i18n/RichText';
 import type { ComfyConnectionMode } from '@/lib/comfyui/connection';
 import type { GenerativeProviderId, GenerativeWorkflowId } from '@/lib/generative-preferences';
 import type { ComfyConnectionSettings } from '../../hooks/useComfyConnectionSettings';
@@ -105,7 +106,10 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        {t('comfy.localUrlHint', { localhost: 'localhost', dockerHost: 'host.docker.internal' })}
+                        <RichText template={t('comfy.localUrlHint')} values={{
+                            localhost: <code className="font-mono">localhost</code>,
+                            dockerHost: <code className="font-mono">host.docker.internal</code>,
+                        }} />
                     </p>
                 </div>
 
@@ -144,7 +148,9 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        {t('comfy.cloudAuthHint', { header: 'X-API-Key' })}
+                        <RichText template={t('comfy.cloudAuthHint')} values={{
+                            header: <code className="font-mono">X-API-Key</code>,
+                        }} />
                     </p>
                 </div>
 
@@ -173,7 +179,11 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         </button>
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                        {t('comfy.installFolderHint', { customNodes: 'custom_nodes', models: 'models', workflows: 'user\default\workflows' })}
+                        <RichText template={t('comfy.installFolderHint')} values={{
+                            customNodes: <code className="font-mono">custom_nodes</code>,
+                            models: <code className="font-mono">models</code>,
+                            workflows: <code className="font-mono">user\\default\\workflows</code>,
+                        }} />
                     </p>
                 </div>
 
@@ -187,7 +197,9 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        {t('comfy.customNodesHint', { customNodes: 'custom_nodes' })}
+                        <RichText template={t('comfy.customNodesHint')} values={{
+                            customNodes: <code className="font-mono">custom_nodes</code>,
+                        }} />
                     </p>
                 </div>
 
@@ -201,7 +213,9 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full min-h-19 px-3 py-2 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono resize-y"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        {t('comfy.workflowFoldersHint', { workflows: 'user\default\workflows' })}
+                        <RichText template={t('comfy.workflowFoldersHint')} values={{
+                            workflows: <code className="font-mono">user\\default\\workflows</code>,
+                        }} />
                     </p>
                 </div>
 
