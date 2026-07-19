@@ -42,7 +42,8 @@ const TRANSLATABLE_PROPS = new Set([
  * would break the equality checks that drive behaviour.
  */
 const IDENTIFIER_PROPS = new Set([
-    'value', 'id', 'key', 'type', 'name', 'mode', 'labelKey', 'descriptionKey',
+    'value', 'id', 'key', 'type', 'name', 'mode', 'scope',
+    'labelKey', 'descriptionKey',
 ]);
 
 /** Standard identifiers, brands and formats that must not be translated. */

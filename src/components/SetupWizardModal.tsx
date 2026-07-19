@@ -482,8 +482,8 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     <p className="text-sm font-semibold flex items-center gap-2"><Cloud size={14} /> {t('wizard.cloudOnly')}</p>
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {selectedCloudProviderIsImplemented
-                                            ? `All assets are uploaded to ${selectedCloudProviderLabel}.`
-                                            : `${selectedCloudProviderLabel} cloud-only mode will unlock when that provider adapter ships.`}
+                                            ? t('wizard.cloudAllUploaded', { provider: selectedCloudProviderLabel })
+                                            : t('wizard.cloudPlanned', { provider: selectedCloudProviderLabel })}
                                     </p>
                                 </button>
                             </div>
@@ -555,7 +555,9 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         className="h-9 px-4 text-xs font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-2"
                                     >
                                         {isDriveBusy ? <Loader2 size={14} className="animate-spin" /> : <Cloud size={14} />}
-                                        {driveConnected ? `Reconnect ${selectedCloudProviderLabel}` : `Connect ${selectedCloudProviderLabel}`}
+                                        {driveConnected
+                                            ? t('wizard.reconnectProvider', { provider: selectedCloudProviderLabel })
+                                            : t('wizard.connectProvider', { provider: selectedCloudProviderLabel })}
                                     </button>
                                     {driveConnected && (
                                         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
@@ -621,7 +623,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     >
                                         {GENERATIVE_PROVIDER_OPTIONS.map((provider) => (
                                             <option key={provider.id} value={provider.id}>
-                                                {provider.label}{provider.status === 'coming-soon' ? ' (Coming soon)' : ''}
+                                                {provider.label}{provider.status === 'coming-soon' ? t('wizard.comingSoonSuffix') : ''}
                                             </option>
                                         ))}
                                     </select>
@@ -720,14 +722,16 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         }`}
                                         data-testid="wizard-runtime-status-pill"
                                     >
-                                        {installerStatus.summary.ready ? 'Runtime ready' : `${installerStatus.summary.missing.length} missing requirement${installerStatus.summary.missing.length === 1 ? '' : 's'}`}
+                                        {installerStatus.summary.ready
+                                            ? t('wizard.runtimeReady')
+                                            : t('wizard.missingRequirements', { count: installerStatus.summary.missing.length })}
                                     </span>
                                 )}
                             </div>
 
                             {installerStatusState === 'error' && (
                                 <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                                    {installerStatusMessage || 'Failed to load runtime readiness.'}
+                                    {installerStatusMessage || t('wizard.runtimeLoadFailed')}
                                 </div>
                             )}
 
@@ -892,7 +896,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             {installerRunResult.steps.map((stepResult) => (
                                                 <div key={stepResult.id} className="rounded border border-border/50 bg-background px-2 py-1.5 text-[11px]">
                                                     <p className="font-semibold">
-                                                        {stepResult.label} ({stepResult.success ? 'ok' : `failed: ${stepResult.exitCode}`})
+                                                        {stepResult.label} ({stepResult.success ? t('wizard.stepOk') : t('wizard.stepFailed', { code: stepResult.exitCode })})
                                                     </p>
                                                     {stepResult.stdout ? (
                                                         <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-[10px] text-muted-foreground">
@@ -917,7 +921,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         <span className="font-semibold">{t('wizard.comfyDirectory')}</span> <span className="font-mono">{installerStatus.comfyDirectory.path}</span>
                                     </p>
                                     <p>
-                                        <span className="font-semibold">{t('wizard.comfyCheckout')}</span> {installerStatus.comfyDirectory.gitRepo ? 'Detected' : 'Missing'}
+                                        <span className="font-semibold">{t('wizard.comfyCheckout')}</span> {installerStatus.comfyDirectory.gitRepo ? t('wizard.detected') : t('wizard.missing')}
                                     </p>
                                     <p>
                                         <span className="font-semibold">{t('wizard.customBundles')}</span>{' '}
@@ -928,7 +932,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         {installerStatus.comfyModels.filter((model) => model.exists).length}/{installerStatus.comfyModels.length}
                                     </p>
                                     <p>
-                                        <span className="font-semibold">{t('wizard.ollamaCli')}</span> {installerStatus.ollama.cliAvailable ? 'Available' : 'Not found'}
+                                        <span className="font-semibold">{t('wizard.ollamaCli')}</span> {installerStatus.ollama.cliAvailable ? t('wizard.available') : t('wizard.notFound')}
                                     </p>
 
                                     {installerStatus.summary.missing.length > 0 ? (
@@ -1039,9 +1043,15 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         <div className="space-y-4">
                             <p className="text-sm text-foreground/90">{t('wizard.finishIntro')}</p>
                             <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 space-y-2 text-xs">
-                                <p><span className="font-semibold">{t('wizard.summary.storageMode')}</span> {storageMode}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.storageMode')}</span> {t(`wizard.mode.${storageMode}`)}</p>
                                 <p><span className="font-semibold">{t('wizard.summary.cloudProvider')}</span> {selectedCloudProviderLabel}</p>
-                                <p><span className="font-semibold">{t('wizard.summary.cloudConnection')}</span> {selectedCloudProviderIsImplemented ? (driveConnected ? 'Connected' : (storageMode === 'local' ? 'Not required (local mode)' : 'Not connected yet')) : 'Planned provider (not yet available)'}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.cloudConnection')}</span> {selectedCloudProviderIsImplemented
+                                    ? (driveConnected
+                                        ? t('wizard.summary.connected')
+                                        : (storageMode === 'local'
+                                            ? t('wizard.summary.notRequiredLocal')
+                                            : t('wizard.summary.notConnectedYet')))
+                                    : t('wizard.summary.plannedProvider')}</p>
                                 <p><span className="font-semibold">{t('wizard.summary.aiKeys')}</span> {[stabilityKey, openaiKey, googleKey, bananaKey].filter((value) => value.trim().length > 0).length}</p>
                                 <p><span className="font-semibold">{t('wizard.summary.defaultProvider')}</span> {GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === defaultGenerativeProvider)?.label || defaultGenerativeProvider}</p>
                                 <p><span className="font-semibold">{t('wizard.summary.defaultWorkflow')}</span> {GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow)?.label || defaultGenerativeWorkflow}</p>
@@ -1049,9 +1059,9 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     <span className="font-semibold">{t('wizard.summary.runtime')}</span>{' '}
                                     {installerStatus
                                         ? (installerStatus.summary.ready
-                                            ? 'Ready'
-                                            : `Needs attention (${installerStatus.summary.missing.length} missing)`)
-                                        : 'Not checked yet'}
+                                            ? t('wizard.summary.ready')
+                                            : t('wizard.summary.needsAttention', { count: installerStatus.summary.missing.length }))
+                                        : t('wizard.summary.notChecked')}
                                 </p>
                             </div>
                             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 flex items-center gap-2">
