@@ -1454,6 +1454,14 @@ const en: LocaleDictionary = {
     'cw.insertAsNewLayer': 'Insert as New Layer',
     'cw.replaceSourceLayers': 'Replace Source Layers',
 
+    // Tools dropdown menu — section headings
+    'tools.section.selection': 'Selection',
+    'tools.section.creation': 'Creation',
+    'tools.section.utilities': 'Utilities',
+    'tools.section.libraries': 'Libraries',
+    'tools.section.ai3d': 'AI & 3D',
+    'tools.panelsHint': 'Layers, Adjustments, and Color panels are in the right properties rail.',
+
     // 3D generator — toasts and status
     'gen3d.missingApiKey': 'Missing API key',
     'gen3d.addKeyHint': 'Add your Hitem key/token in Settings first.',
