@@ -1,5 +1,7 @@
 'use client';
 
+import { useI18n } from '@/providers/I18nProvider';
+
 type SelectOptions = {
     autoSelectEnabled: boolean;
     selectionMode: 'layer' | 'group';
@@ -46,19 +48,20 @@ export default function SelectionControls({
     onSelectionContract,
     onWandThresholdChange,
 }: SelectionControlsProps) {
+    const { t } = useI18n();
     const isMoveLikeTool = activeTool === 'select' || activeTool === 'path-select';
     const isSelectionFamilyTool = isMoveLikeTool || activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush';
     const isPixelSelectionTool = activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush';
     const supportsThreshold = activeTool === 'wand' || activeTool === 'quick-select';
 
-    const tools: Array<{ key: SelectionFamilyTool; label: string }> = [
-        { key: 'select', label: 'Move' },
-        { key: 'marquee', label: 'Marquee' },
-        { key: 'lasso', label: 'Lasso' },
-        { key: 'wand', label: 'Wand' },
-        { key: 'quick-select', label: 'Quick' },
-        { key: 'selection-brush', label: 'Sel Brush' },
-        { key: 'path-select', label: 'Path' },
+    const tools: Array<{ key: SelectionFamilyTool; labelKey: string }> = [
+        { key: 'select', labelKey: 'toolbar.move' },
+        { key: 'marquee', labelKey: 'toolbar.marquee' },
+        { key: 'lasso', labelKey: 'toolbar.lasso' },
+        { key: 'wand', labelKey: 'toolbar.short.wand' },
+        { key: 'quick-select', labelKey: 'toolbar.short.quick' },
+        { key: 'selection-brush', labelKey: 'toolbar.short.selBrush' },
+        { key: 'path-select', labelKey: 'toolbar.short.path' },
     ];
 
     return (
@@ -69,9 +72,9 @@ export default function SelectionControls({
                         key={tool.key}
                         onClick={() => onSelectToolChange?.(tool.key)}
                         className={`px-2 py-1 text-xs whitespace-nowrap ${index > 0 ? 'border-l border-border/50' : ''} ${activeTool === tool.key ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
-                        aria-label={`Selection tool ${tool.key}`}
+                        aria-label={t('sel.toolAria', { tool: tool.key })}
                     >
-                        {tool.label}
+                        {t(tool.labelKey)}
                     </button>
                 ))}
             </div>
@@ -84,9 +87,9 @@ export default function SelectionControls({
                                 type="checkbox"
                                 checked={selectOptions.autoSelectEnabled}
                                 onChange={(event) => onAutoSelectChange?.(event.target.checked)}
-                                aria-label="Auto-Select"
+                                aria-label={t('sel.autoSelect')}
                             />
-                            <span>Auto-Select</span>
+                            <span>{t('sel.autoSelect')}</span>
                         </label>
                     )}
 
@@ -94,16 +97,16 @@ export default function SelectionControls({
                         <button
                             onClick={() => onSelectionModeChange?.('layer')}
                             className={`px-2 py-1 text-xs ${selectOptions.selectionMode === 'layer' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
-                            aria-label="Selection mode layer"
+                            aria-label={t('sel.modeLayerAria')}
                         >
-                            Layer
+                            {t('sel.modeLayer')}
                         </button>
                         <button
                             onClick={() => onSelectionModeChange?.('group')}
                             className={`px-2 py-1 text-xs border-l border-border/50 ${selectOptions.selectionMode === 'group' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`}
-                            aria-label="Selection mode group"
+                            aria-label={t('sel.modeGroupAria')}
                         >
-                            Group
+                            {t('sel.modeGroup')}
                         </button>
                     </div>
 
@@ -113,9 +116,9 @@ export default function SelectionControls({
                                 type="checkbox"
                                 checked={selectOptions.showTransformControls}
                                 onChange={(event) => onTransformControlsChange?.(event.target.checked)}
-                                aria-label="Show Transform Controls"
+                                aria-label={t('sel.showTransformControls')}
                             />
-                            <span>Show Transform Controls</span>
+                            <span>{t('sel.showTransformControls')}</span>
                         </label>
                     )}
                 </>
@@ -124,9 +127,9 @@ export default function SelectionControls({
             {isSelectionFamilyTool && (
                 <>
                     <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                        <span className="text-muted-foreground">Feather</span>
+                        <span className="text-muted-foreground">{t('sel.feather')}</span>
                         <input
-                            aria-label="Select feather"
+                            aria-label={t('sel.featherAria')}
                             type="range"
                             min={0}
                             max={100}
@@ -134,7 +137,7 @@ export default function SelectionControls({
                             onChange={(event) => onSelectFeatherChange?.(Number(event.target.value))}
                             className="w-16"
                         />
-                        <span>{selectOptions.feather}px</span>
+                        <span>{t('common.pxValue', { value: selectOptions.feather })}</span>
                     </label>
 
                     <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
@@ -142,15 +145,15 @@ export default function SelectionControls({
                             type="checkbox"
                             checked={selectOptions.antiAlias}
                             onChange={(event) => onSelectAntiAliasChange?.(event.target.checked)}
-                            aria-label="Select anti-alias"
+                            aria-label={t('sel.antiAliasAria')}
                         />
-                        <span>Anti-alias</span>
+                        <span>{t('sel.antiAlias')}</span>
                     </label>
 
                     <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                        <span className="text-muted-foreground">Modify</span>
+                        <span className="text-muted-foreground">{t('sel.modify')}</span>
                         <input
-                            aria-label="Selection modify pixels"
+                            aria-label={t('sel.modifyAria')}
                             type="range"
                             min={1}
                             max={120}
@@ -158,23 +161,23 @@ export default function SelectionControls({
                             onChange={(event) => onSelectionModifyPixelsChange?.(Number(event.target.value))}
                             className="w-16"
                         />
-                        <span>{selectOptions.modifyPixels ?? 12}px</span>
+                        <span>{t('common.pxValue', { value: selectOptions.modifyPixels ?? 12 })}</span>
                     </label>
 
                     <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
                         <button
                             onClick={() => onSelectionExpand?.()}
                             className="px-2 py-1 text-xs text-muted-foreground hover:bg-secondary/50"
-                            aria-label="Selection expand"
+                            aria-label={t('sel.expandAria')}
                         >
-                            Expand
+                            {t('sel.expand')}
                         </button>
                         <button
                             onClick={() => onSelectionContract?.()}
                             className="px-2 py-1 text-xs border-l border-border/50 text-muted-foreground hover:bg-secondary/50"
-                            aria-label="Selection contract"
+                            aria-label={t('sel.contractAria')}
                         >
-                            Contract
+                            {t('sel.contract')}
                         </button>
                     </div>
                 </>
@@ -182,9 +185,9 @@ export default function SelectionControls({
 
             {supportsThreshold && wandOptions && (
                 <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                    <span className="text-muted-foreground">Threshold</span>
+                    <span className="text-muted-foreground">{t('sel.threshold')}</span>
                     <input
-                        aria-label="Wand threshold"
+                        aria-label={t('sel.thresholdAria')}
                         type="range"
                         min={0}
                         max={180}

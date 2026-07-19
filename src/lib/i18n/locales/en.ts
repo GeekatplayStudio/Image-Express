@@ -846,6 +846,29 @@ const en: LocaleDictionary = {
     'stroke.width': 'Width',
 
     // Selection properties — tooltips and gradient coordinate fields
+    // Selection tool options (editor top bar)
+    'common.pxValue': '{value}px',
+    'sel.toolAria': 'Selection tool {tool}',
+    'sel.autoSelect': 'Auto-Select',
+    // Selection scope pair — kept together so a translator sees both forms.
+    'sel.modeLayer': 'Layer',
+    'sel.modeGroup': 'Group',
+    'sel.modeLayerAria': 'Selection mode layer',
+    'sel.modeGroupAria': 'Selection mode group',
+    'sel.showTransformControls': 'Show Transform Controls',
+    'sel.feather': 'Feather',
+    'sel.featherAria': 'Select feather',
+    'sel.antiAlias': 'Anti-alias',
+    'sel.antiAliasAria': 'Select anti-alias',
+    'sel.modify': 'Modify',
+    'sel.modifyAria': 'Selection modify pixels',
+    'sel.expand': 'Expand',
+    'sel.expandAria': 'Selection expand',
+    'sel.contract': 'Contract',
+    'sel.contractAria': 'Selection contract',
+    'sel.threshold': 'Threshold',
+    'sel.thresholdAria': 'Wand threshold',
+
     'sel.maskImageWithShape': 'Mask Image with Shape',
     'sel.putTextOnPath': 'Put Text on Path',
     'sel.releaseClipTitle': 'Release the clipping mask (stop clipping to the layer below)',
