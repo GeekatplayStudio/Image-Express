@@ -58,6 +58,10 @@ function isExempt(text) {
     if (/^[a-z]{2,4}[_-][a-zA-Z0-9_.]*(x{3,}|\.{3})?$/.test(t)) return true; // key format hints
     if (/^https?:\/\//.test(t)) return true;                     // URLs
     if (/^(npm|npx|yarn|pnpm|git|node|python|pip)\s/.test(t)) return true; // shell commands
+    // Filesystem path examples (D:\ComfyUI, /usr/local/share, ./models), including
+    // newline-separated lists used as multi-path placeholders.
+    if (t.split(/[\n;]/).every((part) =>
+        !part.trim() || /^([A-Za-z]:[\\/]|\.{0,2}[\\/])[\w\\/.\s-]*$/.test(part.trim()))) return true;
     if (/^[A-Za-z]{2,6}[-_]?\.{3}$/.test(t)) return true;        // key format hints: AIza…, sk-…
     if (/^((Ctrl|Cmd|Alt|Shift|Meta)\+)*(Del|Esc|Tab|Enter|Space|[A-Z0-9]|F\d{1,2})$/.test(t)) return true;
     return false;

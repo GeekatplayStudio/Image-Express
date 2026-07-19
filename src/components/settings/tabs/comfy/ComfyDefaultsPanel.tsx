@@ -30,17 +30,17 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         {t('settings.comfy.generativeDefaults')}
                     </h5>
                     <p className="text-[11px] text-muted-foreground mt-1">
-                        Launch AI tools directly into your preferred flow so you can stay in ideation mode.
+                        {t('comfy.defaultsIntro')}
                     </p>
                 </div>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">
-                    Ref-style quick fill
+                    {t('comfy.refQuickFill')}
                 </span>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Default AI Provider</label>
+                    <label className="text-xs font-semibold">{t('comfy.defaultProvider')}</label>
                     <select
                         value={comfy.defaultGenerativeProvider}
                         onChange={(event) => comfy.setDefaultGenerativeProvider(event.target.value as GenerativeProviderId)}
@@ -58,7 +58,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Default Generative Workspace</label>
+                    <label className="text-xs font-semibold">{t('comfy.defaultWorkspace')}</label>
                     <select
                         value={comfy.defaultGenerativeWorkflow}
                         onChange={(event) => comfy.setDefaultGenerativeWorkflow(event.target.value as GenerativeWorkflowId)}
@@ -78,7 +78,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Comfy Connection Mode</label>
+                    <label className="text-xs font-semibold">{t('comfy.connectionMode')}</label>
                     <select
                         value={comfy.comfyConnectionMode}
                         onChange={(event) => comfy.setComfyConnectionMode(event.target.value as ComfyConnectionMode)}
@@ -96,7 +96,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                 </div>
 
                 <div className="space-y-1.5 xl:col-span-2">
-                    <label className="text-xs font-semibold">Local ComfyUI URL</label>
+                    <label className="text-xs font-semibold">{t('comfy.localUrl')}</label>
                     <input
                         type="text"
                         value={comfy.comfyServerUrl}
@@ -105,12 +105,12 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        Server-side workflow scans, repo updates, and Docker host fallback use this URL first. In Docker on macOS or Windows, <code className="font-mono">localhost</code> will also retry via <code className="font-mono">host.docker.internal</code>.
+                        {t('comfy.localUrlHint', { localhost: 'localhost', dockerHost: 'host.docker.internal' })}
                     </p>
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Comfy Tunnel URL</label>
+                    <label className="text-xs font-semibold">{t('comfy.tunnelUrl')}</label>
                     <input
                         type="text"
                         value={comfy.comfyTunnelUrl}
@@ -119,12 +119,12 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        Optional browser-reachable URL for websocket access from another device, such as Tailscale, Funnel, or a reverse proxy. The AI generator and workflow picker reuse official ComfyUI templates through this connection when needed.
+                        {t('comfy.tunnelUrlHint')}
                     </p>
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Comfy Cloud URL</label>
+                    <label className="text-xs font-semibold">{t('comfy.cloudUrl')}</label>
                     <input
                         type="text"
                         value={comfy.comfyCloudUrl}
@@ -135,7 +135,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Comfy Cloud API Key</label>
+                    <label className="text-xs font-semibold">{t('comfy.cloudApiKey')}</label>
                     <input
                         type="password"
                         value={comfy.comfyCloudApiKey}
@@ -144,12 +144,12 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        Cloud requests use the <code className="font-mono">X-API-Key</code> header and websocket token auth.
+                        {t('comfy.cloudAuthHint', { header: 'X-API-Key' })}
                     </p>
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">ComfyUI Install Folder</label>
+                    <label className="text-xs font-semibold">{t('comfy.installFolder')}</label>
                     <div className="flex gap-2">
                         <input
                             type="text"
@@ -169,16 +169,16 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                             ) : (
                                 <RefreshCcw size={13} />
                             )}
-                            Verify Path
+                            {t('comfy.verifyPath')}
                         </button>
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                        Leave this blank to let the app try standard ComfyUI install locations visible to the current runtime and auto-fill the standard <code className="font-mono">custom_nodes</code>, <code className="font-mono">models</code>, and <code className="font-mono">user\default\workflows</code> folders. If the app runs in Docker, use the path visible inside the container, not a host-only drive letter.
+                        {t('comfy.installFolderHint', { customNodes: 'custom_nodes', models: 'models', workflows: 'user\default\workflows' })}
                     </p>
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Custom Nodes Folder</label>
+                    <label className="text-xs font-semibold">{t('comfy.customNodesFolder')}</label>
                     <input
                         type="text"
                         value={comfy.comfyCustomNodesPath}
@@ -187,12 +187,12 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        GitHub node repos can be cloned here, and the manager will scan this folder for installed custom nodes. When this is blank, the app uses the standard <code className="font-mono">custom_nodes</code> folder under the detected install root. Relative paths like <code className="font-mono">custom_nodes</code> resolve from the install folder.
+                        {t('comfy.customNodesHint', { customNodes: 'custom_nodes' })}
                     </p>
                 </div>
 
                 <div className="space-y-1.5 lg:col-span-2 xl:col-span-3">
-                    <label className="text-xs font-semibold">Workflow Folder(s)</label>
+                    <label className="text-xs font-semibold">{t('comfy.workflowFolders')}</label>
                     <textarea
                         value={comfy.comfyWorkflowLibraryPath}
                         onChange={(event) => comfy.setComfyWorkflowLibraryPath(event.target.value)}
@@ -201,7 +201,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         className="w-full min-h-19 px-3 py-2 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono resize-y"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                        Scan one or more workflow folders for official ComfyUI JSON workflows now and your own folders later. Put one folder per line, or separate folders with semicolons. When this is blank, the app uses the standard <code className="font-mono">user\default\workflows</code> folder under the detected install root. Relative paths like <code className="font-mono">user\default\workflows</code> resolve from the install folder. If the app runs in Docker, use paths visible inside the container rather than a host-only O:\ drive path.
+                        {t('comfy.workflowFoldersHint', { workflows: 'user\default\workflows' })}
                     </p>
                 </div>
 
@@ -209,8 +209,8 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                     <div className="lg:col-span-2 xl:col-span-3 rounded-md border border-border/60 bg-background/70 px-3 py-2 space-y-2">
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <div className="text-xs font-semibold text-foreground">Expected install layout verification</div>
-                                <div className="text-[11px] text-muted-foreground">Checks whether the standard ComfyUI folders exist under the current install root.</div>
+                                <div className="text-xs font-semibold text-foreground">{t('comfy.layoutVerification')}</div>
+                                <div className="text-[11px] text-muted-foreground">{t('comfy.layoutVerificationHint')}</div>
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -222,7 +222,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                                             {status.exists ? 'Found' : 'Missing'}
                                         </span>
                                     </div>
-                                    <div className="mt-1 font-mono text-muted-foreground break-all">{status.path || 'Not resolved yet'}</div>
+                                    <div className="mt-1 font-mono text-muted-foreground break-all">{status.path || t('comfy.notResolvedYet')}</div>
                                     {status.note ? (
                                         <div className="mt-1 text-muted-foreground">{status.note}</div>
                                     ) : null}
@@ -234,14 +234,14 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
 
                 {installerStatus?.comfyDirectory.exists && installerStatus.paths ? (
                     <div className="lg:col-span-2 xl:col-span-3 rounded-md border border-border/60 bg-secondary/10 px-3 py-2 text-[11px] text-muted-foreground space-y-1">
-                        <div className="font-semibold text-foreground">Detected standard Comfy layout</div>
-                        <div>Install folder: <span className="font-mono text-foreground">{installerStatus.comfyDirectory.path}</span></div>
-                        <div>Models folder: <span className="font-mono text-foreground">{installerStatus.paths.modelsPath}</span></div>
-                        <div>Custom nodes folder: <span className="font-mono text-foreground">{installerStatus.paths.customNodesPath}</span></div>
+                        <div className="font-semibold text-foreground">{t('comfy.detectedLayout')}</div>
+                        <div>{t('comfy.installFolderLabel')} <span className="font-mono text-foreground">{installerStatus.comfyDirectory.path}</span></div>
+                        <div>{t('comfy.modelsFolderLabel')} <span className="font-mono text-foreground">{installerStatus.paths.modelsPath}</span></div>
+                        <div>{t('comfy.customNodesFolderLabel')} <span className="font-mono text-foreground">{installerStatus.paths.customNodesPath}</span></div>
                         <div>
-                            Workflow folder(s): <span className="font-mono text-foreground">{installerStatus.paths.workflowLibraryPaths.join(' | ')}</span>
+                            {t('comfy.workflowFoldersLabel')} <span className="font-mono text-foreground">{installerStatus.paths.workflowLibraryPaths.join(' | ')}</span>
                         </div>
-                        <div>These detected defaults are only used to fill empty fields. You can still replace any path with your own custom folders.</div>
+                        <div>{t('comfy.detectedDefaultsHint')}</div>
                     </div>
                 ) : null}
             </div>
@@ -258,7 +258,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         ) : (
                             <ShieldCheck size={13} />
                         )}
-                        Verify Local ComfyUI + Paths
+                        {t('comfy.verifyLocalAndPaths')}
                     </button>
 
                     <button
@@ -271,7 +271,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         ) : (
                             <Server size={13} />
                         )}
-                        Verify Comfy Connection
+                        {t('comfy.verifyConnection')}
                     </button>
                 </div>
 
@@ -306,9 +306,9 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                 {comfy.comfyDiagnostics?.paths?.statuses?.length ? (
                     <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 space-y-2 text-[11px]">
                         <div>
-                            <div className="font-semibold text-foreground">App-specific Comfy path verification</div>
+                            <div className="font-semibold text-foreground">{t('comfy.appPathVerification')}</div>
                             <div className="text-muted-foreground">
-                                Validates the configured install, custom nodes, workflow, and models folders against the{" app's "}expected Comfy layout.
+                                {t('comfy.appPathVerificationHint')}
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -322,9 +322,9 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                                                 {ready ? 'Ready' : status.exists ? 'Unreadable' : 'Missing'}
                                             </span>
                                         </div>
-                                        <div className="mt-1 font-mono text-muted-foreground break-all">{status.path || 'Not resolved yet'}</div>
+                                        <div className="mt-1 font-mono text-muted-foreground break-all">{status.path || t('comfy.notResolvedYet')}</div>
                                         <div className="mt-1 text-muted-foreground">
-                                            exists={status.exists ? 'yes' : 'no'} | readable={status.readable ? 'yes' : 'no'}
+                                            {t('comfy.pathStatus', { exists: status.exists ? t('comfy.yes') : t('comfy.no'), readable: status.readable ? t('comfy.yes') : t('comfy.no') })}
                                         </div>
                                         {status.note ? (
                                             <div className="mt-1 text-muted-foreground">{status.note}</div>
@@ -338,7 +338,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
 
                 {comfy.comfyMissingRequirements && (
                     <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100 space-y-2">
-                        <div className="font-semibold">Missing Comfy requirements detected</div>
+                        <div className="font-semibold">{t('comfy.missingRequirements')}</div>
                         <div>
                             {comfy.comfyMissingRequirements.workflows.slice(0, 3).map((workflow) => (
                                 <div key={workflow.workflowName}>
@@ -353,7 +353,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                                 className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <DownloadCloud size={13} />
-                                Install Missing Requirements
+                                {t('comfy.installMissing')}
                             </button>
                         </div>
                     </div>
