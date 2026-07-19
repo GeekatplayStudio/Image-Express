@@ -245,7 +245,7 @@ export default function AdvancedToolControls({
         return (
             <>
                 <div className="shrink-0 flex items-center rounded-md border border-border/60 overflow-hidden bg-secondary/30">
-                    <button onClick={() => onZoomModeChange?.('in')} className={`px-2.5 py-1 text-xs ${zoomOptions.mode === 'in' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`} aria-label={t('adv.zoom.inAria')}>In</button>
+                    <button onClick={() => onZoomModeChange?.('in')} className={`px-2.5 py-1 text-xs ${zoomOptions.mode === 'in' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`} aria-label={t('adv.zoom.inAria')}>{t('adv.zoom.in')}</button>
                     <button onClick={() => onZoomModeChange?.('out')} className={`px-2.5 py-1 text-xs border-l border-border/50 ${zoomOptions.mode === 'out' ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/50'}`} aria-label={t('adv.zoom.outAria')}>{t('adv.zoom.out')}</button>
                 </div>
                 <label className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-md border border-border/60 bg-secondary/30 text-xs">

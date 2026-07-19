@@ -2109,7 +2109,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
                             )}
-                            title={`Show only assets in "${name}"`}
+                            title={t('assets.showOnlyInGroup', { group: name })}
                         >
                             <Folder size={11} />
                             {name}
@@ -2206,7 +2206,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                             type="checkbox"
                                             checked={isSelected}
                                             onChange={(event) => toggleAssetSelection(assetKey, event.target.checked)}
-                                            aria-label={`Select asset ${asset.name}`}
+                                            aria-label={t('assets.selectAsset', { name: asset.name })}
                                             className="h-3.5 w-3.5 rounded border-white/50 text-primary focus:ring-primary/30"
                                         />
                                     </label>
@@ -2214,7 +2214,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                         type="button"
                                         onClick={(event) => openAssetContextMenu(asset, event)}
                                         className="absolute right-1.5 top-1.5 z-30 flex h-6 w-6 items-center justify-center rounded-md bg-black/55 text-white/90 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-black/75 transition-opacity"
-                                        aria-label={`Asset actions for ${asset.name}`}
+                                        aria-label={t('assets.assetActionsFor', { name: asset.name })}
                                         title={t('assets.assetActions')}
                                     >
                                         <MoreHorizontal size={13} />
@@ -2389,7 +2389,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="text-[10px] font-medium truncate flex-1">{asset.name}</span>
                                                     {memberGroup && (
-                                                        <span className="inline-flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-px text-[9px]" title={`In group "${memberGroup}"`}>
+                                                        <span className="inline-flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-px text-[9px]" title={t('assets.inGroup', { group: memberGroup })}>
                                                             <Folder size={8} />
                                                             <span className="max-w-[64px] truncate">{memberGroup}</span>
                                                         </span>
@@ -2456,7 +2456,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     }
                     onContextMenu={(event) => event.preventDefault()}
                     role="menu"
-                    aria-label={`Actions for ${menuAsset.name}`}
+                    aria-label={t('assets.actionsFor', { name: menuAsset.name })}
                 >
                     {menuIsMulti && (
                         <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -2519,7 +2519,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         }}
                         className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
                         role="menuitem"
-                        title={menuAsset.isPublic ? 'Set private' : 'Set public'}
+                        title={menuAsset.isPublic ? t('assets.setPrivate') : t('assets.setPublic')}
                     >
                         {menuAsset.isPublic ? <Lock size={13} className="text-muted-foreground" /> : <Globe size={13} className="text-muted-foreground" />}
                         {menuAsset.isPublic ? t('assets.makePrivate') : t('assets.makePublic')}
@@ -2534,7 +2534,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             }}
                             className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
                             role="menuitem"
-                            title={`Add to group "${name}"`}
+                            title={t('assets.addToGroup', { group: name })}
                         >
                             <Folder size={13} className="text-muted-foreground" />
                             <span className="truncate">{t('assets.addToNamedGroup', { name })}</span>

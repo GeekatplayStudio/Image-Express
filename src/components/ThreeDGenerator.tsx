@@ -1735,7 +1735,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         type="url"
                                         value={hitemsSplitMeshUrl}
                                         onChange={(e) => setHitemsSplitMeshUrl(e.target.value)}
-                                        placeholder={modelUrl ? 'Leave empty to split the latest result' : 'https://.../model.glb'}
+                                        placeholder={modelUrl ? t('gen3d.splitLatestPlaceholder') : 'https://.../model.glb'}
                                         className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm"
                                     />
                                 </div>

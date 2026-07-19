@@ -49,7 +49,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                     >
                         {comfy.GENERATIVE_PROVIDER_OPTIONS.map((provider) => (
                             <option key={provider.id} value={provider.id}>
-                                {provider.label}{provider.status === 'coming-soon' ? ' (Coming soon)' : ''}
+                                {provider.label}{provider.status === 'coming-soon' ? t('comfy.comingSoonSuffix') : ''}
                             </option>
                         ))}
                     </select>
@@ -233,7 +233,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="font-semibold text-foreground">{status.label}</div>
                                         <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${status.exists ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-700'}`}>
-                                            {status.exists ? 'Found' : 'Missing'}
+                                            {status.exists ? t('comfy.found') : t('comfy.missing')}
                                         </span>
                                     </div>
                                     <div className="mt-1 font-mono text-muted-foreground break-all">{status.path || t('comfy.notResolvedYet')}</div>
@@ -333,7 +333,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="font-semibold text-foreground">{status.label}</div>
                                             <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${ready ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-700'}`}>
-                                                {ready ? 'Ready' : status.exists ? 'Unreadable' : 'Missing'}
+                                                {ready ? t('comfy.ready') : status.exists ? t('comfy.unreadable') : t('comfy.missing')}
                                             </span>
                                         </div>
                                         <div className="mt-1 font-mono text-muted-foreground break-all">{status.path || t('comfy.notResolvedYet')}</div>
@@ -356,7 +356,7 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                         <div>
                             {comfy.comfyMissingRequirements.workflows.slice(0, 3).map((workflow) => (
                                 <div key={workflow.workflowName}>
-                                    {workflow.workflowName}: {workflow.missingNodeTypes.length > 0 ? `nodes ${workflow.missingNodeTypes.slice(0, 3).join(', ')}` : ''}{workflow.missingNodeTypes.length > 0 && workflow.missingModels.length > 0 ? ' | ' : ''}{workflow.missingModels.length > 0 ? `models ${workflow.missingModels.slice(0, 3).join(', ')}` : ''}
+                                    {workflow.workflowName}: {workflow.missingNodeTypes.length > 0 ? t('comfy.missingNodes', { list: workflow.missingNodeTypes.slice(0, 3).join(', ') }) : ''}{workflow.missingNodeTypes.length > 0 && workflow.missingModels.length > 0 ? ' | ' : ''}{workflow.missingModels.length > 0 ? t('comfy.missingModels', { list: workflow.missingModels.slice(0, 3).join(', ') }) : ''}
                                 </div>
                             ))}
                         </div>

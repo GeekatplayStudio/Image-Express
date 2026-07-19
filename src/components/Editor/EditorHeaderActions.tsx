@@ -139,7 +139,7 @@ export default function EditorHeaderActions({
                                     canvas?.requestRenderAll();
                                 }
                             }}
-                            title={`Use ${c}`}
+                            title={t('header.useColor', { color: c })}
                         />
                     ))}
                     <button onClick={() => setActivePalette(null)} className="ml-1 p-0.5 text-muted-foreground hover:text-foreground"><X size={12} /></button>
@@ -172,7 +172,7 @@ export default function EditorHeaderActions({
                             <CrosshairIcon size={16} className="text-red-500" /> <span className="font-medium">{t('hdr.grid.centerCross')}</span>
                         </button>
                         <button onClick={() => { setGridType('grid-4x4'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'grid-4x4' ? 'bg-secondary/30' : ''}`}>
-                            <LayoutGrid size={16} className="text-green-500" /> <span className="font-medium">4x4 Grid</span>
+                            <LayoutGrid size={16} className="text-green-500" /> <span className="font-medium">{t('header.grid4x4')}</span>
                         </button>
                         <button onClick={() => { setGridType('canvas-border'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'canvas-border' ? 'bg-secondary/30' : ''}`}>
                             <Square size={16} className="text-yellow-500" /> <span className="font-medium">{t('hdr.grid.canvasBorder')}</span>
@@ -245,14 +245,14 @@ export default function EditorHeaderActions({
                                     disabled={!mediaOverlayEnabled}
                                     className="rounded-md border border-border/70 px-2 py-1.5 text-[11px] font-medium hover:bg-secondary/50 disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    Add Frame
+                                    {t('header.addFrame')}
                                 </button>
                                 <button
                                     onClick={handleRemoveActiveMediaOverlayFrame}
                                     disabled={!mediaOverlayEnabled || !activeMediaOverlayFrameId}
                                     className="rounded-md border border-border/70 px-2 py-1.5 text-[11px] font-medium hover:bg-secondary/50 disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    Remove Active
+                                    {t('header.removeActive')}
                                 </button>
                             </div>
                             {mediaOverlayFrames.length > 0 && (
@@ -269,7 +269,7 @@ export default function EditorHeaderActions({
                                                         className="flex min-w-0 flex-1 items-center gap-2 text-left"
                                                     >
                                                         <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
-                                                        <span className="truncate font-medium">{`Frame ${index + 1}`}</span>
+                                                        <span className="truncate font-medium">{t('header.frameNumber', { n: index + 1 })}</span>
                                                         <span className="truncate text-muted-foreground">{preset?.label || frame.preset}</span>
                                                     </button>
                                                     <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -278,7 +278,7 @@ export default function EditorHeaderActions({
                                                             checked={frame.includeInBatchExport}
                                                             onChange={(event) => handleToggleMediaOverlayFrameInclude(frame.id, event.target.checked)}
                                                         />
-                                                        Batch
+                                                        {t('header.batch')}
                                                     </label>
                                                 </div>
                                             );
@@ -311,12 +311,12 @@ export default function EditorHeaderActions({
                                         disabled={!mediaOverlayEnabled || !activeFrame}
                                         className="w-full rounded-md border border-border/70 px-2 py-1.5 text-[11px] font-medium hover:bg-secondary/50 disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
-                                        Convert Active Frame to Variant
+                                        {t('header.convertFrameToVariant')}
                                     </button>
                                 </div>
                             )}
                             <div className="text-[10px] text-muted-foreground">
-                                Active frame exports to PNG/JPG/SVG/PDF. Batch exports create PNG ZIP files using the selected naming template, and variant conversion supports Fill, Fit, and Safe Area adaptation.
+                                {t('header.frameExportHint')}
                             </div>
                         </div>
                         <button onClick={() => handleExport('png')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ImageIcon size={16} className="text-blue-500" /> <span className="font-medium">PNG</span></button>

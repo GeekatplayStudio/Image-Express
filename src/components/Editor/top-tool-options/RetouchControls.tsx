@@ -188,7 +188,7 @@ export default function RetouchControls({
                 </label>
 
                 <span className="shrink-0 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/20 text-[11px] text-muted-foreground">
-                    {cloneOptions.hasSource ? 'Source: Set' : 'Source: Option-click to set'}
+                    {cloneOptions.hasSource ? t('retouch.sourceSet') : t('retouch.sourceUnset')}
                 </span>
 
                 <button
@@ -317,7 +317,7 @@ export default function RetouchControls({
                 </label>
 
                 <label className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border/60 bg-secondary/30 text-xs">
-                    <span className="text-muted-foreground">{activeTool === 'sponge' ? 'Strength' : 'Exposure'}</span>
+                    <span className="text-muted-foreground">{activeTool === 'sponge' ? t('retouch.strength') : t('retouch.exposure')}</span>
                     <input
                         aria-label={t('retouch.dodgeExposureAria')}
                         type="range"

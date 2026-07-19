@@ -62,7 +62,7 @@ export default function ComfyManagerPanel({ installer, library, comfyInstallPath
 
                 {installerStatusState === 'error' && (
                     <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">
-                        {installerStatusMessage || 'Failed to load installer runtime status.'}
+                        {installerStatusMessage || t('comfyMgr.statusLoadFailed')}
                     </div>
                 )}
 
@@ -75,13 +75,13 @@ export default function ComfyManagerPanel({ installer, library, comfyInstallPath
                                     className={`text-sm font-semibold ${installerStatus.summary.ready ? 'text-emerald-600' : 'text-amber-600'}`}
                                     data-testid="settings-installer-ready"
                                 >
-                                    {installerStatus.summary.ready ? 'Ready' : `${installerStatus.summary.missing.length} missing`}
+                                    {installerStatus.summary.ready ? t('comfyMgr.ready') : t('comfyMgr.missingCount', { count: installerStatus.summary.missing.length })}
                                 </div>
                             </div>
                             <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
                                 <div className="text-[10px] uppercase text-muted-foreground">{t('comfyMgr.installerTarget')}</div>
                                 <div className="text-sm font-semibold">
-                                    {installerStatus.comfyDirectory.gitRepo ? 'Detected' : 'Missing'}
+                                    {installerStatus.comfyDirectory.gitRepo ? t('comfyMgr.detected') : t('comfyMgr.missing')}
                                 </div>
                             </div>
                             <div className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
@@ -123,10 +123,10 @@ export default function ComfyManagerPanel({ installer, library, comfyInstallPath
                                 {installerStatus.comfyModels.map((model) => (
                                     <div key={model.id} className="rounded border border-border/50 bg-background px-2 py-1 text-[10px]">
                                         <div className="font-semibold text-foreground">
-                                            {model.displayName} {model.exists ? '(installed)' : '(missing)'}
+                                            {model.displayName} {model.exists ? t('comfyMgr.installedSuffix') : t('comfyMgr.missingSuffix')}
                                         </div>
                                         <div className="text-muted-foreground">
-                                            {(model.category || 'Model')} · {model.recommendedFor && model.recommendedFor.length > 0 ? model.recommendedFor.join(', ') : 'General local workflow support'}
+                                            {(model.category || t('comfyMgr.model'))} · {model.recommendedFor && model.recommendedFor.length > 0 ? model.recommendedFor.join(', ') : t('comfyMgr.generalSupport')}
                                         </div>
                                     </div>
                                 ))}
@@ -197,7 +197,7 @@ export default function ComfyManagerPanel({ installer, library, comfyInstallPath
                                     {installerRunResult.steps.map((stepResult) => (
                                         <div key={stepResult.id} className="rounded border border-border/50 bg-background px-2 py-1 text-[10px]">
                                             <div className="font-semibold">
-                                                {stepResult.label} ({stepResult.success ? 'ok' : `failed: ${stepResult.exitCode}`})
+                                                {stepResult.label} ({stepResult.success ? t('comfyMgr.stepOk') : t('comfyMgr.stepFailed', { code: stepResult.exitCode })})
                                             </div>
                                             {stepResult.stderr ? (
                                                 <div className="mt-0.5 text-destructive/90 whitespace-pre-wrap">{stepResult.stderr.slice(0, 500)}</div>

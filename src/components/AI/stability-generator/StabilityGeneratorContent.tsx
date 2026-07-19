@@ -253,7 +253,7 @@ export default function StabilityGeneratorContent({
                                         <span className="text-[10px] px-2 py-1 rounded bg-secondary text-foreground whitespace-nowrap">{providerLabel}</span>
                                         <Input value={prompt} onChange={(event) => onPromptChange(event.target.value)} placeholder={t('stab.quickFillPlaceholder')} className="h-8 text-xs" />
                                         <Button size="sm" className="h-8 px-3" onClick={onInpaint} disabled={isProcessing}>
-                                            {isProcessing ? <Loader2 className="animate-spin h-3.5 w-3.5" /> : 'Fill'}
+                                            {isProcessing ? <Loader2 className="animate-spin h-3.5 w-3.5" /> : t('stab.fill')}
                                         </Button>
                                     </div>
                                 </div>

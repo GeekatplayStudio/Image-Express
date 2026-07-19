@@ -163,6 +163,15 @@ const en: LocaleDictionary = {
 
     // Asset library
     'assets.title': 'Asset Library',
+    'assets.showOnlyInGroup': 'Show only assets in "{group}"',
+    'assets.selectAsset': 'Select asset {name}',
+    'assets.assetActionsFor': 'Asset actions for {name}',
+    'assets.inGroup': 'In group "{group}"',
+    'assets.actionsFor': 'Actions for {name}',
+    'assets.setPrivate': 'Set private',
+    'assets.setPublic': 'Set public',
+    'assets.addToGroup': 'Add to group "{group}"',
+
     'assets.uploading': 'Uploading...',
     'assets.noneFromGroup': 'No assets from "{group}" in this tab.',
     'assets.noneFound': 'No assets found. Upload one to get started.',
@@ -469,6 +478,7 @@ const en: LocaleDictionary = {
     'adv.eyedropper.sampleAria': 'Eyedropper sample',
     'adv.zoom.inAria': 'Zoom mode in',
     'adv.zoom.outAria': 'Zoom mode out',
+    'adv.zoom.in': 'In',
     'adv.zoom.out': 'Out',
     'adv.zoom.step': 'Step',
     'adv.zoom.stepAria': 'Zoom step',
@@ -1055,6 +1065,39 @@ const en: LocaleDictionary = {
     // Crop edges
     // Edge names. Shared beyond cropping (ComfyUI outpaint padding
     // reuses them) — keep them generic, not crop-specific.
+    'comfy.outpaintPaddingAria': 'Outpaint {side} padding',
+
+    'header.useColor': 'Use {color}',
+    'header.grid4x4': '4x4 Grid',
+    'header.addFrame': 'Add Frame',
+    'header.removeActive': 'Remove Active',
+    'header.frameNumber': 'Frame {n}',
+    'header.batch': 'Batch',
+    'header.convertFrameToVariant': 'Convert Active Frame to Variant',
+    'header.frameExportHint': 'Active frame exports to PNG/JPG/SVG/PDF. Batch exports create PNG ZIP files using the selected naming template, and variant conversion supports Fill, Fit, and Safe Area adaptation.',
+    'retouch.sourceSet': 'Source: Set',
+    'retouch.sourceUnset': 'Source: Option-click to set',
+    'retouch.strength': 'Strength',
+    'retouch.exposure': 'Exposure',
+    'comfy.comingSoonSuffix': ' (Coming soon)',
+    'comfy.found': 'Found',
+    'comfy.missing': 'Missing',
+    'comfy.ready': 'Ready',
+    'comfy.unreadable': 'Unreadable',
+    'comfy.missingNodes': 'nodes {list}',
+    'comfy.missingModels': 'models {list}',
+    'comfyMgr.statusLoadFailed': 'Failed to load installer runtime status.',
+    'comfyMgr.ready': 'Ready',
+    'comfyMgr.missingCount': '{count} missing',
+    'comfyMgr.detected': 'Detected',
+    'comfyMgr.missing': 'Missing',
+    'comfyMgr.installedSuffix': '(installed)',
+    'comfyMgr.missingSuffix': '(missing)',
+    'comfyMgr.model': 'Model',
+    'comfyMgr.generalSupport': 'General local workflow support',
+    'comfyMgr.stepOk': 'ok',
+    'comfyMgr.stepFailed': 'failed: {code}',
+
     'comfy.notConnected': 'Not connected',
     'comfy.checkingConnection': 'Checking connection...',
     'comfy.selectedLayers': 'Selected layers ({count})',
@@ -1290,6 +1333,7 @@ const en: LocaleDictionary = {
     'stab.strength0': '0% (No Change)',
     'stab.strength35': '35% (Balanced)',
     'stab.strength100': '100% (New Image)',
+    'stab.fill': 'Fill',
     'stab.reimagine': 'Reimagine {target}',
     'stab.selectImageToExtend': 'Select an image on the canvas first to extend.',
     'stab.selectedCanvasPreview': 'Selected canvas preview',
@@ -1419,6 +1463,8 @@ const en: LocaleDictionary = {
     'hdr.profileAlt': 'Profile',
 
     // 3D generator — credentials, modes and helper copy
+    'gen3d.splitLatestPlaceholder': 'Leave empty to split the latest result',
+
     'gen3d.imageTo3d': 'Image to 3D',
     'gen3d.title': 'AI 3D Generator',
     'gen3d.noteMeshy': 'Note: Meshy automatically isolates the subject. For best results, use images with clear contrast or transparent backgrounds.',

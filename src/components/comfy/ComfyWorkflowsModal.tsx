@@ -743,7 +743,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                                     const value = Math.max(0, Math.min(1024, Number(event.target.value) || 0));
                                                                     setOutpaintPadding((previous) => ({ ...previous, [side]: value }));
                                                                 }}
-                                                                aria-label={`Outpaint ${label.toLowerCase()} padding`}
+                                                                aria-label={t('comfy.outpaintPaddingAria', { side: label.toLowerCase() })}
                                                                 className="h-7 rounded border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary"
                                                             />
                                                         </label>

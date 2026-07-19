@@ -213,17 +213,24 @@ function scanFile(file) {
             }
         }
 
-        // 2. JSX attributes with a plain string value.
+        // 2. JSX attributes carrying display text — a plain string, or an
+        //    expression building one. title={`Public · ${owner}`} and
+        //    aria-label={busy ? 'Saving…' : 'Save'} are just as visible as a
+        //    literal, so the expression forms go through the same collector.
         if (ts.isJsxAttribute(node) && node.initializer) {
             const name = node.name.getText(sf);
             if (TRANSLATABLE_ATTRS.has(name)) {
                 const init = node.initializer;
-                let value = null;
-                if (ts.isStringLiteral(init)) value = init.text;
-                else if (ts.isJsxExpression(init) && init.expression
-                    && ts.isStringLiteral(init.expression)) value = init.expression.text;
-                if (value !== null && !isExempt(value) && !lineHasOptOut(node)) {
-                    findings.push({ file, line: lineOf(node), kind: `attr:${name}`, text: value });
+                if (ts.isStringLiteral(init)) {
+                    if (!isExempt(init.text) && !lineHasOptOut(node)) {
+                        findings.push({ file, line: lineOf(node), kind: `attr:${name}`, text: init.text });
+                    }
+                } else if (ts.isJsxExpression(init) && init.expression) {
+                    for (const { text, at } of renderedStrings(init.expression, sf)) {
+                        if (!isExempt(text) && !lineHasOptOut(at)) {
+                            findings.push({ file, line: lineOf(at), kind: `attr:${name}`, text });
+                        }
+                    }
                 }
             }
         }
