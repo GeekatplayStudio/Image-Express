@@ -1699,7 +1699,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             <div className="p-2.5 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg draggable-handle cursor-move">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                     <ImageIcon size={14} className="text-primary" />
-                    Asset Library
+                    {t('assets.title')}
                 </h3>
                 <div className="flex items-center gap-0.5">
                     <button
@@ -1759,7 +1759,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     aria-label={t('assets.importLibrary')}
                                 >
                                     <Upload size={13} className="text-muted-foreground" />
-                                    Import Library…
+                                    {t('assets.importMenuItem')}
                                 </button>
                                 <button
                                     onClick={() => {
@@ -1771,7 +1771,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     aria-label={t('assets.exportLibrary')}
                                 >
                                     <Download size={13} className="text-muted-foreground" />
-                                    Export Library
+                                    {t('assets.exportMenuItem')}
                                 </button>
                                 <div className="my-1 h-px bg-border/60" />
                                 <button
@@ -1785,7 +1785,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     title={t('assets.removeMissingTitle')}
                                 >
                                     <AlertTriangle size={13} className="text-amber-500" />
-                                    Clean Up Missing Assets
+                                    {t('assets.cleanUpMissing')}
                                 </button>
                             </div>
                         )}
@@ -1816,7 +1816,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 )}
                             >
                                 <User size={13} />
-                                Personal
+                                {t('assets.personal')}
                             </button>
                             <button
                                 onClick={() => setScopeTab('shared')}
@@ -1828,7 +1828,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 )}
                             >
                                 <Users size={13} />
-                                Shared
+                                {t('assets.shared')}
                             </button>
                         </div>
 
@@ -1862,17 +1862,17 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     onChange={(e) => setShowPublicAssets(e.target.checked)}
                                     className="rounded border-border text-primary focus:ring-primary/20"
                                 />
-                                Show public assets
+                                {t('assets.showPublic')}
                             </label>
                         )}
 
                         <span className="h-7 px-2 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
                             <HardDrive size={12} className="text-primary" />
-                            Storage: <span className="font-semibold text-foreground/90 capitalize">{storageSettings.mode}</span>
+                            {t('assets.storageLabel')} <span className="font-semibold text-foreground/90 capitalize">{storageSettings.mode}</span>
                         </span>
 
                         <span className="h-7 px-2 inline-flex items-center rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
-                            Signed in as <span className="font-semibold text-foreground/80 ml-1">{normalizedUser}</span>
+                            {t('assets.signedInAs')} <span className="font-semibold text-foreground/80 ml-1">{normalizedUser}</span>
                         </span>
                     </div>
                 </div>
@@ -1893,7 +1893,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         title={t('assets.downloadSelected')}
                     >
                         <Download size={12} />
-                        Download
+                        {t('common.download')}
                     </button>
                     {manageableSelectedAssets.length === 1 && (
                         <button
@@ -1906,7 +1906,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             title={t('assets.renameSelected')}
                         >
                             <Pen size={12} />
-                            Rename
+                            {t('common.rename')}
                         </button>
                     )}
                     {manageableSelectedAssets.length > 0 && (
@@ -1917,7 +1917,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 title={t('assets.groupSelected')}
                             >
                                 <FolderPlus size={12} />
-                                Group
+                                {t('assets.group')}
                             </button>
                             {selectedAssetsInView.some((asset) => groupNameForAsset(asset)) && (
                                 <button
@@ -1926,7 +1926,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     title={t('assets.ungroupSelected')}
                                 >
                                     <FolderMinus size={12} />
-                                    Ungroup
+                                    {t('assets.ungroup')}
                                 </button>
                             )}
                             <button
@@ -1935,7 +1935,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 title={t('assets.makeSelectedPublic')}
                             >
                                 <Globe size={12} />
-                                Public
+                                {t('assets.public')}
                             </button>
                             <button
                                 onClick={() => void handleBulkVisibility(false)}
@@ -1943,7 +1943,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 title={t('assets.makeSelectedPrivate')}
                             >
                                 <Lock size={12} />
-                                Private
+                                {t('assets.private')}
                             </button>
                             <button
                                 onClick={() => void handleBulkDelete()}
@@ -1951,7 +1951,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 title={t('assets.deleteSelected')}
                             >
                                 <Trash2 size={12} />
-                                Delete
+                                {t('common.delete')}
                             </button>
                         </>
                     )}
@@ -1961,7 +1961,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         title={t('assets.toggleSelectAll')}
                     >
                         <CheckSquare size={12} />
-                        All
+                        {t('assets.all')}
                     </button>
                     <button
                         onClick={clearAssetSelection}
@@ -2007,10 +2007,10 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         data-testid="asset-library-import-summary"
                     >
                         <div className="font-semibold text-foreground">
-                            Imported {lastImportSummary.importedCount} of {lastImportSummary.totalCount} asset(s) as {lastImportSummary.importedAsOwner}.
+                            {t('assets.importedSummary', { imported: lastImportSummary.importedCount, total: lastImportSummary.totalCount, owner: lastImportSummary.importedAsOwner })}
                         </div>
                         <div>
-                            Skipped duplicates: {lastImportSummary.skippedCount}. Failed: {lastImportSummary.failedCount}.
+                            {t('assets.skippedFailed', { skipped: lastImportSummary.skippedCount, failed: lastImportSummary.failedCount })}
                         </div>
                         {lastImportSummary.warnings.length > 0 && (
                             <div className="mt-1 text-amber-700">
@@ -2019,12 +2019,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         )}
                         {lastImportSummary.skippedNames.length > 0 && (
                             <div className="mt-1 truncate" title={lastImportSummary.skippedNames.join(', ')}>
-                                Duplicates: {lastImportSummary.skippedNames.join(', ')}
+                                {t('assets.duplicatesLabel', { names: lastImportSummary.skippedNames.join(', ') })}
                             </div>
                         )}
                         {lastImportSummary.failureMessages.length > 0 && (
                             <div className="mt-1 truncate text-destructive" title={lastImportSummary.failureMessages.join(' | ')}>
-                                Failures: {lastImportSummary.failureMessages.join(' | ')}
+                                {t('assets.failuresLabel', { messages: lastImportSummary.failureMessages.join(' | ') })}
                             </div>
                         )}
                     </div>
@@ -2038,23 +2038,23 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             onChange={(event) => setUploadToCloud(event.target.checked)}
                             className="rounded border-border text-primary focus:ring-primary/20"
                         />
-                        Also upload this file to {getAssetCloudProviderLabel(storageSettings.cloudProvider)}
+                        {t('assets.alsoUploadTo', { provider: getAssetCloudProviderLabel(storageSettings.cloudProvider) })}
                     </label>
                 )}
                 {storageSettings.mode === 'cloud' && (
                     <div className="h-7 px-2 text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md inline-flex items-center gap-1.5 shrink-0">
                         <Cloud size={12} className="text-primary" />
-                        Uploads go to {getAssetCloudProviderLabel(storageSettings.cloudProvider)} only.
+                        {t('assets.uploadsGoTo', { provider: getAssetCloudProviderLabel(storageSettings.cloudProvider) })}
                     </div>
                 )}
                 {storageSettings.mode !== 'local' && isImplementedAssetCloudProvider(storageSettings.cloudProvider) && !loadDriveConfig().enabled && (
                     <div className="h-7 px-2 text-[11px] text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-md inline-flex items-center shrink-0">
-                        {getAssetCloudProviderLabel(storageSettings.cloudProvider)} not connected.
+                        {t('assets.providerNotConnected', { provider: getAssetCloudProviderLabel(storageSettings.cloudProvider) })}
                     </div>
                 )}
                 {storageSettings.mode !== 'local' && !isImplementedAssetCloudProvider(storageSettings.cloudProvider) && (
                     <div className="h-7 px-2 text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-md inline-flex items-center shrink-0">
-                        {getAssetCloudProviderLabel(storageSettings.cloudProvider)} planned. Uploads stay local in this build.
+                        {t('assets.providerPlanned', { provider: getAssetCloudProviderLabel(storageSettings.cloudProvider) })}
                     </div>
                 )}
                 <input 
@@ -2097,7 +2097,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
                         )}
                     >
-                        All
+                        {t('assets.all')}
                     </button>
                     {groupNames.map((name) => (
                         <button
@@ -2375,7 +2375,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                             {loadingModelPreviewKey === assetKey ? (
                                                                 <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80">
                                                                     <Loader2 size={10} className="animate-spin" />
-                                                                    Loading preview
+                                                                    {t('assets.loadingPreview')}
                                                                 </span>
                                                             ) : (
                                                                 <span className="text-[10px] text-muted-foreground/80">{t('assets.hoverToPreview')}</span>
@@ -2405,7 +2405,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
                                             {(asset.type === 'videos' || asset.type === 'audio') && playingMediaKey === assetKey && (
                                                 <div className="absolute right-1.5 bottom-6 z-20 rounded-full bg-emerald-500/90 text-white text-[9px] font-semibold px-2 py-0.5 pointer-events-none">
-                                                    Now Playing
+                                                    {t('assets.nowPlaying')}
                                                 </div>
                                             )}
                                         </>
@@ -2460,7 +2460,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 >
                     {menuIsMulti && (
                         <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            {selectedAssetKeys.length} assets selected
+                            {t('assets.selectedCount', { count: selectedAssetKeys.length })}
                         </div>
                     )}
                     {!menuIsMulti && (
@@ -2474,7 +2474,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             title={t('assets.addToCanvas')}
                         >
                             <ImagePlus size={13} className="text-muted-foreground" />
-                            Add to Canvas
+                            {t('assets.addToCanvas')}
                         </button>
                     )}
                     <button
@@ -2491,7 +2491,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         title={t('assets.downloadAsset')}
                     >
                         <Download size={13} className="text-muted-foreground" />
-                        Download
+                        {t('common.download')}
                     </button>
                     {!menuIsMulti && menuManaged && (
                         <button
@@ -2505,7 +2505,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             title={t('assets.renameAsset')}
                         >
                             <Pen size={13} className="text-muted-foreground" />
-                            Rename
+                            {t('common.rename')}
                         </button>
                     )}
                     <button
@@ -2537,7 +2537,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             title={`Add to group "${name}"`}
                         >
                             <Folder size={13} className="text-muted-foreground" />
-                            <span className="truncate">Add to &quot;{name}&quot;</span>
+                            <span className="truncate">{t('assets.addToNamedGroup', { name })}</span>
                         </button>
                     ))}
                     <button
@@ -2550,7 +2550,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         title={t('assets.addToNewGroup')}
                     >
                         <FolderPlus size={13} className="text-muted-foreground" />
-                        New Group…
+                        {t('assets.newGroupMenuItem')}
                     </button>
                     {(menuGroup || (menuIsMulti && menuTargets.some((target) => groupNameForAsset(target)))) && (
                         <button
@@ -2563,7 +2563,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             title={t('assets.removeFromGroup')}
                         >
                             <FolderMinus size={13} className="text-muted-foreground" />
-                            Remove from Group
+                            {t('assets.removeFromGroupMenuItem')}
                         </button>
                     )}
                     {menuManaged && (
@@ -2583,7 +2583,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 title={t('assets.deleteAsset')}
                             >
                                 <Trash2 size={13} />
-                                Delete
+                                {t('common.delete')}
                             </button>
                         </>
                     )}

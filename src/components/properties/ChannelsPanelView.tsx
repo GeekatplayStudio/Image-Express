@@ -251,7 +251,7 @@ export function ChannelsPanelView({
                         className="h-9 rounded-md border border-border/60 bg-background text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40 transition-colors flex items-center justify-center gap-2"
                     >
                         <Eye size={13} />
-                        Isolate
+                        {t('channels.isolate')}
                     </button>
                     <button
                         type="button"
@@ -260,7 +260,7 @@ export function ChannelsPanelView({
                         className="h-9 rounded-md border border-border/60 bg-background text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40 transition-colors flex items-center justify-center gap-2"
                     >
                         <SlidersHorizontal size={13} />
-                        Invert
+                        {t('channels.invert')}
                     </button>
                     <button
                         type="button"
@@ -269,7 +269,7 @@ export function ChannelsPanelView({
                         className="h-9 rounded-md border border-border/60 bg-background text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40 transition-colors flex items-center justify-center gap-2"
                     >
                         <Layers2 size={13} />
-                        Mask
+                        {t('channels.mask')}
                     </button>
                 </div>
 
@@ -281,7 +281,7 @@ export function ChannelsPanelView({
                         className="w-full h-9 rounded-md border border-border/60 bg-background text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40 transition-colors flex items-center justify-center gap-2"
                     >
                         <RefreshCcw size={13} />
-                        Reset To Composite
+                        {t('channels.resetToComposite')}
                     </button>
                 )}
 

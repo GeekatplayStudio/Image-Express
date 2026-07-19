@@ -36,6 +36,7 @@ import type { MediaOverlayFrameConfig } from '@/components/Editor/useMediaOverla
 import type { GridType } from '@/components/GridOverlay';
 import type { UserProfileSettings } from '@/lib/profile-utils';
 import type { ColorPalette } from '@/types';
+import { useI18n } from '@/providers/I18nProvider';
 
 type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html';
 type SharePlatform = 'facebook' | 'instagram';
@@ -111,6 +112,7 @@ export default function EditorHeaderActions({
     setShowProfileModal,
     profileSettings,
 }: EditorHeaderActionsProps) {
+    const { t } = useI18n();
     const activeFrame = activeMediaOverlayFrameId
         ? mediaOverlayFrames.find((frame) => frame.id === activeMediaOverlayFrameId) ?? null
         : mediaOverlayFrames[0] ?? null;
@@ -151,29 +153,29 @@ export default function EditorHeaderActions({
                 <button
                     onClick={() => toggleEditorMenu('grid')}
                     className={`p-2 hover:bg-secondary rounded-full transition-colors ${gridType !== 'none' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                    title="Grid & Guides"
+                    title={t('hdr.gridGuides')}
                 >
                     <Grid3x3 size={20} />
                 </button>
                 {showGridMenu && (
                     <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                         <button onClick={() => { setGridType('none'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'none' ? 'bg-secondary/30' : ''}`}>
-                            <X size={16} className="text-muted-foreground" /> <span className="font-medium">None</span>
+                            <X size={16} className="text-muted-foreground" /> <span className="font-medium">{t('hdr.grid.none')}</span>
                         </button>
                         <button onClick={() => { setGridType('rule-of-thirds'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'rule-of-thirds' ? 'bg-secondary/30' : ''}`}>
-                            <Grid3x3 size={16} className="text-blue-500" /> <span className="font-medium">Rule of Thirds</span>
+                            <Grid3x3 size={16} className="text-blue-500" /> <span className="font-medium">{t('hdr.grid.thirds')}</span>
                         </button>
                         <button onClick={() => { setGridType('golden-ratio'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'golden-ratio' ? 'bg-secondary/30' : ''}`}>
-                            <LayoutGrid size={16} className="text-orange-500" /> <span className="font-medium">Golden Ratio</span>
+                            <LayoutGrid size={16} className="text-orange-500" /> <span className="font-medium">{t('hdr.grid.golden')}</span>
                         </button>
                         <button onClick={() => { setGridType('cross'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'cross' ? 'bg-secondary/30' : ''}`}>
-                            <CrosshairIcon size={16} className="text-red-500" /> <span className="font-medium">Center Cross</span>
+                            <CrosshairIcon size={16} className="text-red-500" /> <span className="font-medium">{t('hdr.grid.centerCross')}</span>
                         </button>
                         <button onClick={() => { setGridType('grid-4x4'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'grid-4x4' ? 'bg-secondary/30' : ''}`}>
                             <LayoutGrid size={16} className="text-green-500" /> <span className="font-medium">4x4 Grid</span>
                         </button>
                         <button onClick={() => { setGridType('canvas-border'); setShowGridMenu(false); }} className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3 ${gridType === 'canvas-border' ? 'bg-secondary/30' : ''}`}>
-                            <Square size={16} className="text-yellow-500" /> <span className="font-medium">Canvas Border</span>
+                            <Square size={16} className="text-yellow-500" /> <span className="font-medium">{t('hdr.grid.canvasBorder')}</span>
                         </button>
                     </div>
                 )}
@@ -183,7 +185,7 @@ export default function EditorHeaderActions({
                 <button
                     onClick={() => toggleEditorMenu('share')}
                     className="p-2 hover:bg-secondary rounded-full transition-colors text-muted-foreground hover:text-foreground"
-                    title="Share"
+                    title={t('hdr.share')}
                 >
                     <Share2 size={20} />
                 </button>
@@ -201,24 +203,24 @@ export default function EditorHeaderActions({
                     className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-full text-sm font-semibold shadow-lg shadow-primary/20 transition-all transform hover:scale-105 active:scale-95"
                 >
                     <Download size={16} />
-                    <span>Export</span>
+                    <span>{t('hdr.export')}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showExportMenu && (
                     <div className="absolute right-0 top-full mt-2 w-[320px] bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-[170]">
                         <div className="px-3 py-2 border-b border-border/50 space-y-2">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Media Overlay</span>
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('hdr.mediaOverlay')}</span>
                                 <Switch
                                     checked={mediaOverlayEnabled}
                                     onCheckedChange={setMediaOverlayEnabled}
-                                    aria-label="Enable media export overlay"
+                                    aria-label={t('hdr.enableOverlayAria')}
                                 />
                             </div>
                             <select
                                 value={mediaOverlayPreset}
                                 onChange={(event) => handleMediaOverlayPresetChange(event.target.value as MediaOverlayPreset)}
-                                aria-label="Media overlay preset"
+                                aria-label={t('hdr.overlayPresetAria')}
                                 className="w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs text-foreground"
                                 disabled={!mediaOverlayEnabled}
                             >
@@ -229,7 +231,7 @@ export default function EditorHeaderActions({
                             <select
                                 value={mediaOverlayNamingTemplate}
                                 onChange={(event) => setMediaOverlayNamingTemplate(event.target.value as MediaOverlayNamingTemplate)}
-                                aria-label="Frame naming template"
+                                aria-label={t('hdr.frameNamingAria')}
                                 className="w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs text-foreground"
                                 disabled={!mediaOverlayEnabled}
                             >
@@ -285,7 +287,7 @@ export default function EditorHeaderActions({
                                     <select
                                         value={activeFrame?.safeAreaPreset ?? 'none'}
                                         onChange={(event) => handleActiveMediaOverlayFrameSafeAreaPresetChange(event.target.value as MediaOverlaySafeAreaPreset)}
-                                        aria-label="Active frame safe area"
+                                        aria-label={t('hdr.safeAreaAria')}
                                         className="w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs text-foreground"
                                         disabled={!mediaOverlayEnabled || !activeFrame}
                                     >
@@ -296,7 +298,7 @@ export default function EditorHeaderActions({
                                     <select
                                         value={mediaOverlayVariantConversionMode}
                                         onChange={(event) => setMediaOverlayVariantConversionMode(event.target.value as MediaOverlayVariantConversionMode)}
-                                        aria-label="Variant conversion mode"
+                                        aria-label={t('hdr.variantModeAria')}
                                         className="w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs text-foreground"
                                         disabled={!mediaOverlayEnabled || !activeFrame}
                                     >
@@ -322,11 +324,11 @@ export default function EditorHeaderActions({
                         <button onClick={() => handleExport('svg')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-primary" /> <span className="font-medium">SVG</span></button>
                         <button onClick={() => handleExport('pdf')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileText size={16} className="text-red-500" /> <span className="font-medium">PDF</span></button>
                         <div className="my-1 border-t border-border/50" />
-                        <button onClick={() => { void exportMediaOverlayFramesZip('selected'); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-indigo-500" /> <span className="font-medium">ZIP Selected Frames</span></button>
-                        <button onClick={() => { void exportMediaOverlayFramesZip('all'); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-violet-500" /> <span className="font-medium">ZIP All Frames</span></button>
+                        <button onClick={() => { void exportMediaOverlayFramesZip('selected'); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-indigo-500" /> <span className="font-medium">{t('hdr.zipSelected')}</span></button>
+                        <button onClick={() => { void exportMediaOverlayFramesZip('all'); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-violet-500" /> <span className="font-medium">{t('hdr.zipAll')}</span></button>
                         <div className="my-1 border-t border-border/50" />
                         <button onClick={() => handleExport('json')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-green-500" /> <span className="font-medium">JSON</span></button>
-                        <button onClick={() => handleExport('html')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-sky-400" /> <span className="font-medium">HTML Bundle</span></button>
+                        <button onClick={() => handleExport('html')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-sky-400" /> <span className="font-medium">{t('hdr.htmlBundle')}</span></button>
                     </div>
                 )}
             </div>
@@ -334,12 +336,12 @@ export default function EditorHeaderActions({
             <button
                 onClick={() => setShowProfileModal(true)}
                 className="relative w-9 h-9 rounded-full ui-avatar-gradient ring-2 ring-background ml-2 overflow-hidden flex items-center justify-center"
-                title="User Profile"
+                title={t('hdr.userProfile')}
             >
                 {profileSettings?.image ? (
                     <NextImage
                         src={profileSettings.image}
-                        alt="Profile"
+                        alt={t('hdr.profileAlt')}
                         fill
                         sizes="36px"
                         className="object-cover"

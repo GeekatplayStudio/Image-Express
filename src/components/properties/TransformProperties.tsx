@@ -102,7 +102,7 @@ export function TransformProperties({
                     />
                 </div>
                 <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] text-muted-foreground">Rotation (°)</label>
+                    <label className="text-[10px] text-muted-foreground">{t('transform.rotation')}</label>
                     <div className="flex items-center gap-2">
                         <input
                             type="range"
@@ -145,7 +145,7 @@ export function TransformProperties({
                         ))}
                     </div>
                     <p className="text-[9px] text-muted-foreground">
-                        Flip between the front and backside presentation without adding extra perspective skew.
+                        {t('transform.frontBackHint')}
                     </p>
                 </div>
             </div>

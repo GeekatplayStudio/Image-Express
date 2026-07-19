@@ -53,13 +53,13 @@ const STORAGE_KEYS = {
 const ENV_DRIVE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ?? '';
 
 const STEPS = [
-    { id: 'welcome', title: 'Welcome', description: 'Understand what gets configured.' },
-    { id: 'storage', title: 'Asset Storage', description: 'Choose local, hybrid, or cloud mode.' },
-    { id: 'drive', title: 'Cloud Connection', description: 'Connect your selected provider or review planned-provider status.' },
-    { id: 'api', title: 'API Keys', description: 'Optional AI key setup.' },
-    { id: 'runtime', title: 'Runtime Check', description: 'Verify local AI dependencies are ready.' },
-    { id: 'support', title: 'Extras', description: 'Optional theme packs that support development.' },
-    { id: 'finish', title: 'Finish', description: 'Review and start creating.' },
+    { id: 'welcome', titleKey: 'wizard.step.welcome', descriptionKey: 'wizard.step.welcomeDesc' },
+    { id: 'storage', titleKey: 'wizard.step.storage', descriptionKey: 'wizard.step.storageDesc' },
+    { id: 'drive', titleKey: 'wizard.step.cloud', descriptionKey: 'wizard.step.cloudDesc' },
+    { id: 'api', titleKey: 'wizard.step.keys', descriptionKey: 'wizard.step.keysDesc' },
+    { id: 'runtime', titleKey: 'wizard.step.runtime', descriptionKey: 'wizard.step.runtimeDesc' },
+    { id: 'support', titleKey: 'wizard.step.extras', descriptionKey: 'wizard.step.extrasDesc' },
+    { id: 'finish', titleKey: 'wizard.step.finish', descriptionKey: 'wizard.step.finishDesc' },
 ] as const;
 
 type SetupWizardStepId = (typeof STEPS)[number]['id'];
@@ -397,9 +397,9 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
             <div data-testid="setup-wizard-modal-shell" className="flex flex-col flex-1 min-h-0">
                 <div className="shrink-0 px-6 py-3 border-b border-border/60 bg-secondary/20">
                     <p className="text-xs text-muted-foreground">
-                        Step {stepIndex + 1} of {STEPS.length}: <span className="font-semibold text-foreground">{step.title}</span>
+                        {t('wizard.stepLabel', { current: stepIndex + 1, total: STEPS.length })} <span className="font-semibold text-foreground">{t(step.titleKey)}</span>
                     </p>
-                    <p className="text-[11px] text-muted-foreground mt-1">{step.description}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">{t(step.descriptionKey)}</p>
                 </div>
 
                 <div className="shrink-0 px-6 py-4 border-b border-border/50">
@@ -413,7 +413,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     className={`h-1.5 rounded-full ${visitedStepIds.has(item.id) ? 'bg-primary' : 'bg-secondary/60'}`}
                                 />
                                 <p className={`text-[10px] ${index === stepIndex ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
-                                    {item.title}
+                                    {t(item.titleKey)}
                                 </p>
                             </div>
                         ))}
@@ -424,20 +424,20 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                     {step.id === 'welcome' && (
                         <div className="space-y-4">
                             <p className="text-sm text-foreground/90">
-                                This wizard helps you configure storage and API access in safe defaults.
+                                {t('wizard.intro')}
                             </p>
                             <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 space-y-2 text-xs text-muted-foreground">
-                                <p><span className="font-semibold text-foreground">What happens:</span> you choose where assets are stored, connect Google Drive if needed, and optionally add AI keys.</p>
-                                <p><span className="font-semibold text-foreground">What does not happen:</span> no keys are sent to Image Express servers. They stay in your browser and are used directly with providers.</p>
+                                <p><span className="font-semibold text-foreground">{t('wizard.whatHappens')}</span> {t('wizard.whatHappensBody')}</p>
+                                <p><span className="font-semibold text-foreground">{t('wizard.whatNot')}</span> {t('wizard.whatNotBody')}</p>
                             </div>
                         </div>
                     )}
 
                     {step.id === 'storage' && (
                         <div className="space-y-4">
-                            <p className="text-sm text-foreground/90">Choose your default asset storage strategy.</p>
+                            <p className="text-sm text-foreground/90">{t('wizard.storageIntro')}</p>
                             <div className="space-y-2">
-                                <label className="text-xs font-semibold block">Cloud Provider</label>
+                                <label className="text-xs font-semibold block">{t('wizard.cloudProvider')}</label>
                                 <select
                                     value={cloudProvider}
                                     onChange={(event) => setCloudProvider(event.target.value as AssetCloudProvider)}
@@ -460,8 +460,8 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         storageMode === 'local' ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary/30'
                                     }`}
                                 >
-                                    <p className="text-sm font-semibold flex items-center gap-2"><HardDrive size={14} /> Local only</p>
-                                    <p className="text-xs text-muted-foreground mt-1">Assets stay in this browser (IndexedDB).</p>
+                                    <p className="text-sm font-semibold flex items-center gap-2"><HardDrive size={14} /> {t('wizard.localOnly')}</p>
+                                    <p className="text-xs text-muted-foreground mt-1">{t('wizard.localOnlyDesc')}</p>
                                 </button>
                                 <button
                                     onClick={() => setStorageMode('hybrid')}
@@ -469,8 +469,8 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         storageMode === 'hybrid' ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary/30'
                                     }`}
                                 >
-                                    <p className="text-sm font-semibold flex items-center gap-2"><Cloud size={14} /> Hybrid (recommended)</p>
-                                    <p className="text-xs text-muted-foreground mt-1">Save locally by default with optional {selectedCloudProviderLabel} copy per upload when supported.</p>
+                                    <p className="text-sm font-semibold flex items-center gap-2"><Cloud size={14} /> {t('wizard.hybrid')}</p>
+                                    <p className="text-xs text-muted-foreground mt-1">{t('wizard.hybridDesc', { provider: selectedCloudProviderLabel })}</p>
                                 </button>
                                 <button
                                     onClick={() => setStorageMode('cloud')}
@@ -479,7 +479,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         storageMode === 'cloud' ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary/30'
                                     } ${!selectedCloudProviderIsImplemented ? 'opacity-60 cursor-not-allowed' : ''}`}
                                 >
-                                    <p className="text-sm font-semibold flex items-center gap-2"><Cloud size={14} /> Cloud only</p>
+                                    <p className="text-sm font-semibold flex items-center gap-2"><Cloud size={14} /> {t('wizard.cloudOnly')}</p>
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {selectedCloudProviderIsImplemented
                                             ? `All assets are uploaded to ${selectedCloudProviderLabel}.`
@@ -496,7 +496,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setHybridUploadToCloudByDefault(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Pre-check “upload to {selectedCloudProviderLabel}” on each asset upload
+                                        {t('wizard.preCheckUpload', { provider: selectedCloudProviderLabel })}
                                     </label>
                                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
                                         <input
@@ -505,13 +505,13 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setIncludeLegacyServerAssetsInHybrid(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Include legacy server assets in hybrid library view
+                                        {t('wizard.includeLegacy')}
                                     </label>
                                 </div>
                             )}
                             {!selectedCloudProviderIsImplemented && storageMode !== 'local' && (
                                 <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
-                                    {selectedCloudProviderLabel} is planned, so this setup will keep assets local for now.
+                                    {t('wizard.providerPlanned', { provider: selectedCloudProviderLabel })}
                                 </div>
                             )}
                         </div>
@@ -521,32 +521,32 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         <div className="space-y-4">
                             {isDriveStepOptional ? (
                                 <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 text-sm text-muted-foreground">
-                                    You selected local-only storage, so cloud connection is optional right now.
+                                    {t('wizard.localSelectedHint')}
                                 </div>
                             ) : !selectedCloudProviderIsImplemented ? (
                                 <div className="space-y-3">
                                     <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 text-sm text-muted-foreground">
-                                        {selectedCloudProviderLabel} is selected as your future cloud provider.
+                                        {t('wizard.providerSelected', { provider: selectedCloudProviderLabel })}
                                     </div>
                                     <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
-                                        This provider adapter is not implemented yet, so Image Express will continue using local storage until support lands.
+                                        {t('wizard.adapterNotImplemented')}
                                     </div>
                                 </div>
                             ) : (
                                 <>
                                     <p className="text-sm text-foreground/90">
-                                        Connect {selectedCloudProviderLabel} so assets can be stored in your personal cloud.
+                                        {t('wizard.connectProvider', { provider: selectedCloudProviderLabel })}
                                     </p>
                                     <div className="space-y-2">
-                                        <label className="text-xs font-semibold block">Google OAuth Client ID</label>
+                                        <label className="text-xs font-semibold block">{t('wizard.oauthClientId')}</label>
                                         <input
                                             value={driveClientId}
                                             onChange={(event) => setDriveClientId(event.target.value)}
-                                            placeholder="1234567890-abcdef.apps.googleusercontent.com"
+                                            placeholder={t('wizard.oauthPlaceholder')}
                                             className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                                         />
                                         <p className="text-[11px] text-muted-foreground">
-                                            Create this in Google Cloud Console, enable Drive API, and add your app origin.
+                                            {t('wizard.oauthHint')}
                                         </p>
                                     </div>
                                     <button
@@ -559,7 +559,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     </button>
                                     {driveConnected && (
                                         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
-                                            {selectedCloudProviderLabel} connected successfully.
+                                            {t('wizard.providerConnected', { provider: selectedCloudProviderLabel })}
                                         </div>
                                     )}
                                     {driveError && (
@@ -569,19 +569,19 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     )}
                                     {shouldNudgeDriveConnection && (
                                         <p className="text-xs text-amber-600">
-                                            Cloud/hybrid mode works best with Drive connected. You can still continue and connect later in Settings.
+                                            {t('wizard.driveRecommended')}
                                         </p>
                                     )}
                                     <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 text-[11px] text-muted-foreground space-y-2">
-                                        <p className="font-semibold text-foreground">Step-by-step in Google Cloud Console</p>
+                                        <p className="font-semibold text-foreground">{t('wizard.stepByStep')}</p>
                                         <ol className="list-decimal list-inside space-y-1">
-                                            <li>Create or select a Google Cloud project.</li>
-                                            <li>Enable the Google Drive API.</li>
-                                            <li>Set up OAuth Consent Screen (External) and add test users during development.</li>
-                                            <li>Create OAuth Client ID for Web App and add <span className="font-mono">{appOrigin}</span> as an authorized origin.</li>
-                                            <li>Paste the client ID here, then click Connect {selectedCloudProviderLabel}.</li>
+                                            <li>{t('wizard.gcp1')}</li>
+                                            <li>{t('wizard.gcp2')}</li>
+                                            <li>{t('wizard.gcp3')}</li>
+                                            <li>{t('wizard.gcp4', { origin: appOrigin })}</li>
+                                            <li>{t('wizard.gcp5', { provider: selectedCloudProviderLabel })}</li>
                                         </ol>
-                                        <p>Image Express requests <span className="font-mono">drive.file</span> scope and stores files in your Drive space.</p>
+                                        <p>{t('wizard.driveScope', { scope: 'drive.file' })}</p>
                                     </div>
                                 </>
                             )}
@@ -590,30 +590,30 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
 
                     {step.id === 'api' && (
                         <div className="space-y-4">
-                            <p className="text-sm text-foreground/90">Optional: add AI provider keys now (you can edit later in Settings).</p>
+                            <p className="text-sm text-foreground/90">{t('wizard.keysIntro')}</p>
                             <div className="grid gap-3">
                                 <div className="space-y-1">
-                                    <label className="text-xs text-muted-foreground">Stability API Key</label>
+                                    <label className="text-xs text-muted-foreground">{t('wizard.stabilityKey')}</label>
                                     <input value={stabilityKey} onChange={(e) => setStabilityKey(e.target.value)} className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs font-mono" placeholder="sk-..." />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs text-muted-foreground">OpenAI API Key</label>
+                                    <label className="text-xs text-muted-foreground">{t('wizard.openaiKey')}</label>
                                     <input value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs font-mono" placeholder="sk-..." />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs text-muted-foreground">Google Gemini API Key</label>
+                                    <label className="text-xs text-muted-foreground">{t('wizard.geminiKey')}</label>
                                     <input value={googleKey} onChange={(e) => setGoogleKey(e.target.value)} className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs font-mono" placeholder="AIza..." />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs text-muted-foreground">Banana API Key</label>
+                                    <label className="text-xs text-muted-foreground">{t('wizard.bananaKey')}</label>
                                     <input value={bananaKey} onChange={(e) => setBananaKey(e.target.value)} className="w-full h-9 px-3 rounded-md bg-background border border-border text-xs font-mono" placeholder="..." />
                                 </div>
                             </div>
 
                             <div className="rounded-lg border border-border/70 bg-secondary/15 p-3 space-y-3">
-                                <p className="text-xs font-semibold text-foreground">Generative Defaults</p>
+                                <p className="text-xs font-semibold text-foreground">{t('wizard.generativeDefaults')}</p>
                                 <div className="grid gap-2">
-                                    <label className="text-xs text-muted-foreground">Default Provider</label>
+                                    <label className="text-xs text-muted-foreground">{t('wizard.defaultProvider')}</label>
                                     <select
                                         value={defaultGenerativeProvider}
                                         onChange={(event) => setDefaultGenerativeProvider(event.target.value as GenerativeProviderId)}
@@ -627,7 +627,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     </select>
                                 </div>
                                 <div className="grid gap-2">
-                                    <label className="text-xs text-muted-foreground">Startup Workspace</label>
+                                    <label className="text-xs text-muted-foreground">{t('wizard.startupWorkspace')}</label>
                                     <select
                                         value={defaultGenerativeWorkflow}
                                         onChange={(event) => setDefaultGenerativeWorkflow(event.target.value as GenerativeWorkflowId)}
@@ -641,7 +641,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     </select>
                                 </div>
                                 <div className="grid gap-2">
-                                    <label className="text-xs text-muted-foreground">Local ComfyUI URL</label>
+                                    <label className="text-xs text-muted-foreground">{t('wizard.localComfyUrl')}</label>
                                     <input
                                         value={comfyServerUrl}
                                         onChange={(event) => setComfyServerUrl(event.target.value)}
@@ -650,7 +650,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     />
                                 </div>
                                 <div className="grid gap-2">
-                                    <label className="text-xs text-muted-foreground">Comfy Tunnel URL</label>
+                                    <label className="text-xs text-muted-foreground">{t('wizard.comfyTunnelUrl')}</label>
                                     <input
                                         value={comfyTunnelUrl}
                                         onChange={(event) => setComfyTunnelUrl(event.target.value)}
@@ -665,7 +665,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         onChange={(event) => setAutoStartInpaintMasking(event.target.checked)}
                                         className="rounded border-border text-primary focus:ring-primary/20"
                                     />
-                                    Auto-start Generative Fill masking
+                                    {t('wizard.autoStartFill')}
                                 </label>
                                 <label className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <input
@@ -674,10 +674,10 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         onChange={(event) => setShowInpaintPromptDock(event.target.checked)}
                                         className="rounded border-border text-primary focus:ring-primary/20"
                                     />
-                                    Show quick fill prompt dock
+                                    {t('wizard.showFillDock')}
                                 </label>
                                 <p className="text-[11px] text-muted-foreground">
-                                    Provider runtime status: {isGenerativeProviderReady(defaultGenerativeProvider) ? 'ready' : 'coming soon'}
+                                    {t('wizard.providerRuntimeStatus')} {isGenerativeProviderReady(defaultGenerativeProvider) ? t('wizard.ready') : t('wizard.comingSoon')}
                                 </p>
                             </div>
 
@@ -688,7 +688,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     onChange={(event) => setSuppressNumberDragHints(event.target.checked)}
                                     className="rounded border-border text-primary focus:ring-primary/20"
                                 />
-                                Don’t remind me about number-drag tips
+                                {t('wizard.noDragTips')}
                             </label>
                         </div>
                     )}
@@ -696,7 +696,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                     {step.id === 'runtime' && (
                         <div className="space-y-4">
                             <p className="text-sm text-foreground/90">
-                                Check whether local ComfyUI, bundled workflows/nodes, models, and Ollama are ready.
+                                {t('wizard.runtimeIntro')}
                             </p>
                             <div className="flex flex-wrap items-center gap-2">
                                 <button
@@ -709,7 +709,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     ) : (
                                         <RefreshCcw size={13} />
                                     )}
-                                    Refresh Runtime Status
+                                    {t('wizard.refreshRuntime')}
                                 </button>
                                 {installerStatus && (
                                     <span
@@ -732,7 +732,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                             )}
 
                             <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 space-y-3 text-xs">
-                                <p className="font-semibold text-foreground">Super Installer Actions</p>
+                                <p className="font-semibold text-foreground">{t('wizard.superInstallerActions')}</p>
                                 <div className="grid grid-cols-2 gap-2">
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -741,7 +741,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setRunInstallerDryRun(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Dry run (preview only)
+                                        {t('wizard.dryRun')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -750,7 +750,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setRunInstallerComfy(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Install/update ComfyUI
+                                        {t('wizard.installComfy')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -759,7 +759,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setRunInstallerBundles(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Install/update bundled nodes/workflows
+                                        {t('wizard.installNodes')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -768,7 +768,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setRunInstallerComfyModels(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Download selected Comfy models
+                                        {t('wizard.downloadComfyModels')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -777,7 +777,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setRunInstallerOllamaModels(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Download selected Ollama models
+                                        {t('wizard.downloadOllamaModels')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -786,7 +786,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setRunInstallerQa(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Run post-install QA checks
+                                        {t('wizard.runQa')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -796,7 +796,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             disabled={!runInstallerQa}
                                             className="rounded border-border text-primary focus:ring-primary/20 disabled:opacity-50"
                                         />
-                                        Enable QA auto-fix
+                                        {t('wizard.qaAutoFix')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -806,7 +806,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             disabled={!runInstallerQa}
                                             className="rounded border-border text-primary focus:ring-primary/20 disabled:opacity-50"
                                         />
-                                        Skip QA tests
+                                        {t('wizard.skipQa')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -815,7 +815,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setRunInstallerForce(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Force model re-download
+                                        {t('wizard.forceRedownload')}
                                     </label>
                                     <label className="flex items-center gap-2 text-muted-foreground">
                                         <input
@@ -824,13 +824,13 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             onChange={(event) => setRunInstallerContinueOnError(event.target.checked)}
                                             className="rounded border-border text-primary focus:ring-primary/20"
                                         />
-                                        Continue on step errors
+                                        {t('wizard.continueOnError')}
                                     </label>
                                 </div>
 
                                 {runInstallerComfyModels && installerStatus && installerStatus.comfyModels.length > 0 && (
                                     <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 space-y-1">
-                                        <p className="text-[11px] font-semibold text-foreground">Comfy model selection</p>
+                                        <p className="text-[11px] font-semibold text-foreground">{t('wizard.comfyModelSelection')}</p>
                                         {installerStatus.comfyModels.map((model) => (
                                             <label key={model.id} className="flex items-center gap-2 text-[11px] text-muted-foreground">
                                                 <input
@@ -847,7 +847,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
 
                                 {runInstallerOllamaModels && installerStatus && installerStatus.ollama.configuredModels.length > 0 && (
                                     <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 space-y-1">
-                                        <p className="text-[11px] font-semibold text-foreground">Ollama model selection</p>
+                                        <p className="text-[11px] font-semibold text-foreground">{t('wizard.ollamaModelSelection')}</p>
                                         {installerStatus.ollama.configuredModels.map((model) => (
                                             <label key={model.id} className="flex items-center gap-2 text-[11px] text-muted-foreground">
                                                 <input
@@ -869,7 +869,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {installerRunState === 'running' ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                                        Run Selected Installer Actions
+                                        {t('wizard.runInstaller')}
                                     </button>
                                     {installerRunMessage && (
                                         <span
@@ -886,7 +886,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                 {installerRunResult && (
                                     <div className="rounded-md border border-border/60 bg-background/70 p-2 space-y-2">
                                         <p className="text-[11px] text-muted-foreground">
-                                            Steps completed: {installerRunResult.summary.completedSteps} | Failed: {installerRunResult.summary.failedSteps}
+                                            {t('wizard.stepsSummary', { completed: installerRunResult.summary.completedSteps, failed: installerRunResult.summary.failedSteps })}
                                         </p>
                                         <div className="max-h-56 overflow-y-auto space-y-2">
                                             {installerRunResult.steps.map((stepResult) => (
@@ -914,38 +914,38 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                             {installerStatus && (
                                 <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 space-y-3 text-xs">
                                     <p>
-                                        <span className="font-semibold">Comfy directory:</span> <span className="font-mono">{installerStatus.comfyDirectory.path}</span>
+                                        <span className="font-semibold">{t('wizard.comfyDirectory')}</span> <span className="font-mono">{installerStatus.comfyDirectory.path}</span>
                                     </p>
                                     <p>
-                                        <span className="font-semibold">Comfy git checkout:</span> {installerStatus.comfyDirectory.gitRepo ? 'Detected' : 'Missing'}
+                                        <span className="font-semibold">{t('wizard.comfyCheckout')}</span> {installerStatus.comfyDirectory.gitRepo ? 'Detected' : 'Missing'}
                                     </p>
                                     <p>
-                                        <span className="font-semibold">Custom bundles installed:</span>{' '}
+                                        <span className="font-semibold">{t('wizard.customBundles')}</span>{' '}
                                         {installerStatus.customBundles.filter((bundle) => bundle.exists).length}/{installerStatus.customBundles.length}
                                     </p>
                                     <p>
-                                        <span className="font-semibold">Comfy models installed:</span>{' '}
+                                        <span className="font-semibold">{t('wizard.comfyModelsInstalled')}</span>{' '}
                                         {installerStatus.comfyModels.filter((model) => model.exists).length}/{installerStatus.comfyModels.length}
                                     </p>
                                     <p>
-                                        <span className="font-semibold">Ollama CLI:</span> {installerStatus.ollama.cliAvailable ? 'Available' : 'Not found'}
+                                        <span className="font-semibold">{t('wizard.ollamaCli')}</span> {installerStatus.ollama.cliAvailable ? 'Available' : 'Not found'}
                                     </p>
 
                                     {installerStatus.summary.missing.length > 0 ? (
                                         <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 space-y-1">
-                                            <p className="font-semibold">Missing items</p>
+                                            <p className="font-semibold">{t('wizard.missingItems')}</p>
                                             {installerStatus.summary.missing.map((item) => (
                                                 <p key={item}>- {item}</p>
                                             ))}
                                         </div>
                                     ) : (
                                         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-700">
-                                            All tracked local runtime dependencies are ready.
+                                            {t('wizard.allReady')}
                                         </div>
                                     )}
 
                                     <div className="rounded-md border border-border/60 bg-background/70 px-3 py-2 text-[11px] text-muted-foreground space-y-1">
-                                        <p className="font-semibold text-foreground">Recommended next commands</p>
+                                        <p className="font-semibold text-foreground">{t('wizard.nextCommands')}</p>
                                         <p><code className="font-mono">npm run install:super -- --yes</code></p>
                                         <p><code className="font-mono">npm run qa:install -- --auto-fix</code></p>
                                     </div>
@@ -957,9 +957,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                     {step.id === 'support' && (
                         <div className="space-y-4">
                             <p className="text-sm text-foreground/90">
-                                Image Express is free. If you enjoy it, optional theme packs are a fun way to support development —
-                                including <span className="font-semibold text-foreground">animated super packs</span> where tiny pixel characters
-                                (dragons, aliens, border collies…) wander across your screen while you work.
+                                {t('wizard.supportIntro', { highlight: t('wizard.animatedSuperPacks') })}
                             </p>
                             <div className="grid gap-3 sm:grid-cols-3">
                                 {/* Miniature previews of the pack families — original inline artwork. */}
@@ -979,7 +977,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             <rect x="0" y="0" width="5" height="6" fill="#b2bec5" /><rect x="1" y="-2" width="2" height="2" fill="#e63c46" />
                                         </g>
                                     </svg>
-                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Pixel RPG — dragons &amp; knights</p>
+                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">{t('wizard.packRpg')}</p>
                                 </div>
                                 <div className="rounded-lg border border-border/70 overflow-hidden">
                                     <svg viewBox="0 0 160 90" className="w-full block" aria-hidden="true">
@@ -1000,7 +998,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             <rect x="12" y="4" width="2" height="2" fill="#ff4a4a" /><rect x="4" y="0" width="6" height="3" fill="#bcd0e8" />
                                         </g>
                                     </svg>
-                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Pixel Cosmos — aliens vs. space-flies</p>
+                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">{t('wizard.packCosmos')}</p>
                                 </div>
                                 <div className="rounded-lg border border-border/70 overflow-hidden">
                                     <svg viewBox="0 0 160 90" className="w-full block" aria-hidden="true">
@@ -1018,7 +1016,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             <rect x="2" y="11" width="2" height="4" fill="#26262c" /><rect x="9" y="11" width="2" height="4" fill="#26262c" />
                                         </g>
                                     </svg>
-                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Border Collie — sheep spell words</p>
+                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">{t('wizard.packCollie')}</p>
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -1028,11 +1026,10 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     rel="noopener noreferrer"
                                     className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
                                 >
-                                    ♥ Browse theme packs
+                                    {t('wizard.browsePacks')}
                                 </a>
                                 <p className="text-[11px] text-muted-foreground">
-                                    Completely optional — every purchase supports Vlad&apos;s work on Image Express.
-                                    Packs install in one click from Settings → Interface Themes.
+                                    {t('wizard.packsFooter')}
                                 </p>
                             </div>
                         </div>
@@ -1040,16 +1037,16 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
 
                     {step.id === 'finish' && (
                         <div className="space-y-4">
-                            <p className="text-sm text-foreground/90">Review your setup and finish onboarding.</p>
+                            <p className="text-sm text-foreground/90">{t('wizard.finishIntro')}</p>
                             <div className="rounded-lg border border-border/70 bg-secondary/15 p-4 space-y-2 text-xs">
-                                <p><span className="font-semibold">Storage mode:</span> {storageMode}</p>
-                                <p><span className="font-semibold">Cloud provider:</span> {selectedCloudProviderLabel}</p>
-                                <p><span className="font-semibold">Cloud connection:</span> {selectedCloudProviderIsImplemented ? (driveConnected ? 'Connected' : (storageMode === 'local' ? 'Not required (local mode)' : 'Not connected yet')) : 'Planned provider (not yet available)'}</p>
-                                <p><span className="font-semibold">AI keys set:</span> {[stabilityKey, openaiKey, googleKey, bananaKey].filter((value) => value.trim().length > 0).length}</p>
-                                <p><span className="font-semibold">Default Generative Provider:</span> {GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === defaultGenerativeProvider)?.label || defaultGenerativeProvider}</p>
-                                <p><span className="font-semibold">Default Generative Workflow:</span> {GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow)?.label || defaultGenerativeWorkflow}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.storageMode')}</span> {storageMode}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.cloudProvider')}</span> {selectedCloudProviderLabel}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.cloudConnection')}</span> {selectedCloudProviderIsImplemented ? (driveConnected ? 'Connected' : (storageMode === 'local' ? 'Not required (local mode)' : 'Not connected yet')) : 'Planned provider (not yet available)'}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.aiKeys')}</span> {[stabilityKey, openaiKey, googleKey, bananaKey].filter((value) => value.trim().length > 0).length}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.defaultProvider')}</span> {GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === defaultGenerativeProvider)?.label || defaultGenerativeProvider}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.defaultWorkflow')}</span> {GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow)?.label || defaultGenerativeWorkflow}</p>
                                 <p>
-                                    <span className="font-semibold">Runtime readiness:</span>{' '}
+                                    <span className="font-semibold">{t('wizard.summary.runtime')}</span>{' '}
                                     {installerStatus
                                         ? (installerStatus.summary.ready
                                             ? 'Ready'
@@ -1059,7 +1056,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                             </div>
                             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 flex items-center gap-2">
                                 <CheckCircle2 size={14} />
-                                You can reopen this wizard anytime from Settings.
+                                {t('wizard.reopenHint')}
                             </div>
                         </div>
                     )}
@@ -1072,7 +1069,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         className="h-9 px-4 rounded-md border border-border text-xs font-semibold hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
                     >
                         <ChevronLeft size={14} />
-                        Back
+                        {t('wizard.back')}
                     </button>
                     <SetupCollieMascot
                         stepId={step.id}
@@ -1085,11 +1082,11 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         {isLastStep ? (
                             <>
                                 <CheckCircle2 size={14} />
-                                Finish Setup
+                                {t('wizard.finishSetup')}
                             </>
                         ) : (
                             <>
-                                Next
+                                {t('wizard.next')}
                                 <ChevronRight size={14} />
                             </>
                         )}

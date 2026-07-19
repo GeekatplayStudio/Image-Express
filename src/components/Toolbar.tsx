@@ -2608,40 +2608,40 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     <div className="space-y-2">
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">{t('adjust.group.basic')}</div>
                         <button onClick={() => createAdjustmentLayer('brightness-contrast')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Brightness / Contrast
+                            {t('adjust.brightness-contrast')}
                         </button>
                         <button onClick={() => createAdjustmentLayer('hue-saturation')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Hue / Saturation
+                            {t('adjust.hue-saturation')}
                         </button>
                         <button onClick={() => createAdjustmentLayer('exposure')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Exposure
+                            {t('adjust.exposure')}
                         </button>
                         <button onClick={() => createAdjustmentLayer('saturation-vibrance')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Saturation / Vibrance
+                            {t('adjust.saturation-vibrance')}
                         </button>
                     </div>
                     <div className="space-y-2 pt-1 border-t border-border/50">
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">{t('adjust.group.tonal')}</div>
                         <button onClick={() => createAdjustmentLayer('levels')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Levels
+                            {t('adjust.levels')}
                         </button>
                         <button onClick={() => createAdjustmentLayer('curves')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Curves
+                            {t('adjust.curves')}
                         </button>
                         <button onClick={() => createAdjustmentLayer('black-white')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Black & White
+                            {t('adjust.black-white')}
                         </button>
                     </div>
                     <div className="space-y-2 pt-1 border-t border-border/50">
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">{t('adjust.group.color')}</div>
                         <button onClick={() => createAdjustmentLayer('color-balance')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Color Balance
+                            {t('adjust.color-balance')}
                         </button>
                         <button onClick={() => createAdjustmentLayer('light-and-color')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Light and Color
+                            {t('adjust.light-and-color')}
                         </button>
                         <button onClick={() => createAdjustmentLayer('solid-color')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
-                            Solid Color
+                            {t('adjust.solid-color')}
                         </button>
                     </div>
                 </div>,
@@ -2663,11 +2663,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     </div>
                     <button onClick={() => { setActiveTool('ai-zone'); setShowExtraMenu(false); }} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         <Wand2 size={16} />
-                        AI Zone
+                        {t('toolbar.aiZone')}
                     </button>
                     <button onClick={() => { setActiveTool('3d-gen'); setShowExtraMenu(false); }} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         <Box size={16} />
-                        AI 3D
+                        {t('toolbar.ai3d')}
                     </button>
                 </div>,
                 document.body

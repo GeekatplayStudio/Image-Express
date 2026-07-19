@@ -1329,7 +1329,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     {!hasSavedKey && selectedProvider === 'hitems' && (
                         <div className="space-y-2">
                              <div className="space-y-1">
-                                <label className="text-xs font-medium text-muted-foreground">App ID (ak_...)</label>
+                                <label className="text-xs font-medium text-muted-foreground">{t('gen3d.appId')}</label>
                                  <input 
                                     type="text" 
                                     value={hitemsAk}
@@ -1339,7 +1339,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                 />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs font-medium text-muted-foreground">App Secret (sk_...)</label>
+                                <label className="text-xs font-medium text-muted-foreground">{t('gen3d.appSecret')}</label>
                                  <input 
                                     type="password" 
                                     value={hitemsSk}
@@ -1353,7 +1353,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
 
                     {!hasSavedKey && selectedProvider !== 'hitems' && (
                         <div className="space-y-1">
-                            <label className="text-xs font-medium text-muted-foreground">{selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} API Key (Quick Input)</label>
+                            <label className="text-xs font-medium text-muted-foreground">{t('gen3d.apiKeyQuick', { provider: selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1) })}</label>
                              <input 
                                 type="password" 
                                 value={apiKey}
@@ -1406,7 +1406,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                             className="px-2 py-1 text-[10px] rounded border border-border bg-secondary/50 hover:bg-secondary"
                                             type="button"
                                         >
-                                            Open Settings
+                                            {t('gen3d.openSettings')}
                                         </button>
                                     )}
                                     <button
@@ -1419,9 +1419,9 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     </button>
                                 </div>
                             </div>
-                            <p className="text-[10px] text-muted-foreground">1) Save `hitems_api_key` (token or `ak:sk`) in Settings.</p>
-                            <p className="text-[10px] text-muted-foreground">2) If auth fails or responses look empty, set `hitems_appid` in Settings.</p>
-                            <p className="text-[10px] text-muted-foreground">3) For staged texturing (Task 2), provide a public mesh URL.</p>
+                            <p className="text-[10px] text-muted-foreground">{t('gen3d.setupStep1')}</p>
+                            <p className="text-[10px] text-muted-foreground">{t('gen3d.setupStep2')}</p>
+                            <p className="text-[10px] text-muted-foreground">{t('gen3d.setupStep3')}</p>
                             <div className="pt-1 space-y-1">
                                 <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.recoverJobId')}</label>
                                 <div className="flex items-center gap-1">
@@ -1437,7 +1437,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         className="px-2 py-1 text-[10px] rounded border border-border bg-secondary/50 hover:bg-secondary"
                                         type="button"
                                     >
-                                        Recover
+                                        {t('gen3d.recover')}
                                     </button>
                                 </div>
                             </div>
@@ -1502,7 +1502,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                             : 'bg-secondary/50 border-border hover:bg-secondary'
                                     }`}
                                 >
-                                    Single Image
+                                    {t('gen3d.singleImage')}
                                 </button>
                                 <button
                                     type="button"
@@ -1513,7 +1513,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                             : 'bg-secondary/50 border-border hover:bg-secondary'
                                     }`}
                                 >
-                                    Multi-view (Front/Back/Sides)
+                                    {t('gen3d.multiView')}
                                 </button>
                             </div>
                             <div className="grid grid-cols-2 gap-2 pt-1">
@@ -1568,12 +1568,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     ))}
                                 </select>
                                 {hitemsImageViewMode !== 'multi' && (
-                                    <p className="text-[10px] text-muted-foreground">Back artwork stays visible here and will be included automatically when you switch to Multi-view.</p>
+                                    <p className="text-[10px] text-muted-foreground">{t('gen3d.backArtworkHint')}</p>
                                 )}
                             </div>
                             {hitemsImageViewMode === 'multi' && (
                                 <div className="grid grid-cols-1 gap-1 pt-1">
-                                    <p className="text-[10px] text-muted-foreground">Assign document layers for Back / Left / Right views. At least one extra view is required.</p>
+                                    <p className="text-[10px] text-muted-foreground">{t('gen3d.assignViewsHint')}</p>
                                     <div className="grid grid-cols-2 gap-2 pb-1">
                                         <div className="space-y-1">
                                             <p className="text-[10px] text-muted-foreground">{t('gen3d.leftPreview')}</p>
@@ -1688,16 +1688,16 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             </div>
                         )}
                         <p className="text-[10px] text-muted-foreground">
-                            Tip: portrait models are best for faces, v2.1 models are the fastest with PBR support, and geometry-only mode is useful for relief/base-mesh workflows.
+                            {t('gen3d.modelTip')}
                         </p>
 
                         <details className="rounded-md border border-border/50 bg-secondary/20">
                             <summary className="cursor-pointer px-3 py-2 text-[10px] font-medium uppercase text-muted-foreground">
-                                Relief Depth Map (2D output)
+                                {t('gen3d.reliefDepthMap')}
                             </summary>
                             <div className="space-y-2 px-3 pb-3">
                                 <p className="text-[10px] text-muted-foreground">
-                                    Generates a high-quality 2K depth/relief image from the front layer using the Hi3D depth-map model. Costs less than full 3D generation.
+                                    {t('gen3d.reliefDepthHint')}
                                 </p>
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.outputFormat')}</label>
@@ -1723,11 +1723,11 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
 
                         <details className="rounded-md border border-border/50 bg-secondary/20">
                             <summary className="cursor-pointer px-3 py-2 text-[10px] font-medium uppercase text-muted-foreground">
-                                Model Split (decompose mesh)
+                                {t('gen3d.modelSplit')}
                             </summary>
                             <div className="space-y-2 px-3 pb-3">
                                 <p className="text-[10px] text-muted-foreground">
-                                    Splits an existing GLB/STL/OBJ mesh into parts — articulated character pieces with joints, or general component separation.
+                                    {t('gen3d.modelSplitHint')}
                                 </p>
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.meshUrl')}</label>
@@ -1759,12 +1759,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                 onChange={(e) => setHitemsSplitPart((['a', 'b', 'c', 'd', 'e', 'f'].includes(e.target.value) ? e.target.value : 'a') as typeof hitemsSplitPart)}
                                                 className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                             >
-                                                <option value="a">A — 6 parts</option>
-                                                <option value="b">B — 5 parts</option>
-                                                <option value="c">C — 4 parts (no head)</option>
-                                                <option value="d">D — 4 parts (with head)</option>
-                                                <option value="e">E — 3 parts</option>
-                                                <option value="f">F — 2 parts</option>
+                                                <option value="a">{t('gen3d.partsA')}</option>
+                                                <option value="b">{t('gen3d.partsB')}</option>
+                                                <option value="c">{t('gen3d.partsC')}</option>
+                                                <option value="d">{t('gen3d.partsD')}</option>
+                                                <option value="e">{t('gen3d.partsE')}</option>
+                                                <option value="f">{t('gen3d.partsF')}</option>
                                             </select>
                                         </div>
                                         <div className="space-y-1">
@@ -1821,7 +1821,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
 
                 {selectedProvider === 'hitems' && !initialImage && (
                     <div className="rounded-md border border-border/60 bg-secondary/40 p-2 text-[11px] text-muted-foreground">
-                        Hitem3D currently supports image-to-3D only. Select an image first, then reopen the 3D panel.
+                        {t('gen3d.imageOnlyPanelHint')}
                     </div>
                 )}
 
@@ -1899,7 +1899,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         title={t('gen3d.lightingSettings')}
                                     >
                                         <Sun size={12} />
-                                        Light
+                                        {t('gen3d.light')}
                                     </button>
                                     {showLightSettings && (
                                         <div className="bg-popover p-3 rounded-lg shadow-xl border border-border text-xs w-56 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 origin-top-right">
@@ -2029,7 +2029,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                 {(['x', 'y', 'z'] as const).map((axis) => (
                                                     <div className="space-y-1" key={axis}>
                                                         <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
-                                                            <span>Pos {axis.toUpperCase()}</span>
+                                                            <span>{t('gen3d.pos', { axis: axis.toUpperCase() })}</span>
                                                             <span>{lightPosition[axis].toFixed(1)}</span>
                                                         </div>
                                                         <input
@@ -2112,12 +2112,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                         </>
                         ) : (
                             <div className="h-full w-full flex items-center justify-center p-4 text-center text-xs text-muted-foreground">
-                                Model was generated in a format that cannot be previewed in-app. Save it to assets or switch Hitem format to GLB.
+                                {t('gen3d.unpreviewableFormat')}
                             </div>
                         )
                      ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                             Preview will appear here
+                             {t('gen3d.previewPlaceholder')}
                         </div>
                      )}
                      
@@ -2128,7 +2128,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     onClick={handleCapture}
                                     className="flex items-center gap-2 bg-foreground text-background px-4 py-2 rounded-full text-xs font-bold shadow-lg hover:scale-105 transition-transform"
                                 >
-                                    <Plus size={12} /> Add to Canvas
+                                    <Plus size={12} /> {t('assets.addToCanvas')}
                                 </button>
                             )}
                             <button

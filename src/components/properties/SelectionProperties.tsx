@@ -447,7 +447,7 @@ export function SelectionProperties({
 
                             {colorMode !== 'RGB' && (
                                 <div className="text-[10px] text-muted-foreground px-1">
-                                    {colorMode} mode UI is currently mapped through the same fill mutation pipeline; channel-specific numeric editors will be added next.
+                                    {t('channels.numericEditorsNote', { mode: colorMode })}
                                 </div>
                             )}
 
@@ -523,7 +523,7 @@ export function SelectionProperties({
                                             }}
                                             title={t('panel.resetToAngle')}
                                           >
-                                            Reset to Angle
+                                            {t('panel.resetToAngle')}
                                           </button>
                                      </div>
                                      <div className="grid grid-cols-2 gap-x-2 gap-y-3">

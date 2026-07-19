@@ -315,7 +315,7 @@ export function TextProperties({
                                     onClick={onDetachPath}
                                     className="w-full px-2 py-1 text-[10px] rounded border border-border hover:bg-secondary transition-colors"
                                 >
-                                    Detach Path
+                                    {t('text.detachPath')}
                                 </button>
                             )}
                         </div>
@@ -339,9 +339,9 @@ export function TextProperties({
                                 title={t('text.doubleClickReset')}
                             />
                             <div className="flex justify-between text-[9px] text-muted-foreground/50">
-                                <span>↓ Down</span>
+                                <span>{t('text.nudgeDown')}</span>
                                 <span>{t('text.flat')}</span>
-                                <span>Up ↑</span>
+                                <span>{t('text.nudgeUp')}</span>
                             </div>
                         </div>
 
@@ -362,9 +362,9 @@ export function TextProperties({
                                     title={t('text.doubleClickReset')}
                                 />
                                 <div className="flex justify-between text-[9px] text-muted-foreground/50">
-                                    <span>← Left</span>
+                                    <span>{t('text.nudgeLeft')}</span>
                                     <span>{t('text.center')}</span>
-                                    <span>Right →</span>
+                                    <span>{t('text.nudgeRight')}</span>
                                 </div>
 
                                 <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
@@ -401,19 +401,19 @@ export function TextProperties({
                                 onClick={() => onCurveChange(50, 0, 180)}
                                 className={`flex-1 px-2 py-1 text-[10px] rounded border transition-colors ${curveStrength === 50 ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-secondary'}`}
                             >
-                                Arc ↑
+                                {t('text.arcUp')}
                             </button>
                             <button 
                                 onClick={() => onCurveChange(-50, 0, 180)}
                                 className={`flex-1 px-2 py-1 text-[10px] rounded border transition-colors ${curveStrength === -50 ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-secondary'}`}
                             >
-                                Arc ↓
+                                {t('text.arcDown')}
                             </button>
                             <button 
                                 onClick={() => onCurveChange(100, 0, 359)}
                                 className={`flex-1 px-2 py-1 text-[10px] rounded border transition-colors ${(curveStrength === 100 && activeCurveSpan >= 350) ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-secondary'}`}
                             >
-                                Circle
+                                {t('text.circle')}
                             </button>
                         </div>
                     </div>

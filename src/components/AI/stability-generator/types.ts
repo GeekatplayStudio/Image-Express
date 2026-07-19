@@ -42,6 +42,8 @@ export interface StabilityRequestDependencies {
     canvas: fabric.Canvas | null;
     runSingleFlight: <T>(action: () => Promise<T>) => Promise<T | undefined>;
     toast: (payload: StabilityToast) => void;
+    /** Translator from useI18n(); passed in because this module is not a component. */
+    t: (key: string, vars?: Record<string, string | number>) => string;
     onJobCreated?: (job: BackgroundJob) => void;
     onClose: () => void;
     setIsProcessing: (value: boolean) => void;

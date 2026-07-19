@@ -293,7 +293,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
             <div className="p-5 border-b border-border/50 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                     <Wand2 size={16} className="text-primary" />
-                    Paint Properties
+                    {t('paint.title')}
                 </h3>
             </div>
 

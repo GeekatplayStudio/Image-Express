@@ -9,8 +9,15 @@
  *                other locale. Missing keys silently fall back to English,
  *                which reads as "the app is half translated".
  *   2. LITERALS - no user-visible string literals left hardcoded in JSX.
- *                Catches text nodes and the translatable attributes
- *                (title / placeholder / aria-label / alt / label).
+ *
+ * NOTE: the `--literals` mode here is regex-based and is RETIRED — it cannot
+ * see JSX structure and systematically under-reported (it missed text on its
+ * own line, object-literal labels, and `.ts` files). Use the AST scanner
+ * instead, which walks the TypeScript AST and catches all formatting variants:
+ *
+ *     node scripts/i18n-scan.mjs        (npm run audit:i18n:strings)
+ *
+ * `--literals` is kept only so older invocations do not break.
  *
  * Usage:
  *   node scripts/i18n-audit.mjs            # summary, exit 1 on any gap
@@ -85,6 +92,9 @@ const OBJECT_LITERAL_TEXT = /\b(label|shortLabel|title|description|placeholder|t
 // A JSX text node: between tags, starts with a letter, contains a space or is
 // a capitalised word. Excludes single symbols, numbers, and template holes.
 const TEXT_NODE = />\s*([A-Za-z][A-Za-z0-9 ,.'’!?&:%/()+-]{2,80}?)\s*</g;
+// Same idea, but where the text occupies its own line(s) between the tags.
+// Requires a newline on both sides so it cannot re-match the single-line case.
+const MULTILINE_TEXT_NODE = />\s*\n\s*([A-Za-z][A-Za-z0-9 ,.'’!?&:%/()+-]{2,80}?)\s*\n\s*</g;
 // Lines we should not flag: imports, keys already going through t(), console
 // output, and non-UI plumbing.
 // Skip imports, comments, console output, and type-level code — TypeScript
@@ -98,6 +108,10 @@ const NOT_TRANSLATABLE = new Set([
     'sRGB', 'Adobe RGB', 'CMYK (Print)', 'CMYK', 'RGB', 'HSB', 'Lab',
     'PNG', 'JPG', 'JPEG', 'WebP', 'SVG', 'GIF', 'PDF', 'TIFF',
     'px', 'ComfyUI', 'Stable Diffusion', 'OpenAI', 'Ollama',
+    // Brand names and data formats — never localised.
+    'Facebook', 'Instagram', 'YouTube', 'X', 'LinkedIn', 'TikTok', 'Pinterest',
+    'JSON', 'HTML', 'CSS', 'ZIP', 'GLB', 'OBJ', 'FBX', 'STL', 'PLY', 'EXR',
+    'Meshy', 'Tripo', 'Hitem3D', 'Google Drive', 'Dropbox',
 ]);
 
 // A literal is exempt if it is a pure technical token, a hex/number sample,
@@ -142,6 +156,23 @@ function checkLiterals() {
                 findings.push({ file, line: index + 1, hits });
             }
         });
+
+        // Multi-line JSX text nodes — the very common formatting where the
+        // text sits on its own line between tags:
+        //     >
+        //         Fit to Screen
+        //     </button>
+        // The per-line scan above cannot see these, since `>` and `<` are on
+        // different lines.
+        for (const m of source.matchAll(MULTILINE_TEXT_NODE)) {
+            const text = m[1].trim();
+            if (/^[a-z]+$/.test(text)) continue;
+            if (!/[A-Za-z]{2,}/.test(text)) continue;
+            const lineNo = source.slice(0, m.index).split('\n').length + 1;
+            const contextLine = lines[lineNo - 1] ?? '';
+            if (isExempt(text, contextLine)) continue;
+            findings.push({ file, line: lineNo, hits: [`text: ${text}`] });
+        }
     }
     return findings;
 }

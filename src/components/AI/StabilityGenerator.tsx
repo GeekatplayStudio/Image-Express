@@ -13,6 +13,7 @@ import {
     clearCanvasMask,
 } from './stability-generator/stabilityGeneratorCanvas';
 import { createStabilityRequestHandlers } from './stability-generator/stabilityGeneratorRequests';
+import { useI18n } from '@/providers/I18nProvider';
 import type { StabilityGeneratorProps, StabilityGeneratorTab } from './stability-generator/types';
 
 const INPAINT_MASK_BRUSH_COLOR = 'rgba(255, 84, 156, 0.38)';
@@ -76,6 +77,7 @@ export default function StabilityGenerator({
     providerLabel = 'Stability AI',
 }: StabilityGeneratorProps) {
     const { toast } = useToast();
+    const { t } = useI18n();
     useEscapeKey(onClose, { enabled: isOpen });
     const runSingleFlight = useSingleFlight();
     // --- UI State ---
@@ -307,6 +309,7 @@ export default function StabilityGenerator({
         handleOutpaint,
         handleInpaint,
     } = createStabilityRequestHandlers({
+        t,
         apiKey,
         prompt,
         aspectRatio,

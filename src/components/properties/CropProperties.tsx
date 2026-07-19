@@ -71,7 +71,7 @@ export function CropProperties({ edges, onChange, onReset, disabled }: CropPrope
                 disabled={disabled || !cropped}
                 className="w-full rounded-md border border-border/50 bg-secondary/20 px-2 py-1.5 text-[10px] text-muted-foreground transition-colors hover:bg-secondary/50 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-                Reset crop
+                {t('crop.reset')}
             </button>
         </div>
     );

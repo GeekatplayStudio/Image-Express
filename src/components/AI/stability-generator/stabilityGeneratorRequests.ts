@@ -14,6 +14,7 @@ export const createStabilityRequestHandlers = ({
     canvas,
     runSingleFlight,
     toast,
+    t,
     onJobCreated,
     onClose,
     setIsProcessing,
@@ -26,11 +27,11 @@ export const createStabilityRequestHandlers = ({
     const handleGenerate = async () => {
         await runSingleFlight(async () => {
             if (!apiKey) {
-                toast({ title: 'Missing API key', description: 'Please set Stability API Key in settings.', variant: 'warning' });
+                toast({ title: t('stab.missingApiKey'), description: t('stab.setKeyInSettings'), variant: 'warning' });
                 return;
             }
             if (!prompt.trim()) {
-                toast({ title: 'Missing Prompt', description: 'Please describe the image you want to generate.', variant: 'warning' });
+                toast({ title: t('stab.missingPrompt'), description: t('stab.describeImage'), variant: 'warning' });
                 return;
             }
 
@@ -55,10 +56,10 @@ export const createStabilityRequestHandlers = ({
                     return;
                 }
 
-                toast({ title: 'Generation failed', description: data.message || 'Error generating image.', variant: 'destructive' });
+                toast({ title: t('stab.generationFailed'), description: data.message || 'Error generating image.', variant: 'destructive' });
             } catch (error) {
                 console.error(error);
-                toast({ title: 'Generation failed', description: 'Something went wrong.', variant: 'destructive' });
+                toast({ title: t('stab.generationFailed'), description: t('stab.somethingWrong'), variant: 'destructive' });
             } finally {
                 setIsProcessing(false);
             }
@@ -68,11 +69,11 @@ export const createStabilityRequestHandlers = ({
     const handleRemoveBg = async () => {
         await runSingleFlight(async () => {
             if (!apiKey) {
-                toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+                toast({ title: t('stab.missingApiKey'), description: t('stab.setKey'), variant: 'warning' });
                 return;
             }
             if (!selectedCanvasImage) {
-                toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+                toast({ title: t('stab.noImageSelected'), description: t('stab.selectImageFirst'), variant: 'warning' });
                 return;
             }
 
@@ -95,10 +96,10 @@ export const createStabilityRequestHandlers = ({
                     return;
                 }
 
-                toast({ title: 'Remove BG failed', description: data.message || 'Error removing background.', variant: 'destructive' });
+                toast({ title: t('stab.removeBgFailed'), description: data.message || 'Error removing background.', variant: 'destructive' });
             } catch (error) {
                 console.error(error);
-                toast({ title: 'Remove BG failed', description: 'Something went wrong.', variant: 'destructive' });
+                toast({ title: t('stab.removeBgFailed'), description: t('stab.somethingWrong'), variant: 'destructive' });
             } finally {
                 setIsProcessing(false);
             }
@@ -108,11 +109,11 @@ export const createStabilityRequestHandlers = ({
     const handleUpscale = async (type: 'conservative' | 'creative') => {
         await runSingleFlight(async () => {
             if (!apiKey) {
-                toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+                toast({ title: t('stab.missingApiKey'), description: t('stab.setKey'), variant: 'warning' });
                 return;
             }
             if (!selectedCanvasImage) {
-                toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+                toast({ title: t('stab.noImageSelected'), description: t('stab.selectImageFirst'), variant: 'warning' });
                 return;
             }
 
@@ -132,7 +133,7 @@ export const createStabilityRequestHandlers = ({
 
                 const data = await res.json();
                 if (!data.success) {
-                    toast({ title: 'Upscale failed', description: data.message || 'Error starting upscale.', variant: 'destructive' });
+                    toast({ title: t('stab.upscaleFailed'), description: data.message || 'Error starting upscale.', variant: 'destructive' });
                     return;
                 }
 
@@ -153,7 +154,7 @@ export const createStabilityRequestHandlers = ({
                             prompt,
                         },
                     });
-                    toast({ title: 'Upscale started', description: 'Creative upscale running in background.', variant: 'success' });
+                    toast({ title: t('stab.upscaleStarted'), description: t('stab.upscaleRunning'), variant: 'success' });
                     onClose();
                     return;
                 }
@@ -161,7 +162,7 @@ export const createStabilityRequestHandlers = ({
                 handleSuccess(data.image);
             } catch (error) {
                 console.error(error);
-                toast({ title: 'Upscale failed', description: 'Something went wrong.', variant: 'destructive' });
+                toast({ title: t('stab.upscaleFailed'), description: t('stab.somethingWrong'), variant: 'destructive' });
             } finally {
                 setIsProcessing(false);
             }
@@ -171,14 +172,14 @@ export const createStabilityRequestHandlers = ({
     const handleImg2Img = async () => {
         await runSingleFlight(async () => {
             if (!apiKey) {
-                toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+                toast({ title: t('stab.missingApiKey'), description: t('stab.setKey'), variant: 'warning' });
                 return;
             }
 
             const sourceImage = captureSourceImage();
             if (!sourceImage) {
                 console.warn('[Stability] No source image captured', { sourceType, flattenSelection });
-                toast({ title: 'No image source', description: 'Select an image or use full canvas.', variant: 'warning' });
+                toast({ title: t('stab.noImageSource'), description: t('stab.selectImageOrCanvas'), variant: 'warning' });
                 return;
             }
 
@@ -204,10 +205,10 @@ export const createStabilityRequestHandlers = ({
                     return;
                 }
 
-                toast({ title: 'Img2Img failed', description: data.message || 'Error generating image.', variant: 'destructive' });
+                toast({ title: t('stab.img2imgFailed'), description: data.message || 'Error generating image.', variant: 'destructive' });
             } catch (error) {
                 console.error(error);
-                toast({ title: 'Img2Img failed', description: 'Something went wrong.', variant: 'destructive' });
+                toast({ title: t('stab.img2imgFailed'), description: t('stab.somethingWrong'), variant: 'destructive' });
             } finally {
                 setIsProcessing(false);
             }
@@ -217,18 +218,18 @@ export const createStabilityRequestHandlers = ({
     const handleOutpaint = async () => {
         await runSingleFlight(async () => {
             if (!apiKey) {
-                toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+                toast({ title: t('stab.missingApiKey'), description: t('stab.setKey'), variant: 'warning' });
                 return;
             }
 
             const sourceImage = captureSourceImage();
             if (!sourceImage) {
-                toast({ title: 'No image source', description: 'Select an image/area to outpaint from.', variant: 'warning' });
+                toast({ title: t('stab.noImageSource'), description: t('stab.selectAreaToOutpaint'), variant: 'warning' });
                 return;
             }
 
             if (!outpaintDirs.left && !outpaintDirs.right && !outpaintDirs.up && !outpaintDirs.down) {
-                toast({ title: 'No direction', description: 'Select at least one direction to expand.', variant: 'warning' });
+                toast({ title: t('stab.noDirection'), description: t('stab.selectDirection'), variant: 'warning' });
                 return;
             }
 
@@ -257,10 +258,10 @@ export const createStabilityRequestHandlers = ({
                     return;
                 }
 
-                toast({ title: 'Outpaint failed', description: data.message || 'Error outpainting.', variant: 'destructive' });
+                toast({ title: t('stab.outpaintFailed'), description: data.message || 'Error outpainting.', variant: 'destructive' });
             } catch (error) {
                 console.error(error);
-                toast({ title: 'Outpaint failed', description: 'Something went wrong.', variant: 'destructive' });
+                toast({ title: t('stab.outpaintFailed'), description: t('stab.somethingWrong'), variant: 'destructive' });
             } finally {
                 setIsProcessing(false);
             }
@@ -270,7 +271,7 @@ export const createStabilityRequestHandlers = ({
     const handleInpaint = async () => {
         await runSingleFlight(async () => {
             if (!apiKey) {
-                toast({ title: 'Missing API key', description: 'Please set Stability API Key.', variant: 'warning' });
+                toast({ title: t('stab.missingApiKey'), description: t('stab.setKey'), variant: 'warning' });
                 return;
             }
 
@@ -280,18 +281,18 @@ export const createStabilityRequestHandlers = ({
             if (sourceType === 'canvas' || isCanvasMasking || canvas?.getObjects().some((object) => object.get('isMask'))) {
                 const captured = await captureCanvasAndMask();
                 if (!captured) {
-                    toast({ title: 'Capture failed', description: 'Could not capture canvas.', variant: 'destructive' });
+                    toast({ title: t('stab.captureFailed'), description: t('stab.couldNotCapture'), variant: 'destructive' });
                     return;
                 }
                 imageBlob = captured.imageBlob;
                 maskBlob = captured.maskBlob;
             } else {
                 if (!selectedCanvasImage) {
-                    toast({ title: 'No image selected', description: 'Select an image on canvas first.', variant: 'warning' });
+                    toast({ title: t('stab.noImageSelected'), description: t('stab.selectImageFirst'), variant: 'warning' });
                     return;
                 }
                 if (!maskDataUrl) {
-                    toast({ title: 'No mask', description: 'Please draw a mask on the image.', variant: 'warning' });
+                    toast({ title: t('stab.noMask'), description: t('stab.drawMask'), variant: 'warning' });
                     return;
                 }
                 imageBlob = await fetch(selectedCanvasImage).then((response) => response.blob());
@@ -325,10 +326,10 @@ export const createStabilityRequestHandlers = ({
                     return;
                 }
 
-                toast({ title: 'Inpaint failed', description: data.message || 'Error running inpaint.', variant: 'destructive' });
+                toast({ title: t('stab.inpaintFailed'), description: data.message || 'Error running inpaint.', variant: 'destructive' });
             } catch (error) {
                 console.error(error);
-                toast({ title: 'Inpaint failed', description: 'Something went wrong.', variant: 'destructive' });
+                toast({ title: t('stab.inpaintFailed'), description: t('stab.somethingWrong'), variant: 'destructive' });
             } finally {
                 setIsProcessing(false);
             }

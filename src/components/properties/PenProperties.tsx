@@ -75,7 +75,7 @@ export function PenProperties({ canvas }: PenPropertiesProps) {
             <div className="p-4 border-b">
                 <h2 className="font-semibold mb-1">{t('pen.title')}</h2>
                 <p className="text-xs text-muted-foreground">
-                    Click to add points. Drag to curve.
+                    {t('pen.addPointsHint')}
                 </p>
             </div>
             
@@ -102,19 +102,19 @@ export function PenProperties({ canvas }: PenPropertiesProps) {
                             onClick={() => firePenEvent('pen:config:set', { closure: 'open' })}
                             className={`text-[10px] px-2 py-1 rounded border transition-colors ${penDraftClosure === 'open' ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                         >
-                            Open
+                            {t('pen.open')}
                         </button>
                         <button
                             onClick={() => firePenEvent('pen:config:set', { closure: 'closed' })}
                             className={`text-[10px] px-2 py-1 rounded border transition-colors ${penDraftClosure === 'closed' ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                         >
-                            Closed
+                            {t('pen.closed')}
                         </button>
                     </div>
                 </div>
 
                 <div className="text-xs text-muted-foreground">
-                    Points placed: <span className="font-semibold text-foreground">{penDraftPoints}</span>
+                    {t('pen.pointsPlaced')} <span className="font-semibold text-foreground">{penDraftPoints}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -122,13 +122,13 @@ export function PenProperties({ canvas }: PenPropertiesProps) {
                         onClick={() => firePenEvent('pen:finish-request')}
                         className="text-xs px-2 py-1.5 rounded border bg-tool-accent/10 border-tool-accent/30 text-tool-accent hover:bg-tool-accent/20 transition-colors"
                     >
-                        Finish Path
+                        {t('pen.finishPath')}
                     </button>
                     <button
                         onClick={() => firePenEvent('pen:clear-request')}
                         className="text-xs px-2 py-1.5 rounded border bg-secondary/20 border-border/50 text-muted-foreground hover:bg-secondary/50 transition-colors"
                     >
-                        Clear Draft
+                        {t('pen.clearDraft')}
                     </button>
                 </div>
             </div>

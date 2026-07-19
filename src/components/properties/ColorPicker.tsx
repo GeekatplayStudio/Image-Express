@@ -192,7 +192,7 @@ export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerPro
                                     activeTab === 'wheel' ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
                                 )}
                             >
-                                Wheel
+                                {t('picker.wheel')}
                             </button>
                             <button 
                                 onClick={() => setActiveTab('palette')}
@@ -201,7 +201,7 @@ export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerPro
                                     activeTab === 'palette' ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
                                 )}
                             >
-                                Palettes
+                                {t('picker.palettes')}
                             </button>
                         </div>
 
