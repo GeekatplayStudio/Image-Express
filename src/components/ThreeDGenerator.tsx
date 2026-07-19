@@ -1303,7 +1303,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             <div className="flex items-center justify-between p-4 border-b border-border/50 bg-secondary/20">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                      <Box size={16} className="text-primary" />
-                    {initialImage ? 'Image to 3D' : 'AI 3D Generator'}
+                    {initialImage ? t('gen3d.imageTo3d') : t('gen3d.title')}
                 </h3>
                 <button onClick={onClose} className="text-muted-foreground hover:text-foreground">X</button>
             </div>
@@ -1380,9 +1380,9 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                         </div>
                         
                         <p className="text-[10px] text-muted-foreground text-center">
-                            {selectedProvider === 'meshy' && 'Note: Meshy automatically isolates the subject. For best results, use images with clear contrast or transparent backgrounds.'}
-                            {selectedProvider === 'tripo' && 'Note: Tripo performs best with a centered subject and minimal background noise.'}
-                            {selectedProvider === 'hitems' && 'Note: Hitem3D (Hi3D) offers general and portrait models. v2.1 models are the fastest and support PBR; the Relief and Model Split tools below cover depth maps and mesh decomposition.'}
+                            {selectedProvider === 'meshy' && t('gen3d.noteMeshy')}
+                            {selectedProvider === 'tripo' && t('gen3d.noteTripo')}
+                            {selectedProvider === 'hitems' && t('gen3d.noteHitems')}
                         </p>
                     </div>
                 )}
@@ -1415,7 +1415,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         className="px-2 py-1 text-[10px] rounded border border-border bg-secondary/50 hover:bg-secondary disabled:opacity-50"
                                         type="button"
                                     >
-                                        {isValidatingHitems ? 'Validating...' : 'Validate Setup'}
+                                        {isValidatingHitems ? t('gen3d.validating') : t('gen3d.validateSetup')}
                                     </button>
                                 </div>
                             </div>
@@ -1461,7 +1461,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                 ))}
                             </div>
                             <p className="text-[10px] text-muted-foreground">
-                                {activeHitemsPreset?.description || 'Custom preset values.'}
+                                {activeHitemsPreset?.description || t('gen3d.customPresetValues')}
                             </p>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
@@ -1716,7 +1716,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     disabled={isSubmittingHitemsExtra || !frontImageUrl}
                                     className="w-full rounded-md border border-border bg-secondary/50 px-3 py-2 text-xs font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    {isSubmittingHitemsExtra ? 'Submitting...' : 'Generate Depth Relief'}
+                                    {isSubmittingHitemsExtra ? t('gen3d.submitting') : t('gen3d.generateDepthRelief')}
                                 </button>
                             </div>
                         </details>
@@ -1800,7 +1800,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     disabled={isSubmittingHitemsExtra || (!hitemsSplitMeshUrl.trim() && !modelUrl)}
                                     className="w-full rounded-md border border-border bg-secondary/50 px-3 py-2 text-xs font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    {isSubmittingHitemsExtra ? 'Submitting...' : 'Split Model'}
+                                    {isSubmittingHitemsExtra ? t('gen3d.submitting') : t('gen3d.splitModel')}
                                 </button>
                             </div>
                         </details>
@@ -1831,12 +1831,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2 rounded-md font-medium text-sm hover:bg-primary/90 disabled:opacity-50"
                 >
                     {isLoading ? <Loader2 className="animate-spin" size={16}/> : <RotateCw size={16}/>}
-                    {isLoading ? 'Generating...' : (initialImage ? 'Transform to 3D' : 'Generate 3D Model')}
+                    {isLoading ? t('gen3d.generating') : (initialImage ? t('gen3d.transformTo3d') : t('gen3d.generate3dModel'))}
                 </button>
                 {jobStatus && <p className="text-xs text-center text-muted-foreground">
-                    {jobStatus === 'SUCCEEDED' ? 'Complete!' : 
-                     jobStatus === 'FAILED' ? (activeJob?.error ? `Failed: ${activeJob.error}` : 'Failed') : 
-                     `Generating... ${jobProgress}%`}
+                    {jobStatus === 'SUCCEEDED' ? t('gen3d.complete') :
+                     jobStatus === 'FAILED' ? (activeJob?.error ? t('gen3d.failedWithReason', { reason: activeJob.error }) : t('gen3d.failed')) :
+                     t('gen3d.generatingPercent', { percent: jobProgress })}
                 </p>}
 
                 {/* 3D Preview Area */}
