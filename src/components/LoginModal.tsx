@@ -499,13 +499,13 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                 ref={modalRef}
                 role="dialog"
                 aria-modal="true"
-                aria-label="Authentication"
+                aria-label={t('auth.dialogAria')}
                 onKeyDown={handleModalKeyDown}
                 className="p-6"
             >
                 <div className="text-center mb-5">
-                    <h1 className="text-2xl font-bold ui-brand-gradient-text">Creative Flow</h1>
-                    <p className="text-sm text-muted-foreground mt-1.5">Sign in with Email/Google. Facebook is coming soon.</p>
+                    <h1 className="text-2xl font-bold ui-brand-gradient-text">{t('auth.brandTitle')}</h1>
+                    <p className="text-sm text-muted-foreground mt-1.5">{t('auth.methodsHint')}</p>
                 </div>
 
                 {/* Group 1 — use without an account (single, unambiguous entry) */}
@@ -515,14 +515,13 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                             type="button"
                             onClick={onLocalUse ?? onClose}
                             className="w-full h-10 rounded-md text-sm font-semibold border border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
-                            title="Skip sign-in and use this app locally on this device"
+                            title={t('auth.skipTitle')}
                         >
                             <Laptop className="w-4 h-4" />
                             {t('auth.continueLocal')}
                         </button>
                         <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                            Running on your own computer? Skip the account. Google sign-in is only
-                            needed later if you connect Google Drive.
+                            {t('auth.localHint')}
                         </p>
                     </div>
                 )}
@@ -530,7 +529,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                 {/* Group 2 — provider accounts */}
                 <div className="flex items-center gap-3 mb-3">
                     <div className="h-px flex-1 bg-border/60" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Accounts</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t('auth.accounts')}</span>
                     <div className="h-px flex-1 bg-border/60" />
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-2">
@@ -541,33 +540,33 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                         className="h-9 rounded-md text-xs font-semibold border border-border text-foreground hover:bg-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
                     >
                         {isGoogleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Chrome className="w-4 h-4" />}
-                        Continue with Google
+                        {t('auth.continueGoogle')}
                     </button>
                     <button
                         type="button"
                         disabled
                         className="h-9 rounded-md text-xs font-semibold border border-border/60 text-muted-foreground/60 bg-secondary/40 cursor-not-allowed flex items-center justify-center gap-2"
-                        title="Facebook login is not enabled yet"
+                        title={t('auth.facebookDisabledTitle')}
                     >
                         <Facebook className="w-4 h-4" />
-                        Facebook (Soon)
+                        {t('auth.facebookSoon')}
                     </button>
                 </div>
                 <div className="flex items-center justify-between mb-5 text-xs text-muted-foreground">
-                    <span>Google/Facebook auth issue?</span>
+                    <span>{t('auth.providerIssue')}</span>
                     <button
                         type="button"
                         onClick={handleOpenInitialSetup}
                         className="font-semibold text-primary hover:underline"
                     >
-                        Initial Setup
+                        {t('auth.initialSetup')}
                     </button>
                 </div>
 
                 {/* Group 3 — email account (sign in / register / recover) */}
                 <div className="flex items-center gap-3 mb-3">
                     <div className="h-px flex-1 bg-border/60" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Email</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t('auth.email')}</span>
                     <div className="h-px flex-1 bg-border/60" />
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-5">
@@ -593,7 +592,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                 {mode === 'login' && (
                     <form onSubmit={handleLoginSubmit} className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.email')}</label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -601,13 +600,13 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={identifier}
                                     onChange={(e) => setIdentifier(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="you@example.com"
+                                    placeholder={t('auth.emailPlaceholder')}
                                     required
                                 />
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Password</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.password')}</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -615,7 +614,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="Enter password"
+                                    placeholder={t('auth.passwordPlaceholder')}
                                     required
                                 />
                             </div>
@@ -625,7 +624,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                             disabled={isLoading}
                             className="w-full bg-foreground text-background py-2.5 rounded-lg text-sm font-semibold hover:bg-foreground/90 transition-all flex items-center justify-center gap-2 group mt-2"
                         >
-                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Sign In'}
+                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : t('auth.signIn')}
                             {!isLoading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                         </button>
                         <button
@@ -634,7 +633,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                             onClick={startAccessRequest}
                             className="w-full border border-border py-2.5 rounded-lg text-sm font-semibold hover:bg-secondary transition-all flex items-center justify-center gap-2"
                         >
-                            Request Access
+                            {t('auth.requestAccess')}
                             <UserPlus className="w-4 h-4" />
                         </button>
                     </form>
@@ -643,7 +642,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                 {mode === 'register' && (
                     <form onSubmit={handleRegisterSubmit} className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Display Name</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.displayName')}</label>
                             <div className="relative">
                                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -651,13 +650,13 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={registerDisplayName}
                                     onChange={(e) => setRegisterDisplayName(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="Your name"
+                                    placeholder={t('auth.namePlaceholder')}
                                     required
                                 />
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.email')}</label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -665,13 +664,13 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={registerEmail}
                                     onChange={(e) => setRegisterEmail(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="you@example.com"
+                                    placeholder={t('auth.emailPlaceholder')}
                                     required
                                 />
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Password</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.password')}</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -679,13 +678,13 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={registerPassword}
                                     onChange={(e) => setRegisterPassword(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="Min 6 characters"
+                                    placeholder={t('auth.minChars')}
                                     required
                                 />
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Confirm Password</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.confirmPassword')}</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -693,7 +692,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={registerConfirmPassword}
                                     onChange={(e) => setRegisterConfirmPassword(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="Repeat password"
+                                    placeholder={t('auth.repeatPassword')}
                                     required
                                 />
                             </div>
@@ -703,7 +702,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                             disabled={isLoading}
                             className="w-full bg-foreground text-background py-2.5 rounded-lg text-sm font-semibold hover:bg-foreground/90 transition-all flex items-center justify-center gap-2 group mt-2"
                         >
-                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Request Access'}
+                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : t('auth.requestAccess')}
                             {!isLoading && <UserPlus className="w-4 h-4" />}
                         </button>
                     </form>
@@ -712,7 +711,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                 {mode === 'reset-request' && (
                     <form onSubmit={handleRequestReset} className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Account Email</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.accountEmail')}</label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -720,7 +719,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={resetEmail}
                                     onChange={(e) => setResetEmail(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="you@example.com"
+                                    placeholder={t('auth.emailPlaceholder')}
                                     required
                                 />
                             </div>
@@ -730,7 +729,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                             disabled={isLoading}
                             className="w-full bg-foreground text-background py-2.5 rounded-lg text-sm font-semibold hover:bg-foreground/90 transition-all flex items-center justify-center gap-2 group mt-2"
                         >
-                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Send Reset Code'}
+                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : t('auth.sendResetCode')}
                             {!isLoading && <KeyRound className="w-4 h-4" />}
                         </button>
                     </form>
@@ -739,7 +738,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                 {mode === 'reset-confirm' && (
                     <form onSubmit={handleResetPassword} className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.email')}</label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -747,13 +746,13 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={resetEmail}
                                     onChange={(e) => setResetEmail(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="you@example.com"
+                                    placeholder={t('auth.emailPlaceholder')}
                                     required
                                 />
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Reset Code</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.resetCode')}</label>
                             <div className="relative">
                                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -761,13 +760,13 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={resetToken}
                                     onChange={(e) => setResetToken(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="Paste code"
+                                    placeholder={t('auth.pasteCode')}
                                     required
                                 />
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">New Password</label>
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('auth.newPassword')}</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -775,7 +774,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                                     value={resetNewPassword}
                                     onChange={(e) => setResetNewPassword(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    placeholder="Min 6 characters"
+                                    placeholder={t('auth.minChars')}
                                     required
                                 />
                             </div>
@@ -785,7 +784,7 @@ export default function LoginModal({ isOpen, onLogin, onClose, onLocalUse }: Log
                             disabled={isLoading}
                             className="w-full bg-foreground text-background py-2.5 rounded-lg text-sm font-semibold hover:bg-foreground/90 transition-all flex items-center justify-center gap-2 group mt-2"
                         >
-                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Update Password'}
+                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : t('auth.updatePassword')}
                             {!isLoading && <CheckCircle2 className="w-4 h-4" />}
                         </button>
                     </form>
