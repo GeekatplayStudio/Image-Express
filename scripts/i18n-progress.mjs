@@ -24,6 +24,17 @@ import { execSync } from 'node:child_process';
 /** Untranslated strings when the AST scanner first produced a correct count. */
 const CONVERSION_BASELINE = 1700;
 
+/**
+ * Namespaces excluded from translation tracking.
+ *
+ * The user manual and in-app help are being rewritten separately, so their
+ * copy is not worth translating until the new text lands. The keys still
+ * exist in en.ts and still resolve at runtime — they are simply not counted
+ * as translation debt.
+ */
+const DEFERRED_NAMESPACES = ['docs', 'help'];
+const isDeferred = (key) => DEFERRED_NAMESPACES.includes(key.split('.')[0]);
+
 const LOCALE_DIR = path.join('src', 'lib', 'i18n', 'locales');
 const KEY_RE = /^\s*'([a-zA-Z0-9_.-]+)'\s*:/gm;
 const PLURAL_SUFFIX = /\.(zero|one|two|few|many|other)$/;
@@ -53,7 +64,9 @@ const conversionPct = (converted / CONVERSION_BASELINE) * 100;
 
 const en = keysOf('en.ts');
 // Plural variants are language-specific; they are not owed by every locale.
-const owed = [...en].filter((k) => !PLURAL_SUFFIX.test(k));
+// Manual/help copy is excluded while that content is being rewritten.
+const owed = [...en].filter((k) => !PLURAL_SUFFIX.test(k) && !isDeferred(k));
+const deferredCount = [...en].filter((k) => !PLURAL_SUFFIX.test(k) && isDeferred(k)).length;
 
 const locales = fs.readdirSync(LOCALE_DIR)
     .filter((f) => f.endsWith('.ts') && f !== 'en.ts')
@@ -81,7 +94,8 @@ console.log('\n  i18n progress\n');
 console.log(`  CONVERSION   ${bar(conversionPct)} ${conversionPct.toFixed(1)}%`);
 console.log(`               ${converted} of ${CONVERSION_BASELINE} converted · ${remaining} left\n`);
 console.log(`  TRANSLATION  ${bar(translationPct)} ${translationPct.toFixed(1)}%`);
-console.log(`               ${translationDone} of ${translationTotal} across ${locales.length} locales\n`);
+console.log(`               ${translationDone} of ${translationTotal} across ${locales.length} locales`);
+console.log(`               (${deferredCount} manual/help keys excluded — content being rewritten)\n`);
 for (const l of locales.sort((a, b) => b.done - a.done)) {
     const pct = (l.done / l.total) * 100;
     console.log(`                 ${l.code}  ${String(l.done).padStart(4)}/${l.total}  ${pct.toFixed(1)}%`);

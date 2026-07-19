@@ -55,7 +55,10 @@ function checkParity() {
         // legitimate when its base key exists in English, and it does not
         // count towards `missing` either — English cannot define it.
         const PLURAL = /\.(zero|one|two|few|many|other)$/;
-        const missing = [...base].filter((key) => !keys.has(key));
+        // Manual and in-app help copy is being rewritten, so it is not counted
+        // as translation debt. The keys still exist and still resolve.
+        const DEFERRED = /^(docs|help)\./;
+        const missing = [...base].filter((key) => !keys.has(key) && !DEFERRED.test(key));
         const orphaned = [...keys].filter((key) => {
             if (base.has(key)) return false;
             return !(PLURAL.test(key) && base.has(key.replace(PLURAL, '')));

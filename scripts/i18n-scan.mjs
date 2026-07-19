@@ -58,6 +58,8 @@ function isExempt(text) {
     if (/^[a-z]{2,4}[_-][a-zA-Z0-9_.]*(x{3,}|\.{3})?$/.test(t)) return true; // key format hints
     if (/^https?:\/\//.test(t)) return true;                     // URLs
     if (/^(npm|npx|yarn|pnpm|git|node|python|pip)\s/.test(t)) return true; // shell commands
+    if (/^--?[a-z][a-z0-9-]*$/.test(t)) return true;             // CLI flags: --enable-cors-header
+    if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+$/.test(t)) return true; // relative paths: ComfyUI/models/checkpoints
     // Filesystem path examples (D:\ComfyUI, /usr/local/share, ./models), including
     // newline-separated lists used as multi-path placeholders.
     if (t.split(/[\n;]/).every((part) =>
@@ -112,7 +114,12 @@ function scanFile(file) {
         // 1. Literal text between JSX tags — any formatting, any indentation.
         if (ts.isJsxText(node)) {
             const text = node.text.trim();
-            if (text && !isExempt(text) && !lineHasOptOut(node)) {
+            // Content of a <code> element is a literal identifier (a header
+            // name, env var, path fragment). Translating it would break it.
+            const parent = node.parent;
+            const inCode = parent && ts.isJsxElement(parent)
+                && parent.openingElement.tagName.getText(sf) === 'code';
+            if (text && !inCode && !isExempt(text) && !lineHasOptOut(node)) {
                 findings.push({ file, line: lineOf(node), kind: 'jsx-text', text });
             }
         }
