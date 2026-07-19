@@ -29,8 +29,14 @@ import { execSync } from 'node:child_process';
  * templates). That rule surfaced ~230 strings the earlier count could not see,
  * including some in files previously reported clean — so the old 1700 was an
  * undercount of the work, not a record of progress.
+ *
+ * Revised again 1932 -> 1986 when rule 2 learned to read attribute values
+ * built from expressions (title={`… ${x}`}), which surfaced 54 more. Raising
+ * the baseline alongside the discovery keeps "converted" counting work
+ * actually done — without it, finding hidden strings makes progress appear
+ * to move backwards.
  */
-const CONVERSION_BASELINE = 1932;
+const CONVERSION_BASELINE = 1986;
 
 /**
  * Namespaces excluded from translation tracking.
