@@ -379,7 +379,7 @@ export function SelectionProperties({
                                     onClick={() => onPropChange('penPathUpdate', { mode })}
                                     className={`text-[10px] px-1.5 py-1 rounded border transition-colors capitalize ${penMode === mode ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                                 >
-                                    {mode === 'bezier' ? 'Bezier' : mode}
+                                    {t(`pen.mode.${mode}`)}
                                 </button>
                             ))}
                         </div>

@@ -301,7 +301,7 @@ export function TextProperties({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">
-                                        {pathOptions.length === 0 ? 'No pen paths on canvas' : 'Select a pen path'}
+                                        {pathOptions.length === 0 ? t('text.noPenPaths') : t('text.selectPenPath')}
                                     </SelectItem>
                                     {pathOptions.map((path) => (
                                         <SelectItem key={path.id} value={path.id}>

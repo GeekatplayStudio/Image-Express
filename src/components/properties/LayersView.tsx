@@ -311,8 +311,8 @@ export function LayersView({
                         const ext = selectedObject as { clipped?: boolean; isClippedToBelow?: boolean; isAdjustmentLayer?: boolean } | null;
                         const isClipActive = !!(ext?.clipped || ext?.isClippedToBelow);
                         const clipTitle = ext?.isAdjustmentLayer
-                            ? (ext.clipped ? 'Adjustment affects all layers below' : 'Clip adjustment to the layer below')
-                            : (ext?.isClippedToBelow ? 'Release clipping mask' : 'Clip to layer below (clipping mask)');
+                            ? (ext.clipped ? t('layers.clipAdjustmentOn') : t('layers.clipAdjustmentOff'))
+                            : (ext?.isClippedToBelow ? t('layers.releaseClippingMask') : t('layers.clipToLayerBelow'));
                         return (
                             <button
                                 onClick={() => selectedObject && onToggleClip?.(selectedObject)}

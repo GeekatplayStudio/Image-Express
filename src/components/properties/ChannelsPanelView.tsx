@@ -175,10 +175,19 @@ export function ChannelsPanelView({
                                     <span className="block text-sm font-medium text-foreground">{t(row.labelKey)}</span>
                                     <span className="block text-[11px] text-muted-foreground">
                                         {supportedTarget === 'color' && row.target !== 'composite'
-                                            ? `${row.target === 'a' ? Math.round((getChannelValue(currentColor, currentOpacity, row.target) / 255) * 100) : getChannelValue(currentColor, currentOpacity, row.target)}${row.target === 'a' ? '%' : ''} · opacity ${channelOpacity}%${channelMasked ? ' · masked' : ''}`
+                                            ? t('channels.valueSummary', {
+                                                value: row.target === 'a'
+                                                    ? `${Math.round((getChannelValue(currentColor, currentOpacity, row.target) / 255) * 100)}%`
+                                                    : getChannelValue(currentColor, currentOpacity, row.target),
+                                                opacity: channelOpacity,
+                                                masked: channelMasked ? t('channels.maskedSuffix') : '',
+                                            })
                                             : row.target === 'composite'
-                                                ? 'Full-color view'
-                                                : `Channel preview · opacity ${channelOpacity}%${channelMasked ? ' · masked' : ''}`}
+                                                ? t('channels.fullColorView')
+                                                : t('channels.previewSummary', {
+                                                    opacity: channelOpacity,
+                                                    masked: channelMasked ? t('channels.maskedSuffix') : '',
+                                                })}
                                     </span>
                                 </span>
                                 {isApplied && (
@@ -287,8 +296,8 @@ export function ChannelsPanelView({
 
                 <div className="text-[11px] text-muted-foreground">
                     {supportedTarget === 'image'
-                        ? 'Masks zero channel contribution in the composite. Luminosity blends grayscale luma into the RGB preview and can also drive alpha through the Mask action.'
-                        : 'Color-layer channels edit fill RGB values and object opacity directly. Use Undo if you want to step back through destructive changes.'}
+                        ? t('channels.imageMaskHint')
+                        : t('channels.colorMaskHint')}
                 </div>
             </div>
         </div>

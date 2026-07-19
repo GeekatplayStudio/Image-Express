@@ -36,6 +36,15 @@ const TRANSLATABLE_PROPS = new Set([
     'tooltip', 'heading', 'caption', 'hint', 'subtitle', 'message',
 ]);
 
+/**
+ * Properties whose value is a stored identifier rather than display text.
+ * `{ value: 'Oil', labelKey: 'paint.brush.oil' }` — translating the value
+ * would break the equality checks that drive behaviour.
+ */
+const IDENTIFIER_PROPS = new Set([
+    'value', 'id', 'key', 'type', 'name', 'mode', 'labelKey', 'descriptionKey',
+]);
+
 /** Standard identifiers, brands and formats that must not be translated. */
 const NOT_TRANSLATABLE = new Set([
     'sRGB', 'Adobe RGB', 'CMYK (Print)', 'CMYK', 'RGB', 'HSB', 'Lab',
@@ -47,9 +56,20 @@ const NOT_TRANSLATABLE = new Set([
     'AI', '2D', '3D', 'ID', 'URL', 'API', 'GPU', 'OS',
 ]);
 
+/**
+ * Every key defined in the English dictionary. A literal that is itself a
+ * key (`{ labelKey: 'ctrl.redCyan' }`, resolved through t() at render) is
+ * already translated — flagging it would send us round in circles.
+ */
+const KNOWN_KEYS = new Set(
+    [...fs.readFileSync('src/lib/i18n/locales/en.ts', 'utf8')
+        .matchAll(/^\s*'([\w.-]+)':/gm)].map((m) => m[1])
+);
+
 function isExempt(text) {
     const t = text.trim();
     if (!t) return true;
+    if (KNOWN_KEYS.has(t)) return true;
     if (NOT_TRANSLATABLE.has(t)) return true;
     if (!/[A-Za-z]{2,}/.test(t)) return true;                    // punctuation / numerals
     if (/^#[0-9a-fA-F]{3,8}$/.test(t)) return true;              // colour samples
@@ -120,15 +140,33 @@ function scanFile(file) {
         const skip = (n) => {
             const p = n.parent;
             if (!p) return false;
-            // `x === 'local'` and friends — the literal is a discriminant.
+            // `x === 'local'`, `'EyeDropper' in window` — the literal is a
+            // discriminant or a property probe, never display text.
             if (ts.isBinaryExpression(p) && [
                 ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
                 ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken,
+                ts.SyntaxKind.InKeyword, ts.SyntaxKind.InstanceOfKeyword,
             ].includes(p.operatorToken.kind)) return true;
-            // Already translated: t('key'), or an element/property access key.
-            if (ts.isCallExpression(p) && p.arguments.includes(n)) return true;
             if (ts.isPropertyAssignment(p) && p.name === n) return true;
+            // `{ value: 'Oil', labelKey: 'paint.brush.oil' }` — the value side
+            // of these properties is a stored identifier, not a caption. The
+            // sibling label is what gets translated.
+            if (ts.isPropertyAssignment(p) && p.initializer === n
+                && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))
+                && IDENTIFIER_PROPS.has(p.name.text)) return true;
             if (ts.isElementAccessExpression(p)) return true;
+            // `const itemClass = 'flex w-full …'` — a style constant hoisted
+            // out of the markup, not a caption.
+            if (ts.isVariableDeclaration(p)) return true;
+            // Already translated, including through a ternary the call wraps:
+            // t(cond ? 'a.key' : 'b.key'). Climb the pass-through nodes.
+            let c = n, q = p;
+            while (q && (ts.isConditionalExpression(q) || ts.isParenthesizedExpression(q)
+                || (ts.isBinaryExpression(q) && [
+                    ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken,
+                    ts.SyntaxKind.QuestionQuestionToken,
+                ].includes(q.operatorToken.kind)))) { c = q; q = q.parent; }
+            if (q && ts.isCallExpression(q) && q.arguments.includes(c)) return true;
             return false;
         };
         const walk = (n) => {

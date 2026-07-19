@@ -57,7 +57,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
     const [showQuickActions, setShowQuickActions] = useState(false);
 
     const [isEditing, setIsEditing] = useState(false);
-    const [name, setName] = useState(extendedObj.name || (extendedObj.isAdjustmentLayer ? 'Adjustment' : (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' ? 'Folder' : (obj.type || 'Object')))));
+    const [name, setName] = useState(extendedObj.name || (extendedObj.isAdjustmentLayer ? t('layeritem.adjustment') : (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' ? t('layeritem.folder') : (obj.type || t('layeritem.object'))))));
     // Use fill as color, defaulting to transparent or black if complex
     const [layerColor, setLayerColor] = useState(() => {
          if (typeof obj.fill === 'string') return obj.fill;
@@ -223,11 +223,11 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             }}
                             title={clipBaseIds?.has(id) ? 'Base of a clipping mask — double click to rename' : 'Double click to rename'}
                         >
-                            {(obj as ExtendedFabricObject).name || (extendedObj.isAdjustmentLayer ? 'Adjustment' : (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' ? 'Folder' : (obj.type || 'Object'))))}
+                            {(obj as ExtendedFabricObject).name || (extendedObj.isAdjustmentLayer ? t('layeritem.adjustment') : (obj.type === 'i-text' ? (obj as fabric.IText).text : (obj.type === 'group' ? t('layeritem.folder') : (obj.type || t('layeritem.object')))))}
                         </span>
                     )}
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{isGroup ? `${children.length} items` : `Layer ${total - index}`}</span>
+                        <span>{isGroup ? t('layeritem.itemCount', { count: children.length }) : t('layeritem.layerNumber', { n: total - index })}</span>
                         {isLocked && <Lock size={12} className="text-amber-500" />}
                         {extendedObj.clipped && <Link2 size={12} className="text-primary" />}
                         {extendedObj.sharedLayerId && (

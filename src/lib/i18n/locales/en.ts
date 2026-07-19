@@ -949,6 +949,38 @@ const en: LocaleDictionary = {
     'paint.multiplyWatercolor': 'Multiply (Watercolor)',
 
     // Channels panel
+    'channels.fullColorView': 'Full-color view',
+    // Opacity summaries. {masked} is an optional trailing clause, so the
+    // whole sentence stays one key and translators keep word order.
+    'channels.valueSummary': '{value} · opacity {opacity}%{masked}',
+    'channels.previewSummary': 'Channel preview · opacity {opacity}%{masked}',
+    'channels.maskedSuffix': ' · masked',
+    'channels.imageMaskHint': 'Masks zero channel contribution in the composite. Luminosity blends grayscale luma into the RGB preview and can also drive alpha through the Mask action.',
+    'channels.colorMaskHint': 'Color-layer channels edit fill RGB values and object opacity directly. Use Undo if you want to step back through destructive changes.',
+    'layers.clipAdjustmentOn': 'Adjustment affects all layers below',
+    'layers.clipAdjustmentOff': 'Clip adjustment to the layer below',
+    'layers.releaseClippingMask': 'Release clipping mask',
+    'layers.clipToLayerBelow': 'Clip to layer below (clipping mask)',
+    // Brush type display labels. The stored values stay English identifiers
+    // (see PaintProperties) because they drive brush behaviour.
+    'paint.brush.pencil': 'Pencil',
+    'paint.brush.spray': 'Spray',
+    'paint.brush.oil': 'Oil',
+    'paint.brush.watercolor': 'Watercolor',
+    'paint.bristleDensity': 'Bristle Density',
+    'paint.sprayDensity': 'Spray Density',
+    'pen.mode.straight': 'Straight',
+    'pen.mode.smooth': 'Smooth',
+    'pen.mode.bezier': 'Bezier',
+    'layeritem.adjustment': 'Adjustment',
+    'layeritem.folder': 'Folder',
+    'layeritem.object': 'Object',
+    'layeritem.itemCount': '{count} items',
+    'layeritem.itemCount.one': '{count} item',
+    'layeritem.itemCount.other': '{count} items',
+    'layeritem.layerNumber': 'Layer {n}',
+    'text.noPenPaths': 'No pen paths on canvas',
+
     'channels.title': 'Channels',
     'channels.composite': 'Composite',
     'channels.alpha': 'Alpha',

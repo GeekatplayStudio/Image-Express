@@ -303,16 +303,21 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('paint.brushType')}</label>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                            {['Pencil', 'Spray', 'Oil', 'Watercolor'].map(b => (
+                            {([
+                                { value: 'Pencil', labelKey: 'paint.brush.pencil' },
+                                { value: 'Spray', labelKey: 'paint.brush.spray' },
+                                { value: 'Oil', labelKey: 'paint.brush.oil' },
+                                { value: 'Watercolor', labelKey: 'paint.brush.watercolor' },
+                            ] as const).map(b => (
                                 <button
-                                key={b}
+                                key={b.value}
                                 onClick={() => {
-                                    setBrushType(b);
-                                    if (b === 'Watercolor') {
+                                    setBrushType(b.value);
+                                    if (b.value === 'Watercolor') {
                                         setPaintOpacity(0.5);
                                         setBrushBlur(10);
                                         setPaintBlendMode('multiply'); 
-                                    } else if (b === 'Oil') {
+                                    } else if (b.value === 'Oil') {
                                         setPaintOpacity(1); 
                                         setBrushBlur(0);
                                         setPaintBlendMode('source-over');
@@ -320,9 +325,9 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                                         setPaintBlendMode('source-over');
                                     }
                                 }}
-                                className={`px-3 py-2 text-xs rounded-md border transition-all ${brushType === b ? 'bg-tool-accent text-tool-accent-foreground border-tool-accent' : 'bg-secondary hover:bg-secondary/80 border-transparent'}`}
+                                className={`px-3 py-2 text-xs rounded-md border transition-all ${brushType === b.value ? 'bg-tool-accent text-tool-accent-foreground border-tool-accent' : 'bg-secondary hover:bg-secondary/80 border-transparent'}`}
                                 >
-                                    {b}
+                                    {t(b.labelKey)}
                                 </button>
                             ))}
                     </div>
@@ -420,7 +425,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                 {(brushType === 'Spray' || brushType === 'Oil') && (
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{brushType === 'Oil' ? 'Bristle Density' : 'Spray Density'}</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{brushType === 'Oil' ? t('paint.bristleDensity') : t('paint.sprayDensity')}</label>
                             <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{sprayDensity}</span>
                         </div>
                         <input 
