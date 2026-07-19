@@ -107,6 +107,9 @@ function fileOptedOut(source) {
     return /^\s*(\/\/|\/\*)\s*i18n-ignore-file/m.test(source.slice(0, 500));
 }
 
+/** Files that could not be parsed; reported loudly rather than counted clean. */
+const parseFailures = [];
+
 function scanFile(file) {
     const source = fs.readFileSync(file, 'utf8');
     if (fileOptedOut(source)) return [];
@@ -119,6 +122,19 @@ function scanFile(file) {
         file, source, ts.ScriptTarget.Latest, true,
         isTsx ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
+    // A file that will not parse yields no nodes, and therefore no findings —
+    // it reports as clean while actually being broken. Surface that instead.
+    const syntaxErrors = sf.parseDiagnostics ?? [];
+    if (syntaxErrors.length) {
+        const { line } = sf.getLineAndCharacterOfPosition(syntaxErrors[0].start ?? 0);
+        parseFailures.push({
+            file,
+            line: line + 1,
+            message: ts.flattenDiagnosticMessageText(syntaxErrors[0].messageText, ' '),
+        });
+        return [];
+    }
+
     const findings = [];
 
     const lineOf = (node) =>
@@ -281,6 +297,14 @@ for (const file of walkFiles(SRC)) {
     if (filters.length && !filters.some((f) => slash(file).includes(f))) continue;
     scanned += 1;
     findings = findings.concat(scanFile(file));
+}
+
+// A file that cannot be parsed was never really scanned. Fail on it so a
+// syntax error can never masquerade as full i18n coverage.
+if (parseFailures.length) {
+    console.error(`Could not parse ${parseFailures.length} file(s) — these were NOT scanned:`);
+    for (const f of parseFailures) console.error(`  ${f.file}:${f.line}  ${f.message}`);
+    process.exit(3);
 }
 
 // A filter that matches nothing must not look like a clean file.

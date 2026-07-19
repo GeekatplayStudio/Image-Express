@@ -142,7 +142,8 @@ export default function StorageTab({ storage }: StorageTabProps) {
                     {!envDriveClientId && (
                         <p className="text-[11px] text-muted-foreground">
                             <RichText template={t('storage.clientIdHint')} values={{
-                                scope: <span className="font-mono">drive.file</span>, {/* i18n-ignore: OAuth scope identifier */}
+                                // i18n-ignore: drive.file is an OAuth scope identifier
+                                scope: <span className="font-mono">drive.file</span>,
                             }} />
                         </p>
                     )}

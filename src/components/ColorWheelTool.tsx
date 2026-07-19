@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Info, Pipette, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ColorPalette } from '@/types';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface ColorWheelToolProps {
     onColorSelect: (color: string) => void;
@@ -179,6 +180,8 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
         () => normalizeHex(typeof controlledColor === 'string' ? controlledColor : internalSelectedColor),
         [controlledColor, internalSelectedColor]
     );
+
+    const { t } = useI18n();
 
     const { h, s, v } = useMemo(() => {
         const rgb = hexToRgb(selectedColor);
@@ -379,22 +382,22 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                 : 'fixed left-[74px] top-16 z-[40] w-[430px] max-h-[calc(100vh-5rem)] overflow-y-auto scrollbar-thin rounded-2xl border border-border/70 bg-card/95 p-4 shadow-2xl backdrop-blur-sm'
         )}>
             <div className="mb-3 flex items-center justify-between">
-                <h3 className={cn('font-semibold tracking-tight', variant === 'panel' ? 'text-sm' : 'text-2xl')}>Foreground color</h3>
+                <h3 className={cn('font-semibold tracking-tight', variant === 'panel' ? 'text-sm' : 'text-2xl')}>{t('wheel.foregroundColor')}</h3>
                 {variant !== 'panel' && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                         <button
                             type="button"
                             className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary/50"
-                            title="Color wheel info"
-                            aria-label="Color wheel info"
+                            title={t('wheel.info')}
+                            aria-label={t('wheel.info')}
                         >
                             <Info size={18} />
                         </button>
                         <button
                             type="button"
                             className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary/50"
-                            title="Eyedropper"
-                            aria-label="Eyedropper"
+                            title={t('wheel.eyedropper')}
+                            aria-label={t('wheel.eyedropper')}
                         >
                             <Pipette size={18} />
                         </button>
@@ -462,7 +465,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                             type="button"
                             className="h-12 w-12 rounded-full border border-border shadow-sm"
                             style={{ backgroundColor: selectedColor }}
-                            aria-label="Selected color preview"
+                            aria-label={t('wheel.selectedPreview')}
                         />
                         <div className="flex-1 rounded-lg border border-border/60 bg-black px-3 py-2 text-right font-mono text-2xl tracking-wide text-white">
                             {selectedColor.toUpperCase()}
@@ -478,18 +481,18 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                         <div className="rounded-lg border border-border/60 bg-background px-2 py-1 text-center">{rgb.b}</div>
                     </div>
 
-                    <label className="text-xs text-muted-foreground">Harmony</label>
+                    <label className="text-xs text-muted-foreground">{t('picker.harmony')}</label>
                     <select
                         className="rounded-lg border border-border/60 bg-secondary/40 px-2 py-1 text-xs"
                         value={harmonyCount}
                         onChange={(event) => setHarmonyCount(Number(event.target.value))}
-                        aria-label="Harmony mode"
+                        aria-label={t('wheel.harmonyMode')}
                     >
-                        <option value={2}>Complementary</option>
-                        <option value={3}>Triadic</option>
-                        <option value={4}>Tetradic</option>
-                        <option value={5}>Pentadic</option>
-                        <option value={6}>Hexadic</option>
+                        <option value={2}>{t('wheel.complementary')}</option>
+                        <option value={3}>{t('wheel.triadic')}</option>
+                        <option value={4}>{t('wheel.tetradic')}</option>
+                        <option value={5}>{t('wheel.pentadic')}</option>
+                        <option value={6}>{t('wheel.hexadic')}</option>
                     </select>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -503,46 +506,46 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                                 )}
                                 style={{ backgroundColor: color }}
                                 onClick={() => applyColor(color)}
-                                aria-label={`Use harmony color ${color}`}
+                                aria-label={t('wheel.useHarmonyColor', { color })}
                                 title={color.toUpperCase()}
                             />
                         ))}
                     </div>
 
                     <div className="space-y-2 rounded-lg border border-border/50 bg-secondary/20 p-2">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Save Harmony Set</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('wheel.saveHarmonySet')}</div>
                         <div className="flex flex-wrap gap-2">
                             <input
                                 type="text"
                                 value={harmonyPaletteName}
                                 onChange={(event) => setHarmonyPaletteName(event.target.value)}
-                                placeholder="Palette name"
+                                placeholder={t('wheel.paletteName')}
                                 className="h-8 flex-1 rounded border border-border/60 bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary"
-                                aria-label="Harmony palette name"
+                                aria-label={t('wheel.harmonyPaletteName')}
                             />
                             <button
                                 type="button"
                                 onClick={saveHarmonyPalette}
                                 className="h-8 rounded border border-border/60 bg-background px-2 text-xs hover:bg-secondary/50"
-                                aria-label="Save harmony palette"
+                                aria-label={t('wheel.saveHarmonyPalette')}
                             >
-                                Save
+                                {t('common.save')}
                             </button>
                             <button
                                 type="button"
                                 onClick={exportHarmonyPalettes}
                                 className="h-8 rounded border border-border/60 bg-background px-2 text-xs hover:bg-secondary/50"
-                                aria-label="Export harmony palettes"
+                                aria-label={t('wheel.exportPalettes')}
                             >
-                                Export
+                                {t('common.export')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => harmonyImportInputRef.current?.click()}
                                 className="h-8 rounded border border-border/60 bg-background px-2 text-xs hover:bg-secondary/50"
-                                aria-label="Import harmony palettes"
+                                aria-label={t('wheel.importPalettes')}
                             >
-                                Import
+                                {t('common.import')}
                             </button>
                             <input
                                 ref={harmonyImportInputRef}
@@ -550,7 +553,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                                 accept="application/json,.json"
                                 className="hidden"
                                 onChange={importHarmonyPalettes}
-                                aria-label="Import harmony JSON"
+                                aria-label={t('wheel.importJson')}
                             />
                         </div>
                         {harmonyImportStatus && (
@@ -563,7 +566,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                                     onClick={() => setIsHarmonyListCollapsed((prev) => !prev)}
                                     className="w-full h-7 rounded border border-border/60 bg-background px-2 text-left text-[10px] uppercase tracking-wide text-muted-foreground hover:bg-secondary/40"
                                 >
-                                    {isHarmonyListCollapsed ? 'Show Harmony Sets' : 'Hide Harmony Sets'} ({savedHarmonyPalettes.length})
+                                    {isHarmonyListCollapsed ? t('wheel.showHarmonySets') : t('wheel.hideHarmonySets')} ({savedHarmonyPalettes.length})
                                 </button>
                                 {!isHarmonyListCollapsed && (
                                     <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
@@ -577,14 +580,14 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                                                                 value={editingHarmonyName}
                                                                 onChange={(event) => setEditingHarmonyName(event.target.value)}
                                                                 className="h-7 flex-1 rounded border border-border/60 bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
-                                                                aria-label={`Rename harmony palette ${palette.name}`}
+                                                                aria-label={t('wheel.renameHarmonyPalette', { name: palette.name })}
                                                             />
                                                             <button
                                                                 type="button"
                                                                 onClick={saveRenameHarmonyPalette}
                                                                 className="h-7 rounded border border-border/60 bg-background px-2 text-[10px] hover:bg-secondary/50"
                                                             >
-                                                                Save
+                                                                {t('common.save')}
                                                             </button>
                                                             <button
                                                                 type="button"
@@ -594,7 +597,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                                                                 }}
                                                                 className="h-7 rounded border border-border/60 bg-background px-2 text-[10px] hover:bg-secondary/50"
                                                             >
-                                                                Cancel
+                                                                {t('common.cancel')}
                                                             </button>
                                                         </div>
                                                     ) : (
@@ -612,15 +615,15 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                                                                     type="button"
                                                                     onClick={() => startRenameHarmonyPalette(palette)}
                                                                     className="h-6 rounded border border-border/60 bg-background px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-                                                                    aria-label={`Rename harmony palette ${palette.name}`}
+                                                                    aria-label={t('wheel.renameHarmonyPalette', { name: palette.name })}
                                                                 >
-                                                                    Rename
+                                                                    {t('common.rename')}
                                                                 </button>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setSavedHarmonyPalettes((prev) => prev.filter((entry) => entry.id !== palette.id))}
                                                                     className="text-muted-foreground hover:text-foreground"
-                                                                    aria-label={`Delete harmony palette ${palette.name}`}
+                                                                    aria-label={t('wheel.deleteHarmonyPalette', { name: palette.name })}
                                                                 >
                                                                     <Trash2 size={12} />
                                                                 </button>
@@ -637,7 +640,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                                                             style={{ backgroundColor: swatch }}
                                                             onClick={() => applyColor(swatch)}
                                                             title={swatch.toUpperCase()}
-                                                            aria-label={`Apply harmony color ${swatch}`}
+                                                            aria-label={t('wheel.applyHarmonyColor', { color: swatch })}
                                                         />
                                                     ))}
                                                 </div>
@@ -653,7 +656,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
 
             <div className="mt-4 border-t border-border/60 pt-3">
                 <div className="mb-2 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold">Swatches</h4>
+                    <h4 className="text-sm font-semibold">{t('wheel.swatches')}</h4>
                     <button
                         type="button"
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 hover:bg-secondary/50"
@@ -661,8 +664,8 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                             if (savedSwatches.includes(selectedColor)) return;
                             setSavedSwatches((prev) => [selectedColor, ...prev].slice(0, 20));
                         }}
-                        aria-label="Add swatch"
-                        title="Add swatch"
+                        aria-label={t('wheel.addSwatch')}
+                        title={t('wheel.addSwatch')}
                     >
                         <Plus size={16} />
                     </button>
@@ -676,7 +679,7 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
                             className="group relative h-8 rounded border border-border/70"
                             style={{ backgroundColor: color }}
                             onClick={() => applyColor(color)}
-                            aria-label={`Use saved swatch ${color}`}
+                            aria-label={t('wheel.useSavedSwatch', { color })}
                         >
                             <span className="sr-only">{color}</span>
                             <span
@@ -697,13 +700,13 @@ export const ColorWheelTool = ({ onColorSelect, currentPalette, onPaletteSelect,
 
             {currentPalette && (
                 <div className="mt-3 rounded-lg border border-border/60 bg-secondary/20 p-2 text-xs text-muted-foreground">
-                    Active palette: <span className="font-medium text-foreground">{currentPalette.name}</span>
+                    {t('wheel.activePalette')} <span className="font-medium text-foreground">{currentPalette.name}</span>
                     <button
                         type="button"
                         className="ml-2 text-primary hover:underline"
                         onClick={() => onPaletteSelect(null)}
                     >
-                        Clear
+                        {t('common.clear')}
                     </button>
                 </div>
             )}
