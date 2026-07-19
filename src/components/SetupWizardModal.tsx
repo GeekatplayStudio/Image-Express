@@ -557,7 +557,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         {isDriveBusy ? <Loader2 size={14} className="animate-spin" /> : <Cloud size={14} />}
                                         {driveConnected
                                             ? t('wizard.reconnectProvider', { provider: selectedCloudProviderLabel })
-                                            : t('wizard.connectProvider', { provider: selectedCloudProviderLabel })}
+                                            : t('wizard.connectProviderButton', { provider: selectedCloudProviderLabel })}
                                     </button>
                                     {driveConnected && (
                                         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">

@@ -67,6 +67,24 @@ describe('i18n key integrity', () => {
         expect(missing).toEqual([]);
     });
 
+    it('no dictionary defines the same key twice', () => {
+        // A repeated key is not a syntax error: the later definition silently
+        // wins, so an unrelated string quietly takes over an existing one. This
+        // happened for real — a short 'Connect {provider}' button label
+        // displaced the explanatory sentence that shared its key.
+        const duplicates: string[] = [];
+        for (const entry of fs.readdirSync(LOCALE_DIR)) {
+            if (!entry.endsWith('.ts')) continue;
+            const source = fs.readFileSync(path.join(LOCALE_DIR, entry), 'utf8');
+            const seen = new Set<string>();
+            for (const m of source.matchAll(/^\s*'([a-zA-Z0-9_.-]+)'\s*:/gm)) {
+                if (seen.has(m[1])) duplicates.push(`${entry}: ${m[1]}`);
+                seen.add(m[1]);
+            }
+        }
+        expect(duplicates).toEqual([]);
+    });
+
     it('no locale defines a key that English does not', () => {
         // Plural categories are language-specific: Russian and Ukrainian need
         // `.few` / `.many` forms that English legitimately lacks. A variant is

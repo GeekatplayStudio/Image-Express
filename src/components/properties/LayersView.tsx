@@ -312,7 +312,7 @@ export function LayersView({
                         const isClipActive = !!(ext?.clipped || ext?.isClippedToBelow);
                         const clipTitle = ext?.isAdjustmentLayer
                             ? (ext.clipped ? t('layers.clipAdjustmentOn') : t('layers.clipAdjustmentOff'))
-                            : (ext?.isClippedToBelow ? t('layers.releaseClippingMask') : t('layers.clipToLayerBelow'));
+                            : (ext?.isClippedToBelow ? t('layers.releaseClipTooltip') : t('layers.clipToBelowTooltip'));
                         return (
                             <button
                                 onClick={() => selectedObject && onToggleClip?.(selectedObject)}

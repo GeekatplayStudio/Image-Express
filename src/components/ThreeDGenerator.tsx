@@ -56,13 +56,13 @@ const isMissingSanitizedKey = (value: string) => {
 const sanitizeHeaderValue = (value: string) => value.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
 type HitemsImageViewMode = 'single' | 'multi';
 
-const HITEMS_RESOLUTION_LABELS: Record<string, string> = {
-    '512': '512³ · Eco',
-    '1024': '1024³ · Balanced',
-    '1536': '1536P³ · High precision · Complex topology · Fine detail',
-    '1536pro': '1536P³pro · Flagship · Commercial · Print-ready',
-    '1536fast': '1536³fast · Fast v2.1 pipeline · Lower cost',
-    '1536profast': '1536³pro-fast · Fast portrait pipeline',
+const HITEMS_RESOLUTION_LABEL_KEYS: Record<string, string> = {
+    '512': 'gen3d.res.512',
+    '1024': 'gen3d.res.1024',
+    '1536': 'gen3d.res.1536',
+    '1536pro': 'gen3d.res.1536pro',
+    '1536fast': 'gen3d.res.1536fast',
+    '1536profast': 'gen3d.res.1536profast',
 };
 
 interface ThreeDGeneratorProps {
@@ -1456,12 +1456,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         }`}
                                         type="button"
                                     >
-                                        {preset.label}
+                                        {t(preset.labelKey)}
                                     </button>
                                 ))}
                             </div>
                             <p className="text-[10px] text-muted-foreground">
-                                {activeHitemsPreset?.description || t('gen3d.customPresetValues')}
+                                {activeHitemsPreset ? t(activeHitemsPreset.descriptionKey) : t('gen3d.customPresetValues')}
                             </p>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
@@ -1473,7 +1473,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                 >
                                     {HITEMS_MODEL_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                        <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
                                     ))}
                                 </select>
                             </div>
@@ -1485,7 +1485,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                 >
                                     {getHitemsAllowedResolutions(hitemsModel).map((value) => (
-                                        <option key={value} value={value}>{HITEMS_RESOLUTION_LABELS[value] || value}</option>
+                                        <option key={value} value={value}>{HITEMS_RESOLUTION_LABEL_KEYS[value] ? t(HITEMS_RESOLUTION_LABEL_KEYS[value]) : value}</option>
                                     ))}
                                 </select>
                             </div>
@@ -1631,7 +1631,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         const disabled = option.value === '2' && !hitemsSupportsTextureStage(hitemsModel);
                                         return (
                                             <option key={option.value} value={option.value} disabled={disabled}>
-                                                {option.label}
+                                                {t(option.labelKey)}
                                             </option>
                                         );
                                     })}
@@ -1645,7 +1645,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                 >
                                     {HITEMS_FORMAT_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                        <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
                                     ))}
                                 </select>
                             </div>

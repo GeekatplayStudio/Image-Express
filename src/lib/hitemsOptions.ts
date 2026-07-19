@@ -1,24 +1,24 @@
 export const HITEMS_MODEL_OPTIONS = [
-  { value: 'hitem3dv1.5', label: 'General v1.5' },
-  { value: 'hitem3dv2.0', label: 'General v2.0 (PBR)' },
-  { value: 'hitem3dv2.1', label: 'General v2.1 (PBR, fast)' },
-  { value: 'scene-portraitv1.5', label: 'Portrait v1.5' },
-  { value: 'scene-portraitv2.0', label: 'Portrait v2.0 (PBR)' },
-  { value: 'scene-portraitv2.1', label: 'Portrait v2.1 (PBR, fast)' },
+  { value: 'hitem3dv1.5', labelKey: 'gen3d.model.general15' },
+  { value: 'hitem3dv2.0', labelKey: 'gen3d.model.general20' },
+  { value: 'hitem3dv2.1', labelKey: 'gen3d.model.general21' },
+  { value: 'scene-portraitv1.5', labelKey: 'gen3d.model.portrait15' },
+  { value: 'scene-portraitv2.0', labelKey: 'gen3d.model.portrait20' },
+  { value: 'scene-portraitv2.1', labelKey: 'gen3d.model.portrait21' },
 ] as const;
 
 export const HITEMS_REQUEST_TYPE_OPTIONS = [
-  { value: '3', label: 'All-in-One (Geometry + Texture)' },
-  { value: '1', label: 'Geometry Only (Relief/Base Mesh)' },
-  { value: '2', label: 'Texture Existing Mesh (Staged)' },
+  { value: '3', labelKey: 'gen3d.reqType.allInOne' },
+  { value: '1', labelKey: 'gen3d.reqType.geometryOnly' },
+  { value: '2', labelKey: 'gen3d.reqType.textureStaged' },
 ] as const;
 
 export const HITEMS_FORMAT_OPTIONS = [
-  { value: '2', label: 'GLB (Best for in-app preview)' },
-  { value: '1', label: 'OBJ' },
-  { value: '3', label: 'STL' },
-  { value: '4', label: 'FBX' },
-  { value: '5', label: 'USDZ' },
+  { value: '2', labelKey: 'gen3d.format.glb' },
+  { value: '1', labelKey: 'gen3d.format.obj' },
+  { value: '3', labelKey: 'gen3d.format.stl' },
+  { value: '4', labelKey: 'gen3d.format.fbx' },
+  { value: '5', labelKey: 'gen3d.format.usdz' },
 ] as const;
 
 export type HitemsModel = (typeof HITEMS_MODEL_OPTIONS)[number]['value'];
@@ -85,8 +85,8 @@ const HITEMS_PBR_SUPPORTED_MODELS = new Set<HitemsModel>([
 export const HITEMS_PRESET_OPTIONS = [
   {
     key: 'balanced',
-    label: 'Balanced',
-    description: 'General v1.5, 1024, geometry + texture. Lowest credit cost.',
+    labelKey: 'gen3d.preset.balanced',
+    descriptionKey: 'gen3d.preset.balancedDesc',
     selection: {
       model: 'hitem3dv1.5',
       requestType: '3',
@@ -96,8 +96,8 @@ export const HITEMS_PRESET_OPTIONS = [
   },
   {
     key: 'fast-pbr',
-    label: 'Fast PBR (v2.1)',
-    description: 'General v2.1 fast pipeline with PBR textures.',
+    labelKey: 'gen3d.preset.fastPbr',
+    descriptionKey: 'gen3d.preset.fastPbrDesc',
     selection: {
       model: 'hitem3dv2.1',
       requestType: '3',
@@ -107,8 +107,8 @@ export const HITEMS_PRESET_OPTIONS = [
   },
   {
     key: 'relief',
-    label: '3D Relief',
-    description: 'Geometry-focused output for relief/base mesh use.',
+    labelKey: 'gen3d.preset.relief',
+    descriptionKey: 'gen3d.preset.reliefDesc',
     selection: {
       model: 'hitem3dv1.5',
       requestType: '1',
@@ -118,8 +118,8 @@ export const HITEMS_PRESET_OPTIONS = [
   },
   {
     key: 'portrait',
-    label: 'Portrait',
-    description: 'Portrait v2.1 flagship quality with PBR for face-focused work.',
+    labelKey: 'gen3d.preset.portrait',
+    descriptionKey: 'gen3d.preset.portraitDesc',
     selection: {
       model: 'scene-portraitv2.1',
       requestType: '3',
@@ -136,8 +136,8 @@ const HITEMS_PRESET_VALUES = new Set<string>(HITEMS_PRESET_OPTIONS.map((preset) 
 // --- Image to 3D Relief (depth map) API options ---
 
 export const HITEMS_RELIEF_FORMAT_OPTIONS = [
-  { value: '2', label: 'PNG (Insertable as layer)' },
-  { value: '1', label: 'EXR (32-bit depth)' },
+  { value: '2', labelKey: 'gen3d.relief.png' },
+  { value: '1', labelKey: 'gen3d.relief.exr' },
 ] as const;
 
 export type HitemsReliefFormat = (typeof HITEMS_RELIEF_FORMAT_OPTIONS)[number]['value'];
@@ -150,29 +150,29 @@ export const normalizeHitemsReliefFormat = (format: string | null | undefined): 
 // --- Model Split API options ---
 
 export const HITEMS_SPLIT_MODEL_OPTIONS = [
-  { value: 'character', label: 'Character (articulated parts)' },
-  { value: 'general', label: 'General (component split)' },
+  { value: 'character', labelKey: 'gen3d.split.character' },
+  { value: 'general', labelKey: 'gen3d.split.general' },
 ] as const;
 
 export const HITEMS_SPLIT_PART_OPTIONS = [
-  { value: 'a', label: 'A — 6 parts' },
-  { value: 'b', label: 'B — 5 parts' },
-  { value: 'c', label: 'C — 4 parts (no head)' },
-  { value: 'd', label: 'D — 4 parts (with head)' },
-  { value: 'e', label: 'E — 3 parts' },
-  { value: 'f', label: 'F — 2 parts' },
+  { value: 'a', labelKey: 'gen3d.partsA' },
+  { value: 'b', labelKey: 'gen3d.partsB' },
+  { value: 'c', labelKey: 'gen3d.partsC' },
+  { value: 'd', labelKey: 'gen3d.partsD' },
+  { value: 'e', labelKey: 'gen3d.partsE' },
+  { value: 'f', labelKey: 'gen3d.partsF' },
 ] as const;
 
 export const HITEMS_SPLIT_JOINT_OPTIONS = [
-  { value: 'ball', label: 'Ball joint' },
-  { value: 'dovetail', label: 'Dovetail joint' },
-  { value: 'none', label: 'No joints' },
+  { value: 'ball', labelKey: 'gen3d.joint.ball' },
+  { value: 'dovetail', labelKey: 'gen3d.joint.dovetail' },
+  { value: 'none', labelKey: 'gen3d.joint.none' },
 ] as const;
 
 export const HITEMS_SPLIT_LEVEL_OPTIONS = [
-  { value: 'medium', label: 'Medium' },
-  { value: 'low', label: 'Low' },
-  { value: 'high', label: 'High' },
+  { value: 'medium', labelKey: 'gen3d.level.medium' },
+  { value: 'low', labelKey: 'gen3d.level.low' },
+  { value: 'high', labelKey: 'gen3d.level.high' },
 ] as const;
 
 export type HitemsSplitModel = (typeof HITEMS_SPLIT_MODEL_OPTIONS)[number]['value'];
