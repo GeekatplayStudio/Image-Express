@@ -471,8 +471,8 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                     {connection.status === 'ok'
                                         ? connection.message
                                         : connection.status === 'error'
-                                            ? 'Not connected'
-                                            : 'Checking connection...'}
+                                            ? t('comfy.notConnected')
+                                            : t('comfy.checkingConnection')}
                                 </span>
                             </div>
                         </div>
@@ -647,9 +647,9 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                         </div>
                                         <div className="flex flex-wrap gap-1.5">
                                             {([
-                                                ['selection', `Selected layers (${selectedLayerCount})`],
-                                                ['layers', 'Choose layers'],
-                                                ['canvas', 'Whole canvas'],
+                                                ['selection', t('comfy.selectedLayers', { count: selectedLayerCount })],
+                                                ['layers', t('comfy.chooseLayers')],
+                                                ['canvas', t('comfy.wholeCanvas')],
                                             ] as Array<[ComfySourceKind, string]>).map(([kind, label]) => (
                                                 <button
                                                     key={kind}
@@ -689,8 +689,8 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="text-[11px] text-muted-foreground">
                                                         {maskDataUrl
-                                                            ? 'Mask painted — only the painted areas will be regenerated.'
-                                                            : 'No mask yet — the whole source area will be regenerated.'}
+                                                            ? t('comfy.maskPainted')
+                                                            : t('comfy.maskNone')}
                                                     </span>
                                                     <div className="flex shrink-0 gap-1.5">
                                                         <button
@@ -698,7 +698,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                             onClick={openMaskEditor}
                                                             className="rounded border border-border px-2 py-1 text-[10px] font-medium text-foreground hover:bg-secondary"
                                                         >
-                                                            {maskDataUrl ? 'Edit Mask' : 'Paint Mask'}
+                                                            {maskDataUrl ? t('comfy.editMask') : t('comfy.paintMask')}
                                                         </button>
                                                         {maskDataUrl && (
                                                             <button
@@ -726,10 +726,10 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                 <span className="text-[10px] font-medium uppercase text-muted-foreground">{t('cw.expandBy')}</span>
                                                 <div className="grid grid-cols-4 gap-1.5">
                                                     {([
-                                                        ['top', 'Top'],
-                                                        ['right', 'Right'],
-                                                        ['bottom', 'Bottom'],
-                                                        ['left', 'Left'],
+                                                        ['top', t('crop.top')],
+                                                        ['right', t('crop.right')],
+                                                        ['bottom', t('crop.bottom')],
+                                                        ['left', t('crop.left')],
                                                     ] as Array<[keyof ComfyOutpaintPadding, string]>).map(([side, label]) => (
                                                         <label key={side} className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
                                                             {label}
@@ -882,7 +882,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                         className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {isRunning ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
-                                        {isRunning ? 'Running on ComfyUI...' : 'Run Workflow'}
+                                        {isRunning ? t('comfy.running') : t('comfy.runWorkflow')}
                                     </button>
                                     {isRunning && (
                                         <button

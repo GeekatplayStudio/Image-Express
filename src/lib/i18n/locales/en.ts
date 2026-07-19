@@ -163,6 +163,17 @@ const en: LocaleDictionary = {
 
     // Asset library
     'assets.title': 'Asset Library',
+    'assets.uploading': 'Uploading...',
+    'assets.noneFromGroup': 'No assets from "{group}" in this tab.',
+    'assets.noneFound': 'No assets found. Upload one to get started.',
+    'assets.source.local': 'Local',
+    'assets.source.drive': 'Drive',
+    'assets.source.server': 'Server',
+    'assets.unknownOwner': 'Unknown',
+    'assets.sourceCount': '{count} sources',
+    'assets.publicByOwner': 'Public · {owner}',
+    'assets.privateByOwner': 'Private · {owner}',
+
     'assets.uploadAsset': 'Upload Asset',
     'assets.addToCanvas': 'Add to Canvas',
     'assets.makePublic': 'Make Public',
@@ -1042,6 +1053,20 @@ const en: LocaleDictionary = {
     'layeritem.hasMask': 'Has mask',
 
     // Crop edges
+    // Edge names. Shared beyond cropping (ComfyUI outpaint padding
+    // reuses them) — keep them generic, not crop-specific.
+    'comfy.notConnected': 'Not connected',
+    'comfy.checkingConnection': 'Checking connection...',
+    'comfy.selectedLayers': 'Selected layers ({count})',
+    'comfy.chooseLayers': 'Choose layers',
+    'comfy.wholeCanvas': 'Whole canvas',
+    'comfy.maskPainted': 'Mask painted — only the painted areas will be regenerated.',
+    'comfy.maskNone': 'No mask yet — the whole source area will be regenerated.',
+    'comfy.editMask': 'Edit Mask',
+    'comfy.paintMask': 'Paint Mask',
+    'comfy.running': 'Running on ComfyUI...',
+    'comfy.runWorkflow': 'Run Workflow',
+
     'crop.top': 'Top',
     'crop.bottom': 'Bottom',
     'crop.left': 'Left',

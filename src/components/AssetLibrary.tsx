@@ -2080,7 +2080,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     className="ml-auto h-8 px-4 bg-primary text-primary-foreground text-xs font-semibold rounded-md inline-flex items-center justify-center gap-2 hover:bg-primary/90 disabled:opacity-50 transition-all shrink-0"
                 >
                     {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                    {isUploading ? 'Uploading...' : 'Upload Asset'}
+                    {isUploading ? t('assets.uploading') : t('assets.uploadAsset')}
                 </button>
                 </div>
             </div>
@@ -2130,8 +2130,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 ) : displayedAssets.length === 0 ? (
                     <div className="text-center py-8 text-xs text-muted-foreground">
                         {activeGroup
-                            ? `No assets from "${activeGroup}" in this tab.`
-                            : 'No assets found. Upload one to get started.'}
+                            ? t('assets.noneFromGroup', { group: activeGroup })
+                            : t('assets.noneFound')}
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -2144,13 +2144,13 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             const imagePreviewUrl = representative.previewPath || (representative.storageProvider === 'server' ? representative.path : undefined);
                             const sourceLabels = Array.from(new Set(sourceAssets.map((entry) => (
                                 entry.storageProvider === 'local'
-                                    ? 'Local'
+                                    ? t('assets.source.local')
                                     : entry.storageProvider === 'google-drive'
-                                        ? 'Drive'
-                                        : 'Server'
+                                        ? t('assets.source.drive')
+                                        : t('assets.source.server')
                             ))));
-                            const ownerShort = (asset.owner || 'Unknown').trim();
-                            const sourceCountLabel = sourceLabels.length > 1 ? `${sourceLabels.length} sources` : null;
+                            const ownerShort = (asset.owner || t('assets.unknownOwner')).trim();
+                            const sourceCountLabel = sourceLabels.length > 1 ? t('assets.sourceCount', { count: sourceLabels.length }) : null;
                             const isSelected = selectedAssetKeys.includes(assetKey);
                             const memberGroup = groupNameForAsset(asset);
 
@@ -2394,7 +2394,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                             <span className="max-w-[64px] truncate">{memberGroup}</span>
                                                         </span>
                                                     )}
-                                                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50" title={asset.isPublic ? `Public · ${ownerShort}` : `Private · ${ownerShort}`}>
+                                                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50" title={asset.isPublic ? t('assets.publicByOwner', { owner: ownerShort }) : t('assets.privateByOwner', { owner: ownerShort })}>
                                                         {isUpdatingVisibility ? <Loader2 size={8} className="animate-spin" /> : (asset.isPublic ? <Globe size={8} /> : <Lock size={8} />)}
                                                     </span>
                                                     <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/50" title={sourceCountLabel || sourceLabels.join(', ')}>
@@ -2522,7 +2522,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         title={menuAsset.isPublic ? 'Set private' : 'Set public'}
                     >
                         {menuAsset.isPublic ? <Lock size={13} className="text-muted-foreground" /> : <Globe size={13} className="text-muted-foreground" />}
-                        {menuAsset.isPublic ? 'Make Private' : 'Make Public'}
+                        {menuAsset.isPublic ? t('assets.makePrivate') : t('assets.makePublic')}
                     </button>
                     <div className="my-1 h-px bg-border/60" />
                     {groupNames.filter((name) => name !== menuGroup).map((name) => (
