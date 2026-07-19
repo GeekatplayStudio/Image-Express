@@ -1201,7 +1201,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 variant: 'destructive'
             });
         }
-    }, [onClose, onSelect, resolveAssetSelectionPath, toast]);
+    }, [onClose, onSelect, resolveAssetSelectionPath, toast, t]);
 
     const downloadAsset = async (asset: LibraryAsset, e?: React.MouseEvent) => {
         e?.stopPropagation();
@@ -1297,13 +1297,13 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         next[groupName] = Array.from(nextKeys);
         persistGroups(next);
         toast({ title: t('assets.grouped'), description: `Added ${targets.length} asset(s) to "${groupName}".`, variant: 'success' });
-    }, [assetGroups, persistGroups, toast]);
+    }, [assetGroups, persistGroups, toast, t]);
 
     const createGroupForAssets = useCallback(async (targets: LibraryAsset[]) => {
         const name = (await dialog.prompt('Name the new group:', { title: t('assets.newAssetGroup'), confirmText: 'Create' }))?.trim();
         if (!name) return;
         addAssetsToGroup(name, targets);
-    }, [addAssetsToGroup, dialog]);
+    }, [addAssetsToGroup, dialog, t]);
 
     const removeAssetsFromGroups = useCallback((targets: LibraryAsset[]) => {
         if (targets.length === 0) return;
@@ -1449,7 +1449,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         } finally {
             setIsExportingLibrary(false);
         }
-    }, [downloadBlob, loadAllTabAssetsForBundle, normalizedUser, resolveAssetBlob, searchQuery, selectedAssetsInView, toast]);
+    }, [downloadBlob, loadAllTabAssetsForBundle, normalizedUser, resolveAssetBlob, searchQuery, selectedAssetsInView, toast, t]);
 
     const handleImportLibrary = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         const bundleFile = event.target.files?.[0];
@@ -1596,7 +1596,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 importInputRef.current.value = '';
             }
         }
-    }, [buildExistingImportCollisionSet, driveClientId, fetchAssets, normalizedUser, toast, uploadToCloud]);
+    }, [buildExistingImportCollisionSet, driveClientId, fetchAssets, normalizedUser, toast, uploadToCloud, t]);
 
     /**
      * Scans every tab for assets whose underlying file can no longer be
@@ -1684,7 +1684,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         } finally {
             setIsCleaningUp(false);
         }
-    }, [canManageAsset, canManageSingleAsset, dialog, driveClientId, fetchAssets, loadAllTabAssetsForBundle, normalizedUser, resolveAssetBlob, toast]);
+    }, [canManageAsset, canManageSingleAsset, dialog, driveClientId, fetchAssets, loadAllTabAssetsForBundle, normalizedUser, resolveAssetBlob, toast, t]);
 
     return (
         <>

@@ -1,5 +1,7 @@
 'use client';
 
+import { useI18n } from '@/providers/I18nProvider';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import {
@@ -83,14 +85,14 @@ const TASK_LABELS: Record<ComfyTask, string> = {
     'multi-reference': 'Multi-Ref',
 };
 
-const TASK_FILTERS: Array<{ id: ComfyTask | 'all'; label: string }> = [
-    { id: 'all', label: 'All' },
-    { id: 'generate', label: 'Generate' },
-    { id: 'img2img', label: 'Img2Img' },
-    { id: 'inpaint', label: 'Inpaint' },
-    { id: 'outpaint', label: 'Outpaint' },
-    { id: 'upscale', label: 'Upscale' },
-    { id: 'edit', label: 'Edit' },
+const TASK_FILTERS: Array<{ id: ComfyTask | 'all'; labelKey: string }> = [
+    { id: 'all', labelKey: 'assets.all' },
+    { id: 'generate', labelKey: 'stab.generate' },
+    { id: 'img2img', labelKey: 'stab.tab.img2img' },
+    { id: 'inpaint', labelKey: 'stab.tab.inpaint' },
+    { id: 'outpaint', labelKey: 'stab.tab.outpaint' },
+    { id: 'upscale', labelKey: 'stab.tab.upscale' },
+    { id: 'edit', labelKey: 'cw.task.edit' },
 ];
 
 const GROUP_LABELS: Record<BrowserGroup, string> = {
@@ -116,6 +118,7 @@ const toBrowserEntry = (entry: ComfyLibraryWorkflowEntry, group: BrowserGroup): 
 });
 
 export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }: ComfyWorkflowsModalProps) {
+    const { t } = useI18n();
     const [preferences, setPreferences] = useState<GenerativePreferences>(() => loadGenerativePreferences());
 
     useEffect(() => {
@@ -137,17 +140,17 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
     const [connection, setConnection] = useState<ConnectionState>({ status: 'unknown', message: '' });
 
     const verifyConnection = useCallback(async () => {
-        setConnection({ status: 'checking', message: 'Checking ComfyUI connection...' });
+        setConnection({ status: 'checking', message: t('cw.checkingConnection') });
         try {
             const result = await verifyAvailableComfyConnection(connectionOptions);
             setConnection({ status: result.ok ? 'ok' : 'error', message: result.message });
         } catch (error) {
             setConnection({
                 status: 'error',
-                message: error instanceof Error ? error.message : 'ComfyUI connection check failed.',
+                message: error instanceof Error ? error.message : t('cw.connectionCheckFailed'),
             });
         }
-    }, [connectionOptions]);
+    }, [connectionOptions, t]);
 
     useEffect(() => {
         void verifyConnection();
@@ -461,7 +464,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                     <div className="flex min-w-0 items-center gap-2">
                         <Workflow size={18} className="shrink-0 text-primary" />
                         <div className="min-w-0">
-                            <h2 className="text-sm font-semibold text-foreground">ComfyUI Workflows</h2>
+                            <h2 className="text-sm font-semibold text-foreground">{t('cw.title')}</h2>
                             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                                 {connectionIcon}
                                 <span className="truncate" title={connection.message}>
@@ -482,24 +485,24 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                             className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-60"
                         >
                             <Server size={12} />
-                            Verify
+                            {t('cw.verify')}
                         </button>
                         {onOpenSettings && (
                             <button
                                 type="button"
                                 onClick={onOpenSettings}
                                 className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
-                                title="Connection and workflow folder settings"
+                                title={t('cw.settingsTitle')}
                             >
                                 <Settings size={12} />
-                                Settings
+                                {t('common.settings')}
                             </button>
                         )}
                         <button
                             type="button"
                             onClick={onClose}
                             className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                            aria-label="Close ComfyUI workflows"
+                            aria-label={t('cw.closeAria')}
                         >
                             <X size={14} />
                         </button>
@@ -522,8 +525,8 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                     type="text"
                                     value={searchQuery}
                                     onChange={(event) => setSearchQuery(event.target.value)}
-                                    placeholder="Search workflows..."
-                                    aria-label="Search workflows"
+                                    placeholder={t('cw.searchPlaceholder')}
+                                    aria-label={t('cw.searchAria')}
                                     className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                                 />
                             </div>
@@ -539,7 +542,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                             : 'border-border/60 bg-background text-muted-foreground hover:bg-secondary hover:text-foreground'
                                         }`}
                                     >
-                                        {filter.label}
+                                        {t(filter.labelKey)}
                                     </button>
                                 ))}
                             </div>
@@ -552,7 +555,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                     className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 font-medium hover:bg-secondary disabled:opacity-60"
                                 >
                                     {library.isLoading ? <Loader2 size={10} className="animate-spin" /> : <RefreshCcw size={10} />}
-                                    Rescan
+                                    {t('cw.rescan')}
                                 </button>
                             </div>
                         </div>
@@ -565,7 +568,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                             )}
                             {groupedEntries.length === 0 && !library.isLoading && (
                                 <div className="rounded border border-dashed border-border/60 px-3 py-6 text-center text-[11px] text-muted-foreground">
-                                    No workflows match. Connect ComfyUI for official templates, or add workflow folders in Settings.
+                                    {t('cw.noMatches')}
                                 </div>
                             )}
                             {groupedEntries.map(({ group, entries }) => (
@@ -594,7 +597,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                 </div>
                                                 <div className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">{entry.description}</div>
                                                 {!entry.runnable && (
-                                                    <div className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-300">View only — no runnable output detected.</div>
+                                                    <div className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-300">{t('cw.viewOnly')}</div>
                                                 )}
                                             </button>
                                         ))}
@@ -609,10 +612,9 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                         {!selectedEntry ? (
                             <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                                 <Workflow size={32} className="opacity-40" />
-                                <p className="text-sm font-medium">Pick a workflow to get started</p>
+                                <p className="text-sm font-medium">{t('cw.pickWorkflow')}</p>
                                 <p className="max-w-sm text-xs">
-                                    Built-in workflows run out of the box. Official templates come from your connected
-                                    ComfyUI server, and My Workflows are scanned from the folders set in Settings.
+                                    {t('cw.pickWorkflowHint')}
                                 </p>
                             </div>
                         ) : (
@@ -633,14 +635,14 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                 {needsSource && (
                                     <div className="space-y-2 rounded-lg border border-border/60 bg-background/40 p-3">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Source image</span>
+                                            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('cw.sourceImage')}</span>
                                             <button
                                                 type="button"
                                                 onClick={refreshLayers}
                                                 className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-secondary"
                                             >
                                                 <RefreshCcw size={10} />
-                                                Refresh layers
+                                                {t('cw.refreshLayers')}
                                             </button>
                                         </div>
                                         <div className="flex flex-wrap gap-1.5">
@@ -666,7 +668,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                         {sourceKind === 'layers' && (
                                             <div className="max-h-36 space-y-1 overflow-y-auto rounded border border-border/60 bg-background p-2">
                                                 {layerOptions.length === 0 && (
-                                                    <div className="text-[11px] text-muted-foreground">The canvas has no layers yet.</div>
+                                                    <div className="text-[11px] text-muted-foreground">{t('cw.noLayers')}</div>
                                                 )}
                                                 {layerOptions.map((layer) => (
                                                     <label key={layer.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-secondary/50">
@@ -674,7 +676,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                             type="checkbox"
                                                             checked={chosenLayerIds.includes(layer.id)}
                                                             onChange={() => toggleChosenLayer(layer.id)}
-                                                            aria-label={`Use layer ${layer.label}`}
+                                                            aria-label={t('cw.useLayerAria', { name: layer.label })}
                                                         />
                                                         <span className="truncate text-foreground">{layer.label}</span>
                                                         {layer.isSelected && <span className="text-[9px] text-primary">selected</span>}
@@ -704,7 +706,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                                 onClick={clearMask}
                                                                 className="rounded border border-border px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-secondary"
                                                             >
-                                                                Remove
+                                                                {t('cw.remove')}
                                                             </button>
                                                         )}
                                                     </div>
@@ -713,7 +715,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                     /* eslint-disable-next-line @next/next/no-img-element */
                                                     <img
                                                         src={maskDataUrl}
-                                                        alt="Painted inpaint mask preview"
+                                                        alt={t('cw.maskPreviewAlt')}
                                                         className="h-16 rounded border border-border/60 bg-black object-contain"
                                                     />
                                                 )}
@@ -721,7 +723,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                         )}
                                         {isOutpaint && (
                                             <div className="space-y-1">
-                                                <span className="text-[10px] font-medium uppercase text-muted-foreground">Expand by (px)</span>
+                                                <span className="text-[10px] font-medium uppercase text-muted-foreground">{t('cw.expandBy')}</span>
                                                 <div className="grid grid-cols-4 gap-1.5">
                                                     {([
                                                         ['top', 'Top'],
@@ -748,7 +750,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                     ))}
                                                 </div>
                                                 <p className="text-[10px] text-muted-foreground">
-                                                    Set a side to 0 to keep that edge unchanged.
+                                                    {t('cw.expandHint')}
                                                 </p>
                                             </div>
                                         )}
@@ -760,16 +762,16 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                         <textarea
                                             value={prompt}
                                             onChange={(event) => setPrompt(event.target.value)}
-                                            placeholder="Describe what to generate..."
-                                            aria-label="Workflow prompt"
+                                            placeholder={t('cw.promptPlaceholder')}
+                                            aria-label={t('cw.promptAria')}
                                             className="min-h-[72px] w-full resize-none rounded-lg border border-border bg-background p-3 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-primary focus:ring-1 focus:ring-primary"
                                         />
                                         <input
                                             type="text"
                                             value={negativePrompt}
                                             onChange={(event) => setNegativePrompt(event.target.value)}
-                                            placeholder="Negative prompt (optional)"
-                                            aria-label="Negative prompt"
+                                            placeholder={t('cw.negativePlaceholder')}
+                                            aria-label={t('cw.negativeAria')}
                                             className="h-8 w-full rounded-md border border-border bg-background px-3 text-xs outline-none placeholder:text-muted-foreground/50 focus:border-primary"
                                         />
                                     </div>
@@ -777,12 +779,12 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
 
                                 <details className="rounded-lg border border-border/60 bg-background/40">
                                     <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                        Advanced settings
+                                        {t('cw.advancedSettings')}
                                     </summary>
                                     <div className="grid grid-cols-2 gap-3 px-3 pb-3 pt-1 sm:grid-cols-3">
                                         {modelPresets.length > 1 && (
                                             <label className="col-span-2 flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground sm:col-span-3">
-                                                Model preset
+                                                {t('cw.modelPreset')}
                                                 <select
                                                     value={modelPresetId}
                                                     onChange={(event) => setModelPresetId(event.target.value)}
@@ -795,7 +797,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                             </label>
                                         )}
                                         <label className="flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground">
-                                            Steps
+                                            {t('cw.steps')}
                                             <input
                                                 type="number"
                                                 min={1}
@@ -806,7 +808,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                             />
                                         </label>
                                         <label className="flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground">
-                                            CFG
+                                            {t('cw.cfg')}
                                             <input
                                                 type="number"
                                                 min={1}
@@ -818,7 +820,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                             />
                                         </label>
                                         <label className="flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground">
-                                            Seed (blank = random)
+                                            {t('cw.seed')}
                                             <input
                                                 type="text"
                                                 value={seedInput}
@@ -829,7 +831,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                         </label>
                                         {usesStrength && (
                                             <label className="flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground">
-                                                Strength ({strength.toFixed(2)})
+                                                {t('cw.strength', { value: strength.toFixed(2) })}
                                                 <input
                                                     type="range"
                                                     min={0.05}
@@ -844,7 +846,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                         {isGenerate && (
                                             <>
                                                 <label className="flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground">
-                                                    Width
+                                                    {t('canvas.width')}
                                                     <input
                                                         type="number"
                                                         min={64}
@@ -856,7 +858,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                     />
                                                 </label>
                                                 <label className="flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground">
-                                                    Height
+                                                    {t('canvas.height')}
                                                     <input
                                                         type="number"
                                                         min={64}
@@ -888,7 +890,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                             onClick={cancelRun}
                                             className="rounded-lg border border-border px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
                                         >
-                                            Cancel
+                                            {t('common.cancel')}
                                         </button>
                                     )}
                                 </div>
@@ -907,7 +909,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                             src={resultDataUrl}
-                                            alt="ComfyUI workflow result"
+                                            alt={t('cw.resultAlt')}
                                             className="max-h-72 w-full rounded-md border border-border object-contain"
                                         />
                                         <div className="flex gap-2">
@@ -916,7 +918,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                 onClick={() => void insertResult(false)}
                                                 className="flex-1 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary"
                                             >
-                                                Insert as New Layer
+                                                {t('cw.insertAsNewLayer')}
                                             </button>
                                             <button
                                                 type="button"
@@ -924,7 +926,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                                 disabled={!lastSourceRef.current || lastSourceRef.current.layerIds.length === 0}
                                                 className="flex-1 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
                                             >
-                                                Replace Source Layers
+                                                {t('cw.replaceSourceLayers')}
                                             </button>
                                         </div>
                                     </div>

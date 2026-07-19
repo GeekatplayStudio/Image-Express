@@ -243,7 +243,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 }
             }
             return options;
-        }, [initialImage, layerImageOptions]);
+        }, [initialImage, layerImageOptions, t]);
 
         const resolveLayerImageUrl = (layerId: string) => {
             if (layerId === '__initial__') return initialImage || '';
