@@ -21,10 +21,10 @@ jest.mock('@/lib/googleDrive', () => ({
 
 jest.mock('@/lib/assetStorageSettings', () => ({
     ASSET_CLOUD_PROVIDER_OPTIONS: [
-        { id: 'google-drive', label: 'Google Drive', availability: 'available', description: 'Google Drive ready.' },
-        { id: 'dropbox', label: 'Dropbox', availability: 'planned', description: 'Dropbox planned.' },
-        { id: 'onedrive', label: 'OneDrive', availability: 'planned', description: 'OneDrive planned.' },
-        { id: 's3-compatible', label: 'S3-compatible', availability: 'planned', description: 'S3 planned.' },
+        { id: 'google-drive', label: 'Google Drive', availability: 'available', descriptionKey: 'storage.provider.googleDrive.desc' },
+        { id: 'dropbox', label: 'Dropbox', availability: 'planned', descriptionKey: 'storage.provider.dropbox.desc' },
+        { id: 'onedrive', label: 'OneDrive', availability: 'planned', descriptionKey: 'storage.provider.onedrive.desc' },
+        { id: 's3-compatible', label: 'S3-compatible', availability: 'planned', descriptionKey: 'storage.provider.s3.desc' },
     ],
     getAssetCloudProviderLabel: (provider: string) => ({
                     workflowName: 'Z Image Turbo / FLUX 2 Klein Image Edit (4B Template)',

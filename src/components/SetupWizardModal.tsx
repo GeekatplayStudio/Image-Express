@@ -445,12 +445,12 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                 >
                                     {ASSET_CLOUD_PROVIDER_OPTIONS.map((provider) => (
                                         <option key={provider.id} value={provider.id}>
-                                            {provider.label}{provider.availability === 'planned' ? ' (planned)' : ''}
+                                            {provider.label}{provider.availability === 'planned' ? t('storage.plannedSuffix') : ''}
                                         </option>
                                     ))}
                                 </select>
                                 <p className="text-[11px] text-muted-foreground">
-                                    {selectedCloudProviderOption.description}
+                                    {t(selectedCloudProviderOption.descriptionKey)}
                                 </p>
                             </div>
                             <div className="grid gap-3">

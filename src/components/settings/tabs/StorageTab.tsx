@@ -2,6 +2,7 @@
 
 import { DownloadCloud, HardDrive, HelpCircle, Loader2, RefreshCcw, ShieldCheck } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
+import { RichText } from '@/lib/i18n/RichText';
 import { updateDriveConfig } from '@/lib/googleDrive';
 import { ASSET_CLOUD_PROVIDER_OPTIONS, type AssetCloudProvider, type AssetStorageMode } from '@/lib/assetStorageSettings';
 import type { StorageSettings } from '../hooks/useStorageSettings';
@@ -36,7 +37,7 @@ export default function StorageTab({ storage }: StorageTabProps) {
                                 {t('settings.storage.desktopUpdates')}
                             </h4>
                             <p className="text-[11px] text-muted-foreground">
-                                Stay current with the latest Image Express desktop features.
+                                {t('storage.updatesHint')}
                             </p>
                         </div>
                         <button
@@ -45,7 +46,7 @@ export default function StorageTab({ storage }: StorageTabProps) {
                             disabled={updateStatus === 'checking'}
                         >
                             <RefreshCcw size={14} className={updateStatus === 'checking' ? 'animate-spin' : ''} />
-                            Check Now
+                            {t('storage.checkNow')}
                         </button>
                     </div>
                     {updateMessage && (
@@ -59,7 +60,7 @@ export default function StorageTab({ storage }: StorageTabProps) {
                             className="w-full py-2 text-xs font-semibold bg-primary text-primary-foreground rounded-md flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
                         >
                             <DownloadCloud size={14} />
-                            Restart & Install Update
+                            {t('storage.restartInstall')}
                         </button>
                     )}
                 </section>
@@ -73,7 +74,7 @@ export default function StorageTab({ storage }: StorageTabProps) {
                             {t('settings.storage.cloudConnections')}
                         </h4>
                         <p className="text-[11px] text-muted-foreground">
-                            Google Drive is available today. Additional providers can now be selected in storage settings and surfaced explicitly while their adapters are pending.
+                            {t('storage.providersHint')}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -82,7 +83,7 @@ export default function StorageTab({ storage }: StorageTabProps) {
                             className="px-2 py-1 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
                         >
                             <HelpCircle size={14} />
-                            Help
+                            {t('storage.help')}
                         </button>
                         {driveConfig.enabled ? (
                             <button
@@ -90,7 +91,7 @@ export default function StorageTab({ storage }: StorageTabProps) {
                                 className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
                                 disabled={isDriveBusy || !selectedCloudProviderIsImplemented}
                             >
-                                {isDriveBusy ? (<><Loader2 size={14} className="animate-spin" />Disconnecting...</>) : 'Disconnect'}
+                                {isDriveBusy ? (<><Loader2 size={14} className="animate-spin" />{t('storage.disconnecting')}</>) : t('storage.disconnect')}
                             </button>
                         ) : (
                             <button
@@ -98,34 +99,34 @@ export default function StorageTab({ storage }: StorageTabProps) {
                                 className="px-3 py-1.5 text-[11px] font-semibold border border-border rounded-md hover:bg-secondary transition-colors flex items-center gap-1.5"
                                 disabled={isDriveBusy || !selectedCloudProviderIsImplemented}
                             >
-                                {isDriveBusy ? (<><Loader2 size={14} className="animate-spin" />Connecting...</>) : 'Connect'}
+                                {isDriveBusy ? (<><Loader2 size={14} className="animate-spin" />{t('storage.connecting')}</>) : t('storage.connect')}
                             </button>
                         )}
                     </div>
                 </div>
                 {showDriveHelp && (
                     <div className="text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md px-3 py-3 space-y-2">
-                        <p className="font-semibold text-foreground">How to create a Google OAuth Client ID</p>
+                        <p className="font-semibold text-foreground">{t('storage.oauthHowTo')}</p>
                         <ol className="list-decimal list-inside space-y-1">
-                            <li>Visit Google Cloud Console and create (or select) a project.</li>
-                            <li>Enable the Drive API under APIs and Services.</li>
-                            <li>Configure the OAuth consent screen (External) and add your app domains.</li>
-                            <li>Create OAuth credentials: choose Web application, add your origins (for example http://localhost:3000), and copy the Client ID.</li>
-                            <li>Paste the Client ID here or set NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID before running the app.</li>
+                            <li>{t('storage.oauth1')}</li>
+                            <li>{t('storage.oauth2')}</li>
+                            <li>{t('storage.oauth3')}</li>
+                            <li>{t('storage.oauth4')}</li>
+                            <li>{t('storage.oauth5')}</li>
                         </ol>
-                        <p>If you publish the app, submit the OAuth consent screen for verification so users see the Google account picker without warnings.</p>
+                        <p>{t('storage.oauthVerifyHint')}</p>
                     </div>
                 )}
                 <div className="space-y-2">
                     <div className="text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md px-3 py-2">
-                        <p className="font-semibold text-foreground">Selected provider: {selectedCloudProviderLabel}</p>
+                        <p className="font-semibold text-foreground">{t('storage.selectedProvider', { provider: selectedCloudProviderLabel })}</p>
                         <p>
                             {selectedCloudProviderIsImplemented
-                                ? 'This provider can be connected below and used for cloud backups/uploads.'
-                                : `${selectedCloudProviderLabel} is planned. Selecting it updates preferences now, but cloud uploads stay local-only until that adapter is implemented.`}
+                                ? t('storage.providerImplemented')
+                                : t('storage.providerPlannedPrefs', { provider: selectedCloudProviderLabel })}
                         </p>
                     </div>
-                    <label className="text-xs font-semibold block">Google OAuth Client ID</label>
+                    <label className="text-xs font-semibold block">{t('storage.oauthClientId')}</label>
                     <input
                         type="text"
                         value={clientIdInput}
@@ -135,25 +136,27 @@ export default function StorageTab({ storage }: StorageTabProps) {
                             const updated = updateDriveConfig({ clientId: value || undefined });
                             setDriveConfig(updated);
                         }}
-                        placeholder="1234567890-abcdef.apps.googleusercontent.com"
+                        placeholder={t('storage.oauthPlaceholder')}
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono"
                     />
                     {!envDriveClientId && (
                         <p className="text-[11px] text-muted-foreground">
-                            Paste the Client ID from your Google Cloud OAuth credentials. Enable the Drive API and include the <span className="font-mono">drive.file</span> scope.
+                            <RichText template={t('storage.clientIdHint')} values={{
+                                scope: <span className="font-mono">drive.file</span>,
+                            }} />
                         </p>
                     )}
                     {!selectedCloudProviderIsImplemented && (
                         <div className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                            {selectedCloudProviderLabel} connection controls are not implemented yet. Google Drive remains the only active cloud connector in this build.
+                            {t('storage.providerNotImplemented', { provider: selectedCloudProviderLabel })}
                         </div>
                     )}
                 </div>
                 {driveConfig.enabled && (
                     <div className="text-[11px] text-muted-foreground bg-secondary/20 border border-border/40 rounded-md px-3 py-2">
-                        <p className="font-semibold">Status: Connected</p>
-                        {driveConfig.folderName && <p>Folder: {driveConfig.folderName}</p>}
-                        <p className="text-muted-foreground/80">Backups run after each successful save.</p>
+                        <p className="font-semibold">{t('storage.statusConnected')}</p>
+                        {driveConfig.folderName && <p>{t('storage.folderLabel', { name: driveConfig.folderName })}</p>}
+                        <p className="text-muted-foreground/80">{t('storage.backupsHint')}</p>
                     </div>
                 )}
                 {driveError && (
@@ -170,11 +173,11 @@ export default function StorageTab({ storage }: StorageTabProps) {
                         {t('settings.storage.assetStrategy')}
                     </h4>
                     <p className="text-[11px] text-muted-foreground">
-                        Choose where uploaded assets are stored: browser-local, hybrid, or cloud-backed with your selected provider.
+                        {t('storage.modeHint')}
                     </p>
                 </div>
                 <div className="space-y-2">
-                    <label className="text-xs font-semibold block">Cloud Provider</label>
+                    <label className="text-xs font-semibold block">{t('storage.cloudProvider')}</label>
                     <select
                         value={assetCloudProvider}
                         onChange={(event) => setAssetCloudProvider(event.target.value as AssetCloudProvider)}
@@ -182,29 +185,29 @@ export default function StorageTab({ storage }: StorageTabProps) {
                     >
                         {ASSET_CLOUD_PROVIDER_OPTIONS.map((provider) => (
                             <option key={provider.id} value={provider.id}>
-                                {provider.label}{provider.availability === 'planned' ? ' (planned)' : ''}
+                                {provider.label}{provider.availability === 'planned' ? t('storage.plannedSuffix') : ''}
                             </option>
                         ))}
                     </select>
                     <p className="text-[11px] text-muted-foreground">
-                        {selectedCloudProviderOption.description}
+                        {t(selectedCloudProviderOption.descriptionKey)}
                     </p>
                 </div>
                 <div className="space-y-2">
-                    <label className="text-xs font-semibold block">Storage Mode</label>
+                    <label className="text-xs font-semibold block">{t('storage.storageMode')}</label>
                     <select
                         value={assetStorageMode}
                         onChange={(event) => setAssetStorageMode(event.target.value as AssetStorageMode)}
                         className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs"
                     >
-                        <option value="local">Local only (browser)</option>
-                        <option value="hybrid">Hybrid (local + optional cloud per upload)</option>
-                        <option value="cloud" disabled={!selectedCloudProviderIsImplemented}>Cloud only ({selectedCloudProviderLabel})</option>
+                        <option value="local">{t('storage.modeLocal')}</option>
+                        <option value="hybrid">{t('storage.modeHybrid')}</option>
+                        <option value="cloud" disabled={!selectedCloudProviderIsImplemented}>{t('storage.modeCloud', { provider: selectedCloudProviderLabel })}</option>
                     </select>
                     <p className="text-[11px] text-muted-foreground">
-                        {assetStorageMode === 'local' && 'Files stay in your browser storage (IndexedDB).'}
-                        {assetStorageMode === 'hybrid' && `Files save locally by default; you can enable per-upload cloud copy for ${selectedCloudProviderLabel} when supported.`}
-                        {assetStorageMode === 'cloud' && `All uploads go to your connected ${selectedCloudProviderLabel} assets folder.`}
+                        {assetStorageMode === 'local' && t('storage.localDesc')}
+                        {assetStorageMode === 'hybrid' && t('storage.hybridDesc', { provider: selectedCloudProviderLabel })}
+                        {assetStorageMode === 'cloud' && t('storage.cloudDesc', { provider: selectedCloudProviderLabel })}
                     </p>
                 </div>
 
@@ -216,7 +219,7 @@ export default function StorageTab({ storage }: StorageTabProps) {
                             onChange={(event) => setHybridUploadToCloudByDefault(event.target.checked)}
                             className="rounded border-border text-primary focus:ring-primary/20"
                         />
-                        In hybrid mode, check cloud upload by default
+                        {t('storage.hybridDefaultCheck')}
                     </label>
                 )}
 
@@ -228,19 +231,19 @@ export default function StorageTab({ storage }: StorageTabProps) {
                             onChange={(event) => setIncludeLegacyServerAssetsInHybrid(event.target.checked)}
                             className="rounded border-border text-primary focus:ring-primary/20"
                         />
-                        Include legacy server assets in Asset Library lists
+                        {t('storage.includeLegacy')}
                     </label>
                 )}
 
                 {assetStorageMode !== 'local' && selectedCloudProviderIsImplemented && !driveConfig.enabled && (
                     <div className="text-[11px] text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                        Connect {selectedCloudProviderLabel} above to use cloud or hybrid cloud uploads.
+                        {t('storage.connectAbove', { provider: selectedCloudProviderLabel })}
                     </div>
                 )}
 
                 {assetStorageMode !== 'local' && !selectedCloudProviderIsImplemented && (
                     <div className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                        {selectedCloudProviderLabel} is planned but not active yet. Assets will remain local in this build.
+                        {t('storage.providerPlannedAssets', { provider: selectedCloudProviderLabel })}
                     </div>
                 )}
             </section>

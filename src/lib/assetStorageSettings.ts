@@ -7,31 +7,31 @@ export const ASSET_CLOUD_PROVIDER_OPTIONS: Array<{
     id: AssetCloudProvider;
     label: string;
     availability: 'available' | 'planned';
-    description: string;
+    descriptionKey: string;
 }> = [
     {
         id: 'google-drive',
         label: 'Google Drive',
         availability: 'available',
-        description: 'Fully integrated today for asset sync and design backup.',
+        descriptionKey: 'storage.provider.googleDrive.desc',
     },
     {
         id: 'dropbox',
         label: 'Dropbox',
         availability: 'planned',
-        description: 'Provider slot is wired, but the Dropbox adapter is not implemented yet.',
+        descriptionKey: 'storage.provider.dropbox.desc',
     },
     {
         id: 'onedrive',
         label: 'OneDrive',
         availability: 'planned',
-        description: 'Provider slot is wired, but the OneDrive adapter is not implemented yet.',
+        descriptionKey: 'storage.provider.onedrive.desc',
     },
     {
         id: 's3-compatible',
         label: 'S3-compatible',
         availability: 'planned',
-        description: 'Provider slot is wired, but S3-compatible storage setup is not implemented yet.',
+        descriptionKey: 'storage.provider.s3.desc',
     },
 ];
 

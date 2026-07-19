@@ -40,6 +40,8 @@ const ALLOWED_KEYS = new Set([
     'docs.moreHelp.body',
     // "Google Cloud project" is an external product concept, not an album.
     'wizard.gcp1',
+    // "project" here is Google Cloud's own term, not our Album concept.
+    'storage.oauth1',
     // "undo/redo stacks" is the data structure, not the album view.
     'panel.history.hint',
     // "layered 2D design" is the discipline, not a saveable document.
