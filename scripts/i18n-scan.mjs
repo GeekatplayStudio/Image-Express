@@ -110,6 +110,56 @@ function scanFile(file) {
         return /i18n-ignore/.test(text);
     };
 
+    /**
+     * Collect string/template literals from an expression that lands in
+     * rendered output. Skips the positions where a literal is data rather
+     * than display text: comparison operands (`mode === 'local'`), property
+     * keys, and translation keys already passed to t().
+     */
+    function renderedStrings(expr, sf, out = []) {
+        const skip = (n) => {
+            const p = n.parent;
+            if (!p) return false;
+            // `x === 'local'` and friends — the literal is a discriminant.
+            if (ts.isBinaryExpression(p) && [
+                ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
+                ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken,
+            ].includes(p.operatorToken.kind)) return true;
+            // Already translated: t('key'), or an element/property access key.
+            if (ts.isCallExpression(p) && p.arguments.includes(n)) return true;
+            if (ts.isPropertyAssignment(p) && p.name === n) return true;
+            if (ts.isElementAccessExpression(p)) return true;
+            return false;
+        };
+        const walk = (n) => {
+            // Nested JSX inside the expression (a .map() row, a conditional
+            // subtree) is reached by the main visitor, which applies the
+            // text/attribute rules properly. Descending here would re-report
+            // every className on it.
+            if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)
+                || ts.isJsxFragment(n) || ts.isJsxAttribute(n)) return;
+            if (ts.isStringLiteral(n) && !skip(n)) {
+                if (n.text.trim()) out.push({ text: n.text.trim(), at: n });
+                return;
+            }
+            if (ts.isNoSubstitutionTemplateLiteral(n) && !skip(n)) {
+                if (n.text.trim()) out.push({ text: n.text.trim(), at: n });
+                return;
+            }
+            // `${x} is planned.` — judge the literal chunks, report the whole.
+            if (ts.isTemplateExpression(n) && !skip(n)) {
+                const chunks = [n.head.text, ...n.templateSpans.map((s) => s.literal.text)];
+                if (chunks.join('').trim()) {
+                    out.push({ text: chunks.join('{}').trim(), at: n });
+                }
+                return;
+            }
+            ts.forEachChild(n, walk);
+        };
+        walk(expr);
+        return out;
+    }
+
     const visit = (node) => {
         // 1. Literal text between JSX tags — any formatting, any indentation.
         if (ts.isJsxText(node)) {
@@ -152,6 +202,18 @@ function scanFile(file) {
             }
         }
 
+        // 4. Strings rendered from inside a JSX expression container —
+        //    `{cond && 'text'}`, `{cond ? 'a' : 'b'}`, `{`${x} text`}`.
+        //    Rules 1–3 never see these, which let real strings through.
+        if (ts.isJsxExpression(node) && node.expression
+            && node.parent && (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))) {
+            for (const { text, at } of renderedStrings(node.expression, sf)) {
+                if (!isExempt(text) && !lineHasOptOut(at)) {
+                    findings.push({ file, line: lineOf(at), kind: 'jsx-expr', text });
+                }
+            }
+        }
+
         ts.forEachChild(node, visit);
     };
 
@@ -161,12 +223,24 @@ function scanFile(file) {
 
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
-const filters = args.filter((a) => !a.startsWith('--'));
+// Compare on forward slashes so a filter copied from a shell command matches
+// the backslash paths Node reports on Windows. A silent no-match here reads as
+// "0 findings" and quietly certifies a file nobody actually scanned.
+const slash = (p) => p.replace(/\\/g, '/');
+const filters = args.filter((a) => !a.startsWith('--')).map(slash);
 
 let findings = [];
+let scanned = 0;
 for (const file of walkFiles(SRC)) {
-    if (filters.length && !filters.some((f) => file.includes(f))) continue;
+    if (filters.length && !filters.some((f) => slash(file).includes(f))) continue;
+    scanned += 1;
     findings = findings.concat(scanFile(file));
+}
+
+// A filter that matches nothing must not look like a clean file.
+if (filters.length && scanned === 0) {
+    console.error(`No files matched: ${filters.join(', ')}`);
+    process.exit(2);
 }
 
 if (asJson) {

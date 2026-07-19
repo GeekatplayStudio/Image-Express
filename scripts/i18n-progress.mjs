@@ -21,8 +21,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 
-/** Untranslated strings when the AST scanner first produced a correct count. */
-const CONVERSION_BASELINE = 1700;
+/**
+ * Untranslated strings at the start of the conversion effort.
+ *
+ * Revised upward from 1700 once the scanner learned to read string literals
+ * inside JSX expression containers (`{cond && 'text'}`, `{cond ? 'a' : 'b'}`,
+ * templates). That rule surfaced ~230 strings the earlier count could not see,
+ * including some in files previously reported clean — so the old 1700 was an
+ * undercount of the work, not a record of progress.
+ */
+const CONVERSION_BASELINE = 1932;
 
 /**
  * Namespaces excluded from translation tracking.
