@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '@/providers/I18nProvider';
 
 export interface ImageFilterValues {
     blur: number;
@@ -16,28 +17,29 @@ interface ImageFilterPropertiesProps {
 }
 
 export function ImageFilterProperties({ values, onChange }: ImageFilterPropertiesProps) {
+    const { t } = useI18n();
     const filters = [
-        { label: 'Blur', type: 'Blur', min: 0, max: 1, step: 0.01, value: values.blur },
-        { label: 'Brightness', type: 'Brightness', min: -1, max: 1, step: 0.01, value: values.brightness },
-        { label: 'Contrast', type: 'Contrast', min: -1, max: 1, step: 0.01, value: values.contrast },
-        { label: 'Saturation', type: 'Saturation', min: -1, max: 1, step: 0.01, value: values.saturation },
-        { label: 'Vibrance', type: 'Vibrance', min: -1, max: 1, step: 0.01, value: values.vibrance },
-        { label: 'Noise', type: 'Noise', min: 0, max: 1000, step: 10, value: values.noise },
-        { label: 'Pixelate', type: 'Pixelate', min: 0, max: 20, step: 1, value: values.pixelate },
+        { labelKey: 'fx.blur', type: 'Blur', min: 0, max: 1, step: 0.01, value: values.blur },
+        { labelKey: 'ctrl.brightness', type: 'Brightness', min: -1, max: 1, step: 0.01, value: values.brightness },
+        { labelKey: 'ctrl.contrast', type: 'Contrast', min: -1, max: 1, step: 0.01, value: values.contrast },
+        { labelKey: 'ctrl.saturation', type: 'Saturation', min: -1, max: 1, step: 0.01, value: values.saturation },
+        { labelKey: 'ctrl.vibrance', type: 'Vibrance', min: -1, max: 1, step: 0.01, value: values.vibrance },
+        { labelKey: 'filter.noise', type: 'Noise', min: 0, max: 1000, step: 10, value: values.noise },
+        { labelKey: 'filter.pixelate', type: 'Pixelate', min: 0, max: 20, step: 1, value: values.pixelate },
     ] as const;
 
     return (
         <div className="p-4 space-y-4 border-b border-border/50">
-            <h3 className="font-medium text-sm">Filters</h3>
+            <h3 className="font-medium text-sm">{t('filter.title')}</h3>
             <div className="space-y-3">
                 {filters.map(f => (
                     <div key={f.type} className="space-y-2">
                         <div className="flex justify-between text-[10px] text-muted-foreground">
                             <span 
                                 className="cursor-pointer hover:text-foreground"
-                                title="Double-click to reset"
+                                title={t('text.doubleClickReset')}
                                 onDoubleClick={() => onChange(f.type, 0)}
-                            >{f.label}</span>
+                            >{t(f.labelKey)}</span>
                             <span>{f.value.toFixed(2)}</span>
                         </div>
                         <input

@@ -146,7 +146,7 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         render(<PropertiesPanel canvas={null} activeTool="select" />);
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode layers' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-layers')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.getByTestId('layers-view')).toBeInTheDocument();
@@ -155,8 +155,8 @@ describe('PropertiesPanel panel mode rail persistence', () => {
     it('persists panel mode changes when switching via rail', async () => {
         render(<PropertiesPanel canvas={null} activeTool="select" />);
 
-        const layersButton = screen.getByRole('button', { name: 'Panel mode layers' });
-        const propertiesButton = screen.getByRole('button', { name: 'Panel mode properties' });
+        const layersButton = screen.getByTestId('panel-mode-layers');
+        const propertiesButton = screen.getByTestId('panel-mode-properties');
 
         fireEvent.click(layersButton);
         await waitFor(() => {
@@ -186,7 +186,7 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode history' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-history')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.getByText('History')).toBeInTheDocument();
@@ -206,16 +206,16 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         render(<PropertiesPanel canvas={null} activeTool="select" />);
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode color' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-color')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.getByText('Color')).toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Panel mode swatches' }));
+        fireEvent.click(screen.getByTestId('panel-mode-swatches'));
 
         await waitFor(() => {
             expect(window.localStorage.getItem(PANEL_MODE_STORAGE_KEY)).toBe('swatches');
-            expect(screen.getByRole('button', { name: 'Panel mode swatches' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-swatches')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.getByText('Swatches')).toBeInTheDocument();
@@ -227,7 +227,7 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         render(<PropertiesPanel canvas={null} activeTool="select" />);
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode channels' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-channels')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.getByText('Channels')).toBeInTheDocument();
@@ -271,7 +271,7 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode brushes' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-brushes')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.getByText('Brushes')).toBeInTheDocument();
@@ -308,28 +308,28 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         render(<PropertiesPanel canvas={null} activeTool="pen" />);
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode properties' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-properties')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.queryByTestId('pen-properties')).not.toBeInTheDocument();
         expect(screen.getByTestId('canvas-settings')).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Panel mode paths' })).toBeNull();
+        expect(screen.queryByTestId('panel-mode-paths')).toBeNull();
     });
 
     it('keeps the panel rail visible when the gallery tool is active', async () => {
         render(<PropertiesPanel canvas={null} activeTool="assets" />);
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode properties' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-properties')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.getByTestId('canvas-settings')).toBeInTheDocument();
         expect(screen.queryByTestId('asset-library')).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Panel mode layers' }));
+        fireEvent.click(screen.getByTestId('panel-mode-layers'));
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode layers' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-layers')).toHaveAttribute('aria-pressed', 'true');
         });
 
         expect(screen.getByTestId('layers-view')).toBeInTheDocument();
@@ -342,7 +342,7 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         render(<PropertiesPanel canvas={canvas as unknown as fabric.Canvas} activeTool="select" />);
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode layers' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-layers')).toHaveAttribute('aria-pressed', 'true');
         });
 
         act(() => {
@@ -350,7 +350,7 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         });
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Panel mode properties' })).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByTestId('panel-mode-properties')).toHaveAttribute('aria-pressed', 'true');
             expect(screen.getByTestId('selection-properties')).toBeInTheDocument();
             expect(screen.getByTestId('selection-adjustment-type')).toHaveTextContent('brightness-contrast');
         });

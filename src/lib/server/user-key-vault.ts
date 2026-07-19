@@ -32,7 +32,8 @@ const VAULT_ALGORITHM = 'aes-256-gcm';
 const KEY_BYTE_LENGTH = 32;
 const IV_BYTE_LENGTH = 12;
 
-const STORE_DIR = path.join(process.cwd(), 'data');
+// turbopackIgnore: runtime data directory, not a bundle dependency.
+const STORE_DIR = path.join(/* turbopackIgnore: true */ process.cwd(), 'data');
 const DEFAULT_VAULT_FILE = path.join(STORE_DIR, 'user-key-vault.json');
 const DEFAULT_SECRET_FILE = path.join(STORE_DIR, 'user-key-vault.secret');
 
@@ -43,11 +44,14 @@ function nowIso() {
 }
 
 function resolveVaultFilePath() {
-    return process.env.IMAGE_EXPRESS_KEY_VAULT_FILE?.trim() || DEFAULT_VAULT_FILE;
+    const override = process.env.IMAGE_EXPRESS_KEY_VAULT_FILE?.trim();
+    // turbopackIgnore: the override is an operator-supplied runtime path, never a bundle asset.
+    return override ? path.resolve(/* turbopackIgnore: true */ override) : DEFAULT_VAULT_FILE;
 }
 
 function resolveSecretFilePath() {
-    return process.env.IMAGE_EXPRESS_KEY_VAULT_SECRET_FILE?.trim() || DEFAULT_SECRET_FILE;
+    const override = process.env.IMAGE_EXPRESS_KEY_VAULT_SECRET_FILE?.trim();
+    return override ? path.resolve(/* turbopackIgnore: true */ override) : DEFAULT_SECRET_FILE;
 }
 
 function createEmptyStore(): UserKeyVaultStore {

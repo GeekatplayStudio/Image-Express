@@ -4,7 +4,8 @@ import * as fabric from 'fabric';
 import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import type { DesignJson, ExportDataUrlOptions, MissingItem, SerializedObject } from '@/components/Editor/editorView.types';
-import { serializeCanvas } from '@/lib/fabric-utils';
+import { serializeCanvas, getArtboardSize, applyArtboardSize } from '@/lib/fabric-utils';
+import { saveUiPreferences } from '@/lib/ui-preferences';
 
 type Toast = (options: ToastOptions) => void;
 
@@ -95,8 +96,13 @@ export function useEditorPersistence({
             }
         }
 
+        const artboardSize = (designData as { artboard?: { width?: number; height?: number } }).artboard;
+
         historyReadyRef.current = false;
         canvas.loadFromJSON(designData as Record<string, unknown>, () => {
+            if (artboardSize?.width && artboardSize?.height) {
+                applyArtboardSize(canvas, artboardSize.width, artboardSize.height);
+            }
             canvas.requestRenderAll();
             setIsDirty(false);
             resetHistory();
@@ -134,7 +140,7 @@ export function useEditorPersistence({
         if (!canvas) return;
 
         let nextName = designName;
-        if (!designId && nextName === 'Untitled Design') {
+        if (!designId && nextName === 'Untitled Page') {
             const inputName = await dialog.prompt('Enter design name:', {
                 title: 'Design name',
                 defaultValue: designName,
@@ -142,7 +148,7 @@ export function useEditorPersistence({
             });
             if (!inputName) return;
             nextName = inputName;
-        } else if (nextName === 'Untitled Design') {
+        } else if (nextName === 'Untitled Page') {
             const inputName = await dialog.prompt('Enter design name:', {
                 title: 'Design name',
                 defaultValue: designName,
@@ -152,6 +158,11 @@ export function useEditorPersistence({
         }
 
         const json = serializeCanvas<DesignJson>(canvas, customHistoryProps);
+        const artboardSize = getArtboardSize(canvas);
+        if (artboardSize) {
+            json.artboard = artboardSize;
+            saveUiPreferences({ lastCanvasWidth: artboardSize.width, lastCanvasHeight: artboardSize.height });
+        }
         const jsonString = JSON.stringify(json);
 
         let thumbnailDataUrl = '';
@@ -309,8 +320,13 @@ export function useEditorPersistence({
                 return;
             }
 
+            const artboardSize = (json as { artboard?: { width?: number; height?: number } }).artboard;
+
             historyReadyRef.current = false;
             canvas.loadFromJSON(json, () => {
+                if (artboardSize?.width && artboardSize?.height) {
+                    applyArtboardSize(canvas, artboardSize.width, artboardSize.height);
+                }
                 canvas.requestRenderAll();
                 setIsDirty(false);
                 resetHistory();
@@ -361,8 +377,13 @@ export function useEditorPersistence({
             });
         }
 
+        const artboardSize = (json as { artboard?: { width?: number; height?: number } }).artboard;
+
         historyReadyRef.current = false;
         canvas.loadFromJSON(json, () => {
+            if (artboardSize?.width && artboardSize?.height) {
+                applyArtboardSize(canvas, artboardSize.width, artboardSize.height);
+            }
             canvas.requestRenderAll();
             setIsDirty(false);
             setPendingTemplateJson(null);

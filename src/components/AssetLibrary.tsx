@@ -49,6 +49,7 @@ import {
     type AssetLibraryBundleEntry,
     type AssetLibraryBundleManifest,
 } from '@/lib/assetLibraryBundle';
+import { useI18n } from '@/providers/I18nProvider';
 
 const ACCEPTED_FILE_TYPES = `${buildImageAcceptAttribute()},video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply`;
 
@@ -58,7 +59,7 @@ const ACCEPTED_FILE_TYPES = `${buildImageAcceptAttribute()},video/*,audio/*,.glb
 const LIBRARY_TABS = [
     {
         key: 'images',
-        label: 'Uploads',
+        labelKey: 'assets.tab.uploads',
         icon: Upload,
         type: 'images' as AssetType,
         category: 'uploads' as AssetCategory,
@@ -66,7 +67,7 @@ const LIBRARY_TABS = [
     },
     {
         key: 'videos',
-        label: 'Videos',
+        labelKey: 'assets.tab.videos',
         icon: Video,
         type: 'videos' as AssetType,
         category: 'uploads' as AssetCategory,
@@ -74,7 +75,7 @@ const LIBRARY_TABS = [
     },
     {
         key: 'audio',
-        label: 'Audio',
+        labelKey: 'assets.tab.audio',
         icon: Music,
         type: 'audio' as AssetType,
         category: 'uploads' as AssetCategory,
@@ -82,7 +83,7 @@ const LIBRARY_TABS = [
     },
     {
         key: 'models',
-        label: '3D',
+        labelKey: 'assets.tab.3d',
         icon: Box,
         type: 'models' as AssetType,
         category: 'uploads' as AssetCategory,
@@ -90,7 +91,7 @@ const LIBRARY_TABS = [
     },
     {
         key: 'generated',
-        label: 'Generated',
+        labelKey: 'assets.tab.generated',
         icon: ImageIcon,
         type: 'images' as AssetType,
         category: 'generated' as AssetCategory,
@@ -362,6 +363,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
     const dialog = useDialog();
     const { toast } = useToast();
+    const { t } = useI18n();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const importInputRef = useRef<HTMLInputElement>(null);
@@ -763,7 +765,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 }
             } catch (error) {
                 toast({
-                    title: 'Unsupported file',
+                    title: t('assets.unsupportedFile'),
                     description: error instanceof Error ? error.message : 'Could not open this file.',
                     variant: 'warning'
                 });
@@ -838,7 +840,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             }
         } catch (error) {
             console.error(error);
-            toast({ title: 'Upload error', description: 'Could not upload asset.', variant: 'destructive' });
+            toast({ title: t('assets.uploadError'), description: t('assets.uploadErrorBody'), variant: 'destructive' });
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -909,14 +911,14 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
             if (successCount !== targetSources.length) {
                 toast({
-                    title: 'Rename partially applied',
-                    description: 'Some linked storage sources could not be renamed.',
+                    title: t('assets.renamePartial'),
+                    description: t('assets.renamePartialBody'),
                     variant: 'warning'
                 });
             }
         } catch (error) {
             console.error('Rename error:', error);
-            toast({ title: 'Rename failed', description: 'Could not rename asset.', variant: 'destructive' });
+            toast({ title: t('assets.renameFailed'), description: t('assets.renameFailedBody'), variant: 'destructive' });
         } finally {
             setEditingAsset(null);
         }
@@ -972,8 +974,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
             if (successCount !== targetSources.length) {
                 toast({
-                    title: 'Delete partially applied',
-                    description: 'Some linked storage sources could not be deleted.',
+                    title: t('assets.deletePartial'),
+                    description: t('assets.deletePartialBody'),
                     variant: 'warning'
                 });
             }
@@ -984,7 +986,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
      */
     const deleteAsset = async (asset: LibraryAsset, e?: React.MouseEvent) => {
         e?.stopPropagation(); // Prevent selection when clicking delete
-        const confirmed = await dialog.confirm('Are you sure you want to delete this asset?', { title: 'Delete Asset', variant: 'destructive' });
+        const confirmed = await dialog.confirm('Are you sure you want to delete this asset?', { title: t('assets.deleteAsset'), variant: 'destructive' });
         if (!confirmed) return;
 
         try {
@@ -992,7 +994,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             await fetchAssets();
         } catch (error) {
             console.error('Error deleting asset:', error);
-            toast({ title: 'Delete failed', description: 'Could not delete asset.', variant: 'destructive' });
+            toast({ title: t('assets.deleteFailed'), description: t('assets.deleteFailedBody'), variant: 'destructive' });
         }
     };
 
@@ -1014,8 +1016,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
         if (!canManageAsset(asset)) {
             toast({
-                title: 'Read only asset',
-                description: 'Only the asset owner can change visibility.',
+                title: t('assets.readOnly'),
+                description: t('assets.readOnlyBody'),
                 variant: 'warning'
             });
             return;
@@ -1025,8 +1027,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         const targetSources = getSourceAssets(asset).filter(canManageSingleAsset);
         if (targetSources.length === 0) {
             toast({
-                title: 'Read only asset',
-                description: 'Only the asset owner can change visibility.',
+                title: t('assets.readOnly'),
+                description: t('assets.readOnlyBody'),
                 variant: 'warning'
             });
             return;
@@ -1086,8 +1088,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         } catch (error) {
             console.error('Visibility update failed', error);
             toast({
-                title: 'Visibility update failed',
-                description: 'Could not update asset visibility.',
+                title: t('assets.visibilityFailed'),
+                description: t('assets.visibilityFailedBody'),
                 variant: 'destructive'
             });
         } finally {
@@ -1194,8 +1196,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         } catch (error) {
             console.error('Failed to load selected asset', error);
             toast({
-                title: 'Asset open failed',
-                description: 'Could not load this asset from storage.',
+                title: t('assets.openFailed'),
+                description: t('assets.openFailedBody'),
                 variant: 'destructive'
             });
         }
@@ -1212,8 +1214,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         } catch (error) {
             console.error('Download failed', error);
             toast({
-                title: 'Download failed',
-                description: 'Could not download this asset right now.',
+                title: t('assets.downloadFailed'),
+                description: t('assets.downloadFailedBody'),
                 variant: 'destructive'
             });
         }
@@ -1234,7 +1236,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         if (manageableSelectedAssets.length === 0) return;
         const confirmed = await dialog.confirm(
             `Delete ${manageableSelectedAssets.length} selected asset(s)? This cannot be undone.`,
-            { title: 'Delete Assets', variant: 'destructive' }
+            { title: t('assets.deleteAssets'), variant: 'destructive' }
         );
         if (!confirmed) return;
 
@@ -1294,11 +1296,11 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         targetKeys.forEach((key) => nextKeys.add(key));
         next[groupName] = Array.from(nextKeys);
         persistGroups(next);
-        toast({ title: 'Assets grouped', description: `Added ${targets.length} asset(s) to "${groupName}".`, variant: 'success' });
+        toast({ title: t('assets.grouped'), description: `Added ${targets.length} asset(s) to "${groupName}".`, variant: 'success' });
     }, [assetGroups, persistGroups, toast]);
 
     const createGroupForAssets = useCallback(async (targets: LibraryAsset[]) => {
-        const name = (await dialog.prompt('Name the new group:', { title: 'New Asset Group', confirmText: 'Create' }))?.trim();
+        const name = (await dialog.prompt('Name the new group:', { title: t('assets.newAssetGroup'), confirmText: 'Create' }))?.trim();
         if (!name) return;
         addAssetsToGroup(name, targets);
     }, [addAssetsToGroup, dialog]);
@@ -1372,8 +1374,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
             if (exportTargets.length === 0) {
                 toast({
-                    title: 'No assets to export',
-                    description: 'Select assets or adjust your current library filters before exporting.',
+                    title: t('assets.nothingToExport'),
+                    description: t('assets.nothingToExportBody'),
                     variant: 'warning',
                 });
                 return;
@@ -1440,7 +1442,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         } catch (error) {
             console.error('Asset library export failed', error);
             toast({
-                title: 'Library export failed',
+                title: t('assets.exportFailed'),
                 description: error instanceof Error ? error.message : 'Could not export the asset library bundle.',
                 variant: 'destructive',
             });
@@ -1584,7 +1586,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         } catch (error) {
             console.error('Asset library import failed', error);
             toast({
-                title: 'Library import failed',
+                title: t('assets.importFailed'),
                 description: error instanceof Error ? error.message : 'Could not import the asset library bundle.',
                 variant: 'destructive',
             });
@@ -1617,13 +1619,13 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             }));
 
             if (brokenAssets.length === 0) {
-                toast({ title: 'Nothing to clean up', description: 'No missing or broken assets were found.' });
+                toast({ title: t('assets.nothingToClean'), description: t('assets.nothingToCleanBody') });
                 return;
             }
 
             const confirmed = await dialog.confirm(
                 `Found ${brokenAssets.length} asset(s) that can no longer be loaded (missing files). Remove them from the library?`,
-                { title: 'Remove missing assets', variant: 'destructive' }
+                { title: t('assets.removeMissing'), variant: 'destructive' }
             );
             if (!confirmed) return;
 
@@ -1668,15 +1670,15 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
 
             await fetchAssets();
             toast({
-                title: 'Cleanup complete',
+                title: t('assets.cleanupComplete'),
                 description: `Removed ${removedCount} of ${brokenAssets.length} missing asset(s) from the library.`,
                 variant: removedCount === brokenAssets.length ? 'success' : 'warning',
             });
         } catch (error) {
             console.error('Asset cleanup failed', error);
             toast({
-                title: 'Cleanup failed',
-                description: 'Could not scan or remove missing assets.',
+                title: t('assets.cleanupFailed'),
+                description: t('assets.cleanupFailedBody'),
                 variant: 'destructive',
             });
         } finally {
@@ -1708,17 +1710,17 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 ? "bg-primary/15 text-primary"
                                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                         )}
-                        aria-label="Toggle filters"
+                        aria-label={t('assets.toggleFilters')}
                         aria-expanded={showFilters}
-                        title="Filters (personal/shared, search, visibility)"
+                        title={t('assets.filtersTitle')}
                     >
                         <SlidersHorizontal size={14} />
                     </button>
                     <button
                         onClick={() => fetchAssets()}
                         className="h-7 w-7 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-                        title="Refresh"
-                        aria-label="Refresh"
+                        title={t('assets.refresh')}
+                        aria-label={t('assets.refresh')}
                     >
                         <RotateCw size={14} className={isLoading ? "animate-spin" : ""} />
                     </button>
@@ -1734,9 +1736,9 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     ? "bg-primary/15 text-primary"
                                     : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                             )}
-                            aria-label="More actions"
+                            aria-label={t('assets.moreActions')}
                             aria-expanded={showMoreMenu}
-                            title="Import, export, and cleanup"
+                            title={t('assets.moreActionsTitle')}
                         >
                             {(isImportingLibrary || isExportingLibrary || isCleaningUp)
                                 ? <Loader2 size={14} className="animate-spin" />
@@ -1754,7 +1756,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     }}
                                     disabled={isImportingLibrary}
                                     className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary disabled:opacity-50"
-                                    aria-label="Import Library"
+                                    aria-label={t('assets.importLibrary')}
                                 >
                                     <Upload size={13} className="text-muted-foreground" />
                                     Import Library…
@@ -1766,7 +1768,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     }}
                                     disabled={isExportingLibrary}
                                     className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary disabled:opacity-50"
-                                    aria-label="Export Library"
+                                    aria-label={t('assets.exportLibrary')}
                                 >
                                     <Download size={13} className="text-muted-foreground" />
                                     Export Library
@@ -1779,8 +1781,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     }}
                                     disabled={isCleaningUp}
                                     className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary disabled:opacity-50"
-                                    aria-label="Remove missing assets"
-                                    title="Scan and remove assets whose files can no longer be found"
+                                    aria-label={t('assets.removeMissing')}
+                                    title={t('assets.removeMissingTitle')}
                                 >
                                     <AlertTriangle size={13} className="text-amber-500" />
                                     Clean Up Missing Assets
@@ -1792,7 +1794,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     <button
                         onClick={onClose}
                         className="h-7 w-7 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground"
-                        aria-label="Close asset library"
+                        aria-label={t('assets.closeLibrary')}
                     >
                         <X size={14} />
                     </button>
@@ -1835,7 +1837,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             <input
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search assets or owner..."
+                                placeholder={t('assets.searchPlaceholder')}
                                 className="w-full h-7 rounded-md border border-border bg-background pl-7 pr-2 text-[11px] outline-none focus:border-primary/50"
                             />
                         </div>
@@ -1847,9 +1849,9 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             onChange={(e) => setVisibilityFilter(e.target.value as VisibilityFilter)}
                             className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:border-primary/50 shrink-0"
                         >
-                            <option value="all">All Visibility</option>
-                            <option value="public">Public Only</option>
-                            <option value="private">Private Only</option>
+                            <option value="all">{t('assets.allVisibility')}</option>
+                            <option value="public">{t('assets.publicOnly')}</option>
+                            <option value="private">{t('assets.privateOnly')}</option>
                         </select>
 
                         {scopeTab === 'personal' && (
@@ -1888,7 +1890,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     <button
                         onClick={() => void handleBulkDownload()}
                         className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
-                        title="Download selected"
+                        title={t('assets.downloadSelected')}
                     >
                         <Download size={12} />
                         Download
@@ -1901,7 +1903,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 setEditName(target.name);
                             }}
                             className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
-                            title="Rename selected asset"
+                            title={t('assets.renameSelected')}
                         >
                             <Pen size={12} />
                             Rename
@@ -1912,7 +1914,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             <button
                                 onClick={() => void createGroupForAssets(selectedAssetsInView)}
                                 className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
-                                title="Group selected assets"
+                                title={t('assets.groupSelected')}
                             >
                                 <FolderPlus size={12} />
                                 Group
@@ -1921,7 +1923,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 <button
                                     onClick={() => removeAssetsFromGroups(selectedAssetsInView)}
                                     className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
-                                    title="Remove selected assets from their groups"
+                                    title={t('assets.ungroupSelected')}
                                 >
                                     <FolderMinus size={12} />
                                     Ungroup
@@ -1930,7 +1932,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             <button
                                 onClick={() => void handleBulkVisibility(true)}
                                 className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
-                                title="Make selected assets public"
+                                title={t('assets.makeSelectedPublic')}
                             >
                                 <Globe size={12} />
                                 Public
@@ -1938,7 +1940,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             <button
                                 onClick={() => void handleBulkVisibility(false)}
                                 className="h-7 px-2 rounded-md text-[11px] font-medium text-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0"
-                                title="Make selected assets private"
+                                title={t('assets.makeSelectedPrivate')}
                             >
                                 <Lock size={12} />
                                 Private
@@ -1946,7 +1948,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             <button
                                 onClick={() => void handleBulkDelete()}
                                 className="h-7 px-2 rounded-md text-[11px] font-medium text-red-500 inline-flex items-center gap-1.5 hover:bg-red-500/15 shrink-0"
-                                title="Delete selected assets"
+                                title={t('assets.deleteSelected')}
                             >
                                 <Trash2 size={12} />
                                 Delete
@@ -1956,7 +1958,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     <button
                         onClick={toggleSelectAllInView}
                         className="h-7 px-2 rounded-md text-[11px] font-medium text-muted-foreground inline-flex items-center gap-1.5 hover:bg-secondary shrink-0 ml-auto"
-                        title="Select or deselect all assets in view"
+                        title={t('assets.toggleSelectAll')}
                     >
                         <CheckSquare size={12} />
                         All
@@ -1964,8 +1966,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     <button
                         onClick={clearAssetSelection}
                         className="h-7 w-7 rounded-md text-muted-foreground inline-flex items-center justify-center hover:bg-secondary shrink-0"
-                        title="Clear selection"
-                        aria-label="Clear selection"
+                        title={t('assets.clearSelection')}
+                        aria-label={t('assets.clearSelection')}
                     >
                         <X size={13} />
                     </button>
@@ -1985,12 +1987,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     "w-10 h-10 flex flex-col items-center justify-center gap-0.5 rounded-md transition-colors",
                                     activeTab === tab.key ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"
                                 )}
-                                title={tab.label}
-                                aria-label={tab.label}
+                                title={t(tab.labelKey)}
+                                aria-label={t(tab.labelKey)}
                                 aria-pressed={activeTab === tab.key}
                             >
                                 <Icon size={16} />
-                                <span className="text-[8px] font-medium leading-none">{tab.label}</span>
+                                <span className="text-[8px] font-medium leading-none">{t(tab.labelKey)}</span>
                             </button>
                         );
                     })}
@@ -2213,7 +2215,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                         onClick={(event) => openAssetContextMenu(asset, event)}
                                         className="absolute right-1.5 top-1.5 z-30 flex h-6 w-6 items-center justify-center rounded-md bg-black/55 text-white/90 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-black/75 transition-opacity"
                                         aria-label={`Asset actions for ${asset.name}`}
-                                        title="Asset actions"
+                                        title={t('assets.assetActions')}
                                     >
                                         <MoreHorizontal size={13} />
                                     </button>
@@ -2236,14 +2238,14 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                 <button
                                                     onClick={() => void handleRename(asset)}
                                                     className="p-1 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded"
-                                                    title="Save"
+                                                    title={t('common.save')}
                                                 >
                                                     <CheckCircle size={12} />
                                                 </button>
                                                 <button
                                                     onClick={() => setEditingAsset(null)}
                                                     className="p-1 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded"
-                                                    title="Cancel"
+                                                    title={t('common.cancel')}
                                                 >
                                                     <X size={12} />
                                                 </button>
@@ -2287,8 +2289,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                     type="button"
                                                                     onClick={(event) => handleMediaPreviewAction(assetKey, 'play', event)}
                                                                     className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center"
-                                                                    title="Play preview"
-                                                                    aria-label="Play preview"
+                                                                    title={t('assets.playPreview')}
+                                                                    aria-label={t('assets.playPreview')}
                                                                 >
                                                                     <Play size={12} />
                                                                 </button>
@@ -2296,8 +2298,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                     type="button"
                                                                     onClick={(event) => handleMediaPreviewAction(assetKey, 'pause', event)}
                                                                     className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center"
-                                                                    title="Pause preview"
-                                                                    aria-label="Pause preview"
+                                                                    title={t('assets.pausePreview')}
+                                                                    aria-label={t('assets.pausePreview')}
                                                                 >
                                                                     <Pause size={12} />
                                                                 </button>
@@ -2305,8 +2307,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                     type="button"
                                                                     onClick={(event) => handleMediaPreviewAction(assetKey, 'stop', event)}
                                                                     className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center"
-                                                                    title="Stop preview"
-                                                                    aria-label="Stop preview"
+                                                                    title={t('assets.stopPreview')}
+                                                                    aria-label={t('assets.stopPreview')}
                                                                 >
                                                                     <Square size={11} />
                                                                 </button>
@@ -2334,8 +2336,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                 onClick={(event) => handleMediaPreviewAction(assetKey, 'play', event)}
                                                                 disabled={!imagePreviewUrl}
                                                                 className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                                                                title="Play preview"
-                                                                aria-label="Play preview"
+                                                                title={t('assets.playPreview')}
+                                                                aria-label={t('assets.playPreview')}
                                                             >
                                                                 <Play size={12} />
                                                             </button>
@@ -2344,8 +2346,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                 onClick={(event) => handleMediaPreviewAction(assetKey, 'pause', event)}
                                                                 disabled={!imagePreviewUrl}
                                                                 className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                                                                title="Pause preview"
-                                                                aria-label="Pause preview"
+                                                                title={t('assets.pausePreview')}
+                                                                aria-label={t('assets.pausePreview')}
                                                             >
                                                                 <Pause size={12} />
                                                             </button>
@@ -2354,15 +2356,15 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                 onClick={(event) => handleMediaPreviewAction(assetKey, 'stop', event)}
                                                                 disabled={!imagePreviewUrl}
                                                                 className="h-6 w-6 rounded text-white/90 hover:bg-white/20 inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                                                                title="Stop preview"
-                                                                aria-label="Stop preview"
+                                                                title={t('assets.stopPreview')}
+                                                                aria-label={t('assets.stopPreview')}
                                                             >
                                                                 <Square size={11} />
                                                             </button>
                                                         </div>
                                                         <Music size={24} />
                                                         {!imagePreviewUrl && (
-                                                            <span className="text-[10px] text-muted-foreground/80">Preview unavailable</span>
+                                                            <span className="text-[10px] text-muted-foreground/80">{t('assets.previewUnavailable')}</span>
                                                         )}
                                                     </div>
                                                 )}
@@ -2376,7 +2378,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                                     Loading preview
                                                                 </span>
                                                             ) : (
-                                                                <span className="text-[10px] text-muted-foreground/80">Hover to preview</span>
+                                                                <span className="text-[10px] text-muted-foreground/80">{t('assets.hoverToPreview')}</span>
                                                             )}
                                                         </div>
                                                     </div>
@@ -2469,7 +2471,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             }}
                             className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
                             role="menuitem"
-                            title="Add to Canvas"
+                            title={t('assets.addToCanvas')}
                         >
                             <ImagePlus size={13} className="text-muted-foreground" />
                             Add to Canvas
@@ -2486,7 +2488,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         }}
                         className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
                         role="menuitem"
-                        title="Download Asset"
+                        title={t('assets.downloadAsset')}
                     >
                         <Download size={13} className="text-muted-foreground" />
                         Download
@@ -2500,7 +2502,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             }}
                             className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
                             role="menuitem"
-                            title="Rename Asset"
+                            title={t('assets.renameAsset')}
                         >
                             <Pen size={13} className="text-muted-foreground" />
                             Rename
@@ -2545,7 +2547,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         }}
                         className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
                         role="menuitem"
-                        title="Add to a new group"
+                        title={t('assets.addToNewGroup')}
                     >
                         <FolderPlus size={13} className="text-muted-foreground" />
                         New Group…
@@ -2558,7 +2560,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             }}
                             className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 hover:bg-secondary"
                             role="menuitem"
-                            title="Remove from group"
+                            title={t('assets.removeFromGroup')}
                         >
                             <FolderMinus size={13} className="text-muted-foreground" />
                             Remove from Group
@@ -2578,7 +2580,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                 }}
                                 className="w-full h-8 px-2 rounded-md text-xs text-left inline-flex items-center gap-2 text-red-500 hover:bg-red-500/10"
                                 role="menuitem"
-                                title="Delete Asset"
+                                title={t('assets.deleteAsset')}
                             >
                                 <Trash2 size={13} />
                                 Delete
@@ -2613,7 +2615,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     <button
                         onClick={() => setModelPreviewPopup(null)}
                         className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground"
-                        aria-label="Close preview"
+                        aria-label={t('assets.closePreview')}
                     >
                         <X size={14} />
                     </button>

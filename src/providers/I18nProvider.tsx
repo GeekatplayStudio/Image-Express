@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
-import { DEFAULT_LANGUAGE, translate, type LanguageCode } from '@/lib/i18n';
+import { DEFAULT_LANGUAGE, translate, type LanguageCode, type TranslationVars } from '@/lib/i18n';
 import {
     getLanguageSnapshot,
     getServerLanguageSnapshot,
@@ -14,14 +14,17 @@ type I18nContextValue = {
     language: LanguageCode;
     /** Switch language; persists to localStorage and updates <html lang>. */
     setLanguage: (language: LanguageCode) => void;
-    /** Translate a dictionary key (falls back to English, then the key). */
-    t: (key: string) => string;
+    /**
+     * Translate a dictionary key (falls back to English, then the key).
+     * Pass `vars` to fill `{name}` placeholders.
+     */
+    t: (key: string, vars?: TranslationVars) => string;
 };
 
 const I18nContext = createContext<I18nContextValue>({
     language: DEFAULT_LANGUAGE,
     setLanguage: () => undefined,
-    t: (key) => translate(DEFAULT_LANGUAGE, key),
+    t: (key, vars) => translate(DEFAULT_LANGUAGE, key, vars),
 });
 
 /**
@@ -47,7 +50,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     const value = useMemo<I18nContextValue>(() => ({
         language,
         setLanguage,
-        t: (key: string) => translate(language, key),
+        t: (key: string, vars?: TranslationVars) => translate(language, key, vars),
     }), [language, setLanguage]);
 
     return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

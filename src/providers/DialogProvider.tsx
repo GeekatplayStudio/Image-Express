@@ -3,7 +3,13 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useId } from 'react';
 import { AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 
-type DialogType = 'alert' | 'confirm' | 'prompt';
+type DialogType = 'alert' | 'confirm' | 'prompt' | 'choice';
+
+export interface DialogChoice {
+    value: string;
+    label: string;
+    description?: string;
+}
 
 interface DialogOptions {
     title?: string;
@@ -12,17 +18,20 @@ interface DialogOptions {
     cancelText?: string;
     defaultValue?: string;
     placeholder?: string;
-    variant?: 'default' | 'destructive' | 'success'; 
+    variant?: 'default' | 'destructive' | 'success';
     inputType?: 'text' | 'range';
     min?: number;
     max?: number;
     step?: number;
+    choices?: DialogChoice[];
 }
 
 interface DialogContextType {
     alert: (message: string, options?: DialogOptions) => Promise<void>;
     confirm: (message: string, options?: DialogOptions) => Promise<boolean>;
     prompt: (message: string, options?: DialogOptions) => Promise<string | null>;
+    /** Shows a message with a labeled button per choice (plus Cancel); resolves to the chosen value or null. */
+    choice: (message: string, choices: DialogChoice[], options?: DialogOptions) => Promise<string | null>;
 }
 
 const DialogContext = createContext<DialogContextType | null>(null);
@@ -113,6 +122,10 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         return openDialog('prompt', message, { title: 'Input', confirmText: 'OK', cancelText: 'Cancel', ...options }).then((result) => (typeof result === 'string' ? result : null));
     }, [openDialog]);
 
+    const choice = useCallback((message: string, choices: DialogChoice[], options?: DialogOptions) => {
+        return openDialog('choice', message, { title: 'Choose', cancelText: 'Cancel', ...options, choices }).then((result) => (typeof result === 'string' ? result : null));
+    }, [openDialog]);
+
     const handleConfirm = useCallback(() => {
         if (config.type === 'confirm') {
             resolveActive(true);
@@ -126,12 +139,16 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     const handleCancel = useCallback(() => {
         if (config.type === 'confirm') {
             resolveActive(false);
-        } else if (config.type === 'prompt') {
+        } else if (config.type === 'prompt' || config.type === 'choice') {
             resolveActive(null);
         } else {
             resolveActive(undefined); // Alert treated as closed/OK usually
         }
     }, [config.type, resolveActive]);
+
+    const handleChoice = useCallback((value: string) => {
+        resolveActive(value);
+    }, [resolveActive]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -204,7 +221,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
 
     // Render the Dialog UI
     return (
-        <DialogContext.Provider value={{ alert, confirm, prompt }}>
+        <DialogContext.Provider value={{ alert, confirm, prompt, choice }}>
             {children}
             {isOpen && (
                 <div
@@ -281,9 +298,27 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                             </div>
                         )}
 
+                        {/* Choice buttons (one per option) */}
+                        {config.type === 'choice' && (
+                            <div className="flex flex-col gap-2 pl-12 pr-1">
+                                {(config.options.choices || []).map((c) => (
+                                    <button
+                                        key={c.value}
+                                        onClick={() => handleChoice(c.value)}
+                                        className="text-left px-4 py-2.5 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary/60 transition-colors"
+                                    >
+                                        <div className="text-sm font-semibold">{c.label}</div>
+                                        {c.description && (
+                                            <div className="text-xs text-muted-foreground mt-0.5">{c.description}</div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         {/* Actions */}
                         <div className="flex justify-end gap-3 mt-4">
-                            {(config.type === 'confirm' || config.type === 'prompt') && (
+                            {(config.type === 'confirm' || config.type === 'prompt' || config.type === 'choice') && (
                                 <button
                                     onClick={handleCancel}
                                     className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
@@ -291,16 +326,18 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                                     {config.options.cancelText || 'Cancel'}
                                 </button>
                             )}
-                            <button
-                                onClick={handleConfirm}
-                                className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all text-white ${
-                                    config.options.variant === 'destructive' 
-                                    ? 'bg-destructive hover:bg-destructive/90' 
-                                    : 'bg-primary hover:bg-primary/90'
-                                }`}
-                            >
-                                {config.options.confirmText || 'OK'}
-                            </button>
+                            {config.type !== 'choice' && (
+                                <button
+                                    onClick={handleConfirm}
+                                    className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all text-white ${
+                                        config.options.variant === 'destructive'
+                                        ? 'bg-destructive hover:bg-destructive/90'
+                                        : 'bg-primary hover:bg-primary/90'
+                                    }`}
+                                >
+                                    {config.options.confirmText || 'OK'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

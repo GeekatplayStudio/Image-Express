@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import * as opentype from 'opentype.js';
 import { TOP_TEXT_FONT_FAMILIES, TOP_TEXT_FONT_STYLES, TYPOGRAPHY_PRESETS } from '@/lib/typography';
+import { useI18n } from '@/providers/I18nProvider';
 import {
     Select,
     SelectContent,
@@ -76,6 +77,7 @@ export function TextProperties({
     onAttachPath,
     onDetachPath
 }: TextPropertiesProps) {
+    const { t } = useI18n();
     const [customFonts, setCustomFonts] = useState<string[]>([]);
     const [fontUploadMessage, setFontUploadMessage] = useState<string>('');
     const onTextContentChangeRef = useRef(onTextContentChange);
@@ -124,7 +126,7 @@ export function TextProperties({
                 code: false,
             }),
             Placeholder.configure({
-                placeholder: 'Type text… Press Enter for new lines.',
+                placeholder: t('text.placeholder'),
             }),
         ],
         content: toEditorDoc(textContent),
@@ -197,26 +199,26 @@ export function TextProperties({
 
     return (
         <div className="p-4 space-y-4 border-b border-border/50">
-            <h3 className="font-medium text-sm">Text Style</h3>
+            <h3 className="font-medium text-sm">{t('text.style')}</h3>
             
             <div className="space-y-3">
                 <div className="space-y-1">
                     <div className="flex items-center justify-between gap-2">
-                        <label className="text-[10px] text-muted-foreground">Text</label>
+                        <label className="text-[10px] text-muted-foreground">{t('text.text')}</label>
                         <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                             <input
                                 type="checkbox"
                                 checked={spellcheckEnabled}
                                 onChange={(event) => onSpellcheckChange(event.target.checked)}
                             />
-                            Spellcheck
+                            {t('text.spellcheck')}
                         </label>
                     </div>
                     <EditorContent editor={editor} />
                 </div>
 
                 <div className="space-y-2 rounded-md border border-border/50 bg-secondary/20 p-2">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Typography Presets</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('text.typographyPresets')}</div>
                     <div className="grid grid-cols-2 gap-1">
                         {TYPOGRAPHY_PRESETS.map((preset) => {
                             const isActive = preset.fontFamily === fontFamily && String(preset.fontWeight) === String(fontWeight);
@@ -234,7 +236,7 @@ export function TextProperties({
                                         : 'border-border/60 bg-background/50 hover:bg-secondary'}`}
                                     style={{ fontFamily: preset.fontFamily, fontWeight: Number.isNaN(Number(preset.fontWeight)) ? preset.fontWeight as React.CSSProperties['fontWeight'] : Number(preset.fontWeight) }}
                                 >
-                                    {preset.label}
+                                    {t(preset.labelKey)}
                                 </button>
                             );
                         })}
@@ -242,10 +244,10 @@ export function TextProperties({
                 </div>
 
                 <div className="space-y-1">
-                    <label className="text-[10px] text-muted-foreground">Font Family</label>
+                    <label className="text-[10px] text-muted-foreground">{t('text.fontFamily')}</label>
                     <Select value={fontFamily} onValueChange={onFontFamilyChange}>
                         <SelectTrigger className="w-full text-xs" style={{ fontFamily }}>
-                            <SelectValue placeholder="Font family" />
+                            <SelectValue placeholder={t('text.fontFamilyPlaceholder')} />
                         </SelectTrigger>
                         <SelectContent>
                             {allFontOptions.map((fontOption) => (
@@ -254,7 +256,7 @@ export function TextProperties({
                         </SelectContent>
                     </Select>
                     <label className="inline-flex cursor-pointer items-center gap-2 text-[10px] text-muted-foreground">
-                        <span className="rounded border border-border/60 bg-secondary/40 px-1.5 py-0.5">Upload .ttf/.otf</span>
+                        <span className="rounded border border-border/60 bg-secondary/40 px-1.5 py-0.5">{t('text.uploadFont')}</span>
                         <input
                             type="file"
                             accept=".ttf,.otf,font/ttf,font/otf"
@@ -268,10 +270,10 @@ export function TextProperties({
                 </div>
                 
                 <div className="space-y-1">
-                    <label className="text-[10px] text-muted-foreground">Weight</label>
+                    <label className="text-[10px] text-muted-foreground">{t('text.weight')}</label>
                     <Select value={fontWeight} onValueChange={onFontWeightChange}>
                         <SelectTrigger className="w-full text-xs">
-                            <SelectValue placeholder="Weight" />
+                            <SelectValue placeholder={t('text.weightPlaceholder')} />
                         </SelectTrigger>
                         <SelectContent>
                             {TOP_TEXT_FONT_STYLES.map((weightOption) => (
@@ -282,11 +284,11 @@ export function TextProperties({
                 </div>
 
                 <div className="pt-2 border-t border-border/30">
-                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Text Path / Curve</label>
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">{t('text.pathCurve')}</label>
                     
                     <div className="space-y-3">
                         <div className="space-y-2 pb-2 border-b border-border/30">
-                            <div className="text-[10px] text-muted-foreground">Align to existing pen path</div>
+                            <div className="text-[10px] text-muted-foreground">{t('text.alignToPenPath')}</div>
                             <Select
                                 value={selectedPathId || 'none'}
                                 onValueChange={(val) => {
@@ -295,7 +297,7 @@ export function TextProperties({
                                 disabled={pathOptions.length === 0}
                             >
                                 <SelectTrigger className="w-full text-xs">
-                                    <SelectValue placeholder="Select a pen path" />
+                                    <SelectValue placeholder={t('text.selectPenPath')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">
@@ -320,7 +322,7 @@ export function TextProperties({
 
                         <div className="space-y-2">
                              <div className="flex justify-between text-[10px] text-muted-foreground">
-                                <span>Bend</span>
+                                <span>{t('text.bend')}</span>
                                 <span className="flex items-center gap-2">
                                     <span className="text-primary/70">{getCurveDescription()}</span>
                                     <span className="font-mono">{curveStrength}</span>
@@ -334,11 +336,11 @@ export function TextProperties({
                                 onChange={(e) => onCurveChange(parseInt(e.target.value), curveCenter, activeCurveSpan)}
                                 onDoubleClick={() => onCurveChange(0, 0, activeCurveSpan)}
                                 className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                                title="Double-click to reset"
+                                title={t('text.doubleClickReset')}
                             />
                             <div className="flex justify-between text-[9px] text-muted-foreground/50">
                                 <span>↓ Down</span>
-                                <span>Flat</span>
+                                <span>{t('text.flat')}</span>
                                 <span>Up ↑</span>
                             </div>
                         </div>
@@ -346,7 +348,7 @@ export function TextProperties({
                         {curveStrength !== 0 && (
                             <div className="space-y-2 animate-in fade-in-50 duration-200">
                                 <div className="flex justify-between text-[10px] text-muted-foreground">
-                                    <span>Curve Center</span>
+                                    <span>{t('text.curveCenter')}</span>
                                     <span className="font-mono">{curveCenter}%</span>
                                 </div>
                                 <input
@@ -357,16 +359,16 @@ export function TextProperties({
                                     onChange={(e) => onCurveChange(curveStrength, parseInt(e.target.value), activeCurveSpan)}
                                     onDoubleClick={() => onCurveChange(curveStrength, 0, activeCurveSpan)}
                                     className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                                    title="Double-click to reset"
+                                    title={t('text.doubleClickReset')}
                                 />
                                 <div className="flex justify-between text-[9px] text-muted-foreground/50">
                                     <span>← Left</span>
-                                    <span>Center</span>
+                                    <span>{t('text.center')}</span>
                                     <span>Right →</span>
                                 </div>
 
                                 <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
-                                    <span>Arc Span</span>
+                                    <span>{t('text.arcSpan')}</span>
                                     <span className="font-mono">{activeCurveSpan}°</span>
                                 </div>
                                 <input
@@ -377,12 +379,12 @@ export function TextProperties({
                                     onChange={(e) => onCurveChange(curveStrength, curveCenter, parseInt(e.target.value))}
                                     onDoubleClick={() => onCurveChange(curveStrength, curveCenter, 180)}
                                     className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                                    title="Double-click to reset span to 180°"
+                                    title={t('text.resetSpan')}
                                 />
                                 <div className="flex justify-between text-[9px] text-muted-foreground/50">
-                                    <span>Narrow</span>
-                                    <span>Half Circle</span>
-                                    <span>Full Circle</span>
+                                    <span>{t('text.narrow')}</span>
+                                    <span>{t('text.halfCircle')}</span>
+                                    <span>{t('text.fullCircle')}</span>
                                 </div>
                             </div>
                         )}
@@ -393,7 +395,7 @@ export function TextProperties({
                                 onClick={() => onCurveChange(0, 0, activeCurveSpan)}
                                 className={`flex-1 px-2 py-1 text-[10px] rounded border transition-colors ${curveStrength === 0 ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-secondary'}`}
                             >
-                                Flat
+                                {t('text.flat')}
                             </button>
                             <button 
                                 onClick={() => onCurveChange(50, 0, 180)}
@@ -420,7 +422,7 @@ export function TextProperties({
                 {/* Text Background Shape */}
                 <div className="pt-2 mt-2 border-t border-border/30">
                     <div className="flex items-center justify-between mb-2">
-                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Background Shape</label>
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t('text.backgroundShape')}</label>
                         <input
                             type="checkbox"
                             checked={textBgEnabled}
@@ -434,7 +436,7 @@ export function TextProperties({
                             {/* Color & Shape Preset Row */}
                             <div className="flex gap-2 items-center">
                                 <div className="space-y-1 flex-1">
-                                    <label className="text-[9px] text-muted-foreground">Background Color</label>
+                                    <label className="text-[9px] text-muted-foreground">{t('text.backgroundColor')}</label>
                                     <div className="flex items-center gap-1.5">
                                         <input
                                             type="color"
@@ -447,18 +449,18 @@ export function TextProperties({
                                 </div>
                                 
                                 <div className="space-y-1 flex-1">
-                                    <label className="text-[9px] text-muted-foreground">Style</label>
+                                    <label className="text-[9px] text-muted-foreground">{t('text.styleLabel')}</label>
                                     <Select 
                                         value={textBgStyle} 
                                         onValueChange={(val) => onTextBgStyleChange?.(val as 'rect' | 'pill' | 'speech')}
                                     >
                                         <SelectTrigger className="w-full text-xs">
-                                            <SelectValue placeholder="Style" />
+                                            <SelectValue placeholder={t('text.stylePlaceholder')} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="rect">Rectangle</SelectItem>
-                                            <SelectItem value="pill">Pill</SelectItem>
-                                            <SelectItem value="speech">Bubble</SelectItem>
+                                            <SelectItem value="rect">{t('text.rectangle')}</SelectItem>
+                                            <SelectItem value="pill">{t('text.pill')}</SelectItem>
+                                            <SelectItem value="speech">{t('text.bubble')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -467,7 +469,7 @@ export function TextProperties({
                             {/* Padding Slider */}
                             <div className="space-y-1">
                                 <div className="flex justify-between text-[10px] text-muted-foreground">
-                                    <span>Padding</span>
+                                    <span>{t('text.padding')}</span>
                                     <span className="font-mono">{textBgPadding}px</span>
                                 </div>
                                 <input
@@ -484,7 +486,7 @@ export function TextProperties({
                             {textBgStyle !== 'pill' && (
                                 <div className="space-y-1">
                                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                                        <span>Roundness</span>
+                                        <span>{t('text.roundness')}</span>
                                         <span className="font-mono">{textBgCorners}px</span>
                                     </div>
                                     <input

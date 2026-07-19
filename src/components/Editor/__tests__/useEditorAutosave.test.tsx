@@ -48,7 +48,7 @@ describe('useEditorAutosave', () => {
     });
 
     it('never autosaves unnamed, unsaved designs (would require a dialog)', () => {
-        const { hook, handleSave } = setup({ isDirty: true, designId: null, designName: 'Untitled Design' });
+        const { hook, handleSave } = setup({ isDirty: true, designId: null, designName: 'Untitled Page' });
         act(() => { hook.result.current.setAutosaveEnabled(true); });
         act(() => { jest.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS * 2); });
         expect(handleSave).not.toHaveBeenCalled();

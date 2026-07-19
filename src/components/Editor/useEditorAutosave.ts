@@ -45,7 +45,7 @@ export function useEditorAutosave({ isDirty, designId, designName, handleSave }:
         saveUiPreferences({ autosaveEnabled: enabled });
     }, []);
 
-    const canAutosave = Boolean(designId) || (designName !== '' && designName !== 'Untitled Design');
+    const canAutosave = Boolean(designId) || (designName !== '' && designName !== 'Untitled Page');
 
     useEffect(() => {
         if (!autosaveEnabled || !isDirty || !canAutosave) return undefined;

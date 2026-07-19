@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "rococo",
+  "name": "Rococo",
+  "description": "Soft pastel salon: muted rose, sage and powder blue on warm cream, with gilded double-border buttons and gentle serif headings. Ornate but never overdone. Bundled with every install.",
+  "author": "Creative Flow",
+  "version": "1.0.0",
+  "stylesheet": "theme.css",
+  "preview": "preview.svg",
+  "lockMode": "light",
+  "lockAccent": true
+}

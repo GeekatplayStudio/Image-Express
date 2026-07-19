@@ -10,11 +10,11 @@ const makeProject = (id: string, name: string): Project => ({
 });
 
 describe('ShareWithProjectsModal', () => {
-    it('shows an empty state when there are no other projects', () => {
+    it('shows an empty state when there are no other albums', () => {
         render(
             <ShareWithProjectsModal isOpen otherProjects={[]} onClose={jest.fn()} onConfirm={jest.fn()} />
         );
-        expect(screen.getByText(/don't have any other projects/i)).toBeInTheDocument();
+        expect(screen.getByText(/don't have any other albums/i)).toBeInTheDocument();
     });
 
     it('confirm is disabled until a project is selected, then calls onConfirm with the selected ids', () => {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { ColorPicker } from './ColorPicker';
+import { useI18n } from '@/providers/I18nProvider';
 
 export interface ShadowStrokeValues {
     // Stroke (Inside)
@@ -36,23 +37,26 @@ interface ShadowStrokePropertiesProps {
     hideShadows?: boolean;
 }
 
+// Labels come from the shared `blend.*` keys; the values are Fabric blend
+// names and are NOT interchangeable with the canvas composite operations used
+// in LayerEffectsProperties (note 'normal' vs 'source-over').
 const BLEND_MODES = [
-    { label: 'Normal', value: 'normal' },
-    { label: 'Multiply', value: 'multiply' },
-    { label: 'Screen', value: 'screen' },
-    { label: 'Overlay', value: 'overlay' },
-    { label: 'Darken', value: 'darken' },
-    { label: 'Lighten', value: 'lighten' },
-    { label: 'Color Dodge', value: 'color-dodge' },
-    { label: 'Color Burn', value: 'color-burn' },
-    { label: 'Hard Light', value: 'hard-light' },
-    { label: 'Soft Light', value: 'soft-light' },
-    { label: 'Difference', value: 'difference' },
-    { label: 'Exclusion', value: 'exclusion' },
-    { label: 'Hue', value: 'hue' },
-    { label: 'Saturation', value: 'saturation' },
-    { label: 'Color', value: 'color' },
-    { label: 'Luminosity', value: 'luminosity' },
+    { labelKey: 'blend.normal', value: 'normal' },
+    { labelKey: 'blend.multiply', value: 'multiply' },
+    { labelKey: 'blend.screen', value: 'screen' },
+    { labelKey: 'blend.overlay', value: 'overlay' },
+    { labelKey: 'blend.darken', value: 'darken' },
+    { labelKey: 'blend.lighten', value: 'lighten' },
+    { labelKey: 'blend.colorDodge', value: 'color-dodge' },
+    { labelKey: 'blend.colorBurn', value: 'color-burn' },
+    { labelKey: 'blend.hardLight', value: 'hard-light' },
+    { labelKey: 'blend.softLight', value: 'soft-light' },
+    { labelKey: 'blend.difference', value: 'difference' },
+    { labelKey: 'blend.exclusion', value: 'exclusion' },
+    { labelKey: 'blend.hue', value: 'hue' },
+    { labelKey: 'blend.saturation', value: 'saturation' },
+    { labelKey: 'blend.color', value: 'color' },
+    { labelKey: 'blend.luminosity', value: 'luminosity' },
 ];
 
 const CompactColorPicker = ({ color, onChange }: { color: string, onChange: (val: string) => void, opacity?: number }) => (
@@ -81,22 +85,26 @@ const PropertySlider = ({ label, value, min, max, onChange, step = 1, unit = "" 
     </div>
 );
 
-const BlendModeSelect = ({ value, onChange }: { value?: string, onChange: (val: string) => void }) => (
-    <div className="flex items-center gap-3 text-xs w-full">
-        <span className="w-12 text-muted-foreground shrink-0">Blend</span>
-        <select
-            value={value || 'normal'}
-            onChange={(e) => onChange(e.target.value)}
-            className="flex-1 h-6 bg-secondary rounded-md text-[10px] px-2 border-none focus:ring-1 focus:ring-ring"
-        >
-            {BLEND_MODES.map(m => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-        </select>
-    </div>
-);
+const BlendModeSelect = ({ value, onChange }: { value?: string, onChange: (val: string) => void }) => {
+    const { t } = useI18n();
+    return (
+        <div className="flex items-center gap-3 text-xs w-full">
+            <span className="w-12 text-muted-foreground shrink-0">{t('stroke.blend')}</span>
+            <select
+                value={value || 'normal'}
+                onChange={(e) => onChange(e.target.value)}
+                className="flex-1 h-6 bg-secondary rounded-md text-[10px] px-2 border-none focus:ring-1 focus:ring-ring"
+            >
+                {BLEND_MODES.map(m => (
+                    <option key={m.value} value={m.value}>{t(m.labelKey)}</option>
+                ))}
+            </select>
+        </div>
+    );
+};
 
 export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = false }: ShadowStrokePropertiesProps) {
+    const { t } = useI18n();
     const [strokeOpen, setStrokeOpen] = useState(false);
     const [borderOpen, setBorderOpen] = useState(false);
     const [shadowOpen, setShadowOpen] = useState(false);
@@ -128,7 +136,7 @@ export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = f
                          className="flex items-center gap-2 flex-1"
                     >
                         {strokeOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stroke</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('stroke.stroke')}</span>
                     </button>
                     <div className="pl-4 pb-1">
                         <Switch
@@ -148,14 +156,14 @@ export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = f
                             />
                             <div className="flex-1 space-y-2 pt-1">
                                 <PropertySlider 
-                                    label="Width" 
+                                    label={t('stroke.width')} 
                                     value={values.strokeWidth} 
                                     min={0} max={100} 
                                     onChange={(v) => onValuesChange({ strokeWidth: v })} 
                                     unit="px"
                                 />
                                 <PropertySlider 
-                                    label="Opacity" 
+                                    label={t('ctrl.opacity')} 
                                     value={values.strokeOpacity * 100} 
                                     min={0} max={100} 
                                     onChange={(v) => onValuesChange({ strokeOpacity: v / 100 })} 
@@ -177,7 +185,7 @@ export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = f
                         className="flex items-center gap-2 flex-1"
                     >
                         {borderOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Border</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('stroke.border')}</span>
                     </button>
                     <div className="pl-4 pb-1">
                         <Switch
@@ -197,14 +205,14 @@ export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = f
                             />
                             <div className="flex-1 space-y-2 pt-1">
                                 <PropertySlider 
-                                    label="Width" 
+                                    label={t('stroke.width')} 
                                     value={values.borderWidth} 
                                     min={0} max={100} 
                                     onChange={(v) => onValuesChange({ borderWidth: v })} 
                                     unit="px"
                                 />
                                 <PropertySlider 
-                                    label="Opacity" 
+                                    label={t('ctrl.opacity')} 
                                     value={values.borderOpacity * 100} 
                                     min={0} max={100} 
                                     onChange={(v) => onValuesChange({ borderOpacity: v / 100 })} 
@@ -227,7 +235,7 @@ export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = f
                         className="flex items-center gap-2 flex-1"
                     >
                         {shadowOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Drop Shadow</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('stroke.dropShadow')}</span>
                     </button>
                     <div className="pl-4 pb-1">
                         <Switch
@@ -247,14 +255,14 @@ export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = f
                             />
                             <div className="flex-1 space-y-2 pt-1">
                                 <PropertySlider 
-                                    label="Blur" 
+                                    label={t('fx.blur')} 
                                     value={values.shadowBlur} 
                                     min={0} max={150} 
                                     onChange={(v) => onValuesChange({ shadowBlur: v })} 
                                     unit="px"
                                 />
                                 <PropertySlider 
-                                    label="Opacity" 
+                                    label={t('ctrl.opacity')} 
                                     value={values.shadowOpacity * 100} 
                                     min={0} max={100} 
                                     onChange={(v) => onValuesChange({ shadowOpacity: v / 100 })} 
@@ -271,7 +279,7 @@ export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = f
                              <div className="flex items-center gap-2">
                                 <div className="flex-1">
                                     <PropertySlider 
-                                        label="Offset X" 
+                                        label={t('fx.offsetX')} 
                                         value={values.shadowOffsetX} 
                                         min={-200} max={200} 
                                         onChange={(v) => onValuesChange({ shadowOffsetX: v })} 
@@ -281,7 +289,7 @@ export function ShadowStrokeProperties({ values, onValuesChange, hideShadows = f
                              <div className="flex items-center gap-2">
                                 <div className="flex-1">
                                     <PropertySlider 
-                                        label="Offset Y" 
+                                        label={t('fx.offsetY')} 
                                         value={values.shadowOffsetY} 
                                         min={-200} max={200} 
                                         onChange={(v) => onValuesChange({ shadowOffsetY: v })} 

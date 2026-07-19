@@ -1,0 +1,83 @@
+/* Clarity — High Contrast. Designed for low-vision use: pure black/white base,
+   WCAG-AAA text contrast, bold yellow interaction color, thick borders, and
+   large obvious focus outlines. */
+
+:root[data-ui-theme='clarity-contrast'] {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #0a0a0a;
+  --card-foreground: #ffffff;
+  --popover: #0a0a0a;
+  --popover-foreground: #ffffff;
+  --primary: #ffd400;
+  --primary-foreground: #000000;
+  --tool-accent: #ffd400;
+  --tool-accent-foreground: #000000;
+  --secondary: #1c1c1c;
+  --secondary-foreground: #ffffff;
+  --muted: #161616;
+  --muted-foreground: #d0d0d0;
+  --accent: #222222;
+  --accent-foreground: #ffffff;
+  --destructive: #ff5252;
+  --destructive-foreground: #000000;
+  --border: #ffffff;
+  --input: #ffffff;
+  --ring: #ffd400;
+  --radius: 0.375rem;
+
+  --ui-font-sans: Inter, 'Segoe UI', Arial, Helvetica, sans-serif;
+  --ui-panel-border: 2px solid #ffffff;
+  --ui-panel-shadow: 0 0 0 2px #ffffff;
+  --ui-titlebar-bg: #000000;
+  --ui-titlebar-fg: #ffffff;
+  --ui-scrollbar-thumb: #ffffff;
+  --ui-icon-stroke-width: 2.5;
+
+  --ui-brand-gradient-start: #ffd400;
+  --ui-brand-gradient-mid: #ffffff;
+  --ui-brand-gradient-end: #ffd400;
+  --ui-avatar-gradient-start: #ffd400;
+  --ui-avatar-gradient-end: #ffffff;
+  --ui-slider-accent: #ffd400;
+}
+
+/* Thick visible borders on interactive chrome. */
+:root[data-ui-theme='clarity-contrast'] button,
+:root[data-ui-theme='clarity-contrast'] input:not([type='checkbox']):not([type='radio']):not([type='range']),
+:root[data-ui-theme='clarity-contrast'] select,
+:root[data-ui-theme='clarity-contrast'] textarea {
+  border-width: 2px;
+}
+
+/* Unmistakable focus: thick yellow ring, never subtle. */
+:root[data-ui-theme='clarity-contrast'] button:focus-visible,
+:root[data-ui-theme='clarity-contrast'] a:focus-visible,
+:root[data-ui-theme='clarity-contrast'] input:focus,
+:root[data-ui-theme='clarity-contrast'] select:focus,
+:root[data-ui-theme='clarity-contrast'] textarea:focus,
+:root[data-ui-theme='clarity-contrast'] [role='tab']:focus-visible {
+  outline: 3px solid #ffd400 !important;
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* Muted-foreground text is often too faint for low vision — lift it. */
+:root[data-ui-theme='clarity-contrast'] .text-muted-foreground {
+  color: #d0d0d0 !important;
+}
+
+/* Hover states must be obvious, not a subtle tint. */
+:root[data-ui-theme='clarity-contrast'] button:hover {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+}
+
+:root[data-ui-theme='clarity-contrast'] ::selection {
+  background: #ffd400;
+  color: #000000;
+}
+
+:root[data-ui-theme='clarity-contrast'] ::-webkit-scrollbar-thumb {
+  border-radius: 0;
+}

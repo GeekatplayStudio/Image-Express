@@ -82,12 +82,10 @@ function main() {
     const updated = checkForUpdates();
     ensureDependencies(updated);
 
-    if (updated) {
-        const buildDir = path.join(rootDir, '.next');
-        if (fs.existsSync(buildDir)) {
-            log('Clearing previous build so the update takes effect...');
-            fs.rmSync(buildDir, { recursive: true, force: true });
-        }
+    const buildDir = path.join(rootDir, '.next');
+    if (fs.existsSync(buildDir)) {
+        log('Rebuilding to pick up the latest code...');
+        fs.rmSync(buildDir, { recursive: true, force: true });
     }
 
     log('Starting Image Express...');

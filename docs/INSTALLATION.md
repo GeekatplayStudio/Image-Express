@@ -4,12 +4,27 @@ This guide is the recommended **easy path** to run Image Express locally, with o
 
 ## 1) Core App (Required)
 
-### Prerequisites
-- Node.js 20+
-- npm 10+
+### The one-file way (recommended — no terminal, no Git knowledge needed)
+
+Download exactly **one file** and double-click it:
+
+- **Windows**: [`install.bat`](../install.bat)
+- **macOS**: [`install.command`](../install.command)
+
+It checks for Git and Node.js 24+ (installing them automatically via winget/Homebrew if missing — including finding a shadowed newer Node if a version manager like nvm has an old one first on PATH), clones Image Express from GitHub into a folder you choose, installs dependencies, verifies the install, offers the optional ComfyUI/Ollama setup, and launches the app.
+
+Every step — and any error — is written to a log file you can hand to support if something goes wrong:
+- Windows: `%USERPROFILE%\ImageExpress-setup.log`
+- macOS: `~/ImageExpress-setup.log`
+
+On macOS, right-click the `.command` file and choose **Open** once to satisfy Gatekeeper; after that, double-clicking works normally.
+
+### Prerequisites (if installing manually instead)
+- Node.js 24+
+- npm 11+
 - Git
 
-### Install + Run
+### Manual install + run
 ```bash
 git clone https://github.com/GeekatplayStudio/Image-Express.git
 cd Image-Express
@@ -24,12 +39,34 @@ Open `http://localhost:3000`.
 npm run desktop:dev
 ```
 
+Or download the packaged installer from the project's GitHub Releases page —
+`ImageExpress-Setup-<version>.exe` (Windows, one-click) or the `.dmg` (macOS) — for
+a native app with no terminal at all. If the desktop app fails to start, check
+its startup log: `%APPDATA%\creative-flow\startup-trace.log` (Windows) or
+`~/Library/Application Support/creative-flow/startup-trace.log` (macOS); failures
+also write `startup-error.log` next to it.
+
+### Running it again later
+
+Use the matching **start** file in your install folder — no terminal required:
+
+- **Windows**: `start.bat`
+- **macOS**: `start.command`
+
+Each run checks for updates, rebuilds only if needed, and opens the app in your browser.
+
 ### Updating
-```bash
-npm run update          # pull latest code + reinstall deps if changed
-npm run update:check    # just report whether an update exists
-```
-Or check **Settings → Workspace → Updates** in the app. See the README's "Updating" section for details.
+
+Three ways, pick whichever is easiest:
+1. **Automatic**: the app checks for updates on every launch and asks before installing (toggle in Settings → Workspace → Updates → "Check for updates automatically").
+2. **In-app manual check**: **Settings → Workspace → Updates** shows your current version and an "Update Now" button.
+3. **From a terminal**:
+   ```bash
+   npm run update          # pull latest code + reinstall deps if changed
+   npm run update:check    # just report whether an update exists
+   ```
+
+The updater is always safe: it refuses to run over uncommitted local changes and only fast-forwards, so it can never create a merge conflict or overwrite your work. The **start** file also pulls safe updates automatically on every run.
 
 ## 2) Optional ComfyUI (Local or Cloud)
 

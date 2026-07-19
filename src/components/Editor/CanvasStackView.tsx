@@ -172,9 +172,7 @@ export default function CanvasStackView({
                             title={t('stack.renameCanvas')}
                         />
                         <span className="text-[10px] text-muted-foreground">
-                            {t('stack.summary')
-                                .replace('{layers}', String(layerCount))
-                                .replace('{links}', String(bridges.length))}
+                            {t('stack.summary', { layers: layerCount, links: bridges.length })}
                         </span>
                         <div className="w-px h-4 bg-border" />
                         <button onClick={() => onDuplicateCanvas(activeCanvasId)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.duplicateCanvas')}>
@@ -205,7 +203,7 @@ export default function CanvasStackView({
                             title={t('stack.renameProject')}
                         />
                         <span className="text-[10px] text-muted-foreground">
-                            {t('stack.projectCount').replace('{count}', String(projectsState.projects.length))}
+                            {t('stack.projectCount', { count: projectsState.projects.length })}
                         </span>
                         <div className="w-px h-4 bg-border" />
                         <button onClick={() => onDuplicateProject(project.id)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.duplicateProject')}>
@@ -281,9 +279,7 @@ export default function CanvasStackView({
                             setMode('stack');
                             setCam((c) => ({ ...c, zoom: 1 }));
                         }}
-                        formatCaption={(canvasCount, linkedCount) => t('stack.cubeCaption')
-                            .replace('{canvases}', String(canvasCount))
-                            .replace('{linked}', String(linkedCount))}
+                        formatCaption={(pageCount, linkedCount) => t('stack.cubeCaption', { pages: pageCount, linked: linkedCount })}
                     />
                 ) : (
                 <g>
@@ -295,10 +291,22 @@ export default function CanvasStackView({
                         const c01 = project3d(-PLANE_W / 2 + xOff, yWorld, planeD / 2, cam);
                         const xray = selected ? 1 : 0.38;
                         const objects = canvas.json?.objects ?? [];
-                        // Affine map of the unit square onto the projected plane
-                        // (c00 -> u0v0, c10 -> u1v0, c01 -> u0v1) so the canvas
-                        // thumbnail renders as the plane's surface.
-                        const thumbTransform = `matrix(${c10.x - c00.x} ${c10.y - c00.y} ${c01.x - c00.x} ${c01.y - c00.y} ${c00.x} ${c00.y})`;
+                        // The camera does a true perspective projection (see
+                        // stack3dMath.project), so the plane's 4 corners form a
+                        // trapezoid, not a parallelogram. An SVG matrix() transform
+                        // is affine and can only map the unit square onto a
+                        // parallelogram — mapping all 4 corners with one matrix
+                        // would place 3 corners correctly and leave the 4th
+                        // wherever the parallelogram math puts it, not where the
+                        // border path (which uses the real projected c11) draws
+                        // it. That mismatch is what read as a "floating
+                        // border"/warped thumbnail. Splitting into two triangles,
+                        // each with its own exact 3-point affine map, keeps every
+                        // corner pinned to its true projected position.
+                        const triangleATransform = `matrix(${c10.x - c00.x} ${c10.y - c00.y} ${c01.x - c00.x} ${c01.y - c00.y} ${c00.x} ${c00.y})`;
+                        const triangleBTransform = `matrix(${c11.x - c01.x} ${c11.y - c01.y} ${c11.x - c10.x} ${c11.y - c10.y} ${c01.x + c10.x - c11.x} ${c01.y + c10.y - c11.y})`;
+                        const clipAId = `csv-clip-a-${canvas.id}`;
+                        const clipBId = `csv-clip-b-${canvas.id}`;
                         // In-canvas layer chain: connect layers in stacking order.
                         const chainPoints = objects.map((layer) => {
                             const w = worldOf(layer, idx, xOff, canvas.width, canvas.height);
@@ -316,15 +324,34 @@ export default function CanvasStackView({
                                 data-testid={`stack-plane-${canvas.id}`}
                             >
                                 {canvas.thumbnail && (
-                                    <image
-                                        href={canvas.thumbnail}
-                                        width={1}
-                                        height={1}
-                                        preserveAspectRatio="none"
-                                        transform={thumbTransform}
-                                        opacity={selected ? 0.95 : 0.55}
-                                        style={{ imageRendering: 'auto' }}
-                                    />
+                                    <>
+                                        <clipPath id={clipAId}>
+                                            <path d={`M ${c00.x} ${c00.y} L ${c10.x} ${c10.y} L ${c01.x} ${c01.y} Z`} />
+                                        </clipPath>
+                                        <clipPath id={clipBId}>
+                                            <path d={`M ${c10.x} ${c10.y} L ${c11.x} ${c11.y} L ${c01.x} ${c01.y} Z`} />
+                                        </clipPath>
+                                        <image
+                                            href={canvas.thumbnail}
+                                            width={1}
+                                            height={1}
+                                            preserveAspectRatio="none"
+                                            transform={triangleATransform}
+                                            clipPath={`url(#${clipAId})`}
+                                            opacity={selected ? 0.95 : 0.55}
+                                            style={{ imageRendering: 'auto' }}
+                                        />
+                                        <image
+                                            href={canvas.thumbnail}
+                                            width={1}
+                                            height={1}
+                                            preserveAspectRatio="none"
+                                            transform={triangleBTransform}
+                                            clipPath={`url(#${clipBId})`}
+                                            opacity={selected ? 0.95 : 0.55}
+                                            style={{ imageRendering: 'auto' }}
+                                        />
+                                    </>
                                 )}
                                 <path
                                     d={`M ${c00.x} ${c00.y} L ${c10.x} ${c10.y} L ${c11.x} ${c11.y} L ${c01.x} ${c01.y} Z`}

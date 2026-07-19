@@ -47,6 +47,7 @@ import {
     moveObjectToCanvas,
     applyImageFiltersPreservingGeometry
 } from '@/lib/fabric-utils';
+import { applyEdgeCrop, type CropEdges } from '@/lib/imageCrop';
 
 import { CurvesFilter, isAdjustmentGeneratedFilter, reviveImageFilters, tagAdjustmentFilters } from '@/lib/fabric-filters';
 
@@ -92,6 +93,7 @@ import ComfyMaskEditor from '@/components/comfy/ComfyMaskEditor';
 import { captureComfyLayersSource, type ComfyCapturedSource } from '@/components/comfy/comfyCanvasSources';
 import { applyRasterMaskToObject } from '@/lib/layerMasks';
 import { cn } from '@/lib/utils';
+import { saveUiPreferences } from '@/lib/ui-preferences';
 
 interface CustomObjectState {
     _strokeEnabled?: boolean;
@@ -1677,6 +1679,14 @@ export default function PropertiesPanel({
     const handlePropChange = (prop: string, value: any) => {
         if (!selectedObject || !canvas) return;
         const shouldEmitObjectModified = true;
+
+        if (prop === 'crop') {
+            if (selectedObject.type !== 'image') return;
+            applyEdgeCrop(selectedObject as fabric.Image, value as CropEdges);
+            canvas.requestRenderAll();
+            canvas.fire('object:modified', { target: selectedObject });
+            return;
+        }
 
         if (prop === 'penPathUpdate') {
             const updates = value as { mode?: PenModeSetting; closed?: boolean };
@@ -3660,7 +3670,7 @@ export default function PropertiesPanel({
                      onResize={(w, h) => {
                           if (!canvas) return;
                           const ext = canvas as CanvasWithArtboard;
-                          if (ext.artboardRect) { 
+                          if (ext.artboardRect) {
                               ext.artboardRect.set({ width: w, height: h });
                               ext.artboardRect.setCoords();
                               // Update local state immediately to reflect in inputs
@@ -3669,6 +3679,8 @@ export default function PropertiesPanel({
                               // Trigger canvas updates
                               canvas.requestRenderAll();
                               canvas.fire('object:modified', { target: ext.artboardRect });
+                              // Remember this as the default size for the next new canvas/project.
+                              saveUiPreferences({ lastCanvasWidth: w, lastCanvasHeight: h });
                           }
                      }}
                      onColorChange={(c) => {

@@ -24,6 +24,12 @@
 
 # production
 /build
+# desktop packaging output
+/dist/
+/dist-*/
+/full-build.log
+/electron-pack-test.log
+/build_desktop_check.log
 
 # misc
 .DS_Store
@@ -57,6 +63,10 @@ next-env.d.ts
 # user API key vault (contains secrets)
 /data/user-key-vault.json
 /data/user-key-vault.secret
+
+# theme/ambience pack authoring workspaces (packs are distributed separately, never bundled)
+/theme-packs/
+/ambience-packs/
 
 # local state, logs, and tool output (never commit)
 /data/

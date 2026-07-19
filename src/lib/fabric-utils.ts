@@ -212,3 +212,27 @@ export const serializeCanvas = <T = any>(canvas: fabric.Canvas, propertiesToIncl
     }
     return target.toJSON!(propertiesToInclude);
 };
+
+type CanvasArtboardAccess = fabric.Canvas & {
+    artboard?: { width: number; height: number; left: number; top: number };
+    artboardRect?: fabric.Rect;
+};
+
+/** Reads the current artboard (page) size, independent of the canvas's own viewport width/height. */
+export const getArtboardSize = (canvas: fabric.Canvas): { width: number; height: number } | null => {
+    const artboard = (canvas as CanvasArtboardAccess).artboard;
+    if (!artboard || !artboard.width || !artboard.height) return null;
+    return { width: artboard.width, height: artboard.height };
+};
+
+/** Resizes the artboard rect (and dependent state via its object:modified listeners) to the given page size. */
+export const applyArtboardSize = (canvas: fabric.Canvas, width: number, height: number): void => {
+    if (!width || !height) return;
+    const ext = canvas as CanvasArtboardAccess;
+    const rect = ext.artboardRect;
+    if (!rect) return;
+    rect.set({ width, height });
+    rect.setCoords();
+    canvas.requestRenderAll();
+    canvas.fire('object:modified', { target: rect });
+};

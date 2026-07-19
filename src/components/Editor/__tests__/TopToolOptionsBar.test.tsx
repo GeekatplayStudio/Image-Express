@@ -22,7 +22,7 @@ describe('TopToolOptionsBar', () => {
             />
         );
 
-        fireEvent.click(screen.getByTitle('Save Design'));
+        fireEvent.click(screen.getByTitle('Save this page'));
         fireEvent.click(screen.getByTitle('Undo'));
         expect(onSave).toHaveBeenCalledTimes(1);
         expect(onUndo).toHaveBeenCalledTimes(1);

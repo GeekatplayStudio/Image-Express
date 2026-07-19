@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500">
+  <rect width="1200" height="500" fill="#a8c8de"/>
+  <path d="M0 210 Q220 150 420 200 T900 190 T1200 200 V500 H0 Z" fill="#7ba889"/>
+  <path d="M0 280 Q260 220 500 260 T1000 250 T1200 260 V500 H0 Z" fill="#5f9a5f"/>
+  <path d="M0 340 Q300 290 560 320 T1100 310 T1200 320 V500 H0 Z" fill="#4d8a48"/>
+  <circle cx="1080" cy="70" r="30" fill="#f5e6b8"/>
+  <rect x="100" y="60" width="90" height="14" rx="7" fill="#f2f6f8"/>
+  <rect x="620" y="40" width="120" height="14" rx="7" fill="#f2f6f8"/>
+  <!-- cottage -->
+  <rect x="950" y="230" width="80" height="50" fill="#d9d2c2"/>
+  <rect x="936" y="210" width="108" height="24" fill="#7a5a44"/>
+  <rect x="1010" y="188" width="14" height="28" fill="#8f8a7c"/>
+
+  <!-- sheep spelling HELLO -->
+  <g fill="#efe9db">
+    <!-- H -->
+    <circle cx="120" cy="380" r="9"/><circle cx="120" cy="405" r="9"/><circle cx="120" cy="430" r="9"/>
+    <circle cx="145" cy="405" r="9"/>
+    <circle cx="170" cy="380" r="9"/><circle cx="170" cy="405" r="9"/><circle cx="170" cy="430" r="9"/>
+    <!-- E -->
+    <circle cx="210" cy="380" r="9"/><circle cx="210" cy="405" r="9"/><circle cx="210" cy="430" r="9"/>
+    <circle cx="235" cy="380" r="9"/><circle cx="235" cy="405" r="9"/><circle cx="235" cy="430" r="9"/>
+    <!-- L -->
+    <circle cx="280" cy="380" r="9"/><circle cx="280" cy="405" r="9"/><circle cx="280" cy="430" r="9"/>
+    <circle cx="305" cy="430" r="9"/>
+    <!-- L -->
+    <circle cx="345" cy="380" r="9"/><circle cx="345" cy="405" r="9"/><circle cx="345" cy="430" r="9"/>
+    <circle cx="370" cy="430" r="9"/>
+    <!-- O -->
+    <circle cx="415" cy="380" r="9"/><circle cx="440" cy="380" r="9"/>
+    <circle cx="415" cy="405" r="9"/><circle cx="440" cy="405" r="9"/>
+    <circle cx="415" cy="430" r="9"/><circle cx="440" cy="430" r="9"/>
+  </g>
+  <!-- herder collie standing proud, waving -->
+  <g transform="translate(500,395)">
+    <rect x="0" y="8" width="22" height="9" fill="#26262c"/>
+    <rect x="2" y="15" width="18" height="3" fill="#f7f6f2"/>
+    <rect x="18" y="0" width="10" height="9" fill="#26262c"/>
+    <rect x="24" y="3" width="6" height="5" fill="#f7f6f2"/>
+    <rect x="19" y="-3" width="3" height="4" fill="#26262c"/>
+    <rect x="24" y="-3" width="3" height="4" fill="#26262c"/>
+    <rect x="27" y="-8" width="3" height="6" fill="#26262c"/>
+    <g fill="#26262c"><rect x="3" y="17" width="3" height="6"/><rect x="15" y="17" width="3" height="6"/></g>
+    <g fill="#f7f6f2"><rect x="3" y="23" width="3" height="2"/><rect x="15" y="23" width="3" height="2"/></g>
+  </g>
+
+  <!-- second collie patrolling -->
+  <g transform="translate(870,410) scale(0.85)">
+    <rect x="0" y="8" width="22" height="9" fill="#8a5a30"/>
+    <rect x="2" y="15" width="18" height="3" fill="#f7f6f2"/>
+    <rect x="18" y="0" width="10" height="9" fill="#8a5a30"/>
+    <rect x="24" y="3" width="6" height="5" fill="#f7f6f2"/>
+    <g fill="#8a5a30"><rect x="3" y="17" width="3" height="6"/><rect x="15" y="17" width="3" height="6"/></g>
+  </g>
+
+  <text x="600" y="475" font-family="Georgia, serif" font-size="17" font-style="italic" text-anchor="middle" fill="#20301f">Border Collie ambience — the flock reforms into a new word every 30 seconds</text>
+</svg>

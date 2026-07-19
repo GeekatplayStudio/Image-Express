@@ -24,20 +24,20 @@ export function useEditorDesignTitle({
     toast,
 }: UseEditorDesignTitleArgs) {
     const [isRenamingDesignTitle, setIsRenamingDesignTitle] = useState(false);
-    const [designTitleDraft, setDesignTitleDraft] = useState(designName || 'Untitled Design');
+    const [designTitleDraft, setDesignTitleDraft] = useState(designName || 'Untitled Page');
 
     useEffect(() => {
         if (isRenamingDesignTitle) return;
-        setDesignTitleDraft(designName || 'Untitled Design');
+        setDesignTitleDraft(designName || 'Untitled Page');
     }, [designName, isRenamingDesignTitle]);
 
     const cancelDesignTitleEdit = useCallback(() => {
-        setDesignTitleDraft(designName || 'Untitled Design');
+        setDesignTitleDraft(designName || 'Untitled Page');
         setIsRenamingDesignTitle(false);
     }, [designName]);
 
     const commitDesignTitle = useCallback(async () => {
-        const nextName = (designTitleDraft || '').trim() || 'Untitled Design';
+        const nextName = (designTitleDraft || '').trim() || 'Untitled Page';
         setIsRenamingDesignTitle(false);
 
         if (nextName === designName) {

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700">
+  <defs>
+    <radialGradient id="stackbg" cx="50%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#1e1b3a"/>
+      <stop offset="1" stop-color="#0a0a12"/>
+    </radialGradient>
+    <linearGradient id="plane1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/><stop offset="1" stop-color="#cbd5e1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#stackbg)"/>
+  <g fill="#4c1d95" opacity="0.5">
+    <circle cx="120" cy="90" r="2"/><circle cx="980" cy="60" r="2"/><circle cx="1100" cy="400" r="2"/>
+    <circle cx="60" cy="500" r="1.5"/><circle cx="700" cy="40" r="1.5"/>
+  </g>
+  <text x="600" y="70" font-family="Arial" font-size="26" font-weight="bold" text-anchor="middle" fill="#e9e4ff">The Stack — every canvas in your project, floating in 3D</text>
+  <text x="600" y="98" font-family="Arial" font-size="14" text-anchor="middle" fill="#a78bfa">Drag to orbit · scroll to zoom · glowing bridges show linked layers across pages</text>
+
+  <!-- three floating canvas planes in perspective, connected by glow bridges -->
+  <g transform="translate(230,180) skewX(-18) scale(1,0.62)">
+    <rect width="260" height="260" fill="url(#plane1)" stroke="#7c3aed" stroke-width="2"/>
+    <rect x="20" y="20" width="150" height="18" fill="#0f172a"/>
+    <circle cx="200" cy="140" r="40" fill="#f97316"/>
+    <text x="130" y="245" font-family="Arial" font-size="16" fill="#4c1d95">Canvas 1</text>
+  </g>
+  <g transform="translate(500,120) skewX(-18) scale(1,0.62)">
+    <rect width="260" height="260" fill="url(#plane1)" stroke="#0891b2" stroke-width="2"/>
+    <rect x="20" y="30" width="220" height="60" fill="#0891b2" opacity="0.85"/>
+    <rect x="20" y="110" width="180" height="14" fill="#94a3b8"/>
+    <rect x="20" y="132" width="140" height="14" fill="#cbd5e1"/>
+    <text x="130" y="245" font-family="Arial" font-size="16" fill="#164e63">Canvas 2</text>
+  </g>
+  <g transform="translate(790,190) skewX(-18) scale(1,0.62)">
+    <rect width="260" height="260" fill="url(#plane1)" stroke="#db2777" stroke-width="2"/>
+    <circle cx="80" cy="80" r="50" fill="#db2777" opacity="0.75"/>
+    <rect x="20" y="160" width="220" height="16" fill="#0f172a"/>
+    <text x="130" y="245" font-family="Arial" font-size="16" fill="#831843">Canvas 3</text>
+  </g>
+
+  <!-- glowing link bridges (the "shared layer" linking) -->
+  <path d="M 445 300 C 520 260, 560 240, 620 220" stroke="#67e8f9" stroke-width="2.5" fill="none" opacity="0.85"/>
+  <circle cx="445" cy="300" r="4" fill="#67e8f9"/><circle cx="620" cy="220" r="4" fill="#67e8f9"/>
+  <path d="M 730 260 C 800 280, 840 300, 900 320" stroke="#f0abfc" stroke-width="2.5" fill="none" opacity="0.85"/>
+  <circle cx="730" cy="260" r="4" fill="#f0abfc"/><circle cx="900" cy="320" r="4" fill="#f0abfc"/>
+
+  <text x="600" y="640" font-family="Arial" font-size="13" text-anchor="middle" fill="#8b7fc9">Zoom out further and every PROJECT in your workspace becomes a room you can fly into — "Federation" view.</text>
+</svg>

@@ -2,6 +2,8 @@ export type UiPreferences = {
     expandToolRailLabelsOnHover: boolean;
     suppressNumberDragHints: boolean;
     autosaveEnabled: boolean;
+    lastCanvasWidth: number;
+    lastCanvasHeight: number;
 };
 
 export const UI_PREFERENCES_STORAGE_KEY = 'image-express-ui-preferences';
@@ -11,10 +13,16 @@ const DEFAULT_UI_PREFERENCES: UiPreferences = {
     expandToolRailLabelsOnHover: false,
     suppressNumberDragHints: false,
     autosaveEnabled: false,
+    lastCanvasWidth: 1080,
+    lastCanvasHeight: 1080,
 };
 
 const coerceBoolean = (value: unknown, fallback: boolean): boolean => (
     typeof value === 'boolean' ? value : fallback
+);
+
+const coercePositiveNumber = (value: unknown, fallback: number): number => (
+    typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback
 );
 
 export const loadUiPreferences = (): UiPreferences => {
@@ -35,6 +43,14 @@ export const loadUiPreferences = (): UiPreferences => {
             autosaveEnabled: coerceBoolean(
                 parsed.autosaveEnabled,
                 DEFAULT_UI_PREFERENCES.autosaveEnabled
+            ),
+            lastCanvasWidth: coercePositiveNumber(
+                parsed.lastCanvasWidth,
+                DEFAULT_UI_PREFERENCES.lastCanvasWidth
+            ),
+            lastCanvasHeight: coercePositiveNumber(
+                parsed.lastCanvasHeight,
+                DEFAULT_UI_PREFERENCES.lastCanvasHeight
             ),
         };
     } catch {

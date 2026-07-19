@@ -1,5 +1,11 @@
 # Image Express Application Bible
 
+> **Terminology:** canonical vocabulary lives in [GLOSSARY.md](GLOSSARY.md) —
+> **Library → Album → Page → (Workspace, Canvas, Layers)**. The code still uses
+> older names (canonical *Canvas* = code `artboard`, *Page* = code `canvas`,
+> *Album* = code `project`, *Library* = code `Federation`); the glossary has the
+> full mapping table.
+
 Status: Canonical internal reference (engineering + product + QA)  
 Last audited against code: 2026-04-03  
 Repository root: `Image-Express`  

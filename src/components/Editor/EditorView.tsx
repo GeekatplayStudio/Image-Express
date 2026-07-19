@@ -11,6 +11,7 @@ import EditorViewOverlays from '@/components/Editor/EditorViewOverlays';
 import EditorWorkspaceShell from '@/components/Editor/EditorWorkspaceShell';
 import { type ToolbarHandle } from '@/components/Toolbar';
 import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
+import { loadUiPreferences } from '@/lib/ui-preferences';
 import * as fabric from 'fabric';
 import type { GridType } from '@/components/GridOverlay';
 import { ColorPalette } from '@/types';
@@ -267,7 +268,7 @@ export default function EditorView({
     } = useMediaOverlay({
         canvas,
         designId: propDesignId,
-        designName: propDesignName || 'Untitled Design',
+        designName: propDesignName || 'Untitled Page',
         onDirty: () => setIsDirty(true),
         pushHistory,
         toast,
@@ -613,7 +614,7 @@ export default function EditorView({
         safeCanvasToDataURL,
         getMediaOverlayBatchTargets,
         mediaOverlayNamingTemplate,
-        designName: propDesignName || 'Untitled Design',
+        designName: propDesignName || 'Untitled Page',
         getDisplayName,
         toast,
         closeExportMenu,
@@ -622,7 +623,7 @@ export default function EditorView({
 
     const {
         handleBack,
-        handleSave,
+        handleSave: handleSaveDesignOnly,
         handleOpenDesign,
         showMissingAssetsModal,
         missingItems,
@@ -674,15 +675,36 @@ export default function EditorView({
         handleRenameProject,
         toggleShareActiveLayer,
         shareActiveLayerWithProjects,
+        saveActiveCanvasSnapshot,
     } = useMultiCanvasProject({
         canvas,
         designName: propDesignName,
-        initialWidth: initialSize?.width ?? 1080,
-        initialHeight: initialSize?.height ?? 1080,
+        initialWidth: initialSize?.width ?? loadUiPreferences().lastCanvasWidth,
+        initialHeight: initialSize?.height ?? loadUiPreferences().lastCanvasHeight,
         customHistoryProps,
         restoreOnMount: !initialDesign && !initialTemplateJsonUrl,
         onStorageFull: handleProjectStorageFull,
     });
+
+    // Saving asks whether this page should be saved standalone (server-side
+    // "Saved Pages") or as part of its multi-page album (local project store,
+    // which otherwise only autosaves implicitly).
+    const handleSave = useCallback(async () => {
+        const selection = await dialog.choice(t('editor.saveChoiceTitle'), [
+            { value: 'page', label: t('editor.saveAsPage'), description: t('editor.saveAsPageHint') },
+            { value: 'album', label: t('editor.saveAsAlbum'), description: t('editor.saveAsAlbumHint') },
+        ]);
+        if (selection === 'page') {
+            await handleSaveDesignOnly();
+        } else if (selection === 'album') {
+            const ok = saveActiveCanvasSnapshot();
+            toast({
+                title: ok ? 'Saved' : 'Save failed',
+                description: ok ? 'This page was saved into its album.' : 'Could not save to the album.',
+                variant: ok ? 'success' : 'destructive',
+            });
+        }
+    }, [dialog, handleSaveDesignOnly, saveActiveCanvasSnapshot, t, toast]);
 
     const handleToggleShareLayer = useCallback(async () => {
         const alreadyShared = Boolean((canvas?.getActiveObject() as { sharedLayerId?: string } | null | undefined)?.sharedLayerId);
@@ -1098,7 +1120,7 @@ export default function EditorView({
             {/* Editor Header */}
             <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-220 relative shadow-sm overflow-visible">
                 <EditorHeaderPrimary
-                    designName={propDesignName || 'Untitled Design'}
+                    designName={propDesignName || 'Untitled Page'}
                     isRenamingDesignTitle={isRenamingDesignTitle}
                     designTitleDraft={designTitleDraft}
                     onDesignTitleDraftChange={setDesignTitleDraft}

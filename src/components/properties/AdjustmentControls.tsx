@@ -16,6 +16,7 @@ import {
     SolidColorSettings,
 } from '@/types';
 import { APP_THEME } from '@/lib/theme-tokens';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface AdjustmentControlsProps {
     type: AdjustmentLayerType;
@@ -29,10 +30,10 @@ type EyeDropperLike = {
 
 const CURVES_HISTOGRAM_PATH = 'M 0 160 L 0 132 C 7 119, 15 153, 24 143 C 33 132, 42 78, 52 109 C 61 138, 70 113, 80 140 C 89 156, 99 101, 109 128 C 119 155, 130 91, 140 118 C 148 140, 154 130, 160 136 L 160 160 Z';
 
-const CURVE_PICKER_LABELS: Record<CurvesPickerTarget, string> = {
-    shadow: 'Black point',
-    midtone: 'Gray point',
-    highlight: 'White point',
+const CURVE_PICKER_LABEL_KEYS: Record<CurvesPickerTarget, string> = {
+    shadow: 'ctrl.blackPoint',
+    midtone: 'ctrl.grayPoint',
+    highlight: 'ctrl.whitePoint',
 };
 
 const CURVE_PICKER_OUTPUTS: Record<CurvesPickerTarget, number> = {
@@ -149,6 +150,7 @@ function insertOrReplaceAnchor(points: { x: number; y: number }[], target: Curve
 }
 
 function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjustmentSettings, onChange: (s: CurvesAdjustmentSettings) => void }) {
+    const { t } = useI18n();
     const channel = curves.channel ?? 'rgb';
     const points = curves.pointsByChannel?.[channel] ?? curves.points ?? [{ x: 0, y: 0 }, { x: 1, y: 1 }];
     const sorted = [...points].sort((a, b) => a.x - b.x);
@@ -314,7 +316,7 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] text-muted-foreground">Click adds point. Shift-click removes.</div>
+                <div className="text-[10px] text-muted-foreground">{t('ctrl.curvesHint')}</div>
                 <select
                     value={channel}
                     onChange={(e) => {
@@ -326,10 +328,10 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                     className="bg-secondary/50 border border-border rounded-md px-2 py-1 text-[10px] text-foreground outline-none focus:ring-1 focus:ring-primary"
                 >
                     <option value="rgb">RGB</option>
-                    <option value="luminosity">Luminosity</option>
-                    <option value="r">Red</option>
-                    <option value="g">Green</option>
-                    <option value="b">Blue</option>
+                    <option value="luminosity">{t('ctrl.channel.luminosity')}</option>
+                    <option value="r">{t('ctrl.channel.red')}</option>
+                    <option value="g">{t('ctrl.channel.green')}</option>
+                    <option value="b">{t('ctrl.channel.blue')}</option>
                 </select>
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -341,17 +343,17 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                             type="button"
                             onClick={() => void handlePickerSample(target)}
                             className={`flex min-h-12 items-center gap-2 rounded-md border px-2 py-2 text-left transition-colors ${isActive ? 'border-white/60 bg-white/12' : 'border-border/60 bg-secondary/20 hover:bg-secondary/35'}`}
-                            title={CURVE_PICKER_LABELS[target]}
+                            title={t(CURVE_PICKER_LABEL_KEYS[target])}
                             disabled={isSampling}
                         >
                             <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/25 bg-black/25 text-white">
                                 <Pipette size={14} />
                             </span>
                             <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[10px] font-medium text-foreground">{CURVE_PICKER_LABELS[target]}</span>
+                                <span className="block truncate text-[10px] font-medium text-foreground">{t(CURVE_PICKER_LABEL_KEYS[target])}</span>
                                 <span className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
                                     <span className="inline-block h-3 w-3 rounded-full border border-white/30" style={{ backgroundColor: pickerColors[target] ?? '#808080' }} />
-                                    {pickerColors[target] ? pickerColors[target]?.toUpperCase() : 'Sample'}
+                                    {pickerColors[target] ? pickerColors[target]?.toUpperCase() : t('ctrl.sample')}
                                 </span>
                             </span>
                         </button>
@@ -359,15 +361,15 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                 })}
             </div>
             <div className="flex items-center justify-between rounded-md border border-border/50 bg-secondary/20 px-2 py-1.5 text-[10px] text-muted-foreground">
-                <span>Picker source</span>
-                <span>{typeof window !== 'undefined' && 'EyeDropper' in window ? (isSampling ? 'Sampling from screen...' : 'Screen picker') : 'Manual color picker fallback'}</span>
+                <span>{t('ctrl.pickerSource')}</span>
+                <span>{typeof window !== 'undefined' && 'EyeDropper' in window ? (isSampling ? t('ctrl.samplingScreen') : t('ctrl.screenPicker')) : t('ctrl.manualFallback')}</span>
             </div>
             <input
                 ref={hiddenColorInputRef}
                 type="color"
                 className="sr-only"
                 onChange={(event) => applyPickedColor(pendingPickerTargetRef.current, event.target.value)}
-                aria-label="Curves point color picker"
+                aria-label={t('ctrl.curvesColorPickerAria')}
             />
             <div
                 data-testid="curves-surface"
@@ -417,7 +419,7 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
             {activePoint && activePointIndex !== null && (
                 <div className="flex gap-4 text-xs font-mono bg-secondary/30 p-2 rounded justify-center">
                      <div className="flex gap-2 items-center">
-                         <span className="text-muted-foreground uppercase text-[10px]">Input</span>
+                         <span className="text-muted-foreground uppercase text-[10px]">{t('ctrl.input')}</span>
                          <input 
                             type="number" 
                             min="0" 
@@ -431,7 +433,7 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
                          />
                      </div>
                      <div className="flex gap-2 items-center">
-                         <span className="text-muted-foreground uppercase text-[10px]">Output</span>
+                         <span className="text-muted-foreground uppercase text-[10px]">{t('ctrl.output')}</span>
                          <input 
                             type="number" 
                             min="0" 
@@ -451,6 +453,7 @@ function CurvesControls({ settings: curves, onChange }: { settings: CurvesAdjust
 }
 
 export function AdjustmentControls({ type, settings, onChange }: AdjustmentControlsProps) {
+    const { t } = useI18n();
 
     const updateSettings = (partial: Partial<AdjustmentLayerSettings>) => {
         onChange({ ...settings, ...partial } as AdjustmentLayerSettings);
@@ -467,7 +470,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
             <div className="space-y-3">
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Black</span>
+                        <span>{t('ctrl.black')}</span>
                         <span>{levels.black.toFixed(2)}</span>
                     </div>
                     <input
@@ -483,7 +486,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                 </div>
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Mid</span>
+                        <span>{t('ctrl.mid')}</span>
                         <span>{levels.mid.toFixed(2)}</span>
                     </div>
                     <input
@@ -499,7 +502,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                 </div>
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>White</span>
+                        <span>{t('ctrl.white')}</span>
                         <span>{levels.white.toFixed(2)}</span>
                     </div>
                     <input
@@ -524,7 +527,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
             <div className="space-y-3">
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Hue</span>
+                        <span>{t('ctrl.hue')}</span>
                         <span>{hueSat.hue.toFixed(2)}</span>
                     </div>
                     <input
@@ -540,7 +543,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                 </div>
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Saturation</span>
+                        <span>{t('ctrl.saturation')}</span>
                         <span>{hueSat.saturation.toFixed(2)}</span>
                     </div>
                     <input
@@ -556,7 +559,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                 </div>
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Lightness</span>
+                        <span>{t('ctrl.lightness')}</span>
                         <span>{hueSat.lightness.toFixed(2)}</span>
                     </div>
                     <input
@@ -581,7 +584,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
             <div className="space-y-3">
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Exposure</span>
+                        <span>{t('ctrl.exposure')}</span>
                         <span>{exposure.exposure.toFixed(2)}</span>
                     </div>
                     <input
@@ -597,7 +600,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                 </div>
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Contrast</span>
+                        <span>{t('ctrl.contrast')}</span>
                         <span>{exposure.contrast.toFixed(2)}</span>
                     </div>
                     <input
@@ -622,7 +625,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
             <div className="space-y-3">
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Brightness</span>
+                        <span>{t('ctrl.brightness')}</span>
                         <span>{bc.brightness.toFixed(2)}</span>
                     </div>
                     <input
@@ -638,7 +641,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                 </div>
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Contrast</span>
+                        <span>{t('ctrl.contrast')}</span>
                         <span>{bc.contrast.toFixed(2)}</span>
                     </div>
                     <input
@@ -662,13 +665,13 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
         return (
             <div className="space-y-3">
                 {([
-                    { key: 'red', label: 'Red / Cyan' },
-                    { key: 'green', label: 'Green / Magenta' },
-                    { key: 'blue', label: 'Blue / Yellow' },
+                    { key: 'red', labelKey: 'ctrl.redCyan' },
+                    { key: 'green', labelKey: 'ctrl.greenMagenta' },
+                    { key: 'blue', labelKey: 'ctrl.blueYellow' },
                 ] as const).map((row) => (
                     <div key={row.key} className="space-y-2">
                         <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>{row.label}</span>
+                            <span>{t(row.labelKey)}</span>
                             <span>{((balance[row.key] as number) || 0).toFixed(2)}</span>
                         </div>
                         <input
@@ -689,7 +692,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                         checked={balance.preserveLuminosity !== false}
                         onChange={(e) => updateBalance({ preserveLuminosity: e.target.checked })}
                     />
-                    Preserve luminosity
+                    {t('ctrl.preserveLuminosity')}
                 </label>
             </div>
         );
@@ -701,15 +704,15 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
         return (
             <div className="space-y-3">
                 {([
-                    { key: 'temperature', label: 'Temperature' },
-                    { key: 'tint', label: 'Tint' },
-                    { key: 'exposure', label: 'Exposure' },
-                    { key: 'saturation', label: 'Saturation' },
-                    { key: 'vibrance', label: 'Vibrance' },
+                    { key: 'temperature', labelKey: 'ctrl.temperature' },
+                    { key: 'tint', labelKey: 'ctrl.tint' },
+                    { key: 'exposure', labelKey: 'ctrl.exposure' },
+                    { key: 'saturation', labelKey: 'ctrl.saturation' },
+                    { key: 'vibrance', labelKey: 'ctrl.vibrance' },
                 ] as const).map((row) => (
                     <div key={row.key} className="space-y-2">
                         <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>{row.label}</span>
+                            <span>{t(row.labelKey)}</span>
                             <span>{((lac[row.key] as number) || 0).toFixed(2)}</span>
                         </div>
                         <input
@@ -734,7 +737,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
         return (
             <div className="space-y-3">
                 <div className="space-y-1">
-                    <div className="text-[10px] text-muted-foreground">Color</div>
+                    <div className="text-[10px] text-muted-foreground">{t('ctrl.color')}</div>
                     <input
                         type="color"
                         value={solid.color || '#ff8800'}
@@ -744,7 +747,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                 </div>
                 <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Opacity</span>
+                        <span>{t('ctrl.opacity')}</span>
                         <span>{(solid.opacity ?? 0.5).toFixed(2)}</span>
                     </div>
                     <input
@@ -759,22 +762,22 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
                     />
                 </div>
                 <div className="space-y-1">
-                    <div className="text-[10px] text-muted-foreground">Blend Mode</div>
+                    <div className="text-[10px] text-muted-foreground">{t('ctrl.blendMode')}</div>
                     <select
                         value={solid.mode || 'tint'}
                         onChange={(e) => updateSolid({ mode: e.target.value as SolidColorSettings['mode'] })}
                         className="w-full bg-secondary/50 border border-border rounded-md px-2 py-1 text-[11px] text-foreground outline-none focus:ring-1 focus:ring-primary"
                     >
-                        <option value="tint">Tint</option>
-                        <option value="multiply">Multiply</option>
-                        <option value="screen">Screen</option>
-                        <option value="overlay">Overlay</option>
-                        <option value="add">Add</option>
-                        <option value="subtract">Subtract</option>
-                        <option value="darken">Darken</option>
-                        <option value="lighten">Lighten</option>
-                        <option value="diff">Difference</option>
-                        <option value="exclusion">Exclusion</option>
+                        <option value="tint">{t('blend.tint')}</option>
+                        <option value="multiply">{t('blend.multiply')}</option>
+                        <option value="screen">{t('blend.screen')}</option>
+                        <option value="overlay">{t('blend.overlay')}</option>
+                        <option value="add">{t('blend.add')}</option>
+                        <option value="subtract">{t('blend.subtract')}</option>
+                        <option value="darken">{t('blend.darken')}</option>
+                        <option value="lighten">{t('blend.lighten')}</option>
+                        <option value="diff">{t('blend.difference')}</option>
+                        <option value="exclusion">{t('blend.exclusion')}</option>
                     </select>
                 </div>
             </div>
@@ -783,7 +786,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
 
     if (type === 'black-white') {
         return (
-            <div className="text-[11px] text-muted-foreground">Black &amp; White has no sliders. Use opacity to blend.</div>
+            <div className="text-[11px] text-muted-foreground">{t('ctrl.blackWhiteHint')}</div>
         );
     }
 
@@ -792,7 +795,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
         <div className="space-y-3">
             <div className="space-y-2">
                 <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>Saturation</span>
+                    <span>{t('ctrl.saturation')}</span>
                     <span>{sat.saturation.toFixed(2)}</span>
                 </div>
                 <input
@@ -808,7 +811,7 @@ export function AdjustmentControls({ type, settings, onChange }: AdjustmentContr
             </div>
             <div className="space-y-2">
                 <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>Vibrance</span>
+                    <span>{t('ctrl.vibrance')}</span>
                     <span>{sat.vibrance.toFixed(2)}</span>
                 </div>
                 <input

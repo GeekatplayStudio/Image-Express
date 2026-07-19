@@ -25,6 +25,11 @@ import { DialogProvider } from "@/providers/DialogProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
 import { I18nProvider } from "@/providers/I18nProvider";
 import ThemePreferenceSync from '@/components/ThemePreferenceSync';
+import UiThemeSync from '@/components/UiThemeSync';
+import UpdateAutoCheck from '@/components/UpdateAutoCheck';
+import SpriteTheater from '@/components/SpriteTheater';
+import SupportCorner from '@/components/SupportCorner';
+import { buildUiThemeInitScript } from '@/lib/ui-themes-shared';
 import RangeResetListener from "@/components/ui/RangeResetListener";
 import { buildRuntimePerformanceShimSource } from '@/lib/runtimePerformanceShim';
 import {
@@ -40,6 +45,7 @@ export default function RootLayout({
 }>) {
   const performanceShimSource = buildRuntimePerformanceShimSource();
   const themePreferenceInitScript = buildThemePreferencesInitScript();
+  const uiThemeInitScript = buildUiThemeInitScript();
 
   return (
     <html
@@ -61,6 +67,11 @@ export default function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: themePreferenceInitScript }}
         />
+        <Script
+          id="ui-theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: uiThemeInitScript }}
+        />
       </head>
       <body
         className="antialiased"
@@ -70,8 +81,13 @@ export default function RootLayout({
           <DialogProvider>
             <ToastProvider>
               <ThemePreferenceSync />
+              <UiThemeSync />
+              <UpdateAutoCheck />
               <RangeResetListener />
               {children}
+              <div className="ui-theme-overlay" aria-hidden="true" />
+              <SpriteTheater />
+              <SupportCorner />
             </ToastProvider>
           </DialogProvider>
         </I18nProvider>

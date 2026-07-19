@@ -51,6 +51,19 @@
   --input: hsl(240 4% 16%);
   --ring: hsl(240 5% 84%);
   --radius: 0.5rem;
+
+  /* Theme-pack contract (see docs/THEME_PACKS_SPEC.md). Defaults match the stock UI. */
+  --ui-font-sans: Inter, Arial, Helvetica, sans-serif;
+  --ui-font-mono: ui-monospace, "Cascadia Mono", monospace;
+  --ui-panel-border: 1px solid var(--border);
+  --ui-panel-shadow: 0 8px 30px rgb(0 0 0 / 0.25);
+  --ui-titlebar-bg: var(--card);
+  --ui-titlebar-fg: var(--card-foreground);
+  --ui-scrollbar-thumb: var(--secondary);
+  --ui-icon-stroke-width: 2;
+  --ui-screen-filter: none;
+  --ui-overlay-opacity: 0;
+  --ui-overlay-background: none;
 }
 
 :root[data-theme-mode='light'] {
@@ -81,8 +94,22 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: Inter, Arial, Helvetica, sans-serif;
+  font-family: var(--ui-font-sans);
   font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Theme-pack hooks: icon weight + full-screen decorative overlay (scanlines, vignette). */
+svg.lucide {
+  stroke-width: var(--ui-icon-stroke-width);
+}
+
+.ui-theme-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: var(--ui-overlay-opacity);
+  background: var(--ui-overlay-background);
 }
 
 /* Custom scrollbar */
@@ -94,7 +121,7 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--secondary);
+  background: var(--ui-scrollbar-thumb);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as fabric from 'fabric';
 import { PenModeSetting } from '@/lib/pen-utils';
+import { useI18n } from '@/providers/I18nProvider';
 
 export type CanvasWithPenDraft = fabric.Canvas & {
     penDraftState?: { mode: PenModeSetting; closure: 'open' | 'closed'; points: number };
@@ -11,6 +12,7 @@ interface PenPropertiesProps {
 }
 
 export function PenProperties({ canvas }: PenPropertiesProps) {
+    const { t } = useI18n();
     // We need to listen to canvas events to update the UI when pen state changes
     // The original code in PropertiesPanel likely re-rendered because PropertiesPanel
     // re-renders on many things. Here we might need local state mirroring the canvas state.
@@ -71,7 +73,7 @@ export function PenProperties({ canvas }: PenPropertiesProps) {
     return (
         <div className="h-full bg-card flex flex-col">
             <div className="p-4 border-b">
-                <h2 className="font-semibold mb-1">Pen Tool</h2>
+                <h2 className="font-semibold mb-1">{t('pen.title')}</h2>
                 <p className="text-xs text-muted-foreground">
                     Click to add points. Drag to curve.
                 </p>
@@ -79,7 +81,7 @@ export function PenProperties({ canvas }: PenPropertiesProps) {
             
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Mode</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t('panel.mode')}</div>
                     <div className="grid grid-cols-3 gap-1">
                         {(['straight', 'smooth', 'bezier'] as const).map((mode) => (
                             <button
@@ -94,7 +96,7 @@ export function PenProperties({ canvas }: PenPropertiesProps) {
                 </div>
 
                 <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Path</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t('panel.path')}</div>
                     <div className="grid grid-cols-2 gap-1">
                         <button
                             onClick={() => firePenEvent('pen:config:set', { closure: 'open' })}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "clarity-contrast",
+  "name": "Clarity — High Contrast",
+  "description": "Accessibility-first: maximum contrast, bold borders, and unmistakable focus outlines for low-vision comfort. Bundled with every install.",
+  "author": "Creative Flow",
+  "version": "1.0.0",
+  "stylesheet": "theme.css",
+  "preview": "preview.svg",
+  "lockMode": "dark",
+  "lockAccent": true
+}

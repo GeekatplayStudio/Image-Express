@@ -29,7 +29,8 @@ const MANIFEST_SUFFIX = '.manifest.json';
 const WORKFLOW_JSON_SUFFIX = '.json';
 const WORKFLOW_LIBRARY_PATH_SPLIT_PATTERN = /[\r\n;]+/;
 const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
-const LOCAL_COMFY_WORKSPACE_DIR = path.join(process.cwd(), 'ComfyUI workflows');
+// turbopackIgnore: runtime workspace directory, never a bundle dependency.
+const LOCAL_COMFY_WORKSPACE_DIR = path.join(/* turbopackIgnore: true */ process.cwd(), 'ComfyUI workflows');
 const LOCAL_COMFY_SYNC_DIRECTORIES = ['custom_nodes', 'user', 'models'] as const;
 
 interface ComfyLibraryPathsInput {

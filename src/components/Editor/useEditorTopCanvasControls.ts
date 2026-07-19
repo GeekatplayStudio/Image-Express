@@ -311,6 +311,11 @@ export function useEditorTopCanvasControls({
             cropTopDraftRectRef.current = null;
 
             const helper = new fabric.Rect({
+                // Fabric v7 defaults objects to a CENTER origin; without this the
+                // marquee draws half its size up-and-left of the cursor (the
+                // "marking in the wrong place" bug). left/top must be the corner.
+                originX: 'left',
+                originY: 'top',
                 left: pointer.x,
                 top: pointer.y,
                 width: 1,

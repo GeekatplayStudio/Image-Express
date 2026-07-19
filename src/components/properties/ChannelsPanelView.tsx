@@ -12,6 +12,7 @@ import {
     isDefaultChannelFilterState,
 } from './channelEditing';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/providers/I18nProvider';
 
 type SupportedChannelsTarget = 'none' | 'color' | 'image';
 
@@ -28,13 +29,13 @@ interface ChannelsPanelViewProps {
     onChangeControls?: (controls: ChannelControlState) => void;
 }
 
-const CHANNEL_ROWS: Array<{ target: ChannelTarget; label: string; accent: string }> = [
-    { target: 'composite', label: 'Composite', accent: 'bg-slate-500' },
-    { target: 'r', label: 'Red', accent: 'bg-rose-500' },
-    { target: 'g', label: 'Green', accent: 'bg-emerald-500' },
-    { target: 'b', label: 'Blue', accent: 'bg-sky-500' },
-    { target: 'a', label: 'Alpha', accent: 'bg-zinc-500' },
-    { target: 'lum', label: 'Luminosity', accent: 'bg-amber-400' },
+const CHANNEL_ROWS: Array<{ target: ChannelTarget; labelKey: string; accent: string }> = [
+    { target: 'composite', labelKey: 'channels.composite', accent: 'bg-slate-500' },
+    { target: 'r', labelKey: 'ctrl.channel.red', accent: 'bg-rose-500' },
+    { target: 'g', labelKey: 'ctrl.channel.green', accent: 'bg-emerald-500' },
+    { target: 'b', labelKey: 'ctrl.channel.blue', accent: 'bg-sky-500' },
+    { target: 'a', labelKey: 'channels.alpha', accent: 'bg-zinc-500' },
+    { target: 'lum', labelKey: 'ctrl.channel.luminosity', accent: 'bg-amber-400' },
 ];
 
 export function ChannelsPanelView({
@@ -49,6 +50,7 @@ export function ChannelsPanelView({
     onSetChannelValue,
     onChangeControls,
 }: ChannelsPanelViewProps) {
+    const { t } = useI18n();
     const currentState = appliedState ?? {
         mode: 'composite' as const,
         target: 'composite' as const,
@@ -113,11 +115,11 @@ export function ChannelsPanelView({
             <div className="h-full bg-card overflow-y-auto overflow-x-hidden pr-12">
                 <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                     <Layers2 size={14} />
-                    <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Channels</h2>
+                    <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('channels.title')}</h2>
                 </div>
                 <div className="p-4 space-y-3 text-sm text-muted-foreground">
-                    <p>Select an image or a fillable layer to inspect RGB and alpha channels.</p>
-                    <p className="text-xs">Images support isolate, invert, mask, luminosity, and per-channel opacity. Vector and text fills support per-channel value edits plus isolate, invert, or mask operations on the active channel.</p>
+                    <p>{t('channels.emptyHint')}</p>
+                    <p className="text-xs">{t('channels.capabilities')}</p>
                 </div>
             </div>
         );
@@ -127,17 +129,17 @@ export function ChannelsPanelView({
         <div className="h-full bg-card overflow-y-auto overflow-x-hidden pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                 <Layers2 size={14} />
-                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Channels</h2>
+                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('channels.title')}</h2>
             </div>
 
             <div className="p-4 space-y-4">
                 <div className="rounded-md border border-border/60 bg-secondary/20 p-3 space-y-1">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Current target</div>
-                    <div className="text-sm font-medium text-foreground">{selectionLabel ?? (supportedTarget === 'image' ? 'Selected image' : 'Selected fill')}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('channels.currentTarget')}</div>
+                    <div className="text-sm font-medium text-foreground">{selectionLabel ?? (supportedTarget === 'image' ? t('channels.selectedImage') : t('channels.selectedFill'))}</div>
                     <div className="text-xs text-muted-foreground">
                         {supportedTarget === 'image'
-                            ? 'Image channels use non-destructive ColorMatrix filters so you can mix, mask, invert, and isolate channels with reset support.'
-                            : 'Fill channels update the selected object directly. Use Undo to revert destructive color edits.'}
+                            ? t('channels.imageHint')
+                            : t('channels.fillHint')}
                     </div>
                 </div>
 
@@ -164,13 +166,13 @@ export function ChannelsPanelView({
                                     <span
                                         className="h-9 w-9 rounded border border-border/50 bg-center bg-cover"
                                         style={{ backgroundImage: `url(${preview})` }}
-                                        aria-label={`${row.label} preview`}
+                                        aria-label={t('channels.channelPreview', { channel: t(row.labelKey) })}
                                     />
                                 ) : (
                                     <span className="h-9 w-9 rounded border border-border/50 bg-secondary/50" aria-hidden="true" />
                                 )}
                                 <span className="min-w-0 flex-1">
-                                    <span className="block text-sm font-medium text-foreground">{row.label}</span>
+                                    <span className="block text-sm font-medium text-foreground">{t(row.labelKey)}</span>
                                     <span className="block text-[11px] text-muted-foreground">
                                         {supportedTarget === 'color' && row.target !== 'composite'
                                             ? `${row.target === 'a' ? Math.round((getChannelValue(currentColor, currentOpacity, row.target) / 255) * 100) : getChannelValue(currentColor, currentOpacity, row.target)}${row.target === 'a' ? '%' : ''} · opacity ${channelOpacity}%${channelMasked ? ' · masked' : ''}`
@@ -192,7 +194,7 @@ export function ChannelsPanelView({
                 {selectedChannel !== 'composite' && selectedChannelOpacity !== null && (
                     <div className="rounded-md border border-border/60 bg-background p-3 space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs font-medium text-foreground">{CHANNEL_ROWS.find((row) => row.target === selectedChannel)?.label} opacity</span>
+                            <span className="text-xs font-medium text-foreground">{t('channels.channelOpacity', { channel: t(CHANNEL_ROWS.find((row) => row.target === selectedChannel)?.labelKey ?? '') })}</span>
                             <span className="text-[11px] text-muted-foreground">{selectedChannelOpacity}%</span>
                         </div>
                         <input
@@ -205,7 +207,7 @@ export function ChannelsPanelView({
                             aria-label={`Adjust ${selectedChannel} opacity`}
                         />
                         <label className="flex items-center justify-between gap-3 text-xs text-foreground">
-                            <span>Mask this channel in the composite</span>
+                            <span>{t('channels.maskHint')}</span>
                             <input
                                 type="checkbox"
                                 checked={selectedChannelMasked}
@@ -219,7 +221,7 @@ export function ChannelsPanelView({
                 {supportedTarget === 'color' && selectedChannel !== 'composite' && selectedChannel !== 'lum' && onSetChannelValue && sliderValue !== null && (
                     <div className="rounded-md border border-border/60 bg-background p-3 space-y-2">
                         <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs font-medium text-foreground">Adjust {selectedChannel === 'a' ? 'Alpha' : CHANNEL_ROWS.find((row) => row.target === selectedChannel)?.label}</span>
+                            <span className="text-xs font-medium text-foreground">{t('channels.adjustChannel', { channel: selectedChannel === 'a' ? t('channels.alpha') : t(CHANNEL_ROWS.find((row) => row.target === selectedChannel)?.labelKey ?? '') })}</span>
                             <span className="text-[11px] text-muted-foreground">{sliderValue}{selectedChannel === 'a' ? '%' : ''}</span>
                         </div>
                         <input

@@ -1,8 +1,16 @@
 # Multi-Canvas Projects, 3D Stack View & Autosave
 
+> **Terminology note:** the code names below predate our canonical vocabulary
+> ([GLOSSARY.md](GLOSSARY.md)). In canonical terms this hierarchy is
+> **Library → Album → Page**: a code *Project* is an **Album**, a code *Canvas*
+> is a **Page**, and the *Federation* level is the **Library**. The code names
+> are kept in this document because they match the identifiers in
+> `lib/multicanvas/projectStore.ts`.
+
 ## Concepts
 
-The workspace hierarchy is **Projects → Canvases → Layers**:
+The code hierarchy is **Projects → Canvases → Layers** (canonical: **Album →
+Page → Layers**):
 
 - **Projects** is the whole local workspace: every project you have. In the
   3D view, zooming all the way out (or the **Projects** button) shows each

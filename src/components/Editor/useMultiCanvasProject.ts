@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 
-import { serializeCanvas, ensureObjectId } from '@/lib/fabric-utils';
+import { serializeCanvas, ensureObjectId, applyArtboardSize } from '@/lib/fabric-utils';
 import { captureCanvasThumbnail } from '@/lib/multicanvas/canvasThumbnail';
 import { inlineVolatileImageSources } from '@/lib/multicanvas/inlineImageSources';
 import type { ExtendedFabricObject } from '@/types';
@@ -141,6 +141,11 @@ export function useMultiCanvasProject({
             if (extended.artboardRect && !canvas.getObjects().includes(extended.artboardRect)) {
                 canvas.add(extended.artboardRect);
                 canvas.sendObjectToBack(extended.artboardRect);
+            }
+            // Re-apply this canvas's own stored size — otherwise switching
+            // canvases keeps whichever size the artboard rect last had.
+            if (target.width && target.height) {
+                applyArtboardSize(canvas, target.width, target.height);
             }
             canvas.requestRenderAll();
         };
@@ -291,6 +296,14 @@ export function useMultiCanvasProject({
         setIsStackViewOpen(true);
     }, [commit, snapshotLoadedCanvas]);
 
+    /** Explicitly persists the active canvas into its album now (used by the editor's "Save as Album" choice). */
+    const saveActiveCanvasSnapshot = useCallback((): boolean => {
+        const next = snapshotLoadedCanvas();
+        if (!next) return false;
+        commit(next);
+        return true;
+    }, [commit, snapshotLoadedCanvas]);
+
     /**
      * Mark/unmark the active layer as shared. Sharing broadcasts a linked copy
      * into every other canvas of the active project (same sharedLayerId), so
@@ -427,5 +440,6 @@ export function useMultiCanvasProject({
         handleRenameProject,
         toggleShareActiveLayer,
         shareActiveLayerWithProjects,
+        saveActiveCanvasSnapshot,
     };
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ColorPicker } from './ColorPicker';
 import { Switch } from '@/components/ui/switch';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface CanvasSettingsPanelProps {
     width: number;
@@ -21,15 +22,16 @@ export function CanvasSettingsPanel({
     onColorChange,
     onBackgroundToggle
 }: CanvasSettingsPanelProps) {
+    const { t } = useI18n();
     return (
         <div className="p-4 space-y-6">
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-sm">Canvas Size</h3>
+                    <h3 className="font-medium text-sm">{t('canvas.size')}</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <label className="text-[10px] uppercase text-muted-foreground font-medium">Width</label>
+                        <label className="text-[10px] uppercase text-muted-foreground font-medium">{t('canvas.width')}</label>
                         <input
                             type="number"
                             value={width || ''}
@@ -38,7 +40,7 @@ export function CanvasSettingsPanel({
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-[10px] uppercase text-muted-foreground font-medium">Height</label>
+                        <label className="text-[10px] uppercase text-muted-foreground font-medium">{t('canvas.height')}</label>
                         <input
                             type="number"
                             value={height || ''}
@@ -49,20 +51,20 @@ export function CanvasSettingsPanel({
                 </div>
                 <div className="flex gap-2 flex-wrap">
                     {[
-                        { w: 1080, h: 1080, label: '1:1 (Square)' },
-                        { w: 1920, h: 1080, label: '16:9 (Landscape)' },
-                        { w: 1080, h: 1920, label: '9:16 (Portrait)' },
-                        { w: 1200, h: 1800, label: '2:3 (Poster)' },
-                        { w: 1800, h: 1200, label: '3:2 (Photo)' },
-                        { w: 1440, h: 1080, label: '4:3 (Monitor)' },
-                        { w: 1080, h: 1440, label: '3:4 (Tablet)' },
+                        { w: 1080, h: 1080, labelKey: 'canvas.ratio.square' },
+                        { w: 1920, h: 1080, labelKey: 'canvas.ratio.landscape' },
+                        { w: 1080, h: 1920, labelKey: 'canvas.ratio.portrait' },
+                        { w: 1200, h: 1800, labelKey: 'canvas.ratio.poster' },
+                        { w: 1800, h: 1200, labelKey: 'canvas.ratio.photo' },
+                        { w: 1440, h: 1080, labelKey: 'canvas.ratio.monitor' },
+                        { w: 1080, h: 1440, labelKey: 'canvas.ratio.tablet' },
                     ].map((preset) => (
                         <button
-                            key={preset.label}
+                            key={preset.labelKey}
                             onClick={() => onResize(preset.w, preset.h)}
                             className="px-2 py-1 text-[10px] border border-border rounded-md hover:bg-secondary"
                         >
-                            {preset.label}
+                            {t(preset.labelKey)}
                         </button>
                     ))}
                 </div>
@@ -70,24 +72,24 @@ export function CanvasSettingsPanel({
 
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-sm">Background</h3>
+                    <h3 className="font-medium text-sm">{t('canvas.background')}</h3>
                 </div>
                 <div className="space-y-2">
                     <div className="flex items-center justify-between rounded-lg border border-border/70 bg-secondary/20 px-3 py-2">
                         <div className="space-y-0.5">
-                            <div className="text-xs font-medium">Canvas background</div>
-                            <div className="text-[10px] text-muted-foreground">Turn off for transparent PNG exports</div>
+                            <div className="text-xs font-medium">{t('canvas.backgroundLabel')}</div>
+                            <div className="text-[10px] text-muted-foreground">{t('canvas.transparentHint')}</div>
                         </div>
                         <Switch
                             checked={backgroundEnabled}
                             onCheckedChange={onBackgroundToggle}
-                            aria-label="Canvas background"
+                            aria-label={t('canvas.backgroundLabel')}
                         />
                     </div>
                     <ColorPicker
                          color={backgroundColor.startsWith('#') ? backgroundColor : '#ffffff'}
                          onChange={onColorChange}
-                         label="Color"
+                         label={t('ctrl.color')}
                     />
                     <div className="flex gap-2 flex-wrap">
                         {['#ffffff', '#000000', '#f3f4f6', '#fee2e2', '#dbeafe', '#d1fae5'].map((c) => (

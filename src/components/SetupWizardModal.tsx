@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Cloud, HardDrive, Loader2, RefreshCcw, Sparkles } from 'lucide-react';
 import ModalShell from '@/components/ui/ModalShell';
+import SetupCollieMascot from '@/components/setup/SetupCollieMascot';
 import { useI18n } from '@/providers/I18nProvider';
 import { connectGoogleDrive, loadDriveConfig, updateDriveConfig } from '@/lib/googleDrive';
 import {
@@ -57,6 +58,7 @@ const STEPS = [
     { id: 'drive', title: 'Cloud Connection', description: 'Connect your selected provider or review planned-provider status.' },
     { id: 'api', title: 'API Keys', description: 'Optional AI key setup.' },
     { id: 'runtime', title: 'Runtime Check', description: 'Verify local AI dependencies are ready.' },
+    { id: 'support', title: 'Extras', description: 'Optional theme packs that support development.' },
     { id: 'finish', title: 'Finish', description: 'Review and start creating.' },
 ] as const;
 
@@ -952,6 +954,90 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         </div>
                     )}
 
+                    {step.id === 'support' && (
+                        <div className="space-y-4">
+                            <p className="text-sm text-foreground/90">
+                                Image Express is free. If you enjoy it, optional theme packs are a fun way to support development —
+                                including <span className="font-semibold text-foreground">animated super packs</span> where tiny pixel characters
+                                (dragons, aliens, border collies…) wander across your screen while you work.
+                            </p>
+                            <div className="grid gap-3 sm:grid-cols-3">
+                                {/* Miniature previews of the pack families — original inline artwork. */}
+                                <div className="rounded-lg border border-border/70 overflow-hidden">
+                                    <svg viewBox="0 0 160 90" className="w-full block" aria-hidden="true">
+                                        <rect width="160" height="90" fill="#10142b" />
+                                        <rect x="20" y="26" width="120" height="44" fill="#181d3a" stroke="#4a5391" strokeWidth="2" />
+                                        <rect x="28" y="34" width="56" height="6" fill="#ffd66b" />
+                                        <rect x="28" y="46" width="84" height="4" fill="#8f97c9" />
+                                        <g transform="translate(104,8)">
+                                            <rect x="0" y="4" width="12" height="4" fill="#3fae4a" />
+                                            <rect x="4" y="0" width="6" height="4" fill="#7ed957" />
+                                            <rect x="12" y="3" width="7" height="4" fill="#3fae4a" />
+                                            <rect x="19" y="3" width="3" height="2" fill="#ffa63f" />
+                                        </g>
+                                        <g transform="translate(30,74)">
+                                            <rect x="0" y="0" width="5" height="6" fill="#b2bec5" /><rect x="1" y="-2" width="2" height="2" fill="#e63c46" />
+                                        </g>
+                                    </svg>
+                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Pixel RPG — dragons &amp; knights</p>
+                                </div>
+                                <div className="rounded-lg border border-border/70 overflow-hidden">
+                                    <svg viewBox="0 0 160 90" className="w-full block" aria-hidden="true">
+                                        <rect width="160" height="90" fill="#140b26" />
+                                        <g transform="translate(58,10)">
+                                            <rect x="6" y="0" width="8" height="3" fill="#7de8ff" />
+                                            <rect x="0" y="3" width="20" height="5" fill="#9aa7b8" />
+                                            <rect x="3" y="5" width="2" height="1" fill="#ffd66b" /><rect x="9" y="5" width="2" height="1" fill="#ffd66b" /><rect x="15" y="5" width="2" height="1" fill="#ffd66b" />
+                                        </g>
+                                        <rect y="66" width="160" height="24" fill="#3f3354" />
+                                        <g transform="translate(28,54)">
+                                            <rect x="1" y="0" width="8" height="7" fill="#5ce65c" /><rect x="3" y="2" width="3" height="3" fill="#181425" />
+                                            <rect x="3" y="7" width="5" height="5" fill="#5ce65c" />
+                                            <rect x="9" y="8" width="6" height="2" fill="#5e6b7c" /><rect x="17" y="8" width="4" height="2" fill="#66ff66" />
+                                        </g>
+                                        <g transform="translate(96,40)">
+                                            <rect x="2" y="3" width="10" height="5" fill="#2c2137" /><rect x="10" y="3" width="4" height="4" fill="#2c2137" />
+                                            <rect x="12" y="4" width="2" height="2" fill="#ff4a4a" /><rect x="4" y="0" width="6" height="3" fill="#bcd0e8" />
+                                        </g>
+                                    </svg>
+                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Pixel Cosmos — aliens vs. space-flies</p>
+                                </div>
+                                <div className="rounded-lg border border-border/70 overflow-hidden">
+                                    <svg viewBox="0 0 160 90" className="w-full block" aria-hidden="true">
+                                        <rect width="160" height="90" fill="#a8c8de" />
+                                        <path d="M0 46 Q40 30 80 42 T160 40 V90 H0 Z" fill="#5f9a5f" />
+                                        <path d="M0 64 Q50 50 105 62 T160 60 V90 H0 Z" fill="#4d8a48" />
+                                        <g fill="#efe9db">
+                                            <circle cx="52" cy="62" r="3" /><circle cx="52" cy="70" r="3" /><circle cx="52" cy="78" r="3" />
+                                            <circle cx="60" cy="70" r="3" />
+                                            <circle cx="68" cy="62" r="3" /><circle cx="68" cy="70" r="3" /><circle cx="68" cy="78" r="3" />
+                                        </g>
+                                        <g transform="translate(98,64)">
+                                            <rect x="0" y="4" width="14" height="6" fill="#26262c" /><rect x="1" y="9" width="12" height="2" fill="#f7f6f2" />
+                                            <rect x="11" y="-1" width="7" height="6" fill="#26262c" /><rect x="15" y="1" width="4" height="3" fill="#f7f6f2" />
+                                            <rect x="2" y="11" width="2" height="4" fill="#26262c" /><rect x="9" y="11" width="2" height="4" fill="#26262c" />
+                                        </g>
+                                    </svg>
+                                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground">Border Collie — sheep spell words</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <a
+                                    href="https://geekatplay.gumroad.com/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
+                                >
+                                    ♥ Browse theme packs
+                                </a>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Completely optional — every purchase supports Vlad&apos;s work on Image Express.
+                                    Packs install in one click from Settings → Interface Themes.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {step.id === 'finish' && (
                         <div className="space-y-4">
                             <p className="text-sm text-foreground/90">Review your setup and finish onboarding.</p>
@@ -988,6 +1074,10 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                         <ChevronLeft size={14} />
                         Back
                     </button>
+                    <SetupCollieMascot
+                        stepId={step.id}
+                        mood={installerRunState === 'running' ? 'run' : installerRunState === 'success' && step.id === 'runtime' ? 'wave' : undefined}
+                    />
                     <button
                         onClick={goNext}
                         className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors inline-flex items-center gap-1"

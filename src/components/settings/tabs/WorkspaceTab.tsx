@@ -6,6 +6,8 @@ import type { InstallerSettings } from '../hooks/useInstallerSettings';
 import { modalSectionClass } from '../settingsTypes';
 import PreferencesPanel from './workspace/PreferencesPanel';
 import AppearancePanel from './workspace/AppearancePanel';
+import InterfaceThemesPanel from './workspace/InterfaceThemesPanel';
+import DashboardAmbiencePanel from './workspace/DashboardAmbiencePanel';
 import DependenciesPanel from './workspace/DependenciesPanel';
 import LoginActivityPanel from './workspace/LoginActivityPanel';
 
@@ -21,6 +23,8 @@ export default function WorkspaceTab({ workspace, installer }: WorkspaceTabProps
             <PreferencesPanel />
             <UpdatesSection className={modalSectionClass} />
             <AppearancePanel workspace={workspace} />
+            <InterfaceThemesPanel />
+            <DashboardAmbiencePanel />
             <DependenciesPanel installer={installer} />
             <LoginActivityPanel workspace={workspace} />
         </div>

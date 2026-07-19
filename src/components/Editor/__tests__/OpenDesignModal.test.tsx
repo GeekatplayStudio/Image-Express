@@ -39,10 +39,10 @@ describe('OpenDesignModal', () => {
         expect(onClose).toHaveBeenCalled();
     });
 
-    it('shows an empty state when there are no saved designs', async () => {
+    it('shows an empty state when there are no saved pages', async () => {
         mockFetch({ success: true, designs: [] });
         render(<OpenDesignModal isOpen onClose={jest.fn()} onOpenDesign={jest.fn()} />);
-        await waitFor(() => expect(screen.queryByText(/No saved designs/i)).toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByText(/No saved pages/i)).toBeInTheDocument());
     });
 
     it('shows an error message when the request fails', async () => {
@@ -54,6 +54,6 @@ describe('OpenDesignModal', () => {
     it('treats an HTML response (e.g. a 404 page) as an empty list rather than an error', async () => {
         mockFetch({}, true, 'text/html');
         render(<OpenDesignModal isOpen onClose={jest.fn()} onOpenDesign={jest.fn()} />);
-        await waitFor(() => expect(screen.queryByText(/No saved designs/i)).toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByText(/No saved pages/i)).toBeInTheDocument());
     });
 });

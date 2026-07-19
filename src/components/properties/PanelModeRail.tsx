@@ -12,6 +12,7 @@ import {
     Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/providers/I18nProvider';
 
 export type PanelMode =
     | 'layers'
@@ -36,18 +37,29 @@ interface PanelModeRailProps {
 export function PanelModeRail({ mode, onModeChange, showHoverLabels = true, className, expandDirection = 'right' }: PanelModeRailProps) {
     const [isHovered, setIsHovered] = React.useState(false);
     const isExpanded = showHoverLabels && isHovered;
-    const items: Array<{ mode: PanelMode; label: string; text: string; title: string; icon: React.ReactNode }> = [
-        { mode: 'layers', label: 'layers', text: 'Layers', title: 'Show Layers', icon: <Layers size={16} /> },
-        { mode: 'properties', label: 'properties', text: 'Props', title: 'Show Properties', icon: <SlidersHorizontal size={16} /> },
-        { mode: 'history', label: 'history', text: 'History', title: 'Show History', icon: <History size={16} /> },
-        { mode: 'color', label: 'color', text: 'Color', title: 'Show Color', icon: <Palette size={16} /> },
-        { mode: 'swatches', label: 'swatches', text: 'Swatch', title: 'Show Swatches', icon: <Grid3x3 size={16} /> },
-        { mode: 'brushes', label: 'brushes', text: 'Brushes', title: 'Show Brushes', icon: <Brush size={16} /> },
-        { mode: 'channels', label: 'channels', text: 'Channels', title: 'Show Channels', icon: <LayoutGrid size={16} /> },
-        { mode: 'adjustments', label: 'adjustments', text: 'Adjust', title: 'Show Adjustments', icon: <Blend size={16} /> },
-        { mode: 'navigator', label: 'navigator', text: 'Nav', title: 'Show Navigator', icon: <Compass size={16} /> },
-        { mode: 'info', label: 'info', text: 'Info', title: 'Show Info', icon: <Info size={16} /> },
+    const { t } = useI18n();
+    const icons: Record<PanelMode, React.ReactNode> = {
+        layers: <Layers size={16} />,
+        properties: <SlidersHorizontal size={16} />,
+        history: <History size={16} />,
+        color: <Palette size={16} />,
+        swatches: <Grid3x3 size={16} />,
+        brushes: <Brush size={16} />,
+        channels: <LayoutGrid size={16} />,
+        adjustments: <Blend size={16} />,
+        navigator: <Compass size={16} />,
+        info: <Info size={16} />,
+    };
+    const modes: PanelMode[] = [
+        'layers', 'properties', 'history', 'color', 'swatches',
+        'brushes', 'channels', 'adjustments', 'navigator', 'info',
     ];
+    const items = modes.map((m) => ({
+        mode: m,
+        text: t(`rail.${m}`),
+        title: t(`rail.${m}.title`),
+        icon: icons[m],
+    }));
 
     return (
         <div
@@ -65,8 +77,9 @@ export function PanelModeRail({ mode, onModeChange, showHoverLabels = true, clas
                 <button
                     key={item.mode}
                     type="button"
-                    aria-label={`Panel mode ${item.label}`}
+                    aria-label={item.title}
                     aria-pressed={mode === item.mode}
+                    data-testid={`panel-mode-${item.mode}`}
                     onClick={() => onModeChange(item.mode)}
                     className={cn(
                         'rounded-sm flex transition-colors',

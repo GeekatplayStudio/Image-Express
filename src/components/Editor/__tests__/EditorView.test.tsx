@@ -7,6 +7,7 @@ const mockTriggerTool = jest.fn();
 const mockDialogConfirm = jest.fn().mockResolvedValue(true);
 const mockDialogPrompt = jest.fn().mockResolvedValue('Draft');
 const mockDialogAlert = jest.fn().mockResolvedValue(undefined);
+const mockDialogChoice = jest.fn().mockResolvedValue('page');
 const mockToast = jest.fn();
 const mockUploadBackup = jest.fn();
 const mockLoadDriveConfig = jest.fn<any, any>(() => ({ enabled: false }));
@@ -15,6 +16,7 @@ const mockDialogApi = {
     confirm: (...args: unknown[]) => mockDialogConfirm(...args),
     prompt: (...args: unknown[]) => mockDialogPrompt(...args),
     alert: (...args: unknown[]) => mockDialogAlert(...args),
+    choice: (...args: unknown[]) => mockDialogChoice(...args),
 };
 const mockToastApi = {
     toast: (...args: unknown[]) => mockToast(...args),
@@ -370,7 +372,7 @@ describe('EditorView', () => {
                     success: true,
                     design: {
                         id: body.id || 'design-1',
-                        name: body.name || 'Untitled Design',
+                        name: body.name || 'Untitled Page',
                     },
                 });
             }
@@ -447,7 +449,7 @@ describe('EditorView', () => {
         user: 'alice@example.com',
         onBack: jest.fn(),
         onLogout: jest.fn(),
-        currentDesignName: 'Untitled Design',
+        currentDesignName: 'Untitled Page',
         currentDesignId: null,
         onUpdateDesignInfo: jest.fn(),
         onOpenDocumentation: jest.fn(),
@@ -1080,7 +1082,7 @@ describe('EditorView', () => {
         expect(props.onOpenAdminArea).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByTitle('Click to rename document'));
-        const titleInput = screen.getByPlaceholderText('Untitled Design');
+        const titleInput = screen.getByPlaceholderText('Untitled Page');
         fireEvent.change(titleInput, { target: { value: 'Renamed Draft Server Fail' } });
         fireEvent.blur(titleInput);
 
@@ -1111,7 +1113,7 @@ describe('EditorView', () => {
         );
 
         fireEvent.click(screen.getByTitle('Click to rename document'));
-        const titleInput = screen.getByPlaceholderText('Untitled Design');
+        const titleInput = screen.getByPlaceholderText('Untitled Page');
         fireEvent.change(titleInput, { target: { value: 'Renamed Success' } });
         fireEvent.blur(titleInput);
 
@@ -2233,7 +2235,7 @@ describe('EditorView', () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
 
-        fireEvent.click(screen.getByTitle('Save Design'));
+        fireEvent.click(screen.getByTitle('Save this page'));
 
         await waitFor(() => {
             expect(mockDialogPrompt).toHaveBeenCalled();
@@ -2260,7 +2262,7 @@ describe('EditorView', () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
 
-        fireEvent.click(screen.getByTitle('Save Design'));
+        fireEvent.click(screen.getByTitle('Save this page'));
 
         await waitFor(() => {
             expect(mockDialogPrompt).toHaveBeenCalled();
@@ -2274,7 +2276,7 @@ describe('EditorView', () => {
         const props = createDefaultProps();
         render(<EditorView {...props} />);
 
-        fireEvent.click(screen.getByTitle('Save Design'));
+        fireEvent.click(screen.getByTitle('Save this page'));
 
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, '/api/designs/save', 'POST')).toBe(true);
@@ -2306,7 +2308,7 @@ describe('EditorView', () => {
         });
         latestCanvasStub?.getElement.mockReturnValue(fallbackCanvas);
 
-        fireEvent.click(screen.getByTitle('Save Design'));
+        fireEvent.click(screen.getByTitle('Save this page'));
 
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, '/api/designs/save', 'POST')).toBe(true);
@@ -2663,7 +2665,7 @@ describe('EditorView', () => {
             expect(props.onUpdateDesignInfo).toHaveBeenCalledWith(null, expect.stringContaining('Instagram 1:1'));
         });
 
-        fireEvent.click(screen.getByTitle('Save Design'));
+        fireEvent.click(screen.getByTitle('Save this page'));
 
         await waitFor(() => {
             expect(hasFetchCall(fetchMock, '/api/designs/save', 'POST')).toBe(true);

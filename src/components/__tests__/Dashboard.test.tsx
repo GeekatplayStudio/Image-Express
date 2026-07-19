@@ -113,7 +113,7 @@ describe('Dashboard Component', () => {
         fireEvent.click(customSizeBtns[0]);
 
         const [widthInput, heightInput] = screen.getAllByRole('spinbutton') as HTMLInputElement[];
-        const createBtn = screen.getByRole('button', { name: 'Create Design' });
+        const createBtn = screen.getByRole('button', { name: 'Create Page' });
 
         fireEvent.change(widthInput, { target: { value: '' } });
         expect(widthInput.value).toBe('');
@@ -151,18 +151,27 @@ describe('Dashboard Component', () => {
     });
 
     it('renders saved project screenshots when the API returns image-only previews', async () => {
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-            json: () => Promise.resolve({
-                success: true,
-                designs: [
-                    {
-                        id: 'project-1',
-                        name: 'Project One',
-                        image: '/assets/designs/project-1.png',
-                        lastModified: new Date('2026-04-03T12:00:00.000Z').toISOString(),
-                    },
-                ],
-            }),
+        // Dashboard fires more than one fetch on mount (designs list, theme
+        // packs, ...), so the mock must dispatch by URL rather than assume
+        // the designs-list call is the very next fetch — otherwise whichever
+        // request happens to fire first "wins" the queued mock value.
+        (global.fetch as jest.Mock).mockImplementation((url: unknown) => {
+            if (String(url).includes('/api/designs/list')) {
+                return Promise.resolve({
+                    json: () => Promise.resolve({
+                        success: true,
+                        designs: [
+                            {
+                                id: 'project-1',
+                                name: 'Project One',
+                                image: '/assets/designs/project-1.png',
+                                lastModified: new Date('2026-04-03T12:00:00.000Z').toISOString(),
+                            },
+                        ],
+                    }),
+                });
+            }
+            return Promise.resolve({ json: () => Promise.resolve({ success: true, designs: [] }) });
         });
 
         await renderDashboard();
@@ -171,19 +180,24 @@ describe('Dashboard Component', () => {
     });
 
     it('falls back to an empty design list when the endpoint returns html 404 content', async () => {
-        (global.fetch as jest.Mock).mockResolvedValueOnce({
-            ok: false,
-            status: 404,
-            headers: {
-                get: (name: string) => (name.toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null),
-            },
-            text: () => Promise.resolve('<!DOCTYPE html><html><body>error</body></html>'),
+        (global.fetch as jest.Mock).mockImplementation((url: unknown) => {
+            if (String(url).includes('/api/designs/list')) {
+                return Promise.resolve({
+                    ok: false,
+                    status: 404,
+                    headers: {
+                        get: (name: string) => (name.toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null),
+                    },
+                    text: () => Promise.resolve('<!DOCTYPE html><html><body>error</body></html>'),
+                });
+            }
+            return Promise.resolve({ json: () => Promise.resolve({ success: true, designs: [] }) });
         });
 
         await renderDashboard();
 
         await waitFor(() => {
-            expect(screen.getByText('No saved designs yet.')).toBeInTheDocument();
+            expect(screen.getByText('No saved pages yet.')).toBeInTheDocument();
         });
         expect(consoleErrorSpy).not.toHaveBeenCalled();
     });

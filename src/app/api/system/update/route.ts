@@ -67,3 +67,48 @@ export async function GET() {
         );
     }
 }
+
+/**
+ * POST /api/system/update
+ * Applies the update in place: runs scripts/update.mjs (git pull --ff-only +
+ * dependency install when the lockfile changed). Refuses on a dirty tree —
+ * same safety rules as running `npm run update` manually. The caller should
+ * prompt the user to restart the app afterwards.
+ */
+export async function POST() {
+    try {
+        await git(['rev-parse', '--is-inside-work-tree']);
+    } catch {
+        return NextResponse.json(
+            { success: false, error: 'Not a git checkout — update manually from GitHub.' },
+            { status: 400 }
+        );
+    }
+
+    try {
+        const dirty = Boolean(await git(['status', '--porcelain']));
+        if (dirty) {
+            return NextResponse.json(
+                { success: false, error: 'Local changes detected — update skipped so nothing is overwritten.' },
+                { status: 409 }
+            );
+        }
+
+        const scriptPath = './scripts/update.mjs';
+        const { stdout, stderr } = await execFileAsync(process.execPath, [scriptPath], {
+            cwd: process.cwd(),
+            timeout: 10 * 60_000,
+        });
+        const commit = await git(['rev-parse', '--short', 'HEAD']);
+        return NextResponse.json({
+            success: true,
+            commit,
+            log: `${stdout}\n${stderr}`.trim().slice(-4000),
+            restartRequired: true,
+        });
+    } catch (error) {
+        console.error('Update apply failed', error);
+        const detail = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ success: false, error: `Update failed: ${detail}` }, { status: 500 });
+    }
+}

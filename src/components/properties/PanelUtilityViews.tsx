@@ -4,6 +4,7 @@ import { AdjustmentLayerType } from '@/types';
 import type { RasterBlendMode, RasterBrushPreset } from '@/lib/raster-engine';
 import { APP_THEME } from '@/lib/theme-tokens';
 import { ColorWheelTool } from '../ColorWheelTool';
+import { useI18n } from '@/providers/I18nProvider';
 
 
 export interface NavigatorSceneRect {
@@ -99,37 +100,38 @@ interface ComingSoonPanelViewProps {
 }
 
 type AdjustmentLauncherItem = {
-    label: string;
+    /** i18n key for the item label; reuses the shared `adjust.*` namespace. */
+    labelKey: string;
     type?: AdjustmentLayerType;
     enabled: boolean;
 };
 
 const DEFAULT_SWATCHES = [...APP_THEME.utilitySwatches];
 
-const ADJUSTMENT_LAUNCHER_GROUPS: Array<{ title: string; items: AdjustmentLauncherItem[] }> = [
+const ADJUSTMENT_LAUNCHER_GROUPS: Array<{ titleKey: string; items: AdjustmentLauncherItem[] }> = [
     {
-        title: 'Basic',
+        titleKey: 'adjust.group.basic',
         items: [
-            { label: 'Brightness/Contrast', type: 'brightness-contrast', enabled: true },
-            { label: 'Hue/Saturation', type: 'hue-saturation', enabled: true },
-            { label: 'Exposure', type: 'exposure', enabled: true },
-            { label: 'Vibrance', type: 'saturation-vibrance', enabled: true },
+            { labelKey: 'adjust.brightness-contrast', type: 'brightness-contrast', enabled: true },
+            { labelKey: 'adjust.hue-saturation', type: 'hue-saturation', enabled: true },
+            { labelKey: 'adjust.exposure', type: 'exposure', enabled: true },
+            { labelKey: 'adjust.saturation-vibrance', type: 'saturation-vibrance', enabled: true },
         ]
     },
     {
-        title: 'Tonal',
+        titleKey: 'adjust.group.tonal',
         items: [
-            { label: 'Levels', type: 'levels', enabled: true },
-            { label: 'Curves', type: 'curves', enabled: true },
-            { label: 'Black & White', type: 'black-white', enabled: true },
+            { labelKey: 'adjust.levels', type: 'levels', enabled: true },
+            { labelKey: 'adjust.curves', type: 'curves', enabled: true },
+            { labelKey: 'adjust.black-white', type: 'black-white', enabled: true },
         ]
     },
     {
-        title: 'Color',
+        titleKey: 'adjust.group.color',
         items: [
-            { label: 'Color Balance', type: 'color-balance', enabled: true },
-            { label: 'Light and Color', type: 'light-and-color', enabled: true },
-            { label: 'Solid Color', type: 'solid-color', enabled: true },
+            { labelKey: 'adjust.color-balance', type: 'color-balance', enabled: true },
+            { labelKey: 'adjust.light-and-color', type: 'light-and-color', enabled: true },
+            { labelKey: 'adjust.solid-color', type: 'solid-color', enabled: true },
         ]
     },
 ];
@@ -145,19 +147,14 @@ const ADJUSTMENT_QUICK_TYPES: AdjustmentLayerType[] = [
     'black-white',
 ];
 
-const getAdjustmentTypeLabel = (type: AdjustmentLayerType) => {
-    if (type === 'curves') return 'Curves';
-    if (type === 'levels') return 'Levels';
-    if (type === 'saturation-vibrance') return 'Vibrance';
-    if (type === 'hue-saturation') return 'Hue/Saturation';
-    if (type === 'exposure') return 'Exposure';
-    if (type === 'black-white') return 'Black & White';
-    if (type === 'brightness-contrast') return 'Brightness/Contrast';
-    if (type === 'color-balance') return 'Color Balance';
-    if (type === 'light-and-color') return 'Light and Color';
-    if (type === 'solid-color') return 'Solid Color';
-    return 'Adjustment';
-};
+const ADJUSTMENT_LABEL_KEYS: AdjustmentLayerType[] = [
+    'curves', 'levels', 'saturation-vibrance', 'hue-saturation', 'exposure',
+    'black-white', 'brightness-contrast', 'color-balance', 'light-and-color', 'solid-color',
+];
+
+/** Resolve the shared `adjust.*` key for a type, falling back to the generic label. */
+const getAdjustmentTypeKey = (type: AdjustmentLayerType) =>
+    ADJUSTMENT_LABEL_KEYS.includes(type) ? `adjust.${type}` : 'adjust.generic';
 
 const toHexColor = (value: unknown) => {
     if (typeof value !== 'string') return null;
@@ -173,6 +170,7 @@ const toHexColor = (value: unknown) => {
 };
 
 export function HistoryPanelView({ undoCount, redoCount, onUndo, onRedo }: HistoryPanelViewProps) {
+    const { t } = useI18n();
     const canUndo = undoCount >= 2;
     const canRedo = redoCount >= 1;
 
@@ -180,17 +178,17 @@ export function HistoryPanelView({ undoCount, redoCount, onUndo, onRedo }: Histo
         <div className="h-full bg-card overflow-y-auto overflow-x-hidden pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                 <History size={14} />
-                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">History</h2>
+                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('panel.history.title')}</h2>
             </div>
 
             <div className="p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-md border border-border/50 bg-secondary/20 p-2">
-                        <div className="text-[10px] text-muted-foreground uppercase">Undo Depth</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">{t('panel.history.undoDepth')}</div>
                         <div className="text-sm font-semibold">{Math.max(0, undoCount - 1)}</div>
                     </div>
                     <div className="rounded-md border border-border/50 bg-secondary/20 p-2">
-                        <div className="text-[10px] text-muted-foreground uppercase">Redo Depth</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">{t('panel.history.redoDepth')}</div>
                         <div className="text-sm font-semibold">{redoCount}</div>
                     </div>
                 </div>
@@ -201,25 +199,25 @@ export function HistoryPanelView({ undoCount, redoCount, onUndo, onRedo }: Histo
                         onClick={onUndo}
                         disabled={!canUndo || !onUndo}
                         className="flex-1 h-8 rounded-md border border-border/60 bg-background text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40 transition-colors flex items-center justify-center gap-1"
-                        aria-label="History undo"
+                        aria-label={t('panel.history.undoAria')}
                     >
                         <Undo2 size={12} />
-                        Undo
+                        {t('panel.history.undo')}
                     </button>
                     <button
                         type="button"
                         onClick={onRedo}
                         disabled={!canRedo || !onRedo}
                         className="flex-1 h-8 rounded-md border border-border/60 bg-background text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40 transition-colors flex items-center justify-center gap-1"
-                        aria-label="History redo"
+                        aria-label={t('panel.history.redoAria')}
                     >
                         <Redo2 size={12} />
-                        Redo
+                        {t('panel.history.redo')}
                     </button>
                 </div>
 
                 <div className="text-[11px] text-muted-foreground">
-                    Values are bound to the live editor undo/redo stacks.
+                    {t('panel.history.hint')}
                 </div>
             </div>
         </div>
@@ -233,6 +231,7 @@ export function ColorPanelView({
     onColorModeChange,
     onColorChange,
 }: ColorPanelViewProps) {
+    const { t } = useI18n();
     const [profileMode, setProfileMode] = useState<ColorProfileMode>('sRGB');
     const [previewColor, setPreviewColor] = useState(color);
     const [hasPreviewDraft, setHasPreviewDraft] = useState(false);
@@ -436,10 +435,10 @@ export function ColorPanelView({
     const lab = rgbToLab(rgb.r, rgb.g, rgb.b);
 
     const profileHint = profileMode === 'sRGB'
-        ? 'Web standard profile for display work'
+        ? t('panel.color.profile.srgb')
         : profileMode === 'Adobe RGB'
-            ? 'Wider-gamut display profile preview'
-            : 'Print-oriented CMYK preview values';
+            ? t('panel.color.profile.adobe')
+            : t('panel.color.profile.cmyk');
 
     const applyColorHex = (nextHex: string) => {
         const normalized = normalizeHex(nextHex);
@@ -541,7 +540,7 @@ export function ColorPanelView({
         <div className="h-full bg-card overflow-y-auto pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                 <Palette size={14} />
-                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Color</h2>
+                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('panel.color.title')}</h2>
             </div>
 
             <div className="p-4 space-y-3">
@@ -552,7 +551,7 @@ export function ColorPanelView({
                             type="button"
                             onClick={() => onColorModeChange(mode)}
                             className={`text-[10px] px-1.5 py-1 rounded transition-colors ${colorMode === mode ? 'bg-background text-foreground shadow-sm border border-border/60' : 'text-muted-foreground hover:bg-secondary/50'}`}
-                            aria-label={`Color mode ${mode}`}
+                            aria-label={`${t('panel.color.modeAria')} ${mode}`}
                         >
                             {mode}
                         </button>
@@ -561,12 +560,12 @@ export function ColorPanelView({
 
                 <div className="rounded-md border border-border/50 bg-secondary/20 p-2 space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Color Profile</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('panel.color.profile')}</div>
                         <select
                             value={profileMode}
                             onChange={(event) => setProfileMode(event.target.value as ColorProfileMode)}
                             className="bg-background border border-border rounded px-2 py-1 text-[10px]"
-                            aria-label="Color profile"
+                            aria-label={t('panel.color.profileAria')}
                         >
                             <option value="sRGB">sRGB</option>
                             <option value="Adobe RGB">Adobe RGB</option>
@@ -599,13 +598,13 @@ export function ColorPanelView({
 
                 {colorMode !== 'RGB' && (
                     <div className="text-[10px] text-muted-foreground px-1">
-                        {colorMode} values reflect the active color profile and can be edited directly.
+                        {colorMode} {t('panel.color.modeHint')}
                     </div>
                 )}
 
                 {!hasEditableTarget && (
                     <div className="text-[11px] text-muted-foreground rounded-md border border-border/40 bg-secondary/10 p-2">
-                        No editable layer selected: wheel and values update preview only.
+                        {t('panel.color.noTarget')}
                     </div>
                 )}
 
@@ -619,7 +618,7 @@ export function ColorPanelView({
                             }}
                             className="h-8 rounded-md border border-border/60 bg-background px-3 text-xs hover:bg-secondary/40"
                         >
-                            Apply preview to selected layer
+                            {t('panel.color.applyPreview')}
                         </button>
                         <button
                             type="button"
@@ -629,7 +628,7 @@ export function ColorPanelView({
                             }}
                             className="h-8 rounded-md border border-border/60 bg-background px-3 text-xs hover:bg-secondary/40"
                         >
-                            Reset preview
+                            {t('panel.color.resetPreview')}
                         </button>
                     </div>
                 )}
@@ -649,6 +648,7 @@ export function ColorPanelView({
 }
 
 export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwatch }: SwatchesPanelViewProps) {
+    const { t } = useI18n();
     const [newGroupName, setNewGroupName] = useState('');
     const [newSwatchHex, setNewSwatchHex] = useState('');
     const [swatchGroups, setSwatchGroups] = useState<SwatchGroup[]>(() => {
@@ -771,18 +771,18 @@ export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwat
         <div className="h-full bg-card overflow-y-auto pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                 <Grid3x3 size={14} />
-                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Swatches</h2>
+                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('panel.swatches.title')}</h2>
             </div>
 
             <div className="p-4 space-y-3">
                 <div className="rounded-md border border-border/50 bg-secondary/20 p-2 space-y-2">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Swatch Groups</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('panel.swatches.groups')}</div>
                     <div className="flex gap-2">
                         <select
                             value={activeGroup?.id ?? ''}
                             onChange={(event) => setActiveGroupId(event.target.value)}
                             className="h-8 flex-1 rounded border border-border/60 bg-background px-2 text-[11px]"
-                            aria-label="Active swatch group"
+                            aria-label={t('panel.swatches.activeGroupAria')}
                         >
                             {swatchGroups.map((group) => (
                                 <option key={group.id} value={group.id}>{group.name}</option>
@@ -794,7 +794,7 @@ export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwat
                             disabled={swatchGroups.length <= 1}
                             className="h-8 rounded border border-border/60 bg-background px-2 text-[10px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40"
                         >
-                            Remove Group
+                            {t('panel.swatches.removeGroup')}
                         </button>
                     </div>
                     <div className="flex gap-2">
@@ -802,28 +802,28 @@ export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwat
                             type="text"
                             value={newGroupName}
                             onChange={(event) => setNewGroupName(event.target.value)}
-                            placeholder="New group name"
+                            placeholder={t('panel.swatches.newGroupPlaceholder')}
                             className="h-8 flex-1 rounded border border-border/60 bg-background px-2 text-[11px]"
-                            aria-label="New swatch group name"
+                            aria-label={t('panel.swatches.newGroupAria')}
                         />
                         <button
                             type="button"
                             onClick={addGroup}
                             className="h-8 rounded border border-border/60 bg-background px-2 text-[10px] hover:bg-secondary/40"
                         >
-                            Add Group
+                            {t('panel.swatches.addGroup')}
                         </button>
                     </div>
                 </div>
 
                 {!hasEditableTarget && (
                     <div className="text-[11px] text-muted-foreground rounded-md border border-border/40 bg-secondary/10 p-2">
-                        Select a non-image layer to apply swatches.
+                        {t('panel.swatches.noTarget')}
                     </div>
                 )}
 
                 <div className="rounded-md border border-border/50 bg-secondary/20 p-2 space-y-2">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Manage Swatches</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{t('panel.swatches.manage')}</div>
                     <div className="flex gap-2">
                         <input
                             type="text"
@@ -831,14 +831,14 @@ export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwat
                             onChange={(event) => setNewSwatchHex(event.target.value)}
                             placeholder="#ff8800"
                             className="h-8 flex-1 rounded border border-border/60 bg-background px-2 text-[11px]"
-                            aria-label="Add swatch hex value"
+                            aria-label={t('panel.swatches.hexAria')}
                         />
                         <button
                             type="button"
                             onClick={() => addSwatchToActiveGroup()}
                             className="h-8 rounded border border-border/60 bg-background px-2 text-[10px] hover:bg-secondary/40"
                         >
-                            Add Hex
+                            {t('panel.swatches.addHex')}
                         </button>
                         <button
                             type="button"
@@ -848,7 +848,7 @@ export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwat
                             disabled={!currentColor}
                             className="h-8 rounded border border-border/60 bg-background px-2 text-[10px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40"
                         >
-                            Add Current
+                            {t('panel.swatches.addCurrent')}
                         </button>
                     </div>
                 </div>
@@ -861,7 +861,7 @@ export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwat
                             disabled={!hasEditableTarget || !onApplySwatch}
                             className="group relative h-7 rounded border border-border/50 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 transition-transform"
                             style={{ backgroundColor: swatch }}
-                            aria-label={`Swatch ${swatch.toUpperCase()}`}
+                            aria-label={`${t('panel.swatches.swatchAria')} ${swatch.toUpperCase()}`}
                             title={swatch.toUpperCase()}
                             onClick={() => onApplySwatch?.(swatch)}
                         >
@@ -873,7 +873,7 @@ export function SwatchesPanelView({ hasEditableTarget, currentColor, onApplySwat
                                     removeSwatchFromActiveGroup(swatch);
                                 }}
                                 className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-card text-muted-foreground shadow group-hover:flex"
-                                title="Remove swatch"
+                                title={t('panel.swatches.removeSwatch')}
                             >
                                 ×
                             </span>
@@ -897,15 +897,16 @@ export function BrushesPanelView({
     onBrushBlendModeChange,
     onActivatePaintTool,
 }: BrushesPanelViewProps) {
+    const { t } = useI18n();
     const isPaintToolActive = activeTool === 'paint' || activeTool === 'pen';
 
     return (
         <div className="h-full bg-card overflow-y-auto pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                 <Brush size={14} />
-                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Brushes</h2>
+                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('panel.brushes.title')}</h2>
                 <span className={`ml-auto text-[10px] rounded border px-1.5 py-0.5 ${isPaintToolActive ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600' : 'border-border/50 bg-background text-muted-foreground'}`}>
-                    {isPaintToolActive ? 'Live' : 'Idle'}
+                    {isPaintToolActive ? t('panel.brushes.live') : t('panel.brushes.idle')}
                 </span>
             </div>
 
@@ -913,50 +914,50 @@ export function BrushesPanelView({
                 {!isPaintToolActive && (
                     <div className="rounded-md border border-border/40 bg-secondary/10 p-2 space-y-2">
                         <div className="text-[11px] text-muted-foreground">
-                            Brush settings are configured here and fully applied while Paint tool is active.
+                            {t('panel.brushes.inactiveHint')}
                         </div>
                         <button
                             type="button"
                             onClick={onActivatePaintTool}
                             disabled={!onActivatePaintTool}
                             className="h-8 px-3 rounded-md border border-border/60 bg-background text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-secondary/40 transition-colors"
-                            aria-label="Activate paint tool"
+                            aria-label={t('panel.brushes.activateAria')}
                         >
-                            Activate Paint Tool
+                            {t('panel.brushes.activate')}
                         </button>
                     </div>
                 )}
 
                 {!brushOptions && (
                     <div className="text-[11px] text-muted-foreground rounded-md border border-border/40 bg-secondary/10 p-2">
-                        Brush controls are unavailable in this context.
+                        {t('panel.brushes.unavailable')}
                     </div>
                 )}
 
                 {brushOptions && (
                     <>
                         <label className="block rounded-md border border-border/60 bg-secondary/20 px-2 py-2 text-xs">
-                            <span className="text-muted-foreground">Preset</span>
+                            <span className="text-muted-foreground">{t('panel.brushes.preset')}</span>
                             <select
-                                aria-label="Brushes preset"
+                                aria-label={t('panel.brushes.presetAria')}
                                 value={brushOptions.brushPreset}
                                 onChange={(event) => onBrushPresetChange?.(event.target.value as RasterBrushPreset)}
                                 className="mt-1 w-full bg-transparent outline-none"
                             >
-                                <option value="Pencil">Pencil</option>
-                                <option value="Spray">Spray</option>
-                                <option value="Oil">Oil</option>
-                                <option value="Watercolor">Watercolor</option>
+                                <option value="Pencil">{t('brush.preset.pencil')}</option>
+                                <option value="Spray">{t('brush.preset.spray')}</option>
+                                <option value="Oil">{t('brush.preset.oil')}</option>
+                                <option value="Watercolor">{t('brush.preset.watercolor')}</option>
                             </select>
                         </label>
 
                         <label className="block rounded-md border border-border/60 bg-secondary/20 px-2 py-2 text-xs">
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Size</span>
+                                <span className="text-muted-foreground">{t('panel.brushes.size')}</span>
                                 <span>{brushOptions.size}</span>
                             </div>
                             <input
-                                aria-label="Brushes size"
+                                aria-label={t('panel.brushes.sizeAria')}
                                 type="range"
                                 min={1}
                                 max={100}
@@ -968,11 +969,11 @@ export function BrushesPanelView({
 
                         <label className="block rounded-md border border-border/60 bg-secondary/20 px-2 py-2 text-xs">
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Hardness</span>
+                                <span className="text-muted-foreground">{t('panel.brushes.hardness')}</span>
                                 <span>{brushOptions.hardness}%</span>
                             </div>
                             <input
-                                aria-label="Brushes hardness"
+                                aria-label={t('panel.brushes.hardnessAria')}
                                 type="range"
                                 min={0}
                                 max={100}
@@ -984,11 +985,11 @@ export function BrushesPanelView({
 
                         <label className="block rounded-md border border-border/60 bg-secondary/20 px-2 py-2 text-xs">
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Opacity</span>
+                                <span className="text-muted-foreground">{t('panel.brushes.opacity')}</span>
                                 <span>{brushOptions.opacity}%</span>
                             </div>
                             <input
-                                aria-label="Brushes opacity"
+                                aria-label={t('panel.brushes.opacityAria')}
                                 type="range"
                                 min={1}
                                 max={100}
@@ -1000,11 +1001,11 @@ export function BrushesPanelView({
 
                         <label className="block rounded-md border border-border/60 bg-secondary/20 px-2 py-2 text-xs">
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Flow</span>
+                                <span className="text-muted-foreground">{t('panel.brushes.flow')}</span>
                                 <span>{brushOptions.flow}%</span>
                             </div>
                             <input
-                                aria-label="Brushes flow"
+                                aria-label={t('panel.brushes.flowAria')}
                                 type="range"
                                 min={1}
                                 max={100}
@@ -1016,11 +1017,11 @@ export function BrushesPanelView({
 
                         <label className="block rounded-md border border-border/60 bg-secondary/20 px-2 py-2 text-xs">
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Smoothing</span>
+                                <span className="text-muted-foreground">{t('panel.brushes.smoothing')}</span>
                                 <span>{brushOptions.smoothing}%</span>
                             </div>
                             <input
-                                aria-label="Brushes smoothing"
+                                aria-label={t('panel.brushes.smoothingAria')}
                                 type="range"
                                 min={0}
                                 max={100}
@@ -1031,19 +1032,19 @@ export function BrushesPanelView({
                         </label>
 
                         <label className="block rounded-md border border-border/60 bg-secondary/20 px-2 py-2 text-xs">
-                            <span className="text-muted-foreground">Blend</span>
+                            <span className="text-muted-foreground">{t('panel.brushes.blend')}</span>
                             <select
-                                aria-label="Brushes blend mode"
+                                aria-label={t('panel.brushes.blendAria')}
                                 value={brushOptions.blendMode}
                                 onChange={(event) => onBrushBlendModeChange?.(event.target.value as 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten')}
                                 className="mt-1 w-full bg-transparent outline-none"
                             >
-                                <option value="source-over">Normal</option>
-                                <option value="multiply">Multiply</option>
-                                <option value="screen">Screen</option>
-                                <option value="overlay">Overlay</option>
-                                <option value="darken">Darken</option>
-                                <option value="lighten">Lighten</option>
+                                <option value="source-over">{t('blend.normal')}</option>
+                                <option value="multiply">{t('blend.multiply')}</option>
+                                <option value="screen">{t('blend.screen')}</option>
+                                <option value="overlay">{t('blend.overlay')}</option>
+                                <option value="darken">{t('blend.darken')}</option>
+                                <option value="lighten">{t('blend.lighten')}</option>
                             </select>
                         </label>
                     </>
@@ -1058,24 +1059,25 @@ export function AdjustmentsPanelView({
     onCreateAdjustment,
     onSwitchAdjustmentType,
 }: AdjustmentsPanelViewProps) {
+    const { t } = useI18n();
     return (
         <div className="h-full bg-card overflow-y-auto pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                 <Blend size={14} />
-                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Adjustments</h2>
+                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('panel.adjustments.title')}</h2>
             </div>
 
             <div className="p-4 space-y-3">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Create layer</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{t('adjust.createLayer')}</div>
                 {ADJUSTMENT_LAUNCHER_GROUPS.map((group) => (
-                    <div key={group.title} className="space-y-1">
-                        <div className="text-[10px] text-muted-foreground">{group.title}</div>
+                    <div key={group.titleKey} className="space-y-1">
+                        <div className="text-[10px] text-muted-foreground">{t(group.titleKey)}</div>
                         <div className="space-y-1">
                             {group.items.map((item) => {
                                 const isInteractive = item.enabled && !!item.type && !!onCreateAdjustment;
                                 return (
                                     <button
-                                        key={`${group.title}-${item.label}`}
+                                        key={`${group.titleKey}-${item.labelKey}`}
                                         type="button"
                                         disabled={!isInteractive}
                                         className={`w-full text-left text-[11px] px-2.5 py-1.5 rounded border transition-colors ${isInteractive ? 'border-border/50 bg-background/80 text-foreground hover:bg-background' : 'border-border/30 bg-background/40 text-muted-foreground/70 cursor-not-allowed'}`}
@@ -1083,10 +1085,10 @@ export function AdjustmentsPanelView({
                                             if (!isInteractive || !item.type) return;
                                             onCreateAdjustment?.(item.type);
                                         }}
-                                        aria-label={`Create adjustment ${item.label}`}
+                                        aria-label={`${t('adjust.createLayer')} ${t(item.labelKey)}`}
                                     >
-                                        {item.label}
-                                        {!item.enabled ? ' (Soon)' : ''}
+                                        {t(item.labelKey)}
+                                        {!item.enabled ? t('adjust.soon') : ''}
                                     </button>
                                 );
                             })}
@@ -1097,7 +1099,7 @@ export function AdjustmentsPanelView({
                 {selectedAdjustmentType && onSwitchAdjustmentType && (
                     <div className="space-y-2 pt-2 border-t border-border/40">
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
-                            Change selected layer type
+                            {t('adjust.changeSelectedType')}
                         </div>
                         <div className="space-y-1">
                             {ADJUSTMENT_QUICK_TYPES.map((type) => {
@@ -1108,9 +1110,9 @@ export function AdjustmentsPanelView({
                                         type="button"
                                         onClick={() => onSwitchAdjustmentType(type)}
                                         className={`w-full text-left text-[11px] px-2.5 py-1.5 rounded border transition-colors ${active ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/40' : 'border-border/50 bg-background/80 text-foreground hover:bg-background'}`}
-                                        aria-label={`Quick adjustment ${getAdjustmentTypeLabel(type)}`}
+                                        aria-label={`${t('adjust.changeSelectedType')} ${t(getAdjustmentTypeKey(type))}`}
                                     >
-                                        {getAdjustmentTypeLabel(type)}
+                                        {t(getAdjustmentTypeKey(type))}
                                     </button>
                                 );
                             })}
@@ -1123,11 +1125,12 @@ export function AdjustmentsPanelView({
 }
 
 export function ComingSoonPanelView({ title, description }: ComingSoonPanelViewProps) {
+    const { t } = useI18n();
     return (
         <div className="h-full bg-card overflow-y-auto pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center justify-between gap-2">
                 <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{title}</h2>
-                <span className="text-[10px] rounded border border-border/50 bg-background px-1.5 py-0.5 text-muted-foreground">Soon</span>
+                <span className="text-[10px] rounded border border-border/50 bg-background px-1.5 py-0.5 text-muted-foreground">{t('panel.comingSoon.badge')}</span>
             </div>
 
             <div className="p-4">
@@ -1152,6 +1155,7 @@ export function NavigatorPanelView({
     onResetView,
     onNavigate,
 }: NavigatorPanelViewProps) {
+    const { t } = useI18n();
     const world = navigatorWorld && navigatorWorld.width > 0 && navigatorWorld.height > 0
         ? navigatorWorld
         : { left: 0, top: 0, width: Math.max(1, canvasWidth), height: Math.max(1, canvasHeight) };
@@ -1206,17 +1210,17 @@ export function NavigatorPanelView({
         <div className="h-full bg-card overflow-y-auto pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                 <Compass size={14} />
-                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Navigator</h2>
+                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('panel.navigator.title')}</h2>
             </div>
 
             <div className="p-4 space-y-3">
                 <div className="rounded-md border border-border/50 bg-secondary/20 p-2">
-                    <div className="text-[10px] text-muted-foreground uppercase">Zoom</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">{t('panel.navigator.zoom')}</div>
                     <div className="text-sm font-semibold">{Math.round(zoom * 100)}%</div>
                 </div>
 
                 <div className="rounded-md border border-border/50 bg-secondary/20 p-2 space-y-2">
-                    <div className="text-[10px] text-muted-foreground uppercase">Canvas Preview</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">{t('panel.navigator.canvasPreview')}</div>
                     <div className="w-full flex justify-center">
                         <button
                             type="button"
@@ -1226,7 +1230,7 @@ export function NavigatorPanelView({
                                 width: `${minimapWidth}px`,
                                 height: `${minimapHeight}px`,
                             }}
-                            aria-label="Navigator minimap"
+                            aria-label={t('panel.navigator.minimapAria')}
                         >
                             <div
                                 className="absolute inset-0"
@@ -1236,7 +1240,7 @@ export function NavigatorPanelView({
                                 // eslint-disable-next-line @next/next/no-img-element -- Navigator uses a generated data URL snapshot.
                                 <img
                                     src={navigatorPreviewDataUrl}
-                                    alt="Navigator preview"
+                                    alt={t('panel.navigator.previewAlt')}
                                     className="absolute inset-0 h-full w-full object-fill pointer-events-none select-none"
                                     draggable={false}
                                 />
@@ -1254,7 +1258,7 @@ export function NavigatorPanelView({
                         </button>
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                        Click preview to center the viewport.
+                        {t('panel.navigator.clickHint')}
                     </div>
                 </div>
 
@@ -1263,7 +1267,7 @@ export function NavigatorPanelView({
                         type="button"
                         onClick={() => onZoomStep?.(-0.1)}
                         className="flex-1 h-8 rounded-md border border-border/60 bg-background text-xs hover:bg-secondary/40 transition-colors"
-                        aria-label="Navigator zoom out"
+                        aria-label={t('panel.navigator.zoomOutAria')}
                     >
                         -10%
                     </button>
@@ -1271,7 +1275,7 @@ export function NavigatorPanelView({
                         type="button"
                         onClick={() => onZoomStep?.(0.1)}
                         className="flex-1 h-8 rounded-md border border-border/60 bg-background text-xs hover:bg-secondary/40 transition-colors"
-                        aria-label="Navigator zoom in"
+                        aria-label={t('panel.navigator.zoomInAria')}
                     >
                         +10%
                     </button>
@@ -1281,13 +1285,13 @@ export function NavigatorPanelView({
                     type="button"
                     onClick={onResetView}
                     className="w-full h-8 rounded-md border border-border/60 bg-background text-xs hover:bg-secondary/40 transition-colors"
-                    aria-label="Navigator reset view"
+                    aria-label={t('panel.navigator.resetViewAria')}
                 >
-                    Reset View
+                    {t('panel.navigator.resetView')}
                 </button>
 
                 <div className="text-[11px] text-muted-foreground">
-                    Canvas: {Math.round(canvasWidth)} × {Math.round(canvasHeight)}
+                    {t('panel.navigator.canvas')}: {Math.round(canvasWidth)} × {Math.round(canvasHeight)}
                 </div>
             </div>
         </div>
@@ -1295,26 +1299,27 @@ export function NavigatorPanelView({
 }
 
 export function InfoPanelView({ activeTool, zoom, objectCount, selectedCount, canvasWidth, canvasHeight }: InfoPanelViewProps) {
+    const { t } = useI18n();
     const rows = [
-        { label: 'Active Tool', value: activeTool || 'select' },
-        { label: 'Zoom', value: `${Math.round(zoom * 100)}%` },
-        { label: 'Objects', value: String(objectCount) },
-        { label: 'Selected', value: String(selectedCount) },
-        { label: 'Canvas W', value: String(Math.round(canvasWidth)) },
-        { label: 'Canvas H', value: String(Math.round(canvasHeight)) },
+        { key: 'panel.info.activeTool', value: activeTool || 'select' },
+        { key: 'panel.info.zoom', value: `${Math.round(zoom * 100)}%` },
+        { key: 'panel.info.objects', value: String(objectCount) },
+        { key: 'panel.info.selected', value: String(selectedCount) },
+        { key: 'panel.info.canvasW', value: String(Math.round(canvasWidth)) },
+        { key: 'panel.info.canvasH', value: String(Math.round(canvasHeight)) },
     ];
 
     return (
         <div className="h-full bg-card overflow-y-auto pr-12">
             <div className="px-4 py-3 border-b border-border/50 bg-secondary/10 flex items-center gap-2">
                 <Info size={14} />
-                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">Info</h2>
+                <h2 className="font-semibold text-xs tracking-tight text-foreground/90 uppercase">{t('panel.info.title')}</h2>
             </div>
 
             <div className="p-4 space-y-2">
                 {rows.map((row) => (
-                    <div key={row.label} className="flex items-center justify-between rounded-md border border-border/40 bg-secondary/10 px-2 py-1.5">
-                        <span className="text-[10px] uppercase text-muted-foreground">{row.label}</span>
+                    <div key={row.key} className="flex items-center justify-between rounded-md border border-border/40 bg-secondary/10 px-2 py-1.5">
+                        <span className="text-[10px] uppercase text-muted-foreground">{t(row.key)}</span>
                         <span className="text-xs font-medium">{row.value}</span>
                     </div>
                 ))}

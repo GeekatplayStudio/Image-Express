@@ -9,6 +9,7 @@ import { Loader2, Plus, RotateCw, Box, Settings2, Sun } from 'lucide-react';
 import { BackgroundJob } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
+import { useI18n } from '@/providers/I18nProvider';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import useSingleFlight from '@/hooks/useSingleFlight';
 import { extractApiErrorMessage, parseApiResponse } from '@/lib/apiErrorParsing';
@@ -190,6 +191,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, layerImageOptions, onStartBackgroundJob, onRecoverBackgroundJob, activeJob, currentUser }: ThreeDGeneratorProps) {
     const dialog = useDialog();
     const { toast } = useToast();
+    const { t } = useI18n();
     const runSingleFlight = useSingleFlight();
     const [prompt, setPrompt] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -237,7 +239,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             if (initialImage) {
                 const hasInitial = options.some((option) => option.imageUrl === initialImage);
                 if (!hasInitial) {
-                    options.unshift({ id: '__initial__', label: 'Current Source Image', imageUrl: initialImage });
+                    options.unshift({ id: '__initial__', label: t('gen3d.currentSourceImage'), imageUrl: initialImage });
                 }
             }
             return options;
@@ -483,8 +485,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         let key = getSelectedKey();
         if (!key) {
             toast({
-                title: 'Missing API key',
-                description: 'Add your Hitem key/token in Settings first.',
+                title: t('gen3d.missingApiKey'),
+                description: t('gen3d.addKeyHint'),
                 variant: 'warning'
             });
             return;
@@ -525,21 +527,21 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             if (res.ok && data.valid) {
                 const hintText = localHints.length ? ` Local checks: ${localHints.join(' ')}` : '';
                 toast({
-                    title: 'Hitem setup looks good',
+                    title: t('gen3d.setupOk'),
                     description: `${remoteMessage}${hintText}`,
                     variant: 'success'
                 });
             } else {
                 const hintText = localHints.length ? ` ${localHints.join(' ')}` : '';
                 toast({
-                    title: 'Hitem setup validation failed',
+                    title: t('gen3d.setupFailed'),
                     description: `${remoteMessage}${hintText}`,
                     variant: 'destructive'
                 });
             }
         } catch (e) {
             toast({
-                title: 'Validation error',
+                title: t('gen3d.validationError'),
                 description: e instanceof Error ? e.message : 'Failed to validate Hitem setup.',
                 variant: 'destructive'
             });
@@ -552,8 +554,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         const jobId = recoverJobId.trim();
         if (!jobId) {
             toast({
-                title: 'Missing job ID',
-                description: 'Enter a Hitem task ID to recover tracking.',
+                title: t('gen3d.missingJobId'),
+                description: t('gen3d.enterTaskId'),
                 variant: 'warning'
             });
             return;
@@ -562,8 +564,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         let key = getSelectedKey();
         if (!key) {
             toast({
-                title: 'Missing API key',
-                description: 'Set your Hitem key before recovering a job.',
+                title: t('gen3d.missingApiKey'),
+                description: t('gen3d.setKeyBeforeRecover'),
                 variant: 'warning'
             });
             return;
@@ -586,7 +588,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         else if (onStartBackgroundJob) onStartBackgroundJob(payload);
 
         toast({
-            title: 'Recovery started',
+            title: t('gen3d.recoveryStarted'),
             description: `Tracking Hitem job ${jobId}.`,
             variant: 'success'
         });
@@ -597,7 +599,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             let key = getSelectedKey();
             if (!key) {
                 toast({
-                    title: 'Missing API key',
+                    title: t('gen3d.missingApiKey'),
                     description: `Configure API key for ${selectedProvider}.`,
                     variant: 'warning'
                 });
@@ -607,7 +609,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             key = key.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
             if (isMissingSanitizedKey(key)) {
                 toast({
-                    title: 'Missing API key',
+                    title: t('gen3d.missingApiKey'),
                     description: `Configure a valid API key for ${selectedProvider} in Settings.`,
                     variant: 'warning'
                 });
@@ -626,8 +628,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 } else if (selectedProvider === 'hitems') {
                     if (mode === 'text' || !initialImage) {
                         toast({
-                            title: 'Image required',
-                            description: 'Hitem3D currently supports image-to-3D only. Select an image first.',
+                            title: t('gen3d.imageRequired'),
+                            description: t('gen3d.imageOnlyHint'),
                             variant: 'warning'
                         });
                         setIsLoading(false);
@@ -635,7 +637,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     }
                     await generateHitems(key);
                 } else {
-                    toast({ title: 'Coming soon', description: 'Service integration in progress.', variant: 'warning' });
+                    toast({ title: t('gen3d.comingSoon'), description: t('gen3d.serviceInProgress'), variant: 'warning' });
                     setIsLoading(false);
                 }
             } catch (e) {
@@ -652,7 +654,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             
             if (mode === 'text') {
                       if (!prompt) {
-                          toast({ title: 'Missing prompt', description: 'Please enter a prompt.', variant: 'warning' });
+                          toast({ title: t('gen3d.missingPrompt'), description: t('gen3d.enterPrompt'), variant: 'warning' });
                     setIsLoading(false);
                     return;
                 }
@@ -726,7 +728,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                         : 'Meshy request failed',
                 });
                 toast({
-                    title: 'Generation failed',
+                    title: t('gen3d.generationFailed'),
                     description: reason,
                     variant: 'destructive'
                 });
@@ -739,7 +741,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         
         if (mode === 'text') {
                  if (!prompt) {
-                     toast({ title: 'Missing prompt', description: 'Please enter a prompt.', variant: 'warning' });
+                     toast({ title: t('gen3d.missingPrompt'), description: t('gen3d.enterPrompt'), variant: 'warning' });
                 setIsLoading(false);
                 return;
             }
@@ -803,7 +805,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             fallback: 'Failed to upload image to Tripo',
                         });
                         toast({
-                            title: 'Upload failed',
+                            title: t('gen3d.uploadFailed'),
                             description: uploadReason,
                             variant: 'destructive'
                         });
@@ -812,7 +814,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     }
                 } catch (e) {
                      console.error("Failed to process image for upload", e);
-                     toast({ title: 'Upload failed', description: 'Failed to process upload.', variant: 'destructive' });
+                     toast({ title: t('gen3d.uploadFailed'), description: t('gen3d.uploadProcessFailed'), variant: 'destructive' });
                      setIsLoading(false);
                      return;
                 }
@@ -880,7 +882,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                           ? 'Tripo request succeeded but did not return a task id'
                           : 'Error starting Tripo generation',
                  });
-                 toast({ title: 'Generation failed', description: errorMsg, variant: 'destructive' });
+                 toast({ title: t('gen3d.generationFailed'), description: errorMsg, variant: 'destructive' });
              setIsLoading(false);
         }
     };
@@ -888,8 +890,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     const generateHitems = async (key: string) => {
         if (!frontImageUrl) {
             toast({
-                title: 'Missing front layer',
-                description: 'Select a front layer/image for Hitem generation.',
+                title: t('gen3d.missingFrontLayer'),
+                description: t('gen3d.selectFrontLayer'),
                 variant: 'warning'
             });
             setIsLoading(false);
@@ -908,8 +910,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         const rawFaceText = hitemsFace.trim();
         if (rawFaceText && !normalizeHitemsFace(rawFaceText)) {
             toast({
-                title: 'Invalid face count',
-                description: 'Face count must be an integer between 100000 and 2000000.',
+                title: t('gen3d.invalidFaceCount'),
+                description: t('gen3d.faceCountHint'),
                 variant: 'warning'
             });
             setIsLoading(false);
@@ -919,8 +921,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
 
         if (hitemsRequiresMeshUrl(normalizedSelection.requestType) && !normalizedSelection.meshUrl) {
             toast({
-                title: 'Mesh URL required',
-                description: 'Texture Existing Mesh mode requires a mesh_url (public GLB/OBJ URL).',
+                title: t('gen3d.meshUrlRequired'),
+                description: t('gen3d.meshUrlHint'),
                 variant: 'warning'
             });
             setIsLoading(false);
@@ -999,8 +1001,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             const sanitizedKey = sanitizeHeaderValue(key);
             if (isMissingSanitizedKey(sanitizedKey)) {
                 toast({
-                    title: 'Missing API key',
-                    description: 'Configure a valid Hitem key/token in Settings, then retry.',
+                    title: t('gen3d.missingApiKey'),
+                    description: t('gen3d.configureKeyHint'),
                     variant: 'warning'
                 });
                 setIsLoading(false);
@@ -1092,7 +1094,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     ? ' Check `hitems_api_key` and `hitems_appid` in Settings, then use Validate Setup.'
                     : '';
                 toast({
-                    title: 'Generation failed',
+                    title: t('gen3d.generationFailed'),
                     description: `${reasonText || 'Hitem request failed'}${setupHint}`,
                     variant: 'destructive'
                 });
@@ -1103,7 +1105,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 console.warn('Hitem3D request failed', e);
             }
             toast({
-                title: 'Generation failed',
+                title: t('gen3d.generationFailed'),
                 description: `${e instanceof Error ? e.message : 'Failed to send image to Hitem3D.'} Check setup with Validate Setup.`,
                 variant: 'destructive'
             });
@@ -1115,8 +1117,8 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
         const sanitizedKey = sanitizeHeaderValue(getSelectedKey() || '');
         if (isMissingSanitizedKey(sanitizedKey)) {
             toast({
-                title: 'Missing API key',
-                description: 'Configure a valid Hitem key/token in Settings, then retry.',
+                title: t('gen3d.missingApiKey'),
+                description: t('gen3d.configureKeyHint'),
                 variant: 'warning'
             });
             return null;
@@ -1141,7 +1143,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     // Hi3D "Image to 3D Relief" — produces a depth-map image (PNG/EXR) from the front layer.
     const submitHitemsRelief = async () => {
         if (!frontImageUrl) {
-            toast({ title: 'Missing front layer', description: 'Select a front layer/image for relief generation.', variant: 'warning' });
+            toast({ title: t('gen3d.missingFrontLayer'), description: t('gen3d.selectFrontLayerRelief'), variant: 'warning' });
             return;
         }
         const headers = buildHitemsRequestHeaders();
@@ -1180,10 +1182,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 createdAt: Date.now(),
                 apiKey: getSelectedKey(),
             });
-            toast({ title: 'Relief task started', description: 'Track progress in Background Jobs.', variant: 'success' });
+            toast({ title: t('gen3d.reliefStarted'), description: t('gen3d.trackInBackgroundJobs'), variant: 'success' });
         } catch (error) {
             toast({
-                title: 'Relief generation failed',
+                title: t('gen3d.reliefFailed'),
                 description: error instanceof Error ? error.message : 'Failed to submit relief task.',
                 variant: 'destructive'
             });
@@ -1196,7 +1198,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     const submitHitemsSplit = async () => {
         const meshUrl = (hitemsSplitMeshUrl || modelUrl || '').trim();
         if (!meshUrl) {
-            toast({ title: 'Missing mesh', description: 'Enter a mesh URL, or generate a model first to split the latest result.', variant: 'warning' });
+            toast({ title: t('gen3d.missingMesh'), description: t('gen3d.enterMeshUrl'), variant: 'warning' });
             return;
         }
         const headers = buildHitemsRequestHeaders();
@@ -1239,10 +1241,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 createdAt: Date.now(),
                 apiKey: getSelectedKey(),
             });
-            toast({ title: 'Split task started', description: 'Track progress in Background Jobs.', variant: 'success' });
+            toast({ title: t('gen3d.splitStarted'), description: t('gen3d.trackInBackgroundJobs'), variant: 'success' });
         } catch (error) {
             toast({
-                title: 'Model split failed',
+                title: t('gen3d.splitFailed'),
                 description: error instanceof Error ? error.message : 'Failed to submit split task.',
                 variant: 'destructive'
             });
@@ -1277,22 +1279,22 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     const activeHitemsPreset = HITEMS_PRESET_OPTIONS.find((preset) => preset.key === hitemsPreset) || null;
     const hitemsSetupStatus = (() => {
         if (typeof window === 'undefined') {
-            return { label: 'Check setup', isReady: false };
+            return { label: t('gen3d.checkSetup'), isReady: false };
         }
 
         const storedKey = (localStorage.getItem('hitems_api_key') || '').trim();
         const typedKey = [hitemsAk.trim(), hitemsSk.trim()].every(Boolean) ? `${hitemsAk.trim()}:${hitemsSk.trim()}` : '';
         const effectiveKey = (storedKey || typedKey).replace(/Bearer /gi, '').replace(/["']/g, '').trim();
         if (isMissingSanitizedKey(effectiveKey)) {
-            return { label: 'Missing API key', isReady: false };
+            return { label: t('gen3d.missingApiKey'), isReady: false };
         }
 
         const appId = (localStorage.getItem('hitems_appid') || '').trim();
         if (!appId) {
-            return { label: 'Ready (App ID optional)', isReady: true };
+            return { label: t('gen3d.readyAppIdOptional'), isReady: true };
         }
 
-        return { label: 'Ready', isReady: true };
+        return { label: t('gen3d.ready'), isReady: true };
     })();
 
     // Need to import Sparkles if I use it
@@ -1309,7 +1311,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
             {/* Service Selection */}
             {!isJobRunning && !modelUrl && (
                 <div className="px-4 pt-3">
-                    <label className="text-xs text-muted-foreground font-medium mb-1 block">Provider</label>
+                    <label className="text-xs text-muted-foreground font-medium mb-1 block">{t('gen3d.provider')}</label>
                     <select 
                         value={selectedProvider} 
                         onChange={handleProviderChange}
@@ -1368,7 +1370,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             <div className="relative w-full h-24">
                                 <Image
                                     src={selectedProvider === 'hitems' ? (frontImageUrl || initialImage || '') : (initialImage || '')}
-                                    alt="Source"
+                                    alt={t('gen3d.sourceAlt')}
                                     fill
                                     sizes="256px"
                                     className="object-contain rounded"
@@ -1389,7 +1391,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     <div className="space-y-2 rounded-md border border-border/60 bg-secondary/30 p-3">
                         <div className="space-y-2 rounded-md border border-border/40 bg-background/60 p-2">
                             <div className="flex items-center justify-between">
-                                <p className="text-[10px] font-medium uppercase text-muted-foreground">Setup Checklist</p>
+                                <p className="text-[10px] font-medium uppercase text-muted-foreground">{t('gen3d.setupChecklist')}</p>
                                 <div className="flex items-center gap-1">
                                     <span
                                         className={`px-2 py-1 text-[10px] rounded border ${hitemsSetupStatus.isReady
@@ -1421,13 +1423,13 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             <p className="text-[10px] text-muted-foreground">2) If auth fails or responses look empty, set `hitems_appid` in Settings.</p>
                             <p className="text-[10px] text-muted-foreground">3) For staged texturing (Task 2), provide a public mesh URL.</p>
                             <div className="pt-1 space-y-1">
-                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Recover Existing Job ID</label>
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.recoverJobId')}</label>
                                 <div className="flex items-center gap-1">
                                     <input
                                         type="text"
                                         value={recoverJobId}
                                         onChange={(e) => setRecoverJobId(e.target.value)}
-                                        placeholder="task_id..."
+                                        placeholder={t('gen3d.taskIdPlaceholder')}
                                         className="flex-1 px-2 py-1 bg-secondary/50 rounded border border-border text-[11px] font-mono"
                                     />
                                     <button
@@ -1441,7 +1443,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[10px] font-medium text-muted-foreground uppercase">One-Click Presets</label>
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.oneClickPresets')}</label>
                             <div className="grid grid-cols-2 gap-1">
                                 {HITEMS_PRESET_OPTIONS.map((preset) => (
                                     <button
@@ -1464,7 +1466,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
-                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Model</label>
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.model')}</label>
                                 <select
                                     value={hitemsModel}
                                     onChange={(e) => handleHitemsModelChange(e.target.value)}
@@ -1476,7 +1478,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                 </select>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Resolution</label>
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.resolution')}</label>
                                 <select
                                     value={hitemsResolution}
                                     onChange={(e) => handleHitemsResolutionChange(e.target.value)}
@@ -1489,7 +1491,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[10px] font-medium text-muted-foreground uppercase">Image View Mode</label>
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.imageViewMode')}</label>
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     type="button"
@@ -1516,33 +1518,33 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             </div>
                             <div className="grid grid-cols-2 gap-2 pt-1">
                                 <div className="space-y-1">
-                                    <p className="text-[10px] text-muted-foreground">Front Preview</p>
+                                    <p className="text-[10px] text-muted-foreground">{t('gen3d.frontPreview')}</p>
                                     <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
                                         {frontImageUrl ? (
-                                            <Image src={frontImageUrl} alt="Front layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                            <Image src={frontImageUrl} alt={t('gen3d.frontPreviewAlt')} fill sizes="128px" className="object-contain" unoptimized />
                                         ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">No front layer</div>
+                                            <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">{t('gen3d.noFrontLayer')}</div>
                                         )}
                                     </div>
                                 </div>
                                 <div className="space-y-1">
                                     <div className="flex items-center justify-between gap-2">
-                                        <p className="text-[10px] text-muted-foreground">Back Preview</p>
+                                        <p className="text-[10px] text-muted-foreground">{t('gen3d.backPreview')}</p>
                                         {hitemsImageViewMode !== 'multi' && (
-                                            <span className="text-[9px] uppercase tracking-wide text-muted-foreground">Saved for multi-view</span>
+                                            <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{t('gen3d.savedForMultiView')}</span>
                                         )}
                                     </div>
                                     <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
                                         {resolveLayerImageUrl(hitemsBackLayerId) ? (
-                                            <Image src={resolveLayerImageUrl(hitemsBackLayerId)} alt="Back layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                            <Image src={resolveLayerImageUrl(hitemsBackLayerId)} alt={t('gen3d.backPreviewAlt')} fill sizes="128px" className="object-contain" unoptimized />
                                         ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">Not set</div>
+                                            <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">{t('gen3d.notSet')}</div>
                                         )}
                                     </div>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 gap-1 pt-1">
-                                <label className="text-[10px] text-muted-foreground">Front Layer</label>
+                                <label className="text-[10px] text-muted-foreground">{t('gen3d.frontLayer')}</label>
                                 <select
                                     value={hitemsFrontLayerId}
                                     onChange={(e) => setHitemsFrontLayerId(e.target.value)}
@@ -1554,13 +1556,13 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                 </select>
                             </div>
                             <div className="grid grid-cols-1 gap-1 pt-1">
-                                <label className="text-[10px] text-muted-foreground">Back Layer</label>
+                                <label className="text-[10px] text-muted-foreground">{t('gen3d.backLayer')}</label>
                                 <select
                                     value={hitemsBackLayerId}
                                     onChange={(e) => setHitemsBackLayerId(e.target.value)}
                                     className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                 >
-                                    <option value="">Back: Not set</option>
+                                    <option value="">{t('gen3d.backNotSet')}</option>
                                     {normalizedLayerImageOptions.map((option) => (
                                         <option key={`always-back-${option.id}`} value={option.id}>{option.label}</option>
                                     ))}
@@ -1574,22 +1576,22 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     <p className="text-[10px] text-muted-foreground">Assign document layers for Back / Left / Right views. At least one extra view is required.</p>
                                     <div className="grid grid-cols-2 gap-2 pb-1">
                                         <div className="space-y-1">
-                                            <p className="text-[10px] text-muted-foreground">Left Preview</p>
+                                            <p className="text-[10px] text-muted-foreground">{t('gen3d.leftPreview')}</p>
                                             <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
                                                 {resolveLayerImageUrl(hitemsLeftLayerId) ? (
-                                                    <Image src={resolveLayerImageUrl(hitemsLeftLayerId)} alt="Left layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                                    <Image src={resolveLayerImageUrl(hitemsLeftLayerId)} alt={t('gen3d.leftPreviewAlt')} fill sizes="128px" className="object-contain" unoptimized />
                                                 ) : (
-                                                    <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">Not set</div>
+                                                    <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">{t('gen3d.notSet')}</div>
                                                 )}
                                             </div>
                                         </div>
                                         <div className="space-y-1">
-                                            <p className="text-[10px] text-muted-foreground">Right Preview</p>
+                                            <p className="text-[10px] text-muted-foreground">{t('gen3d.rightPreview')}</p>
                                             <div className="relative h-16 rounded border border-border/50 bg-black/10 overflow-hidden">
                                                 {resolveLayerImageUrl(hitemsRightLayerId) ? (
-                                                    <Image src={resolveLayerImageUrl(hitemsRightLayerId)} alt="Right layer preview" fill sizes="128px" className="object-contain" unoptimized />
+                                                    <Image src={resolveLayerImageUrl(hitemsRightLayerId)} alt={t('gen3d.rightPreviewAlt')} fill sizes="128px" className="object-contain" unoptimized />
                                                 ) : (
-                                                    <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">Not set</div>
+                                                    <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground">{t('gen3d.notSet')}</div>
                                                 )}
                                             </div>
                                         </div>
@@ -1599,7 +1601,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         onChange={(e) => setHitemsLeftLayerId(e.target.value)}
                                         className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                     >
-                                        <option value="">Left: Not set</option>
+                                        <option value="">{t('gen3d.leftNotSet')}</option>
                                         {normalizedLayerImageOptions.map((option) => (
                                             <option key={`left-${option.id}`} value={option.id}>{option.label}</option>
                                         ))}
@@ -1609,7 +1611,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         onChange={(e) => setHitemsRightLayerId(e.target.value)}
                                         className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                     >
-                                        <option value="">Right: Not set</option>
+                                        <option value="">{t('gen3d.rightNotSet')}</option>
                                         {normalizedLayerImageOptions.map((option) => (
                                             <option key={`right-${option.id}`} value={option.id}>{option.label}</option>
                                         ))}
@@ -1619,7 +1621,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
-                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Task</label>
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.task')}</label>
                                 <select
                                     value={hitemsRequestType}
                                     onChange={(e) => handleHitemsRequestTypeChange(e.target.value)}
@@ -1636,7 +1638,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                 </select>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Format</label>
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.format')}</label>
                                 <select
                                     value={hitemsFormat}
                                     onChange={(e) => handleHitemsFormatChange(e.target.value)}
@@ -1654,14 +1656,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     type="checkbox"
                                     checked={hitemsPbr}
                                     onChange={(e) => setHitemsPbr(e.target.checked)}
-                                    aria-label="Enable PBR textures"
+                                    aria-label={t('gen3d.enablePbrAria')}
                                 />
-                                <span className="font-medium text-foreground">PBR textures</span>
-                                <span className="text-[10px] text-muted-foreground">Physically-based materials (v2.0/v2.1 models)</span>
+                                <span className="font-medium text-foreground">{t('gen3d.pbrTextures')}</span>
+                                <span className="text-[10px] text-muted-foreground">{t('gen3d.pbrHint')}</span>
                             </label>
                         )}
                         <div className="space-y-1">
-                            <label className="text-[10px] font-medium text-muted-foreground uppercase">Face Count (Optional)</label>
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.faceCountOptional')}</label>
                             <input
                                 type="number"
                                 value={hitemsFace}
@@ -1675,12 +1677,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                         </div>
                         {hitemsRequestType === '2' && (
                             <div className="space-y-1">
-                                <label className="text-[10px] font-medium text-muted-foreground uppercase">Mesh URL (Required for staged texture)</label>
+                                <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.meshUrlStaged')}</label>
                                 <input
                                     type="url"
                                     value={hitemsMeshUrl}
                                     onChange={(e) => handleHitemsMeshUrlChange(e.target.value)}
-                                    placeholder="https://.../input-mesh.glb"
+                                    placeholder={t('gen3d.meshUrlPlaceholder')}
                                     className="w-full px-3 py-2 bg-secondary/50 rounded-md border border-border/50 text-sm"
                                 />
                             </div>
@@ -1698,14 +1700,14 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     Generates a high-quality 2K depth/relief image from the front layer using the Hi3D depth-map model. Costs less than full 3D generation.
                                 </p>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-medium text-muted-foreground uppercase">Output Format</label>
+                                    <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.outputFormat')}</label>
                                     <select
                                         value={hitemsReliefFormat}
                                         onChange={(e) => setHitemsReliefFormat(e.target.value === '1' ? '1' : '2')}
                                         className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                     >
-                                        <option value="2">PNG (insertable as layer)</option>
-                                        <option value="1">EXR (32-bit depth)</option>
+                                        <option value="2">{t('gen3d.formatPng')}</option>
+                                        <option value="1">{t('gen3d.formatExr')}</option>
                                     </select>
                                 </div>
                                 <button
@@ -1728,7 +1730,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     Splits an existing GLB/STL/OBJ mesh into parts — articulated character pieces with joints, or general component separation.
                                 </p>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-medium text-muted-foreground uppercase">Mesh URL</label>
+                                    <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.meshUrl')}</label>
                                     <input
                                         type="url"
                                         value={hitemsSplitMeshUrl}
@@ -1738,20 +1740,20 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-medium text-muted-foreground uppercase">Split Mode</label>
+                                    <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.splitMode')}</label>
                                     <select
                                         value={hitemsSplitModel}
                                         onChange={(e) => setHitemsSplitModel(e.target.value === 'general' ? 'general' : 'character')}
                                         className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                     >
-                                        <option value="character">Character (articulated parts, GLB output)</option>
-                                        <option value="general">General (component split)</option>
+                                        <option value="character">{t('gen3d.splitCharacter')}</option>
+                                        <option value="general">{t('gen3d.splitGeneral')}</option>
                                     </select>
                                 </div>
                                 {hitemsSplitModel === 'character' ? (
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-medium text-muted-foreground uppercase">Parts Template</label>
+                                            <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.partsTemplate')}</label>
                                             <select
                                                 value={hitemsSplitPart}
                                                 onChange={(e) => setHitemsSplitPart((['a', 'b', 'c', 'd', 'e', 'f'].includes(e.target.value) ? e.target.value : 'a') as typeof hitemsSplitPart)}
@@ -1766,29 +1768,29 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                             </select>
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-medium text-muted-foreground uppercase">Joints</label>
+                                            <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.joints')}</label>
                                             <select
                                                 value={hitemsSplitJoint}
                                                 onChange={(e) => setHitemsSplitJoint((['ball', 'dovetail', 'none'].includes(e.target.value) ? e.target.value : 'ball') as typeof hitemsSplitJoint)}
                                                 className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                             >
-                                                <option value="ball">Ball joint</option>
-                                                <option value="dovetail">Dovetail joint</option>
-                                                <option value="none">No joints</option>
+                                                <option value="ball">{t('gen3d.jointBall')}</option>
+                                                <option value="dovetail">{t('gen3d.jointDovetail')}</option>
+                                                <option value="none">{t('gen3d.jointNone')}</option>
                                             </select>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Split Level</label>
+                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">{t('gen3d.splitLevel')}</label>
                                         <select
                                             value={hitemsSplitLevel}
                                             onChange={(e) => setHitemsSplitLevel((['low', 'medium', 'high'].includes(e.target.value) ? e.target.value : 'medium') as typeof hitemsSplitLevel)}
                                             className="w-full text-xs p-2 rounded bg-secondary/50 border border-border"
                                         >
-                                            <option value="medium">Medium</option>
-                                            <option value="low">Low</option>
-                                            <option value="high">High</option>
+                                            <option value="medium">{t('gen3d.levelMedium')}</option>
+                                            <option value="low">{t('gen3d.levelLow')}</option>
+                                            <option value="high">{t('gen3d.levelHigh')}</option>
                                         </select>
                                     </div>
                                 )}
@@ -1807,11 +1809,11 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
 
                 {!initialImage && selectedProvider !== 'hitems' && (
                     <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Prompt</label>
+                        <label className="text-xs font-medium text-muted-foreground">{t('gen3d.prompt')}</label>
                         <textarea 
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
-                            placeholder="A cute ceramic cat..."
+                            placeholder={t('gen3d.promptPlaceholder')}
                             className="w-full min-h-20 rounded-md border border-border/50 bg-secondary/50 px-3 py-2 text-sm"
                         />
                     </div>
@@ -1847,17 +1849,17 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     <button 
                                         onClick={() => setShowResSettings(!showResSettings)}
                                         className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
-                                        title="Export Resolution Settings"
+                                        title={t('gen3d.exportResolutionSettings')}
                                     >
                                         <Settings2 size={12} />
                                         {resolution.width}x{resolution.height}
                                     </button>
                                     {showResSettings && (
                                         <div className="bg-popover p-3 rounded-lg shadow-xl border border-border text-xs w-48 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 origin-top-right">
-                                            <h4 className="font-semibold mb-2">Export Resolution</h4>
+                                            <h4 className="font-semibold mb-2">{t('gen3d.exportResolution')}</h4>
                                             <div className="grid grid-cols-2 gap-2 mb-3">
                                                 <div>
-                                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">Width</label>
+                                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">{t('canvas.width')}</label>
                                                     <input 
                                                         type="number" 
                                                         value={resolution.width} 
@@ -1869,7 +1871,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">Height</label>
+                                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">{t('canvas.height')}</label>
                                                     <input 
                                                         type="number" 
                                                         value={resolution.height} 
@@ -1894,17 +1896,17 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                     <button
                                         onClick={() => setShowLightSettings(!showLightSettings)}
                                         className="flex items-center gap-1.5 px-2 py-1 bg-black/20 hover:bg-black/40 text-white rounded-md backdrop-blur-sm transition-colors text-[10px] font-medium border border-white/10"
-                                        title="Lighting Settings"
+                                        title={t('gen3d.lightingSettings')}
                                     >
                                         <Sun size={12} />
                                         Light
                                     </button>
                                     {showLightSettings && (
                                         <div className="bg-popover p-3 rounded-lg shadow-xl border border-border text-xs w-56 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 origin-top-right">
-                                            <h4 className="font-semibold mb-2">Lighting</h4>
+                                            <h4 className="font-semibold mb-2">{t('gen3d.lighting')}</h4>
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-[10px] text-muted-foreground uppercase">Cast Shadow</span>
+                                                    <span className="text-[10px] text-muted-foreground uppercase">{t('gen3d.castShadow')}</span>
                                                     <div
                                                         className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors ${castShadowEnabled ? 'bg-primary' : 'bg-secondary'}`}
                                                         onClick={() => setCastShadowEnabled((prev) => !prev)}
@@ -1916,7 +1918,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                     <div className="space-y-2">
                                                         <div className="space-y-1">
                                                             <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
-                                                                <span>Cast Blur</span>
+                                                                <span>{t('gen3d.castBlur')}</span>
                                                                 <span>{castShadowBlur}</span>
                                                             </div>
                                                             <input
@@ -1932,7 +1934,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                         </div>
                                                         <div className="space-y-1">
                                                             <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
-                                                                <span>Cast Intensity</span>
+                                                                <span>{t('gen3d.castIntensity')}</span>
                                                                 <span>{castShadowIntensity.toFixed(2)}</span>
                                                             </div>
                                                             <input
@@ -1949,7 +1951,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                     </div>
                                                 )}
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-[10px] text-muted-foreground uppercase">Contact Shadow</span>
+                                                    <span className="text-[10px] text-muted-foreground uppercase">{t('gen3d.contactShadow')}</span>
                                                     <div
                                                         className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors ${contactShadowEnabled ? 'bg-primary' : 'bg-secondary'}`}
                                                         onClick={() => setContactShadowEnabled((prev) => !prev)}
@@ -1961,7 +1963,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                     <div className="space-y-2">
                                                         <div className="space-y-1">
                                                             <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
-                                                                <span>Contact Blur</span>
+                                                                <span>{t('gen3d.contactBlur')}</span>
                                                                 <span>{contactShadowBlur}</span>
                                                             </div>
                                                             <input
@@ -1977,7 +1979,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                         </div>
                                                         <div className="space-y-1">
                                                             <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
-                                                                <span>Contact Intensity</span>
+                                                                <span>{t('gen3d.contactIntensity')}</span>
                                                                 <span>{contactShadowIntensity.toFixed(2)}</span>
                                                             </div>
                                                             <input
@@ -1995,7 +1997,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                 )}
                                                 <div className="space-y-1">
                                                     <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
-                                                        <span>Color</span>
+                                                        <span>{t('ctrl.color')}</span>
                                                         <span>{lightColor.toUpperCase()}</span>
                                                     </div>
                                                     <div className="relative h-6 w-full rounded border border-border flex items-center px-1 bg-background">
@@ -2010,7 +2012,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                 </div>
                                                 <div className="space-y-1">
                                                     <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
-                                                        <span>Intensity</span>
+                                                        <span>{t('fx.intensity')}</span>
                                                         <span>{lightIntensity.toFixed(2)}</span>
                                                     </div>
                                                     <input
@@ -2131,7 +2133,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                             )}
                             <button
                                 onClick={async () => {
-                                    const confirmed = await dialog.confirm('Save generated 3D model to assets?', { title: 'Save 3D model' });
+                                    const confirmed = await dialog.confirm('Save generated 3D model to assets?', { title: t('gen3d.saveModel') });
                                     if(confirmed) {
                                         try {
                                             const urlMatch = modelUrl.match(/\.([a-z0-9]+)(?:$|[?#])/i);
@@ -2148,12 +2150,12 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                                 category: 'uploads',
                                                 owner: currentUser || 'Guest',
                                             });
-                                            toast({ title: 'Saved', description: 'Saved to assets.', variant: 'success' });
+                                            toast({ title: t('gen3d.saved'), description: t('gen3d.savedToAssets'), variant: 'success' });
                                         } catch(e) { console.error(e); }
                                     }
                                 }}
                                 className="p-2 bg-secondary text-foreground rounded-full shadow-lg hover:bg-secondary/80 border border-border"
-                                title="Save to Assets"
+                                title={t('gen3d.saveToAssets')}
                             >
                                 <Box size={14} />
                             </button>

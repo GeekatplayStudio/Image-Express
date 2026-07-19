@@ -1,22 +1,29 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { Plus, Image as ImageIcon, Clock, Layout, Trash2, ChevronDown, ChevronUp, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
+import { Plus, Image as ImageIcon, Clock, Layout, Trash2, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { useI18n } from '@/providers/I18nProvider';
 import quotes from '@/data/quotes.json';
+import DashboardAmbience from '@/components/DashboardAmbience';
+import { UI_THEME_CHANGED_EVENT, type UiThemeQuote } from '@/lib/ui-themes-shared';
+import { listUiThemes, loadStoredUiTheme } from '@/lib/ui-themes';
 import { APP_VERSION_INFO, formatHubVersionLabel } from '@/lib/appVersion';
+import { loadUiPreferences } from '@/lib/ui-preferences';
 import {
     addProject,
     createProjectsState,
+    deleteProject,
     findEmptyProject,
     loadProjectsState,
     saveProjectsState,
     setActiveProject,
     PROJECT_CHANGED_EVENT,
+    type Project,
     type ProjectsState,
 } from '@/lib/multicanvas/projectStore';
 import { Boxes } from 'lucide-react';
+import MoreItemsDropdown from '@/components/dashboard/MoreItemsDropdown';
 
 type IconType = React.ComponentType<{ size?: number; className?: string }>;
 
@@ -143,8 +150,9 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
     // went back without drawing anything, and clicked another one), in which
     // case that one is reused instead of piling up empty projects.
     const startNewProject = (tool?: string, size?: { width: number; height: number }) => {
-        const width = size?.width ?? 1080;
-        const height = size?.height ?? 1080;
+        const lastUsed = loadUiPreferences();
+        const width = size?.width ?? lastUsed.lastCanvasWidth;
+        const height = size?.height ?? lastUsed.lastCanvasHeight;
         const current = loadProjectsState();
         const reusable = current ? findEmptyProject(current) : null;
         if (current && reusable) {
@@ -166,7 +174,6 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
     const dialog = useDialog();
     const { toast } = useToast();
     const [recentDesigns, setRecentDesigns] = useState<DesignSummary[]>([]);
-    const [showAllDesigns, setShowAllDesigns] = useState(false);
     const [activeCategory, setActiveCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [templateUsage, setTemplateUsage] = useState<Record<string, number>>(() => {
@@ -183,10 +190,40 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
     const usageCounterRef = useRef(0);
     const [quoteIndex, setQuoteIndex] = useState(0);
 
-    const quote = quotes[quoteIndex] || quotes[0];
+    // Super theme packs can ship their own quote/fact set (dragon facts, alien
+    // facts, ...) which takes over the dashboard quote while the theme is active.
+    const [themeQuotes, setThemeQuotes] = useState<UiThemeQuote[] | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        const resolve = async () => {
+            const storedId = loadStoredUiTheme().id;
+            try {
+                const themes = await listUiThemes();
+                const active = themes.find((entry) => entry.id === storedId);
+                if (!cancelled) setThemeQuotes(active?.quotes?.length ? active.quotes : null);
+            } catch {
+                if (!cancelled) setThemeQuotes(null);
+            }
+        };
+        void resolve();
+        const onThemeChange = () => void resolve();
+        window.addEventListener(UI_THEME_CHANGED_EVENT, onThemeChange);
+        return () => {
+            cancelled = true;
+            window.removeEventListener(UI_THEME_CHANGED_EVENT, onThemeChange);
+        };
+    }, []);
+
+    const activeQuotes: UiThemeQuote[] = themeQuotes ?? quotes;
+    const quote = activeQuotes[quoteIndex % activeQuotes.length] || activeQuotes[0];
     const [showCustomSizeModal, setShowCustomSizeModal] = useState(false);
     const [customWidth, setCustomWidth] = useState('1080');
     const [customHeight, setCustomHeight] = useState('1080');
+    useEffect(() => {
+        const lastUsed = loadUiPreferences();
+        setCustomWidth(String(lastUsed.lastCanvasWidth));
+        setCustomHeight(String(lastUsed.lastCanvasHeight));
+    }, []);
     const parsedCustomWidth = Number.parseInt(customWidth, 10);
     const parsedCustomHeight = Number.parseInt(customHeight, 10);
     const canCreateCustomDesign = Number.isFinite(parsedCustomWidth)
@@ -352,6 +389,35 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
       }
   };
 
+  const handleDeleteProject = async (project: Project, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (projectsState && projectsState.projects.length <= 1) {
+          toast({ title: 'Cannot delete', description: 'You need at least one album.', variant: 'destructive' });
+          return;
+      }
+      const confirmed = await dialog.confirm(`Delete "${project.name}" and all its pages?`, { title: 'Delete album', variant: 'destructive' });
+      if (!confirmed) return;
+      const current = loadProjectsState();
+      if (!current) return;
+      const next = deleteProject(current, project.id);
+      saveProjectsState(next);
+      setProjectsState(next);
+  };
+
+  // Albums embed their creation time in the id (`prj-<timestamp>-<rand>`),
+  // so the most recently created/touched ones surface first without needing
+  // a separate stored timestamp field.
+  const projectTimestamp = (id: string): number => {
+      const match = id.match(/^prj-(\d+)-/);
+      return match ? Number.parseInt(match[1], 10) : 0;
+  };
+  const sortedProjects = useMemo(() => {
+      if (!projectsState) return [];
+      return [...projectsState.projects].sort((a, b) => projectTimestamp(b.id) - projectTimestamp(a.id));
+  }, [projectsState]);
+  const visibleProjects = sortedProjects.slice(0, 6);
+  const moreProjects = sortedProjects.slice(6);
+
   const handleTemplateClick = (template: TemplateDescriptor) => {
       usageCounterRef.current += 1;
       const nextValue = usageCounterRef.current;
@@ -367,11 +433,13 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
 
     const getDesignPreviewUrl = (design: DesignSummary) => design.thumbnail || design.image || '';
 
-  const visibleDesigns = showAllDesigns ? recentDesigns : recentDesigns.slice(0, 6);
+  const visibleDesigns = recentDesigns.slice(0, 6);
+  const moreDesigns = recentDesigns.slice(6);
 
   return (
     <div className="flex-1 bg-background p-8 overflow-y-auto">
-      <div className="max-w-7xl mx-auto space-y-12">
+      <DashboardAmbience />
+      <div className="relative z-10 max-w-7xl mx-auto space-y-12">
         
         {/* Modern Hero & Search */}
         <div className="relative py-12 text-center space-y-6">
@@ -379,9 +447,11 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                 <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground px-4">
                     &quot;{quote.text}&quot;
                 </h1>
-                <p className="text-lg text-muted-foreground font-medium">
-                    — {quote.author}
-                </p>
+                {quote.author && (
+                    <p className="text-lg text-muted-foreground font-medium">
+                        — {quote.author}
+                    </p>
+                )}
             </div>
             
             <div className="max-w-xl mx-auto relative group px-4">
@@ -462,18 +532,18 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                     {t('dashboard.projects')}
                 </h2>
                 <div className="text-sm text-muted-foreground">
-                    {t('dashboard.projectCount').replace('{count}', String(projectsState.projects.length))}
+                    {t('dashboard.projectCount', { count: projectsState.projects.length })}
                 </div>
            </div>
            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {projectsState.projects.map((project) => {
+                {visibleProjects.map((project) => {
                     const active = project.id === projectsState.activeProjectId;
                     const thumb = project.canvases.find((c) => c.thumbnail)?.thumbnail;
                     return (
-                        <button
+                        <div
                             key={project.id}
                             onClick={() => openProjectFromDashboard(project.id)}
-                            className={`group text-left rounded-xl border overflow-hidden transition-all hover:shadow-md ${
+                            className={`group text-left rounded-xl border overflow-hidden transition-all hover:shadow-md cursor-pointer ${
                                 active ? 'border-primary/40 ring-1 ring-primary/30' : 'border-border/60 hover:border-primary/30'
                             }`}
                             title={t('dashboard.openProject')}
@@ -487,16 +557,41 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                                     <Boxes size={28} className="text-muted-foreground/40" />
                                 )}
                             </div>
-                            <div className="p-2">
-                                <h3 className="font-medium text-xs truncate">{project.name}</h3>
-                                <p className="text-[10px] text-muted-foreground">
-                                    {t('dashboard.canvasCount').replace('{count}', String(project.canvases.length))}
-                                </p>
+                            <div className="p-2 flex items-center justify-between gap-1">
+                                <div className="min-w-0">
+                                    <h3 className="font-medium text-xs truncate">{project.name}</h3>
+                                    <p className="text-[10px] text-muted-foreground">
+                                        {t('dashboard.canvasCount', { count: project.canvases.length })}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteProject(project, e)}
+                                    className="shrink-0 text-muted-foreground hover:text-destructive p-1 rounded-full hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                                    title={t('dashboard.deleteProject')}
+                                >
+                                    <Trash2 size={12} />
+                                </button>
                             </div>
-                        </button>
+                        </div>
                     );
                 })}
            </div>
+           {moreProjects.length > 0 && (
+               <div className="flex justify-center">
+                   <MoreItemsDropdown
+                       label={t('dashboard.moreProjects', { count: moreProjects.length })}
+                       items={moreProjects}
+                       getId={(project) => project.id}
+                       getName={(project) => project.name}
+                       getThumbnail={(project) => project.canvases.find((c) => c.thumbnail)?.thumbnail ?? undefined}
+                       getSubtitle={(project) => t('dashboard.canvasCount', { count: project.canvases.length })}
+                       onOpen={(project) => openProjectFromDashboard(project.id)}
+                       onDelete={(project, e) => handleDeleteProject(project, e)}
+                       deleteTitle={t('dashboard.deleteProject')}
+                   />
+               </div>
+           )}
         </section>
         )}
 
@@ -507,7 +602,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                     <Clock size={20} className="text-primary" />
                     {t('dashboard.savedDesigns')}
                 </h2>
-                <div className="text-sm text-muted-foreground">{t('dashboard.savedCount').replace('{count}', String(recentDesigns.length))}</div>
+                <div className="text-sm text-muted-foreground">{t('dashboard.savedCount', { count: recentDesigns.length })}</div>
            </div>
            
            {recentDesigns.length === 0 ? (
@@ -575,22 +670,25 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                   ))}
                </div>
 
-                {/* Show More Designs Divider */}
-                {recentDesigns.length > 4 && (
+                {/* Rest of the pages, collapsed behind a dropdown so the grid never grows unbounded */}
+                {moreDesigns.length > 0 && (
                     <div className="relative py-4 flex items-center justify-center">
                         <div className="absolute inset-0 flex items-center">
                             <div className="w-full border-t border-border"></div>
                         </div>
-                        <button 
-                            onClick={() => setShowAllDesigns(!showAllDesigns)}
-                            className="relative bg-background border border-border rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex items-center gap-2 shadow-sm"
-                        >
-                            {showAllDesigns ? (
-                                <>{t('dashboard.showLess')} <ChevronUp size={14} /></>
-                            ) : (
-                                <>{t('dashboard.showAll').replace('{count}', String(recentDesigns.length))} <ChevronDown size={14} /></>
-                            )}
-                        </button>
+                        <div className="relative bg-background">
+                            <MoreItemsDropdown
+                                label={t('dashboard.showAll', { count: moreDesigns.length })}
+                                items={moreDesigns}
+                                getId={(design) => design.id}
+                                getName={(design) => design.name}
+                                getThumbnail={(design) => getDesignPreviewUrl(design) || undefined}
+                                getSubtitle={(design) => new Date(design.lastModified).toLocaleDateString()}
+                                onOpen={(design) => onOpenDesign(design)}
+                                onDelete={(design, e) => handleDelete(design.id, e)}
+                                deleteTitle={t('dashboard.deleteDesign')}
+                            />
+                        </div>
                     </div>
                 )}
            </>

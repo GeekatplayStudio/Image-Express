@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardR
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
 import { placeAtViewportCenter } from '@/lib/canvas-placement';
+import { getArtboardSize, applyArtboardSize } from '@/lib/fabric-utils';
 import { useI18n } from '@/providers/I18nProvider';
 import {
     Type,
@@ -226,49 +227,51 @@ const TOOL_ALIAS_MAP: Record<string, string> = {
 type ToolbarToolDefinition = {
     name: string;
     icon: LucideIcon;
-    label: string;
-    shortLabel?: string;
+    /** i18n key for the full Title Case name shown on the expanded rail. */
+    labelKey: string;
+    /** i18n key for the abbreviated name shown when the rail is collapsed. */
+    shortLabelKey?: string;
 };
 
 type ToolbarToolGroupId = 'selection' | 'retouch';
 
 type ToolbarToolGroupDefinition = {
     id: ToolbarToolGroupId;
-    label: string;
+    labelKey: string;
     tools: ToolbarToolDefinition[];
     defaultTool: string;
 };
 
 const SELECTION_TOOL_GROUP: ToolbarToolGroupDefinition = {
     id: 'selection',
-    label: 'Selection Tools',
+    labelKey: 'toolbar.group.selection',
     defaultTool: 'select',
     tools: [
-        { name: 'select', icon: Move, label: 'Move' },
-        { name: 'marquee', icon: Square, label: 'Marquee' },
-        { name: 'lasso', icon: LassoSelect, label: 'Lasso' },
-        { name: 'wand', icon: Wand2, label: 'Magic Wand', shortLabel: 'Wand' },
-        { name: 'quick-select', icon: SquareMousePointer, label: 'Quick Selection', shortLabel: 'Quick' },
-        { name: 'selection-brush', icon: PaintbrushVertical, label: 'Selection Brush', shortLabel: 'Sel Brush' },
-        { name: 'path-select', icon: Pointer, label: 'Path Select', shortLabel: 'Path' },
+        { name: 'select', icon: Move, labelKey: 'toolbar.move' },
+        { name: 'marquee', icon: Square, labelKey: 'toolbar.marquee' },
+        { name: 'lasso', icon: LassoSelect, labelKey: 'toolbar.lasso' },
+        { name: 'wand', icon: Wand2, labelKey: 'toolbar.wand', shortLabelKey: 'toolbar.short.wand' },
+        { name: 'quick-select', icon: SquareMousePointer, labelKey: 'toolbar.quickSelect', shortLabelKey: 'toolbar.short.quick' },
+        { name: 'selection-brush', icon: PaintbrushVertical, labelKey: 'toolbar.selectionBrush', shortLabelKey: 'toolbar.short.selBrush' },
+        { name: 'path-select', icon: Pointer, labelKey: 'toolbar.pathSelect', shortLabelKey: 'toolbar.short.path' },
     ],
 };
 
 const RETOUCH_TOOL_GROUP: ToolbarToolGroupDefinition = {
     id: 'retouch',
-    label: 'Retouch Tools',
+    labelKey: 'toolbar.group.retouch',
     defaultTool: 'healing',
     tools: [
-        { name: 'spot-healing', icon: Bandage, label: 'Spot Healing', shortLabel: 'Spot' },
-        { name: 'remove', icon: Eraser, label: 'Remove Tool', shortLabel: 'Remove' },
-        { name: 'healing', icon: ShieldCheck, label: 'Healing Brush', shortLabel: 'Healing' },
-        { name: 'clone-stamp', icon: Copy, label: 'Clone Stamp', shortLabel: 'Clone' },
-        { name: 'history-brush', icon: History, label: 'History Brush', shortLabel: 'History' },
-        { name: 'blur', icon: Blend, label: 'Blur Tool', shortLabel: 'Blur' },
-        { name: 'sharpen', icon: Scan, label: 'Sharpen Tool', shortLabel: 'Sharpen' },
-        { name: 'dodge', icon: Sun, label: 'Dodge Tool', shortLabel: 'Dodge' },
-        { name: 'burn', icon: Flame, label: 'Burn Tool', shortLabel: 'Burn' },
-        { name: 'sponge', icon: Droplets, label: 'Sponge Tool', shortLabel: 'Sponge' },
+        { name: 'spot-healing', icon: Bandage, labelKey: 'toolbar.spotHealing', shortLabelKey: 'toolbar.short.spot' },
+        { name: 'remove', icon: Eraser, labelKey: 'toolbar.removeTool', shortLabelKey: 'toolbar.short.remove' },
+        { name: 'healing', icon: ShieldCheck, labelKey: 'toolbar.healingBrush', shortLabelKey: 'toolbar.short.healing' },
+        { name: 'clone-stamp', icon: Copy, labelKey: 'toolbar.cloneStamp', shortLabelKey: 'toolbar.short.clone' },
+        { name: 'history-brush', icon: History, labelKey: 'toolbar.historyBrush', shortLabelKey: 'toolbar.short.history' },
+        { name: 'blur', icon: Blend, labelKey: 'toolbar.blurTool', shortLabelKey: 'toolbar.short.blur' },
+        { name: 'sharpen', icon: Scan, labelKey: 'toolbar.sharpenTool', shortLabelKey: 'toolbar.short.sharpen' },
+        { name: 'dodge', icon: Sun, labelKey: 'toolbar.dodgeTool', shortLabelKey: 'toolbar.short.dodge' },
+        { name: 'burn', icon: Flame, labelKey: 'toolbar.burnTool', shortLabelKey: 'toolbar.short.burn' },
+        { name: 'sponge', icon: Droplets, labelKey: 'toolbar.spongeTool', shortLabelKey: 'toolbar.short.sponge' },
     ],
 };
 
@@ -280,28 +283,28 @@ const TOOL_GROUP_BY_ID: Record<ToolbarToolGroupId, ToolbarToolGroupDefinition> =
 };
 
 const CREATION_PRIMARY_TOOLS: ToolbarToolDefinition[] = [
-    { name: 'text', icon: Type, label: 'Text' },
-    { name: 'shapes', icon: Shapes, label: 'Shapes' },
-    { name: 'adjustments', icon: SlidersHorizontal, label: 'Adjustment Layers', shortLabel: 'Adjust' },
-    { name: 'pen', icon: PenTool, label: 'Pen' },
-    { name: 'paint', icon: Brush, label: 'Brushes', shortLabel: 'Brush' },
-    { name: 'gradient', icon: PaintBucket, label: 'Fill / Gradient', shortLabel: 'Fill' },
+    { name: 'text', icon: Type, labelKey: 'toolbar.text' },
+    { name: 'shapes', icon: Shapes, labelKey: 'toolbar.shapes' },
+    { name: 'adjustments', icon: SlidersHorizontal, labelKey: 'toolbar.adjustmentLayers', shortLabelKey: 'toolbar.short.adjust' },
+    { name: 'pen', icon: PenTool, labelKey: 'toolbar.pen' },
+    { name: 'paint', icon: Brush, labelKey: 'toolbar.brushes', shortLabelKey: 'toolbar.short.brush' },
+    { name: 'gradient', icon: PaintBucket, labelKey: 'toolbar.fillGradient', shortLabelKey: 'toolbar.short.fill' },
 ];
 
 const CREATION_LIBRARY_TOOLS: ToolbarToolDefinition[] = [
-    { name: 'assets', icon: ImageIcon, label: 'Gallery' },
-    { name: 'templates', icon: LayoutTemplate, label: 'Library', shortLabel: 'Templates' },
-    { name: 'ai-zone', icon: Sparkles, label: 'AI Zone' },
-    { name: 'comfy-flows', icon: Workflow, label: 'ComfyUI Workflows', shortLabel: 'Comfy' },
-    { name: 'ai-critique', icon: MessageSquare, label: 'AI Critique', shortLabel: 'Critique' },
-    { name: '3d-gen', icon: Box, label: 'AI 3D' },
+    { name: 'assets', icon: ImageIcon, labelKey: 'toolbar.gallery' },
+    { name: 'templates', icon: LayoutTemplate, labelKey: 'toolbar.library', shortLabelKey: 'toolbar.short.templates' },
+    { name: 'ai-zone', icon: Sparkles, labelKey: 'toolbar.aiZone' },
+    { name: 'comfy-flows', icon: Workflow, labelKey: 'toolbar.comfyWorkflows', shortLabelKey: 'toolbar.short.comfy' },
+    { name: 'ai-critique', icon: MessageSquare, labelKey: 'toolbar.aiCritique', shortLabelKey: 'toolbar.short.critique' },
+    { name: '3d-gen', icon: Box, labelKey: 'toolbar.ai3d' },
 ];
 
 const WORKSPACE_UTILITY_TOOLS: ToolbarToolDefinition[] = [
-    { name: 'crop', icon: Crop, label: 'Crop' },
-    { name: 'eyedropper', icon: Pipette, label: 'Eyedropper', shortLabel: 'Picker' },
-    { name: 'zoom', icon: Search, label: 'Zoom' },
-    { name: 'hand', icon: Hand, label: 'Hand' },
+    { name: 'crop', icon: Crop, labelKey: 'toolbar.crop' },
+    { name: 'eyedropper', icon: Pipette, labelKey: 'toolbar.eyedropper', shortLabelKey: 'toolbar.short.picker' },
+    { name: 'zoom', icon: Search, labelKey: 'toolbar.zoom' },
+    { name: 'hand', icon: Hand, labelKey: 'toolbar.hand' },
 ];
 
 const PEN_STROKE = PEN_DEFAULT_STROKE;
@@ -1921,8 +1924,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         const looksLikeImage = file.type.startsWith('image/') || !!getImageFormatEntry(file.name);
         if (!looksLikeImage) {
             toast({
-                title: 'Unsupported file',
-                description: 'Please upload a supported image file (JPEG, PNG, WebP, SVG, HEIC, TIFF, PSD, PDF, RAW, and more).',
+                title: t('toolbar.unsupportedFile'),
+                description: t('toolbar.unsupportedFileBody'),
                 variant: 'warning'
             });
             return;
@@ -1944,7 +1947,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 }
             } catch (error) {
                 toast({
-                    title: 'Unsupported file',
+                    title: t('toolbar.unsupportedFile'),
                     description: error instanceof Error ? error.message : 'Could not open this file.',
                     variant: 'warning'
                 });
@@ -2089,6 +2092,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         try {
             // Include custom properties in serialization
             const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'baseFilters', 'channelSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId']);
+            const artboardSize = getArtboardSize(canvas);
+            if (artboardSize) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (json as any).artboard = artboardSize;
+            }
             const profile = loadProfileSettings();
             if (profile?.embedInfo) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2153,14 +2161,14 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 setRefreshTemplatesTrigger(prev => prev + 1);
             } else {
                 toast({
-                    title: 'Save failed',
+                    title: t('toolbar.saveFailed'),
                     description: data.message || 'Unable to save template.',
                     variant: 'destructive'
                 });
             }
         } catch (err) {
             console.error(err);
-            toast({ title: 'Save failed', description: 'Error saving template.', variant: 'destructive' });
+            toast({ title: t('toolbar.saveFailed'), description: t('toolbar.saveTemplateError'), variant: 'destructive' });
         }
     };
 
@@ -2169,15 +2177,22 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         fetch(url)
             .then(res => res.json())
             .then(json => {
-                canvas.clear();
+                // Note: canvas.loadFromJSON() already clears existing objects
+                // internally; calling canvas.clear() first would also remove
+                // the (excludeFromExport) artboard rect before load, leaving
+                // the page with no visible artboard afterward.
+                const artboardSize = (json as { artboard?: { width?: number; height?: number } })?.artboard;
                 canvas.loadFromJSON(json, () => {
+                    if (artboardSize?.width && artboardSize?.height) {
+                        applyArtboardSize(canvas, artboardSize.width, artboardSize.height);
+                    }
                     canvas.requestRenderAll();
                     setActiveTool('select');
                 });
             })
             .catch(err => {
                 console.error("Error loading template", err);
-                toast({ title: 'Load failed', description: 'Failed to load template.', variant: 'destructive' });
+                toast({ title: t('toolbar.loadFailed'), description: t('toolbar.loadTemplateError'), variant: 'destructive' });
             });
     }
 
@@ -2201,7 +2216,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 className="hidden"
                 value={foregroundColor}
                 onChange={(event) => handleForegroundColorChange(event.target.value)}
-                aria-label="Foreground color picker"
+                aria-label={t('toolbar.fgPicker')}
             />
             <input
                 type="color"
@@ -2209,7 +2224,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 className="hidden"
                 value={backgroundColor}
                 onChange={(event) => handleBackgroundColorChange(event.target.value)}
-                aria-label="Background color picker"
+                aria-label={t('toolbar.bgPicker')}
             />
             <div
                 className={cn(
@@ -2241,15 +2256,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                             )}
-                            title={`${group.label} (${primaryTool.label})`}
-                            aria-label={`${group.label} (${primaryTool.label})`}
+                            title={`${t(group.labelKey)} (${t(primaryTool.labelKey)})`}
+                            aria-label={`${t(group.labelKey)} (${t(primaryTool.labelKey)})`}
                         >
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
                                 <primaryTool.icon size={16} />
                             </span>
                             {isRailExpanded && (
                                 <span className={railLabelClass}>
-                                    {primaryTool.shortLabel ?? primaryTool.label}
+                                    {t(primaryTool.shortLabelKey ?? primaryTool.labelKey)}
                                 </span>
                             )}
                             <span className="pointer-events-none absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-current opacity-70" />
@@ -2273,15 +2288,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                             )}
-                            title={tool.label}
-                            aria-label={tool.label}
+                            title={t(tool.labelKey)}
+                            aria-label={t(tool.labelKey)}
                         >
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
                                 <tool.icon size={16} />
                             </span>
                             {isRailExpanded && (
                                 <span className={railLabelClass}>
-                                    {tool.shortLabel ?? tool.label}
+                                    {t(tool.shortLabelKey ?? tool.labelKey)}
                                 </span>
                             )}
                         </button>
@@ -2303,15 +2318,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                             )}
-                            title={tool.label}
-                            aria-label={tool.label}
+                            title={t(tool.labelKey)}
+                            aria-label={t(tool.labelKey)}
                         >
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
                                 <tool.icon size={16} />
                             </span>
                             {isRailExpanded && (
                                 <span className={railLabelClass}>
-                                    {tool.shortLabel ?? tool.label}
+                                    {t(tool.shortLabelKey ?? tool.labelKey)}
                                 </span>
                             )}
                         </button>
@@ -2333,15 +2348,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                             )}
-                            title={tool.label}
-                            aria-label={tool.label}
+                            title={t(tool.labelKey)}
+                            aria-label={t(tool.labelKey)}
                         >
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
                                 <tool.icon size={16} />
                             </span>
                             {isRailExpanded && (
                                 <span className={railLabelClass}>
-                                    {tool.shortLabel ?? tool.label}
+                                    {t(tool.shortLabelKey ?? tool.labelKey)}
                                 </span>
                             )}
                         </button>
@@ -2390,7 +2405,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         )}
                         style={{ backgroundColor: backgroundColor }}
                     />
-                    {isRailExpanded && <span className={railMetaLabelClass}>FG/BG</span>}
+                    {isRailExpanded && <span className={railMetaLabelClass}>{t('toolbar.fgbg')}</span>}
                 </div>
             </div>
 
@@ -2403,7 +2418,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     className="fixed bg-card border border-border rounded-lg shadow-xl p-2 grid grid-cols-1 gap-1 z-[2000] w-52 animate-in fade-in slide-in-from-left-2 duration-150"
                 >
                     <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/60">
-                        {TOOL_GROUP_BY_ID[openToolGroup].label}
+                        {t(TOOL_GROUP_BY_ID[openToolGroup].labelKey)}
                     </div>
                     {TOOL_GROUP_BY_ID[openToolGroup].tools.map((tool) => {
                         const isToolActive = (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool;
@@ -2419,7 +2434,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                 )}
                             >
                                 <tool.icon size={15} />
-                                <span>{tool.label}</span>
+                                <span>{t(tool.labelKey)}</span>
                             </button>
                         );
                     })}
@@ -2526,52 +2541,52 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         className="col-span-2 -mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
                         onMouseDown={beginMenuDrag('shapes')}
                     >
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Shapes</span>
-                        <span className="text-[10px] text-muted-foreground/80">Drag</span>
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('toolbar.shapes')}</span>
+                        <span className="text-[10px] text-muted-foreground/80">{t('toolbar.drag')}</span>
                     </div>
                     <button onClick={addRectangle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Square size={20} />
-                        <span className="text-[10px]">Rect</span>
+                        <span className="text-[10px]">{t('shape.rect')}</span>
                     </button>
                     <button onClick={addCircle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Circle size={20} />
-                        <span className="text-[10px]">Circle</span>
+                        <span className="text-[10px]">{t('shape.circle')}</span>
                     </button>
                     <button onClick={addTriangle} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Triangle size={20} />
-                        <span className="text-[10px]">Triangle</span>
+                        <span className="text-[10px]">{t('shape.triangle')}</span>
                     </button>
                     <button onClick={addStar} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Star size={20} />
-                        <span className="text-[10px]">Star</span>
+                        <span className="text-[10px]">{t('shape.star')}</span>
                     </button>
                     <button onClick={addArrow} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <ArrowRight size={20} />
-                        <span className="text-[10px]">Arrow</span>
+                        <span className="text-[10px]">{t('shape.arrow')}</span>
                     </button>
                     <button onClick={addBentArrow} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <CornerDownRight size={20} />
-                        <span className="text-[10px]">Bent Arrow</span>
+                        <span className="text-[10px]">{t('shape.bentArrow')}</span>
                     </button>
                     <button onClick={addSpeechBubble} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <MessageSquare size={20} />
-                        <span className="text-[10px]">Bubble</span>
+                        <span className="text-[10px]">{t('shape.bubble')}</span>
                     </button>
                     <button onClick={addThoughtBubble} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <MessageCircle size={20} />
-                        <span className="text-[10px]">Thought</span>
+                        <span className="text-[10px]">{t('shape.thought')}</span>
                     </button>
                     <button onClick={addCloud} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Cloud size={20} />
-                        <span className="text-[10px]">Cloud</span>
+                        <span className="text-[10px]">{t('shape.cloud')}</span>
                     </button>
                     <button onClick={addHexagon} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Hexagon size={20} />
-                        <span className="text-[10px]">Hexagon</span>
+                        <span className="text-[10px]">{t('shape.hexagon')}</span>
                     </button>
                     <button onClick={addDiamond} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground">
                         <Diamond size={20} />
-                        <span className="text-[10px]">Diamond</span>
+                        <span className="text-[10px]">{t('shape.diamond')}</span>
                     </button>
                 </div>,
                 document.body
@@ -2587,11 +2602,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         className="-mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
                         onMouseDown={beginMenuDrag('adjustments')}
                     >
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Adjustment Layers</span>
-                        <span className="text-[10px] text-muted-foreground/80">Drag</span>
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('toolbar.adjustmentLayers')}</span>
+                        <span className="text-[10px] text-muted-foreground/80">{t('toolbar.drag')}</span>
                     </div>
                     <div className="space-y-2">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">Basic</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">{t('adjust.group.basic')}</div>
                         <button onClick={() => createAdjustmentLayer('brightness-contrast')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
                             Brightness / Contrast
                         </button>
@@ -2606,7 +2621,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         </button>
                     </div>
                     <div className="space-y-2 pt-1 border-t border-border/50">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">Tonal</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">{t('adjust.group.tonal')}</div>
                         <button onClick={() => createAdjustmentLayer('levels')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
                             Levels
                         </button>
@@ -2618,7 +2633,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         </button>
                     </div>
                     <div className="space-y-2 pt-1 border-t border-border/50">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">Color</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">{t('adjust.group.color')}</div>
                         <button onClick={() => createAdjustmentLayer('color-balance')} className="w-full flex items-center justify-start px-2.5 py-1.5 hover:bg-secondary rounded border border-border/40 bg-background/60 transition-colors text-foreground text-[11px]">
                             Color Balance
                         </button>
@@ -2643,8 +2658,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         className="-mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
                         onMouseDown={beginMenuDrag('extra')}
                     >
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Add</span>
-                        <span className="text-[10px] text-muted-foreground/80">Drag</span>
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('toolbar.add')}</span>
+                        <span className="text-[10px] text-muted-foreground/80">{t('toolbar.drag')}</span>
                     </div>
                     <button onClick={() => { setActiveTool('ai-zone'); setShowExtraMenu(false); }} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         <Wand2 size={16} />

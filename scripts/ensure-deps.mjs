@@ -35,7 +35,14 @@ export function ensureDependencies(forceInstall = false) {
     // the desktop app shell, not the web app. Skipping it avoids failures
     // behind corporate proxies/firewalls with custom SSL certs.
     const installEnv = { ...process.env, ELECTRON_SKIP_BINARY_DOWNLOAD: '1' };
-    const install = spawnSync(npmCmd, ['install'], { stdio: 'inherit', cwd: rootDir, env: installEnv });
+    // Windows blocks spawning .cmd files without a shell (Node CVE-2024-27980 fix),
+    // so a shell is required there; elsewhere skip it to avoid DEP0190.
+    const install = spawnSync(npmCmd, ['install'], {
+        stdio: 'inherit',
+        cwd: rootDir,
+        env: installEnv,
+        shell: isWin,
+    });
 
     if (install.status !== 0) {
         console.error('[ERROR] npm install failed. See output above for details.');

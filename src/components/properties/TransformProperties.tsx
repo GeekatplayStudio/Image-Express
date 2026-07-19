@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface TransformPropertiesProps {
     x: number;
@@ -18,6 +19,7 @@ export function TransformProperties({
     x, y, width, height, rotation, scaleX, scaleY, isLocked, pseudoBacksidePreset, onChange, onPresetChange
 }: TransformPropertiesProps) {
     
+    const { t } = useI18n();
     // Local state to handle input changes smoothly before commit if needed, 
     // but here we just pass through.
     
@@ -122,13 +124,13 @@ export function TransformProperties({
                 </div>
                 <div className="col-span-2 space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Front / Back View</span>
-                        <span>{(pseudoBacksidePreset || 'front') === 'back' ? 'Back' : 'Front'}</span>
+                        <span>{t('transform.frontBackView')}</span>
+                        <span>{(pseudoBacksidePreset || 'front') === 'back' ? t('transform.back') : t('transform.front')}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         {[
-                            { label: 'Front', value: 'front' as const },
-                            { label: 'Back', value: 'back' as const },
+                            { labelKey: 'transform.front', value: 'front' as const },
+                            { labelKey: 'transform.back', value: 'back' as const },
                         ].map((preset) => (
                             <button
                                 key={preset.value}
@@ -138,7 +140,7 @@ export function TransformProperties({
                                     ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30'
                                     : 'bg-secondary/20 text-muted-foreground border-border/50 hover:bg-secondary/50'}`}
                             >
-                                {preset.label}
+                                {t(preset.labelKey)}
                             </button>
                         ))}
                     </div>

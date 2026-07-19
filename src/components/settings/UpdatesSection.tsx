@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, DownloadCloud, Loader2, RefreshCcw, TriangleAlert } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
+import { loadUpdateAutoCheck, saveUpdateAutoCheck } from '@/components/UpdateAutoCheck';
 
 type UpdateStatus = {
     supported: boolean;
@@ -28,6 +29,29 @@ export default function UpdatesSection({ className }: { className?: string }) {
     const [status, setStatus] = useState<UpdateStatus | null>(null);
     const [isChecking, setIsChecking] = useState(false);
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+    const [autoCheck, setAutoCheck] = useState(() => loadUpdateAutoCheck());
+    const [isApplying, setIsApplying] = useState(false);
+    const [applyFeedback, setApplyFeedback] = useState<string | null>(null);
+
+    const applyUpdate = useCallback(async () => {
+        setIsApplying(true);
+        setApplyFeedback(null);
+        try {
+            const response = await fetch('/api/system/update', { method: 'POST' });
+            const result = await response.json() as { success: boolean; commit?: string; error?: string };
+            if (result.success) {
+                setApplyFeedback(`Updated to ${result.commit}. Restart Image Express to finish.`);
+                const refreshed = await fetch('/api/system/update');
+                setStatus(await refreshed.json() as UpdateStatus);
+            } else {
+                setApplyFeedback(result.error || 'Update failed.');
+            }
+        } catch {
+            setApplyFeedback('Update failed — could not reach the server.');
+        } finally {
+            setIsApplying(false);
+        }
+    }, []);
 
     const checkForUpdates = useCallback(async () => {
         setIsChecking(true);
@@ -129,18 +153,45 @@ export default function UpdatesSection({ className }: { className?: string }) {
                     <RefreshCcw size={13} className={isChecking ? 'animate-spin' : ''} />
                     {t('settings.checkForUpdates')}
                 </button>
-                {status?.supported && status.updateAvailable && (
+                {status?.supported && status.updateAvailable && !status.dirty && (
+                    <button
+                        onClick={() => void applyUpdate()}
+                        disabled={isApplying}
+                        className="h-8 px-3 text-[11px] font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
+                    >
+                        {isApplying ? <Loader2 size={13} className="animate-spin" /> : <DownloadCloud size={13} />}
+                        {isApplying ? 'Updating…' : t('settings.updateNow')}
+                    </button>
+                )}
+                {status?.supported && status.updateAvailable && status.dirty && (
                     <button
                         onClick={() => void copyUpdateCommand()}
-                        className="h-8 px-3 text-[11px] font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
+                        className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5"
                     >
                         <DownloadCloud size={13} />
-                        {t('settings.updateNow')}
+                        Copy manual update command
                     </button>
                 )}
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                    type="checkbox"
+                    checked={autoCheck}
+                    onChange={(event) => {
+                        setAutoCheck(event.target.checked);
+                        saveUpdateAutoCheck(event.target.checked);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary/20"
+                />
+                Check for updates automatically when the app starts
+            </label>
+
             {copyFeedback && (
                 <div className="text-[11px] text-muted-foreground">{copyFeedback}</div>
+            )}
+            {applyFeedback && (
+                <div className="text-[11px] font-medium text-foreground">{applyFeedback}</div>
             )}
         </section>
     );

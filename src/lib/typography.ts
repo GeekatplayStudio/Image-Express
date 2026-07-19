@@ -20,15 +20,16 @@ export const TOP_TEXT_FONT_STYLES = ['normal', 'bold', '100', '200', '300', '400
 
 export type TypographyPreset = {
     id: string;
-    label: string;
+    /** i18n key for the preset name. */
+    labelKey: string;
     fontFamily: string;
     fontWeight: string;
 };
 
 export const TYPOGRAPHY_PRESETS: TypographyPreset[] = [
-    { id: 'clean-modern', label: 'Clean Modern', fontFamily: 'Inter', fontWeight: '500' },
-    { id: 'editorial', label: 'Editorial', fontFamily: 'Playfair Display', fontWeight: '700' },
-    { id: 'poster', label: 'Poster', fontFamily: 'Oswald', fontWeight: '700' },
-    { id: 'friendly', label: 'Friendly', fontFamily: 'Montserrat', fontWeight: '600' },
-    { id: 'handwritten', label: 'Handwritten', fontFamily: 'Pacifico', fontWeight: '400' },
+    { id: 'clean-modern', labelKey: 'typography.cleanModern', fontFamily: 'Inter', fontWeight: '500' },
+    { id: 'editorial', labelKey: 'typography.editorial', fontFamily: 'Playfair Display', fontWeight: '700' },
+    { id: 'poster', labelKey: 'typography.poster', fontFamily: 'Oswald', fontWeight: '700' },
+    { id: 'friendly', labelKey: 'typography.friendly', fontFamily: 'Montserrat', fontWeight: '600' },
+    { id: 'handwritten', labelKey: 'typography.handwritten', fontFamily: 'Pacifico', fontWeight: '400' },
 ];

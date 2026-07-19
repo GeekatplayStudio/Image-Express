@@ -5,6 +5,7 @@ cd "$(dirname "$0")"
 if ! command -v node >/dev/null 2>&1; then
     echo "[ERROR] Node.js is not installed."
     echo "Please install Node.js 24 from https://nodejs.org/ and double-click this file again."
+    echo "Or run install.command instead to set everything up from scratch."
     read -p "Press Enter to close..."
     exit 1
 fi

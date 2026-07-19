@@ -5,6 +5,12 @@ Last updated: 2026-05-16
 Repository: `Image-Express`  
 Branch baseline: `main`
 
+> **Terminology:** this roadmap uses the canonical vocabulary defined in
+> [GLOSSARY.md](GLOSSARY.md) — **Library → Album → Page → (Workspace, Canvas,
+> Layers)**. Note the code still uses older names (canonical *Canvas* =
+> code `artboard`; *Page* = code `canvas`; *Album* = code `project`;
+> *Library* = code `Federation`). See the mapping table in the glossary.
+
 ## 1. Purpose
 This is the single master file for future implementation planning and roadmap sequencing.
 

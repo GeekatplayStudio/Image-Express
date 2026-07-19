@@ -649,7 +649,7 @@ export function useMediaOverlay({
         setMediaOverlayPreset('canvas-original');
         setMediaOverlayEnabled(true);
 
-        const nextVariantName = designName && designName !== 'Untitled Design'
+        const nextVariantName = designName && designName !== 'Untitled Page'
             ? `${designName} - ${presetSpec.label}`
             : presetSpec.label;
         const modeLabel = mediaOverlayVariantConversionMode === 'fit'

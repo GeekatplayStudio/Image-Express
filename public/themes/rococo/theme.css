@@ -1,0 +1,90 @@
+/* Rococo — a soft pastel salon. Warm cream surfaces, muted rose/sage/powder
+   accents, gilded double borders, and gentle serif type. Restraint over gold leaf:
+   the ornament lives in thin lines and soft curves, never in noise. */
+
+:root[data-ui-theme='rococo'] {
+  --background: #f4eee4;
+  --foreground: #4a4038;
+  --card: #faf6ee;
+  --card-foreground: #4a4038;
+  --popover: #fdfaf4;
+  --popover-foreground: #4a4038;
+  --primary: #c48d94;
+  --primary-foreground: #fdf8f2;
+  --tool-accent: #9db39a;
+  --tool-accent-foreground: #2e352c;
+  --secondary: #ece4d6;
+  --secondary-foreground: #4a4038;
+  --muted: #ece4d6;
+  --muted-foreground: #8a7d6e;
+  --accent: #e7ddcc;
+  --accent-foreground: #4a4038;
+  --destructive: #b56a5e;
+  --destructive-foreground: #fdf8f2;
+  --border: #d8c9ae;
+  --input: #d8c9ae;
+  --ring: #c9a86a;
+  --radius: 0.9rem;
+
+  --ui-font-sans: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --ui-panel-border: 1px solid #d8c9ae;
+  --ui-panel-shadow: 0 8px 26px rgb(120 100 70 / 0.18), 0 0 0 1px rgb(201 168 106 / 0.35);
+  --ui-titlebar-bg: #ece4d6;
+  --ui-titlebar-fg: #4a4038;
+  --ui-scrollbar-thumb: #cbb894;
+  --ui-icon-stroke-width: 1.6;
+
+  --ui-brand-gradient-start: #c48d94;
+  --ui-brand-gradient-mid: #c9a86a;
+  --ui-brand-gradient-end: #9db39a;
+  --ui-avatar-gradient-start: #d9b8bd;
+  --ui-avatar-gradient-end: #c9a86a;
+  --ui-slider-accent: #c48d94;
+}
+
+/* Gilded double border on buttons — the signature rococo touch, kept thin. */
+:root[data-ui-theme='rococo'] button {
+  box-shadow: 0 0 0 1px rgb(201 168 106 / 0.55), inset 0 0 0 1px rgb(253 250 244 / 0.8);
+}
+:root[data-ui-theme='rococo'] button:hover {
+  box-shadow: 0 0 0 1px rgb(201 168 106 / 0.9), inset 0 0 0 1px rgb(253 250 244 / 0.9), 0 2px 8px rgb(120 100 70 / 0.18);
+}
+:root[data-ui-theme='rococo'] button:active {
+  box-shadow: 0 0 0 1px rgb(201 168 106 / 0.9), inset 0 1px 3px rgb(120 100 70 / 0.25);
+}
+
+/* Softer, rounder chrome — salon curves. */
+:root[data-ui-theme='rococo'] .rounded-xl,
+:root[data-ui-theme='rococo'] .rounded-2xl {
+  border-radius: 1.1rem !important;
+}
+:root[data-ui-theme='rococo'] .rounded-md,
+:root[data-ui-theme='rococo'] .rounded-lg {
+  border-radius: 0.8rem !important;
+}
+
+/* Inputs: cream wells with a hairline gold inner edge. */
+:root[data-ui-theme='rococo'] input:not([type='checkbox']):not([type='radio']):not([type='range']),
+:root[data-ui-theme='rococo'] select,
+:root[data-ui-theme='rococo'] textarea {
+  background-color: #fdfaf4;
+  box-shadow: inset 0 0 0 1px rgb(201 168 106 / 0.35);
+}
+:root[data-ui-theme='rococo'] input:focus,
+:root[data-ui-theme='rococo'] textarea:focus,
+:root[data-ui-theme='rococo'] select:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgb(201 168 106 / 0.6), 0 0 0 3px rgb(196 141 148 / 0.25);
+}
+
+/* Panels float on soft warm shadows with a gold hairline. */
+:root[data-ui-theme='rococo'] .shadow-xl,
+:root[data-ui-theme='rococo'] .shadow-2xl,
+:root[data-ui-theme='rococo'] .shadow-lg {
+  box-shadow: 0 10px 30px rgb(120 100 70 / 0.2), 0 0 0 1px rgb(201 168 106 / 0.4) !important;
+}
+
+:root[data-ui-theme='rococo'] ::selection {
+  background: #d9b8bd;
+  color: #4a4038;
+}

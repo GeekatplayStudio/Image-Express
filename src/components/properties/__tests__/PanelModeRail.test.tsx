@@ -7,16 +7,16 @@ describe('PanelModeRail', () => {
         const onModeChange = jest.fn();
         render(<PanelModeRail mode="layers" onModeChange={onModeChange} />);
 
-        const layersButton = screen.getByRole('button', { name: 'Panel mode layers' });
-        const propertiesButton = screen.getByRole('button', { name: 'Panel mode properties' });
-        const historyButton = screen.getByRole('button', { name: 'Panel mode history' });
-        const colorButton = screen.getByRole('button', { name: 'Panel mode color' });
-        const swatchesButton = screen.getByRole('button', { name: 'Panel mode swatches' });
-        const brushesButton = screen.getByRole('button', { name: 'Panel mode brushes' });
-        const channelsButton = screen.getByRole('button', { name: 'Panel mode channels' });
-        const adjustmentsButton = screen.getByRole('button', { name: 'Panel mode adjustments' });
-        const navigatorButton = screen.getByRole('button', { name: 'Panel mode navigator' });
-        const infoButton = screen.getByRole('button', { name: 'Panel mode info' });
+        const layersButton = screen.getByTestId('panel-mode-layers');
+        const propertiesButton = screen.getByTestId('panel-mode-properties');
+        const historyButton = screen.getByTestId('panel-mode-history');
+        const colorButton = screen.getByTestId('panel-mode-color');
+        const swatchesButton = screen.getByTestId('panel-mode-swatches');
+        const brushesButton = screen.getByTestId('panel-mode-brushes');
+        const channelsButton = screen.getByTestId('panel-mode-channels');
+        const adjustmentsButton = screen.getByTestId('panel-mode-adjustments');
+        const navigatorButton = screen.getByTestId('panel-mode-navigator');
+        const infoButton = screen.getByTestId('panel-mode-info');
 
         expect(layersButton).toHaveAttribute('aria-pressed', 'true');
         expect(propertiesButton).toHaveAttribute('aria-pressed', 'false');

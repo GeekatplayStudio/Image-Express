@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <rect width="320" height="200" fill="#f4eee4"/>
+  <rect x="40" y="38" width="240" height="124" rx="18" fill="#faf6ee" stroke="#c9a86a" stroke-width="1.5"/>
+  <rect x="43" y="41" width="234" height="118" rx="15" fill="none" stroke="#e7ddcc" stroke-width="1"/>
+  <text x="160" y="72" font-family="Georgia, serif" font-size="17" font-style="italic" text-anchor="middle" fill="#4a4038">Le Salon Créatif</text>
+  <rect x="70" y="86" width="180" height="6" rx="3" fill="#d8c9ae"/>
+  <rect x="86" y="98" width="148" height="6" rx="3" fill="#e0d5c1"/>
+  <g>
+    <rect x="70" y="118" width="84" height="26" rx="13" fill="#c48d94"/>
+    <rect x="72" y="120" width="80" height="22" rx="11" fill="none" stroke="#fdf8f2" stroke-width="1"/>
+    <text x="112" y="135" font-family="Georgia, serif" font-size="11" text-anchor="middle" fill="#fdf8f2">Créer</text>
+  </g>
+  <g>
+    <rect x="166" y="118" width="84" height="26" rx="13" fill="#faf6ee" stroke="#c9a86a" stroke-width="1.2"/>
+    <text x="208" y="135" font-family="Georgia, serif" font-size="11" text-anchor="middle" fill="#4a4038">Parcourir</text>
+  </g>
+  <path d="M60 50 q8 -10 16 0" fill="none" stroke="#c9a86a" stroke-width="1.2"/>
+  <path d="M244 50 q8 -10 16 0" fill="none" stroke="#c9a86a" stroke-width="1.2"/>
+  <circle cx="68" cy="47" r="1.5" fill="#c48d94"/>
+  <circle cx="252" cy="47" r="1.5" fill="#9db39a"/>
+</svg>

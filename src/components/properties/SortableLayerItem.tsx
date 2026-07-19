@@ -137,7 +137,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                         e.stopPropagation();
                         tagColorInputRef.current?.click();
                     }}
-                    title="Double-click to set layer tag color"
+                    title={t('layeritem.setTagColor')}
                 >
                     <GripVertical size={14} style={{ mixBlendMode: tagColor !== 'transparent' ? 'difference' : 'normal' }} />
                     <input 
@@ -151,7 +151,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                 
                  {/* Clipping mask indicator (clipped to the layer below) */}
                  {isClippedToBelow && (
-                    <CornerLeftDown size={12} className="shrink-0 text-primary" aria-label="Clipped to layer below" />
+                    <CornerLeftDown size={12} className="shrink-0 text-primary" aria-label={t('layeritem.clippedToBelow')} />
                  )}
 
                  {/* Expand / Collapse for Group */}
@@ -192,7 +192,7 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                             value={layerColor}
                             onChange={handleColorChange}
                             onClick={(e) => e.stopPropagation()}
-                            title="Change Color"
+                            title={t('layeritem.changeColor')}
                         />
                     )}
                 </div>
@@ -244,13 +244,13 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                                         onEditMask(obj);
                                     }}
                                     className="inline-flex items-center rounded p-0.5 text-primary hover:bg-primary/15 transition-colors"
-                                    title="Edit mask"
-                                    aria-label="Edit mask"
+                                    title={t('layeritem.editMask')}
+                                    aria-label={t('layeritem.editMask')}
                                 >
                                     <Blend size={12} />
                                 </button>
                             ) : (
-                                <Blend size={12} className="text-primary" aria-label="Has mask" />
+                                <Blend size={12} className="text-primary" aria-label={t('layeritem.hasMask')} />
                             )
                         )}
                     </div>

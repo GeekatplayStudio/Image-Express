@@ -39,7 +39,10 @@ async function main() {
     if (mode === 'prod' && !fs.existsSync('.next')) {
         console.log('[INFO] No production build found in .next directory. Building the application first...');
         const buildCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        const buildResult = spawnSync(buildCmd, ['run', 'build'], { stdio: 'inherit' });
+        const buildResult = spawnSync(buildCmd, ['run', 'build'], {
+            stdio: 'inherit',
+            shell: process.platform === 'win32'
+        });
         if (buildResult.status !== 0) {
             console.error('[ERROR] Build failed. Cannot start production server.');
             process.exit(buildResult.status || 1);

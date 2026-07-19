@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface SkewTaperValues {
     skewX: number;
@@ -16,16 +17,17 @@ interface SkewTaperPropertiesProps {
 }
 
 export function SkewTaperProperties({ values, onChange, onStartDirDrag, onStopDirDrag }: SkewTaperPropertiesProps) {
+    const { t } = useI18n();
     return (
         <div className="p-4 space-y-4 border-b border-border/50">
              <div className="flex items-center justify-between">
-                <h3 className="font-medium text-sm">Perspective / Skew</h3>
+                <h3 className="font-medium text-sm">{t('skew.title')}</h3>
             </div>
             
             <div className="grid grid-cols-2 gap-2">
                  <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Skew X</span>
+                        <span>{t('skew.skewX')}</span>
                         <span>{Math.round(values.skewX)}°</span>
                     </div>
                     <input
@@ -40,7 +42,7 @@ export function SkewTaperProperties({ values, onChange, onStartDirDrag, onStopDi
                 </div>
                  <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Skew Y</span>
+                        <span>{t('skew.skewY')}</span>
                         <span>{Math.round(values.skewY)}°</span>
                     </div>
                     <input
@@ -58,7 +60,7 @@ export function SkewTaperProperties({ values, onChange, onStartDirDrag, onStopDi
              <div className="space-y-3 pt-2">
                  <div className="space-y-2">
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span>Fake 3D Depth (Taper)</span>
+                        <span>{t('skew.fakeDepth')}</span>
                         <span>{values.skewZ}</span>
                     </div>
                     <input
@@ -70,13 +72,13 @@ export function SkewTaperProperties({ values, onChange, onStartDirDrag, onStopDi
                         onDoubleClick={() => onChange('skewZ', 0)}
                         className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
                     />
-                    <p className="text-[9px] text-muted-foreground">Simulates 3D perspective by tapering side</p>
+                    <p className="text-[9px] text-muted-foreground">{t('skew.taperHint')}</p>
                 </div>
 
                 {values.skewZ !== 0 && (
                      <div className="space-y-2">
                         <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>Taper Direction</span>
+                            <span>{t('skew.taperDirection')}</span>
                             <span>{values.taperDirection}</span>
                         </div>
                         <input

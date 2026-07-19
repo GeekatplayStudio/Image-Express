@@ -1,21 +1,194 @@
-# Image Express - Open Source AI Design Studio
+<div align="center">
 
-Image Express is a professional content creation platform built with Next.js 16, TypeScript, Tailwind CSS, and Fabric.js. It seamlessly integrates 2D design with AI-powered 3D model generation.
+<img src="docs/screenshots/hero-banner.svg" alt="Image Express — the open-source AI design studio" width="100%" />
 
-**Open Source Project by [GeekatplayStudio](https://github.com/GeekatplayStudio)**
+# Image Express
 
-## 🌟 Connect with Us
+**The free, open-source design studio that fuses a professional 2D canvas, live 3D generation, and any AI provider — local or cloud — into one workspace. Skin the whole thing with downloadable animated theme packs.**
 
-- **GitHub Repository**: [GeekatplayStudio](https://github.com/GeekatplayStudio)
-- **LinkedIn**: [Geekatplay](https://www.linkedin.com/in/geekatplay/)
-- **YouTube (English)**: [@geekatplay](https://www.youtube.com/@geekatplay)
-- **YouTube (Russian)**: [@geekatplay-ru](https://www.youtube.com/@geekatplay-ru)
-- **Website**: [Geekatplay.com](https://www.geekatplay.com)
-- **Photography**: [ChopinePhotography.com](https://www.chopinephotography.com)
+[![License: Open Source](https://img.shields.io/badge/license-open--source-2563eb)](#-license)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)](https://www.typescriptlang.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Docker%20%7C%20Web-6b7280)](#-install--run-choose-your-path)
+[![Languages](https://img.shields.io/badge/UI%20languages-11-16a34a)](#-11-languages-out-of-the-box)
+
+**[Quick Install](#-install--run-choose-your-path)** ·
+**[Features](#-why-image-express)** ·
+**[Screenshots](#-see-it-in-action)** ·
+**[Themes](#-make-it-yours-animated-theme-packs)** ·
+**[Support the Project](#-support-the-project)**
+
+</div>
+
+---
+
+## What is Image Express?
+
+Most design tools make you juggle three separate apps: a vector/raster editor for layout, a 3D viewer for product shots and models, and a web console for AI generation. **Image Express is all three in one.** Design a poster, generate a 3D model from text, pose it, bake a flat render straight onto your canvas, retouch it with a real healing brush, run it past a local AI critique, and export — without ever leaving the tab.
+
+It runs anywhere: as a **desktop app** on Windows/macOS, as a **self-hosted web app** in Docker, or straight from **npm** on your own machine. Every AI feature works with **your own keys** (Stability, OpenAI, Gemini, Meshy, Tripo, Hitem3D) or **entirely offline** with local ComfyUI and Ollama — your prompts and images never have to touch our servers, because we don't have any.
+
+---
+
+## 🚀 Install & Run — Choose Your Path
+
+Every path below **downloads your own copy from GitHub** — nothing is pre-bundled, so installs stay small and always current.
+
+### 🟢 Easiest: one file, double-click, done
+
+| Platform | Download | What happens |
+|---|---|---|
+| **Windows** | [`install.bat`](install.bat) | Double-click. It installs Git/Node 24 if missing, downloads Image Express, installs dependencies, and offers to launch it. |
+| **macOS** | [`install.command`](install.command) | Same thing. Right-click → **Open** the first time to satisfy Gatekeeper. |
+
+That's it — no terminal, no `git clone`, no npm commands. Every step (and any error) is written to a plain-text log you can send us if anything goes sideways:
+`%USERPROFILE%\ImageExpress-setup.log` (Windows) / `~/ImageExpress-setup.log` (macOS).
+
+**Running it again later?** Use the matching **start** file already inside your install folder — `start.bat` / `start.command`. It checks for updates, rebuilds only if needed, and opens your browser automatically.
+
+### 🖥️ Native app (no browser tab at all)
+
+Prefer a real desktop application with a dock/taskbar icon and its own window? Grab the packaged installer from **[GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases)**:
+- **Windows**: `ImageExpress-Setup-<version>.exe` — genuinely one-click (no dialogs, no options), installs and launches itself.
+- **macOS**: `ImageExpress-<version>-<arch>.dmg` (Intel + Apple Silicon).
+
+If it ever fails to start, the crash reason is always saved to a startup log (`%APPDATA%\creative-flow\startup-trace.log` on Windows, `~/Library/Application Support/creative-flow/` on macOS) — attach it to a bug report and we'll know exactly what happened.
+
+### 🔄 Auto-updates, on your terms
+
+Image Express checks GitHub for a newer version shortly after every launch and **asks before touching anything** — accept and it updates itself in place, or say no and keep working. Turn the automatic check on/off anytime in **Settings → Workspace → Updates**, or trigger it manually with one click. The updater refuses to run over local changes and only ever fast-forwards, so it can never overwrite your work or create a conflict.
+
+### 🐳 Self-host it (Docker / your own server)
+
+```bash
+docker build -t image-express .
+docker run -p 3000:3000 image-express
+```
+
+Or classic npm on any server:
+
+```bash
+git clone https://github.com/GeekatplayStudio/Image-Express.git
+cd Image-Express && npm install
+npm run build && npm run start
+```
+
+### 🧑‍💻 Developer / npm scripts
+
+```bash
+npm run dev              # web dev server → http://localhost:3000
+npm run desktop:dev      # Electron desktop shell, hot reload
+npm run desktop:build    # package installers (Win NSIS / mac DMG / Linux AppImage)
+npm run install:super    # interactive ComfyUI + Ollama installer, models fully opt-in
+```
+
+Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key configuration: **[docs/INSTALLATION.md](docs/INSTALLATION.md)** · desktop packaging internals: **[docs/DESKTOP.md](docs/DESKTOP.md)** · driving the app from AI agents (Claude Desktop/Code) via Model Context Protocol: **[docs/MCP.md](docs/MCP.md)** · canonical terminology (workspace / canvas / page / album / library): **[docs/GLOSSARY.md](docs/GLOSSARY.md)**.
+
+> **Privacy by design**: no telemetry, no bundled models, no bundled art assets — a fresh clone is source code only. Every AI feature is opt-in and uses whichever provider *you* configure, including 100%-local ComfyUI + Ollama with zero cloud calls.
+
+---
+
+## 🖼 See It In Action
+
+<table>
+<tr>
+<td width="50%">
+
+**The full studio** — infinite 2D canvas, professional layer stack, retouch suite, and a context-aware properties panel with curves, channels, and non-destructive masks.
+
+</td>
+<td width="50%">
+
+**The Stack** — every canvas in your project floating as a live plane in true 3D space. Drag to orbit, scroll to zoom, arrow-key between pages. Zoom out further and it becomes **Federation** view — your whole workspace as a flyable map of projects.
+
+</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/feature-editor.svg" alt="Image Express main editor: canvas, layers, and properties panel" width="100%" /></td>
+<td><img src="docs/screenshots/feature-stack-view.svg" alt="Image Express 3D Stack View of multiple linked canvases" width="100%" /></td>
+</tr>
+</table>
+
+---
+
+## ⭐ Why Image Express
+
+### One canvas, three disciplines
+- **Infinite 2D vector/raster canvas** (Fabric.js) with professional layer management — locking, folders, multi-select, arrange mode, non-destructive clip masks with gradient fades.
+- **Live 3D layer editor** (Three.js/WebGL) — pose, light, and shadow a generated or uploaded 3D model right inside a canvas layer.
+- **⚡ Frame Bake** — our name for capturing the exact 3D pose you like and baking it into a flat, further-editable 2D PNG layer with one click. Design in 3D, finish in 2D, no round-trip to another app.
+- **Real retouching brushes**: Spot Healing, Clone Stamp, Dodge, Burn, Sponge, History Brush, Blur/Sharpen — not filter presets, actual brush-based tools.
+- **Curved & circular text**, 13 font families, gradient editor, extended shape library, perspective front/back presets.
+- **Photoshop-grade shortcuts**: `V/M/L/W/T/U/P/B/J/S/O/G/I/C/H/Z`, Space-drag pan, Alt-drag duplicate, full undo/redo history.
+
+### 🧩 Canvas Stacking & Cross-Canvas Sync *(unique to Image Express)*
+Most tools give you one canvas per document. Image Express gives every project a whole **deck of canvases** you flip between instantly — and any layer can be marked **Linked**, broadcasting itself into every other canvas (even across different projects). Edit the linked object once — move it, recolor it, adjust it — and every copy across your entire workspace updates in real time. The **Stack View** visualizes these links as glowing bridge-curves between floating 3D planes, so you can literally *see* your project's data flow, node-editor style. Perfect for template families, multi-page campaigns, and brand-kit consistency.
+
+### 🤖 Any AI you want — local or cloud, your keys, your rules
+- **3D generation**: Meshy, Tripo, and Hitem3D — full PBR texturing, background job polling.
+- **2D generation**: Stability AI, OpenAI (DALL·E 3), Google Gemini, Banana.dev/NanoBanana, and full **ComfyUI** integration (local, Docker, or Comfy Cloud) with a workflow library browser and same-origin proxying.
+- **100% local option**: run **Ollama** for local SVG generation and layer/canvas **AI Critique** — nothing ever leaves your machine. The app auto-detects missing local models and offers an inline one-click install.
+- **AI Edit Notes (Beta)**: annotate a layer with point notes, save a flattened reference layer with embedded edit instructions, and hand it straight to a ComfyUI/Flux workflow for guided AI editing.
+- A **polymorphic AI adapter layer** means every provider returns the same normalized shape to the UI — swap providers mid-project with zero rework.
+
+### 📚 Real asset & project management
+- **Asset Library**: drag-drop ingestion, folders, search, personal-vs-shared scope, public/private visibility, and **live rotating 3D previews on hover** for 3D models, video, and audio thumbnails.
+- **Portable Library Bundles**: export your entire asset library (with owner/visibility metadata) as one file and re-import it on another machine or project.
+- **Server-side design storage** (no browser-storage limits), optional **Google Drive backup** mirroring every save automatically, and full **export** to PNG/JPG/SVG/PDF/JSON/self-contained offline HTML.
+
+### 🌍 11 languages out of the box
+English, German, Spanish, French, Italian, Japanese, Polish, Portuguese, Russian, Ukrainian, and Chinese — full UI coverage from the dashboard to the deepest properties panel, with automatic locale persistence.
+
+### 🎭 Themes that are actually alive
+Keep reading — this is the part that has to be seen to be believed. →
+
+---
+
+## 🎨 Make It Yours: Animated Theme Packs
+
+Interface themes aren't just color swaps here. A theme pack can restyle every panel, button, and font in the app **and** populate your dashboard with small, tasteful sprite animations and living background scenes — built entirely from CSS and PNG sprite sheets (no JavaScript ever ships inside a pack, so installing one is always safe).
+
+Everything below installs in one click from **Settings → Workspace → Interface Themes / Dashboard Ambience**, and nothing is bundled by default — only the classic look plus two accessibility/elegance themes ship with a fresh install. Everything else is a free download away.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/theme-pixel-rpg.svg" width="100%" alt="Pixel RPG animated theme: a dragon flies past a knight-built castle" /><br/><sub align="center"><b>Pixel RPG</b> — a dragon circles the sky, knights build (and lose) a castle, a full royal parade marches by, and yes, a knight can ride the dragon.</sub></td>
+<td width="50%"><img src="docs/screenshots/theme-pixel-cosmos.svg" width="100%" alt="Pixel Cosmos animated theme: a UFO lands and aliens run around" /><br/><sub align="center"><b>Pixel Cosmos</b> — flying saucers patrol the dashboard, land near your cursor, and aliens occasionally blaster-fight a giant space fly.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/theme-border-collie-wordflock.svg" width="100%" alt="Border Collie animated ambience: a flock of sheep spells out the word HELLO" /><br/><sub align="center"><b>Border Collie</b> — the flock literally spells words with their bodies, rehearses a sheep choir, holds a rock concert, and yes, there's a jetpack.</sub></td>
+<td width="50%"><img src="docs/screenshots/theme-rococo.svg" width="100%" alt="Rococo pastel theme with gilded double-border buttons" /><br/><sub align="center"><b>Rococo</b> — bundled by default. A soft pastel salon: warm cream, muted rose &amp; sage, gilded double-border buttons, serif type. Elegant, never overdone.</sub></td>
+</tr>
+</table>
+
+<img src="docs/screenshots/theme-clarity-contrast.svg" width="50%" alt="Clarity high-contrast accessibility theme" align="right" />
+
+**Clarity — High Contrast** ships bundled too: pure black/white AAA-contrast surfaces, thick 3px borders, and unmistakable bold-yellow focus rings, built specifically for low-vision comfort — because accessibility shouldn't be a paid add-on.
+
+Every animated pack comes with its own set of **original jokes and facts** that replace the dashboard's rotating quote ("A dragon's hoard is 90% gold and 10% things it sat on and forgot about."), a frequency slider to dial the animation from *Occasionally* to *Annoying*, and — because we know some of you want the studio to just be a studio — an always-available **default theme with zero animation**.
+
+Building your own pack is straightforward and fully documented in [`docs/THEME_PACKS_SPEC.md`](docs/THEME_PACKS_SPEC.md) — packs are just JSON + CSS + PNG, no build step, no code execution, ever.
+
+---
+
+## 💚 Support the Project
+
+Image Express is free and MIT-friendly open source, full stop — every feature above works without spending a cent. If it's useful to you and you'd like to say thanks, the most fun way is picking up an extra theme pack (dragons, aliens, sci-fi collies, and more retro-OS skins) from the shop below. It's entirely optional, genuinely appreciated, and every purchase goes straight back into building more of this.
+
+<div align="center">
+
+### **[🛍️ Browse more theme packs on Gumroad →](https://geekatplay.gumroad.com/)**
+
+*No purchase is required for any core feature — this is a thank-you tip jar with really good production values.*
+
+</div>
 
 ---
 
 ## 🛠️ Engineering Case Study
+
+<details>
+<summary><b>Click to expand — architecture, key decisions, and hard problems solved (for engineers evaluating the codebase)</b></summary>
 
 ### Executive Summary
 * **Problem**: Digital design workflows are typically fractured. Designers are forced to toggle between vector editors (e.g., Photoshop, Illustrator) for canvas layouts, separate WebGL environments for 3D staging, and distinct web interfaces (e.g., ComfyUI, Automatic1111) for generative AI tasks.
@@ -23,14 +196,11 @@ Image Express is a professional content creation platform built with Next.js 16,
 * **Who it is for**: Digital creators, visual designers, and developers looking for a customizable, extensible design suite that exposes professional vector, brush, and AI controls.
 * **Technical Interest**: Integrating a stateful 2D canvas (Fabric.js) with real-time 3D environments (Three.js), sandboxed desktop environments (Electron), and distributed, high-latency generative AI routes.
 
----
-
 ### Engineering Challenge
 * **Context Synchronization**: Managing coordinate systems and transformation matrices across independent 2D vector layouts and WebGL 3D scenes. When 3D layers are resized, scaled, or rotated, matrix math must translate user gestures from canvas coordinate space to WebGL clip space in real-time.
 * **Hybrid Execution & Network Fallbacks**: Transitioning dynamically between high-throughput cloud endpoints and local instances (ComfyUI, Ollama). The app must support Docker loopbacks (resolving local targets between `localhost` and `host.docker.internal`), handle transient service outages with server-side retries, and manage model downloads/installations inline.
 * **Memory & Layout Overhead**: Running high-resolution canvas brush engines (Spot Healing, Dodge, Burn, Clone Stamp), complex non-destructive raster masking, and nested vector folders without triggering browser memory leaks or dropping frame rates in Electron.
-
----
+* **Cross-Canvas State Propagation**: Once a layer can be "shared" across many canvases and projects simultaneously, every mutation (`object:modified`) has to fan out to every linked instance without creating circular update loops or desyncing transform state.
 
 ### Architecture Overview
 Image Express uses a modular, decoupled architecture separating canvas layouts, AI adapters, and application runtimes.
@@ -41,10 +211,11 @@ graph TD
     B --> C[Fabric.js 2D Vector Canvas]
     B --> D[Three.js WebGL 3D Inspector]
     B --> E[Command Manager / Serializable History]
-    
+    B --> J[Multi-Canvas Project Store + Stack/Federation 3D View]
+
     B --> F[Next.js API Gateway / Proxy]
     F --> G[Polymorphic AI Adapter Layer]
-    
+
     G --> H[Local AI Providers: ComfyUI / Ollama]
     G --> I[Cloud AI Providers: Stability / OpenAI / Meshy / Tripo / Gemini]
 ```
@@ -52,24 +223,21 @@ graph TD
 * **Canvas Engine**: Standard Fabric.js core extended with custom subclass renderers (e.g., `WarpedImage` for perspective transformations, custom prototype extensions for styled text layout cards).
 * **AI Abstraction Layer (`AiRuntimeManager`)**: A polymorphic adapter framework separating the front-end from individual generation APIs. It normalizes inputs and outputs, manages async polling states, and simplifies provider selection.
 * **Command Pattern Engine**: Tracks every user canvas interaction (moves, resizing, properties) as discrete, serializable command payloads. This provides a clear audit trail and enables reliable undo/redo capabilities.
-
----
+* **Multi-Canvas Project Store**: Each project owns an array of canvases plus a shared-layer registry (`sharedLayerId`); a Three.js overlay (`CanvasStackView`) renders every canvas as a floating textured plane and every project as a navigable "room" in Federation mode, with animated bridge curves tracing live shared-layer links.
+* **Theme/Ambience Pack Engine**: A sandboxed, code-free pack format (manifest JSON + CSS + PNG sprite sheets) drives both the interface theme system and a small built-in sprite/animation runtime (`SpriteTheater`, `DashboardAmbience`) — packs declare *scenes* from a fixed vocabulary (fly-across, chase, build-and-destroy, word-formation, concert, dance party, ...) that the app itself interprets and renders; no pack can execute arbitrary code.
 
 ### Technology Choices
 * **Next.js 16 (App Router) & TypeScript**: Provides a robust SSR framework combined with static type safety. TypeScript coordinates complex Fabric interface configurations (`ExtendedFabricObject`) and ensures strict API contracts for polymorphic AI payloads.
 * **Fabric.js**: Selected as the 2D layout engine for its out-of-the-box object tree, mouse event handling, vector controls, and serialization/cloning support.
   * *Alternatives Considered*: Native HTML5 Canvas API (rejected due to the excessive overhead of rebuilding selection bounds, multi-select, scaling anchors, and layered object rendering from scratch). Pixi.js (rejected because its WebGL focus makes vector editing, text path alignments, and standard SVG rendering overly complex).
-* **Three.js & React Three Fiber**: Used for the WebGL 3D layer inspector overlay. Provides high-fidelity rendering, lighting controls, shadow maps, and PBR textures within a canvas container.
-* **Electron**: Wraps the web application into a sandboxed desktop container, unlocking native filesystem access, automatic updates, and hardware acceleration.
-
----
+* **Three.js & React Three Fiber**: Used for both the WebGL 3D layer inspector overlay and the Stack/Federation project-navigation view. Provides high-fidelity rendering, lighting controls, shadow maps, and PBR textures within a canvas container.
+* **Electron**: Wraps the web application into a sandboxed desktop container. The production server now runs as an independent child process (not `require()`d in-process) so a server crash can never take the window down with it, with a free-port scan on launch and full startup tracing to a log file for support.
 
 ### Key Engineering Decisions
 * **Polymorphic AI Adapter Pattern**: To prevent API-specific leakage into React views, all generative actions run through `AiRuntimeManager`. This normalizes disparate responses into a unified structure, allowing hot-swapping between cloud engines and local models (e.g., local Ollama for SVG layouts vs. OpenAI or Stability).
 * **Prototype-Injected Text Background Rendering**: Instead of writing separate wrapper groups that must manually re-align whenever text is modified, we patched `_render` directly on `fabric.IText` and `fabric.Textbox` prototypes. This intercepts the Fabric draw call, dynamically rendering styled rectangles, capsule pills, or speech bubble frames behind the text glyphs in real-time as the user types.
 * **Centralized Command Persistence**: All editor actions are serialized to JSON commands. This makes the workspace history replayable, supports automated offline dry-runs for quality testing, and prepares the codebase for future real-time collaborative syncing.
-
----
+* **No-Code-In-Packs Guarantee**: Theme and ambience packs are validated server-side (zip-slip protection, extension allow-lists, CSS pattern scanning for `@import`/external URLs, SVG script-tag stripping) before install, and every visual "scene" is drawn by first-party engine code reading declarative JSON — a pack can look like anything but can never run anything.
 
 ### Tradeoffs
 * **Canvas Overlay vs. Native Grouping for 3D Layers**:
@@ -79,8 +247,6 @@ graph TD
   * *Decision*: All AI generation and storage requests pass through local Next.js API endpoints.
   * *Tradeoff*: Prevents client-side CORS failures and keeps private API keys secure. However, it introduces a minor routing latency and memory overhead on the server when transferring heavy high-resolution image assets or 3D files.
 
----
-
 ### Interesting Technical Problems
 * **Photoshop-Style Path Pen Loop Closure**:
   * *Problem*: When using the Pen tool to draw vector layouts, closing the shape by clicking the initial anchor point was unreliable, causing unclosed paths.
@@ -88,252 +254,28 @@ graph TD
 * **Text Circular Arcs & 360-Degree Wraps**:
   * *Problem*: Traditional text-on-path implementations using quadratic Bezier curves (`Q`) are constrained to soft curves and cannot wrap past $180^\circ$ to form a closed circle.
   * *Solution*: Replaced the parabolic curve math with SVG Arc commands (`A`) configured with radius $R = L/\theta$, swept flags, and large-arc thresholds ($>180^\circ$). This aligns text glyphs seamlessly up to a full $359.5^\circ$ circle.
-
----
+* **Desktop Packaging Whole-Project Trace Leak**:
+  * *Problem*: Next.js's standalone output tracer followed a few `path.join(process.cwd(), ...)` calls into treating the *entire monorepo* (including `.git`, local asset libraries, and build output) as a server dependency, ballooning a packaged desktop build from ~350 MB to over 5 GB.
+  * *Solution*: Added `turbopackIgnore` hints at each dynamic-path call site plus an explicit `outputFileTracingExcludes` allowlist in `next.config.ts`, and moved `node_modules`/`.next` copying in the Electron packaging config to explicit `extraResources` entries (electron-builder silently skips dot-directories and `node_modules` in its default glob).
 
 ### Performance & Scalability
 * **Clipping Mask Render Optimization**: Complex nested vector masks degrade layout frames. The engine caches path clip states and limits recalculation to selected or actively edited layers.
 * **Asynchronous Polling & Socket Management**: 3D generation can take minutes. The background scheduler uses async polling with exponential backoff and supports abort controllers to release socket pools immediately when jobs are cancelled.
-
----
+* **Sprite Theater Frequency Throttling**: Animated theme scenes default to a "rare vignette" cadence (minutes between scenes, one scene at a time, pauses in hidden tabs, disabled entirely under `prefers-reduced-motion`) so ambient personality never competes with actual work — with a user-facing slider for those who want more.
 
 ### Lessons Learned
 * **Proactive Component Extraction**: The primary editor file (`EditorView.tsx`) originally grew to over 7.4k lines, making it difficult to maintain. Extracting state, shortcuts, canvas wrappers, and history controls into dedicated hooks and components early in the project lifecycle is essential.
 * **Subclassing vs. Prototype Modification**: While prototype patching (e.g., for Text Backgrounds) is quick, it can lead to prototype clutter. A future iteration will refactor these into formal Fabric subclasses (e.g., `fabric.TextBoxWithFrame`) to clean up namespace collisions.
+* **Test Every Install Path For Real**: Assuming an installer script works because it "looks right" is how you ship a batch file that dies on the very first machine with a Node version manager installed. Every install/update/package flow in this project is now validated by actually running it end-to-end against a clean target directory, not just read for correctness.
+
+</details>
 
 ---
 
-## 🚀 Key Features
+## 🎨 Properties Panel Deep-Dive
 
-### Studio & Design
-- **Modern Dashboard**: Redesigned home screen with quick-start templates (Instagram, YouTube, A4), recent designs grid, and community support links.
-- **Infinite Canvas**: Advanced vector workspace using Fabric.js.
-- **Layer Management**: Professional locking, visibility, reordering, multi-select, and folder organization with a cleaner action strip, selected-layer inspector toggle (X/Y/W/H), and explicit Arrange Layers mode.
-- **Paint Folders**: Each paint session is grouped into a single folder; switching tools starts a new paint folder automatically.
-- **Advanced Masking**: Non-destructive masking functionality. Select two objects to mask the bottom one with the top one; includes support for inverting masks.
-- **Interactive Tools**: Gradient editor, expanded shapes (including cloud/thought bubble/hexagon/diamond), and text manipulation with multiline text editing in properties.
-- **Perspective Presets**: Selected layers can switch between Front and Back presentation in Properties to fake a backside view without adding extra skew.
-- **Retouching Suite**: Comprehensive canvas manipulation tools including Spot Healing, Remove, Clone Stamp, Blur, Sharpen, Dodge, Burn, Sponge, and History Brush.
-- **Export Options**: Export designs to PNG, JPG, SVG, PDF, JSON, and self-contained HTML bundles with all assets rewritten for offline playback.
-- **In-App Manual**: Contextual help modal with persistent chapter navigation and quick close actions.
-- **Workspace Crop & Picker Reliability**:
-  - Crop supports direct drag-draft selection in canvas workspace and apply-from-top controls.
-  - Eyedropper samples from clicked canvas points without switching layer selection state.
-  - Picker launches an expanded color wheel panel with harmony modes (complementary/triadic/tetradic/etc.) and saved swatches.
-
-### AI Capabilities
-- **Advanced 3D Generation**: 
-  - Integrated **Meshy**, **Tripo**, and **Hitem3D** AI for high-quality 3D models.
-  - **Interactive 3D Layer Editor**: Rotate, pan, and arrange 3D models seamlessly on the canvas with customizable environment lighting, shadows, and resolution.
-  - **Textured Models**: Enforced PBR texture generation for realistic results.
-  - **Background Processing**: Robust polling system for long-running AI tasks.
-- **Image Generation**: Provider-routed generation via ComfyUI, Stability, and OpenAI pathways.
-- **Google Gemini Image Generation**: The shared generator route now supports Gemini image generation using your saved Google API key, including aspect-ratio mapping for the current prompt zone.
-- **Local AI Critique with Ollama**:
-   - Persist local runtime settings for Ollama base URL and preferred model in Settings.
-   - Server-side Ollama routes retry transient network failures and hop between `localhost` and `host.docker.internal`, so the same saved setting can work when the app runs either directly on the host or inside Docker.
-   - Use Ollama as a first-pass local SVG generation provider in the shared image-generation modal.
-   - Run local critique against either the selected layer or the full canvas from the toolbar.
-   - Validate local model availability before sending critique requests.
-   - If the configured model is missing, the app now offers an inline install action in Settings, AI Critique, and Ollama generation flows.
-   - Run `npm run qa:ollama` to hit the live status, generation, and critique routes against a running app and local Ollama runtime.
-- **ComfyUI Workflow Library & Proxying**:
-   - Browse runnable server templates plus custom workflow-folder JSON imports from the app.
-   - Inspect and manage configured Comfy custom-node/workflow repositories.
-   - Use a same-origin Comfy proxy with loopback fallback handling for Docker/host setups.
-   - Local Comfy generation now verifies runtime availability before source capture or warmup and shows an inline status error when the configured server is unreachable.
-   - Image-based Comfy tasks hide the visible AI zone overlay during source export and now stop early if the captured source is almost entirely blank.
-   - Standard local Comfy runs persist the last prepared request snapshot in browser localStorage under `image-express-comfy-last-request`, including prepared positive/negative prompt text plus workflow and model metadata.
-   - `custom_nodes` and workflow-library settings can be entered as relative child paths of the configured Comfy install folder, which simplifies Docker-mounted installs.
-- **AI Edit Notes (Beta)**:
-   - Create a reference layer directly from the currently selected canvas layer.
-   - Annotate with a large notes workspace using point/manual notes.
-   - Remove point notes quickly with right-click and restore with Undo.
-   - Save a flattened reference-notes layer back to canvas with embedded instruction metadata (`aiEditPlanData`) for downstream ComfyUI handoff.
-   - Long-running jobs support manual abort and extended wait windows for heavy Comfy/Flux runs.
-   - Comfy recovery now supports explicit cancellation and avoids auto-resuming canceled prompt IDs.
-   - Aspect controls support a free custom primary value with model-adapted sizing guidance for render-time bucket alignment.
-
-### Storage & Management
-- **Server-Side Design Storage**: Designs are saved securely on the server (via filesystem in this edition), bypassing browser storage limits.
-- **Asset Library**: 
-  - Upload, organize, and manage images and 3D models.
-   - AI-generated and AI-processed outputs now save through the active storage mode, so they appear in the local library, Google Drive, or both according to current storage settings.
-  - **3D Previews**: Hover over any 3D model asset to see a real-time rotating 3D preview popup.
-  - **Renaming System**: Interactive renaming overlay for assets.
-- **Authentication**: Secure login system with server-side key persistence for API access.
-- **Profile Security**: Signed-in web accounts can change their password directly from the User Profile modal with current-password verification.
-- **Session Security**: Automatic 30-minute inactivity timeout for guest and web users to protect sessions.
-- **Audit Logging**: Automatic login activity logging with IP and user agent; viewable from Settings.
-- **Desktop Shell**: Single-codebase Electron build with auto-update checks and in-app update prompts.
-- **Optional Drive Backup**: One-click Google Drive integration to mirror saved designs into your personal Drive folder.
-
-## 🚀 Deployment
-
-### ⚡ One-Click Launcher (Recommended)
-
-The easiest way to run Image Express — no terminal required. Double-click:
-
-* **macOS**: `LaunchImageExpress.command`
-* **Windows**: `LaunchImageExpress.bat`
-
-This single click will:
-1. Check that Node.js is installed (and tell you where to get it if not).
-2. Pull the latest updates from GitHub, if it's safe to do so (skips automatically if you have local changes or a diverged branch, so it never overwrites your work).
-3. Install/update dependencies only when needed (fast on repeat runs).
-4. Build and start the app, then open it in your browser automatically.
-
-On first run on macOS, right-click the `.command` file and choose **Open** once to satisfy Gatekeeper; after that, double-clicking works normally.
-
-### 🔄 Updating
-
-Image Express can update itself from GitHub:
-
-* **In the app**: open **Settings → Workspace → Updates** to see whether a newer version is available (it shows your current branch/commit and how many commits behind you are).
-* **From a terminal** in the install folder:
-  ```bash
-  npm run update          # pull latest code + reinstall deps if they changed
-  npm run update:check    # just report whether an update exists
-  ```
-  The updater is safe: it refuses to run over uncommitted local changes and only fast-forwards (it can never create merge conflicts). Restart the app afterwards.
-* The **One-Click Launcher** also pulls safe updates automatically on every start.
-
-### 🛠️ Interactive Scripts (Start & Build)
-
-For convenience, helper scripts are provided to start and build the application on macOS, Linux, and Windows. They automatically check for dependencies (`node_modules`) and prompt to install them if missing, then offer an interactive menu of start/build options (Desktop/Web and Development/Production modes).
-
-#### On macOS / Linux (Standard Terminal):
-On macOS, it is normal and recommended to run commands directly via `npm`, but you can also use the interactive shell scripts:
-* **Interactive Start**: `./start.sh`
-* **Interactive Build**: `./build.sh`
-* **Normal Web Dev**: `npm run dev` (Starts development server on [http://localhost:3000](http://localhost:3000))
-* **Normal Web Prod Build**: `npm run build` && `npm run start`
-* **Normal Desktop Dev**: `npm run desktop:dev` (Starts local Next.js dev server and launches Electron app)
-* **Normal Desktop Build**: `npm run desktop:build` (Builds and packages desktop installers)
-
-#### On Windows (PC):
-* **Interactive Start**: Run `start.bat` (from command line/PowerShell or by double-clicking it)
-* **Interactive Build**: Run `build.bat` (from command line/PowerShell or by double-clicking it)
-
-### Quick Start (Local)
-
-1. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-2. **Run the development server**:
-   ```bash
-   npm run dev
-   ```
-
-3. **Open the app**:
-   Visit [http://localhost:3000](http://localhost:3000) (or port 3001 if 3000 is busy).
-
-### Desktop App (macOS & Windows)
-
-Run Image Express as a standalone desktop application without manual login on localhost.
-
-1. **Install dependencies** (once):
-   ```bash
-   npm install
-   ```
-2. **Desktop development mode** (hot reload for both Next.js and Electron):
-   ```bash
-   npm run desktop:dev
-   ```
-3. **Desktop production preview** (build + serve the desktop shell):
-   ```bash
-   npm run desktop:start
-   ```
-   This command runs `next build`, boots the standalone Next.js server on port 3927, and launches Electron.
-4. **Create installers** (macOS DMG, Windows NSIS, Linux AppImage):
-   ```bash
-   npm run desktop:build
-   ```
-
-Inside the packaged app the Settings modal exposes “Desktop Updates” so users can manually check for new releases. Automatic checks run shortly after startup and every six hours; when an update finishes downloading the modal offers a restart button to install it.
-
-### 🔑 API Key Configuration
-
-To unlock full AI capabilities, you need to configure your API keys in the **Settings** menu. Keys are stored locally in your browser for security.
-
-1. **Open Settings**: Click the gear icon in the top-right corner of the Hub or Editor.
-2. **Navigate to API Keys**: Select the relevant tab (3D Services or Image Services).
-3. **Enter Keys**: Paste your keys and click Save.
-
-#### Supported Services:
-
-**3D Generation (Text-to-3D):**
-- **[Meshy AI](https://www.meshy.ai/)**: Get your key from the Meshy Dashboard.
-- **[Tripo AI](https://www.tripo3d.ai/)**: Sign up and generate an API key.
-- **[Hy3D / Hitems](https://www.hitems.com/)**: Professional text-to-3D service. Supports either bearer token or `access_key:secret_key`. `hitems_appid` is optional and only required for some accounts.
-
-**2D Generation (Text-to-Image):**
-- **[Stability AI](https://platform.stability.ai/)**: For Stable Diffusion generation.
-- **[OpenAI](https://platform.openai.com/)**: For DALL-E 3 integration.
-- **Comfy Cloud**: The app can bootstrap `COMFY_CLOUD_URL` and `COMFY_CLOUD_API_KEY` from runtime env for both host and Docker runs. Free-tier Comfy Cloud accounts currently reject API-key authentication, so a saved key alone will still return the provider error reported by Comfy Cloud until that account tier supports API access.
-
-### Provider Key Validation (Settings)
-
-The Settings modal now includes built-in key validation before generation:
-
-- **Hitem3D**: server-side validation through `/api/ai/hitems/validate`.
-- **Meshy / Tripo / Google**: local preflight format checks to catch obvious key mistakes early.
-
-For Hitem3D, use **AK/SK mode** with `ak_...` + `sk_...` or **Token mode** with a bearer token. Successful Hitem validation stores normalized values for immediate use by the generator.
-
-### Optional: Google Drive Backups
-
-Keep a personal copy of every saved design in your Google Drive without exposing your credentials to the server.
-
-1. Create an OAuth **Web application** in Google Cloud Console and note the **Client ID**.
-2. Add the authorized JavaScript origins that match your dev/prod domains (e.g., `http://localhost:3000`).
-3. Either set the environment variable before starting the app _or_ paste the Client ID directly into the Settings modal:
-   ```bash
-   export NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
-   ```
-   Creating a `.env.local` works too; if omitted, you can paste the ID into **Settings → Google Drive Backup** and it will be stored locally.
-4. Google login reuses the same stored Client ID. In Docker or other production builds where `NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID` is not baked into the image, the login modal will use the Client ID saved in Settings.
-5. Run the app and open **Settings → Google Drive Backup → Connect** to approve access.
-6. After connecting, every successful save keeps the local copy and uploads a JSON snapshot (with thumbnail metadata) to the `Image Express Backups` folder in your Drive.
-
-### Docker Deployment
-
-This project includes a `Dockerfile` optimized for production.
-
-1. **Build**: 
-   ```bash
-   docker build -t image-express .
-   ```
-2. **Run**: 
-   ```bash
-   docker run -p 3000:3000 \
-     -e COMFY_CLOUD_URL="https://cloud.comfy.org" \
-     -e COMFY_CLOUD_API_KEY="your-comfy-cloud-key" \
-     image-express
-   ```
-
-For local ComfyUI folder management inside Docker, mount your Comfy install, `custom_nodes` folder, and optional workflow-library folder into the container. The configured install path must match the container-visible mount path, and relative `custom_nodes` / workflow-library values resolve from that install folder. If ComfyUI itself runs on the host machine, prefer `host.docker.internal` over `localhost` for server-side template scans.
-
-For host installs outside Docker, creating a local `.env.local` with the same `COMFY_CLOUD_URL` and `COMFY_CLOUD_API_KEY` values is enough for the app to preload the cloud configuration.
-
-## 🏗 Project Structure
-
-- **`src/app`**:
-  - `page.tsx`: Main layout handling views (Dashboard vs Editor).
-  - `api/`: Backend routes for AI proxies, assets, and **design persistence**.
-    - `api/designs/`: Endpoints for saving, listing, and deleting designs server-side.
-- **`src/components`**:
-  - `Dashboard.tsx`: Template selector and home view.
-  - `DesignCanvas.tsx`: Core Fabric.js workspace.
-  - `ThreeDGenerator.tsx`: AI integration panel.
-  - `PropertiesPanel.tsx`: Context-aware editing sidebar.
-  - `properties/`: Modular property editors (Shadow, Stroke, Text, Filters, etc.)
-
-## 🎨 Properties Panel Features
-
-The Properties Panel provides comprehensive editing capabilities:
+<details>
+<summary><b>Click to expand — full adjustment, color, and shortcut reference</b></summary>
 
 ### Adjustment Layers
 - **Curves**: Spline-based color correction with per-channel control
@@ -359,11 +301,6 @@ The Properties Panel provides comprehensive editing capabilities:
 - **Per-Channel Controls**: Each editable channel supports opacity, composite masking, isolate, invert, and mask actions.
 - **Layer-Aware Behavior**: Selected images use non-destructive ColorMatrix filters, while fillable layers and solid-color adjustments support direct per-channel value edits.
 
-### AI Providers
-- **Google Gemini**: Shared zone generation route is live for image generation with the saved Google API key.
-- **Banana.dev**: Shared zone generation route is live when the server is configured with a Banana endpoint and the user has saved a Banana API key.
-- **NanoBanana**: AI Edit Notes can now route direct edit jobs through the Banana runtime instead of returning the earlier stub image.
-
 ### Shadow & Stroke
 - **Drop Shadow**: Blur (0-150px), Offset (±200px), Opacity, Blend Modes
 - **Inside Stroke**: Renders over fill
@@ -386,43 +323,60 @@ The Properties Panel provides comprehensive editing capabilities:
 - **Creation & Retouch**: `T` Text, `U` Shapes, `P` Pen, `B` Brush, `R` Blur, `J` Healing, `S` Clone Stamp, `O` Dodge, `G` Gradient, `I` Eyedropper, `C` Crop, `H` Hand, `Z` Zoom.
 - **History & Selection**: `Cmd/Ctrl+J` duplicates, `Cmd/Ctrl+D` deselects, `Cmd/Ctrl+Z` and `Cmd/Ctrl+Alt+Z` undo, `Cmd/Ctrl+Shift+Z` redo.
 
+</details>
+
+---
+
+## 🔑 API Key Configuration
+
+To unlock AI features, add your own keys in **Settings** — they're stored locally, never on our servers.
+
+**3D Generation (Text-to-3D)**: [Meshy AI](https://www.meshy.ai/) · [Tripo AI](https://www.tripo3d.ai/) · [Hitem3D](https://www.hitems.com/) (bearer token or AK/SK)
+
+**2D Generation (Text-to-Image)**: [Stability AI](https://platform.stability.ai/) · [OpenAI](https://platform.openai.com/) (DALL·E 3) · Google Gemini · Comfy Cloud (`COMFY_CLOUD_URL` / `COMFY_CLOUD_API_KEY`)
+
+**Fully local, zero cost, zero cloud**: local ComfyUI + local Ollama — no API key needed at all.
+
+Settings includes built-in key validation (server-side for Hitem3D, format preflight for Meshy/Tripo/Google) so typos get caught before you burn a generation credit.
+
+**Optional Google Drive backup**: create an OAuth Web-app Client ID in Google Cloud Console, paste it into **Settings → Google Drive Backup**, click Connect — every save now also mirrors to a Drive folder automatically. Full steps in [docs/INSTALLATION.md](docs/INSTALLATION.md).
+
+---
+
+## 🏗 Project Structure
+
+```
+src/app/            Next.js App Router pages + all API routes (AI proxies, assets, designs, themes)
+src/components/      Dashboard, DesignCanvas, ThreeDGenerator, PropertiesPanel, Editor/, properties/
+src/lib/             AI adapters, multi-canvas store, theme/ambience engines, i18n, storage
+electron/            Desktop shell (child-process server boot, auto-updater, startup logging)
+theme-packs/          Theme-pack authoring workspace (gitignored — packs are downloads, not source)
+ambience-packs/       Dashboard-ambience authoring workspace (gitignored, same reasoning)
+docs/                Full documentation set — installation, desktop packaging, theme spec, and more
+```
+
 ## 🛠 Tech Stack
 
-- **Framework**: Next.js 16 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Graphics**: Fabric.js (2D), Three.js / React Three Fiber (3D)
-- **Icons**: Lucide React
+Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three.js / React Three Fiber (3D) · Electron · Lucide React
 
 ## 📚 Documentation
 
-- Easy install guide (PC/Mac + optional ComfyUI/Ollama): [docs/INSTALLATION.md](docs/INSTALLATION.md)
-- HTML export details, asset coverage, and QA guidance: [docs/html-export-notes.md](docs/html-export-notes.md)
-- Current implementation status and handoff checkpoint: [docs/unified_progress_status.md](docs/unified_progress_status.md)
-- Editor ownership map for ongoing refactors: [docs/component_responsibility_map.md](docs/component_responsibility_map.md)
-- Current large-component audit and extraction plan: [docs/refactor_component_audit_2026-02-26.md](docs/refactor_component_audit_2026-02-26.md)
-- Current repo maintenance audit snapshot: [docs/repo_maintenance_audit.md](docs/repo_maintenance_audit.md)
-- Latest release notes (Apr 2 2026): [docs/release_notes_2026-04-02.md](docs/release_notes_2026-04-02.md)
+- [docs/INSTALLATION.md](docs/INSTALLATION.md) — full install guide (PC/Mac, ComfyUI, Ollama, Docker, Drive backup)
+- [docs/DESKTOP.md](docs/DESKTOP.md) — desktop packaging, auto-update, and startup-log internals
+- [docs/THEME_PACKS_SPEC.md](docs/THEME_PACKS_SPEC.md) — build your own theme/ambience pack (no code required)
+- [docs/html-export-notes.md](docs/html-export-notes.md) — HTML export details and asset coverage
+- [docs/i18n_multilanguage_support.md](docs/i18n_multilanguage_support.md) — translation system and adding a language
 
-Validation status as of 2026-04-02:
-- `npm.cmd test -- --runInBand --ci` -> 57/57 suites passed on the latest full-suite validation run
-- `npm.cmd test -- --runInBand src/components/__tests__/imageGeneratorModalUtils.test.ts src/lib/__tests__/ollamaServer.test.ts src/lib/comfyui/__tests__/registry.test.ts src/components/__tests__/PropertiesPanel.test.tsx src/components/properties/__tests__/SelectionProperties.test.tsx` -> passed (5 suites / 26 tests)
-- `npm.cmd run build` -> passed
-- Docker image rebuilt and `image-express-app` returned HTTP 200 on port 3000
+---
 
-Maintenance audit:
-- `npm run audit:repo` -> reports oversized source/test files, large modules without a direct same-name test heuristic, and runtime `coming soon` / `not implemented yet` markers.
-- `npm run qa:ollama` -> exercises the live Ollama status, generation, and critique routes against the running app.
-- `npm run qa:overlay` -> runs the browser-level export and media-overlay verification suites.
-- Playwright output folders such as `test-results/` and `playwright-report/` are intentionally ignored.
-- Current generated-asset saves, Comfy/Ollama runtime fallbacks, navigator thumbnail preview, and circular-context-menu sync are all tracked in the latest release notes.
+## 🌟 Connect With Us
 
-## Editor Refactor Status
+- **GitHub**: [GeekatplayStudio](https://github.com/GeekatplayStudio)
+- **Theme Packs & Support**: [geekatplay.gumroad.com](https://geekatplay.gumroad.com/)
+- **LinkedIn**: [Geekatplay](https://www.linkedin.com/in/geekatplay/)
+- **YouTube (EN)**: [@geekatplay](https://www.youtube.com/@geekatplay) · **YouTube (RU)**: [@geekatplay-ru](https://www.youtube.com/@geekatplay-ru)
+- **Website**: [Geekatplay.com](https://www.geekatplay.com) · **Photography**: [ChopinePhotography.com](https://www.chopinephotography.com)
 
-- `src/components/Editor/EditorView.tsx` has been reduced from 7,453 lines to 1,337 lines through progressive hook and component extraction.
-- Header, menu, overlay, workspace shell, workspace canvas, panel shell, export support, selection interactions, retouch interactions, and shell side-effects are now owned by dedicated modules under `src/components/Editor/`.
-- The canonical refactor handoff documents are:
-  - `docs/component_responsibility_map.md`
-  - `docs/refactor_component_audit_2026-02-26.md`
-  - `docs/feature_implementation_tracker.md`
-  - `docs/unified_progress_status.md`
+<div align="center">
+<sub>Copyright © 2026 V Chopine and Geekatplay Studio. Open source, built for creators who don't want to choose between a design tool, a 3D viewer, and an AI console.</sub>
+</div>

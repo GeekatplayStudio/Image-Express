@@ -5,6 +5,7 @@ import { ExtendedFabricObject } from '@/types';
 import { moveObjectToGroup, moveObjectToCanvas, applyAlphaToColor } from '@/lib/fabric-utils';
 import { APP_THEME } from '@/lib/theme-tokens';
 import { ColorPicker } from './ColorPicker';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface PaintPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -16,6 +17,7 @@ interface PaintPropertiesProps {
 }
 
 export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsUpdate }: PaintPropertiesProps) {
+    const { t } = useI18n();
     const [paintColor, setPaintColor] = useState('#000000');
     const [brushSize, setBrushSize] = useState(10);
     const [brushType, setBrushType] = useState('Pencil');
@@ -298,7 +300,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
             <div className="p-5 space-y-6">
                 <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brush Type</label>
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('paint.brushType')}</label>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                             {['Pencil', 'Spray', 'Oil', 'Watercolor'].map(b => (
@@ -330,7 +332,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                     <ColorPicker 
                         color={paintColor} 
                         onChange={setPaintColor} 
-                        label="Paint Color" 
+                        label={t('paint.paintColor')} 
                     />
                     
                     <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide pt-1">
@@ -348,7 +350,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
 
                 <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Opacity</label>
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('ctrl.opacity')}</label>
                         <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{Math.round(paintOpacity * 100)}%</span>
                     </div>
                     <input 
@@ -364,7 +366,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
 
                 <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brush Size</label>
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('paint.brushSize')}</label>
                         <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{brushSize}px</span>
                     </div>
                     <input 
@@ -382,7 +384,7 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
                 {(brushType === 'Pencil' || brushType === 'Watercolor' || brushType === 'Oil') && (
                         <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Softness</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('fx.softness')}</label>
                             <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{brushBlur}</span>
                         </div>
                         <input 
@@ -399,19 +401,19 @@ export function PaintProperties({ canvas, activeTool, onExpandFolder, onObjectsU
 
                 <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Blending Mode</label>
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('paint.blendingMode')}</label>
                     </div>
                     <select 
                         value={paintBlendMode}
                         onChange={(e) => setPaintBlendMode(e.target.value)}
                         className="w-full bg-secondary btn-ghost text-xs p-2 rounded-md border border-border/50 outline-none"
                     >
-                        <option className="bg-zinc-950 text-white" value="source-over">Normal</option>
-                        <option className="bg-zinc-950 text-white" value="multiply">Multiply (Watercolor)</option>
-                        <option className="bg-zinc-950 text-white" value="screen">Screen</option>
-                        <option className="bg-zinc-950 text-white" value="overlay">Overlay</option>
-                        <option className="bg-zinc-950 text-white" value="darken">Darken</option>
-                        <option className="bg-zinc-950 text-white" value="lighten">Lighten</option>
+                        <option className="bg-zinc-950 text-white" value="source-over">{t('blend.normal')}</option>
+                        <option className="bg-zinc-950 text-white" value="multiply">{t('paint.multiplyWatercolor')}</option>
+                        <option className="bg-zinc-950 text-white" value="screen">{t('blend.screen')}</option>
+                        <option className="bg-zinc-950 text-white" value="overlay">{t('blend.overlay')}</option>
+                        <option className="bg-zinc-950 text-white" value="darken">{t('blend.darken')}</option>
+                        <option className="bg-zinc-950 text-white" value="lighten">{t('blend.lighten')}</option>
                     </select>
                 </div>
 

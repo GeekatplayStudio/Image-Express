@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import * as fabric from 'fabric';
 import { ExtendedFabricObject, AdjustmentLayerSettings, AdjustmentLayerType } from '@/types';
 import { TransformProperties } from './TransformProperties';
+import { CropProperties } from './CropProperties';
+import { readEdgeCrop } from '@/lib/imageCrop';
 import { LayoutProperties } from './LayoutProperties';
 import { LayerEffectsProperties } from './LayerEffectsProperties';
 import { TextProperties } from './TextProperties';
@@ -123,6 +125,7 @@ export function SelectionProperties({
     const { t } = useI18n();
     const getAdjustmentTypeLabel = (type: AdjustmentLayerType) => t(`adjust.${type}`);
     const [isTransformOpen, setIsTransformOpen] = useState(true);
+    const [isCropOpen, setIsCropOpen] = useState(false);
     const [colorMode, setColorMode] = useState<'RGB' | 'HSB' | 'CMYK' | 'Lab'>('RGB');
 
     const isMultiple = selectedObjects.length > 1;
@@ -174,13 +177,13 @@ export function SelectionProperties({
                     {selectedObjects.length === 2 && (
                         <>
                             <div className="w-px bg-border mx-2" />
-                            <button onClick={onCreateMask} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Mask Image with Shape">
+                            <button onClick={onCreateMask} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title={t('sel.maskImageWithShape')}>
                                 <Blend size={20} /> {t('panel.mask')}
                             </button>
                             {hasTextAndPath && onTextOnPath && (
                                 <>
                                     <div className="w-px bg-border mx-2" />
-                                    <button onClick={onTextOnPath} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title="Put Text on Path">
+                                    <button onClick={onTextOnPath} className="flex flex-col items-center gap-1 p-2 hover:bg-secondary rounded-md text-xs min-w-[60px]" title={t('sel.putTextOnPath')}>
                                          <Type size={20} /> {t('panel.path')}
                                     </button>
                                 </>
@@ -242,7 +245,7 @@ export function SelectionProperties({
                             <button
                                 onClick={onReleaseClipBelow}
                                 className="px-3 py-1.5 bg-tool-accent/20 text-tool-accent border-tool-accent/30 rounded text-xs flex items-center gap-2 border transition-colors"
-                                title="Release the clipping mask (stop clipping to the layer below)"
+                                title={t('sel.releaseClipTitle')}
                             >
                                 <CornerLeftDown size={14} /> {t('panel.releaseClip')}
                             </button>
@@ -252,7 +255,7 @@ export function SelectionProperties({
                             <button
                                 onClick={onClipToBelow}
                                 className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded text-xs flex items-center gap-2 border border-border/50 transition-colors"
-                                title="Clip this layer to the layer below it (Photoshop clipping mask)"
+                                title={t('sel.clipToBelowTitle')}
                             >
                                 <CornerLeftDown size={14} /> {t('panel.clipToBelow')}
                             </button>
@@ -264,7 +267,7 @@ export function SelectionProperties({
                                 <button
                                     onClick={onToggleMaskLock}
                                     className={`px-3 py-1.5 rounded text-xs flex items-center gap-2 border transition-colors ${!isMaskAbsolute ? 'bg-tool-accent/20 text-tool-accent border-tool-accent/30' : 'bg-secondary/50 hover:bg-secondary border-border/50'}`}
-                                    title={!isMaskAbsolute ? "Mask is locked to layer (Attached)" : "Mask is fixed on canvas (Detached/Window)"}
+                                    title={!isMaskAbsolute ? t('sel.maskLockedTitle') : t('sel.maskFixedTitle')}
                                 >
                                     {!isMaskAbsolute ? <Lock size={14} /> : <Unlock size={14} />}
                                     {!isMaskAbsolute ? t('panel.attached') : t('panel.detached')}
@@ -274,7 +277,7 @@ export function SelectionProperties({
                                 <button
                                     onClick={onEditMask}
                                     className="px-3 py-1.5 bg-secondary/50 hover:bg-secondary rounded text-xs flex items-center gap-2 border border-border/50 transition-colors"
-                                    title="Detach the mask shape onto the canvas to reshape it"
+                                    title={t('sel.detachMaskTitle')}
                                 >
                                     <Pencil size={14} /> {t('panel.editMask')}
                                 </button>
@@ -382,7 +385,7 @@ export function SelectionProperties({
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Path</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('panel.path')}</div>
                         <div className="grid grid-cols-2 gap-1">
                             <button
                                 onClick={() => onPropChange('penPathUpdate', { closed: false })}
@@ -457,27 +460,27 @@ export function SelectionProperties({
                     ) : (
                         <div className="space-y-3 bg-secondary/20 p-2 rounded-md">
                              <div className="flex items-center justify-between text-xs">
-                                 <label className="text-muted-foreground">Type</label>
+                                 <label className="text-muted-foreground">{t('panel.gradientType')}</label>
                                  <select 
                                     className="bg-background border border-border rounded px-1 py-0.5 text-xs"
                                     value={gradientState?.type}
                                     onChange={(e) => onPropChange('gradient', { ...gradientState, type: e.target.value })}
                                  >
-                                     <option value="linear">Linear</option>
-                                     <option value="radial">Radial</option>
+                                     <option value="linear">{t('panel.linear')}</option>
+                                     <option value="radial">{t('panel.radial')}</option>
                                  </select>
                              </div>
 
                              <div className="flex items-center gap-2">
                                  <div className="space-y-1 flex-1">
-                                     <span className="text-[10px] text-muted-foreground">Start</span>
+                                     <span className="text-[10px] text-muted-foreground">{t('panel.start')}</span>
                                      <ColorPicker 
                                          color={gradientState?.start || '#000000'} 
                                          onChange={(val) => onPropChange('gradient', { ...gradientState, start: val })} 
                                      />
                                  </div>
                                  <div className="space-y-1 flex-1">
-                                     <span className="text-[10px] text-muted-foreground">End</span>
+                                     <span className="text-[10px] text-muted-foreground">{t('panel.end')}</span>
                                      <ColorPicker 
                                          color={gradientState?.end || '#ffffff'} 
                                          onChange={(val) => onPropChange('gradient', { ...gradientState, end: val })} 
@@ -488,7 +491,7 @@ export function SelectionProperties({
                              {gradientState?.type === 'linear' && (
                                  <div className="space-y-1 pt-1">
                                      <div className="flex justify-between text-[10px] text-muted-foreground">
-                                         <span>Angle</span>
+                                         <span>{t('panel.angle')}</span>
                                          <span>{gradientState.angle}°</span>
                                      </div>
                                      <input 
@@ -509,7 +512,7 @@ export function SelectionProperties({
                              {gradientState?.type === 'linear' && gradientState.coords && (
                                  <div className="space-y-2 pt-2 border-t border-border/30 mt-2">
                                      <div className="flex items-center justify-between">
-                                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Control Points</div>
+                                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t('panel.controlPoints')}</div>
                                           <button 
                                             className="text-[10px] text-primary hover:text-primary/80"
                                             onClick={() => {
@@ -518,7 +521,7 @@ export function SelectionProperties({
                                                  // Reset to angle-based by removing coords
                                                  onPropChange('gradient', { ...rest });  
                                             }}
-                                            title="Reset points to follow Angle"
+                                            title={t('panel.resetToAngle')}
                                           >
                                             Reset to Angle
                                           </button>
@@ -526,7 +529,7 @@ export function SelectionProperties({
                                      <div className="grid grid-cols-2 gap-x-2 gap-y-3">
                                          <div className="space-y-1">
                                              <div className="flex justify-between text-[10px] text-muted-foreground">
-                                                 <span>Start X</span>
+                                                 <span>{t('sel.startX')}</span>
                                                  <span>{Math.round(gradientState.coords.x1 * 100)}%</span>
                                              </div>
                                              <input
@@ -543,7 +546,7 @@ export function SelectionProperties({
                                          </div>
                                          <div className="space-y-1">
                                              <div className="flex justify-between text-[10px] text-muted-foreground">
-                                                 <span>Start Y</span>
+                                                 <span>{t('sel.startY')}</span>
                                                  <span>{Math.round(gradientState.coords.y1 * 100)}%</span>
                                              </div>
                                              <input
@@ -560,7 +563,7 @@ export function SelectionProperties({
                                          </div>
                                          <div className="space-y-1">
                                              <div className="flex justify-between text-[10px] text-muted-foreground">
-                                                 <span>End X</span>
+                                                 <span>{t('sel.endX')}</span>
                                                  <span>{Math.round(gradientState.coords.x2 * 100)}%</span>
                                              </div>
                                              <input
@@ -577,7 +580,7 @@ export function SelectionProperties({
                                          </div>
                                          <div className="space-y-1">
                                              <div className="flex justify-between text-[10px] text-muted-foreground">
-                                                 <span>End Y</span>
+                                                 <span>{t('sel.endY')}</span>
                                                  <span>{Math.round(gradientState.coords.y2 * 100)}%</span>
                                              </div>
                                              <input
@@ -688,6 +691,31 @@ export function SelectionProperties({
                             onChange={(k, v) => onPropChange(k, v)}
                         />
                      </div>
+                )}
+            </div>
+            )}
+
+            {/* Crop — image layers only. Non-destructive per-side trimming;
+                distinct from the toolbar Adjust tool, which resizes the page. */}
+            {isImage && !isMultiple && (
+            <div className="bg-background border-b border-border/30">
+                <div className="flex items-center justify-between w-full p-3 hover:bg-secondary/30 transition-colors group">
+                    <button
+                        onClick={() => setIsCropOpen(!isCropOpen)}
+                        className="flex items-center gap-2 flex-1"
+                    >
+                        {isCropOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('panel.crop')}</span>
+                    </button>
+                </div>
+                {isCropOpen && (
+                    <div className="bg-secondary/5 animate-in slide-in-from-top-1 duration-150">
+                        <CropProperties
+                            edges={readEdgeCrop(selectedObject as fabric.Image)}
+                            onChange={(edges) => onPropChange('crop', edges)}
+                            onReset={() => onPropChange('crop', { left: 0, right: 0, top: 0, bottom: 0 })}
+                        />
+                    </div>
                 )}
             </div>
             )}

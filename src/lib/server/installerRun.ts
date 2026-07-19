@@ -207,7 +207,9 @@ function buildStepPlan(payload: InstallerRunPayload, config: InstallerConfig): I
 
 async function runInstallerStep(step: InstallerStepPlan): Promise<InstallerRunStepResult> {
     const started = Date.now();
-    const scriptAbsolutePath = path.join(process.cwd(), step.scriptPath);
+    // turbopackIgnore: the installer scripts are external tooling resolved at
+    // runtime, not bundle dependencies — keep the file tracer out of them.
+    const scriptAbsolutePath = path.join(/* turbopackIgnore: true */ process.cwd(), step.scriptPath);
     const args = [scriptAbsolutePath, ...step.args];
 
     let stdout = '';

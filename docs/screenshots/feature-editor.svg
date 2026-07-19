@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700">
+  <rect width="1200" height="700" fill="#18181f"/>
+  <!-- top bar -->
+  <rect width="1200" height="44" fill="#111116"/>
+  <rect x="16" y="12" width="20" height="20" rx="5" fill="#0891b2"/>
+  <text x="46" y="27" font-family="Arial" font-size="14" font-weight="bold" fill="#e2e8f0">Image Express</text>
+  <rect x="900" y="10" width="90" height="24" rx="12" fill="#0891b2"/>
+  <text x="945" y="26" font-family="Arial" font-size="11" text-anchor="middle" fill="#ffffff">Export</text>
+  <!-- tool options bar -->
+  <rect y="44" width="1200" height="30" fill="#151519"/>
+  <g font-family="Arial" font-size="10" fill="#94a3b8">
+    <rect x="16" y="50" width="46" height="18" rx="4" fill="#0891b2"/><text x="39" y="63" text-anchor="middle" fill="#fff">Move</text>
+    <text x="80" y="63">Marquee</text><text x="150" y="63">Lasso</text><text x="200" y="63">Wand</text>
+    <text x="250" y="63">Brush</text><text x="300" y="63">Path</text>
+  </g>
+  <!-- left toolbar -->
+  <rect x="0" y="74" width="52" height="626" fill="#151519"/>
+  <g fill="#3a3a44">
+    <rect x="14" y="90" width="24" height="24" rx="6"/><rect x="14" y="122" width="24" height="24" rx="6"/>
+    <rect x="14" y="154" width="24" height="24" rx="6"/><rect x="14" y="186" width="24" height="24" rx="6"/>
+    <rect x="14" y="218" width="24" height="24" rx="6" fill="#0891b2"/><rect x="14" y="250" width="24" height="24" rx="6"/>
+    <rect x="14" y="282" width="24" height="24" rx="6"/><rect x="14" y="314" width="24" height="24" rx="6"/>
+  </g>
+  <!-- canvas tab bar -->
+  <rect x="52" y="74" width="900" height="26" fill="#1c1c22"/>
+  <text x="66" y="91" font-family="Arial" font-size="11" fill="#67e8f9">canvas-1</text>
+  <rect x="130" y="79" width="60" height="16" rx="8" fill="#2a2a33"/>
+  <text x="160" y="91" font-family="Arial" font-size="9" text-anchor="middle" fill="#c4b5fd">◆ Stack</text>
+  <rect x="198" y="79" width="60" height="16" rx="8" fill="#2a2a33"/>
+  <text x="228" y="91" font-family="Arial" font-size="9" text-anchor="middle" fill="#86efac">⇄ Share</text>
+  <!-- canvas area -->
+  <rect x="52" y="100" width="900" height="600" fill="#0c0c10"/>
+  <g transform="translate(230,150)">
+    <rect width="500" height="500" fill="#ffffff"/>
+    <rect x="40" y="40" width="420" height="80" fill="#0f172a"/>
+    <text x="60" y="90" font-family="Arial" font-size="34" font-weight="900" fill="#ffffff">SUMMER</text>
+    <circle cx="380" cy="230" r="90" fill="#f97316"/>
+    <rect x="60" y="340" width="380" height="18" fill="#0891b2"/>
+    <rect x="60" y="370" width="260" height="12" fill="#94a3b8"/>
+    <rect x="60" y="392" width="180" height="12" fill="#cbd5e1"/>
+  </g>
+  <!-- selection handles -->
+  <g stroke="#0891b2" stroke-width="1.5" fill="none">
+    <rect x="230" y="150" width="500" height="500"/>
+    <rect x="226" y="146" width="8" height="8" fill="#0891b2" stroke="none"/>
+    <rect x="726" y="146" width="8" height="8" fill="#0891b2" stroke="none"/>
+    <rect x="226" y="646" width="8" height="8" fill="#0891b2" stroke="none"/>
+    <rect x="726" y="646" width="8" height="8" fill="#0891b2" stroke="none"/>
+  </g>
+  <!-- right properties panel -->
+  <rect x="952" y="74" width="248" height="626" fill="#151519"/>
+  <text x="968" y="96" font-family="Arial" font-size="12" font-weight="bold" fill="#e2e8f0">Properties</text>
+  <g fill="#2a2a33">
+    <rect x="968" y="112" width="216" height="1"/>
+  </g>
+  <text x="968" y="134" font-family="Arial" font-size="10" fill="#94a3b8">Canvas Size</text>
+  <rect x="968" y="144" width="100" height="26" rx="4" fill="#1f1f27" stroke="#33333d"/>
+  <rect x="1084" y="144" width="100" height="26" rx="4" fill="#1f1f27" stroke="#33333d"/>
+  <text x="968" y="200" font-family="Arial" font-size="10" fill="#94a3b8">Adjustments</text>
+  <g font-family="Arial" font-size="10" fill="#cbd5e1">
+    <rect x="968" y="210" width="216" height="22" rx="4" fill="#1f1f27"/><text x="978" y="225">Curves</text>
+    <rect x="968" y="238" width="216" height="22" rx="4" fill="#1f1f27"/><text x="978" y="253">Hue / Saturation</text>
+    <rect x="968" y="266" width="216" height="22" rx="4" fill="#1f1f27"/><text x="978" y="281">Color Balance</text>
+    <rect x="968" y="294" width="216" height="22" rx="4" fill="#1f1f27"/><text x="978" y="309">Drop Shadow</text>
+  </g>
+  <text x="968" y="340" font-family="Arial" font-size="10" fill="#94a3b8">Layers</text>
+  <g font-family="Arial" font-size="10" fill="#cbd5e1">
+    <rect x="968" y="350" width="216" height="24" rx="4" fill="#0891b2" opacity="0.25"/><text x="978" y="366">Headline Text</text>
+    <rect x="968" y="378" width="216" height="24" rx="4" fill="#1f1f27"/><text x="978" y="394">Sun Circle</text>
+    <rect x="968" y="406" width="216" height="24" rx="4" fill="#1f1f27"/><text x="978" y="422">Accent Bar</text>
+    <rect x="968" y="434" width="216" height="24" rx="4" fill="#1f1f27"/><text x="978" y="450">Body Text</text>
+  </g>
+</svg>

@@ -37,7 +37,7 @@ export default function Home() {
 
   // Design Context State
   const [currentDesignId, setCurrentDesignId] = useState<string | null>(null);
-  const [currentDesignName, setCurrentDesignName] = useState<string>('Untitled Design');
+  const [currentDesignName, setCurrentDesignName] = useState<string>('Untitled Page');
   
   // Pending Load State (from Dashboard selection)
   const [pendingDesignToLoad, setPendingDesignToLoad] = useState<{ data?: unknown } | null>(null);
@@ -159,7 +159,7 @@ export default function Home() {
     setShowLoginModal(false);
     setCurrentView('dashboard');
     setCurrentDesignId(null);
-    setCurrentDesignName('Untitled Design');
+    setCurrentDesignName('Untitled Page');
     setPendingDesignToLoad(null);
     setPendingTemplateJsonUrl(null);
   }, [isDesktopApp]);
@@ -272,7 +272,7 @@ export default function Home() {
           onBack={() => {
             setCurrentView('dashboard');
             setCurrentDesignId(null);
-            setCurrentDesignName('Untitled Design');
+            setCurrentDesignName('Untitled Page');
             setPendingDesignToLoad(null);
             setPendingTemplateJsonUrl(null);
             setPendingTool(null);
@@ -400,7 +400,7 @@ export default function Home() {
            <Dashboard 
               onNewDesign={(tool, size) => {
                   setCurrentDesignId(null);
-                  setCurrentDesignName('Untitled Design');
+                  setCurrentDesignName('Untitled Page');
                   setPendingDesignToLoad(null);
                   setPendingTemplateJsonUrl(null);
                   setPendingDesignSize(size || null);

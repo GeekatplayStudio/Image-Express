@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/providers/I18nProvider';
 import {
     Select,
     SelectContent,
@@ -55,19 +56,19 @@ interface TextEffectsPropertiesProps {
 }
 
 const presets = [
-    { id: 'drop-shadow', label: 'Drop Shadow' },
+    { id: 'drop-shadow', labelKey: 'fx.preset.dropShadow' },
     // Soft Shadow removed as duplicate
     // Outline removed as duplicate of Stroke
-    { id: 'double-outline', label: 'Double Outline' },
-    { id: 'glow', label: 'Glow' },
-    { id: 'neon', label: 'Neon' },
-    { id: 'highlight', label: 'Highlight' },
-    { id: 'gradient-fill', label: 'Gradient' },
-    { id: 'extrude', label: '3D Extrude' },
-    { id: 'bevel', label: 'Bevel' },
-    { id: 'sticker', label: 'Sticker' },
-    // { id: 'texture', label: 'Texture' },
-    { id: 'readability', label: 'Readability' },
+    { id: 'double-outline', labelKey: 'fx.preset.doubleOutline' },
+    { id: 'glow', labelKey: 'fx.preset.glow' },
+    { id: 'neon', labelKey: 'fx.preset.neon' },
+    { id: 'highlight', labelKey: 'fx.preset.highlight' },
+    { id: 'gradient-fill', labelKey: 'fx.preset.gradient' },
+    { id: 'extrude', labelKey: 'fx.preset.extrude' },
+    { id: 'bevel', labelKey: 'fx.preset.bevel' },
+    { id: 'sticker', labelKey: 'fx.preset.sticker' },
+    // { id: 'texture', labelKey: 'fx.preset.texture' },
+    { id: 'readability', labelKey: 'fx.preset.readability' },
 ];
 
 export function TextEffectsProperties({ 
@@ -76,7 +77,8 @@ export function TextEffectsProperties({
     effectConfigs, 
     onConfigChange 
 }: TextEffectsPropertiesProps) {
-    
+    const { t } = useI18n();
+
     // Track open state for each section locally
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
@@ -113,13 +115,13 @@ export function TextEffectsProperties({
                         <div className="flex items-start gap-4">
                             <CompactColorPicker color={config.color} onChange={(c) => updateConfig(presetId, 'color', c)} opacity={config.opacity} />
                             <div className="flex-1 space-y-2 pt-1">
-                                <PropertySlider label="Blur" value={config.blur} min={0} max={50} onChange={(v) => updateConfig(presetId, 'blur', v)} />
-                                <PropertySlider label="Opacity" value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
+                                <PropertySlider label={t('fx.blur')} value={config.blur} min={0} max={50} onChange={(v) => updateConfig(presetId, 'blur', v)} />
+                                <PropertySlider label={t('ctrl.opacity')} value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
                             </div>
                         </div>
                         <div className="space-y-2 pt-3 border-t border-border/30 mt-3.5">
-                            <PropertySlider label="Offset X" value={config.offsetX} min={-50} max={50} onChange={(v) => updateConfig(presetId, 'offsetX', v)} unit="px" />
-                            <PropertySlider label="Offset Y" value={config.offsetY} min={-50} max={50} onChange={(v) => updateConfig(presetId, 'offsetY', v)} unit="px" />
+                            <PropertySlider label={t('fx.offsetX')} value={config.offsetX} min={-50} max={50} onChange={(v) => updateConfig(presetId, 'offsetX', v)} unit="px" />
+                            <PropertySlider label={t('fx.offsetY')} value={config.offsetY} min={-50} max={50} onChange={(v) => updateConfig(presetId, 'offsetY', v)} unit="px" />
                         </div>
                     </>
                 );
@@ -130,18 +132,18 @@ export function TextEffectsProperties({
                         <div className="flex items-start gap-4">
                              <CompactColorPicker color={config.strokeColor} onChange={(c) => updateConfig(presetId, 'strokeColor', c)} />
                              <div className="flex-1 pt-1">
-                                 <PropertySlider label="Outline Width" value={config.strokeWidth} min={1} max={50} onChange={(v) => updateConfig(presetId, 'strokeWidth', v)} unit="px" />
+                                 <PropertySlider label={t('fx.outlineWidth')} value={config.strokeWidth} min={1} max={50} onChange={(v) => updateConfig(presetId, 'strokeWidth', v)} unit="px" />
                              </div>
                         </div>
                         <div className="flex items-start gap-4">
                              <CompactColorPicker color={config.shadowColor} onChange={(c) => updateConfig(presetId, 'shadowColor', c)} opacity={config.shadowOpacity} />
                              <div className="flex-1 pt-1">
-                                <PropertySlider label="2nd Outline Opacity" value={config.shadowOpacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'shadowOpacity', v / 100)} unit="%" />
+                                <PropertySlider label={t('fx.secondOutlineOpacity')} value={config.shadowOpacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'shadowOpacity', v / 100)} unit="%" />
                              </div>
                         </div>
                          <div className="space-y-2 pt-1 border-t border-border/30 mt-2 pt-2">
-                             <PropertySlider label="Offset X" value={config.shadowOffsetX ?? 4} min={-50} max={50} onChange={(v) => updateConfig(presetId, 'shadowOffsetX', v)} unit="px" />
-                             <PropertySlider label="Offset Y" value={config.shadowOffsetY ?? 4} min={-50} max={50} onChange={(v) => updateConfig(presetId, 'shadowOffsetY', v)} unit="px" />
+                             <PropertySlider label={t('fx.offsetX')} value={config.shadowOffsetX ?? 4} min={-50} max={50} onChange={(v) => updateConfig(presetId, 'shadowOffsetX', v)} unit="px" />
+                             <PropertySlider label={t('fx.offsetY')} value={config.shadowOffsetY ?? 4} min={-50} max={50} onChange={(v) => updateConfig(presetId, 'shadowOffsetY', v)} unit="px" />
                         </div>
                     </div>
                  );
@@ -150,8 +152,8 @@ export function TextEffectsProperties({
                     <div className="flex items-start gap-4">
                         <CompactColorPicker color={config.color} onChange={(c) => updateConfig(presetId, 'color', c)} opacity={config.opacity} />
                         <div className="flex-1 space-y-2 pt-1">
-                            <PropertySlider label="Blur Radius" value={config.blur} min={0} max={100} onChange={(v) => updateConfig(presetId, 'blur', v)} unit="px" />
-                            <PropertySlider label="Intensity" value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
+                            <PropertySlider label={t('fx.blurRadius')} value={config.blur} min={0} max={100} onChange={(v) => updateConfig(presetId, 'blur', v)} unit="px" />
+                            <PropertySlider label={t('fx.intensity')} value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
                         </div>
                     </div>
                  );
@@ -160,8 +162,8 @@ export function TextEffectsProperties({
                     <div className="flex items-start gap-4">
                         <CompactColorPicker color={config.color} onChange={(c) => updateConfig(presetId, 'color', c)} />
                         <div className="flex-1 space-y-2 pt-1">
-                            <PropertySlider label="Glow Intensity" value={config.intensity} min={0} max={100} onChange={(v) => updateConfig(presetId, 'intensity', v)} />
-                            <PropertySlider label="Wire Width" value={config.width} min={0.5} max={10} step={0.5} onChange={(v) => updateConfig(presetId, 'width', v)} unit="px" />
+                            <PropertySlider label={t('fx.glowIntensity')} value={config.intensity} min={0} max={100} onChange={(v) => updateConfig(presetId, 'intensity', v)} />
+                            <PropertySlider label={t('fx.wireWidth')} value={config.width} min={0.5} max={10} step={0.5} onChange={(v) => updateConfig(presetId, 'width', v)} unit="px" />
                         </div>
                     </div>
                  );
@@ -171,25 +173,25 @@ export function TextEffectsProperties({
                         <div className="flex items-start gap-4">
                             <CompactColorPicker color={config.color} onChange={(c) => updateConfig(presetId, 'color', c)} opacity={config.opacity} />
                             <div className="flex-1 space-y-2 pt-1">
-                                <PropertySlider label="Opacity" value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
+                                <PropertySlider label={t('ctrl.opacity')} value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
                             </div>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] text-muted-foreground shrink-0">Blend Mode</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">{t('ctrl.blendMode')}</span>
                             <Select 
                                 value={config.blendMode || 'normal'} 
                                 onValueChange={(val) => updateConfig(presetId, 'blendMode', val)}
                             >
                                 <SelectTrigger className="h-6 text-[10px] w-24">
-                                    <SelectValue placeholder="Normal" />
+                                    <SelectValue placeholder={t('blend.normal')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="source-over">Normal</SelectItem>
-                                    <SelectItem value="multiply">Multiply</SelectItem>
-                                    <SelectItem value="screen">Screen</SelectItem>
-                                    <SelectItem value="overlay">Overlay</SelectItem>
-                                    <SelectItem value="darken">Darken</SelectItem>
-                                    <SelectItem value="lighten">Lighten</SelectItem>
+                                    <SelectItem value="source-over">{t('blend.normal')}</SelectItem>
+                                    <SelectItem value="multiply">{t('blend.multiply')}</SelectItem>
+                                    <SelectItem value="screen">{t('blend.screen')}</SelectItem>
+                                    <SelectItem value="overlay">{t('blend.overlay')}</SelectItem>
+                                    <SelectItem value="darken">{t('blend.darken')}</SelectItem>
+                                    <SelectItem value="lighten">{t('blend.lighten')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -200,7 +202,7 @@ export function TextEffectsProperties({
                     <div className="flex items-start gap-4">
                         <CompactColorPicker color={config.color} onChange={(c) => updateConfig(presetId, 'color', c)} opacity={config.opacity} />
                         <div className="flex-1 space-y-2 pt-1">
-                            <PropertySlider label="Opacity" value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
+                            <PropertySlider label={t('ctrl.opacity')} value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
                         </div>
                     </div>
                  );
@@ -209,15 +211,15 @@ export function TextEffectsProperties({
                     <div className="space-y-3">
                          <div className="flex gap-4">
                              <div className="space-y-1">
-                                 <span className="text-[10px] text-muted-foreground">Start</span>
+                                 <span className="text-[10px] text-muted-foreground">{t('fx.start')}</span>
                                  <CompactColorPicker color={config.start} onChange={(c) => updateConfig(presetId, 'start', c)} />
                              </div>
                              <div className="space-y-1">
-                                 <span className="text-[10px] text-muted-foreground">End</span>
+                                 <span className="text-[10px] text-muted-foreground">{t('fx.end')}</span>
                                  <CompactColorPicker color={config.end} onChange={(c) => updateConfig(presetId, 'end', c)} />
                              </div>
                          </div>
-                         <PropertySlider label="Angle" value={config.angle} min={0} max={360} onChange={(v) => updateConfig(presetId, 'angle', v)} unit="°" />
+                         <PropertySlider label={t('fx.angle')} value={config.angle} min={0} max={360} onChange={(v) => updateConfig(presetId, 'angle', v)} unit="°" />
                     </div>
                  );
              case 'extrude':
@@ -225,8 +227,8 @@ export function TextEffectsProperties({
                     <div className="flex items-start gap-4">
                         <CompactColorPicker color={config.color} onChange={(c) => updateConfig(presetId, 'color', c)} opacity={config.opacity} />
                         <div className="flex-1 space-y-2 pt-1">
-                            <PropertySlider label="Depth" value={config.depth} min={1} max={50} onChange={(v) => updateConfig(presetId, 'depth', v)} unit="px" />
-                            <PropertySlider label="Opacity" value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
+                            <PropertySlider label={t('fx.depth')} value={config.depth} min={1} max={50} onChange={(v) => updateConfig(presetId, 'depth', v)} unit="px" />
+                            <PropertySlider label={t('ctrl.opacity')} value={config.opacity * 100} min={0} max={100} onChange={(v) => updateConfig(presetId, 'opacity', v / 100)} unit="%" />
                         </div>
                     </div>
                  );
@@ -235,16 +237,16 @@ export function TextEffectsProperties({
                     <div className="space-y-3">
                         <div className="flex gap-4">
                              <div className="space-y-1">
-                                 <span className="text-[10px] text-muted-foreground">Highlight</span>
+                                 <span className="text-[10px] text-muted-foreground">{t('fx.highlight')}</span>
                                  <CompactColorPicker color={config.highlightColor} onChange={(c) => updateConfig(presetId, 'highlightColor', c)} />
                              </div>
                              <div className="space-y-1">
-                                 <span className="text-[10px] text-muted-foreground">Shadow</span>
+                                 <span className="text-[10px] text-muted-foreground">{t('fx.shadow')}</span>
                                  <CompactColorPicker color={config.shadowColor} onChange={(c) => updateConfig(presetId, 'shadowColor', c)} />
                              </div>
                         </div>
-                         <PropertySlider label="Bevel Width" value={config.width} min={0.5} max={20} onChange={(v) => updateConfig(presetId, 'width', v)} unit="px" />
-                         <PropertySlider label="Softness" value={config.blur} min={0} max={20} onChange={(v) => updateConfig(presetId, 'blur', v)} unit="px" />
+                         <PropertySlider label={t('fx.bevelWidth')} value={config.width} min={0.5} max={20} onChange={(v) => updateConfig(presetId, 'width', v)} unit="px" />
+                         <PropertySlider label={t('fx.softness')} value={config.blur} min={0} max={20} onChange={(v) => updateConfig(presetId, 'blur', v)} unit="px" />
                     </div>
                  );
              case 'sticker':
@@ -252,15 +254,15 @@ export function TextEffectsProperties({
                      <div className="flex items-start gap-4">
                         <CompactColorPicker color={config.borderColor} onChange={(c) => updateConfig(presetId, 'borderColor', c)} />
                         <div className="flex-1 space-y-2 pt-1">
-                            <PropertySlider label="Border Width" value={config.borderWidth} min={1} max={50} onChange={(v) => updateConfig(presetId, 'borderWidth', v)} unit="px" />
-                            <PropertySlider label="Shadow Blur" value={config.shadowBlur} min={0} max={50} onChange={(v) => updateConfig(presetId, 'shadowBlur', v)} unit="px" />
+                            <PropertySlider label={t('fx.borderWidth')} value={config.borderWidth} min={1} max={50} onChange={(v) => updateConfig(presetId, 'borderWidth', v)} unit="px" />
+                            <PropertySlider label={t('fx.shadowBlur')} value={config.shadowBlur} min={0} max={50} onChange={(v) => updateConfig(presetId, 'shadowBlur', v)} unit="px" />
                         </div>
                     </div>
                  );
              case 'texture':
                  return (
                     <div className="p-2 text-xs text-muted-foreground text-center bg-secondary/30 rounded">
-                        Texture options not yet configurable
+                        {t('fx.textureNotConfigurable')}
                     </div>
                  );
              default:
@@ -290,7 +292,7 @@ export function TextEffectsProperties({
                                      "text-xs font-semibold uppercase tracking-wider",
                                      isActive ? "text-primary" : "text-muted-foreground"
                                  )}>
-                                     {preset.label}
+                                     {t(preset.labelKey)}
                                  </span>
                              </button>
                              <div className="pl-4 pb-1">

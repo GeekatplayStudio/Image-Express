@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/providers/I18nProvider';
 
 // --- Color Utils ---
 
@@ -74,6 +75,7 @@ type Palette = {
 };
 
 export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerProps) {
+    const { t } = useI18n();
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'wheel' | 'palette'>('wheel');
     const [palettes, setPalettes] = useState<Palette[]>([]);
@@ -222,7 +224,7 @@ export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerPro
                                         <button 
                                             onClick={handleAddToPalette}
                                             className="p-1.5 hover:bg-secondary rounded border border-border"
-                                            title="Add current color to active palette"
+                                            title={t('picker.addToPalette')}
                                         >
                                             <Plus size={16} />
                                         </button>
@@ -231,24 +233,24 @@ export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerPro
 
                                 <div className="space-y-2 pt-2 border-t border-border/50">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[10px] text-muted-foreground uppercase">Harmony</span>
+                                        <span className="text-[10px] text-muted-foreground uppercase">{t('picker.harmony')}</span>
                                         <select 
                                             value={complementaryCount}
                                             onChange={(e) => setComplementaryCount(parseInt(e.target.value))}
                                             className="h-6 text-[10px] bg-secondary border-none rounded px-1"
                                         >
-                                            <option value={2}>Complementary (2)</option>
-                                            <option value={3}>Triadic (3)</option>
-                                            <option value={4}>Tetradic (4)</option>
-                                            <option value={5}>Pentadic (5)</option>
-                                            <option value={6}>Hexadic (6)</option>
+                                            <option value={2}>{t('picker.complementary')}</option>
+                                            <option value={3}>{t('picker.triadic')}</option>
+                                            <option value={4}>{t('picker.tetradic')}</option>
+                                            <option value={5}>{t('picker.pentadic')}</option>
+                                            <option value={6}>{t('picker.hexadic')}</option>
                                         </select>
                                     </div>
                                     <div className="flex gap-1 h-8">
                                         <div 
                                             className="h-full flex-1 rounded-l border border-border" 
                                             style={{ backgroundColor: safeColor }} 
-                                            title="Primary"
+                                            title={t('picker.primary')}
                                         />
                                         {complementaryColors.map((c, i) => (
                                             <button
@@ -282,7 +284,7 @@ export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerPro
                                     <button 
                                         onClick={handleCreatePalette}
                                         className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
-                                        title="New Palette"
+                                        title={t('picker.newPalette')}
                                     >
                                         <Plus size={14} />
                                     </button>
@@ -290,7 +292,7 @@ export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerPro
                                         <button 
                                             onClick={() => handleDeletePalette(selectedPaletteId)}
                                             className="p-1 hover:bg-destructive/10 hover:text-destructive rounded text-muted-foreground"
-                                            title="Delete Palette"
+                                            title={t('picker.deletePalette')}
                                         >
                                             <Trash2 size={14} />
                                         </button>
@@ -317,7 +319,7 @@ export function ColorPicker({ color, onChange, label = 'Color' }: ColorPickerPro
                                         <button 
                                             onClick={handleAddToPalette}
                                             className="w-8 h-8 rounded border border-dashed border-border flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-                                            title="Add current color"
+                                            title={t('picker.addCurrentColor')}
                                         >
                                             <Plus size={14} />
                                         </button>

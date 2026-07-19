@@ -339,7 +339,7 @@ export function LayersView({
                         onClick={() => selectedObject && onPaintMask?.(selectedObject)}
                         disabled={!selectedObject || !onPaintMask}
                         className="p-1.5 hover:bg-secondary rounded text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Paint raster mask (white reveals, black hides)"
+                        title={t('layers.paintRasterMask')}
                     >
                         <Brush size={14} />
                     </button>
@@ -389,22 +389,22 @@ export function LayersView({
                          disabled={!selectedObject}
                          className="flex-1 h-7 bg-secondary rounded-md text-[10px] px-2 border border-border/50 focus:ring-1 focus:ring-ring disabled:opacity-50"
                      >
-                         <option value="source-over">Normal</option>
-                         <option value="multiply">Multiply</option>
-                         <option value="screen">Screen</option>
-                         <option value="overlay">Overlay</option>
-                         <option value="darken">Darken</option>
-                         <option value="lighten">Lighten</option>
-                         <option value="color-dodge">Color Dodge</option>
-                         <option value="color-burn">Color Burn</option>
-                         <option value="hard-light">Hard Light</option>
-                         <option value="soft-light">Soft Light</option>
-                         <option value="difference">Difference</option>
-                         <option value="exclusion">Exclusion</option>
-                         <option value="hue">Hue</option>
-                         <option value="saturation">Saturation</option>
-                         <option value="color">Color</option>
-                         <option value="luminosity">Luminosity</option>
+                         <option value="source-over">{t('blend.normal')}</option>
+                         <option value="multiply">{t('blend.multiply')}</option>
+                         <option value="screen">{t('blend.screen')}</option>
+                         <option value="overlay">{t('blend.overlay')}</option>
+                         <option value="darken">{t('blend.darken')}</option>
+                         <option value="lighten">{t('blend.lighten')}</option>
+                         <option value="color-dodge">{t('blend.colorDodge')}</option>
+                         <option value="color-burn">{t('blend.colorBurn')}</option>
+                         <option value="hard-light">{t('blend.hardLight')}</option>
+                         <option value="soft-light">{t('blend.softLight')}</option>
+                         <option value="difference">{t('blend.difference')}</option>
+                         <option value="exclusion">{t('blend.exclusion')}</option>
+                         <option value="hue">{t('blend.hue')}</option>
+                         <option value="saturation">{t('blend.saturation')}</option>
+                         <option value="color">{t('blend.color')}</option>
+                         <option value="luminosity">{t('blend.luminosity')}</option>
                      </select>
                  </div>
              </div>
@@ -525,7 +525,7 @@ export function LayersView({
                      <div
                          ref={contextMenuRef}
                          role="menu"
-                         aria-label="Layer actions"
+                         aria-label={t('layers.layerActions')}
                          className="fixed z-[300] w-[220px] rounded-lg border border-border bg-card p-1 shadow-2xl animate-in fade-in zoom-in-95 duration-100"
                          style={{ left: menuLeft, top: menuTop }}
                      >
