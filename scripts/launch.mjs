@@ -85,7 +85,14 @@ function main() {
     const buildDir = path.join(rootDir, '.next');
     if (fs.existsSync(buildDir)) {
         log('Rebuilding to pick up the latest code...');
-        fs.rmSync(buildDir, { recursive: true, force: true });
+        // On Windows, antivirus/indexer file locks can cause a transient
+        // ENOTEMPTY/EBUSY mid-delete; retry a few times before giving up.
+        try {
+            fs.rmSync(buildDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+        } catch (err) {
+            log(`Could not fully clear .next (${err.code}); removing what remains...`);
+            fs.rmSync(buildDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+        }
     }
 
     log('Starting Image Express...');

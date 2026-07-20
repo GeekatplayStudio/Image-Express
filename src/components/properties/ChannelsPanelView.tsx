@@ -179,13 +179,13 @@ export function ChannelsPanelView({
                                                 value: row.target === 'a'
                                                     ? `${Math.round((getChannelValue(currentColor, currentOpacity, row.target) / 255) * 100)}%`
                                                     : getChannelValue(currentColor, currentOpacity, row.target),
-                                                opacity: channelOpacity,
+                                                opacity: channelOpacity ?? 0,
                                                 masked: channelMasked ? t('channels.maskedSuffix') : '',
                                             })
                                             : row.target === 'composite'
                                                 ? t('channels.fullColorView')
                                                 : t('channels.previewSummary', {
-                                                    opacity: channelOpacity,
+                                                    opacity: channelOpacity ?? 0,
                                                     masked: channelMasked ? t('channels.maskedSuffix') : '',
                                                 })}
                                     </span>
