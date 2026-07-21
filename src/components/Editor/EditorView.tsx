@@ -684,6 +684,7 @@ export default function EditorView({
         customHistoryProps,
         restoreOnMount: !initialDesign && !initialTemplateJsonUrl,
         onStorageFull: handleProjectStorageFull,
+        onCanvasSwapped: resetHistory,
     });
 
     // Saving asks whether this page should be saved standalone (server-side

@@ -1,3 +1,5 @@
+import { idbDelete, idbGet, idbPut, isIndexedDbAvailable, PROJECTS_RECORD_KEY } from '@/lib/multicanvas/projectDb';
+
 // Project store for the multi-canvas workflow.
 // Hierarchy: a Project contains Canvases, a Canvas contains Layers (fabric
 // objects). Layers marked shared (sharedLayerId) are linked across canvases;
@@ -274,25 +276,49 @@ export const setActiveProject = (state: ProjectsState, projectId: string): Proje
         : state
 );
 
-/** Federation links: projects that share a linked layer (same sharedLayerId). */
-export type ProjectLink = { sharedLayerId: string; a: string; b: string };
+/**
+ * Federation links: one entry per shared asset per album pair, carrying the
+ * layer's identity so the view can say WHAT is shared, not just that
+ * something is. Three shared assets between two albums are three links.
+ */
+export type ProjectLink = {
+    sharedLayerId: string;
+    a: string;
+    b: string;
+    layerName?: string;
+    layerType?: string;
+    /** Preview source when the shared layer is an image (data:/path, never blob:). */
+    layerSrc?: string;
+};
 
 export const listProjectLinks = (state: ProjectsState): ProjectLink[] => {
-    const byShared = new Map<string, Set<string>>();
+    const byShared = new Map<string, { ids: Set<string>; layer: SerializedLayer }>();
     for (const project of state.projects) {
         for (const canvas of project.canvases) {
             for (const layer of canvas.json?.objects ?? []) {
                 if (!layer.sharedLayerId) continue;
-                if (!byShared.has(layer.sharedLayerId)) byShared.set(layer.sharedLayerId, new Set());
-                byShared.get(layer.sharedLayerId)!.add(project.id);
+                const entry = byShared.get(layer.sharedLayerId);
+                if (entry) {
+                    entry.ids.add(project.id);
+                } else {
+                    byShared.set(layer.sharedLayerId, { ids: new Set([project.id]), layer });
+                }
             }
         }
     }
     const links: ProjectLink[] = [];
-    for (const [sharedLayerId, ids] of byShared) {
+    for (const [sharedLayerId, { ids, layer }] of byShared) {
+        const src = typeof layer.src === 'string' && !layer.src.startsWith('blob:') ? layer.src : undefined;
         const list = [...ids];
         for (let i = 0; i < list.length - 1; i += 1) {
-            links.push({ sharedLayerId, a: list[i], b: list[i + 1] });
+            links.push({
+                sharedLayerId,
+                a: list[i],
+                b: list[i + 1],
+                layerName: typeof layer.name === 'string' ? layer.name : undefined,
+                layerType: typeof layer.type === 'string' ? layer.type : undefined,
+                layerSrc: src,
+            });
         }
     }
     return links;
@@ -311,41 +337,57 @@ export const syncSharedLayerAcrossProjects = (
     )),
 });
 
-export const loadProjectsState = (): ProjectsState | null => {
+/**
+ * Session cache — the synchronous authority while the app is running.
+ *
+ * The backing store is IndexedDB, whose reads and writes are async, so a
+ * caller that needs the latest state mid-tick (several canvas listeners can
+ * read-compute-write within one event dispatch) cannot go to disk for it.
+ * Every commit updates this cache synchronously before the write is queued,
+ * so `getProjectsStateSync` is always at least as fresh as the store.
+ */
+let cachedState: ProjectsState | null = null;
+
+/** Latest committed workspace, without touching the backing store. */
+export const getProjectsStateSync = (): ProjectsState | null => cachedState;
+
+/** Test seam: drop the session cache so a suite starts from a clean slate. */
+export const resetProjectsStateCache = (): void => {
+    cachedState = null;
+};
+
+const isUsableState = (value: unknown): value is ProjectsState => {
+    const state = value as ProjectsState | null;
+    return Boolean(state && Array.isArray(state.projects) && state.projects.length > 0);
+};
+
+/** Read the pre-IndexedDB localStorage copies, newest format first. */
+const readLegacyLocalStorage = (): ProjectsState | null => {
     if (typeof window === 'undefined') return null;
     try {
         const raw = window.localStorage.getItem(PROJECTS_STORAGE_KEY);
         if (raw) {
             const parsed = JSON.parse(raw) as ProjectsState;
-            if (parsed && Array.isArray(parsed.projects) && parsed.projects.length > 0) return parsed;
+            if (isUsableState(parsed)) return parsed;
         }
-        // Migrate the single-project era storage.
+        // Single-project era.
         const legacy = loadProject();
-        if (legacy) {
-            const migrated: ProjectsState = { projects: [legacy], activeProjectId: legacy.id };
-            window.localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(migrated));
-            window.localStorage.removeItem(PROJECT_STORAGE_KEY);
-            return migrated;
-        }
+        if (legacy) return { projects: [legacy], activeProjectId: legacy.id };
         return null;
     } catch {
         return null;
     }
 };
 
-/**
- * Persist the workspace. Returns true on success. Thumbnails are pure
- * previews (regenerable from the canvas), so on quota-exceeded they are
- * stripped and the save is retried once before giving up — layer/canvas/
- * project data is never silently dropped to make room.
- */
-export const saveProjectsState = (state: ProjectsState): boolean => {
+const writeLocalStorageFallback = (state: ProjectsState): boolean => {
     if (typeof window === 'undefined') return false;
     try {
         window.localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(state));
-        window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
         return true;
     } catch {
+        // Thumbnails are pure previews, regenerable from the canvas, so they
+        // are the only thing safe to drop to make room. Layer/canvas/album
+        // data is never silently discarded.
         try {
             const withoutThumbnails: ProjectsState = {
                 ...state,
@@ -355,13 +397,82 @@ export const saveProjectsState = (state: ProjectsState): boolean => {
                 })),
             };
             window.localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(withoutThumbnails));
-            window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
             return true;
         } catch {
-            // Storage is full even without thumbnails: the in-memory state
-            // stays authoritative for this session; the caller should warn
-            // the user that changes are not being saved to disk.
             return false;
         }
     }
+};
+
+/**
+ * Load the workspace: IndexedDB first, then a one-time migration of any
+ * localStorage copy left by an older build. Populates the session cache.
+ */
+export const loadProjectsState = async (): Promise<ProjectsState | null> => {
+    if (typeof window === 'undefined') return null;
+
+    if (isIndexedDbAvailable()) {
+        const stored = await idbGet<ProjectsState>(PROJECTS_RECORD_KEY);
+        if (isUsableState(stored)) {
+            cachedState = stored;
+            return stored;
+        }
+        // Nothing in IndexedDB yet — adopt whatever localStorage still holds
+        // and move it across, so an existing workspace survives the upgrade.
+        const legacy = readLegacyLocalStorage();
+        if (legacy) {
+            const moved = await idbPut(PROJECTS_RECORD_KEY, legacy);
+            if (moved) {
+                try {
+                    window.localStorage.removeItem(PROJECTS_STORAGE_KEY);
+                    window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+                } catch {
+                    // Leaving the old copy behind is harmless; IndexedDB wins
+                    // on the next load either way.
+                }
+            }
+            cachedState = legacy;
+            return legacy;
+        }
+        cachedState = null;
+        return null;
+    }
+
+    const fallback = readLegacyLocalStorage();
+    cachedState = fallback;
+    return fallback;
+};
+
+/**
+ * Commit the workspace. The session cache updates synchronously so later
+ * readers in the same tick see it; the returned promise reports whether the
+ * write actually landed. Resolving false means this session's changes exist
+ * only in memory and the caller should tell the user.
+ */
+export const saveProjectsState = (state: ProjectsState): Promise<boolean> => {
+    if (typeof window === 'undefined') return Promise.resolve(false);
+    cachedState = state;
+    window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
+
+    if (!isIndexedDbAvailable()) {
+        return Promise.resolve(writeLocalStorageFallback(state));
+    }
+    return idbPut(PROJECTS_RECORD_KEY, state).then((ok) => (
+        // IndexedDB can still refuse (quota, corrupt profile). localStorage
+        // will usually refuse too at this size, but trying costs nothing and
+        // covers the case where the album is small.
+        ok ? true : writeLocalStorageFallback(state)
+    ));
+};
+
+export const clearProjectsState = async (): Promise<void> => {
+    cachedState = null;
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.removeItem(PROJECTS_STORAGE_KEY);
+    } catch {
+        // Non-fatal.
+    }
+    if (isIndexedDbAvailable()) await idbDelete(PROJECTS_RECORD_KEY);
+    window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
 };

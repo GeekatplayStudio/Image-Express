@@ -140,14 +140,15 @@ describe('projectStore', () => {
 describe('projectStore federation level', () => {
     const {
         createProjectsState, addProject, renameProject, deleteProject, duplicateProject,
-        setActiveProject, getActiveProject, updateActiveProject, listProjectLinks,
+        getActiveProject, updateActiveProject, listProjectLinks,
         syncSharedLayerAcrossProjects, loadProjectsState, saveProjectsState,
-        PROJECTS_STORAGE_KEY,
+        resetProjectsStateCache,
         // eslint-disable-next-line @typescript-eslint/no-require-imports
     } = require('@/lib/multicanvas/projectStore');
 
     beforeEach(() => {
         window.localStorage.clear();
+        resetProjectsStateCache();
     });
 
     it('creates a workspace with one active project', () => {
@@ -206,18 +207,18 @@ describe('projectStore federation level', () => {
         expect(synced.projects[0].canvases[0].json.objects[0].opacity).toBe(1);
     });
 
-    it('round-trips through storage and migrates the legacy single project', () => {
+    it('round-trips through storage and migrates the legacy single project', async () => {
         const state = createProjectsState('P1', 100, 100);
-        saveProjectsState(state);
-        expect(loadProjectsState()).toEqual(state);
+        await saveProjectsState(state);
+        expect(await loadProjectsState()).toEqual(state);
 
         // legacy migration
         window.localStorage.clear();
+        resetProjectsStateCache();
         const legacy = createProject('Old Project', 50, 50);
         saveProject(legacy);
-        const migrated = loadProjectsState();
+        const migrated = await loadProjectsState();
         expect(migrated.projects[0].name).toBe('Old Project');
-        expect(window.localStorage.getItem(PROJECTS_STORAGE_KEY)).toBeTruthy();
     });
 });
 
@@ -225,12 +226,13 @@ describe('projectStore empty-project reuse and storage safety', () => {
     const {
         createProjectsState, addProject, isProjectEmpty, findEmptyProject,
         updateCanvasSnapshot: updateSnap, saveProjectsState, loadProjectsState,
-        PROJECTS_STORAGE_KEY,
+        getProjectsStateSync, resetProjectsStateCache, PROJECTS_STORAGE_KEY,
         // eslint-disable-next-line @typescript-eslint/no-require-imports
     } = require('@/lib/multicanvas/projectStore');
 
     beforeEach(() => {
         window.localStorage.clear();
+        resetProjectsStateCache();
     });
 
     it('treats a freshly created project as empty', () => {
@@ -257,13 +259,22 @@ describe('projectStore empty-project reuse and storage safety', () => {
         expect(empty?.name).toBe('P2');
     });
 
-    it('saves successfully under normal conditions', () => {
+    it('saves successfully under normal conditions', async () => {
         const state = createProjectsState('P1', 100, 100);
-        expect(saveProjectsState(state)).toBe(true);
-        expect(loadProjectsState()).toEqual(state);
+        expect(await saveProjectsState(state)).toBe(true);
+        expect(await loadProjectsState()).toEqual(state);
     });
 
-    it('drops thumbnails and retries when the primary save exceeds quota', () => {
+    it('exposes the committed state synchronously for same-tick readers', () => {
+        const state = createProjectsState('P1', 100, 100);
+        expect(getProjectsStateSync()).toBeNull();
+        // Deliberately not awaited: the cache must be usable before the write
+        // resolves, because canvas listeners read it mid-event-dispatch.
+        void saveProjectsState(state);
+        expect(getProjectsStateSync()).toEqual(state);
+    });
+
+    it('drops thumbnails and retries when the primary save exceeds quota', async () => {
         const state = createProjectsState('P1', 100, 100);
         const withThumbnail = {
             ...state,
@@ -272,28 +283,28 @@ describe('projectStore empty-project reuse and storage safety', () => {
 
         const realSetItem = window.localStorage.setItem.bind(window.localStorage);
         let calls = 0;
-        jest.spyOn(window.localStorage.__proto__, 'setItem').mockImplementation((key: string, value: string) => {
+        jest.spyOn(window.localStorage.__proto__, 'setItem').mockImplementation((...args: unknown[]) => {
             calls += 1;
             if (calls === 1) {
                 throw new DOMException('exceeded', 'QuotaExceededError');
             }
-            realSetItem(key, value);
+            realSetItem(args[0] as string, args[1] as string);
         });
 
-        expect(saveProjectsState(withThumbnail)).toBe(true);
+        expect(await saveProjectsState(withThumbnail)).toBe(true);
         const saved = JSON.parse(window.localStorage.getItem(PROJECTS_STORAGE_KEY)!);
         expect(saved.projects[0].canvases[0].thumbnail).toBeNull();
 
         (window.localStorage.setItem as jest.Mock).mockRestore();
     });
 
-    it('returns false when storage is full even without thumbnails', () => {
+    it('returns false when storage is full even without thumbnails', async () => {
         const state = createProjectsState('P1', 100, 100);
         jest.spyOn(window.localStorage.__proto__, 'setItem').mockImplementation(() => {
             throw new DOMException('exceeded', 'QuotaExceededError');
         });
 
-        expect(saveProjectsState(state)).toBe(false);
+        expect(await saveProjectsState(state)).toBe(false);
 
         (window.localStorage.setItem as jest.Mock).mockRestore();
     });

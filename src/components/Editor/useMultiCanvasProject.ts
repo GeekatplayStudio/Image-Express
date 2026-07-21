@@ -5,6 +5,7 @@ import { serializeCanvas, ensureObjectId, applyArtboardSize } from '@/lib/fabric
 import { captureCanvasThumbnail } from '@/lib/multicanvas/canvasThumbnail';
 import { inlineVolatileImageSources } from '@/lib/multicanvas/inlineImageSources';
 import type { ExtendedFabricObject } from '@/types';
+import { useI18n } from '@/providers/I18nProvider';
 import type { Project, ProjectsState, SerializedCanvasJson, SerializedLayer } from '@/lib/multicanvas/projectStore';
 import {
     addCanvas as addCanvasToProject,
@@ -15,6 +16,7 @@ import {
     duplicateCanvas as duplicateCanvasInProject,
     duplicateProject as duplicateProjectInState,
     getActiveProject,
+    getProjectsStateSync,
     loadProjectsState,
     renameCanvas as renameCanvasInProject,
     renameProject as renameProjectInState,
@@ -38,6 +40,13 @@ type UseMultiCanvasProjectArgs = {
     restoreOnMount?: boolean;
     /** Called when a snapshot could not be persisted at all (storage full even without thumbnails). */
     onStorageFull?: () => void;
+    /**
+     * Called after a different page's content is swapped into the editor.
+     * The undo stack belongs to the page that was open, so the editor rebases
+     * history here — otherwise undo on a new page walks back into the
+     * previous page's document.
+     */
+    onCanvasSwapped?: () => void;
 };
 
 /**
@@ -49,7 +58,9 @@ type UseMultiCanvasProjectArgs = {
  */
 export function useMultiCanvasProject({
     canvas, designName, initialWidth, initialHeight, customHistoryProps, restoreOnMount = false, onStorageFull,
+    onCanvasSwapped,
 }: UseMultiCanvasProjectArgs) {
+    const { t } = useI18n();
     const [projectsState, setProjectsState] = useState<ProjectsState | null>(null);
     const [isStackViewOpen, setIsStackViewOpen] = useState(false);
     const stateRef = useRef<ProjectsState | null>(null);
@@ -65,31 +76,40 @@ export function useMultiCanvasProject({
 
     // Bootstrap: restore the persisted workspace or start a fresh one.
     useEffect(() => {
-        const existing = loadProjectsState();
-        const initial = existing ?? createProjectsState(designName || 'Untitled Project', initialWidth, initialHeight);
-        const active = getActiveProject(initial);
-        loadedProjectIdRef.current = active.id;
-        loadedCanvasIdRef.current = active.activeCanvasId;
-        setProjectsState(initial);
+        let cancelled = false;
+        void loadProjectsState().then((existing) => {
+            if (cancelled) return;
+            const initial = existing ?? createProjectsState(designName || 'Untitled Album', initialWidth, initialHeight);
+            const active = getActiveProject(initial);
+            loadedProjectIdRef.current = active.id;
+            loadedCanvasIdRef.current = active.activeCanvasId;
+            stateRef.current = initial;
+            setProjectsState(initial);
+        });
+        return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const commit = useCallback((next: ProjectsState) => {
+        // Keep the ref in step immediately: several canvas listeners can
+        // read-compute-write within one event dispatch, and React's state
+        // update is not visible to them until the next render.
+        stateRef.current = next;
         setProjectsState(next);
-        const persisted = saveProjectsState(next);
-        if (!persisted) onStorageFull?.();
+        void saveProjectsState(next).then((persisted) => {
+            if (!persisted) onStorageFull?.();
+        });
     }, [onStorageFull]);
 
     // Multiple listeners (this hook's own object:modified sync, plus other
     // canvas-level effects) can each read-compute-write project state within
     // the same synchronous event dispatch. React's state update from an
-    // earlier writer isn't visible via stateRef until the next render, so a
-    // later writer in the same tick would otherwise silently clobber it.
-    // localStorage is written synchronously on every commit, so re-reading it
-    // is always at least as fresh as stateRef — use it as the merge base to
-    // avoid last-writer-wins data loss.
+    // earlier writer isn't visible until the next render, so a later writer
+    // in the same tick would otherwise silently clobber it. The store's
+    // session cache is updated synchronously by every commit, so it is always
+    // at least as fresh as our own ref — use it as the merge base.
     const getFreshState = useCallback((): ProjectsState | null => (
-        loadProjectsState() ?? stateRef.current
+        getProjectsStateSync() ?? stateRef.current
     ), []);
 
     const serializeEditorCanvas = useCallback((): SerializedCanvasJson | null => {
@@ -148,19 +168,31 @@ export function useMultiCanvasProject({
                 applyArtboardSize(canvas, target.width, target.height);
             }
             canvas.requestRenderAll();
+            // Rebase history only once the new content is actually on the
+            // canvas — loadFromJSON is async, so firing this alongside the
+            // call would snapshot the page we are leaving.
+            onCanvasSwapped?.();
         };
+        // Point the refs at the incoming page before the load resolves, so a
+        // snapshot triggered in between is attributed to the right page.
+        loadedProjectIdRef.current = project.id;
+        loadedCanvasIdRef.current = canvasId;
         if (target.json) {
             void canvas.loadFromJSON(target.json, restoreArtboard);
         } else {
+            // A brand-new page: remove the previous page's objects AND its
+            // canvas-level state. Background/overlay images live on the canvas
+            // itself, not in the object list, so without this a freshly
+            // created page still showed the old page's backdrop.
             canvas.getObjects()
                 .filter((obj) => obj !== extended.artboardRect)
                 .forEach((obj) => canvas.remove(obj));
+            canvas.backgroundImage = undefined;
+            canvas.overlayImage = undefined;
             canvas.discardActiveObject();
             restoreArtboard();
         }
-        loadedProjectIdRef.current = project.id;
-        loadedCanvasIdRef.current = canvasId;
-    }, [canvas]);
+    }, [canvas, onCanvasSwapped]);
 
     const loadCanvasIntoEditorRef = useRef(loadCanvasIntoEditor);
     useEffect(() => {
@@ -202,12 +234,12 @@ export function useMultiCanvasProject({
         const current = snapshotLoadedCanvas();
         if (!current) return;
         const active = getActiveProject(current);
-        const name = `Canvas ${active.canvases.length + 1}`;
+        const name = t('stack.pageName', { n: active.canvases.length + 1 });
         const next = updateActiveProject(current, (p) => addCanvasToProject(p, name, initialWidth, initialHeight));
         commit(next);
         const project = getActiveProject(next);
         loadCanvasIntoEditor(project, project.activeCanvasId);
-    }, [commit, initialHeight, initialWidth, loadCanvasIntoEditor, snapshotLoadedCanvas]);
+    }, [commit, initialHeight, initialWidth, loadCanvasIntoEditor, snapshotLoadedCanvas, t]);
 
     const handleDuplicateCanvas = useCallback((canvasId: string) => {
         const current = snapshotLoadedCanvas();
@@ -257,12 +289,12 @@ export function useMultiCanvasProject({
     const handleAddProject = useCallback(() => {
         const current = snapshotLoadedCanvas();
         if (!current) return;
-        const name = `Project ${current.projects.length + 1}`;
+        const name = t('stack.albumName', { n: current.projects.length + 1 });
         const next = addProjectToState(current, name, initialWidth, initialHeight);
         commit(next);
         const project = getActiveProject(next);
         loadCanvasIntoEditor(project, project.activeCanvasId);
-    }, [commit, initialHeight, initialWidth, loadCanvasIntoEditor, snapshotLoadedCanvas]);
+    }, [commit, initialHeight, initialWidth, loadCanvasIntoEditor, snapshotLoadedCanvas, t]);
 
     const handleDuplicateProject = useCallback((projectId: string) => {
         const current = snapshotLoadedCanvas();

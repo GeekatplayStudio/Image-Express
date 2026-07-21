@@ -4,6 +4,7 @@ import { Plus, Image as ImageIcon, Clock, Layout, Trash2, Search, Instagram, You
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { useI18n } from '@/providers/I18nProvider';
+import { RichText } from '@/lib/i18n/RichText';
 import quotes from '@/data/quotes.json';
 import DashboardAmbience from '@/components/DashboardAmbience';
 import { UI_THEME_CHANGED_EVENT, type UiThemeQuote } from '@/lib/ui-themes-shared';
@@ -14,7 +15,7 @@ import {
     addProject,
     createProjectsState,
     deleteProject,
-    findEmptyProject,
+    getProjectsStateSync,
     loadProjectsState,
     saveProjectsState,
     setActiveProject,
@@ -88,6 +89,17 @@ const START_ACTIONS = [
     }
 ];
 
+// `value` is matched against a template's `type`, so it stays an English
+// identifier; only the label is translated.
+const TEMPLATE_CATEGORIES = [
+    { value: 'All', labelKey: 'dashboard.category.all' },
+    { value: 'Social Media', labelKey: 'dashboard.category.socialMedia' },
+    { value: 'Video', labelKey: 'dashboard.category.video' },
+    { value: 'Print', labelKey: 'dashboard.category.print' },
+    { value: 'Web', labelKey: 'dashboard.category.web' },
+    { value: 'Marketing', labelKey: 'dashboard.category.marketing' },
+];
+
 const POPULAR_TEMPLATES: TemplateDescriptor[] = [
   {
     id: 't-insta',
@@ -139,36 +151,38 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
     // Federation projects (Projects > Canvases > Layers) created in the editor.
     const [projectsState, setProjectsState] = useState<ProjectsState | null>(null);
     useEffect(() => {
-        const sync = () => setProjectsState(loadProjectsState());
-        sync();
+        let cancelled = false;
+        // First read comes from the store (IndexedDB, migrating any older
+        // localStorage copy); later ones can use the session cache the store
+        // keeps in step with every commit.
+        void loadProjectsState().then((state) => {
+            if (!cancelled) setProjectsState(state);
+        });
+        const sync = () => setProjectsState(getProjectsStateSync());
         window.addEventListener(PROJECT_CHANGED_EVENT, sync);
-        return () => window.removeEventListener(PROJECT_CHANGED_EVENT, sync);
+        return () => {
+            cancelled = true;
+            window.removeEventListener(PROJECT_CHANGED_EVENT, sync);
+        };
     }, []);
 
-    // Every new design becomes its own project — unless there's already an
-    // untouched empty project (e.g. the user clicked a quick-start action,
-    // went back without drawing anything, and clicked another one), in which
-    // case that one is reused instead of piling up empty projects.
+    // Creating is always a genuinely fresh album — never a recycled empty
+    // one, whose stale name/size would leak into the "new" album.
     const startNewProject = (tool?: string, size?: { width: number; height: number }) => {
         const lastUsed = loadUiPreferences();
         const width = size?.width ?? lastUsed.lastCanvasWidth;
         const height = size?.height ?? lastUsed.lastCanvasHeight;
-        const current = loadProjectsState();
-        const reusable = current ? findEmptyProject(current) : null;
-        if (current && reusable) {
-            saveProjectsState(setActiveProject(current, reusable.id));
-        } else {
-            const name = `Project ${(current?.projects.length ?? 0) + 1}`;
-            const next = current ? addProject(current, name, width, height) : createProjectsState(name, width, height);
-            saveProjectsState(next);
-        }
+        const current = getProjectsStateSync() ?? projectsState;
+        const name = t('stack.albumName', { n: (current?.projects.length ?? 0) + 1 });
+        const next = current ? addProject(current, name, width, height) : createProjectsState(name, width, height);
+        void saveProjectsState(next);
         onNewDesign(tool, size);
     };
 
     const openProjectFromDashboard = (projectId: string) => {
-        const current = loadProjectsState();
+        const current = getProjectsStateSync() ?? projectsState;
         if (!current) return;
-        saveProjectsState(setActiveProject(current, projectId));
+        void saveProjectsState(setActiveProject(current, projectId));
         onNewDesign();
     };
     const dialog = useDialog();
@@ -293,6 +307,10 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         });
     }, [allTemplates, activeCategory, searchQuery]);
 
+    const activeCategoryLabel = t(
+        TEMPLATE_CATEGORIES.find((c) => c.value === activeCategory)?.labelKey ?? 'dashboard.category.all'
+    );
+
     const sortedTemplates = useMemo(() => {
         const list = [...filteredTemplates];
         list.sort((a, b) => (templateUsage[b.id] ?? 0) - (templateUsage[a.id] ?? 0));
@@ -367,7 +385,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
   
   const handleDelete = async (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
-      const confirmed = await dialog.confirm('Delete this design?', { title: 'Delete design', variant: 'destructive' });
+      const confirmed = await dialog.confirm(t('dashboard.deleteDesignConfirm'), { title: t('dashboard.deleteDesign'), variant: 'destructive' });
       if(confirmed) {
           try {
               const res = await fetch('/api/designs/delete', {
@@ -380,11 +398,11 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                   const updated = recentDesigns.filter(d => d.id !== id);
                   setRecentDesigns(updated);
               } else {
-                  toast({ title: 'Delete failed', description: 'Failed to delete design.', variant: 'destructive' });
+                  toast({ title: t('dashboard.deleteFailed'), description: t('dashboard.deleteFailedDesc'), variant: 'destructive' });
               }
           } catch (err) {
               console.error("Delete failed", err);
-              toast({ title: 'Delete failed', description: 'Error deleting design.', variant: 'destructive' });
+              toast({ title: t('dashboard.deleteFailed'), description: t('dashboard.deleteErrorDesc'), variant: 'destructive' });
           }
       }
   };
@@ -392,15 +410,15 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
   const handleDeleteProject = async (project: Project, e: React.MouseEvent) => {
       e.stopPropagation();
       if (projectsState && projectsState.projects.length <= 1) {
-          toast({ title: 'Cannot delete', description: 'You need at least one album.', variant: 'destructive' });
+          toast({ title: t('dashboard.cannotDelete'), description: t('dashboard.needOneAlbum'), variant: 'destructive' });
           return;
       }
-      const confirmed = await dialog.confirm(`Delete "${project.name}" and all its pages?`, { title: 'Delete album', variant: 'destructive' });
+      const confirmed = await dialog.confirm(t('dashboard.deleteProjectConfirm', { name: project.name }), { title: t('dashboard.deleteProject'), variant: 'destructive' });
       if (!confirmed) return;
-      const current = loadProjectsState();
+      const current = getProjectsStateSync() ?? projectsState;
       if (!current) return;
       const next = deleteProject(current, project.id);
-      saveProjectsState(next);
+      void saveProjectsState(next);
       setProjectsState(next);
   };
 
@@ -445,7 +463,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         <div className="relative py-12 text-center space-y-6">
             <div className="animation-fade-in space-y-2">
                 <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground px-4">
-                    &quot;{quote.text}&quot;
+                    {t('dashboard.quoted', { text: quote.text })}
                 </h1>
                 {quote.author && (
                     <p className="text-lg text-muted-foreground font-medium">
@@ -508,17 +526,17 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
 
         {/* Categories Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-            {['All', 'Social Media', 'Video', 'Print', 'Web', 'Marketing'].map(cat => (
+            {TEMPLATE_CATEGORIES.map(cat => (
                 <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
+                    key={cat.value}
+                    onClick={() => setActiveCategory(cat.value)}
                     className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                        activeCategory === cat 
-                        ? 'bg-foreground text-background border-foreground' 
+                        activeCategory === cat.value
+                        ? 'bg-foreground text-background border-foreground'
                         : 'bg-background text-muted-foreground border-border hover:border-foreground/50'
                     }`}
                 >
-                    {cat}
+                    {t(cat.labelKey)}
                 </button>
             ))}
         </div>
@@ -644,7 +662,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                             {/* Overlay */}
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <span className="bg-white text-black px-3 py-1 rounded-full font-semibold text-xs transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                                    Edit
+                                    {t('dashboard.editDesign')}
                                 </span>
                             </div>
                         </div>
@@ -729,7 +747,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                 
                 {filteredTemplates.length === 0 && (
                     <div className="col-span-full py-12 text-center text-muted-foreground">
-                        <p>No templates found matching &quot;{searchQuery}&quot; in {activeCategory}.</p>
+                        <p>{t('dashboard.noTemplatesFound', { query: searchQuery, category: activeCategoryLabel })}</p>
                     </div>
                 )}
              </div>
@@ -748,33 +766,36 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                             <div className="relative h-20 w-20 overflow-hidden rounded-2xl ring-4 ring-background shadow-lg md:h-24 md:w-24">
                                 <Image
                                     src="https://github.com/GeekatplayStudio.png"
-                                    alt="GeekatplayStudio"
+                                    alt="GeekatplayStudio" // i18n-ignore: studio name
                                     fill
                                     sizes="96px"
                                     className="object-cover"
                                 />
                             </div>
                             <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-4 border-background bg-green-500 text-[10px] font-bold text-white">
-                                IE
+                                IE {/* i18n-ignore: product initials badge */}
                             </div>
                         </div>
 
                         <div className="space-y-2">
                             <div>
-                                <h2 className="text-2xl font-bold tracking-tight text-foreground">Image Express Hub</h2>
+                                <h2 className="text-2xl font-bold tracking-tight text-foreground">{t('dashboard.hubTitle')}</h2>
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Open source creative workspace by <span className="font-semibold text-foreground">V Chopine</span>.
+                                    <RichText
+                                        template={t('dashboard.hubByline')}
+                                        values={{ author: <span className="font-semibold text-foreground">V Chopine{/* i18n-ignore: person's name */}</span> }}
+                                    />
                                 </p>
                             </div>
                             <p className="max-w-2xl text-sm text-muted-foreground">
-                                Use the hub for templates, saved projects, release tracking, and support links. The editor canvas stays focused on creation, while project-level information lives here.
+                                {t('dashboard.hubDescription')}
                             </p>
                         </div>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2 lg:w-[360px]">
                         <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Contact Us</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t('dashboard.contactUs')}</p>
                             <div className="mt-2 space-y-2 text-sm text-muted-foreground">
                                 <a href="mailto:hello@geekatplay.com" className="block transition-colors hover:text-foreground">hello@geekatplay.com</a>
                                 <a href="https://www.geekatplay.com" target="_blank" rel="noreferrer" className="block transition-colors hover:text-foreground">www.geekatplay.com</a>
@@ -783,14 +804,14 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         </div>
 
                         <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Community</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t('dashboard.community')}</p>
                             <div className="mt-2 flex flex-wrap gap-2">
                                 <a href="https://github.com/GeekatplayStudio" target="_blank" rel="noreferrer" className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary/80">GitHub</a>
                                 <a href="https://www.linkedin.com/in/geekatplay/" target="_blank" rel="noreferrer" className="rounded-full bg-[#0077b5]/10 px-3 py-1.5 text-xs font-medium text-[#0077b5] transition-colors hover:bg-[#0077b5]/20">LinkedIn</a>
                                 <a href="https://www.youtube.com/@geekatplay" target="_blank" rel="noreferrer" className="rounded-full bg-[#FF0000]/10 px-3 py-1.5 text-xs font-medium text-[#FF0000] transition-colors hover:bg-[#FF0000]/20">YouTube</a>
                                 <a href="https://geekatplay.gumroad.com/coffee" target="_blank" rel="noreferrer" className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-tool-accent px-4 py-1.5 text-xs font-semibold text-white shadow-md transition-all hover:-translate-y-0.5 hover:from-primary/90 hover:to-tool-accent/90 hover:shadow-lg">
                                     <Heart size={14} className="group-hover:animate-bounce" fill="currentColor" />
-                                    Support My Work
+                                    {t('dashboard.supportMyWork')}
                                 </a>
                             </div>
                         </div>
@@ -798,7 +819,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                 </div>
 
                 <div className="mt-6 flex flex-col gap-3 border-t border-border/60 pt-4 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
-                    <p>Copyright © 2026 V Chopine and Geekatplay Studio. All rights reserved.</p>
+                    <p>{t('dashboard.copyright')}</p>
                     <p data-testid="hub-version-label" className="font-mono text-[11px] text-muted-foreground/90">
                         {hubVersionLabel}
                     </p>
@@ -851,7 +872,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         onClick={() => setShowCustomSizeModal(false)}
                         className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
                     >
-                        Cancel
+                        {t('common.cancel')}
                     </button>
                     <button 
                         onClick={() => {
