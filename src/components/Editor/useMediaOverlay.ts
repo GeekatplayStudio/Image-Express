@@ -24,6 +24,7 @@ import { useMediaOverlayStateEffects } from '@/components/Editor/useMediaOverlay
 import type { MediaOverlayBatchTarget, MediaOverlayFrameConfig } from '@/components/Editor/mediaOverlayTypes';
 import type { ExtendedFabricObject } from '@/types';
 import type { CanvasWithArtboard, RectBounds } from '@/components/Editor/editorView.types';
+import { useI18n } from '@/providers/I18nProvider';
 
 export type { MediaOverlayFrameConfig, MediaOverlayBatchTarget } from '@/components/Editor/mediaOverlayTypes';
 
@@ -102,6 +103,7 @@ export function useMediaOverlay({
     confirm,
     onVariantDraftCreated,
 }: UseMediaOverlayArgs) {
+    const { t } = useI18n();
     const mediaOverlayStorageKey = useMemo(
         () => buildMediaOverlayStorageKey(designId, designName || 'untitled', MEDIA_OVERLAY_STORAGE_KEY_PREFIX),
         [designId, designName],
@@ -650,23 +652,27 @@ export function useMediaOverlay({
         setMediaOverlayEnabled(true);
 
         const nextVariantName = designName && designName !== 'Untitled Page'
-            ? `${designName} - ${presetSpec.label}`
-            : presetSpec.label;
-        const modeLabel = mediaOverlayVariantConversionMode === 'fit'
-            ? 'Fit'
-            : mediaOverlayVariantConversionMode === 'safe-area'
-                ? 'Safe Area'
-                : 'Fill';
+            ? `${designName} - ${presetSpec.exportToken}`
+            : presetSpec.exportToken;
+        const modeSpec = MEDIA_OVERLAY_VARIANT_CONVERSION_MODES.find(
+            (mode) => mode.id === mediaOverlayVariantConversionMode,
+        );
+        const modeLabel = t(modeSpec?.labelKey ?? 'overlay.mode.fill');
+        const presetLabel = t(presetSpec.labelKey);
 
         onVariantDraftCreated?.(nextVariantName);
         onDirty();
         pushHistory();
 
         toast({
-            title: 'Variant draft created',
+            title: t('overlay.variantCreated'),
             description: removedCount > 0
-                ? `Active frame converted to ${presetSpec.label} using ${modeLabel}. Removed ${removedCount} off-frame object${removedCount === 1 ? '' : 's'}.`
-                : `Active frame converted to ${presetSpec.label} using ${modeLabel}. Save to keep it as a separate design.`,
+                ? t('overlay.variantConvertedRemoved', {
+                    preset: presetLabel,
+                    mode: modeLabel,
+                    removed: t('overlay.offFrameObjects', { count: removedCount }),
+                })
+                : t('overlay.variantConverted', { preset: presetLabel, mode: modeLabel }),
             variant: 'success',
         });
     }, [
@@ -685,6 +691,7 @@ export function useMediaOverlay({
         setMediaOverlayPreset,
         toast,
         confirm,
+        t,
     ]);
 
     useMediaOverlayCanvasEffects({

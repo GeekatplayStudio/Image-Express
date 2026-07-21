@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Palette, RefreshCcw, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useToast } from '@/providers/ToastProvider';
 import { useDialog } from '@/providers/DialogProvider';
+import { useI18n } from '@/providers/I18nProvider';
 import { modalSectionClass } from '../../settingsTypes';
 import {
     DEFAULT_UI_THEME_ID,
@@ -20,6 +21,7 @@ import {
  * a downloaded zip (packs are distributed separately — never bundled), and remove.
  */
 export default function InterfaceThemesPanel() {
+    const { t } = useI18n();
     const { toast } = useToast();
     const { confirm } = useDialog();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -36,11 +38,11 @@ export default function InterfaceThemesPanel() {
             setThemes(list);
             setActiveId(loadStoredUiTheme().id);
         } catch {
-            toast({ title: 'Themes', description: 'Could not load the theme list.', variant: 'destructive' });
+            toast({ title: t('themes.toastTitle'), description: t('themes.loadFailed'), variant: 'destructive' });
         } finally {
             setLoading(false);
         }
-    }, [toast]);
+    }, [toast, t]);
 
     useEffect(() => {
         void refresh();
@@ -61,8 +63,8 @@ export default function InterfaceThemesPanel() {
 
             if (!payload.success && payload.error?.includes('already installed')) {
                 const overwrite = await confirm(
-                    `${payload.error} Reinstall and overwrite the existing copy?`,
-                    { title: 'Theme already installed', confirmText: 'Overwrite' }
+                    t('pack.overwriteQuestion', { error: payload.error }),
+                    { title: t('themes.alreadyInstalledTitle'), confirmText: t('pack.overwrite') }
                 );
                 if (!overwrite) return;
                 const retryForm = new FormData();
@@ -73,13 +75,13 @@ export default function InterfaceThemesPanel() {
             }
 
             if (!payload.success || !payload.theme) {
-                toast({ title: 'Theme install failed', description: payload.error || 'Unknown error.', variant: 'destructive' });
+                toast({ title: t('themes.installFailed'), description: payload.error || t('pack.unknownError'), variant: 'destructive' });
                 return;
             }
-            toast({ title: 'Theme installed', description: `"${payload.theme.name}" is ready to use.`, variant: 'success' });
+            toast({ title: t('themes.installedToast'), description: t('pack.readyToUse', { name: payload.theme.name }), variant: 'success' });
             await refresh();
         } catch {
-            toast({ title: 'Theme install failed', description: 'Could not reach the server.', variant: 'destructive' });
+            toast({ title: t('themes.installFailed'), description: t('pack.serverUnreachable'), variant: 'destructive' });
         } finally {
             setInstalling(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -88,8 +90,8 @@ export default function InterfaceThemesPanel() {
 
     const handleRemove = async (theme: InstalledUiTheme) => {
         const confirmed = await confirm(
-            `Remove the theme "${theme.name}"? You can reinstall it later from its zip file.`,
-            { title: 'Remove theme', confirmText: 'Remove' }
+            t('themes.removeQuestion', { name: theme.name }),
+            { title: t('themes.removeTitle'), confirmText: t('pack.remove') }
         );
         if (!confirmed) return;
         setRemovingId(theme.id);
@@ -97,17 +99,17 @@ export default function InterfaceThemesPanel() {
             const response = await fetch(`/api/themes/${encodeURIComponent(theme.id)}`, { method: 'DELETE' });
             const payload = await response.json() as { success: boolean; error?: string };
             if (!payload.success) {
-                toast({ title: 'Remove failed', description: payload.error || 'Unknown error.', variant: 'destructive' });
+                toast({ title: t('pack.removeFailed'), description: payload.error || t('pack.unknownError'), variant: 'destructive' });
                 return;
             }
             if (activeId === theme.id) {
                 const fallback = themes.find((entry) => entry.id === DEFAULT_UI_THEME_ID);
                 if (fallback) handleActivate(fallback);
             }
-            toast({ title: 'Theme removed', description: `"${theme.name}" was uninstalled.`, variant: 'success' });
+            toast({ title: t('themes.removedToast'), description: t('pack.uninstalled', { name: theme.name }), variant: 'success' });
             await refresh();
         } catch {
-            toast({ title: 'Remove failed', description: 'Could not reach the server.', variant: 'destructive' });
+            toast({ title: t('pack.removeFailed'), description: t('pack.serverUnreachable'), variant: 'destructive' });
         } finally {
             setRemovingId(null);
         }
@@ -119,16 +121,15 @@ export default function InterfaceThemesPanel() {
                 <div>
                     <h4 className="text-sm font-semibold flex items-center gap-2">
                         <Palette size={16} className="text-primary" />
-                        Interface Themes
+                        {t('themes.title')}
                     </h4>
                     <p className="text-[11px] text-muted-foreground">
-                        Theme packs restyle the whole interface — colors, window shapes, fonts, and icons.
-                        Download packs separately and install them from a .zip file. Your designs are never affected.
+                        {t('themes.description')}
                     </p>
                 </div>
                 <button
                     onClick={() => void refresh()}
-                    aria-label="Refresh theme list"
+                    aria-label={t('themes.refreshAria')}
                     className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-md border border-border hover:bg-secondary transition-colors"
                 >
                     <RefreshCcw size={13} />
@@ -137,7 +138,7 @@ export default function InterfaceThemesPanel() {
 
             {loading ? (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
-                    <Loader2 size={14} className="animate-spin" /> Loading themes…
+                    <Loader2 size={14} className="animate-spin" /> {t('themes.loading')}
                 </div>
             ) : (
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
@@ -151,7 +152,7 @@ export default function InterfaceThemesPanel() {
                             >
                                 <button
                                     type="button"
-                                    aria-label={`Activate theme ${theme.name}`}
+                                    aria-label={t('themes.activateAria', { name: theme.name })}
                                     aria-pressed={isActive}
                                     onClick={() => handleActivate(theme)}
                                     className="w-full px-3 py-2 text-left"
@@ -165,12 +166,12 @@ export default function InterfaceThemesPanel() {
                                         )}
                                         {theme.spriteTheater && (
                                             <span
-                                                title="Animated theme — includes moving sprite scenes"
-                                                aria-label="Animated theme"
+                                                title={t('themes.animatedTitle')}
+                                                aria-label={t('themes.animatedAria')}
                                                 className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300 backdrop-blur-sm"
                                             >
                                                 <Sparkles size={10} className="shrink-0" />
-                                                Animated
+                                                {t('themes.animated')}
                                             </span>
                                         )}
                                     </div>
@@ -182,16 +183,20 @@ export default function InterfaceThemesPanel() {
                                         )}
                                     </div>
                                     <div className="text-[11px] text-muted-foreground line-clamp-2">
-                                        {theme.description || (theme.source === 'builtin' ? 'Built-in theme.' : 'Installed theme pack.')}
+                                        {theme.description || (theme.source === 'builtin' ? t('themes.builtinDesc') : t('themes.installedDesc'))}
                                     </div>
                                     <div className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                                        {theme.source === 'builtin' ? 'Built-in' : `Installed${theme.version ? ` · v${theme.version}` : ''}`}
+                                        {theme.source === 'builtin'
+                                            ? t('pack.builtin')
+                                            : theme.version
+                                                ? t('pack.installedVersion', { version: theme.version })
+                                                : t('pack.installed')}
                                     </div>
                                 </button>
                                 {theme.source === 'installed' && (
                                     <button
                                         type="button"
-                                        aria-label={`Remove theme ${theme.name}`}
+                                        aria-label={t('themes.removeAria', { name: theme.name })}
                                         onClick={() => void handleRemove(theme)}
                                         disabled={removingId === theme.id}
                                         className="absolute right-1.5 top-1.5 h-6 w-6 inline-flex items-center justify-center rounded-md border border-border/60 bg-background/80 text-muted-foreground hover:text-destructive-foreground hover:bg-destructive transition-colors"
@@ -222,7 +227,7 @@ export default function InterfaceThemesPanel() {
                     className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
                 >
                     {installing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                    {installing ? 'Installing…' : 'Install theme from .zip…'}
+                    {installing ? t('pack.installing') : t('themes.installFromZip')}
                 </button>
                 <a
                     href="https://geekatplay.gumroad.com/"
@@ -230,10 +235,10 @@ export default function InterfaceThemesPanel() {
                     rel="noopener noreferrer"
                     className="h-8 px-3 text-[11px] font-semibold rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors inline-flex items-center gap-1.5"
                 >
-                    ♥ Get more themes &amp; support Vlad
+                    {t('themes.getMore')}
                 </a>
                 <p className="text-[11px] text-muted-foreground">
-                    Optional — purchases support development. Changes apply instantly.
+                    {t('themes.getMoreHint')}
                 </p>
             </div>
         </section>

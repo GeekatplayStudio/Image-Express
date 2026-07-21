@@ -381,7 +381,7 @@ export default function MediaOverlayVerificationHarness() {
 
     const activePresetLabel = useMemo(() => {
         if (!activeFrame) return 'none';
-        return MEDIA_OVERLAY_PRESETS.find((preset) => preset.id === activeFrame.preset)?.label || activeFrame.preset;
+        return MEDIA_OVERLAY_PRESETS.find((preset) => preset.id === activeFrame.preset)?.exportToken || activeFrame.preset;
     }, [activeFrame]);
 
     const variantReady = mediaOverlayFrames.length === 0 && designName.includes('Instagram 1:1');

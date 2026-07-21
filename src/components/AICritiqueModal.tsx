@@ -5,6 +5,7 @@ import useEscapeKey from '@/hooks/useEscapeKey';
 import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
 import { requestOllamaModelInstall } from '@/lib/ollamaModelInstall';
 import { formatOllamaRuntimeStatusMessage, requestOllamaRuntimeStatus } from '@/lib/ollamaRuntimeStatus';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface AICritiqueModalProps {
     isOpen?: boolean;
@@ -101,6 +102,7 @@ export default function AICritiqueModal({
     canvas,
     onClose,
 }: AICritiqueModalProps) {
+    const { t } = useI18n();
     const [runtimeCheck, setRuntimeCheck] = useState<RuntimeCheckState>({
         state: 'idle',
         message: '',
@@ -138,7 +140,7 @@ export default function AICritiqueModal({
 
         setRuntimeCheck({
             state: 'checking',
-            message: 'Checking saved Ollama runtime...',
+            message: t('critique.checkingRuntime'),
             modelFound: false,
             critiqueReady: false,
             visionCapable: false,
@@ -160,14 +162,14 @@ export default function AICritiqueModal({
         } catch (error) {
             setRuntimeCheck({
                 state: 'warning',
-                message: error instanceof Error ? error.message : 'Failed to contact Ollama.',
+                message: error instanceof Error ? error.message : t('critique.contactFailed'),
                 modelFound: false,
                 critiqueReady: false,
                 visionCapable: false,
             });
             return false;
         }
-    }, [ollamaBaseUrl, ollamaModel]);
+    }, [ollamaBaseUrl, ollamaModel, t]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -223,11 +225,17 @@ export default function AICritiqueModal({
         };
     }, [canvas, isOpen, syncSelectionState]);
 
+    // Sent to the critique API as part of the prompt — keep it English so the
+    // model always sees the same wording regardless of UI language.
     const targetLabel = useMemo(() => (
         target === 'selection'
             ? (selectionLabel || 'Selected layer')
             : 'Full canvas'
     ), [selectionLabel, target]);
+
+    const targetLabelDisplay = target === 'selection'
+        ? (selectionLabel || t('critique.selectedLayer'))
+        : t('critique.fullCanvas');
 
     const canAnalyze = Boolean(canvas)
         && (target === 'canvas' || Boolean(selectionLabel))
@@ -237,18 +245,18 @@ export default function AICritiqueModal({
 
     const handleAnalyze = async () => {
         if (!canvas) {
-            setErrorMessage('Canvas is not ready yet.');
+            setErrorMessage(t('critique.canvasNotReady'));
             return;
         }
 
         if (target === 'selection' && !selectionLabel) {
-            setErrorMessage('Select a layer on the canvas, or switch the critique target to Full Canvas.');
+            setErrorMessage(t('critique.selectLayerError'));
             return;
         }
 
         const runtimeReady = runtimeCheck.modelFound || await checkRuntime();
         if (!runtimeReady) {
-            setErrorMessage(runtimeCheck.message || 'Ollama critique is not ready yet. Configure a vision-capable model in Settings and recheck.');
+            setErrorMessage(runtimeCheck.message || t('critique.notReady'));
             return;
         }
 
@@ -330,17 +338,17 @@ export default function AICritiqueModal({
                 <div>
                     <div className="flex items-center gap-2 text-sm font-semibold">
                         <MessageSquare size={16} />
-                        <span>AI Critique</span>
+                        <span>{t('critique.title')}</span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                        Leave this panel open and click a layer on the canvas to critique the current selection.
+                        {t('critique.hint')}
                     </p>
                 </div>
                 <button
                     type="button"
                     onClick={onClose}
                     className="rounded-md p-1 transition-colors hover:bg-white/10"
-                    aria-label="Close AI Critique"
+                    aria-label={t('critique.close')}
                 >
                     <X size={16} />
                 </button>
@@ -351,11 +359,11 @@ export default function AICritiqueModal({
                     <div className="flex items-start justify-between gap-3">
                         <div>
                             <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                Local Runtime
+                                {t('critique.localRuntime')}
                             </div>
-                            <div className="mt-1 text-sm font-medium">{ollamaModel || 'No model configured'}</div>
+                            <div className="mt-1 text-sm font-medium">{ollamaModel || t('critique.noModel')}</div>
                             <div className="mt-1 break-all text-xs text-muted-foreground">
-                                {ollamaBaseUrl || 'No Ollama URL configured'}
+                                {ollamaBaseUrl || t('critique.noUrl')}
                             </div>
                         </div>
                         <button
@@ -364,7 +372,7 @@ export default function AICritiqueModal({
                             disabled={runtimeCheck.state === 'checking'}
                             className="rounded-lg border border-border px-2 py-1 text-[11px] font-semibold text-foreground transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            {runtimeCheck.state === 'checking' ? 'Checking...' : 'Recheck'}
+                            {runtimeCheck.state === 'checking' ? t('critique.checking') : t('critique.recheck')}
                         </button>
                     </div>
                     {runtimeCheck.message ? (
@@ -384,21 +392,23 @@ export default function AICritiqueModal({
                                 disabled={isInstallingModel}
                                 className="rounded-lg border border-border px-2 py-1 text-[11px] font-semibold text-foreground transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {isInstallingModel ? 'Installing...' : `Install ${ollamaModel || 'model'}`}
+                                {isInstallingModel
+                                    ? t('critique.installing')
+                                    : t('critique.installModel', { model: ollamaModel || t('critique.modelFallback') })}
                             </button>
                             {isInstallingModel ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
                         </div>
                     ) : null}
                     {runtimeCheck.modelFound && !runtimeCheck.visionCapable && runtimeCheck.state !== 'checking' ? (
                         <div className="mt-3 text-xs text-muted-foreground">
-                            AI Critique needs a vision-capable Ollama model such as `llava`, `llama3.2-vision`, `gemma3`, or `qwen2.5-vl`. Update the saved Local AI Runtime model in Settings, then recheck.
+                            {t('critique.visionRequired')}
                         </div>
                     ) : null}
                 </div>
 
                 <fieldset>
                     <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Critique Target
+                        {t('critique.target')}
                     </legend>
                     <div className="mt-2 grid grid-cols-2 gap-2">
                         <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border px-3 py-2 text-sm">
@@ -406,15 +416,15 @@ export default function AICritiqueModal({
                                 type="radio"
                                 name="ai-critique-target"
                                 value="selection"
-                                aria-label="Selected Layer"
+                                aria-label={t('critique.selectedLayer')}
                                 checked={target === 'selection'}
                                 disabled={!selectionLabel}
                                 onChange={() => setTarget('selection')}
                             />
                             <span>
-                                <span className="block font-medium">Selected Layer</span>
+                                <span className="block font-medium">{t('critique.selectedLayer')}</span>
                                 <span className="block text-xs text-muted-foreground">
-                                    {selectionLabel || 'Select a layer on the canvas'}
+                                    {selectionLabel || t('critique.selectLayerHint')}
                                 </span>
                             </span>
                         </label>
@@ -424,14 +434,14 @@ export default function AICritiqueModal({
                                 type="radio"
                                 name="ai-critique-target"
                                 value="canvas"
-                                aria-label="Full Canvas"
+                                aria-label={t('critique.fullCanvas')}
                                 checked={target === 'canvas'}
                                 onChange={() => setTarget('canvas')}
                             />
                             <span>
-                                <span className="block font-medium">Full Canvas</span>
+                                <span className="block font-medium">{t('critique.fullCanvas')}</span>
                                 <span className="block text-xs text-muted-foreground">
-                                    Review the current composition
+                                    {t('critique.fullCanvasHint')}
                                 </span>
                             </span>
                         </label>
@@ -440,20 +450,20 @@ export default function AICritiqueModal({
 
                 <div>
                     <label htmlFor="ai-critique-focus" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Focus Prompt
+                        {t('critique.focusPrompt')}
                     </label>
                     <textarea
                         id="ai-critique-focus"
                         value={focus}
                         onChange={(event) => setFocus(event.target.value)}
                         rows={4}
-                        placeholder="Optional: ask it to focus on hierarchy, readability, color, conversion readiness, etc."
+                        placeholder={t('critique.focusPlaceholder')}
                         className="mt-2 w-full rounded-xl border border-input bg-secondary/30 px-3 py-2 text-sm text-foreground outline-none transition focus:ring-2"
                     />
                 </div>
 
                 <div className="rounded-xl border border-border px-3 py-2 text-xs text-muted-foreground">
-                    Active target: <span className="text-foreground">{targetLabel}</span>
+                    {t('critique.activeTarget')} <span className="text-foreground">{targetLabelDisplay}</span>
                 </div>
 
                 <button
@@ -463,11 +473,11 @@ export default function AICritiqueModal({
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <MessageSquare size={16} />}
-                    {isAnalyzing ? 'Analyzing...' : 'Analyze with Ollama'}
+                    {isAnalyzing ? t('critique.analyzing') : t('critique.analyze')}
                 </button>
                 {!runtimeCheck.critiqueReady && runtimeCheck.state !== 'checking' ? (
                     <div className="text-xs text-muted-foreground">
-                        Critique is disabled until the saved Ollama model is reachable and supports image input. Install the missing model here or update Local AI Runtime in Settings, then recheck.
+                        {t('critique.disabledHint')}
                     </div>
                 ) : null}
 
@@ -486,10 +496,10 @@ export default function AICritiqueModal({
 
                 <div className="rounded-xl border border-border bg-secondary/20 p-3">
                     <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Critique Output
+                        {t('critique.output')}
                     </div>
                     <div className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap text-sm leading-6">
-                        {critique || 'Run a critique to get local design feedback here.'}
+                        {critique || t('critique.outputPlaceholder')}
                     </div>
                 </div>
             </div>

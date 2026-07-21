@@ -623,7 +623,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     >
                                         {GENERATIVE_PROVIDER_OPTIONS.map((provider) => (
                                             <option key={provider.id} value={provider.id}>
-                                                {provider.label}{provider.status === 'coming-soon' ? t('wizard.comingSoonSuffix') : ''}
+                                                {t(provider.labelKey)}{provider.status === 'coming-soon' ? t('wizard.comingSoonSuffix') : ''}
                                             </option>
                                         ))}
                                     </select>
@@ -638,7 +638,7 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                         {GENERATIVE_WORKFLOW_OPTIONS
                                             .filter((workflow) => isWorkflowSupportedByProvider(defaultGenerativeProvider, workflow.id))
                                             .map((workflow) => (
-                                                <option key={workflow.id} value={workflow.id}>{workflow.label}</option>
+                                                <option key={workflow.id} value={workflow.id}>{t(workflow.labelKey)}</option>
                                             ))}
                                     </select>
                                 </div>
@@ -1053,8 +1053,8 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                             : t('wizard.summary.notConnectedYet')))
                                     : t('wizard.summary.plannedProvider')}</p>
                                 <p><span className="font-semibold">{t('wizard.summary.aiKeys')}</span> {[stabilityKey, openaiKey, googleKey, bananaKey].filter((value) => value.trim().length > 0).length}</p>
-                                <p><span className="font-semibold">{t('wizard.summary.defaultProvider')}</span> {GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === defaultGenerativeProvider)?.label || defaultGenerativeProvider}</p>
-                                <p><span className="font-semibold">{t('wizard.summary.defaultWorkflow')}</span> {GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow)?.label || defaultGenerativeWorkflow}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.defaultProvider')}</span> {(() => { const spec = GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === defaultGenerativeProvider); return spec ? t(spec.labelKey) : defaultGenerativeProvider; })()}</p>
+                                <p><span className="font-semibold">{t('wizard.summary.defaultWorkflow')}</span> {(() => { const spec = GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === defaultGenerativeWorkflow); return spec ? t(spec.labelKey) : defaultGenerativeWorkflow; })()}</p>
                                 <p>
                                     <span className="font-semibold">{t('wizard.summary.runtime')}</span>{' '}
                                     {installerStatus

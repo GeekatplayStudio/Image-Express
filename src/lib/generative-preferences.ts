@@ -52,15 +52,15 @@ const GENERATIVE_WORKFLOW_SET = new Set<GenerativeWorkflowId>([
 
 export const GENERATIVE_PROVIDER_OPTIONS: Array<{
     id: GenerativeProviderId;
-    label: string;
-    description: string;
+    labelKey: string;
+    descriptionKey: string;
     status: GenerativeProviderStatus;
     supportedWorkflows: GenerativeWorkflowId[];
 }> = [
     {
         id: 'stability',
-        label: 'Stability AI',
-        description: 'Best current support for fill, inpaint, outpaint, upscale.',
+        labelKey: 'genProvider.stability',
+        descriptionKey: 'genProvider.stability.desc',
         status: 'ready',
         supportedWorkflows: [
             'zone',
@@ -74,49 +74,49 @@ export const GENERATIVE_PROVIDER_OPTIONS: Array<{
     },
     {
         id: 'ollama',
-        label: 'Ollama (Local SVG)',
-        description: 'Local prompt-to-SVG generation using your saved Ollama runtime and model.',
+        labelKey: 'genProvider.ollama',
+        descriptionKey: 'genProvider.ollama.desc',
         status: 'ready',
         supportedWorkflows: ['zone'],
     },
     {
         id: 'openai',
-        label: 'ChatGPT / OpenAI',
-        description: 'Text-to-image generation (DALL-E style).',
+        labelKey: 'genProvider.openai',
+        descriptionKey: 'genProvider.openai.desc',
         status: 'ready',
         supportedWorkflows: ['zone'],
     },
     {
         id: 'google',
-        label: 'Gemini / Google',
-        description: 'Gemini image generation using your saved Google API key.',
+        labelKey: 'genProvider.google',
+        descriptionKey: 'genProvider.google.desc',
         status: 'ready',
         supportedWorkflows: ['zone'],
     },
     {
         id: 'banana',
-        label: 'Banana.dev',
-        description: 'Server-configured Banana endpoint using your saved Banana API key.',
+        labelKey: 'genProvider.banana',
+        descriptionKey: 'genProvider.banana.desc',
         status: 'ready',
         supportedWorkflows: ['zone'],
     },
     {
         id: 'comfy',
-        label: 'ComfyUI',
-        description: 'Local or Comfy Cloud workflows via your selected Comfy endpoint.',
+        labelKey: 'genProvider.comfy',
+        descriptionKey: 'genProvider.comfy.desc',
         status: 'ready',
         supportedWorkflows: ['zone'],
     },
 ];
 
-export const GENERATIVE_WORKFLOW_OPTIONS: Array<{ id: GenerativeWorkflowId; label: string; description: string }> = [
-    { id: 'stability-inpaint', label: 'Generative Fill (Inpaint)', description: 'Reference-style flow: mask area, prompt, fill.' },
-    { id: 'zone', label: 'Prompt + Zone', description: 'Universal text-to-image generation inside a zone rectangle.' },
-    { id: 'stability-generate', label: 'Stability Generate', description: 'Stability text-to-image defaults.' },
-    { id: 'stability-img2img', label: 'Stability Reimagine (Img2Img)', description: 'Transform selected image/canvas with prompt + strength.' },
-    { id: 'stability-outpaint', label: 'Stability Outpaint', description: 'Extend the image beyond its current boundaries.' },
-    { id: 'stability-upscale', label: 'Stability Upscale', description: 'Conservative or creative upscale pipeline.' },
-    { id: 'stability-removebg', label: 'Stability Remove Background', description: 'Fast background removal flow.' },
+export const GENERATIVE_WORKFLOW_OPTIONS: Array<{ id: GenerativeWorkflowId; labelKey: string; descriptionKey: string }> = [
+    { id: 'stability-inpaint', labelKey: 'genWorkflow.inpaint', descriptionKey: 'genWorkflow.inpaint.desc' },
+    { id: 'zone', labelKey: 'genWorkflow.zone', descriptionKey: 'genWorkflow.zone.desc' },
+    { id: 'stability-generate', labelKey: 'genWorkflow.generate', descriptionKey: 'genWorkflow.generate.desc' },
+    { id: 'stability-img2img', labelKey: 'genWorkflow.img2img', descriptionKey: 'genWorkflow.img2img.desc' },
+    { id: 'stability-outpaint', labelKey: 'genWorkflow.outpaint', descriptionKey: 'genWorkflow.outpaint.desc' },
+    { id: 'stability-upscale', labelKey: 'genWorkflow.upscale', descriptionKey: 'genWorkflow.upscale.desc' },
+    { id: 'stability-removebg', labelKey: 'genWorkflow.removebg', descriptionKey: 'genWorkflow.removebg.desc' },
 ];
 
 const DEFAULT_GENERATIVE_PREFERENCES: GenerativePreferences = {

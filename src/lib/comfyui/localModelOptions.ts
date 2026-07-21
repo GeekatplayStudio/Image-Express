@@ -5,83 +5,90 @@ export interface ComfyTaskModelOption {
     workflowId: string;
     workflowName: string;
     modelPresetId: string;
+    /** Model name (SDXL Base, FLUX.1 Dev, …) — a proper noun, never translated. */
     label: string;
+    /**
+     * Description to render. Curated entries carry a dictionary key; anything
+     * discovered at runtime falls back to the workflow's own English text,
+     * which has no key because it comes from the installed workflow file.
+     */
+    descriptionKey?: string;
     description: string;
     memoryLabel?: string;
     sortOrder: number;
 }
 
 type CuratedModelOptionDefinition = {
-    label: string;
-    description: string;
+    modelName: string;
+    descriptionKey: string;
     memoryLabel?: string;
     sortOrder: number;
 };
 
 const CURATED_MODEL_OPTIONS: Record<string, CuratedModelOptionDefinition> = {
     'generate-basic::sdxl': {
-        label: 'SDXL Base',
-        description: 'Starter local text-to-image profile for general prompts, reimagine, inpaint, and outpaint flows.',
+        modelName: 'SDXL Base',
+        descriptionKey: 'comfyModel.sdxlBase',
         memoryLabel: '8+ GB VRAM',
         sortOrder: 10,
     },
     'image_flux2_text_to_image::flux-dev': {
-        label: 'FLUX.1 Dev',
-        description: 'Higher-fidelity FLUX text-to-image stack with the full dev model set.',
+        modelName: 'FLUX.1 Dev',
+        descriptionKey: 'comfyModel.fluxDev',
         memoryLabel: '16+ GB VRAM',
         sortOrder: 20,
     },
     'image_flux2_text_to_image::flux-schnell': {
-        label: 'FLUX.1 Schnell',
-        description: 'Faster FLUX text-to-image profile with lower step counts and lighter encoder requirements.',
+        modelName: 'FLUX.1 Schnell',
+        descriptionKey: 'comfyModel.fluxSchnell',
         memoryLabel: '12+ GB VRAM',
         sortOrder: 30,
     },
     'image_flux2_text_to_image_9b::default': {
-        label: 'FLUX 2 9B',
-        description: 'Template-driven FLUX 2 text-to-image workflow with installable model metadata baked into the graph.',
+        modelName: 'FLUX 2 9B',
+        descriptionKey: 'comfyModel.flux2_9b',
         memoryLabel: '18+ GB VRAM',
         sortOrder: 40,
     },
     'image_qwen_image_2512_with_2steps_lora::default': {
-        label: 'Qwen Image 2512',
-        description: 'Qwen image generation template with bundled text encoder, diffusion model, VAE, and LoRA metadata.',
+        modelName: 'Qwen Image 2512',
+        descriptionKey: 'comfyModel.qwen2512',
         memoryLabel: '14+ GB VRAM',
         sortOrder: 50,
     },
     'img2img-sdxl::sdxl': {
-        label: 'SDXL Reimage',
-        description: 'General image-to-image and style-translation starting point with the SDXL base checkpoint.',
+        modelName: 'SDXL Reimage',
+        descriptionKey: 'comfyModel.sdxlReimage',
         memoryLabel: '8+ GB VRAM',
         sortOrder: 10,
     },
     'image_flux2_klein_image_edit_4b_base::default': {
-        label: 'Z Image Turbo / FLUX 2 Klein 4B',
-        description: 'Task-oriented image editing profile with workflow-managed Klein 4B, Z Image, and VAE downloads.',
+        modelName: 'Z Image Turbo / FLUX 2 Klein 4B',
+        descriptionKey: 'comfyModel.klein4b',
         memoryLabel: '10+ GB VRAM',
         sortOrder: 20,
     },
     'image_flux2_klein_image_edit_9b_base::default': {
-        label: 'FLUX 2 Klein 9B',
-        description: 'Heavier image-edit profile for higher-capacity FLUX 2 Klein work.',
+        modelName: 'FLUX 2 Klein 9B',
+        descriptionKey: 'comfyModel.klein9b',
         memoryLabel: '18+ GB VRAM',
         sortOrder: 30,
     },
     'inpaint-sdxl::sdxl': {
-        label: 'SDXL Inpaint',
-        description: 'Mask-guided fill profile using the SDXL base checkpoint.',
+        modelName: 'SDXL Inpaint',
+        descriptionKey: 'comfyModel.sdxlInpaint',
         memoryLabel: '8+ GB VRAM',
         sortOrder: 10,
     },
     'outpaint-sdxl::sdxl': {
-        label: 'SDXL Outpaint',
-        description: 'Canvas extension profile using the SDXL base checkpoint and generated outpaint masks.',
+        modelName: 'SDXL Outpaint',
+        descriptionKey: 'comfyModel.sdxlOutpaint',
         memoryLabel: '8+ GB VRAM',
         sortOrder: 10,
     },
     'upscale-image::default': {
-        label: 'Lanczos Upscale',
-        description: 'Low-complexity upscale flow for quick enlargements without an extra model download.',
+        modelName: 'Lanczos Upscale',
+        descriptionKey: 'comfyModel.lanczos',
         memoryLabel: 'Low VRAM',
         sortOrder: 10,
     },
@@ -119,8 +126,9 @@ export const buildComfyTaskModelOptions = (
                 workflowId: workflow.id,
                 workflowName: workflow.name,
                 modelPresetId: modelPreset.id,
-                label: curated?.label || buildFallbackLabel(workflow.name, modelPreset.name),
-                description: curated?.description || workflow.description,
+                label: curated?.modelName || buildFallbackLabel(workflow.name, modelPreset.name),
+                descriptionKey: curated?.descriptionKey,
+                description: workflow.description,
                 memoryLabel: curated?.memoryLabel,
                 sortOrder: curated?.sortOrder ?? 1000,
             });

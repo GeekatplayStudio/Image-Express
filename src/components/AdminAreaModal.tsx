@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyRound, Loader2, RefreshCcw, ShieldCheck, UserCog, Users } from 'lucide-react';
 import ModalShell from '@/components/ui/ModalShell';
+import { useI18n } from '@/providers/I18nProvider';
 import type { AuthUser } from '@/types';
 
 interface AdminAreaModalProps {
@@ -15,27 +16,29 @@ interface AdminAreaModalProps {
 type AdminAction = 'approve' | 'reject' | 'disable' | 'enable' | 'set-roles' | 'set-rights' | 'set-display-name';
 type AdminTab = 'users' | 'roles-rights';
 
+// `key`, `roles` and `rights` are stored identifiers compared against the
+// account record, so only the label/description keys are translated.
 const ROLE_PRESETS = [
     {
         key: 'admin',
-        label: 'Admin',
+        labelKey: 'admin.preset.admin',
         roles: ['admin'],
         rights: ['users:approve', 'users:manage', 'roles:manage', 'rights:manage', 'password:reset'],
-        description: 'Full access to user management and role administration.'
+        descriptionKey: 'admin.preset.admin.desc'
     },
     {
         key: 'creator',
-        label: 'Creator',
+        labelKey: 'admin.preset.creator',
         roles: ['creator'],
         rights: ['assets:own', 'designs:own'],
-        description: 'Default creative account with personal project permissions.'
+        descriptionKey: 'admin.preset.creator.desc'
     },
     {
         key: 'reviewer',
-        label: 'Reviewer',
+        labelKey: 'admin.preset.reviewer',
         roles: ['reviewer'],
         rights: ['designs:review', 'assets:view'],
-        description: 'Can review content without admin-level account controls.'
+        descriptionKey: 'admin.preset.reviewer.desc'
     }
 ] as const;
 
@@ -47,6 +50,7 @@ function parseDraftList(value: string) {
 }
 
 export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: AdminAreaModalProps) {
+    const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<AdminTab>('users');
     const [adminUsers, setAdminUsers] = useState<AuthUser[]>([]);
     const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
@@ -67,7 +71,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
             const res = await fetch(`/api/user/admin/users?requesterEmail=${encodeURIComponent(userId)}`);
             const data = await res.json();
             if (!res.ok || !data.success) {
-                setAdminError(data.message || 'Failed to load users.');
+                setAdminError(data.message || t('admin.loadFailed'));
                 setAdminUsers([]);
                 return;
             }
@@ -85,12 +89,12 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
             );
         } catch (error) {
             console.error('Failed to load users', error);
-            setAdminError('Failed to load users.');
+            setAdminError(t('admin.loadFailed'));
             setAdminUsers([]);
         } finally {
             setIsAdminUsersLoading(false);
         }
-    }, [hasAccess, userId]);
+    }, [hasAccess, userId, t]);
 
     const runAdminAction = useCallback(async (
         targetEmail: string,
@@ -114,7 +118,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
             });
             const data = await res.json();
             if (!res.ok || !data.success) {
-                setAdminError(data.message || 'Admin action failed.');
+                setAdminError(data.message || t('admin.actionFailed'));
                 return false;
             }
             if (options?.reload !== false) {
@@ -123,12 +127,12 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
             return true;
         } catch (error) {
             console.error('Admin action failed', error);
-            setAdminError('Admin action failed.');
+            setAdminError(t('admin.actionFailed'));
             return false;
         } finally {
             setAdminBusyUser(null);
         }
-    }, [hasAccess, userId, loadAdminUsers]);
+    }, [hasAccess, userId, loadAdminUsers, t]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -147,6 +151,17 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
         return Array.from(rights).sort((a, b) => a.localeCompare(b));
     }, [adminUsers]);
 
+    /**
+     * Status comes from the account record, so the key is built at runtime.
+     * translate() returns the key when it is unknown — fall back to the raw
+     * status instead, so a status added server-side still reads as a word.
+     */
+    const statusLabel = (status: string) => {
+        const key = `admin.status.${status}`;
+        const label = t(key);
+        return label === key ? status : label;
+    };
+
     const applyPreset = async (email: string, presetKey: string) => {
         const preset = ROLE_PRESETS.find((item) => item.key === presetKey);
         if (!preset) return;
@@ -164,7 +179,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
         <ModalShell
             isOpen={isOpen}
             onClose={onClose}
-            title="Admin Area"
+            title={t('dashboard.adminArea')}
             icon={<ShieldCheck size={14} className="text-primary" />}
             initialWidth={1024}
             initialHeight={760}
@@ -176,9 +191,9 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                 {!hasAccess ? (
                     <div className="flex-1 flex items-center justify-center px-6">
                         <div className="max-w-md rounded-xl border border-destructive/40 bg-destructive/10 px-5 py-4 text-center">
-                            <p className="font-semibold text-destructive">Admin access required</p>
+                            <p className="font-semibold text-destructive">{t('admin.accessRequired')}</p>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                This area is visible only for approved admin accounts.
+                                {t('admin.accessRequiredHint')}
                             </p>
                         </div>
                     </div>
@@ -194,7 +209,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                 >
                                     <span className="inline-flex items-center gap-1.5">
                                         <Users size={13} />
-                                        User Management
+                                        {t('admin.tab.users')}
                                     </span>
                                 </button>
                                 <button
@@ -205,7 +220,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                 >
                                     <span className="inline-flex items-center gap-1.5">
                                         <KeyRound size={13} />
-                                        Rights & Roles
+                                        {t('admin.tab.rolesRights')}
                                     </span>
                                 </button>
                             </div>
@@ -215,7 +230,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                 disabled={isAdminUsersLoading}
                             >
                                 <RefreshCcw size={13} className={isAdminUsersLoading ? 'animate-spin' : ''} />
-                                Refresh
+                                {t('common.refresh')}
                             </button>
                         </div>
 
@@ -229,7 +244,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                             {isAdminUsersLoading ? (
                                 <div className="h-full min-h-56 flex items-center justify-center text-sm text-muted-foreground gap-2">
                                     <Loader2 size={16} className="animate-spin" />
-                                    Loading admin users...
+                                    {t('admin.loadingUsers')}
                                 </div>
                             ) : activeTab === 'users' ? (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -253,25 +268,25 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                                             ? 'bg-amber-500/15 text-amber-600'
                                                             : 'bg-red-500/15 text-red-600'
                                                     }`}>
-                                                        {user.status}
+                                                        {statusLabel(user.status)}
                                                     </span>
                                                 </div>
 
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Display Name</label>
+                                                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('auth.displayName')}</label>
                                                     <div className="flex items-center gap-2">
                                                         <input
                                                             value={displayNameText}
                                                             onChange={(event) => setAdminDraftDisplayName((prev) => ({ ...prev, [user.email]: event.target.value }))}
                                                             className="flex-1 h-8 px-2 rounded-md border border-border bg-background text-xs"
-                                                            placeholder="Display name"
+                                                            placeholder={t('admin.displayNamePlaceholder')}
                                                         />
                                                         <button
                                                             onClick={() => void runAdminAction(user.email, 'set-display-name', { displayName: displayNameText })}
                                                             disabled={busy}
                                                             className="h-8 px-2 rounded-md border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
                                                         >
-                                                            Save
+                                                            {t('common.save')}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -282,14 +297,14 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                                         disabled={busy}
                                                         className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
                                                     >
-                                                        {isPending ? 'Approve' : 'Enable'}
+                                                        {isPending ? t('admin.approve') : t('admin.enable')}
                                                     </button>
                                                     <button
                                                         onClick={() => void runAdminAction(user.email, isPending ? 'reject' : 'disable')}
                                                         disabled={busy}
                                                         className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
                                                     >
-                                                        {isPending ? 'Reject' : (isDisabled ? 'Disabled' : 'Disable')}
+                                                        {isPending ? t('admin.reject') : (isDisabled ? t('admin.disabled') : t('admin.disable'))}
                                                     </button>
                                                 </div>
                                             </div>
@@ -301,21 +316,21 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                     <div className="rounded-xl border border-border/70 bg-secondary/15 p-4">
                                         <h3 className="text-sm font-semibold flex items-center gap-2">
                                             <UserCog size={15} className="text-primary" />
-                                            Role Presets
+                                            {t('admin.rolePresets')}
                                         </h3>
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            Apply a baseline role package, then fine-tune rights per user.
+                                            {t('admin.rolePresetsHint')}
                                         </p>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                                             {ROLE_PRESETS.map((preset) => (
                                                 <div key={preset.key} className="rounded-lg border border-border/60 bg-background/60 p-3 space-y-2">
-                                                    <p className="text-xs font-semibold">{preset.label}</p>
-                                                    <p className="text-[11px] text-muted-foreground min-h-8">{preset.description}</p>
+                                                    <p className="text-xs font-semibold">{t(preset.labelKey)}</p>
+                                                    <p className="text-[11px] text-muted-foreground min-h-8">{t(preset.descriptionKey)}</p>
                                                     <p className="text-[10px] text-muted-foreground">
-                                                        Roles: <span className="text-foreground">{preset.roles.join(', ')}</span>
+                                                        {t('admin.rolesLabel')} <span className="text-foreground">{preset.roles.join(', ')}</span>
                                                     </p>
                                                     <p className="text-[10px] text-muted-foreground">
-                                                        Rights: <span className="text-foreground">{preset.rights.join(', ')}</span>
+                                                        {t('admin.rightsLabel')} <span className="text-foreground">{preset.rights.join(', ')}</span>
                                                     </p>
                                                 </div>
                                             ))}
@@ -323,10 +338,10 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                     </div>
 
                                     <div className="rounded-xl border border-border/70 bg-secondary/15 p-4">
-                                        <h3 className="text-sm font-semibold">Rights Catalog</h3>
+                                        <h3 className="text-sm font-semibold">{t('admin.rightsCatalog')}</h3>
                                         <div className="mt-2 flex flex-wrap gap-1.5">
                                             {allKnownRights.length === 0 ? (
-                                                <span className="text-xs text-muted-foreground">No rights found yet.</span>
+                                                <span className="text-xs text-muted-foreground">{t('admin.noRights')}</span>
                                             ) : (
                                                 allKnownRights.map((right) => {
                                                     const assignedCount = adminUsers.filter((user) => (user.rights || []).includes(right)).length;
@@ -334,7 +349,7 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                                         <span
                                                             key={right}
                                                             className="text-[10px] px-2 py-1 rounded-full border border-border bg-background/70 text-muted-foreground"
-                                                            title={`${assignedCount} user(s)`}
+                                                            title={t('admin.rightUserCount', { count: assignedCount })}
                                                         >
                                                             {right} ({assignedCount})
                                                         </span>
@@ -364,9 +379,9 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
                                                                     onClick={() => void applyPreset(user.email, preset.key)}
                                                                     disabled={busy}
                                                                     className="h-6 px-2 rounded border border-border text-[10px] hover:bg-secondary transition-colors"
-                                                                    title={`Apply ${preset.label}`}
+                                                                    title={t('admin.applyPreset', { preset: t(preset.labelKey) })}
                                                                 >
-                                                                    {preset.label}
+                                                                    {t(preset.labelKey)}
                                                                 </button>
                                                             ))}
                                                         </div>
@@ -374,35 +389,35 @@ export default function AdminAreaModal({ isOpen, onClose, userId, userRoles }: A
 
                                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                                                         <div className="space-y-1">
-                                                            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Roles</label>
+                                                            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('admin.roles')}</label>
                                                             <input
                                                                 value={rolesText}
                                                                 onChange={(event) => setAdminDraftRoles((prev) => ({ ...prev, [user.email]: event.target.value }))}
                                                                 className="w-full h-8 px-2 rounded-md border border-border bg-background text-[11px]"
-                                                                placeholder="admin, creator"
+                                                                placeholder="admin, creator" // i18n-ignore: role names are stored identifiers
                                                             />
                                                             <button
                                                                 onClick={() => void runAdminAction(user.email, 'set-roles', { roles: parseDraftList(rolesText) })}
                                                                 disabled={busy}
                                                                 className="h-7 px-2 rounded border border-border text-[10px] font-semibold hover:bg-secondary transition-colors"
                                                             >
-                                                                Save Roles
+                                                                {t('admin.saveRoles')}
                                                             </button>
                                                         </div>
                                                         <div className="space-y-1">
-                                                            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Rights</label>
+                                                            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">{t('admin.rights')}</label>
                                                             <input
                                                                 value={rightsText}
                                                                 onChange={(event) => setAdminDraftRights((prev) => ({ ...prev, [user.email]: event.target.value }))}
                                                                 className="w-full h-8 px-2 rounded-md border border-border bg-background text-[11px]"
-                                                                placeholder="users:manage, assets:own"
+                                                                placeholder="users:manage, assets:own" // i18n-ignore: right names are stored identifiers
                                                             />
                                                             <button
                                                                 onClick={() => void runAdminAction(user.email, 'set-rights', { rights: parseDraftList(rightsText) })}
                                                                 disabled={busy}
                                                                 className="h-7 px-2 rounded border border-border text-[10px] font-semibold hover:bg-secondary transition-colors"
                                                             >
-                                                                Save Rights
+                                                                {t('admin.saveRights')}
                                                             </button>
                                                         </div>
                                                     </div>

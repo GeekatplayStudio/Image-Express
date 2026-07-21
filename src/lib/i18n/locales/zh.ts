@@ -20,6 +20,7 @@ const zh: LocaleDictionary = {
     'common.loading': '加载中…',
     'common.error': '错误',
     'common.retry': '重试',
+    'common.refresh': '刷新',
 
     'auth.signIn': '登录',
     'auth.signOut': '退出登录',
@@ -113,6 +114,8 @@ const zh: LocaleDictionary = {
     'stack.projectCount': '{count} 个相册',
     'stack.cubeCaption': '{pages} 个页面 · {linked} 个已链接',
     'stack.newProject': '新建相册',
+    'stack.albumName': '相册 {n}',
+    'stack.pageName': '页面 {n}',
     'stack.renameProject': '重命名相册',
     'stack.duplicateProject': '复制相册',
     'stack.deleteProject': '删除相册',

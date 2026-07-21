@@ -60,7 +60,7 @@ export default function EditorHeaderWindowMenu({
                                 }}
                                 className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${checked ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
                             >
-                                <span>{item.label}</span>
+                                <span>{t(item.labelKey)}</span>
                                 <span className={`text-xs ${checked ? 'text-primary' : 'text-transparent'}`}>✓</span>
                             </button>
                         );
@@ -88,7 +88,7 @@ export default function EditorHeaderWindowMenu({
                         }}
                         className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${isPropertiesPanelVisible ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
                     >
-                        <span>Show Properties Panel</span>
+                        <span>{t('window.showPropertiesPanel')}</span>
                         <span className={`text-xs ${isPropertiesPanelVisible ? 'text-primary' : 'text-transparent'}`}>✓</span>
                     </button>
                     <div className="my-1 border-t border-border/50" />
@@ -101,7 +101,7 @@ export default function EditorHeaderWindowMenu({
                         }}
                         className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'docked-left') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
                     >
-                        <span>Dock Left</span>
+                        <span>{t('window.dockLeft')}</span>
                         <span className={`text-xs ${(panelState.mode === 'docked-left') ? 'text-primary' : 'text-transparent'}`}>✓</span>
                     </button>
                     <button
@@ -113,7 +113,7 @@ export default function EditorHeaderWindowMenu({
                         }}
                         className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'docked-right') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
                     >
-                        <span>Dock Right</span>
+                        <span>{t('window.dockRight')}</span>
                         <span className={`text-xs ${(panelState.mode === 'docked-right') ? 'text-primary' : 'text-transparent'}`}>✓</span>
                     </button>
                     <button
@@ -125,7 +125,7 @@ export default function EditorHeaderWindowMenu({
                         }}
                         className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between ${(panelState.mode === 'floating') ? 'bg-secondary/30' : 'hover:bg-secondary/50'}`}
                     >
-                        <span>Float Panel</span>
+                        <span>{t('window.floatPanel')}</span>
                         <span className={`text-xs ${(panelState.mode === 'floating') ? 'text-primary' : 'text-transparent'}`}>✓</span>
                     </button>
                 </div>

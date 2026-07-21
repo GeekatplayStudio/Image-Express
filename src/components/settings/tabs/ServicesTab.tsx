@@ -41,7 +41,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 setMeshyKey(e.target.value);
                                 clearProviderValidation('meshy');
                             }}
-                            placeholder="Enter Meshy API Key"
+                            placeholder={t('settings.services.enterMeshyKey')}
                             className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                         />
                         <div className="mt-2 flex items-center gap-2">
@@ -50,7 +50,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 onClick={() => void validateProviderKey('meshy')}
                                 className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
                             >
-                                Validate
+                                {t('settings.services.validate')}
                             </button>
                             {validationStatus.meshy.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
                             {validationStatus.meshy.message ? (
@@ -71,7 +71,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 setTripoKey(e.target.value);
                                 clearProviderValidation('tripo');
                             }}
-                            placeholder="Enter Tripo API Key"
+                            placeholder={t('settings.services.enterTripoKey')}
                             className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                         />
                         <div className="mt-2 flex items-center gap-2">
@@ -80,7 +80,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 onClick={() => void validateProviderKey('tripo')}
                                 className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
                             >
-                                Validate
+                                {t('settings.services.validate')}
                             </button>
                             {validationStatus.tripo.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
                             {validationStatus.tripo.message ? (
@@ -108,7 +108,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                     onClick={() => setHitemsMode('token')}
                                     className={`px-2 py-0.5 rounded transition-colors ${hitemsMode === 'token' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
                                 >
-                                    Token
+                                    {t('settings.services.tokenMode')}
                                 </button>
                             </div>
                         </div>
@@ -122,7 +122,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                         setHitemsAk(e.target.value);
                                         clearProviderValidation('hitems');
                                     }}
-                                    placeholder="Access Key (ak_...)"
+                                    placeholder={t('settings.services.accessKey')}
                                     className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                                 <input
@@ -132,7 +132,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                         setHitemsSk(e.target.value);
                                         clearProviderValidation('hitems');
                                     }}
-                                    placeholder="Secret Key (sk_...)"
+                                    placeholder={t('settings.services.secretKey')}
                                     className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                                 />
                             </div>
@@ -144,7 +144,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                     setHitemsKey(e.target.value);
                                     clearProviderValidation('hitems');
                                 }}
-                                placeholder="Access Token (Bearer ...)"
+                                placeholder={t('settings.services.accessToken')}
                                 className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                             />
                         )}
@@ -156,7 +156,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 setHitemsAppId(e.target.value);
                                 clearProviderValidation('hitems');
                             }}
-                            placeholder="Optional Appid (if required)"
+                            placeholder={t('settings.services.optionalAppid')}
                             className="mt-2 w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                         />
                         <div className="mt-2 flex items-center gap-2">
@@ -166,7 +166,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
                                 disabled={validationStatus.hitems.state === 'checking'}
                             >
-                                Validate Setup
+                                {t('settings.services.validateSetup')}
                             </button>
                             {validationStatus.hitems.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
                             {validationStatus.hitems.message ? (
@@ -230,7 +230,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 setGoogleKey(e.target.value);
                                 clearProviderValidation('google');
                             }}
-                            placeholder="Enter API Key"
+                            placeholder={t('settings.services.enterApiKey')}
                             className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                         />
                         <div className="mt-2 flex items-center gap-2">
@@ -239,7 +239,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 onClick={() => void validateProviderKey('google')}
                                 className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
                             >
-                                Validate
+                                {t('settings.services.validate')}
                             </button>
                             {validationStatus.google.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
                             {validationStatus.google.message ? (
@@ -254,13 +254,13 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                     <div className={fieldCardClass}>
                         <div className="flex justify-between mb-1.5">
                             <label className="text-xs font-semibold">Banana.dev</label>
-                            <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">GPU Cloud</span>
+                            <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">{t('settings.services.gpuCloud')}</span>
                         </div>
                         <input
                             type="password"
                             value={bananaKey}
                             onChange={(e) => setBananaKey(e.target.value)}
-                            placeholder="Enter API Key"
+                            placeholder={t('settings.services.enterApiKey')}
                             className="w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-mono placeholder:font-sans"
                         />
                     </div>
@@ -268,7 +268,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                     <div className={`${fieldCardClass} lg:col-span-2`}>
                         <div className="flex justify-between mb-1.5">
                             <label className="text-xs font-semibold">{t('settings.services.localAiRuntime')}</label>
-                            <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">Local</span>
+                            <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 rounded">{t('settings.services.local')}</span>
                         </div>
                         <div className="space-y-2">
                             <input
@@ -299,7 +299,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                 className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors"
                                 disabled={ollamaCheck.state === 'checking' || isInstallingOllamaModel}
                             >
-                                Check Ollama
+                                {t('settings.services.checkOllama')}
                             </button>
                             {ollamaCheck.modelFound === false ? (
                                 <button
@@ -308,7 +308,9 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                                     className="h-7 px-2 rounded border border-border text-[11px] font-semibold hover:bg-secondary transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                                     disabled={isInstallingOllamaModel || ollamaCheck.state === 'checking'}
                                 >
-                                    {isInstallingOllamaModel ? 'Installing...' : `Install ${ollamaModel.trim() || DEFAULT_OLLAMA_MODEL}`}
+                                    {isInstallingOllamaModel
+                                        ? t('settings.services.installing')
+                                        : t('settings.services.installModel', { model: ollamaModel.trim() || DEFAULT_OLLAMA_MODEL })}
                                 </button>
                             ) : null}
                             {ollamaCheck.state === 'checking' ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
@@ -319,7 +321,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                             ) : null}
                         </div>
                         <p className="mt-2 text-[11px] text-muted-foreground">
-                            Local AI runtime URL, preferred model, and install/status checks for Ollama-based generation and critique.
+                            {t('settings.services.localAiHint')}
                         </p>
                     </div>
                 </div>

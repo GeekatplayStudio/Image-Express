@@ -86,9 +86,28 @@ That's it — the language automatically appears in the top-bar dropdown.
 The app has many legacy hard-coded strings. The agreed approach is
 **incremental**: whenever a component/window is being reworked for any
 reason, move its user-visible strings to the dictionary at the same
-time. Do not do a big-bang translation pass. Windows already wired:
-dashboard header, language selector itself; next in line as they get
-reworked: Login, Settings, Setup Wizard, User Profile, Asset Library.
+time. Do not do a big-bang translation pass.
+
+Track coverage with `node scripts/i18n-progress.mjs`; `npm run audit:i18n`
+lists every remaining string by file and fails the build while any are
+left. Fully converted so far: dashboard hub (header, categories, footer),
+editor top menus, Login, Setup Wizard, Asset Library, Admin Area, colour
+wheel, retouch and Comfy panels, the whole Settings → Workspace folder,
+the Services tab, and the 3D view editor. Largest remaining files are the
+AI generator modals (`ImageGeneratorModal`, `AICritiqueModal`),
+`editorViewConfig.ts` and the paint/gradient tool-option bars.
+
+Shared copy gets its own area rather than being duplicated per panel:
+`pack.*` holds the zip install/remove flow used by both interface themes
+and dashboard ambience, and `common.*` holds the generic verbs. Reuse
+before minting a near-duplicate key.
+
+Two escape hatches exist for text that must not be translated: a
+`// i18n-ignore` comment on the same line (proper nouns, stored
+identifiers used as placeholder examples), or `// i18n-ignore-file` at the
+top of a file. Prefer teaching `scripts/i18n-scan.mjs` a general rule when
+the exemption is a whole category (URLs, emails, hostnames) rather than
+sprinkling per-line comments.
 
 ## Testing notes
 

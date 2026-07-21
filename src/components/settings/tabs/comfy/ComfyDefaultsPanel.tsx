@@ -49,12 +49,12 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                     >
                         {comfy.GENERATIVE_PROVIDER_OPTIONS.map((provider) => (
                             <option key={provider.id} value={provider.id}>
-                                {provider.label}{provider.status === 'coming-soon' ? t('comfy.comingSoonSuffix') : ''}
+                                {t(provider.labelKey)}{provider.status === 'coming-soon' ? t('comfy.comingSoonSuffix') : ''}
                             </option>
                         ))}
                     </select>
                     <p className="text-[11px] text-muted-foreground">
-                        {comfy.GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === comfy.defaultGenerativeProvider)?.description}
+                        {(() => { const spec = comfy.GENERATIVE_PROVIDER_OPTIONS.find((provider) => provider.id === comfy.defaultGenerativeProvider); return spec ? t(spec.descriptionKey) : null; })()}
                     </p>
                 </div>
 
@@ -69,12 +69,12 @@ export default function ComfyDefaultsPanel({ comfy, installer, library, onVerify
                             .filter((workflow) => comfy.isWorkflowSupportedByProvider(comfy.defaultGenerativeProvider, workflow.id))
                             .map((workflow) => (
                                 <option key={workflow.id} value={workflow.id}>
-                                    {workflow.label}
+                                    {t(workflow.labelKey)}
                                 </option>
                             ))}
                     </select>
                     <p className="text-[11px] text-muted-foreground">
-                        {comfy.GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === comfy.defaultGenerativeWorkflow)?.description}
+                        {(() => { const spec = comfy.GENERATIVE_WORKFLOW_OPTIONS.find((workflow) => workflow.id === comfy.defaultGenerativeWorkflow); return spec ? t(spec.descriptionKey) : null; })()}
                     </p>
                 </div>
 

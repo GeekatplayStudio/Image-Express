@@ -42,7 +42,7 @@ export const buildFrameZipEntryName = (
 ) => {
     const preset = MEDIA_OVERLAY_PRESETS.find((item) => item.id === frame.preset);
     const frameToken = sanitizeExportToken(`frame-${String(index + 1).padStart(2, '0')}`);
-    const presetToken = sanitizeExportToken(preset?.label || frame.preset);
+    const presetToken = sanitizeExportToken(preset?.exportToken || frame.preset);
     const designToken = sanitizeExportToken(options.designName || 'design');
     const compactDate = timestamp.slice(0, 10).replace(/-/g, '');
 

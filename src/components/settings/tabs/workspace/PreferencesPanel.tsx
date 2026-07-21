@@ -16,7 +16,7 @@ export default function PreferencesPanel() {
                     {t('settings.preferences')}
                 </h4>
                 <p className="text-[11px] text-muted-foreground">
-                    First-time setup and guided configuration.
+                    {t('settings.workspace.preferencesHint')}
                 </p>
             </div>
             <button

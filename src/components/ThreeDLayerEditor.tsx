@@ -9,6 +9,7 @@ import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { ExtendedFabricObject, ThreeDSettings } from '@/types';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface ThreeDLayerEditorProps {
     modelUrl: string;
@@ -32,6 +33,7 @@ const GIZMO_GROUP_NAME = 'light-gizmo-group';
 
 type LightPreset = {
     name: string;
+    labelKey: string;
     swatch: string;
     direction: Vec3;
     intensity: number;
@@ -40,23 +42,23 @@ type LightPreset = {
 };
 
 const LIGHT_PRESETS: LightPreset[] = [
-    { name: 'Studio', swatch: '#f5f5f5', direction: { x: 4, y: 6, z: 4 }, intensity: 1.3, color: '#ffffff', ambient: 0.4 },
-    { name: 'Golden Hour', swatch: '#ffb36b', direction: { x: 6, y: 1.6, z: 3 }, intensity: 1.6, color: '#ffb36b', ambient: 0.3 },
-    { name: 'Noon', swatch: '#fff3c4', direction: { x: 0.5, y: 8, z: 2 }, intensity: 1.8, color: '#fff7e0', ambient: 0.5 },
-    { name: 'Dramatic', swatch: '#c9c9c9', direction: { x: -6, y: 4, z: -1.5 }, intensity: 2.2, color: '#ffffff', ambient: 0.12 },
-    { name: 'Rim', swatch: '#cfe4ff', direction: { x: 0, y: 3, z: -7 }, intensity: 2.4, color: '#cfe4ff', ambient: 0.2 },
-    { name: 'Soft', swatch: '#efeae2', direction: { x: 3, y: 5, z: 5 }, intensity: 0.9, color: '#fff6ec', ambient: 0.7 },
-    { name: 'Moonlight', swatch: '#7ea0ff', direction: { x: -4, y: 3.5, z: 4 }, intensity: 1.1, color: '#8fa8ff', ambient: 0.15 },
+    { name: 'Studio', labelKey: 'view3d.preset.studio', swatch: '#f5f5f5', direction: { x: 4, y: 6, z: 4 }, intensity: 1.3, color: '#ffffff', ambient: 0.4 },
+    { name: 'Golden Hour', labelKey: 'view3d.preset.goldenHour', swatch: '#ffb36b', direction: { x: 6, y: 1.6, z: 3 }, intensity: 1.6, color: '#ffb36b', ambient: 0.3 },
+    { name: 'Noon', labelKey: 'view3d.preset.noon', swatch: '#fff3c4', direction: { x: 0.5, y: 8, z: 2 }, intensity: 1.8, color: '#fff7e0', ambient: 0.5 },
+    { name: 'Dramatic', labelKey: 'view3d.preset.dramatic', swatch: '#c9c9c9', direction: { x: -6, y: 4, z: -1.5 }, intensity: 2.2, color: '#ffffff', ambient: 0.12 },
+    { name: 'Rim', labelKey: 'view3d.preset.rim', swatch: '#cfe4ff', direction: { x: 0, y: 3, z: -7 }, intensity: 2.4, color: '#cfe4ff', ambient: 0.2 },
+    { name: 'Soft', labelKey: 'view3d.preset.soft', swatch: '#efeae2', direction: { x: 3, y: 5, z: 5 }, intensity: 0.9, color: '#fff6ec', ambient: 0.7 },
+    { name: 'Moonlight', labelKey: 'view3d.preset.moonlight', swatch: '#7ea0ff', direction: { x: -4, y: 3.5, z: 4 }, intensity: 1.1, color: '#8fa8ff', ambient: 0.15 },
 ];
 
 const ENVIRONMENTS = ['studio', 'city', 'apartment', 'dawn', 'sunset', 'forest', 'park', 'night', 'lobby', 'warehouse'] as const;
 
-const CAMERA_VIEWS: { name: string; direction: Vec3 }[] = [
-    { name: 'Front', direction: { x: 0, y: 0.25, z: 1 } },
-    { name: '¾ Left', direction: { x: -1, y: 0.45, z: 1 } },
-    { name: '¾ Right', direction: { x: 1, y: 0.45, z: 1 } },
-    { name: 'Side', direction: { x: 1, y: 0.15, z: 0 } },
-    { name: 'Top', direction: { x: 0.01, y: 1, z: 0.15 } },
+const CAMERA_VIEWS: { name: string; labelKey: string; direction: Vec3 }[] = [
+    { name: 'Front', labelKey: 'view3d.view.front', direction: { x: 0, y: 0.25, z: 1 } },
+    { name: '¾ Left', labelKey: 'view3d.view.threeQuarterLeft', direction: { x: -1, y: 0.45, z: 1 } },
+    { name: '¾ Right', labelKey: 'view3d.view.threeQuarterRight', direction: { x: 1, y: 0.45, z: 1 } },
+    { name: 'Side', labelKey: 'view3d.view.side', direction: { x: 1, y: 0.15, z: 0 } },
+    { name: 'Top', labelKey: 'view3d.view.top', direction: { x: 0.01, y: 1, z: 0.15 } },
 ];
 
 const vecLength = (v: Vec3) => Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
@@ -224,6 +226,7 @@ const MiniToggle = ({ label, checked, onChange }: { label: string; checked: bool
 );
 
 const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeDLayerEditorProps) => {
+    const { t } = useI18n();
     const [gl, setGl] = useState<CaptureGL | null>(null);
     const [resolution, setResolution] = useState<{ width: number, height: number }>({ width: 2048, height: 2048 });
     const [lightPosition, setLightPosition] = useState<Vec3>({ x: 5, y: 5, z: 5 });
@@ -440,7 +443,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                 <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30 draggable-handle cursor-move shrink-0">
                     <h3 className="font-semibold flex items-center gap-2">
                         <RotateCw size={18} className="text-primary" />
-                        3D View Editor
+                        {t('view3d.title')}
                     </h3>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
                         <X size={20} />
@@ -526,12 +529,12 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                         </Canvas>
 
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted-foreground bg-background/80 px-3 py-1 rounded-full backdrop-blur pointer-events-none whitespace-nowrap">
-                            Drag sun to light • Drag to rotate • Scroll to zoom
+                            {t('view3d.hint')}
                         </div>
                     </div>
 
                     <div className="w-60 border-l border-border bg-card/60 overflow-y-auto p-3 text-xs shrink-0">
-                        <SectionTitle icon={<Wand2 size={12} />}>Light Presets</SectionTitle>
+                        <SectionTitle icon={<Wand2 size={12} />}>{t('view3d.lightPresets')}</SectionTitle>
                         <div className="grid grid-cols-2 gap-1.5">
                             {LIGHT_PRESETS.map((preset) => (
                                 <button
@@ -542,17 +545,17 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                                         : 'bg-muted hover:bg-muted/70 border-transparent'}`}
                                 >
                                     <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: preset.swatch }} />
-                                    {preset.name}
+                                    {t(preset.labelKey)}
                                 </button>
                             ))}
                         </div>
 
-                        <SectionTitle icon={<Sun size={12} />}>Light</SectionTitle>
+                        <SectionTitle icon={<Sun size={12} />}>{t('view3d.light')}</SectionTitle>
                         <div className="space-y-2.5">
-                            <MiniToggle label="Show Sun Widget" checked={gizmoVisible} onChange={setGizmoVisible} />
-                            <MiniSlider label="Intensity" value={lightIntensity} min={0} max={5} step={0.05} onChange={setLightIntensity} format={(v) => v.toFixed(2)} />
+                            <MiniToggle label={t('view3d.showSunWidget')} checked={gizmoVisible} onChange={setGizmoVisible} />
+                            <MiniSlider label={t('view3d.intensity')} value={lightIntensity} min={0} max={5} step={0.05} onChange={setLightIntensity} format={(v) => v.toFixed(2)} />
                             <MiniSlider
-                                label="Distance"
+                                label={t('view3d.distance')}
                                 value={lightDistance}
                                 min={2}
                                 max={15}
@@ -560,10 +563,10 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                                 onChange={(d) => setLightPosition(vecScaleTo(lightPosition, d))}
                                 format={(v) => v.toFixed(1)}
                             />
-                            <MiniSlider label="Ambient" value={ambientIntensity} min={0} max={1.5} step={0.05} onChange={setAmbientIntensity} format={(v) => v.toFixed(2)} />
+                            <MiniSlider label={t('view3d.ambient')} value={ambientIntensity} min={0} max={1.5} step={0.05} onChange={setAmbientIntensity} format={(v) => v.toFixed(2)} />
                             <div className="space-y-1">
                                 <div className="flex justify-between text-[10px] text-muted-foreground uppercase">
-                                    <span>Color</span>
+                                    <span>{t('view3d.color')}</span>
                                     <span>{lightColor.toUpperCase()}</span>
                                 </div>
                                 <div className="relative h-6 w-full rounded border border-border flex items-center px-1 bg-background">
@@ -578,7 +581,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                             </div>
                         </div>
 
-                        <SectionTitle icon={<Palette size={12} />}>Environment</SectionTitle>
+                        <SectionTitle icon={<Palette size={12} />}>{t('view3d.environment')}</SectionTitle>
                         <div className="space-y-2.5">
                             <select
                                 value={environment}
@@ -589,34 +592,34 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                                     <option key={env} value={env} className="capitalize">{env}</option>
                                 ))}
                             </select>
-                            <MiniSlider label="Env Intensity" value={envIntensity} min={0} max={2} step={0.05} onChange={setEnvIntensity} format={(v) => v.toFixed(2)} />
+                            <MiniSlider label={t('view3d.envIntensity')} value={envIntensity} min={0} max={2} step={0.05} onChange={setEnvIntensity} format={(v) => v.toFixed(2)} />
                         </div>
 
-                        <SectionTitle icon={<Sun size={12} />}>Shadows</SectionTitle>
+                        <SectionTitle icon={<Sun size={12} />}>{t('view3d.shadows')}</SectionTitle>
                         <div className="space-y-2.5">
-                            <MiniToggle label="Cast Shadow" checked={castShadowEnabled} onChange={setCastShadowEnabled} />
+                            <MiniToggle label={t('view3d.castShadow')} checked={castShadowEnabled} onChange={setCastShadowEnabled} />
                             {castShadowEnabled && (
                                 <>
-                                    <MiniSlider label="Cast Blur" value={castShadowBlur} min={0} max={60} step={1} onChange={setCastShadowBlur} />
-                                    <MiniSlider label="Cast Intensity" value={castShadowIntensity} min={0} max={1} step={0.05} onChange={setCastShadowIntensity} format={(v) => v.toFixed(2)} />
+                                    <MiniSlider label={t('view3d.castBlur')} value={castShadowBlur} min={0} max={60} step={1} onChange={setCastShadowBlur} />
+                                    <MiniSlider label={t('view3d.castIntensity')} value={castShadowIntensity} min={0} max={1} step={0.05} onChange={setCastShadowIntensity} format={(v) => v.toFixed(2)} />
                                 </>
                             )}
-                            <MiniToggle label="Contact Shadow" checked={contactShadowEnabled} onChange={setContactShadowEnabled} />
+                            <MiniToggle label={t('view3d.contactShadow')} checked={contactShadowEnabled} onChange={setContactShadowEnabled} />
                             {contactShadowEnabled && (
                                 <>
-                                    <MiniSlider label="Contact Blur" value={contactShadowBlur} min={0} max={20} step={1} onChange={setContactShadowBlur} />
-                                    <MiniSlider label="Contact Intensity" value={contactShadowIntensity} min={0} max={1} step={0.05} onChange={setContactShadowIntensity} format={(v) => v.toFixed(2)} />
+                                    <MiniSlider label={t('view3d.contactBlur')} value={contactShadowBlur} min={0} max={20} step={1} onChange={setContactShadowBlur} />
+                                    <MiniSlider label={t('view3d.contactIntensity')} value={contactShadowIntensity} min={0} max={1} step={0.05} onChange={setContactShadowIntensity} format={(v) => v.toFixed(2)} />
                                 </>
                             )}
                         </div>
 
-                        <SectionTitle icon={<Box size={12} />}>Model</SectionTitle>
+                        <SectionTitle icon={<Box size={12} />}>{t('view3d.model')}</SectionTitle>
                         <div className="space-y-2.5">
-                            <MiniSlider label="Rotate" value={modelRotationY} min={-180} max={180} step={1} onChange={setModelRotationY} format={(v) => `${v}°`} />
-                            <MiniSlider label="Scale" value={modelScale} min={0.2} max={3} step={0.05} onChange={setModelScale} format={(v) => `${v.toFixed(2)}×`} />
+                            <MiniSlider label={t('view3d.rotate')} value={modelRotationY} min={-180} max={180} step={1} onChange={setModelRotationY} format={(v) => `${v}°`} />
+                            <MiniSlider label={t('view3d.scale')} value={modelScale} min={0.2} max={3} step={0.05} onChange={setModelScale} format={(v) => `${v.toFixed(2)}×`} />
                         </div>
 
-                        <SectionTitle icon={<Camera size={12} />}>Camera</SectionTitle>
+                        <SectionTitle icon={<Camera size={12} />}>{t('view3d.camera')}</SectionTitle>
                         <div className="grid grid-cols-2 gap-1.5">
                             {CAMERA_VIEWS.map((view) => (
                                 <button
@@ -624,22 +627,22 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                                     onClick={() => applyCameraView(view.direction)}
                                     className="px-2 py-1.5 rounded-md bg-muted hover:bg-muted/70 text-[10px] transition-colors"
                                 >
-                                    {view.name}
+                                    {t(view.labelKey)}
                                 </button>
                             ))}
                             <button
                                 onClick={resetCamera}
                                 className="px-2 py-1.5 rounded-md bg-muted hover:bg-muted/70 text-[10px] transition-colors"
                             >
-                                Reset
+                                {t('view3d.reset')}
                             </button>
                         </div>
 
-                        <SectionTitle icon={<Monitor size={12} />}>Export Resolution</SectionTitle>
+                        <SectionTitle icon={<Monitor size={12} />}>{t('view3d.exportResolution')}</SectionTitle>
                         <div className="space-y-2.5">
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">Width</label>
+                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">{t('view3d.width')}</label>
                                     <input
                                         type="number"
                                         value={resolution.width}
@@ -651,7 +654,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">Height</label>
+                                    <label className="text-muted-foreground block mb-1 text-[10px] uppercase">{t('view3d.height')}</label>
                                     <input
                                         type="number"
                                         value={resolution.height}
@@ -680,14 +683,14 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                         onClick={onClose}
                         className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
                     >
-                        Cancel
+                        {t('common.cancel')}
                     </button>
                     <button
                         onClick={handleCapture}
                         className="px-6 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 shadow-lg shadow-primary/20 flex items-center gap-2"
                     >
                         <Check size={16} />
-                        {existingObject ? 'Update View' : 'Add to Canvas'}
+                        {existingObject ? t('view3d.updateView') : t('view3d.addToCanvas')}
                     </button>
                 </div>
             </DraggableResizablePanel>

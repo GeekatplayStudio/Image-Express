@@ -20,6 +20,7 @@ const ja: LocaleDictionary = {
     'common.loading': '読み込み中…',
     'common.error': 'エラー',
     'common.retry': '再試行',
+    'common.refresh': '更新',
 
     'auth.signIn': 'サインイン',
     'auth.signOut': 'サインアウト',
@@ -113,6 +114,8 @@ const ja: LocaleDictionary = {
     'stack.projectCount': '{count} 個のアルバム',
     'stack.cubeCaption': '{pages} ページ · {linked} 件リンク',
     'stack.newProject': '新しいアルバム',
+    'stack.albumName': 'アルバム {n}',
+    'stack.pageName': 'ページ {n}',
     'stack.renameProject': 'アルバム名を変更',
     'stack.duplicateProject': 'アルバムを複製',
     'stack.deleteProject': 'アルバムを削除',

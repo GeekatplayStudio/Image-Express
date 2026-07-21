@@ -28,17 +28,17 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                     {t('settings.workspace.interfaceBehavior')}
                 </h4>
                 <p className="text-[11px] text-muted-foreground">
-                    Control the global appearance mode, accent palette, and editor rail behavior.
+                    {t('settings.workspace.appearanceHint')}
                 </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                     <label htmlFor="settings-theme-mode" className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                        Theme mode
+                        {t('settings.workspace.themeMode')}
                     </label>
                     <select
                         id="settings-theme-mode"
-                        aria-label="Theme mode"
+                        aria-label={t('settings.workspace.themeMode')}
                         value={themeMode}
                         onChange={(event) => setThemeMode(event.target.value as ThemePreferenceMode)}
                         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
@@ -54,7 +54,7 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
 
                 <div className="space-y-1.5">
                     <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                        Accent palette
+                        {t('settings.workspace.accentPalette')}
                     </label>
                     <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                         {THEME_ACCENT_OPTIONS.map((option) => {
@@ -63,7 +63,7 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                                 <button
                                     key={option.value}
                                     type="button"
-                                    aria-label={`Accent palette ${option.label}`}
+                                    aria-label={t('settings.workspace.accentPaletteAria', { name: option.label })}
                                     aria-pressed={isActive}
                                     onClick={() => setThemeAccentPreset(option.value)}
                                     className={`rounded-xl border px-3 py-2 text-left transition-colors ${isActive ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-secondary'}`}
@@ -76,7 +76,7 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                         })}
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                        Theme changes apply globally after saving and persist across sessions.
+                        {t('settings.workspace.themeApplyHint')}
                     </p>
                 </div>
             </div>
@@ -89,7 +89,7 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                         onChange={(event) => setExpandToolRailLabelsOnHover(event.target.checked)}
                         className="rounded border-border text-primary focus:ring-primary/20"
                     />
-                    Expand side tool rails on hover
+                    {t('settings.workspace.expandRailsOnHover')}
                 </label>
 
                 <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none rounded-xl border border-border/50 bg-background/50 px-3 py-2">
@@ -99,7 +99,7 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                         onChange={(event) => setSuppressNumberDragHints(event.target.checked)}
                         className="rounded border-border text-primary focus:ring-primary/20"
                     />
-                    Don&apos;t remind me about number-drag tips
+                    {t('settings.workspace.suppressDragHints')}
                 </label>
             </div>
 
@@ -108,7 +108,7 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                 className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5"
             >
                 <RefreshCcw size={13} />
-                Reset Number-Drag Hint
+                {t('settings.workspace.resetDragHint')}
             </button>
         </section>
     );

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Loader2, RefreshCcw, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useToast } from '@/providers/ToastProvider';
 import { useDialog } from '@/providers/DialogProvider';
+import { useI18n } from '@/providers/I18nProvider';
 import { modalSectionClass } from '../../settingsTypes';
 import { DEFAULT_AMBIENCE_ID, type InstalledAmbience } from '@/lib/ambience-shared';
 import { activateAmbience, listAmbiencePacks, loadStoredAmbience } from '@/lib/ambience';
@@ -13,6 +14,7 @@ import { activateAmbience, listAmbiencePacks, loadStoredAmbience } from '@/lib/a
  * (never the editor). Same install/activate/remove flow as interface themes.
  */
 export default function DashboardAmbiencePanel() {
+    const { t } = useI18n();
     const { toast } = useToast();
     const { confirm } = useDialog();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -29,11 +31,11 @@ export default function DashboardAmbiencePanel() {
             setPacks(list);
             setActiveId(loadStoredAmbience().id);
         } catch {
-            toast({ title: 'Ambience', description: 'Could not load the ambience pack list.', variant: 'destructive' });
+            toast({ title: t('ambience.toastTitle'), description: t('ambience.loadFailed'), variant: 'destructive' });
         } finally {
             setLoading(false);
         }
-    }, [toast]);
+    }, [toast, t]);
 
     useEffect(() => {
         void refresh();
@@ -54,8 +56,8 @@ export default function DashboardAmbiencePanel() {
 
             if (!payload.success && payload.error?.includes('already installed')) {
                 const overwrite = await confirm(
-                    `${payload.error} Reinstall and overwrite the existing copy?`,
-                    { title: 'Pack already installed', confirmText: 'Overwrite' }
+                    t('pack.overwriteQuestion', { error: payload.error }),
+                    { title: t('ambience.alreadyInstalledTitle'), confirmText: t('pack.overwrite') }
                 );
                 if (!overwrite) return;
                 const retryForm = new FormData();
@@ -66,13 +68,13 @@ export default function DashboardAmbiencePanel() {
             }
 
             if (!payload.success || !payload.pack) {
-                toast({ title: 'Pack install failed', description: payload.error || 'Unknown error.', variant: 'destructive' });
+                toast({ title: t('ambience.installFailed'), description: payload.error || t('pack.unknownError'), variant: 'destructive' });
                 return;
             }
-            toast({ title: 'Ambience installed', description: `"${payload.pack.name}" is ready to use.`, variant: 'success' });
+            toast({ title: t('ambience.installedToast'), description: t('pack.readyToUse', { name: payload.pack.name }), variant: 'success' });
             await refresh();
         } catch {
-            toast({ title: 'Pack install failed', description: 'Could not reach the server.', variant: 'destructive' });
+            toast({ title: t('ambience.installFailed'), description: t('pack.serverUnreachable'), variant: 'destructive' });
         } finally {
             setInstalling(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -81,8 +83,8 @@ export default function DashboardAmbiencePanel() {
 
     const handleRemove = async (pack: InstalledAmbience) => {
         const confirmed = await confirm(
-            `Remove the ambience pack "${pack.name}"? You can reinstall it later from its zip file.`,
-            { title: 'Remove ambience pack', confirmText: 'Remove' }
+            t('ambience.removeQuestion', { name: pack.name }),
+            { title: t('ambience.removeTitle'), confirmText: t('pack.remove') }
         );
         if (!confirmed) return;
         setRemovingId(pack.id);
@@ -90,17 +92,17 @@ export default function DashboardAmbiencePanel() {
             const response = await fetch(`/api/ambience/${encodeURIComponent(pack.id)}`, { method: 'DELETE' });
             const payload = await response.json() as { success: boolean; error?: string };
             if (!payload.success) {
-                toast({ title: 'Remove failed', description: payload.error || 'Unknown error.', variant: 'destructive' });
+                toast({ title: t('pack.removeFailed'), description: payload.error || t('pack.unknownError'), variant: 'destructive' });
                 return;
             }
             if (activeId === pack.id) {
                 const fallback = packs.find((entry) => entry.id === DEFAULT_AMBIENCE_ID);
                 if (fallback) handleActivate(fallback);
             }
-            toast({ title: 'Ambience removed', description: `"${pack.name}" was uninstalled.`, variant: 'success' });
+            toast({ title: t('ambience.removedToast'), description: t('pack.uninstalled', { name: pack.name }), variant: 'success' });
             await refresh();
         } catch {
-            toast({ title: 'Remove failed', description: 'Could not reach the server.', variant: 'destructive' });
+            toast({ title: t('pack.removeFailed'), description: t('pack.serverUnreachable'), variant: 'destructive' });
         } finally {
             setRemovingId(null);
         }
@@ -112,16 +114,15 @@ export default function DashboardAmbiencePanel() {
                 <div>
                     <h4 className="text-sm font-semibold flex items-center gap-2">
                         <Sparkles size={16} className="text-primary" />
-                        Dashboard Ambience
+                        {t('ambience.title')}
                     </h4>
                     <p className="text-[11px] text-muted-foreground">
-                        Subtle animated backgrounds for the hub only — the editor stays untouched.
-                        Packs are downloaded separately and installed from a .zip, just like themes.
+                        {t('ambience.description')}
                     </p>
                 </div>
                 <button
                     onClick={() => void refresh()}
-                    aria-label="Refresh ambience list"
+                    aria-label={t('ambience.refreshAria')}
                     className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-md border border-border hover:bg-secondary transition-colors"
                 >
                     <RefreshCcw size={13} />
@@ -130,7 +131,7 @@ export default function DashboardAmbiencePanel() {
 
             {loading ? (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
-                    <Loader2 size={14} className="animate-spin" /> Loading ambience packs…
+                    <Loader2 size={14} className="animate-spin" /> {t('ambience.loading')}
                 </div>
             ) : (
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
@@ -144,7 +145,7 @@ export default function DashboardAmbiencePanel() {
                             >
                                 <button
                                     type="button"
-                                    aria-label={`Activate ambience ${pack.name}`}
+                                    aria-label={t('ambience.activateAria', { name: pack.name })}
                                     aria-pressed={isActive}
                                     onClick={() => handleActivate(pack)}
                                     className="w-full px-3 py-2 text-left"
@@ -162,16 +163,20 @@ export default function DashboardAmbiencePanel() {
                                         <span className="text-xs font-semibold text-foreground truncate">{pack.name}</span>
                                     </div>
                                     <div className="text-[11px] text-muted-foreground line-clamp-2">
-                                        {pack.description || 'Ambience pack.'}
+                                        {pack.description || t('ambience.packDesc')}
                                     </div>
                                     <div className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                                        {pack.source === 'builtin' ? 'Built-in' : `Installed${pack.version ? ` · v${pack.version}` : ''}`}
+                                        {pack.source === 'builtin'
+                                            ? t('pack.builtin')
+                                            : pack.version
+                                                ? t('pack.installedVersion', { version: pack.version })
+                                                : t('pack.installed')}
                                     </div>
                                 </button>
                                 {pack.source === 'installed' && (
                                     <button
                                         type="button"
-                                        aria-label={`Remove ambience ${pack.name}`}
+                                        aria-label={t('ambience.removeAria', { name: pack.name })}
                                         onClick={() => void handleRemove(pack)}
                                         disabled={removingId === pack.id}
                                         className="absolute right-1.5 top-1.5 h-6 w-6 inline-flex items-center justify-center rounded-md border border-border/60 bg-background/80 text-muted-foreground hover:text-destructive-foreground hover:bg-destructive transition-colors"
@@ -202,7 +207,7 @@ export default function DashboardAmbiencePanel() {
                     className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
                 >
                     {installing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                    {installing ? 'Installing…' : 'Install ambience from .zip…'}
+                    {installing ? t('pack.installing') : t('ambience.installFromZip')}
                 </button>
                 <a
                     href="https://geekatplay.gumroad.com/"
@@ -210,10 +215,10 @@ export default function DashboardAmbiencePanel() {
                     rel="noopener noreferrer"
                     className="h-8 px-3 text-[11px] font-semibold rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors inline-flex items-center gap-1.5"
                 >
-                    ♥ Get more animations &amp; support Vlad
+                    {t('ambience.getMore')}
                 </a>
                 <p className="text-[11px] text-muted-foreground">
-                    Optional — purchases support development. Effects stay muted and pause in background tabs.
+                    {t('ambience.getMoreHint')}
                 </p>
             </div>
         </section>

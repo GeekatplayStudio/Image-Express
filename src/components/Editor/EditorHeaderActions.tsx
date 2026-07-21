@@ -225,7 +225,7 @@ export default function EditorHeaderActions({
                                 disabled={!mediaOverlayEnabled}
                             >
                                 {MEDIA_OVERLAY_PRESETS.map((preset) => (
-                                    <option key={preset.id} value={preset.id}>{preset.label}</option>
+                                    <option key={preset.id} value={preset.id}>{t(preset.labelKey)}</option>
                                 ))}
                             </select>
                             <select
@@ -236,7 +236,7 @@ export default function EditorHeaderActions({
                                 disabled={!mediaOverlayEnabled}
                             >
                                 {MEDIA_OVERLAY_NAMING_TEMPLATES.map((template) => (
-                                    <option key={template.id} value={template.id}>{template.label}</option>
+                                    <option key={template.id} value={template.id}>{t(template.labelKey)}</option>
                                 ))}
                             </select>
                             <div className="grid grid-cols-2 gap-2">
@@ -270,7 +270,7 @@ export default function EditorHeaderActions({
                                                     >
                                                         <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
                                                         <span className="truncate font-medium">{t('header.frameNumber', { n: index + 1 })}</span>
-                                                        <span className="truncate text-muted-foreground">{preset?.label || frame.preset}</span>
+                                                        <span className="truncate text-muted-foreground">{preset ? t(preset.labelKey) : frame.preset}</span>
                                                     </button>
                                                     <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                                         <input
@@ -292,7 +292,7 @@ export default function EditorHeaderActions({
                                         disabled={!mediaOverlayEnabled || !activeFrame}
                                     >
                                         {MEDIA_OVERLAY_SAFE_AREA_PRESETS.map((preset) => (
-                                            <option key={preset.id} value={preset.id}>{preset.label}</option>
+                                            <option key={preset.id} value={preset.id}>{t(preset.labelKey)}</option>
                                         ))}
                                     </select>
                                     <select
@@ -303,7 +303,7 @@ export default function EditorHeaderActions({
                                         disabled={!mediaOverlayEnabled || !activeFrame}
                                     >
                                         {MEDIA_OVERLAY_VARIANT_CONVERSION_MODES.map((mode) => (
-                                            <option key={mode.id} value={mode.id}>{mode.label}</option>
+                                            <option key={mode.id} value={mode.id}>{t(mode.labelKey)}</option>
                                         ))}
                                     </select>
                                     <button

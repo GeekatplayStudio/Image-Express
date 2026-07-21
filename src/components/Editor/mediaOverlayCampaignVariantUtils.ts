@@ -34,7 +34,7 @@ const isValidRectBounds = (value: unknown): value is RectBounds => {
 const isValidSnapshot = (value: unknown): value is DesignJson => isRecord(value);
 
 const resolveVariantName = (frame: MediaOverlayFrameConfig, frameIndex: number) => {
-    const presetLabel = MEDIA_OVERLAY_PRESETS.find((preset) => preset.id === frame.preset)?.label ?? frame.preset;
+    const presetLabel = MEDIA_OVERLAY_PRESETS.find((preset) => preset.id === frame.preset)?.exportToken ?? frame.preset;
     return `Frame ${frameIndex + 1} - ${presetLabel}`;
 };
 

@@ -233,7 +233,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Crop Tool
+                            {t('menu.cropTool')}
                         </button>
                         <button
                             onClick={() => {
@@ -242,7 +242,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Adjustments Panel
+                            {t('menu.adjustmentsPanel')}
                         </button>
                         <button
                             onClick={() => {
@@ -251,7 +251,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Color Panel
+                            {t('menu.colorPanel')}
                         </button>
                         <div className="my-1 border-t border-border/50" />
                         <button
@@ -261,7 +261,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Fit to Screen
+                            {t('menu.fitToScreen')}
                         </button>
                         <button
                             onClick={() => {
@@ -270,7 +270,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Reset Zoom (100%)
+                            {t('menu.resetZoom')}
                         </button>
                     </div>
                 )}
@@ -293,7 +293,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Duplicate Layer
+                            {t('menu.duplicateLayer')}
                         </button>
                         <button
                             onClick={() => {
@@ -302,7 +302,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Delete Layer
+                            {t('menu.deleteLayer')}
                         </button>
                         <div className="my-1 border-t border-border/50" />
                         <button
@@ -313,7 +313,7 @@ export default function EditorHeaderMenus({
                             disabled={!menuLayerTarget}
                             className={`w-full text-left px-4 py-2.5 text-sm ${menuLayerTarget ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
                         >
-                            {menuLayerTarget?.locked ? 'Unlock Layer' : 'Lock Layer'}
+                            {menuLayerTarget?.locked ? t('menu.unlockLayer') : t('menu.lockLayer')}
                         </button>
                         <div className="my-1 border-t border-border/50" />
                         <button
@@ -324,7 +324,7 @@ export default function EditorHeaderMenus({
                             disabled={!activeLayerOrderState.canMoveUp}
                             className={`w-full text-left px-4 py-2.5 text-sm ${activeLayerOrderState.canMoveUp ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
                         >
-                            Bring Forward
+                            {t('menu.bringForward')}
                         </button>
                         <button
                             onClick={() => {
@@ -334,7 +334,7 @@ export default function EditorHeaderMenus({
                             disabled={!activeLayerOrderState.canMoveDown}
                             className={`w-full text-left px-4 py-2.5 text-sm ${activeLayerOrderState.canMoveDown ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
                         >
-                            Send Backward
+                            {t('menu.sendBackward')}
                         </button>
                         <button
                             onClick={() => {
@@ -344,7 +344,7 @@ export default function EditorHeaderMenus({
                             disabled={!activeLayerOrderState.canBringToFront}
                             className={`w-full text-left px-4 py-2.5 text-sm ${activeLayerOrderState.canBringToFront ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
                         >
-                            Bring to Front
+                            {t('menu.bringToFront')}
                         </button>
                         <button
                             onClick={() => {
@@ -354,7 +354,7 @@ export default function EditorHeaderMenus({
                             disabled={!activeLayerOrderState.canSendToBack}
                             className={`w-full text-left px-4 py-2.5 text-sm ${activeLayerOrderState.canSendToBack ? 'hover:bg-secondary/50' : 'text-muted-foreground/40 cursor-not-allowed'}`}
                         >
-                            Send to Back
+                            {t('menu.sendToBack')}
                         </button>
                     </div>
                 )}
@@ -386,7 +386,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Blur Tool
+                            {t('toolbar.blurTool')}
                         </button>
                         <button
                             onClick={() => {
@@ -395,7 +395,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Sharpen Tool
+                            {t('toolbar.sharpenTool')}
                         </button>
                         <button
                             onClick={() => {
@@ -404,7 +404,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Dodge Tool
+                            {t('toolbar.dodgeTool')}
                         </button>
                         <button
                             onClick={() => {
@@ -413,7 +413,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Burn Tool
+                            {t('toolbar.burnTool')}
                         </button>
                         <button
                             onClick={() => {
@@ -422,7 +422,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Sponge Tool
+                            {t('toolbar.spongeTool')}
                         </button>
                         <button
                             onClick={() => {
@@ -431,7 +431,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Healing Brush
+                            {t('toolbar.healingBrush')}
                         </button>
                         <button
                             onClick={() => {
@@ -440,7 +440,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Spot Healing Tool
+                            {t('menu.spotHealingTool')}
                         </button>
                         <button
                             onClick={() => {
@@ -449,7 +449,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Remove Tool
+                            {t('toolbar.removeTool')}
                         </button>
                         <div className="my-1 border-t border-border/50" />
                         <button
@@ -459,7 +459,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Open Adjustments Panel
+                            {t('menu.openAdjustmentsPanel')}
                         </button>
                     </div>
                 )}
@@ -483,7 +483,7 @@ export default function EditorHeaderMenus({
                             disabled={historyState.undo < 2}
                             className={`w-full text-left px-4 py-2.5 text-sm ${historyState.undo < 2 ? 'text-muted-foreground/40 cursor-not-allowed' : 'hover:bg-secondary/50'}`}
                         >
-                            Undo
+                            {t('common.undo')}
                         </button>
                         <button
                             onClick={() => {
@@ -493,7 +493,7 @@ export default function EditorHeaderMenus({
                             disabled={historyState.redo < 1}
                             className={`w-full text-left px-4 py-2.5 text-sm ${historyState.redo < 1 ? 'text-muted-foreground/40 cursor-not-allowed' : 'hover:bg-secondary/50'}`}
                         >
-                            Redo
+                            {t('common.redo')}
                         </button>
                         <button
                             onClick={() => {
@@ -502,7 +502,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Duplicate
+                            {t('common.duplicate')}
                         </button>
                     </div>
                 )}
@@ -525,7 +525,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Fit to Screen
+                            {t('menu.fitToScreen')}
                         </button>
                         <button
                             onClick={() => {
@@ -534,7 +534,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Zoom In
+                            {t('menu.zoomIn')}
                         </button>
                         <button
                             onClick={() => {
@@ -543,7 +543,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            Zoom Out
+                            {t('menu.zoomOut')}
                         </button>
                         <div className="my-1 border-t border-border/50" />
                         <button
@@ -553,7 +553,7 @@ export default function EditorHeaderMenus({
                             }}
                             className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
-                            {gridType === 'none' ? 'Show Grid' : 'Hide Grid'}
+                            {gridType === 'none' ? t('menu.showGrid') : t('menu.hideGrid')}
                         </button>
                     </div>
                 )}

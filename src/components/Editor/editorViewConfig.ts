@@ -8,17 +8,17 @@ export type TopCropRatioPreset = typeof TOP_CROP_RATIO_PRESETS[number];
 export type TopEyedropperSampleSize = typeof TOP_EYEDROPPER_SAMPLE_SIZES[number];
 export type TopZoomStep = typeof TOP_ZOOM_STEPS[number];
 
-export const WINDOW_PANEL_ITEMS: Array<{ mode: PanelRailMode; label: string }> = [
-    { mode: 'layers', label: 'Layers Panel' },
-    { mode: 'properties', label: 'Properties Panel' },
-    { mode: 'history', label: 'History Panel' },
-    { mode: 'color', label: 'Color Panel' },
-    { mode: 'swatches', label: 'Swatches Panel' },
-    { mode: 'brushes', label: 'Brushes Panel' },
-    { mode: 'channels', label: 'Channels Panel' },
-    { mode: 'adjustments', label: 'Adjustments Panel' },
-    { mode: 'navigator', label: 'Navigator Panel' },
-    { mode: 'info', label: 'Info Panel' },
+export const WINDOW_PANEL_ITEMS: Array<{ mode: PanelRailMode; labelKey: string }> = [
+    { mode: 'layers', labelKey: 'window.panel.layers' },
+    { mode: 'properties', labelKey: 'window.panel.properties' },
+    { mode: 'history', labelKey: 'window.panel.history' },
+    { mode: 'color', labelKey: 'window.panel.color' },
+    { mode: 'swatches', labelKey: 'window.panel.swatches' },
+    { mode: 'brushes', labelKey: 'window.panel.brushes' },
+    { mode: 'channels', labelKey: 'window.panel.channels' },
+    { mode: 'adjustments', labelKey: 'window.panel.adjustments' },
+    { mode: 'navigator', labelKey: 'window.panel.navigator' },
+    { mode: 'info', labelKey: 'window.panel.info' },
 ];
 
 export type MediaOverlayPreset =
@@ -34,7 +34,8 @@ export type MediaOverlayPreset =
 
 export type MediaOverlayPresetSpec = {
     id: MediaOverlayPreset;
-    label: string;
+    exportToken: string;
+    labelKey: string;
     width: number;
     height: number;
 };
@@ -46,7 +47,8 @@ export type MediaOverlaySafeAreaPreset =
 
 export type MediaOverlaySafeAreaPresetSpec = {
     id: MediaOverlaySafeAreaPreset;
-    label: string;
+    exportToken: string;
+    labelKey: string;
     insetRatio: number;
 };
 
@@ -57,7 +59,8 @@ export type MediaOverlayNamingTemplate =
 
 export type MediaOverlayNamingTemplateSpec = {
     id: MediaOverlayNamingTemplate;
-    label: string;
+    exportToken: string;
+    labelKey: string;
 };
 
 export type MediaOverlayVariantConversionMode =
@@ -67,7 +70,8 @@ export type MediaOverlayVariantConversionMode =
 
 export type MediaOverlayVariantConversionModeSpec = {
     id: MediaOverlayVariantConversionMode;
-    label: string;
+    exportToken: string;
+    labelKey: string;
 };
 
 export type MediaOverlayPersistedState = {
@@ -96,34 +100,37 @@ export type MediaOverlayPersistedState = {
     }>;
 };
 
+// `exportToken` is the stable English string used for export filenames and
+// generated variant names; `labelKey` is what the UI renders. Keeping them
+// separate means switching language never renames an exported file.
 export const MEDIA_OVERLAY_PRESETS: MediaOverlayPresetSpec[] = [
-    { id: 'canvas-original', label: 'Original Size (Artboard)', width: 1, height: 1 },
-    { id: 'instagram-square', label: 'Instagram 1:1', width: 1080, height: 1080 },
-    { id: 'instagram-story', label: 'Instagram Story 9:16', width: 1080, height: 1920 },
-    { id: 'facebook-post', label: 'Facebook Post 1200x630', width: 1200, height: 630 },
-    { id: 'linkedin-post', label: 'LinkedIn Post 1200x627', width: 1200, height: 627 },
-    { id: 'x-post', label: 'X Post 16:9', width: 1600, height: 900 },
-    { id: 'youtube-landscape', label: 'YouTube 16:9', width: 1920, height: 1080 },
-    { id: 'youtube-shorts', label: 'YouTube Shorts 9:16', width: 1080, height: 1920 },
-    { id: 'tiktok-vertical', label: 'TikTok 9:16', width: 1080, height: 1920 },
+    { id: 'canvas-original', exportToken: 'Original Size (Artboard)', labelKey: 'overlay.preset.canvasOriginal', width: 1, height: 1 },
+    { id: 'instagram-square', exportToken: 'Instagram 1:1', labelKey: 'overlay.preset.instagramSquare', width: 1080, height: 1080 },
+    { id: 'instagram-story', exportToken: 'Instagram Story 9:16', labelKey: 'overlay.preset.instagramStory', width: 1080, height: 1920 },
+    { id: 'facebook-post', exportToken: 'Facebook Post 1200x630', labelKey: 'overlay.preset.facebookPost', width: 1200, height: 630 },
+    { id: 'linkedin-post', exportToken: 'LinkedIn Post 1200x627', labelKey: 'overlay.preset.linkedinPost', width: 1200, height: 627 },
+    { id: 'x-post', exportToken: 'X Post 16:9', labelKey: 'overlay.preset.xPost', width: 1600, height: 900 },
+    { id: 'youtube-landscape', exportToken: 'YouTube 16:9', labelKey: 'overlay.preset.youtubeLandscape', width: 1920, height: 1080 },
+    { id: 'youtube-shorts', exportToken: 'YouTube Shorts 9:16', labelKey: 'overlay.preset.youtubeShorts', width: 1080, height: 1920 },
+    { id: 'tiktok-vertical', exportToken: 'TikTok 9:16', labelKey: 'overlay.preset.tiktokVertical', width: 1080, height: 1920 },
 ];
 
 export const MEDIA_OVERLAY_SAFE_AREA_PRESETS: MediaOverlaySafeAreaPresetSpec[] = [
-    { id: 'none', label: 'None', insetRatio: 0 },
-    { id: 'title-safe-10', label: 'Title Safe (10%)', insetRatio: 0.1 },
-    { id: 'action-safe-20', label: 'Action Safe (20%)', insetRatio: 0.2 },
+    { id: 'none', exportToken: 'None', labelKey: 'overlay.safe.none', insetRatio: 0 },
+    { id: 'title-safe-10', exportToken: 'Title Safe (10%)', labelKey: 'overlay.safe.title10', insetRatio: 0.1 },
+    { id: 'action-safe-20', exportToken: 'Action Safe (20%)', labelKey: 'overlay.safe.action20', insetRatio: 0.2 },
 ];
 
 export const MEDIA_OVERLAY_NAMING_TEMPLATES: MediaOverlayNamingTemplateSpec[] = [
-    { id: 'frame-preset', label: 'Frame + Preset' },
-    { id: 'design-frame-preset', label: 'Design + Frame + Preset' },
-    { id: 'design-preset-date-frame', label: 'Design + Preset + Date + Frame' },
+    { id: 'frame-preset', exportToken: 'Frame + Preset', labelKey: 'overlay.naming.framePreset' },
+    { id: 'design-frame-preset', exportToken: 'Design + Frame + Preset', labelKey: 'overlay.naming.designFramePreset' },
+    { id: 'design-preset-date-frame', exportToken: 'Design + Preset + Date + Frame', labelKey: 'overlay.naming.designPresetDateFrame' },
 ];
 
 export const MEDIA_OVERLAY_VARIANT_CONVERSION_MODES: MediaOverlayVariantConversionModeSpec[] = [
-    { id: 'fill', label: 'Fill' },
-    { id: 'fit', label: 'Fit' },
-    { id: 'safe-area', label: 'Safe Area' },
+    { id: 'fill', exportToken: 'Fill', labelKey: 'overlay.mode.fill' },
+    { id: 'fit', exportToken: 'Fit', labelKey: 'overlay.mode.fit' },
+    { id: 'safe-area', exportToken: 'Safe Area', labelKey: 'overlay.mode.safeArea' },
 ];
 
 export const MEDIA_OVERLAY_STORAGE_KEY_PREFIX = 'image-express-media-overlay';

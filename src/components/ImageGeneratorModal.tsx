@@ -150,12 +150,12 @@ interface RemovedAnnotationSnapshot {
     layerId: string;
 }
 
-const COMFY_TASK_OPTIONS: Array<{ id: ComfyTask; label: string }> = [
-    { id: 'generate', label: 'Text to Image' },
-    { id: 'img2img', label: 'Image to Image' },
-    { id: 'inpaint', label: 'Inpaint' },
-    { id: 'outpaint', label: 'Outpaint' },
-    { id: 'upscale', label: 'Upscale' },
+const COMFY_TASK_OPTIONS: Array<{ id: ComfyTask; labelKey: string }> = [
+    { id: 'generate', labelKey: 'stab.tab.textToImage' },
+    { id: 'img2img', labelKey: 'generator.task.img2img' },
+    { id: 'inpaint', labelKey: 'stab.tab.inpaint' },
+    { id: 'outpaint', labelKey: 'stab.tab.outpaint' },
+    { id: 'upscale', labelKey: 'stab.tab.upscale' },
 ];
 
 const COMFY_AGENTIC_EDIT_WORKFLOW_9B = 'image_flux2_klein_image_edit_9b_base';
@@ -1155,15 +1155,15 @@ export default function ImageGeneratorModal({
   const installMissingComfyRequirements = useCallback(async (requirements: ComfyMissingRequirementSummary) => {
       const summaryParts: string[] = [];
       if (requirements.updateInstall) {
-          summaryParts.push('update the ComfyUI install to restore missing nodes');
+          summaryParts.push(t('generator.comfyReq.updateInstall'));
       }
       if (requirements.models.length > 0) {
-          summaryParts.push(`download ${requirements.models.length} missing model${requirements.models.length === 1 ? '' : 's'} into the default models folders`);
+          summaryParts.push(t('generator.comfyReq.downloadModels', { count: requirements.models.length }));
       }
 
       const confirmed = await dialog.confirm(
-          `Install the detected ComfyUI requirements for Flux Klein? This will ${summaryParts.join(' and ')}.`,
-          { title: 'Install Missing Comfy Requirements' }
+          t('generator.comfyReq.question', { actions: summaryParts.join(t('generator.comfyReq.join')) }),
+          { title: t('generator.comfyReq.title') }
       );
       if (!confirmed) {
           return false;
@@ -2659,7 +2659,7 @@ export default function ImageGeneratorModal({
               const sourceInspection = await inspectCapturedSourceDataUrl(sourceImage);
               if (sourceInspection.looksBlank) {
                   throw new Error(
-                      `The captured source for ${COMFY_TASK_OPTIONS.find((task) => task.id === selectedComfyTask)?.label || selectedComfyTask} is almost entirely blank. `
+                      `The captured source for ${(() => { const spec = COMFY_TASK_OPTIONS.find((task) => task.id === selectedComfyTask); return spec ? t(spec.labelKey) : selectedComfyTask; })()} is almost entirely blank. `
                       + 'Move the zone over real image content, or switch the task to Text to Image for prompt-only generation.'
                   );
               }
@@ -2933,11 +2933,11 @@ export default function ImageGeneratorModal({
 
                                 if (missingModel) {
                                     const confirmed = await dialog.confirm(
-                                        `Model "${missingModel.model}" is not installed in Ollama yet. Download and install it now?`,
+                                        t('generator.ollamaModel.question', { model: missingModel.model }),
                                         {
-                                            title: 'Install missing Ollama model',
-                                            confirmText: 'Install model',
-                                            cancelText: 'Not now',
+                                            title: t('generator.ollamaModel.title'),
+                                            confirmText: t('generator.ollamaModel.confirm'),
+                                            cancelText: t('generator.ollamaModel.cancel'),
                                         }
                                     );
 
@@ -3004,8 +3004,8 @@ export default function ImageGeneratorModal({
     const isSelectedProviderConfigured = isProviderConfigured(selectedProvider);
     const isComfyProviderConfigured = isProviderConfigured('comfy');
     const canRunComfyGeneration = Boolean(selectedComfyWorkflow && selectedComfyModelPresetId && isComfyProviderConfigured);
-  const selectedProviderLabel = selectedProviderOption?.label || selectedProvider;
-  const stabilityBadge = getGenerativeProviderOption('stability')?.label || 'Stability AI';
+  const selectedProviderLabel = selectedProviderOption ? t(selectedProviderOption.labelKey) : selectedProvider;
+  const stabilityBadge = t(getGenerativeProviderOption('stability')?.labelKey ?? 'genProvider.stability');
     const isStabilityProviderSelected = selectedProvider === 'stability';
         const selectedProviderStatusLabel = !isSelectedProviderReady
                         ? t('generator.provider.comingSoon')
@@ -3156,7 +3156,7 @@ export default function ImageGeneratorModal({
                 >
                     {availableProviders.map((provider) => (
                         <option className="bg-zinc-950 text-white" key={provider} value={provider}>
-                            {`${GENERATIVE_PROVIDER_OPTIONS.find((item) => item.id === provider)?.label || provider}${!isGenerativeProviderReady(provider) ? ` (${t('generator.provider.comingSoon')})` : isProviderConfigured(provider) ? '' : ` (${t('generator.provider.setupRequired')})`}`}
+                            {`${(() => { const spec = GENERATIVE_PROVIDER_OPTIONS.find((item) => item.id === provider); return spec ? t(spec.labelKey) : provider; })()}${!isGenerativeProviderReady(provider) ? ` (${t('generator.provider.comingSoon')})` : isProviderConfigured(provider) ? '' : ` (${t('generator.provider.setupRequired')})`}`}
                         </option>
                     ))}
                 </select>
@@ -3474,12 +3474,12 @@ export default function ImageGeneratorModal({
                                                    });
                                                }}
                                            >
-                                               <option value="box">Box</option>
-                                               <option value="point">Point</option>
-                                               <option value="polygon">Polygon</option>
-                                               <option value="brush">Brush</option>
-                                               <option value="pose">Pose</option>
-                                               <option value="text">Text</option>
+                                               <option value="box">{t('annot.type.box')}</option>
+                                               <option value="point">{t('annot.type.point')}</option>
+                                               <option value="polygon">{t('annot.type.polygon')}</option>
+                                               <option value="brush">{t('annot.type.brush')}</option>
+                                               <option value="pose">{t('annot.type.pose')}</option>
+                                               <option value="text">{t('annot.type.text')}</option>
                                            </select>
 
                                            <select
@@ -3487,12 +3487,12 @@ export default function ImageGeneratorModal({
                                                value={note.mode || 'auto'}
                                                onChange={(event) => updateAnnotationNote(note.id, { mode: event.target.value as AnnotationRecord['mode'] })}
                                            >
-                                               <option value="auto">Auto</option>
-                                               <option value="inpaint">Inpaint</option>
-                                               <option value="replace">Replace</option>
-                                               <option value="style">Style</option>
-                                               <option value="pose">Pose</option>
-                                               <option value="text">Text</option>
+                                               <option value="auto">{t('annot.mode.auto')}</option>
+                                               <option value="inpaint">{t('annot.mode.inpaint')}</option>
+                                               <option value="replace">{t('annot.mode.replace')}</option>
+                                               <option value="style">{t('annot.mode.style')}</option>
+                                               <option value="pose">{t('annot.mode.pose')}</option>
+                                               <option value="text">{t('annot.mode.text')}</option>
                                            </select>
 
                                            <input
@@ -3609,11 +3609,11 @@ export default function ImageGeneratorModal({
                                                value={reference.role}
                                                onChange={(event) => updateReferenceSlot(reference.id, { role: event.target.value as ReferenceRecord['role'] })}
                                            >
-                                               <option value="style">Style</option>
-                                               <option value="character">Character</option>
-                                               <option value="pose">Pose</option>
-                                               <option value="background">Background</option>
-                                               <option value="other">Other</option>
+                                               <option value="style">{t('ref.role.style')}</option>
+                                               <option value="character">{t('ref.role.character')}</option>
+                                               <option value="pose">{t('ref.role.pose')}</option>
+                                               <option value="background">{t('ref.role.background')}</option>
+                                               <option value="other">{t('ref.role.other')}</option>
                                            </select>
                                            <input
                                                type="file"
@@ -3797,7 +3797,7 @@ export default function ImageGeneratorModal({
                                        >
                                            {COMFY_TASK_OPTIONS.map((taskOption) => (
                                                <option key={taskOption.id} value={taskOption.id}>
-                                                   {taskOption.label}
+                                                   {t(taskOption.labelKey)}
                                                </option>
                                            ))}
                                        </select>
@@ -3843,14 +3843,16 @@ export default function ImageGeneratorModal({
                                    <span className="font-medium text-foreground">{selectedComfyModelOption.label}</span>
                                    {selectedComfyModelOption.memoryLabel ? ` · ${t('generator.comfy.expectedMemory')} ${selectedComfyModelOption.memoryLabel}` : ''}
                                </div>
-                               <div>{selectedComfyModelOption.description}</div>
+                               <div>{selectedComfyModelOption.descriptionKey
+                                   ? t(selectedComfyModelOption.descriptionKey)
+                                   : selectedComfyModelOption.description}</div>
                                <div>{t('generator.comfy.workflowVariant')}: <span className="font-medium text-foreground">{selectedComfyModelOption.workflowName}</span></div>
                            </div>
                        )}
 
                        {selectedComfyTask !== 'generate' && (
                            <div className="text-[10px] text-muted-foreground rounded border border-border/60 bg-background/40 px-2 py-1.5">
-                               <span className="font-medium text-foreground">{COMFY_TASK_OPTIONS.find((task) => task.id === selectedComfyTask)?.label || selectedComfyTask}</span>: {t('generator.comfy.sourceTaskHint')}
+                               <span className="font-medium text-foreground">{(() => { const spec = COMFY_TASK_OPTIONS.find((task) => task.id === selectedComfyTask); return spec ? t(spec.labelKey) : selectedComfyTask; })()}</span>: {t('generator.comfy.sourceTaskHint')}
                            </div>
                        )}
 
@@ -3992,7 +3994,7 @@ export default function ImageGeneratorModal({
 
                                 <div className="flex-1 p-4 min-h-0">
                                     <textarea
-                                        aria-label="ComfyUI diagnostics output"
+                                        aria-label={t('generator.diagnosticsAria')}
                                         value={comfyDiagnosticsText}
                                         readOnly
                                         className="h-full min-h-[420px] w-full resize-none rounded-lg border border-border bg-background px-3 py-3 font-mono text-[11px] leading-5 text-foreground outline-none"
@@ -4042,7 +4044,7 @@ export default function ImageGeneratorModal({
                        <div className="relative group rounded-lg overflow-hidden border bg-checkerboard aspect-square animate-in zoom-in-95">
                            <Image
                                src={generatedImage}
-                               alt="Generated"
+                               alt={t('generator.generatedAlt')}
                                fill
                                sizes="256px"
                                className="object-contain"

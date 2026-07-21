@@ -55,6 +55,11 @@ const NOT_TRANSLATABLE = new Set([
     'JSON', 'HTML', 'CSS', 'ZIP', 'GLB', 'OBJ', 'FBX', 'STL', 'PLY', 'EXR',
     'Meshy', 'Tripo', 'Hitem3D', 'Google Drive', 'Dropbox', 'GitHub',
     'AI', '2D', '3D', 'ID', 'URL', 'API', 'GPU', 'OS',
+    // Provider and model names as shown in the Services settings tab. These
+    // are how the vendors write them; a translated "Stability AI" would not
+    // match anything the user sees in the vendor's own console.
+    'Meshy AI', 'Tripo AI', 'Stability AI', 'Banana.dev',
+    'Google Gemini / Vertex', 'Nano / Imagen', 'SD3 / Core', 'DALL-E 3',
 ]);
 
 /**
@@ -78,6 +83,11 @@ function isExempt(text) {
     if (/^[a-z][a-z0-9-]*$/.test(t)) return true;                // identifier-ish
     if (/^[a-z]{2,4}[_-][a-zA-Z0-9_.]*(x{3,}|\.{3})?$/.test(t)) return true; // key format hints
     if (/^https?:\/\//.test(t)) return true;                     // URLs
+    if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(t)) return true;       // email addresses
+    // Bare hostnames shown as link text: www.geekatplay.com. No spaces, so
+    // this cannot swallow prose; a trailing-dot abbreviation ("e.g.") fails
+    // the final segment and is still reported.
+    if (/^(www\.)?[\w-]+(\.[\w-]+)+$/.test(t)) return true;
     if (/^(npm|npx|yarn|pnpm|git|node|python|pip)\s/.test(t)) return true; // shell commands
     if (/^--?[a-z][a-z0-9-]*$/.test(t)) return true;             // CLI flags: --enable-cors-header
     if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+$/.test(t)) return true; // relative paths: ComfyUI/models/checkpoints

@@ -20,6 +20,7 @@ const fr: LocaleDictionary = {
     'common.loading': 'Chargement…',
     'common.error': 'Erreur',
     'common.retry': 'Réessayer',
+    'common.refresh': 'Actualiser',
 
     'auth.signIn': 'Se connecter',
     'auth.signOut': 'Se déconnecter',
@@ -113,6 +114,8 @@ const fr: LocaleDictionary = {
     'stack.projectCount': '{count} albums',
     'stack.cubeCaption': '{pages} pages · {linked} liées',
     'stack.newProject': 'Nouvel album',
+    'stack.albumName': 'Album {n}',
+    'stack.pageName': 'Page {n}',
     'stack.renameProject': 'Renommer l\'album',
     'stack.duplicateProject': 'Dupliquer l\'album',
     'stack.deleteProject': 'Supprimer l\'album',

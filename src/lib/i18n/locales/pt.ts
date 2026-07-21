@@ -20,6 +20,7 @@ const pt: LocaleDictionary = {
     'common.loading': 'Carregando…',
     'common.error': 'Erro',
     'common.retry': 'Tentar novamente',
+    'common.refresh': 'Atualizar',
 
     'auth.signIn': 'Entrar',
     'auth.signOut': 'Sair',
@@ -113,6 +114,8 @@ const pt: LocaleDictionary = {
     'stack.projectCount': '{count} álbuns',
     'stack.cubeCaption': '{pages} páginas · {linked} ligadas',
     'stack.newProject': 'Novo álbum',
+    'stack.albumName': 'Álbum {n}',
+    'stack.pageName': 'Página {n}',
     'stack.renameProject': 'Renomear álbum',
     'stack.duplicateProject': 'Duplicar álbum',
     'stack.deleteProject': 'Eliminar álbum',
