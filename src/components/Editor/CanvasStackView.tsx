@@ -4,24 +4,24 @@
 // x-ray; shared (linked) layers are drawn as flowing bridge paths between
 // planes, node-editor style. Adapted from GeekatplayStudio/LogiTensor.
 import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
-import { Copy, Trash2, Plus, X, Layers, Boxes } from 'lucide-react';
+import { Copy, Trash2, Plus, X, Layers, Boxes, Link2 } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
+import { useDialog } from '@/providers/DialogProvider';
 import {
     StackCamera, DEFAULT_STACK_CAMERA, VIEW_W, VIEW_H, project as project3d, clampPitch, clampZoom,
 } from '@/lib/multicanvas/stack3dMath';
-import type { Project, ProjectsState, SerializedLayer } from '@/lib/multicanvas/projectStore';
+import type { Project, ProjectLink, ProjectsState, SerializedLayer } from '@/lib/multicanvas/projectStore';
 import { listSharedLayerBridges } from '@/lib/multicanvas/projectStore';
-import FederationScene from '@/components/Editor/FederationScene';
+import StackEffects, { EXPLOSION_DURATION_MS, SPARKLE_DURATION_MS, type StackFx } from '@/components/Editor/StackEffects';
+import {
+    hasDrawableSource, layerCenterNormalized, layerCorners, layerFill,
+    normalizeToCanvas, planeExtentFor,
+} from '@/lib/multicanvas/layerPlacement';
+import FederationScene, { pairKeyOf } from '@/components/Editor/FederationScene';
 
-const PLANE_W = 860; // world-space plane width (x)
-const PLANE_D = 520; // fallback plane depth (z) when a canvas has no size
-
-// Plane depth follows the canvas's own aspect ratio, so a 16:9 artboard
-// reads as a wide plane and a 9:16 one as a deep plane.
-const planeDepthFor = (width: number, height: number): number => {
-    if (!width || !height) return PLANE_D;
-    return Math.min(900, Math.max(180, PLANE_W * (height / width)));
-};
+// World size the album's longest page edge maps to. Every page is scaled
+// against that, so plane footprints show real relative page sizes.
+const PLANE_SPAN = 860;
 const LAYER_GAP = 112; // vertical distance between canvas planes
 const PULL_X = 300; // selected canvas slides out of the stack along +x
 
@@ -65,31 +65,112 @@ export default function CanvasStackView({
     onClose,
 }: CanvasStackViewProps) {
     const { t } = useI18n();
+    const dialog = useDialog();
     const [mode, setMode] = useState<'stack' | 'federation'>('stack');
     const [cam, setCam] = useState<StackCamera>(DEFAULT_STACK_CAMERA);
     const dragRef = useRef<{ x: number; y: number; cam: StackCamera; pan: boolean; moved: boolean } | null>(null);
+
+    // Particle bursts (sparkle dust on create/duplicate, explosion on delete).
+    const [effects, setEffects] = useState<StackFx[]>([]);
+    const fxSeqRef = useRef(0);
+    const spawnFx = useCallback((kind: StackFx['kind'], x: number, y: number) => {
+        const id = fxSeqRef.current += 1;
+        setEffects((prev) => [...prev, { id, kind, x, y }]);
+        const ttl = (kind === 'sparkle' ? SPARKLE_DURATION_MS : EXPLOSION_DURATION_MS) + 300;
+        window.setTimeout(() => {
+            setEffects((prev) => prev.filter((fx) => fx.id !== id));
+        }, ttl);
+    }, []);
+
+    // Which album pair's shared assets are being inspected (federation view).
+    const [inspectedLinks, setInspectedLinks] = useState<ProjectLink[] | null>(null);
+
+    // Eased camera moves for wheel zoom and mode transitions. Dragging stays
+    // 1:1 with the pointer — easing there would feel like lag, not polish.
+    const camRef = useRef(cam);
+    useEffect(() => { camRef.current = cam; }, [cam]);
+    const camAnimRef = useRef<number | null>(null);
+    const animateCam = useCallback((target: Partial<StackCamera>, duration = 260) => {
+        if (camAnimRef.current !== null) cancelAnimationFrame(camAnimRef.current);
+        const from = { ...camRef.current };
+        const to = { ...from, ...target };
+        const t0 = performance.now();
+        const step = (now: number) => {
+            const k = Math.min(1, (now - t0) / duration);
+            const e = 1 - Math.pow(1 - k, 3);
+            setCam({
+                yaw: from.yaw + (to.yaw - from.yaw) * e,
+                pitch: from.pitch + (to.pitch - from.pitch) * e,
+                zoom: from.zoom + (to.zoom - from.zoom) * e,
+                panX: from.panX + (to.panX - from.panX) * e,
+                panY: from.panY + (to.panY - from.panY) * e,
+            });
+            camAnimRef.current = k < 1 ? requestAnimationFrame(step) : null;
+        };
+        camAnimRef.current = requestAnimationFrame(step);
+    }, []);
+    useEffect(() => () => {
+        if (camAnimRef.current !== null) cancelAnimationFrame(camAnimRef.current);
+    }, []);
 
     const canvases = project.canvases;
     const activeCanvasId = project.activeCanvasId;
     const activeCanvas = canvases.find((c) => c.id === activeCanvasId);
 
-    // World position of a layer on a given canvas plane (normalized by the
-    // canvas's own artboard size so every plane uses the same frame).
-    const worldOf = useCallback((layer: SerializedLayer, canvasIdx: number, xOff: number, w: number, h: number) => {
-        const left = typeof layer.left === 'number' ? layer.left : 0;
-        const top = typeof layer.top === 'number' ? layer.top : 0;
-        const u = w > 0 ? Math.min(1, Math.max(0, left / w)) : 0.5;
-        const v = h > 0 ? Math.min(1, Math.max(0, top / h)) : 0.5;
+    // Selected-plane pull-out slides instead of jumping: pullT eases 0→1 on
+    // every selection change (mouse or arrow keys), the newly selected plane
+    // slides out while the previous one slides back in.
+    const prevActiveRef = useRef(activeCanvasId);
+    const [leavingId, setLeavingId] = useState<string | null>(null);
+    const [pullT, setPullT] = useState(1);
+    useEffect(() => {
+        if (prevActiveRef.current === activeCanvasId) return undefined;
+        setLeavingId(prevActiveRef.current);
+        prevActiveRef.current = activeCanvasId;
+        setPullT(0);
+        let raf = 0;
+        const t0 = performance.now();
+        const step = (now: number) => {
+            const k = Math.min(1, (now - t0) / 340);
+            setPullT(1 - Math.pow(1 - k, 3));
+            if (k < 1)
+
+                raf = requestAnimationFrame(step);
+            else setLeavingId(null);
+        };
+        raf = requestAnimationFrame(step);
+        return () => cancelAnimationFrame(raf);
+    }, [activeCanvasId]);
+
+    // Page footprints are scaled against the album's largest page, so the
+    // stack shows real relative canvas sizes rather than one fixed rectangle.
+    const extentOf = useMemo(() => planeExtentFor(canvases, PLANE_SPAN), [canvases]);
+
+    // Map a point in a page's normalized (0..1) space onto its world plane.
+    const planePoint = useCallback((
+        u: number, v: number, canvasIdx: number, xOff: number, w: number, h: number,
+    ) => {
+        const extent = extentOf(w, h);
         const yWorld = ((canvases.length - 1) / 2 - canvasIdx) * LAYER_GAP;
-        return { x: (u - 0.5) * PLANE_W + xOff, y: yWorld, z: (v - 0.5) * planeDepthFor(w, h) };
-    }, [canvases.length]);
+        return { x: (u - 0.5) * extent.width + xOff, y: yWorld, z: (v - 0.5) * extent.depth };
+    }, [canvases.length, extentOf]);
+
+    // World position of a layer's centre — used for the shared-layer bridges.
+    const worldOf = useCallback((layer: SerializedLayer, canvasIdx: number, xOff: number, w: number, h: number) => {
+        const c = layerCenterNormalized(layer, w, h);
+        return planePoint(c.x, c.y, canvasIdx, xOff, w, h);
+    }, [planePoint]);
 
     const planeMeta = useMemo(() => canvases.map((canvas, idx) => {
         const selected = canvas.id === activeCanvasId;
-        const xOff = selected ? PULL_X : 0;
+        const xOff = selected
+            ? PULL_X * pullT
+            : canvas.id === leavingId
+                ? PULL_X * (1 - pullT)
+                : 0;
         const yWorld = ((canvases.length - 1) / 2 - idx) * LAYER_GAP;
         return { canvas, idx, selected, xOff, yWorld };
-    }), [canvases, activeCanvasId]);
+    }), [canvases, activeCanvasId, leavingId, pullT]);
 
     // Painter's algorithm on plane centers.
     const drawOrder = useMemo(() => [...planeMeta].sort(
@@ -106,15 +187,16 @@ export default function CanvasStackView({
     // Zooming far out transitions to the Federation level (projects as
     // cubes); zooming far in from Federation dives back into the stack.
     const onWheel = (e: React.WheelEvent) => {
-        const nz = clampZoom(cam.zoom * (e.deltaY < 0 ? 1.08 : 0.92));
+        const nz = clampZoom(camRef.current.zoom * (e.deltaY < 0 ? 1.08 : 0.92));
         if (mode === 'stack' && nz <= 0.42) {
             setMode('federation');
-            setCam((c) => ({ ...c, zoom: 1, panX: 0, panY: 0 }));
+            animateCam({ zoom: 1, panX: 0, panY: 0 }, 420);
         } else if (mode === 'federation' && nz >= 2.1) {
             setMode('stack');
-            setCam((c) => ({ ...c, zoom: 1, panX: 0, panY: 0 }));
+            setInspectedLinks(null);
+            animateCam({ zoom: 1, panX: 0, panY: 0 }, 420);
         } else {
-            setCam((c) => ({ ...c, zoom: nz }));
+            animateCam({ zoom: nz }, 160);
         }
     };
 
@@ -157,6 +239,74 @@ export default function CanvasStackView({
 
     const layerCount = activeCanvas?.json?.objects?.length ?? 0;
 
+    // Where the selected plane sits on screen — bursts anchor here so the
+    // effect lands on the thing being created or destroyed.
+    const activePlanePoint = useCallback(() => {
+        const meta = planeMeta.find((m) => m.canvas.id === activeCanvasId);
+        if (!meta) return { x: VIEW_W / 2, y: VIEW_H / 2 };
+        const point = project3d(meta.xOff, meta.yWorld, 0, cam);
+        return { x: point.x, y: point.y };
+    }, [activeCanvasId, cam, planeMeta]);
+
+    const handleAddCanvasFx = useCallback(() => {
+        onAddCanvas();
+        const p = activePlanePoint();
+        spawnFx('sparkle', p.x, p.y - 40);
+    }, [activePlanePoint, onAddCanvas, spawnFx]);
+
+    const handleDuplicateCanvasFx = useCallback((canvasId: string) => {
+        onDuplicateCanvas(canvasId);
+        const p = activePlanePoint();
+        spawnFx('sparkle', p.x, p.y - 40);
+    }, [activePlanePoint, onDuplicateCanvas, spawnFx]);
+
+    const handleDeleteCanvasFx = useCallback(async (canvasId: string) => {
+        const entry = canvases.find((c) => c.id === canvasId);
+        if (!entry) return;
+        // A page with artwork gets a warning; an empty one just goes.
+        if ((entry.json?.objects?.length ?? 0) > 0) {
+            const confirmed = await dialog.confirm(
+                t('stack.deletePageQuestion', { name: entry.name }),
+                { title: t('stack.deleteCanvas'), variant: 'destructive' },
+            );
+            if (!confirmed) return;
+        }
+        const meta = planeMeta.find((m) => m.canvas.id === canvasId);
+        const point = meta ? project3d(meta.xOff, meta.yWorld, 0, cam) : { x: VIEW_W / 2, y: VIEW_H / 2 };
+        spawnFx('explosion', point.x, point.y);
+        onDeleteCanvas(canvasId);
+    }, [cam, canvases, dialog, onDeleteCanvas, planeMeta, spawnFx, t]);
+
+    const handleAddProjectFx = useCallback(() => {
+        onAddProject();
+        spawnFx('sparkle', VIEW_W / 2, VIEW_H / 2 - 60);
+    }, [onAddProject, spawnFx]);
+
+    const handleDuplicateProjectFx = useCallback((projectId: string) => {
+        onDuplicateProject(projectId);
+        spawnFx('sparkle', VIEW_W / 2, VIEW_H / 2 - 60);
+    }, [onDuplicateProject, spawnFx]);
+
+    const handleDeleteProjectFx = useCallback(async (projectId: string) => {
+        const target = projectsState.projects.find((entry) => entry.id === projectId);
+        if (!target) return;
+        const hasContent = target.canvases.some((c) => (c.json?.objects?.length ?? 0) > 0);
+        if (hasContent) {
+            const confirmed = await dialog.confirm(
+                t('stack.deleteAlbumQuestion', { name: target.name }),
+                { title: t('stack.deleteProject'), variant: 'destructive' },
+            );
+            if (!confirmed) return;
+        }
+        spawnFx('explosion', VIEW_W / 2, VIEW_H / 2 - 40);
+        setInspectedLinks(null);
+        onDeleteProject(projectId);
+    }, [dialog, onDeleteProject, projectsState.projects, spawnFx, t]);
+
+    const projectNameOf = useCallback((projectId: string) => (
+        projectsState.projects.find((entry) => entry.id === projectId)?.name ?? projectId
+    ), [projectsState.projects]);
+
     return (
         <div className="absolute inset-0 z-40 bg-background/95 backdrop-blur-sm flex flex-col" data-testid="canvas-stack-view">
             {/* Control strip */}
@@ -175,13 +325,13 @@ export default function CanvasStackView({
                             {t('stack.summary', { layers: layerCount, links: bridges.length })}
                         </span>
                         <div className="w-px h-4 bg-border" />
-                        <button onClick={() => onDuplicateCanvas(activeCanvasId)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.duplicateCanvas')}>
+                        <button onClick={() => handleDuplicateCanvasFx(activeCanvasId)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.duplicateCanvas')}>
                             <Copy size={13} />
                         </button>
-                        <button onClick={() => onDeleteCanvas(activeCanvasId)} disabled={canvases.length <= 1} className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-secondary disabled:opacity-30 transition" title={t('stack.deleteCanvas')}>
+                        <button onClick={() => void handleDeleteCanvasFx(activeCanvasId)} disabled={canvases.length <= 1} className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-secondary disabled:opacity-30 transition" title={t('stack.deleteCanvas')}>
                             <Trash2 size={13} />
                         </button>
-                        <button onClick={onAddCanvas} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.newCanvas')} data-testid="stack-add-canvas">
+                        <button onClick={handleAddCanvasFx} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.newCanvas')} data-testid="stack-add-canvas">
                             <Plus size={13} />
                         </button>
                         <div className="w-px h-4 bg-border" />
@@ -206,13 +356,13 @@ export default function CanvasStackView({
                             {t('stack.projectCount', { count: projectsState.projects.length })}
                         </span>
                         <div className="w-px h-4 bg-border" />
-                        <button onClick={() => onDuplicateProject(project.id)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.duplicateProject')}>
+                        <button onClick={() => handleDuplicateProjectFx(project.id)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.duplicateProject')}>
                             <Copy size={13} />
                         </button>
-                        <button onClick={() => onDeleteProject(project.id)} disabled={projectsState.projects.length <= 1} className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-secondary disabled:opacity-30 transition" title={t('stack.deleteProject')}>
+                        <button onClick={() => void handleDeleteProjectFx(project.id)} disabled={projectsState.projects.length <= 1} className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-secondary disabled:opacity-30 transition" title={t('stack.deleteProject')}>
                             <Trash2 size={13} />
                         </button>
-                        <button onClick={onAddProject} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.newProject')} data-testid="federation-add-project">
+                        <button onClick={handleAddProjectFx} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.newProject')} data-testid="federation-add-project">
                             <Plus size={13} />
                         </button>
                         <div className="w-px h-4 bg-border" />
@@ -277,18 +427,23 @@ export default function CanvasStackView({
                         onEnterProject={(id) => {
                             onSelectProject(id);
                             setMode('stack');
-                            setCam((c) => ({ ...c, zoom: 1 }));
+                            setInspectedLinks(null);
+                            animateCam({ zoom: 1 }, 420);
                         }}
+                        onSelectLink={setInspectedLinks}
+                        selectedPairKey={inspectedLinks && inspectedLinks.length > 0
+                            ? pairKeyOf(inspectedLinks[0].a, inspectedLinks[0].b)
+                            : null}
                         formatCaption={(pageCount, linkedCount) => t('stack.cubeCaption', { pages: pageCount, linked: linkedCount })}
                     />
                 ) : (
                 <g>
                     {drawOrder.map(({ canvas, idx, selected, xOff, yWorld }) => {
-                        const planeD = planeDepthFor(canvas.width, canvas.height);
-                        const c00 = project3d(-PLANE_W / 2 + xOff, yWorld, -planeD / 2, cam);
-                        const c10 = project3d(PLANE_W / 2 + xOff, yWorld, -planeD / 2, cam);
-                        const c11 = project3d(PLANE_W / 2 + xOff, yWorld, planeD / 2, cam);
-                        const c01 = project3d(-PLANE_W / 2 + xOff, yWorld, planeD / 2, cam);
+                        const extent = extentOf(canvas.width, canvas.height);
+                        const c00 = project3d(-extent.width / 2 + xOff, yWorld, -extent.depth / 2, cam);
+                        const c10 = project3d(extent.width / 2 + xOff, yWorld, -extent.depth / 2, cam);
+                        const c11 = project3d(extent.width / 2 + xOff, yWorld, extent.depth / 2, cam);
+                        const c01 = project3d(-extent.width / 2 + xOff, yWorld, extent.depth / 2, cam);
                         const xray = selected ? 1 : 0.38;
                         const objects = canvas.json?.objects ?? [];
                         // The camera does a true perspective projection (see
@@ -312,6 +467,14 @@ export default function CanvasStackView({
                             const w = worldOf(layer, idx, xOff, canvas.width, canvas.height);
                             return project3d(w.x, w.y, w.z, cam);
                         });
+                        // Project a layer's own box onto the page plane, so the
+                        // view can draw the artwork where it actually sits.
+                        const layerScreenQuad = (layer: SerializedLayer) => layerCorners(layer)
+                            .map((corner) => {
+                                const n = normalizeToCanvas(corner, canvas.width, canvas.height);
+                                const w = planePoint(n.x, n.y, idx, xOff, canvas.width, canvas.height);
+                                return project3d(w.x, w.y, w.z, cam);
+                            });
 
                         return (
                             <g
@@ -331,26 +494,37 @@ export default function CanvasStackView({
                                         <clipPath id={clipBId}>
                                             <path d={`M ${c10.x} ${c10.y} L ${c11.x} ${c11.y} L ${c01.x} ${c01.y} Z`} />
                                         </clipPath>
-                                        <image
-                                            href={canvas.thumbnail}
-                                            width={1}
-                                            height={1}
-                                            preserveAspectRatio="none"
-                                            transform={triangleATransform}
-                                            clipPath={`url(#${clipAId})`}
-                                            opacity={selected ? 0.95 : 0.55}
-                                            style={{ imageRendering: 'auto' }}
-                                        />
-                                        <image
-                                            href={canvas.thumbnail}
-                                            width={1}
-                                            height={1}
-                                            preserveAspectRatio="none"
-                                            transform={triangleBTransform}
-                                            clipPath={`url(#${clipBId})`}
-                                            opacity={selected ? 0.95 : 0.55}
-                                            style={{ imageRendering: 'auto' }}
-                                        />
+                                        {/*
+                                          * The clip lives on an UNTRANSFORMED
+                                          * group: clip-path evaluates in the
+                                          * referencing element's own space, so
+                                          * putting it on the warped <image>
+                                          * would drag the clip triangle through
+                                          * the warp matrix and clip everything
+                                          * away — planes rendered blank.
+                                          */}
+                                        <g clipPath={`url(#${clipAId})`}>
+                                            <image
+                                                href={canvas.thumbnail}
+                                                width={1}
+                                                height={1}
+                                                preserveAspectRatio="none"
+                                                transform={triangleATransform}
+                                                opacity={selected ? 0.95 : 0.55}
+                                                style={{ imageRendering: 'auto' }}
+                                            />
+                                        </g>
+                                        <g clipPath={`url(#${clipBId})`}>
+                                            <image
+                                                href={canvas.thumbnail}
+                                                width={1}
+                                                height={1}
+                                                preserveAspectRatio="none"
+                                                transform={triangleBTransform}
+                                                opacity={selected ? 0.95 : 0.55}
+                                                style={{ imageRendering: 'auto' }}
+                                            />
+                                        </g>
                                     </>
                                 )}
                                 <path
@@ -375,31 +549,74 @@ export default function CanvasStackView({
                                     {canvas.name}
                                 </text>
 
+                                {/*
+                                  * Each layer is drawn as its real box on the
+                                  * page: images get their own bitmap warped
+                                  * into place, everything else gets its fill.
+                                  * The page thumbnail already shows the
+                                  * composite, so these sit on top of it to make
+                                  * individual layers and their extents legible.
+                                  */}
                                 {objects.map((layer, li) => {
-                                    const w = worldOf(layer, idx, xOff, canvas.width, canvas.height);
-                                    const p = project3d(w.x, w.y, w.z, cam);
-                                    const color = layerColor(layer.type);
+                                    const q = layerScreenQuad(layer);
+                                    if (q.length !== 4) return null;
+                                    const [q00, q10, q11, q01] = q;
                                     const shared = Boolean(layer.sharedLayerId);
-                                    if (!selected) {
-                                        return (
-                                            <g key={li}>
-                                                {shared && <circle cx={p.x} cy={p.y} r={8} fill="none" stroke="#7FAAB0" strokeWidth={1} opacity={0.7} />}
-                                                <circle cx={p.x} cy={p.y} r={4.5} fill={color} opacity={0.9} />
-                                            </g>
-                                        );
-                                    }
-                                    const bw = 78, bh = 20;
-                                    const label = String(layer.name || layer.type || '').slice(0, 13);
+                                    const outline = `M ${q00.x} ${q00.y} L ${q10.x} ${q10.y} L ${q11.x} ${q11.y} L ${q01.x} ${q01.y} Z`;
+                                    const drawable = hasDrawableSource(layer);
+                                    // Same two-triangle affine split the page
+                                    // thumbnail uses: one matrix cannot map a
+                                    // square onto a perspective trapezoid.
+                                    const triA = `matrix(${q10.x - q00.x} ${q10.y - q00.y} ${q01.x - q00.x} ${q01.y - q00.y} ${q00.x} ${q00.y})`;
+                                    const triB = `matrix(${q11.x - q01.x} ${q11.y - q01.y} ${q11.x - q10.x} ${q11.y - q10.y} ${q01.x + q10.x - q11.x} ${q01.y + q10.y - q11.y})`;
+                                    const clipA = `csv-lyr-a-${canvas.id}-${li}`;
+                                    const clipB = `csv-lyr-b-${canvas.id}-${li}`;
                                     return (
-                                        <g key={li}>
-                                            {shared && (
-                                                <rect x={p.x - bw / 2 - 4} y={p.y - bh / 2 - 4} width={bw + 8} height={bh + 8} rx={7} fill="none" stroke="#7FAAB0" strokeWidth={1.2} opacity={0.75} filter="url(#csv-glow)" />
+                                        <g key={li} opacity={selected ? 1 : 0.75}>
+                                            {drawable ? (
+                                                <>
+                                                    <clipPath id={clipA}>
+                                                        <path d={`M ${q00.x} ${q00.y} L ${q10.x} ${q10.y} L ${q01.x} ${q01.y} Z`} />
+                                                    </clipPath>
+                                                    <clipPath id={clipB}>
+                                                        <path d={`M ${q10.x} ${q10.y} L ${q11.x} ${q11.y} L ${q01.x} ${q01.y} Z`} />
+                                                    </clipPath>
+                                                    <g clipPath={`url(#${clipA})`}>
+                                                        <image
+                                                            href={layer.src as string}
+                                                            width={1}
+                                                            height={1}
+                                                            preserveAspectRatio="none"
+                                                            transform={triA}
+                                                            opacity={typeof layer.opacity === 'number' ? layer.opacity : 1}
+                                                        />
+                                                    </g>
+                                                    <g clipPath={`url(#${clipB})`}>
+                                                        <image
+                                                            href={layer.src as string}
+                                                            width={1}
+                                                            height={1}
+                                                            preserveAspectRatio="none"
+                                                            transform={triB}
+                                                            opacity={typeof layer.opacity === 'number' ? layer.opacity : 1}
+                                                        />
+                                                    </g>
+                                                </>
+                                            ) : (
+                                                <path
+                                                    d={outline}
+                                                    fill={layerFill(layer)}
+                                                    opacity={(typeof layer.opacity === 'number' ? layer.opacity : 1) * (selected ? 0.75 : 0.5)}
+                                                />
                                             )}
-                                            <rect x={p.x - bw / 2} y={p.y - bh / 2} width={bw} height={bh} rx={5} fill="#0c0c10" stroke={color} strokeWidth={1.3} />
-                                            <circle cx={p.x - bw / 2 + 8} cy={p.y} r={2.6} fill={color} />
-                                            <text x={p.x - bw / 2 + 15} y={p.y + 3.3} fontSize={9} fill="#d4d4d8" fontWeight={600}>
-                                                {label}
-                                            </text>
+                                            <path
+                                                d={outline}
+                                                fill="none"
+                                                stroke={shared ? '#7FAAB0' : layerColor(layer.type)}
+                                                strokeWidth={shared ? 1.4 : 0.8}
+                                                opacity={selected ? 0.85 : 0.45}
+                                                filter={shared ? 'url(#csv-glow)' : undefined}
+                                            />
                                         </g>
                                     );
                                 })}
@@ -434,7 +651,57 @@ export default function CanvasStackView({
                     )}
                 </g>
                 )}
+                <StackEffects effects={effects} />
             </svg>
+
+            {/* Shared-asset inspector: opened by clicking a connection curve. */}
+            {mode === 'federation' && inspectedLinks && inspectedLinks.length > 0 && (
+                <div
+                    className="absolute right-4 top-16 z-10 w-64 rounded-xl border border-border/60 bg-card/90 backdrop-blur-md shadow-xl p-3"
+                    data-testid="federation-link-inspector"
+                >
+                    <div className="flex items-start justify-between gap-2">
+                        <div>
+                            <div className="text-[11px] font-bold uppercase tracking-wide text-primary flex items-center gap-1.5">
+                                <Link2 size={12} /> {t('stack.sharedAssetsTitle')}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-muted-foreground truncate">
+                                {projectNameOf(inspectedLinks[0].a)} ↔ {projectNameOf(inspectedLinks[0].b)}
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setInspectedLinks(null)}
+                            className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+                            title={t('common.close')}
+                        >
+                            <X size={12} />
+                        </button>
+                    </div>
+                    <div className="mt-2 space-y-1.5 max-h-56 overflow-y-auto">
+                        {inspectedLinks.map((link) => (
+                            <div key={link.sharedLayerId} className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/60 px-2 py-1.5">
+                                {link.layerSrc ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={link.layerSrc} alt="" className="h-8 w-8 rounded object-cover shrink-0 border border-border/40" />
+                                ) : (
+                                    <span
+                                        className="h-8 w-8 rounded shrink-0 border border-border/40"
+                                        style={{ backgroundColor: layerColor(link.layerType) }}
+                                    />
+                                )}
+                                <div className="min-w-0">
+                                    <div className="text-[11px] font-medium text-foreground truncate">
+                                        {link.layerName || t('stack.unnamedLayer')}
+                                    </div>
+                                    {link.layerType && (
+                                        <div className="text-[10px] text-muted-foreground">{link.layerType}</div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">
                 {mode === 'stack' ? t('stack.hints') : t('stack.hintsFederation')}

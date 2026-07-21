@@ -26,6 +26,11 @@ export default function CanvasTabsBar({
     const activeCanvas = project.canvases.find((c) => c.id === project.activeCanvasId);
     // Newest canvases appear at the top of the dropdown.
     const listedCanvases = [...project.canvases].reverse();
+    // Navigation only appears once there is somewhere to navigate: the page
+    // switcher needs a second page, the album/stack entries need either more
+    // pages or other albums. The "+" stays — creating is always possible.
+    const hasMultiplePages = project.canvases.length > 1;
+    const hasAnywhereToGo = hasMultiplePages || hasOtherProjects;
 
     useEffect(() => {
         if (!isListOpen) return undefined;
@@ -40,6 +45,7 @@ export default function CanvasTabsBar({
 
     return (
         <div className="relative z-30 flex items-center gap-1 px-2 py-1 border-b bg-card/60 backdrop-blur-sm text-xs" data-testid="canvas-tabs-bar">
+            {hasMultiplePages && (
             <div ref={containerRef} className="relative">
                 <button
                     onClick={() => setIsListOpen((open) => !open)}
@@ -78,6 +84,7 @@ export default function CanvasTabsBar({
                     </div>
                 )}
             </div>
+            )}
             <button
                 onClick={onAddCanvas}
                 className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
@@ -86,6 +93,8 @@ export default function CanvasTabsBar({
             >
                 <Plus size={14} />
             </button>
+            {hasAnywhereToGo && (
+            <>
             <div className="w-px h-4 bg-border mx-1" />
             <button
                 onClick={onOpenStackView}
@@ -114,6 +123,8 @@ export default function CanvasTabsBar({
                 >
                     <Globe2 size={14} />
                 </button>
+            )}
+            </>
             )}
         </div>
     );
