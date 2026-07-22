@@ -239,26 +239,18 @@ export default function CanvasStackView({
 
     const layerCount = activeCanvas?.json?.objects?.length ?? 0;
 
-    // Where the selected plane sits on screen — bursts anchor here so the
-    // effect lands on the thing being created or destroyed.
-    const activePlanePoint = useCallback(() => {
-        const meta = planeMeta.find((m) => m.canvas.id === activeCanvasId);
-        if (!meta) return { x: VIEW_W / 2, y: VIEW_H / 2 };
-        const point = project3d(meta.xOff, meta.yWorld, 0, cam);
-        return { x: point.x, y: point.y };
-    }, [activeCanvasId, cam, planeMeta]);
-
+    // The pixie-dust flourish plays centre-stage: the new page slides out
+    // and the stack re-spaces at the same moment, so any plane-anchored point
+    // is stale by the time the wisp flies. Centre is always on screen.
     const handleAddCanvasFx = useCallback(() => {
         onAddCanvas();
-        const p = activePlanePoint();
-        spawnFx('sparkle', p.x, p.y - 40);
-    }, [activePlanePoint, onAddCanvas, spawnFx]);
+        spawnFx('sparkle', VIEW_W / 2, VIEW_H / 2 - 40);
+    }, [onAddCanvas, spawnFx]);
 
     const handleDuplicateCanvasFx = useCallback((canvasId: string) => {
         onDuplicateCanvas(canvasId);
-        const p = activePlanePoint();
-        spawnFx('sparkle', p.x, p.y - 40);
-    }, [activePlanePoint, onDuplicateCanvas, spawnFx]);
+        spawnFx('sparkle', VIEW_W / 2, VIEW_H / 2 - 40);
+    }, [onDuplicateCanvas, spawnFx]);
 
     const handleDeleteCanvasFx = useCallback(async (canvasId: string) => {
         const entry = canvases.find((c) => c.id === canvasId);

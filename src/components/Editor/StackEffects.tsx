@@ -1,6 +1,12 @@
 'use client';
-// Particle effects for the album stack view: a sparkling dust burst when a
-// page or album is created/duplicated, and an explosion when one is deleted.
+// Particle effects for the album stack view: pixie dust when a page or album
+// is created/duplicated, and an explosion when one is deleted.
+//
+// The pixie dust is built like the Disney opening flourish: a glowing wisp
+// sweeps a spiral around the point, and tiny dust motes are shed along its
+// path — each one pops in where the wisp just passed, twinkles, then settles
+// downward and fades. The swirl reading comes from the *spawn schedule*: mote
+// delays follow the wisp's progress, so the trail chases it around the loop.
 //
 // CSS animations, deliberately not SMIL: SMIL `begin` offsets are measured
 // from the SVG document's load time, so an <animate> inserted minutes into a
@@ -20,34 +26,61 @@ export type StackFx = {
     y: number;
 };
 
-export const SPARKLE_DURATION_MS = 2100;
+/** Wisp sweep time; motes keep twinkling/settling well after it finishes. */
+const SWEEP_S = 1.3;
+export const SPARKLE_DURATION_MS = 3000;
 export const EXPLOSION_DURATION_MS = 1400;
 
-const SPARKLE_COLORS = ['#ffe9a8', '#fff7e0', '#7FDCE8', '#f6c86a', '#ffffff'];
+// Champagne golds with the occasional cool fleck, like real pixie dust.
+const DUST_COLORS = ['#ffe9a8', '#fff3c9', '#ffd76e', '#fff7e0', '#ffffff', '#bfeef2'];
 const EXPLOSION_COLORS = ['#ff9d5c', '#ffce7a', '#ff6b4a', '#fff3d6', '#ffb36b'];
 
-type Particle = {
-    dx: number;
+/**
+ * The wisp's flight: an expanding spiral, squashed vertically so it reads as
+ * a loop drawn in the scene's perspective, rising gently as it goes.
+ */
+const TURNS = 2.1;
+const spiralPoint = (t: number): { x: number; y: number } => {
+    const angle = -Math.PI / 2 + t * TURNS * Math.PI * 2;
+    const radius = 16 + t * 92;
+    return {
+        x: Math.cos(angle) * radius * 1.2,
+        y: Math.sin(angle) * radius * 0.55 - t * 34,
+    };
+};
+
+const spiralPathD = (): string => {
+    const steps = 64;
+    const pts = Array.from({ length: steps + 1 }, (_, i) => spiralPoint(i / steps));
+    return `M ${pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L ')}`;
+};
+
+type Mote = {
+    sx: number;   // spawn point on the spiral (with jitter)
+    sy: number;
+    dx: number;   // settle drift — mostly downward, dust falling
     dy: number;
     r: number;
     color: string;
-    delay: number;
+    delay: number; // when the wisp passes this spot
     dur: number;
-    spin: number;
+    phase: number; // twinkle offset so motes don't pulse in unison
 };
 
-const makeParticles = (count: number, colors: string[], reach: number, upBias: number): Particle[] => (
-    Array.from({ length: count }, () => {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = reach * (0.35 + Math.random() * 0.65);
+const makeDust = (count: number): Mote[] => (
+    Array.from({ length: count }, (_, i) => {
+        const t = i / (count - 1);
+        const p = spiralPoint(t);
         return {
-            dx: Math.cos(angle) * dist,
-            dy: Math.sin(angle) * dist - upBias * Math.random(),
-            r: 1.6 + Math.random() * 3,
-            color: colors[Math.floor(Math.random() * colors.length)],
-            delay: Math.random() * 0.15,
-            dur: 0.9 + Math.random() * 0.9,
-            spin: Math.random() < 0.5 ? 1 : -1,
+            sx: p.x + (Math.random() - 0.5) * 10,
+            sy: p.y + (Math.random() - 0.5) * 10,
+            dx: (Math.random() - 0.5) * 16,
+            dy: 24 + Math.random() * 42,
+            r: 1.1 + Math.random() * 1.7,
+            color: DUST_COLORS[Math.floor(Math.random() * DUST_COLORS.length)],
+            delay: t * SWEEP_S + Math.random() * 0.05,
+            dur: 1.0 + Math.random() * 0.9,
+            phase: Math.random() * 0.4,
         };
     })
 );
@@ -58,52 +91,76 @@ const starPath = (r: number): string => {
     return `M 0 ${-r} Q ${w} ${-w} ${r} 0 Q ${w} ${w} 0 ${r} Q ${-w} ${w} ${-r} 0 Q ${-w} ${-w} 0 ${-r} Z`;
 };
 
+type Debris = { dx: number; dy: number; r: number; color: string; delay: number; dur: number };
+
+const makeDebris = (count: number, reach: number): Debris[] => (
+    Array.from({ length: count }, () => {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = reach * (0.35 + Math.random() * 0.65);
+        return {
+            dx: Math.cos(angle) * dist,
+            dy: Math.sin(angle) * dist + 30,
+            r: 1.6 + Math.random() * 3,
+            color: EXPLOSION_COLORS[Math.floor(Math.random() * EXPLOSION_COLORS.length)],
+            delay: Math.random() * 0.06,
+            dur: 0.7 + Math.random() * 0.5,
+        };
+    })
+);
+
 /**
  * Shared keyframes. Rendered once inside the parent <svg>; `transform-box:
  * fill-box` makes scale/rotate resolve around each particle, not the SVG
- * origin. Custom properties (--dx/--dy) carry each particle's own vector.
+ * origin. Custom properties carry each particle's own vectors.
  */
 export function StackFxStyles() {
     return (
         <style>{`
-            .csv-fx-p {
+            .csv-fx-mote {
                 opacity: 0;
-                transform-box: fill-box;
-                transform-origin: center;
-                animation: csvFxFly var(--dur) cubic-bezier(0.12, 0.8, 0.25, 1) var(--delay) forwards;
+                animation: csvFxMote var(--dur) ease-out var(--delay) forwards;
             }
-            @keyframes csvFxFly {
-                0%   { transform: translate(0px, 0px); opacity: 0; }
-                8%   { opacity: 1; }
-                62%  { opacity: 1; }
-                100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
+            @keyframes csvFxMote {
+                0%   { transform: translate(var(--sx), var(--sy)); opacity: 0; }
+                6%   { opacity: 1; }
+                55%  { opacity: 0.95; }
+                100% { transform: translate(calc(var(--sx) + var(--dx)), calc(var(--sy) + var(--dy))); opacity: 0; }
             }
             .csv-fx-twinkle {
                 transform-box: fill-box;
                 transform-origin: center;
-                animation: csvFxTwinkle 0.42s ease-in-out infinite alternate;
+                animation: csvFxTwinkle 0.34s ease-in-out var(--phase) infinite alternate;
             }
             @keyframes csvFxTwinkle {
-                from { transform: scale(0.55); }
-                to   { transform: scale(1.55); }
+                from { transform: scale(0.4); }
+                to   { transform: scale(1.9); }
             }
-            .csv-fx-star {
+            .csv-fx-wisp {
+                offset-path: path(var(--spiral));
+                offset-rotate: 0deg;
+                animation: csvFxWisp ${SWEEP_S}s cubic-bezier(0.35, 0, 0.3, 1) forwards;
+            }
+            @keyframes csvFxWisp {
+                0%   { offset-distance: 0%; opacity: 0; }
+                5%   { opacity: 1; }
+                88%  { opacity: 1; }
+                100% { offset-distance: 100%; opacity: 0; }
+            }
+            .csv-fx-wisp-pulse {
                 transform-box: fill-box;
                 transform-origin: center;
-                animation: csvFxSpin var(--dur) linear var(--delay) forwards;
+                animation: csvFxTwinkle 0.22s ease-in-out infinite alternate;
             }
-            @keyframes csvFxSpin {
-                from { transform: rotate(0deg) scale(0.3); }
-                to   { transform: rotate(var(--spin)) scale(1.15); }
-            }
-            .csv-fx-bloom {
+            .csv-fx-starlet {
+                opacity: 0;
                 transform-box: fill-box;
                 transform-origin: center;
-                animation: csvFxBloom 0.9s cubic-bezier(0.16, 0.84, 0.3, 1) forwards;
+                animation: csvFxStarlet 0.9s ease-out var(--delay) forwards;
             }
-            @keyframes csvFxBloom {
-                0%   { transform: scale(0.15); opacity: 0.55; }
-                100% { transform: scale(1);    opacity: 0; }
+            @keyframes csvFxStarlet {
+                0%   { transform: translate(var(--sx), var(--sy)) scale(0.2) rotate(0deg); opacity: 0; }
+                15%  { opacity: 1; }
+                100% { transform: translate(var(--sx), var(--sy)) scale(1.1) rotate(140deg); opacity: 0; }
             }
             .csv-fx-flash {
                 transform-box: fill-box;
@@ -125,8 +182,6 @@ export function StackFxStyles() {
             }
             .csv-fx-debris {
                 opacity: 0;
-                transform-box: fill-box;
-                transform-origin: center;
                 animation: csvFxDebris var(--dur) cubic-bezier(0.05, 0.7, 0.3, 1) var(--delay) forwards;
             }
             @keyframes csvFxDebris {
@@ -139,48 +194,69 @@ export function StackFxStyles() {
     );
 }
 
-const vecStyle = (p: Particle, extra?: Record<string, string>): React.CSSProperties => ({
-    ['--dx' as string]: `${p.dx}px`,
-    ['--dy' as string]: `${p.dy}px`,
-    ['--dur' as string]: `${p.dur}s`,
-    ['--delay' as string]: `${p.delay}s`,
-    ...extra,
-});
-
-function SparkleBurst({ fx }: { fx: StackFx }) {
-    const dust = useMemo(() => makeParticles(34, SPARKLE_COLORS, 150, 70), []);
-    const stars = useMemo(() => makeParticles(9, SPARKLE_COLORS, 100, 50), []);
+function PixieDust({ fx }: { fx: StackFx }) {
+    const dust = useMemo(() => makeDust(80), []);
+    // A few tiny stars flare where the trail has just passed.
+    const starlets = useMemo(() => makeDust(10).map((m) => ({ ...m, delay: m.delay + 0.1 })), []);
+    const spiral = useMemo(() => spiralPathD(), []);
     return (
         <g transform={`translate(${fx.x} ${fx.y})`} pointerEvents="none" data-testid="stack-fx-sparkle">
-            <circle r={80} fill="url(#csv-fx-bloom-grad)" className="csv-fx-bloom" />
-            {dust.map((p, i) => (
-                <g key={i} className="csv-fx-p" style={vecStyle(p)}>
-                    <circle r={p.r} fill={p.color} className="csv-fx-twinkle" />
+            {/* The wisp: a glowing comet head flying the spiral. */}
+            <g className="csv-fx-wisp" style={{ ['--spiral' as string]: `"${spiral}"` }}>
+                <circle r={11} fill="#ffe9a8" opacity={0.3} filter="url(#csv-glow)" />
+                <circle r={4} fill="#fff7e0" filter="url(#csv-glow)" className="csv-fx-wisp-pulse" />
+            </g>
+            {dust.map((m, i) => (
+                <g
+                    key={i}
+                    className="csv-fx-mote"
+                    style={{
+                        ['--sx' as string]: `${m.sx}px`,
+                        ['--sy' as string]: `${m.sy}px`,
+                        ['--dx' as string]: `${m.dx}px`,
+                        ['--dy' as string]: `${m.dy}px`,
+                        ['--dur' as string]: `${m.dur}s`,
+                        ['--delay' as string]: `${m.delay}s`,
+                    }}
+                >
+                    <circle r={m.r} fill={m.color} className="csv-fx-twinkle" style={{ ['--phase' as string]: `${m.phase}s` }} />
                 </g>
             ))}
-            {stars.map((p, i) => (
-                <g key={`s${i}`} className="csv-fx-p" style={vecStyle({ ...p, dur: p.dur + 0.25 })}>
-                    <path
-                        d={starPath(p.r * 3.4)}
-                        fill={p.color}
-                        filter="url(#csv-glow)"
-                        className="csv-fx-star"
-                        style={vecStyle(p, { ['--spin' as string]: `${p.spin * 200}deg` })}
-                    />
-                </g>
+            {starlets.map((m, i) => (
+                <path
+                    key={`s${i}`}
+                    d={starPath(4.5 + m.r * 2.2)}
+                    fill={m.color}
+                    filter="url(#csv-glow)"
+                    className="csv-fx-starlet"
+                    style={{
+                        ['--sx' as string]: `${m.sx}px`,
+                        ['--sy' as string]: `${m.sy}px`,
+                        ['--delay' as string]: `${m.delay}s`,
+                    }}
+                />
             ))}
         </g>
     );
 }
 
 function ExplosionBurst({ fx }: { fx: StackFx }) {
-    const debris = useMemo(() => makeParticles(40, EXPLOSION_COLORS, 240, -40), []);
+    const debris = useMemo(() => makeDebris(40, 240), []);
     return (
         <g transform={`translate(${fx.x} ${fx.y})`} pointerEvents="none" data-testid="stack-fx-explosion">
             <circle r={52} fill="#fff7e0" className="csv-fx-flash" />
             <circle r={160} fill="none" stroke="#ffb36b" strokeWidth={3} className="csv-fx-ring" />
             {debris.map((p, i) => (
-                <g key={i} className="csv-fx-debris" style={vecStyle({ ...p, dur: p.dur * 0.8 })}>
+                <g
+                    key={i}
+                    className="csv-fx-debris"
+                    style={{
+                        ['--dx' as string]: `${p.dx}px`,
+                        ['--dy' as string]: `${p.dy}px`,
+                        ['--dur' as string]: `${p.dur}s`,
+                        ['--delay' as string]: `${p.delay}s`,
+                    }}
+                >
                     <circle r={p.r * 1.5} fill={p.color} />
                 </g>
             ))}
@@ -192,15 +268,9 @@ function ExplosionBurst({ fx }: { fx: StackFx }) {
 export default function StackEffects({ effects }: { effects: StackFx[] }) {
     return (
         <>
-            <defs>
-                <radialGradient id="csv-fx-bloom-grad">
-                    <stop offset="0%" stopColor="#ffe9a8" stopOpacity="0.9" />
-                    <stop offset="100%" stopColor="#ffe9a8" stopOpacity="0" />
-                </radialGradient>
-            </defs>
             <StackFxStyles />
             {effects.map((fx) => (
-                fx.kind === 'sparkle' ? <SparkleBurst key={fx.id} fx={fx} /> : <ExplosionBurst key={fx.id} fx={fx} />
+                fx.kind === 'sparkle' ? <PixieDust key={fx.id} fx={fx} /> : <ExplosionBurst key={fx.id} fx={fx} />
             ))}
         </>
     );
