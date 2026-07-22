@@ -19,6 +19,12 @@ Every step — and any error — is written to a log file you can hand to suppor
 
 On macOS, right-click the `.command` file and choose **Open** once to satisfy Gatekeeper; after that, double-clicking works normally.
 
+**If macOS says the file "can't be executed" or nothing happens**: browsers strip the execute permission from downloaded scripts. Skip the download entirely and paste this one line into Terminal (⌘-Space, type "Terminal") — it runs the exact same installer:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/GeekatplayStudio/Image-Express/main/install.command)
+```
+
 ### Prerequisites (if installing manually instead)
 - Node.js 24+
 - npm 11+

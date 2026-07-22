@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, DownloadCloud, Loader2, RefreshCcw, TriangleAlert } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
+import { RichText } from '@/lib/i18n/RichText';
 import { loadUpdateAutoCheck, saveUpdateAutoCheck } from '@/components/UpdateAutoCheck';
 
 type UpdateStatus = {
@@ -40,18 +41,18 @@ export default function UpdatesSection({ className }: { className?: string }) {
             const response = await fetch('/api/system/update', { method: 'POST' });
             const result = await response.json() as { success: boolean; commit?: string; error?: string };
             if (result.success) {
-                setApplyFeedback(`Updated to ${result.commit}. Restart Image Express to finish.`);
+                setApplyFeedback(t('updates.updatedRestart', { commit: result.commit ?? '' }));
                 const refreshed = await fetch('/api/system/update');
                 setStatus(await refreshed.json() as UpdateStatus);
             } else {
-                setApplyFeedback(result.error || 'Update failed.');
+                setApplyFeedback(result.error || t('updates.updateFailed'));
             }
         } catch {
-            setApplyFeedback('Update failed — could not reach the server.');
+            setApplyFeedback(t('updates.unreachable'));
         } finally {
             setIsApplying(false);
         }
-    }, []);
+    }, [t]);
 
     const checkForUpdates = useCallback(async () => {
         setIsChecking(true);
@@ -74,9 +75,9 @@ export default function UpdatesSection({ className }: { className?: string }) {
     const copyUpdateCommand = async () => {
         try {
             await navigator.clipboard.writeText('npm run update');
-            setCopyFeedback('Copied "npm run update" — run it in the app folder, then restart.');
+            setCopyFeedback(t('updates.copied'));
         } catch {
-            setCopyFeedback('Copy failed — type "npm run update" manually.');
+            setCopyFeedback(t('updates.copyFailed'));
         }
     };
 
@@ -88,7 +89,7 @@ export default function UpdatesSection({ className }: { className?: string }) {
                     {t('settings.updates')}
                 </h4>
                 <p className="text-[11px] text-muted-foreground">
-                    Keep Image Express current with the latest code from GitHub.
+                    {t('updates.keepCurrent')}
                 </p>
             </div>
 
@@ -111,7 +112,7 @@ export default function UpdatesSection({ className }: { className?: string }) {
                 {!isChecking && status && !status.supported && (
                     <div className="inline-flex items-center gap-1.5 text-amber-600">
                         <TriangleAlert size={13} />
-                        {status.reason || 'Updates are not available for this install.'}
+                        {status.reason || t('updates.notSupported')}
                     </div>
                 )}
 
@@ -120,7 +121,7 @@ export default function UpdatesSection({ className }: { className?: string }) {
                         <CheckCircle2 size={13} />
                         {t('settings.upToDate')}
                         {status.fetchFailed && (
-                            <span className="text-amber-600">(offline — showing last known state)</span>
+                            <span className="text-amber-600">{t('updates.offlineNote')}</span>
                         )}
                     </div>
                 )}
@@ -129,16 +130,18 @@ export default function UpdatesSection({ className }: { className?: string }) {
                     <div className="space-y-2">
                         <div className="inline-flex items-center gap-1.5 text-primary font-semibold">
                             <DownloadCloud size={13} />
-                            {t('settings.updateAvailable')} ({status.behind} commit{status.behind === 1 ? '' : 's'} behind)
+                            {t('settings.updateAvailable')} ({t('updates.behind', { count: status.behind ?? 1 })})
                         </div>
                         {status.dirty && (
                             <div className="text-amber-600 text-[11px]">
-                                Local file changes detected — commit or stash them before updating.
+                                {t('updates.dirtyWarning')}
                             </div>
                         )}
                         <div className="text-[11px] text-muted-foreground">
-                            To update: close the app, run <code className="font-mono bg-secondary/40 rounded px-1">npm run update</code> in
-                            the install folder, then start it again.
+                            <RichText
+                                template={t('updates.manualHint')}
+                                values={{ cmd: <code className="font-mono bg-secondary/40 rounded px-1">npm run update</code> }}
+                            />
                         </div>
                     </div>
                 )}
@@ -160,7 +163,7 @@ export default function UpdatesSection({ className }: { className?: string }) {
                         className="h-8 px-3 text-[11px] font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
                     >
                         {isApplying ? <Loader2 size={13} className="animate-spin" /> : <DownloadCloud size={13} />}
-                        {isApplying ? 'Updating…' : t('settings.updateNow')}
+                        {isApplying ? t('updates.updating') : t('settings.updateNow')}
                     </button>
                 )}
                 {status?.supported && status.updateAvailable && status.dirty && (
@@ -169,7 +172,7 @@ export default function UpdatesSection({ className }: { className?: string }) {
                         className="h-8 px-3 text-[11px] font-semibold rounded-md border border-border hover:bg-secondary transition-colors inline-flex items-center gap-1.5"
                     >
                         <DownloadCloud size={13} />
-                        Copy manual update command
+                        {t('updates.copyManual')}
                     </button>
                 )}
             </div>
@@ -184,7 +187,7 @@ export default function UpdatesSection({ className }: { className?: string }) {
                     }}
                     className="rounded border-border text-primary focus:ring-primary/20"
                 />
-                Check for updates automatically when the app starts
+                {t('updates.autoCheckLabel')}
             </label>
 
             {copyFeedback && (
