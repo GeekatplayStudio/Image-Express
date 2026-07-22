@@ -1471,6 +1471,37 @@ const uk: LocaleDictionary = {
     'menuAct.aboutTitle': 'Про Image Express',
     'menuAct.aboutBody': 'Редактор Image Express. Створюйте та редагуйте дизайни за допомогою пошарових інструментів, процесів ретуші та панелей керування.',
 
+    // Режими теми та акцентні палітри
+    'themeMode.system': 'Системна',
+    'themeMode.system.desc': 'Автоматично слідувати оформленню пристрою.',
+    'themeMode.dark': 'Темна',
+    'themeMode.dark.desc': 'Контрастний темний робочий простір.',
+    'themeMode.light': 'Світла',
+    'themeMode.light.desc': 'Світлий робочий простір для денної роботи.',
+    'accent.ocean': 'Океан',
+    'accent.ocean.desc': 'Поточна синьо-блакитна палітра за замовчуванням.',
+    'accent.ember': 'Жарина',
+    'accent.ember.desc': 'Теплий помаранчево-червоний акцент.',
+    'accent.meadow': 'Лука',
+    'accent.meadow.desc': 'Зелено-бірюзова робоча палітра.',
+    'accent.violet': 'Фіалка',
+    'accent.violet.desc': 'Холодний індиго-пурпуровий акцент.',
+    // Налаштування > Адміністрування
+    'settings.admin.hint': 'Ролі адміністраторів, черга схвалення та права користувачів.',
+    'settings.admin.loadingUsers': 'Завантаження користувачів…',
+    // Бібліотека шаблонів
+    'tmpl.title': 'Шаблони',
+    'tmpl.saveCurrentTitle': 'Зберегти поточний робочий простір як новий шаблон',
+    'tmpl.saveCurrent': 'Зберегти поточне',
+    'tmpl.loading': 'Завантаження шаблонів…',
+    'tmpl.noneYet': 'Шаблонів поки немає',
+    'tmpl.noneYetHint': 'Збережіть робочий простір, і він зʼявиться тут',
+    'tmpl.deleteConfirm': 'Видалити цей шаблон?',
+    'tmpl.deleteTitle': 'Видалити шаблон',
+    'tmpl.deleteFailed': 'Не вдалося видалити',
+    'tmpl.deleteFailedDesc': 'Не вдалося видалити шаблон.',
+    'tmpl.deleteErrorDesc': 'Під час видалення щось пішло не так.',
+
 };
 
 export default uk;

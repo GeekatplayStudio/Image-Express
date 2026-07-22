@@ -29,7 +29,7 @@ export default function AdminTab({ admin }: AdminTabProps) {
                         {t('settings.admin.userManagement')}
                     </h4>
                     <p className="text-[11px] text-muted-foreground">
-                        Admin roles, approval queue, and per-user rights.
+                        {t('settings.admin.hint')}
                     </p>
                 </div>
                 <button
@@ -38,7 +38,7 @@ export default function AdminTab({ admin }: AdminTabProps) {
                     disabled={isAdminUsersLoading}
                 >
                     <RefreshCcw size={14} className={isAdminUsersLoading ? 'animate-spin' : ''} />
-                    Refresh
+                    {t('common.refresh')}
                 </button>
             </div>
 
@@ -49,7 +49,7 @@ export default function AdminTab({ admin }: AdminTabProps) {
             )}
 
             {isAdminUsersLoading ? (
-                <div className="text-xs text-muted-foreground">Loading users...</div>
+                <div className="text-xs text-muted-foreground">{t('settings.admin.loadingUsers')}</div>
             ) : (
                 <div className="grid gap-3 xl:grid-cols-2">
                     {adminUsers.map((user) => {
@@ -72,7 +72,11 @@ export default function AdminTab({ admin }: AdminTabProps) {
                                                 ? 'bg-amber-500/15 text-amber-600'
                                                 : 'bg-red-500/15 text-red-600'
                                         }`}>
-                                        {user.status}
+                                        {(() => {
+                                            const key = `admin.status.${user.status}`;
+                                            const label = t(key);
+                                            return label === key ? user.status : label;
+                                        })()}
                                     </span>
                                 </div>
 
@@ -82,49 +86,49 @@ export default function AdminTab({ admin }: AdminTabProps) {
                                         disabled={busy}
                                         className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
                                     >
-                                        {isPending ? 'Approve' : 'Enable'}
+                                        {isPending ? t('admin.approve') : t('admin.enable')}
                                     </button>
                                     <button
                                         onClick={() => void executeAdminAction(user.email, isPending ? 'reject' : 'disable')}
                                         disabled={busy}
                                         className="h-8 text-[11px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
                                     >
-                                        {isPending ? 'Reject' : (isDisabled ? 'Disabled' : 'Disable')}
+                                        {isPending ? t('admin.reject') : (isDisabled ? t('admin.disabled') : t('admin.disable'))}
                                     </button>
                                 </div>
 
                                 <div className="grid gap-3 lg:grid-cols-2">
                                     <div className="space-y-1">
-                                        <label className="text-[10px] uppercase text-muted-foreground">Roles</label>
+                                        <label className="text-[10px] uppercase text-muted-foreground">{t('admin.roles')}</label>
                                         <input
                                             value={rolesText}
                                             onChange={(e) => setAdminDraftRoles((prev) => ({ ...prev, [user.email]: e.target.value }))}
                                             className="w-full h-8 px-2 rounded-md bg-background border border-border text-[11px]"
-                                            placeholder="admin, creator"
+                                            placeholder="admin, creator" // i18n-ignore: role names are stored identifiers
                                         />
                                         <button
                                             onClick={() => void executeAdminAction(user.email, 'set-roles', { roles: parseDraftList(rolesText) })}
                                             disabled={busy}
                                             className="h-7 px-2 text-[10px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
                                         >
-                                            Save Roles
+                                            {t('admin.saveRoles')}
                                         </button>
                                     </div>
 
                                     <div className="space-y-1">
-                                        <label className="text-[10px] uppercase text-muted-foreground">Rights</label>
+                                        <label className="text-[10px] uppercase text-muted-foreground">{t('admin.rights')}</label>
                                         <input
                                             value={rightsText}
                                             onChange={(e) => setAdminDraftRights((prev) => ({ ...prev, [user.email]: e.target.value }))}
                                             className="w-full h-8 px-2 rounded-md bg-background border border-border text-[11px]"
-                                            placeholder="users:manage, assets:own"
+                                            placeholder="users:manage, assets:own" // i18n-ignore: right names are stored identifiers
                                         />
                                         <button
                                             onClick={() => void executeAdminAction(user.email, 'set-rights', { rights: parseDraftList(rightsText) })}
                                             disabled={busy}
                                             className="h-7 px-2 text-[10px] font-semibold rounded border border-border hover:bg-secondary transition-colors"
                                         >
-                                            Save Rights
+                                            {t('admin.saveRights')}
                                         </button>
                                     </div>
                                 </div>

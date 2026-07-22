@@ -9,17 +9,19 @@ export type ThemePreferences = {
 export const THEME_PREFERENCES_STORAGE_KEY = 'image-express-theme-preferences';
 export const THEME_PREFERENCES_CHANGED_EVENT = 'image-express:theme-preferences-changed';
 
-export const THEME_MODE_OPTIONS: Array<{ value: ThemePreferenceMode; label: string; description: string }> = [
-    { value: 'system', label: 'System', description: 'Follow the device appearance automatically.' },
-    { value: 'dark', label: 'Dark', description: 'Keep the studio in a contrast-rich workspace.' },
-    { value: 'light', label: 'Light', description: 'Use a brighter workspace for daytime editing.' },
+// `value` is the stored preference identifier; labelKey/descriptionKey
+// resolve through t() at render (see AppearancePanel).
+export const THEME_MODE_OPTIONS: Array<{ value: ThemePreferenceMode; labelKey: string; descriptionKey: string }> = [
+    { value: 'system', labelKey: 'themeMode.system', descriptionKey: 'themeMode.system.desc' },
+    { value: 'dark', labelKey: 'themeMode.dark', descriptionKey: 'themeMode.dark.desc' },
+    { value: 'light', labelKey: 'themeMode.light', descriptionKey: 'themeMode.light.desc' },
 ];
 
-export const THEME_ACCENT_OPTIONS: Array<{ value: ThemeAccentPreset; label: string; description: string; swatch: string }> = [
-    { value: 'ocean', label: 'Ocean', description: 'Current blue-cyan default.', swatch: 'linear-gradient(135deg, #0f766e 0%, #0891b2 52%, #2563eb 100%)' },
-    { value: 'ember', label: 'Ember', description: 'Warm orange-red emphasis.', swatch: 'linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #dc2626 100%)' },
-    { value: 'meadow', label: 'Meadow', description: 'Green-teal production palette.', swatch: 'linear-gradient(135deg, #15803d 0%, #16a34a 52%, #0f766e 100%)' },
-    { value: 'violet', label: 'Violet', description: 'Cool indigo-magenta highlight.', swatch: 'linear-gradient(135deg, #4338ca 0%, #7c3aed 52%, #db2777 100%)' },
+export const THEME_ACCENT_OPTIONS: Array<{ value: ThemeAccentPreset; labelKey: string; descriptionKey: string; swatch: string }> = [
+    { value: 'ocean', labelKey: 'accent.ocean', descriptionKey: 'accent.ocean.desc', swatch: 'linear-gradient(135deg, #0f766e 0%, #0891b2 52%, #2563eb 100%)' },
+    { value: 'ember', labelKey: 'accent.ember', descriptionKey: 'accent.ember.desc', swatch: 'linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #dc2626 100%)' },
+    { value: 'meadow', labelKey: 'accent.meadow', descriptionKey: 'accent.meadow.desc', swatch: 'linear-gradient(135deg, #15803d 0%, #16a34a 52%, #0f766e 100%)' },
+    { value: 'violet', labelKey: 'accent.violet', descriptionKey: 'accent.violet.desc', swatch: 'linear-gradient(135deg, #4338ca 0%, #7c3aed 52%, #db2777 100%)' },
 ];
 
 export const DEFAULT_THEME_PREFERENCES: ThemePreferences = {

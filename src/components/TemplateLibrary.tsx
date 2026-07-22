@@ -7,6 +7,7 @@ import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface Template {
     id: string;
@@ -22,6 +23,7 @@ interface TemplateLibraryProps {
 }
 
 export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: TemplateLibraryProps) {
+    const { t } = useI18n();
     const [templates, setTemplates] = useState<Template[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const dialog = useDialog();
@@ -44,7 +46,7 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
 
     const handleDelete = async (e: React.MouseEvent, templatePath: string) => {
         e.stopPropagation();
-        const confirmed = await dialog.confirm('Delete this template?', { title: 'Delete Template', variant: 'destructive' });
+        const confirmed = await dialog.confirm(t('tmpl.deleteConfirm'), { title: t('tmpl.deleteTitle'), variant: 'destructive' });
         if (!confirmed) return;
 
         try {
@@ -56,11 +58,11 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
             if(res.ok) {
                 fetchTemplates();
             } else {
-                toast({ title: 'Delete failed', description: 'Failed to delete template.', variant: 'destructive' });
+                toast({ title: t('tmpl.deleteFailed'), description: t('tmpl.deleteFailedDesc'), variant: 'destructive' });
             }
         } catch(e) {
             console.error(e);
-            toast({ title: 'Delete failed', description: 'Something went wrong while deleting.', variant: 'destructive' });
+            toast({ title: t('tmpl.deleteFailed'), description: t('tmpl.deleteErrorDesc'), variant: 'destructive' });
         }
     };
 
@@ -82,15 +84,15 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
             <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg draggable-handle cursor-move">
                 <div className="flex items-center gap-2">
                     <LayoutTemplate size={16} />
-                    <h3 className="font-semibold text-sm">Templates</h3>
+                    <h3 className="font-semibold text-sm">{t('tmpl.title')}</h3>
                 </div>
                 <button 
                     onClick={onSaveCurrent}
                     className="flex items-center gap-1 text-[10px] bg-primary text-primary-foreground px-2 py-1 rounded hover:bg-primary/90 transition-colors"
-                    title="Save current workspace as new template"
+                    title={t('tmpl.saveCurrentTitle')}
                 >
                     <Plus size={12} />
-                    <span>Save Current</span>
+                    <span>{t('tmpl.saveCurrent')}</span>
                 </button>
             </div>
 
@@ -99,13 +101,13 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
                         <Loader2 className="animate-spin" />
-                        <span className="text-xs">Loading templates...</span>
+                        <span className="text-xs">{t('tmpl.loading')}</span>
                     </div>
                 ) : templates.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center p-4">
                         <LayoutTemplate size={32} className="mb-2 opacity-50" />
-                        <p className="text-sm">No templates yet</p>
-                        <p className="text-xs mt-1">Save your workspace to see it here</p>
+                        <p className="text-sm">{t('tmpl.noneYet')}</p>
+                        <p className="text-xs mt-1">{t('tmpl.noneYetHint')}</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 gap-3">
@@ -128,7 +130,7 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
                                 <button 
                                     onClick={(e) => handleDelete(e, template.path)}
                                     className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-destructive text-white rounded opacity-0 group-hover:opacity-100 transition-all"
-                                    title="Delete"
+                                    title={t('common.delete')}
                                 >
                                     <Trash2 size={12} />
                                 </button>
@@ -144,7 +146,7 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
                     onClick={onClose}
                     className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                    Close
+                    {t('common.close')}
                 </button>
             </div>
         </DraggableResizablePanel>

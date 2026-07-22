@@ -44,11 +44,11 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                     >
                         {THEME_MODE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
+                            <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
                         ))}
                     </select>
                     <p className="text-[11px] text-muted-foreground">
-                        {THEME_MODE_OPTIONS.find((option) => option.value === themeMode)?.description}
+                        {(() => { const spec = THEME_MODE_OPTIONS.find((option) => option.value === themeMode); return spec ? t(spec.descriptionKey) : null; })()}
                     </p>
                 </div>
 
@@ -63,14 +63,14 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                                 <button
                                     key={option.value}
                                     type="button"
-                                    aria-label={t('settings.workspace.accentPaletteAria', { name: option.label })}
+                                    aria-label={t('settings.workspace.accentPaletteAria', { name: t(option.labelKey) })}
                                     aria-pressed={isActive}
                                     onClick={() => setThemeAccentPreset(option.value)}
                                     className={`rounded-xl border px-3 py-2 text-left transition-colors ${isActive ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-secondary'}`}
                                 >
                                     <div className="mb-2 h-3 rounded-full" style={{ backgroundImage: option.swatch }} />
-                                    <div className="text-xs font-semibold text-foreground">{option.label}</div>
-                                    <div className="text-[11px] text-muted-foreground">{option.description}</div>
+                                    <div className="text-xs font-semibold text-foreground">{t(option.labelKey)}</div>
+                                    <div className="text-[11px] text-muted-foreground">{t(option.descriptionKey)}</div>
                                 </button>
                             );
                         })}

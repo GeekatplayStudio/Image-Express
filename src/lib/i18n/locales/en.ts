@@ -266,6 +266,8 @@ const en: LocaleDictionary = {
     'settings.workspace.interfaceBehavior': 'Interface Behavior',
     'settings.workspace.projectDependencies': 'Project Dependencies',
     'settings.admin.userManagement': 'User Management',
+    'settings.admin.hint': 'Admin roles, approval queue, and per-user rights.',
+    'settings.admin.loadingUsers': 'Loading users…',
 
     // Asset library
     'assets.title': 'Asset Library',
@@ -758,6 +760,20 @@ const en: LocaleDictionary = {
     'jobs.statusFailed': 'Failed to process.',
     'jobs.statusProcessingPct': 'Processing... {progress}%',
     'jobs.statusProcessing': 'Processing...',
+
+    // Template library panel (TemplateLibrary). "Delete failed" wording is
+    // template-specific; Close/Delete reuse common.*.
+    'tmpl.title': 'Templates',
+    'tmpl.saveCurrentTitle': 'Save current workspace as new template',
+    'tmpl.saveCurrent': 'Save Current',
+    'tmpl.loading': 'Loading templates…',
+    'tmpl.noneYet': 'No templates yet',
+    'tmpl.noneYetHint': 'Save your workspace to see it here',
+    'tmpl.deleteConfirm': 'Delete this template?',
+    'tmpl.deleteTitle': 'Delete Template',
+    'tmpl.deleteFailed': 'Delete failed',
+    'tmpl.deleteFailedDesc': 'Failed to delete template.',
+    'tmpl.deleteErrorDesc': 'Something went wrong while deleting.',
 
     // Editor menu action toasts + dialogs (useEditorMenuActions).
     'menuAct.reorderUnavailable': 'Layer reorder unavailable',
@@ -2765,6 +2781,23 @@ const en: LocaleDictionary = {
 
     // Settings > Workspace — appearance, preferences, login log.
     'settings.workspace.appearanceHint': 'Control the global appearance mode, accent palette, and editor rail behavior.',
+    // Theme mode + accent palette options (src/lib/themePreferences.ts).
+    // Accent names (Ocean, Ember, …) are palette names, translated like any
+    // other caption; the stored values stay lowercase identifiers.
+    'themeMode.system': 'System',
+    'themeMode.system.desc': 'Follow the device appearance automatically.',
+    'themeMode.dark': 'Dark',
+    'themeMode.dark.desc': 'Keep the studio in a contrast-rich workspace.',
+    'themeMode.light': 'Light',
+    'themeMode.light.desc': 'Use a brighter workspace for daytime editing.',
+    'accent.ocean': 'Ocean',
+    'accent.ocean.desc': 'Current blue-cyan default.',
+    'accent.ember': 'Ember',
+    'accent.ember.desc': 'Warm orange-red emphasis.',
+    'accent.meadow': 'Meadow',
+    'accent.meadow.desc': 'Green-teal production palette.',
+    'accent.violet': 'Violet',
+    'accent.violet.desc': 'Cool indigo-magenta highlight.',
     'settings.workspace.themeMode': 'Theme mode',
     'settings.workspace.accentPalette': 'Accent palette',
     'settings.workspace.accentPaletteAria': 'Accent palette {name}',
