@@ -26,6 +26,7 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import useAppTheme from '@/hooks/useAppTheme';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface CircularContextMenuProps {
     x: number;
@@ -52,7 +53,7 @@ export type LayerOrderState = {
 type CircularMenuItem = {
     id: string;
     icon: LucideIcon;
-    label: string;
+    labelKey: string;
     color: string;
     group: 'select' | 'retouch' | 'create' | 'library';
 };
@@ -62,13 +63,13 @@ const GROUP_ORDER: Array<CircularMenuItem['group']> = ['select', 'retouch', 'cre
 const LAYER_ORDER_ITEMS: Array<{
     id: LayerOrderAction;
     icon: LucideIcon;
-    label: string;
+    labelKey: string;
     canUse: (state: LayerOrderState | undefined) => boolean;
 }> = [
-        { id: 'to-front', icon: ChevronsUp, label: 'Bring layer to front', canUse: (state) => Boolean(state?.enabled && state?.canBringToFront) },
-        { id: 'move-up', icon: ArrowUp, label: 'Move layer up', canUse: (state) => Boolean(state?.enabled && state?.canMoveUp) },
-        { id: 'move-down', icon: ArrowDown, label: 'Move layer down', canUse: (state) => Boolean(state?.enabled && state?.canMoveDown) },
-        { id: 'to-back', icon: ChevronsDown, label: 'Send layer to back', canUse: (state) => Boolean(state?.enabled && state?.canSendToBack) },
+        { id: 'to-front', icon: ChevronsUp, labelKey: 'circular.bringToFront', canUse: (state) => Boolean(state?.enabled && state?.canBringToFront) },
+        { id: 'move-up', icon: ArrowUp, labelKey: 'circular.moveUp', canUse: (state) => Boolean(state?.enabled && state?.canMoveUp) },
+        { id: 'move-down', icon: ArrowDown, labelKey: 'circular.moveDown', canUse: (state) => Boolean(state?.enabled && state?.canMoveDown) },
+        { id: 'to-back', icon: ChevronsDown, labelKey: 'circular.sendToBack', canUse: (state) => Boolean(state?.enabled && state?.canSendToBack) },
     ];
 
 export default function CircularContextMenu({
@@ -84,28 +85,29 @@ export default function CircularContextMenu({
 }: CircularContextMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
     const appTheme = useAppTheme();
+    const { t } = useI18n();
 
     // One entry per tool family — the tool-group buttons in the left toolbar
     // (and single-key shortcuts) cover the variants. The previous 24-item ring
     // was unreadable.
     const menuItems: CircularMenuItem[] = [
-        { id: 'select', icon: Move, label: 'Move', color: appTheme.circularMenuColors.select, group: 'select' },
-        { id: 'marquee', icon: Square, label: 'Marquee', color: appTheme.circularMenuColors.marquee, group: 'select' },
-        { id: 'lasso', icon: LassoSelect, label: 'Lasso', color: appTheme.circularMenuColors.lasso, group: 'select' },
-        { id: 'quick-select', icon: SquareMousePointer, label: 'Quick Selection', color: appTheme.circularMenuColors.wand, group: 'select' },
-        { id: 'healing', icon: ShieldCheck, label: 'Healing Brush', color: appTheme.circularMenuColors.healing, group: 'retouch' },
-        { id: 'clone-stamp', icon: Copy, label: 'Clone Stamp', color: appTheme.circularMenuColors.cloneStamp, group: 'retouch' },
-        { id: 'blur', icon: Blend, label: 'Blur Tool', color: appTheme.circularMenuColors.blur, group: 'retouch' },
-        { id: 'dodge', icon: Sun, label: 'Dodge Tool', color: appTheme.circularMenuColors.dodge, group: 'retouch' },
-        { id: 'text', icon: Type, label: 'Text', color: appTheme.circularMenuColors.text, group: 'create' },
-        { id: 'shapes', icon: Shapes, label: 'Shapes', color: appTheme.circularMenuColors.shapes, group: 'create' },
-        { id: 'paint', icon: Brush, label: 'Paint', color: appTheme.circularMenuColors.paint, group: 'create' },
-        { id: 'pen', icon: PenTool, label: 'Pen', color: appTheme.circularMenuColors.pen, group: 'create' },
-        { id: 'gradient', icon: PaintBucket, label: 'Fill / Gradient', color: appTheme.circularMenuColors.gradient, group: 'create' },
-        { id: 'assets', icon: ImageIcon, label: 'Gallery', color: appTheme.circularMenuColors.assets, group: 'library' },
-        { id: 'templates', icon: LayoutTemplate, label: 'Library', color: appTheme.circularMenuColors.templates, group: 'library' },
-        { id: 'ai-zone', icon: Sparkles, label: 'AI Zone', color: appTheme.circularMenuColors.aiZone, group: 'library' },
-        { id: '3d-gen', icon: Box, label: 'AI 3D', color: appTheme.circularMenuColors.threeD, group: 'library' },
+        { id: 'select', icon: Move, labelKey: 'toolbar.move', color: appTheme.circularMenuColors.select, group: 'select' },
+        { id: 'marquee', icon: Square, labelKey: 'toolbar.marquee', color: appTheme.circularMenuColors.marquee, group: 'select' },
+        { id: 'lasso', icon: LassoSelect, labelKey: 'toolbar.lasso', color: appTheme.circularMenuColors.lasso, group: 'select' },
+        { id: 'quick-select', icon: SquareMousePointer, labelKey: 'toolbar.quickSelect', color: appTheme.circularMenuColors.wand, group: 'select' },
+        { id: 'healing', icon: ShieldCheck, labelKey: 'toolbar.healingBrush', color: appTheme.circularMenuColors.healing, group: 'retouch' },
+        { id: 'clone-stamp', icon: Copy, labelKey: 'toolbar.cloneStamp', color: appTheme.circularMenuColors.cloneStamp, group: 'retouch' },
+        { id: 'blur', icon: Blend, labelKey: 'toolbar.blurTool', color: appTheme.circularMenuColors.blur, group: 'retouch' },
+        { id: 'dodge', icon: Sun, labelKey: 'toolbar.dodgeTool', color: appTheme.circularMenuColors.dodge, group: 'retouch' },
+        { id: 'text', icon: Type, labelKey: 'toolbar.text', color: appTheme.circularMenuColors.text, group: 'create' },
+        { id: 'shapes', icon: Shapes, labelKey: 'toolbar.shapes', color: appTheme.circularMenuColors.shapes, group: 'create' },
+        { id: 'paint', icon: Brush, labelKey: 'toolbar.paint', color: appTheme.circularMenuColors.paint, group: 'create' },
+        { id: 'pen', icon: PenTool, labelKey: 'toolbar.pen', color: appTheme.circularMenuColors.pen, group: 'create' },
+        { id: 'gradient', icon: PaintBucket, labelKey: 'toolbar.fillGradient', color: appTheme.circularMenuColors.gradient, group: 'create' },
+        { id: 'assets', icon: ImageIcon, labelKey: 'toolbar.gallery', color: appTheme.circularMenuColors.assets, group: 'library' },
+        { id: 'templates', icon: LayoutTemplate, labelKey: 'toolbar.library', color: appTheme.circularMenuColors.templates, group: 'library' },
+        { id: 'ai-zone', icon: Sparkles, labelKey: 'toolbar.aiZone', color: appTheme.circularMenuColors.aiZone, group: 'library' },
+        { id: '3d-gen', icon: Box, labelKey: 'toolbar.ai3d', color: appTheme.circularMenuColors.threeD, group: 'library' },
     ];
 
     useEffect(() => {
@@ -216,7 +218,7 @@ export default function CircularContextMenu({
                                 top: by,
                                 transform: 'translate(-50%, -50%)',
                             }}
-                            title={isEnabled ? item.label : 'Select a layer to reorder'}
+                            title={isEnabled ? t(item.labelKey) : t('circular.selectLayerHint')}
                         >
                             <item.icon size={13} />
                         </button>
@@ -248,7 +250,7 @@ export default function CircularContextMenu({
                                 top: by,
                                 transform: 'translate(-50%, -50%)'
                             }}
-                            title={item.label}
+                            title={t(item.labelKey)}
                         >
                             <item.icon
                                 size={18}
@@ -257,7 +259,7 @@ export default function CircularContextMenu({
                             />
                             {/* Tooltip */}
                             <span className="absolute opacity-0 group-hover:opacity-100 bg-black/80 text-white text-[10px] px-2 py-1 rounded -bottom-8 pointer-events-none whitespace-nowrap transition-opacity">
-                                {item.label}
+                                {t(item.labelKey)}
                             </span>
                         </button>
                     );

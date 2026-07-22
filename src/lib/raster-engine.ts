@@ -21,13 +21,15 @@ export type RasterBrushPreset =
 
 export type RasterBlendMode = 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten';
 
-export const PAINT_BRUSH_PRESET_OPTIONS: Array<{ value: RasterBrushPreset; label: string }> = [
-    { value: 'soft-round', label: 'Soft Round' },
-    { value: 'hard-round', label: 'Hard Round' },
-    { value: 'calligraphy', label: 'Calligraphy' },
-    { value: 'chalk', label: 'Chalk' },
-    { value: 'spray', label: 'Spray' },
-    { value: 'marker', label: 'Marker' },
+// `value` is the stored preset identifier; `labelKey` resolves through t() at
+// render (see PaintControls). The brush names themselves are translatable.
+export const PAINT_BRUSH_PRESET_OPTIONS: Array<{ value: RasterBrushPreset; labelKey: string }> = [
+    { value: 'soft-round', labelKey: 'paintPreset.softRound' },
+    { value: 'hard-round', labelKey: 'paintPreset.hardRound' },
+    { value: 'calligraphy', labelKey: 'paintPreset.calligraphy' },
+    { value: 'chalk', labelKey: 'paintPreset.chalk' },
+    { value: 'spray', labelKey: 'paintPreset.spray' },
+    { value: 'marker', labelKey: 'paintPreset.marker' },
 ];
 
 const PRESET_VALUES = new Set<string>(PAINT_BRUSH_PRESET_OPTIONS.map((option) => option.value));

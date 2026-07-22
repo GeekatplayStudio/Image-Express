@@ -6,9 +6,38 @@ export type BackgroundJobProviderFilter = string | 'all';
 
 export type BackgroundJobOption<TValue extends string> = {
     value: TValue;
+    /** Vendor brand name for providers; empty string means "unspecified". */
     label: string;
+    /** Dictionary key for job types; empty for provider options (use `label`). */
+    labelKey?: string;
     count: number;
 };
+
+/**
+ * A translatable message: dictionary key plus placeholder values. An empty
+ * `key` means `vars.text` is already-human passthrough (a server error). An
+ * optional `typeKey` is a nested dictionary key resolved into the `type` var
+ * (the "<Stability Image>: prompt" title needs its type name translated too).
+ */
+export type JobMessage = {
+    key: string;
+    vars?: Record<string, string | number>;
+    typeKey?: string;
+};
+
+/** Resolve a JobMessage to display text via a translate function. */
+export function renderJobMessage(
+    t: (key: string, vars?: Record<string, string | number>) => string,
+    message: JobMessage,
+): string {
+    if (message.key === '') {
+        return String(message.vars?.text ?? '');
+    }
+    const vars = message.typeKey
+        ? { ...message.vars, type: t(message.typeKey) }
+        : message.vars;
+    return t(message.key, vars);
+}
 
 export const UNKNOWN_PROVIDER_FILTER = '__unknown__';
 
@@ -24,17 +53,19 @@ const PROVIDER_LABELS: Record<string, string> = {
     tripo: 'Tripo',
 };
 
-const JOB_TYPE_LABELS: Record<BackgroundJob['type'], string> = {
-    upscale: 'Upscale',
-    'remove-bg': 'Remove BG',
-    'generate-3d': 'Generate 3D',
-    'train-model': 'Train Model',
-    'stability-upscale': 'Stability Upscale',
-    'stability-image': 'Stability Image',
-    'image-to-3d': 'Image to 3D',
-    'text-to-3d': 'Text to 3D',
-    'hitems-relief': '3D Relief (Depth)',
-    'hitems-split': 'Model Split',
+// Display text lives in the dictionary under jobType.<type>; the map is 1:1
+// with the type union so a new job type is a compile error until keyed.
+const JOB_TYPE_LABEL_KEYS: Record<BackgroundJob['type'], string> = {
+    upscale: 'jobType.upscale',
+    'remove-bg': 'jobType.remove-bg',
+    'generate-3d': 'jobType.generate-3d',
+    'train-model': 'jobType.train-model',
+    'stability-upscale': 'jobType.stability-upscale',
+    'stability-image': 'jobType.stability-image',
+    'image-to-3d': 'jobType.image-to-3d',
+    'text-to-3d': 'jobType.text-to-3d',
+    'hitems-relief': 'jobType.hitems-relief',
+    'hitems-split': 'jobType.hitems-split',
 };
 
 function normalizeStatus(status: BackgroundJob['status']) {
@@ -106,10 +137,11 @@ export function getProviderFilterValue(provider?: string) {
     return normalized || UNKNOWN_PROVIDER_FILTER;
 }
 
+/** Provider brand name (Meshy, OpenAI, …); '' when unspecified. */
 export function getProviderLabel(provider?: string) {
     const normalized = typeof provider === 'string' ? provider.trim().toLowerCase() : '';
     if (!normalized) {
-        return 'Unspecified';
+        return '';
     }
 
     if (PROVIDER_LABELS[normalized]) {
@@ -123,42 +155,47 @@ export function getProviderLabel(provider?: string) {
         .join(' ');
 }
 
-export function getJobTypeLabel(type: BackgroundJob['type']) {
-    return JOB_TYPE_LABELS[type] || type;
+export function getJobTypeLabelKey(type: BackgroundJob['type']): string {
+    return JOB_TYPE_LABEL_KEYS[type] || type;
 }
 
-export function getJobTitle(job: BackgroundJob) {
+/** Job row title as a translatable message (Gen: <prompt>, <type>: <prompt>, or the type). */
+export function getJobTitleMessage(job: BackgroundJob): JobMessage {
     const prompt = typeof job.prompt === 'string' ? job.prompt.trim() : '';
 
     if (job.type === 'text-to-3d' && prompt) {
-        return `Gen: ${prompt}`;
+        return { key: 'jobs.titleGen', vars: { prompt } };
     }
 
     if (job.type === 'stability-image' && prompt) {
-        return `${getJobTypeLabel(job.type)}: ${prompt}`;
+        return { key: 'jobs.titlePrompt', vars: { prompt }, typeKey: getJobTypeLabelKey(job.type) };
     }
 
-    return getJobTypeLabel(job.type);
+    return { key: getJobTypeLabelKey(job.type) };
 }
 
-export function getJobStatusMessage(job: BackgroundJob) {
+/**
+ * Status line as a translatable message. A server-supplied `job.error` is
+ * passed through verbatim (it is already human text, not a dictionary key).
+ */
+export function getJobStatusMessage(job: BackgroundJob): JobMessage {
     if (isSucceededJob(job)) {
-        return 'Saved to server & added.';
+        return { key: 'jobs.statusSaved' };
     }
 
     if (isCancelledJob(job)) {
-        return job.error || 'Tracking stopped by user.';
+        return job.error ? { key: '', vars: { text: job.error } } : { key: 'jobs.statusStopped' };
     }
 
     if (isFailedJob(job)) {
-        return job.error || 'Failed to process.';
+        return job.error ? { key: '', vars: { text: job.error } } : { key: 'jobs.statusFailed' };
     }
 
     if (typeof job.progress === 'number') {
-        return `Processing... ${job.progress}%`;
+        return { key: 'jobs.statusProcessingPct', vars: { progress: job.progress } };
     }
 
-    return 'Processing...';
+    return { key: 'jobs.statusProcessing' };
 }
 
 export function getProviderOptions(
@@ -203,8 +240,8 @@ export function getTypeOptions(
     }
 
     return Array.from(counts.entries())
-        .map(([value, count]) => ({ value, count, label: getJobTypeLabel(value) }))
-        .sort((left, right) => left.label.localeCompare(right.label));
+        .map(([value, count]) => ({ value, count, label: '', labelKey: getJobTypeLabelKey(value) }))
+        .sort((left, right) => left.value.localeCompare(right.value));
 }
 
 export function filterJobs(

@@ -597,6 +597,18 @@ const en: LocaleDictionary = {
     'adv.hand.panWithoutSpace': 'Pan Without Space',
     'adv.hand.spaceDragHint': 'Space + Drag remains available.',
 
+    // Gradient tool options (top bar). Type names, "Blend", blend modes and
+    // "Opacity" reuse panel.*/blend.*/ctrl.* — these are the gradient-only bits.
+    'grad.typeLinearAria': 'Gradient type linear',
+    'grad.typeRadialAria': 'Gradient type radial',
+    'grad.typeAngleAria': 'Gradient type angle',
+    'grad.blendModeAria': 'Gradient blend mode',
+    'grad.opacityAria': 'Gradient opacity',
+    'grad.reverseAria': 'Gradient reverse',
+    'grad.reverse': 'Reverse',
+    'grad.ditherAria': 'Gradient dither',
+    'grad.dither': 'Dither',
+
     // Left tool rail — abbreviated labels shown when the rail is collapsed
     'toolbar.short.wand': 'Wand',
     'toolbar.short.quick': 'Quick',
@@ -645,6 +657,7 @@ const en: LocaleDictionary = {
     'toolbar.adjustmentLayers': 'Adjustment Layers',
     'toolbar.pen': 'Pen',
     'toolbar.brushes': 'Brushes',
+    'toolbar.paint': 'Paint',
     'toolbar.fillGradient': 'Fill / Gradient',
     'toolbar.gallery': 'Gallery',
     'toolbar.library': 'Library',
@@ -667,6 +680,93 @@ const en: LocaleDictionary = {
     'toolbar.saveTemplateError': 'Error saving template.',
     'toolbar.loadFailed': 'Load failed',
     'toolbar.loadTemplateError': 'Failed to load template.',
+    // User profile modal. Display Name / Email / New Password / Confirm
+    // Password / Update Password reuse auth.*; these are profile-specific.
+    'profile.username': 'Username',
+    'profile.imageAlt': 'Profile',
+    'profile.personalInfo': 'Personal Info (Embed)',
+    'profile.personalInfoPlaceholder': 'Artist name, website, credits, etc.',
+    'profile.imageScale': 'Profile Image Scale',
+    'profile.embedInfo': 'Embed profile info in every export and saved template',
+    'profile.changePassword': 'Change Password',
+    'profile.updateForAccount': 'Update the password for the signed-in account: {username}',
+    'profile.passwordUnavailable': 'Password changes are unavailable for guest or local desktop sessions.',
+    'profile.currentPassword': 'Current Password',
+    'profile.confirmNewPassword': 'Confirm New Password',
+    // Password-change validation + result messages
+    'profile.pwLocalSession': 'Password changes are unavailable for this local session.',
+    'profile.pwCurrentRequired': 'Current password is required.',
+    'profile.pwTooShort': 'New password must be at least 6 characters.',
+    'profile.pwMismatch': 'New passwords do not match.',
+    'profile.pwChangeFailed': 'Password change failed.',
+    'profile.pwChanged': 'Password changed successfully.',
+    'profile.pwRetry': 'Password change failed. Please try again.',
+
+    // Background jobs control center (panel, row, filters). Provider names are
+    // vendor brands (Meshy, OpenAI, …) resolved outside the dictionary; these
+    // are the panel chrome, job-type labels, and status messages.
+    'jobs.title': 'Background Jobs',
+    'jobs.summary': '{active} active, {failed} failed, {finished} finished',
+    'jobs.clearFinished': 'Clear Finished',
+    'jobs.clearFinishedAria': 'Clear finished jobs',
+    'jobs.hide': 'Hide',
+    'jobs.hideAria': 'Hide background jobs panel',
+    'jobs.filter.all': 'All',
+    'jobs.filter.active': 'Active',
+    'jobs.filter.failed': 'Failed',
+    'jobs.filter.finished': 'Finished',
+    'jobs.filterChipAria': '{label} jobs',
+    'jobs.provider': 'Provider',
+    'jobs.filterByProvider': 'Filter jobs by provider',
+    'jobs.allProviders': 'All providers ({count})',
+    'jobs.unspecifiedProvider': 'Unspecified',
+    'jobs.type': 'Type',
+    'jobs.filterByType': 'Filter jobs by type',
+    'jobs.allTypes': 'All job types ({count})',
+    'jobs.resetFilters': 'Reset Filters',
+    'jobs.resetFiltersAria': 'Reset provider and type filters',
+    'jobs.noneMatch': 'No jobs match the current filter.',
+    // Row actions
+    'jobs.copyId': 'Copy Job ID',
+    'jobs.copyIdAria': 'Copy job id {id}',
+    'jobs.openResultAria': 'Open result for job {id}',
+    'jobs.open': 'Open',
+    'jobs.retryAria': 'Retry job {id}',
+    'jobs.retrying': 'Retrying...',
+    'jobs.retry': 'Retry',
+    'jobs.stopAria': 'Stop tracking job {id}',
+    'jobs.stopping': 'Stopping...',
+    'jobs.stop': 'Stop',
+    'jobs.clearAria': 'Clear job {id}',
+    'jobs.clear': 'Clear',
+    // Job type labels (JOB_TYPE_LABELS in backgroundJobUtils).
+    'jobType.upscale': 'Upscale',
+    'jobType.remove-bg': 'Remove BG',
+    'jobType.generate-3d': 'Generate 3D',
+    'jobType.train-model': 'Train Model',
+    'jobType.stability-upscale': 'Stability Upscale',
+    'jobType.stability-image': 'Stability Image',
+    'jobType.image-to-3d': 'Image to 3D',
+    'jobType.text-to-3d': 'Text to 3D',
+    'jobType.hitems-relief': '3D Relief (Depth)',
+    'jobType.hitems-split': 'Model Split',
+    // Job title + status messages. {prompt}/{progress} are runtime values.
+    'jobs.titleGen': 'Gen: {prompt}',
+    'jobs.titlePrompt': '{type}: {prompt}',
+    'jobs.statusSaved': 'Saved to server & added.',
+    'jobs.statusStopped': 'Tracking stopped by user.',
+    'jobs.statusFailed': 'Failed to process.',
+    'jobs.statusProcessingPct': 'Processing... {progress}%',
+    'jobs.statusProcessing': 'Processing...',
+
+    // Circular (right-click) tool menu — inner layer-order ring. Tool spokes
+    // reuse toolbar.* above; these are the reorder actions and their disabled
+    // hint, worded for this menu ("layer to front", not the File menu wording).
+    'circular.bringToFront': 'Bring layer to front',
+    'circular.moveUp': 'Move layer up',
+    'circular.moveDown': 'Move layer down',
+    'circular.sendToBack': 'Send layer to back',
+    'circular.selectLayerHint': 'Select a layer to reorder',
     // Shape names
     'shape.rect': 'Rect',
     'shape.circle': 'Circle',
@@ -1074,6 +1174,22 @@ const en: LocaleDictionary = {
     'paint.brushSize': 'Brush Size',
     'paint.blendingMode': 'Blending Mode',
     'paint.multiplyWatercolor': 'Multiply (Watercolor)',
+    // Paint tool options (top bar). Field labels reuse panel.brushes.*; these
+    // are the paint-specific aria-labels on the sliders and selects.
+    'paint.presetAria': 'Paint preset',
+    'paint.sizeAria': 'Paint size',
+    'paint.hardnessAria': 'Paint hardness',
+    'paint.opacityAria': 'Paint opacity',
+    'paint.flowAria': 'Paint flow',
+    'paint.smoothingAria': 'Paint smoothing',
+    'paint.blendModeAria': 'Paint blend mode',
+    // Paint brush preset names (PAINT_BRUSH_PRESET_OPTIONS in raster-engine).
+    'paintPreset.softRound': 'Soft Round',
+    'paintPreset.hardRound': 'Hard Round',
+    'paintPreset.calligraphy': 'Calligraphy',
+    'paintPreset.chalk': 'Chalk',
+    'paintPreset.spray': 'Spray',
+    'paintPreset.marker': 'Marker',
 
     // Channels panel
     'channels.fullColorView': 'Full-color view',

@@ -85,19 +85,19 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
         setPasswordMessage('');
 
         if (!canChangePassword) {
-            setPasswordError('Password changes are unavailable for this local session.');
+            setPasswordError(t('profile.pwLocalSession'));
             return;
         }
         if (!currentPassword) {
-            setPasswordError('Current password is required.');
+            setPasswordError(t('profile.pwCurrentRequired'));
             return;
         }
         if (newPassword.length < 6) {
-            setPasswordError('New password must be at least 6 characters.');
+            setPasswordError(t('profile.pwTooShort'));
             return;
         }
         if (newPassword !== confirmNewPassword) {
-            setPasswordError('New passwords do not match.');
+            setPasswordError(t('profile.pwMismatch'));
             return;
         }
 
@@ -115,16 +115,16 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
             const payload = await response.json().catch(() => ({}));
 
             if (!response.ok || !payload.success) {
-                setPasswordError(payload.message || 'Password change failed.');
+                setPasswordError(payload.message || t('profile.pwChangeFailed'));
                 return;
             }
 
-            setPasswordMessage(payload.message || 'Password changed successfully.');
+            setPasswordMessage(payload.message || t('profile.pwChanged'));
             setCurrentPassword('');
             setNewPassword('');
             setConfirmNewPassword('');
         } catch {
-            setPasswordError('Password change failed. Please try again.');
+            setPasswordError(t('profile.pwRetry'));
         } finally {
             setIsChangingPassword(false);
         }
@@ -165,7 +165,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                              {image ? (
                                           <Image
                                                 src={image}
-                                                alt="Profile"
+                                                alt={t('profile.imageAlt')}
                                                 fill
                                                 sizes="96px"
                                                 className="object-cover"
@@ -192,7 +192,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
 
                     <div className="space-y-4">
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase">Display Name</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">{t('auth.displayName')}</label>
                             <div className="flex gap-2">
                                 <input 
                                     value={name}
@@ -203,7 +203,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase">Username</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">{t('profile.username')}</label>
                             <div className="flex gap-2">
                                 <input 
                                     value={handle}
@@ -214,7 +214,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase">Email</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">{t('auth.email')}</label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <input 
@@ -226,18 +226,18 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase">Personal Info (Embed)</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">{t('profile.personalInfo')}</label>
                             <textarea
                                 value={info}
                                 onChange={(e) => setInfo(e.target.value)}
                                 rows={3}
                                 className="w-full bg-secondary/50 border border-border/50 rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/50 resize-none"
-                                placeholder="Artist name, website, credits, etc."
+                                placeholder={t('profile.personalInfoPlaceholder')}
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase">Profile Image Scale</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">{t('profile.imageScale')}</label>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="range"
@@ -259,7 +259,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                                 onChange={(e) => setEmbedInfo(e.target.checked)}
                                 className="h-4 w-4 rounded border-border"
                             />
-                            Embed profile info in every export and saved template
+                            {t('profile.embedInfo')}
                         </label>
                     </div>
 
@@ -267,22 +267,22 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                         <div className="flex items-center gap-2">
                             <KeyRound size={16} className="text-muted-foreground" />
                             <div>
-                                <h3 className="text-sm font-semibold text-foreground">Change Password</h3>
+                                <h3 className="text-sm font-semibold text-foreground">{t('profile.changePassword')}</h3>
                                 <p className="text-xs text-muted-foreground">
                                     {canChangePassword
-                                        ? `Update the password for the signed-in account: ${username}`
-                                        : 'Password changes are unavailable for guest or local desktop sessions.'}
+                                        ? t('profile.updateForAccount', { username })
+                                        : t('profile.passwordUnavailable')}
                                 </p>
                             </div>
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase">Current Password</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">{t('profile.currentPassword')}</label>
                             <input
                                 type="password"
                                 value={currentPassword}
                                 onChange={(e) => setCurrentPassword(e.target.value)}
-                                aria-label="Current Password"
+                                aria-label={t('profile.currentPassword')}
                                 className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/50"
                                 autoComplete="current-password"
                                 disabled={!canChangePassword || isChangingPassword}
@@ -290,12 +290,12 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase">New Password</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">{t('auth.newPassword')}</label>
                             <input
                                 type="password"
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                aria-label="New Password"
+                                aria-label={t('auth.newPassword')}
                                 className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/50"
                                 autoComplete="new-password"
                                 disabled={!canChangePassword || isChangingPassword}
@@ -303,12 +303,12 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase">Confirm New Password</label>
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">{t('profile.confirmNewPassword')}</label>
                             <input
                                 type="password"
                                 value={confirmNewPassword}
                                 onChange={(e) => setConfirmNewPassword(e.target.value)}
-                                aria-label="Confirm New Password"
+                                aria-label={t('profile.confirmNewPassword')}
                                 className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/50"
                                 autoComplete="new-password"
                                 disabled={!canChangePassword || isChangingPassword}
@@ -329,7 +329,7 @@ export default function UserProfileModal({ isOpen, onClose, username, onLogout, 
                             className="w-full py-2 bg-secondary text-foreground rounded-md text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {isChangingPassword ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
-                            Update Password
+                            {t('auth.updatePassword')}
                         </button>
                     </div>
                 </div>
