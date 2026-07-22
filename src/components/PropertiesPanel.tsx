@@ -1576,6 +1576,28 @@ export default function PropertiesPanel({
 
 
 
+    // Adjustment edits must end in an `object:modified` fire: history, the
+    // dirty flag, AND the linked-layer sync (shared layers across pages and
+    // albums) all listen for it — without the fire, tweaking a shared
+    // adjustment layer never propagated until the layer happened to be moved.
+    // Sliders emit per-tick, so the commit trails the edit burst: one history
+    // entry and one cross-canvas sync per gesture, not per pixel of drag.
+    const adjustmentCommitTimerRef = useRef<number | null>(null);
+    const commitAdjustmentEdit = useCallback((target: ExtendedFabricObject) => {
+        if (adjustmentCommitTimerRef.current !== null) {
+            window.clearTimeout(adjustmentCommitTimerRef.current);
+        }
+        adjustmentCommitTimerRef.current = window.setTimeout(() => {
+            adjustmentCommitTimerRef.current = null;
+            canvas?.fire('object:modified', { target });
+        }, 600);
+    }, [canvas]);
+    useEffect(() => () => {
+        if (adjustmentCommitTimerRef.current !== null) {
+            window.clearTimeout(adjustmentCommitTimerRef.current);
+        }
+    }, []);
+
     const updateAdjustment = (updates: Partial<AdjustmentLayerSettings>) => {
         if (!selectedObject || !selectedObject.isAdjustmentLayer) return;
         const newSettings = { ...selectedObject.adjustmentSettings, ...updates };
@@ -1583,6 +1605,7 @@ export default function PropertiesPanel({
         selectedObject.adjustmentSettings = newSettings as AdjustmentLayerSettings;
         setAdjustmentSettings(newSettings as AdjustmentLayerSettings);
         applyAdjustmentLayers();
+        commitAdjustmentEdit(selectedObject as ExtendedFabricObject);
     };
 
     const handleCreateAdjustmentLayer = (type: AdjustmentLayerType) => {
@@ -1605,6 +1628,8 @@ export default function PropertiesPanel({
         applyAdjustmentLayers();
         canvas.requestRenderAll();
         updateObjects();
+        // Discrete change — commit right away so linked copies pick it up.
+        canvas.fire('object:modified', { target });
     };
 
     const createTextPathFromObject = useCallback(async (source: fabric.Object): Promise<fabric.Path | null> => {
