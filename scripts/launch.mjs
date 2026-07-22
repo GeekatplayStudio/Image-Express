@@ -85,13 +85,33 @@ function main() {
     const buildDir = path.join(rootDir, '.next');
     if (fs.existsSync(buildDir)) {
         log('Rebuilding to pick up the latest code...');
-        // On Windows, antivirus/indexer file locks can cause a transient
-        // ENOTEMPTY/EBUSY mid-delete; retry a few times before giving up.
+        // On Windows, a lingering process (e.g. a dev server from a previous
+        // run) can hold a persistent lock on a file inside .next, which makes
+        // even a retried rmSync fail forever. Renaming the directory out of
+        // the way only requires the PARENT directory entry to be free, which
+        // works even while a file inside is still locked; `next build`
+        // recreates .next fresh either way. The stale copy is then cleaned
+        // up best-effort in the background so a stubborn lock never blocks
+        // the launch.
+        const staleDir = `${buildDir}.stale-${Date.now()}`;
         try {
-            fs.rmSync(buildDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
-        } catch (err) {
-            log(`Could not fully clear .next (${err.code}); removing what remains...`);
-            fs.rmSync(buildDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+            fs.renameSync(buildDir, staleDir);
+        } catch {
+            // Rename itself failed (e.g. cross-device or exotic lock) — fall
+            // back to an in-place retrying delete.
+            try {
+                fs.rmSync(buildDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+            } catch (err) {
+                log(`Could not fully clear .next (${err.code}); continuing anyway — the build will overwrite it.`);
+            }
+        }
+        if (fs.existsSync(staleDir)) {
+            try {
+                fs.rmSync(staleDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+            } catch {
+                // Leave it; harmless leftover, cleaned up on a future run.
+                log(`Left ${path.basename(staleDir)} behind for later cleanup (still locked).`);
+            }
         }
     }
 
