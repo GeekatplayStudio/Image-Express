@@ -60,6 +60,13 @@ const NOT_TRANSLATABLE = new Set([
     // match anything the user sees in the vendor's own console.
     'Meshy AI', 'Tripo AI', 'Stability AI', 'Banana.dev',
     'Google Gemini / Vertex', 'Nano / Imagen', 'SD3 / Core', 'DALL-E 3',
+    // File-format and camera-vendor identifiers (supportedFormats.ts). Same
+    // family as PNG/JPEG/TIFF/RAW above — technical names shown only in a
+    // "Converted from <format>" toast, left as-is like the format acronyms.
+    'AVIF', 'HEIC', 'HEIF', 'EPS', 'Bitmap', 'Photoshop Document', 'Illustrator',
+    'DNG (incl. Apple ProRAW)', 'Canon RAW 2', 'Canon RAW 3', 'Nikon RAW',
+    'Nikon RAW (compact)', 'Sony RAW', 'Fujifilm RAW', 'Olympus RAW',
+    'Panasonic RAW', 'Pentax RAW', 'Radiance HDR', 'OpenEXR',
 ]);
 
 /**

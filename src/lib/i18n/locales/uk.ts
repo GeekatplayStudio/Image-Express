@@ -1424,6 +1424,53 @@ const uk: LocaleDictionary = {
     'profile.pwChanged': 'Пароль успішно змінено.',
     'profile.pwRetry': 'Не вдалося змінити пароль. Спробуйте знову.',
 
+    // Меню «Виділення» редактора
+    'selMenu.selectAll': 'Виділити все',
+    'selMenu.deselect': 'Зняти виділення',
+    'selMenu.expandSelection': 'Розширити виділення',
+    'selMenu.contractSelection': 'Звузити виділення',
+    'selMenu.moveTool': 'Інструмент переміщення',
+    'selMenu.marqueeTool': 'Прямокутне виділення',
+    'selMenu.lassoTool': 'Ласо',
+    'selMenu.magicWandTool': 'Чарівна паличка',
+    'selMenu.quickSelectionTool': 'Швидке виділення',
+    'selMenu.selectionBrushTool': 'Пензель виділення',
+    // Вікно якості експорту
+    'exportQ.title': 'Якість експорту',
+    'exportQ.subtitle': 'Відрегулюйте якість та оцініть розмір файлу.',
+    'exportQ.quality': 'Якість: {quality}',
+    'exportQ.estSize': 'Прибл. розмір: {size}',
+    'exportQ.canvasBackground': 'Тло полотна',
+    'exportQ.jpgAlwaysBackground': 'Експорт у JPG завжди містить тло.',
+    'exportQ.turnOffTransparent': 'Вимкніть для експорту прозорого PNG.',
+    'exportQ.includeBackgroundAria': 'Увімкнути тло полотна',
+    // Збереження/завантаження в редакторі
+    'persist.couldNotLoad': 'Не вдалося завантажити дані сторінки.',
+    'persist.discardConfirm': 'Скасувати незбережені зміни та вийти?',
+    'persist.unsavedChanges': 'Незбережені зміни',
+    'persist.enterDesignName': 'Введіть назву сторінки:',
+    'persist.designName': 'Назва сторінки',
+    'persist.designNamePlaceholder': 'Моя сторінка',
+    'persist.failedToSave': 'Не вдалося зберегти сторінку.',
+    'persist.designSaved': 'Сторінку збережено',
+    'persist.changesSaved': 'Ваші зміни збережено.',
+    'persist.errorSaving': 'Помилка збереження сторінки на сервері.',
+    'persist.errorLoadingTemplate': 'Помилка завантаження файлу шаблону.',
+    // Дії меню редактора
+    'menuAct.reorderUnavailable': 'Зміна порядку недоступна',
+    'menuAct.selectLayerFirst': 'Спершу виберіть шар на полотні.',
+    'menuAct.selectSingleReorder': 'Виберіть один шар для зміни порядку.',
+    'menuAct.deleteUnavailable': 'Видалення недоступне',
+    'menuAct.selectLayerFirstShort': 'Спершу виберіть шар.',
+    'menuAct.cannotDelete': 'Вибраний шар не можна видалити.',
+    'menuAct.lockUnavailable': 'Блокування недоступне',
+    'menuAct.selectSingleFirst': 'Спершу виберіть один шар.',
+    'menuAct.selectAllUnavailable': 'Виділення всього недоступне',
+    'menuAct.noSelectableLayers': 'Шарів для вибору не знайдено.',
+    'menuAct.shortcutsTitle': 'Гарячі клавіші',
+    'menuAct.aboutTitle': 'Про Image Express',
+    'menuAct.aboutBody': 'Редактор Image Express. Створюйте та редагуйте дизайни за допомогою пошарових інструментів, процесів ретуші та панелей керування.',
+
 };
 
 export default uk;

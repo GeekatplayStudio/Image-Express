@@ -37,6 +37,7 @@ type UseEditorPersistenceArgs = {
     isDirty: boolean;
     dialog: DialogApi;
     toast: Toast;
+    t: (key: string, vars?: Record<string, string | number>) => string;
     onBack: () => void;
     onUpdateDesignInfo: (id: string | null, name: string) => void;
     setIsDirty: (value: boolean) => void;
@@ -58,6 +59,7 @@ export function useEditorPersistence({
     isDirty,
     dialog,
     toast,
+    t,
     onBack,
     onUpdateDesignInfo,
     setIsDirty,
@@ -91,7 +93,7 @@ export function useEditorPersistence({
                 if (shouldLogRecoverableEditorIssue()) {
                     console.warn('Error loading design data', error);
                 }
-                toast({ title: 'Load failed', description: 'Could not load design data.', variant: 'destructive' });
+                toast({ title: t('toolbar.loadFailed'), description: t('persist.couldNotLoad'), variant: 'destructive' });
                 return;
             }
         }
@@ -107,7 +109,7 @@ export function useEditorPersistence({
             setIsDirty(false);
             resetHistory();
         });
-    }, [canvas, historyReadyRef, resetHistory, setIsDirty, toast]);
+    }, [canvas, historyReadyRef, resetHistory, setIsDirty, t, toast]);
 
     useEffect(() => {
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -126,33 +128,33 @@ export function useEditorPersistence({
             return;
         }
 
-        const confirmed = await dialog.confirm('Discard unsaved changes and leave?', {
-            title: 'Unsaved changes',
+        const confirmed = await dialog.confirm(t('persist.discardConfirm'), {
+            title: t('persist.unsavedChanges'),
             variant: 'destructive',
         });
         if (confirmed) {
             setIsDirty(false);
             onBack();
         }
-    }, [dialog, isDirty, onBack, setIsDirty]);
+    }, [dialog, isDirty, onBack, setIsDirty, t]);
 
     const handleSave = useCallback(async () => {
         if (!canvas) return;
 
         let nextName = designName;
         if (!designId && nextName === 'Untitled Page') {
-            const inputName = await dialog.prompt('Enter design name:', {
-                title: 'Design name',
+            const inputName = await dialog.prompt(t('persist.enterDesignName'), {
+                title: t('persist.designName'),
                 defaultValue: designName,
-                placeholder: 'My Design',
+                placeholder: t('persist.designNamePlaceholder'),
             });
             if (!inputName) return;
             nextName = inputName;
         } else if (nextName === 'Untitled Page') {
-            const inputName = await dialog.prompt('Enter design name:', {
-                title: 'Design name',
+            const inputName = await dialog.prompt(t('persist.enterDesignName'), {
+                title: t('persist.designName'),
                 defaultValue: designName,
-                placeholder: 'My Design',
+                placeholder: t('persist.designNamePlaceholder'),
             });
             if (inputName) nextName = inputName;
         }
@@ -210,8 +212,8 @@ export function useEditorPersistence({
             const result = await response.json();
             if (!result.success) {
                 toast({
-                    title: 'Save failed',
-                    description: result.message || 'Failed to save design.',
+                    title: t('toolbar.saveFailed'),
+                    description: result.message || t('persist.failedToSave'),
                     variant: 'destructive',
                 });
                 return;
@@ -219,7 +221,7 @@ export function useEditorPersistence({
 
             onUpdateDesignInfo(result.design.id, result.design.name);
             setIsDirty(false);
-            toast({ title: 'Design saved', description: 'Your changes are saved.', variant: 'success' });
+            toast({ title: t('persist.designSaved'), description: t('persist.changesSaved'), variant: 'success' });
 
             if (typeof window !== 'undefined') {
                 const driveConfig = loadDriveConfig();
@@ -245,7 +247,7 @@ export function useEditorPersistence({
             }
         } catch (error) {
             console.error('Save error:', error);
-            toast({ title: 'Save failed', description: 'Error saving design to server.', variant: 'destructive' });
+            toast({ title: t('toolbar.saveFailed'), description: t('persist.errorSaving'), variant: 'destructive' });
         }
     }, [
         canvas,
@@ -258,6 +260,7 @@ export function useEditorPersistence({
         safeCanvasToDataURL,
         setIsDirty,
         setIsExporting,
+        t,
         toast,
         withViewportReset,
     ]);
@@ -333,9 +336,9 @@ export function useEditorPersistence({
             });
         } catch (error) {
             console.error('Failed to load template', error);
-            toast({ title: 'Load failed', description: 'Error loading template file.', variant: 'destructive' });
+            toast({ title: t('toolbar.loadFailed'), description: t('persist.errorLoadingTemplate'), variant: 'destructive' });
         }
-    }, [canvas, historyReadyRef, resetHistory, setIsDirty, toast]);
+    }, [canvas, historyReadyRef, resetHistory, setIsDirty, t, toast]);
 
     useEffect(() => {
         if (!canvas) return;

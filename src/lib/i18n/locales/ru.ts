@@ -1424,6 +1424,53 @@ const ru: LocaleDictionary = {
     'profile.pwChanged': 'Пароль успешно изменён.',
     'profile.pwRetry': 'Не удалось сменить пароль. Попробуйте снова.',
 
+    // Меню «Выделение» редактора
+    'selMenu.selectAll': 'Выделить всё',
+    'selMenu.deselect': 'Снять выделение',
+    'selMenu.expandSelection': 'Расширить выделение',
+    'selMenu.contractSelection': 'Сжать выделение',
+    'selMenu.moveTool': 'Инструмент перемещения',
+    'selMenu.marqueeTool': 'Прямоугольное выделение',
+    'selMenu.lassoTool': 'Лассо',
+    'selMenu.magicWandTool': 'Волшебная палочка',
+    'selMenu.quickSelectionTool': 'Быстрое выделение',
+    'selMenu.selectionBrushTool': 'Кисть выделения',
+    // Окно качества экспорта
+    'exportQ.title': 'Качество экспорта',
+    'exportQ.subtitle': 'Отрегулируйте качество и оцените размер файла.',
+    'exportQ.quality': 'Качество: {quality}',
+    'exportQ.estSize': 'Прибл. размер: {size}',
+    'exportQ.canvasBackground': 'Фон холста',
+    'exportQ.jpgAlwaysBackground': 'Экспорт в JPG всегда включает фон.',
+    'exportQ.turnOffTransparent': 'Отключите для экспорта прозрачного PNG.',
+    'exportQ.includeBackgroundAria': 'Включить фон холста',
+    // Сохранение/загрузка в редакторе
+    'persist.couldNotLoad': 'Не удалось загрузить данные страницы.',
+    'persist.discardConfirm': 'Отменить несохранённые изменения и выйти?',
+    'persist.unsavedChanges': 'Несохранённые изменения',
+    'persist.enterDesignName': 'Введите имя страницы:',
+    'persist.designName': 'Имя страницы',
+    'persist.designNamePlaceholder': 'Моя страница',
+    'persist.failedToSave': 'Не удалось сохранить страницу.',
+    'persist.designSaved': 'Страница сохранена',
+    'persist.changesSaved': 'Ваши изменения сохранены.',
+    'persist.errorSaving': 'Ошибка сохранения страницы на сервере.',
+    'persist.errorLoadingTemplate': 'Ошибка загрузки файла шаблона.',
+    // Действия меню редактора
+    'menuAct.reorderUnavailable': 'Изменение порядка недоступно',
+    'menuAct.selectLayerFirst': 'Сначала выберите слой на холсте.',
+    'menuAct.selectSingleReorder': 'Выберите один слой для изменения порядка.',
+    'menuAct.deleteUnavailable': 'Удаление недоступно',
+    'menuAct.selectLayerFirstShort': 'Сначала выберите слой.',
+    'menuAct.cannotDelete': 'Выбранный слой нельзя удалить.',
+    'menuAct.lockUnavailable': 'Блокировка недоступна',
+    'menuAct.selectSingleFirst': 'Сначала выберите один слой.',
+    'menuAct.selectAllUnavailable': 'Выделение всего недоступно',
+    'menuAct.noSelectableLayers': 'Выбираемые слои не найдены.',
+    'menuAct.shortcutsTitle': 'Горячие клавиши',
+    'menuAct.aboutTitle': 'Об Image Express',
+    'menuAct.aboutBody': 'Редактор Image Express. Создавайте и редактируйте дизайны с помощью послойных инструментов, процессов ретуши и панелей управления.',
+
 };
 
 export default ru;

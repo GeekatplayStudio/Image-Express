@@ -1,6 +1,7 @@
 import { Settings } from 'lucide-react';
 
 import { Switch } from '@/components/ui/switch';
+import { useI18n } from '@/providers/I18nProvider';
 
 type EditorExportQualityModalProps = {
     isOpen: boolean;
@@ -25,6 +26,7 @@ export default function EditorExportQualityModal({
     onCancel,
     onSave,
 }: EditorExportQualityModalProps) {
+    const { t } = useI18n();
     if (!isOpen || !pendingExportFormat) return null;
 
     return (
@@ -35,15 +37,15 @@ export default function EditorExportQualityModal({
                         <Settings size={24} />
                     </div>
                     <div className="flex-1 space-y-1">
-                        <h3 className="font-semibold text-lg leading-none">Export Quality</h3>
-                        <p className="text-muted-foreground text-sm">Adjust quality and review estimated size.</p>
+                        <h3 className="font-semibold text-lg leading-none">{t('exportQ.title')}</h3>
+                        <p className="text-muted-foreground text-sm">{t('exportQ.subtitle')}</p>
                     </div>
                 </div>
 
                 <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>Quality: {exportQualityValue}</span>
-                        <span>Est. size: {exportQualitySize || '--'}</span>
+                        <span>{t('exportQ.quality', { quality: exportQualityValue })}</span>
+                        <span>{t('exportQ.estSize', { size: exportQualitySize || '--' })}</span>
                     </div>
                     <input
                         type="range"
@@ -61,16 +63,16 @@ export default function EditorExportQualityModal({
 
                 <div className="flex items-center justify-between rounded-lg border border-border/70 bg-secondary/20 px-3 py-2">
                     <div className="space-y-0.5">
-                        <div className="text-xs font-medium">Canvas background</div>
+                        <div className="text-xs font-medium">{t('exportQ.canvasBackground')}</div>
                         <div className="text-[10px] text-muted-foreground">
-                            {pendingExportFormat === 'jpg' ? 'JPG exports always include a background.' : 'Turn off to export transparent PNG.'}
+                            {pendingExportFormat === 'jpg' ? t('exportQ.jpgAlwaysBackground') : t('exportQ.turnOffTransparent')}
                         </div>
                     </div>
                     <Switch
                         checked={pendingExportFormat === 'jpg' ? true : includeCanvasBackground}
                         onCheckedChange={onIncludeCanvasBackgroundChange}
                         disabled={pendingExportFormat === 'jpg'}
-                        aria-label="Include canvas background"
+                        aria-label={t('exportQ.includeBackgroundAria')}
                     />
                 </div>
 
@@ -79,7 +81,7 @@ export default function EditorExportQualityModal({
                         onClick={onCancel}
                         className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
                     >
-                        Cancel
+                        {t('common.cancel')}
                     </button>
                     <button
                         onClick={() => {
@@ -87,7 +89,7 @@ export default function EditorExportQualityModal({
                         }}
                         className="px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all text-white bg-primary hover:bg-primary/90"
                     >
-                        Save
+                        {t('common.save')}
                     </button>
                 </div>
             </div>

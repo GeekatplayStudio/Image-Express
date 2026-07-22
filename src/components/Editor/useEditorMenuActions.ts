@@ -24,6 +24,7 @@ type UseEditorMenuActionsArgs = {
     selectionMode: 'layer' | 'group';
     toast: Toast;
     dialog: DialogApi;
+    t: (key: string, vars?: Record<string, string | number>) => string;
     setZoom: (value: number) => void;
     setIsDirty: (value: boolean) => void;
     pushHistory: () => void;
@@ -45,6 +46,7 @@ export function useEditorMenuActions({
     selectionMode,
     toast,
     dialog,
+    t,
     setZoom,
     setIsDirty,
     pushHistory,
@@ -121,11 +123,11 @@ export function useEditorMenuActions({
         if (!canvas) return;
         const active = canvas.getActiveObject() as (fabric.Object & ExtendedFabricObject) | null;
         if (!active) {
-            toast({ title: 'Layer reorder unavailable', description: 'Select a layer on canvas first.', variant: 'warning' });
+            toast({ title: t('menuAct.reorderUnavailable'), description: t('menuAct.selectLayerFirst'), variant: 'warning' });
             return;
         }
         if (active.type === 'activeSelection' || active.type === 'selection') {
-            toast({ title: 'Layer reorder unavailable', description: 'Select a single layer to reorder.', variant: 'warning' });
+            toast({ title: t('menuAct.reorderUnavailable'), description: t('menuAct.selectSingleReorder'), variant: 'warning' });
             return;
         }
         const ext = active as ExtendedFabricObject;
@@ -182,7 +184,7 @@ export function useEditorMenuActions({
         canvas.setActiveObject(active);
         runtimeCanvas.fire?.('object:modified', { target: active });
         canvas.requestRenderAll();
-    }, [canvas, toast]);
+    }, [canvas, t, toast]);
 
     const handleLayerDeleteFromMenu = useCallback(() => {
         if (!canvas) return;
@@ -195,7 +197,7 @@ export function useEditorMenuActions({
                 : [];
 
         if (selected.length === 0) {
-            toast({ title: 'Delete unavailable', description: 'Select a layer first.', variant: 'warning' });
+            toast({ title: t('menuAct.deleteUnavailable'), description: t('menuAct.selectLayerFirstShort'), variant: 'warning' });
             return;
         }
 
@@ -208,7 +210,7 @@ export function useEditorMenuActions({
         });
 
         if (removable.length === 0) {
-            toast({ title: 'Delete unavailable', description: 'The selected layer cannot be deleted.', variant: 'warning' });
+            toast({ title: t('menuAct.deleteUnavailable'), description: t('menuAct.cannotDelete'), variant: 'warning' });
             return;
         }
 
@@ -222,18 +224,18 @@ export function useEditorMenuActions({
         canvas.requestRenderAll();
         setIsDirty(true);
         pushHistory();
-    }, [canvas, pushHistory, setIsDirty, toast]);
+    }, [canvas, pushHistory, setIsDirty, t, toast]);
 
     const handleLayerToggleLockFromMenu = useCallback(() => {
         const target = getMenuLayerTarget();
         if (!target) {
-            toast({ title: 'Lock unavailable', description: 'Select a single layer first.', variant: 'warning' });
+            toast({ title: t('menuAct.lockUnavailable'), description: t('menuAct.selectSingleFirst'), variant: 'warning' });
             return;
         }
         setObjectLockedFromCanvasOverlay(target, !Boolean(target.locked));
         setIsDirty(true);
         pushHistory();
-    }, [getMenuLayerTarget, pushHistory, setIsDirty, setObjectLockedFromCanvasOverlay, toast]);
+    }, [getMenuLayerTarget, pushHistory, setIsDirty, setObjectLockedFromCanvasOverlay, t, toast]);
 
     const handleSelectAllFromMenu = useCallback(() => {
         if (!canvas) return;
@@ -251,7 +253,7 @@ export function useEditorMenuActions({
         });
 
         if (selectable.length === 0) {
-            toast({ title: 'Select all unavailable', description: 'No selectable layers found.', variant: 'warning' });
+            toast({ title: t('menuAct.selectAllUnavailable'), description: t('menuAct.noSelectableLayers'), variant: 'warning' });
             return;
         }
 
@@ -261,7 +263,7 @@ export function useEditorMenuActions({
             canvas.setActiveObject(new fabric.ActiveSelection(selectable, { canvas }));
         }
         canvas.requestRenderAll();
-    }, [canvas, selectionMode, toast]);
+    }, [canvas, selectionMode, t, toast]);
 
     const handleDeselectFromMenu = useCallback(() => {
         if (!canvas) return;
@@ -290,15 +292,15 @@ export function useEditorMenuActions({
                 '',
                 'Canvas: Space+Drag Pan · Scroll Zoom · Double-click group to enter · Right-click layer row for layer actions',
             ].join('\n'),
-            { title: 'Keyboard shortcuts' },
+            { title: t('menuAct.shortcutsTitle') },
         );
-    }, [dialog]);
+    }, [dialog, t]);
 
     const handleShowAboutFromMenu = useCallback(async () => {
-        await dialog.alert('Image Express editor. Build and edit designs with layered tools, retouch workflows, and panel-based controls.', {
-            title: 'About Image Express',
+        await dialog.alert(t('menuAct.aboutBody'), {
+            title: t('menuAct.aboutTitle'),
         });
-    }, [dialog]);
+    }, [dialog, t]);
 
     return {
         openPanelModeFromMenu,

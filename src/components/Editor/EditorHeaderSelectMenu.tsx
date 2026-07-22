@@ -40,7 +40,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Select All
+                        {t('selMenu.selectAll')}
                     </button>
                     <button
                         onClick={() => {
@@ -49,7 +49,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Deselect
+                        {t('selMenu.deselect')}
                     </button>
                     <button
                         onClick={() => {
@@ -58,7 +58,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Expand Selection
+                        {t('selMenu.expandSelection')}
                     </button>
                     <button
                         onClick={() => {
@@ -67,7 +67,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Contract Selection
+                        {t('selMenu.contractSelection')}
                     </button>
                     <div className="my-1 border-t border-border/50" />
                     <button
@@ -77,7 +77,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Move Tool
+                        {t('selMenu.moveTool')}
                     </button>
                     <button
                         onClick={() => {
@@ -86,7 +86,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Marquee Tool
+                        {t('selMenu.marqueeTool')}
                     </button>
                     <button
                         onClick={() => {
@@ -95,7 +95,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Lasso Tool
+                        {t('selMenu.lassoTool')}
                     </button>
                     <button
                         onClick={() => {
@@ -104,7 +104,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Magic Wand Tool
+                        {t('selMenu.magicWandTool')}
                     </button>
                     <button
                         onClick={() => {
@@ -113,7 +113,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Quick Selection Tool
+                        {t('selMenu.quickSelectionTool')}
                     </button>
                     <button
                         onClick={() => {
@@ -122,7 +122,7 @@ export default function EditorHeaderSelectMenu({
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
-                        Selection Brush Tool
+                        {t('selMenu.selectionBrushTool')}
                     </button>
                 </div>
             )}

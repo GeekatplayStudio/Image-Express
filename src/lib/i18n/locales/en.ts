@@ -759,6 +759,59 @@ const en: LocaleDictionary = {
     'jobs.statusProcessingPct': 'Processing... {progress}%',
     'jobs.statusProcessing': 'Processing...',
 
+    // Editor menu action toasts + dialogs (useEditorMenuActions).
+    'menuAct.reorderUnavailable': 'Layer reorder unavailable',
+    'menuAct.selectLayerFirst': 'Select a layer on canvas first.',
+    'menuAct.selectSingleReorder': 'Select a single layer to reorder.',
+    'menuAct.deleteUnavailable': 'Delete unavailable',
+    'menuAct.selectLayerFirstShort': 'Select a layer first.',
+    'menuAct.cannotDelete': 'The selected layer cannot be deleted.',
+    'menuAct.lockUnavailable': 'Lock unavailable',
+    'menuAct.selectSingleFirst': 'Select a single layer first.',
+    'menuAct.selectAllUnavailable': 'Select all unavailable',
+    'menuAct.noSelectableLayers': 'No selectable layers found.',
+    'menuAct.shortcutsTitle': 'Keyboard shortcuts',
+    'menuAct.aboutTitle': 'About Image Express',
+    'menuAct.aboutBody': 'Image Express editor. Build and edit designs with layered tools, retouch workflows, and panel-based controls.',
+
+    // Editor save/load flows (useEditorPersistence). "Save failed"/"Load
+    // failed" reuse toolbar.*; these are the dialogs and descriptions.
+    'persist.couldNotLoad': 'Could not load design data.',
+    'persist.discardConfirm': 'Discard unsaved changes and leave?',
+    'persist.unsavedChanges': 'Unsaved changes',
+    'persist.enterDesignName': 'Enter design name:',
+    'persist.designName': 'Design name',
+    'persist.designNamePlaceholder': 'My Design',
+    'persist.failedToSave': 'Failed to save design.',
+    'persist.designSaved': 'Design saved',
+    'persist.changesSaved': 'Your changes are saved.',
+    'persist.errorSaving': 'Error saving design to server.',
+    'persist.errorLoadingTemplate': 'Error loading template file.',
+
+    // Export quality modal (EditorExportQualityModal). {quality}/{size} are
+    // runtime values; JPG/PNG stay literal.
+    'exportQ.title': 'Export Quality',
+    'exportQ.subtitle': 'Adjust quality and review estimated size.',
+    'exportQ.quality': 'Quality: {quality}',
+    'exportQ.estSize': 'Est. size: {size}',
+    'exportQ.canvasBackground': 'Canvas background',
+    'exportQ.jpgAlwaysBackground': 'JPG exports always include a background.',
+    'exportQ.turnOffTransparent': 'Turn off to export transparent PNG.',
+    'exportQ.includeBackgroundAria': 'Include canvas background',
+
+    // Editor "Select" top menu (EditorHeaderSelectMenu). The tool rows carry
+    // a "… Tool" suffix distinct from the bare left-rail names in toolbar.*.
+    'selMenu.selectAll': 'Select All',
+    'selMenu.deselect': 'Deselect',
+    'selMenu.expandSelection': 'Expand Selection',
+    'selMenu.contractSelection': 'Contract Selection',
+    'selMenu.moveTool': 'Move Tool',
+    'selMenu.marqueeTool': 'Marquee Tool',
+    'selMenu.lassoTool': 'Lasso Tool',
+    'selMenu.magicWandTool': 'Magic Wand Tool',
+    'selMenu.quickSelectionTool': 'Quick Selection Tool',
+    'selMenu.selectionBrushTool': 'Selection Brush Tool',
+
     // Circular (right-click) tool menu — inner layer-order ring. Tool spokes
     // reuse toolbar.* above; these are the reorder actions and their disabled
     // hint, worded for this menu ("layer to front", not the File menu wording).
