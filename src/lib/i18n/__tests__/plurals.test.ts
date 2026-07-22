@@ -4,7 +4,16 @@
  * These assertions pin the grammar rather than the implementation.
  */
 
-import { translate } from '../index';
+import { loadLocale, translate } from '../index';
+import type { LanguageCode } from '../types';
+
+// Non-English dictionaries are code-split and fetched on demand (see
+// loadLocale in ../index.ts); translate() falls back to English until a
+// locale's chunk has loaded. Preload every locale this file exercises once,
+// up front, so the assertions below see the real translations rather than
+// the English fallback.
+const LOCALES_UNDER_TEST: LanguageCode[] = ['ru', 'uk', 'ja', 'de', 'pl'];
+beforeAll(() => Promise.all(LOCALES_UNDER_TEST.map(loadLocale)));
 
 describe('plural forms', () => {
     it('selects English one/other', () => {

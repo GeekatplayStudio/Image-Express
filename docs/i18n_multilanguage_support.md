@@ -31,6 +31,14 @@ Japanese (`ja`).
 - **Fallback chain**: active locale → English → the key itself. A missing
   translation can never produce a blank UI; at worst you see the English
   string, and a missing *key* shows the key so it's easy to spot in QA.
+- **Code-split dictionaries**: only English ships in the main bundle (it is
+  the SSR language and the universal fallback). Every other locale is a
+  lazily-loaded chunk fetched the first time that language becomes active —
+  a user who stays in English never downloads the other ten dictionaries.
+  While a chunk is in flight the fallback chain simply serves English, and
+  the provider re-renders everything once the chunk lands. In tests that
+  assert on non-English output, `await loadLocale('ru')` (etc.) in a
+  `beforeAll` — see `__tests__/plurals.test.ts`.
 
 ## Using translations in a component
 
@@ -77,7 +85,9 @@ const label = translate('de', 'common.close'); // "Schließen"
    (code, English label, native label).
 2. Create `src/lib/i18n/locales/<code>.ts` exporting a
    `LocaleDictionary` (copy `en.ts` and translate; partial is fine).
-3. Register it in the `DICTIONARIES` map in `src/lib/i18n/index.ts`.
+3. Register its loader in the `LOCALE_LOADERS` map in
+   `src/lib/i18n/index.ts` — a one-line `() => import('./locales/<code>')`
+   so the dictionary stays a lazily-fetched chunk.
 
 That's it — the language automatically appears in the top-bar dropdown.
 

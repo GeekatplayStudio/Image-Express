@@ -1,24 +1,80 @@
 import type { LanguageCode, LocaleDictionary } from './types';
 import en from './locales/en';
-import ru from './locales/ru';
-import uk from './locales/uk';
-import es from './locales/es';
-import fr from './locales/fr';
-import de from './locales/de';
-import it from './locales/it';
-import pt from './locales/pt';
-import pl from './locales/pl';
-import zh from './locales/zh';
-import ja from './locales/ja';
 
 export { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE, isSupportedLanguage } from './types';
 export type { LanguageCode, LocaleDictionary } from './types';
 
 export const LANGUAGE_STORAGE_KEY = 'image-express-language';
 
-const DICTIONARIES: Record<LanguageCode, LocaleDictionary> = {
-    en, ru, uk, es, fr, de, it, pt, pl, zh, ja,
+/**
+ * English ships in the main bundle: it is the SSR language (see
+ * getServerLanguageSnapshot in store.ts) and the universal fallback for
+ * every missing key, so it must be available synchronously from the first
+ * render. Every other locale is fetched on demand via `loadLocale()` — a
+ * user who never switches away from English never downloads the other
+ * ~20,000 translated strings across the remaining 10 locale files.
+ */
+const LOCALE_LOADERS: Record<Exclude<LanguageCode, 'en'>, () => Promise<{ default: LocaleDictionary }>> = {
+    ru: () => import('./locales/ru'),
+    uk: () => import('./locales/uk'),
+    es: () => import('./locales/es'),
+    fr: () => import('./locales/fr'),
+    de: () => import('./locales/de'),
+    it: () => import('./locales/it'),
+    pt: () => import('./locales/pt'),
+    pl: () => import('./locales/pl'),
+    zh: () => import('./locales/zh'),
+    ja: () => import('./locales/ja'),
 };
+
+const loadedDictionaries: Partial<Record<LanguageCode, LocaleDictionary>> = { en };
+const pendingLoads = new Map<LanguageCode, Promise<LocaleDictionary>>();
+
+/**
+ * Fetch and cache a locale's dictionary chunk. Safe to call repeatedly:
+ * resolves immediately once loaded (including for `en`, which always is),
+ * and concurrent calls for the same language share one in-flight request
+ * rather than triggering duplicate network fetches.
+ *
+ * `translate()` does not await this — it reads whatever is in the cache at
+ * call time and falls back to English otherwise, the same fallback path a
+ * genuinely missing key already takes. Callers that want a re-render once
+ * the real translation lands (i.e. the I18nProvider) await this separately
+ * and bump their own state; see I18nProvider.tsx.
+ */
+export function loadLocale(language: LanguageCode): Promise<LocaleDictionary> {
+    const cached = loadedDictionaries[language];
+    if (cached) return Promise.resolve(cached);
+
+    const pending = pendingLoads.get(language);
+    if (pending) return pending;
+
+    const loader = LOCALE_LOADERS[language as Exclude<LanguageCode, 'en'>];
+    if (!loader) return Promise.resolve(en);
+
+    const promise = loader()
+        .then((mod) => {
+            loadedDictionaries[language] = mod.default;
+            pendingLoads.delete(language);
+            return mod.default;
+        })
+        .catch((error) => {
+            // Network hiccup, offline, dev-server hot-reload race, etc. —
+            // fall back to English rather than leaving callers awaiting a
+            // rejected promise forever. Not cached as loaded, so the next
+            // call (e.g. the user reselecting the same language) retries.
+            pendingLoads.delete(language);
+            console.error(`Failed to load locale "${language}"`, error);
+            return en;
+        });
+    pendingLoads.set(language, promise);
+    return promise;
+}
+
+/** True once `language`'s dictionary is cached and translate() resolves it fully. */
+export function isLocaleLoaded(language: LanguageCode): boolean {
+    return language in loadedDictionaries;
+}
 
 /** Values substituted into `{name}` placeholders in a translated string. */
 export type TranslationVars = Record<string, string | number>;
@@ -39,7 +95,10 @@ export type TranslationVars = Record<string, string | number>;
  * that has not been pluralised yet still renders its flat string.
  */
 function resolvePluralKey(language: LanguageCode, key: string, count: number): string {
-    const dict = DICTIONARIES[language] ?? DICTIONARIES.en;
+    // Before the locale chunk loads, `dict` is just `en` — the plural table
+    // still resolves correctly, it is only not-yet-translated (same fallback
+    // as translate() below).
+    const dict = loadedDictionaries[language] ?? en;
     let category: string;
     try {
         category = new Intl.PluralRules(language).select(count);
@@ -56,8 +115,8 @@ function resolvePluralKey(language: LanguageCode, key: string, count: number): s
     if (`${key}.other` in dict) return `${key}.other`;
     if (key in dict) return key;
 
-    if (`${key}.${category}` in DICTIONARIES.en) return `${key}.${category}`;
-    if (`${key}.other` in DICTIONARIES.en) return `${key}.other`;
+    if (`${key}.${category}` in en) return `${key}.${category}`;
+    if (`${key}.other` in en) return `${key}.other`;
     return key;
 }
 
@@ -78,10 +137,14 @@ export function translate(language: LanguageCode, key: string, vars?: Translatio
     if (vars && typeof vars.count === 'number') {
         lookupKey = resolvePluralKey(language, key, vars.count);
     }
-    const template = DICTIONARIES[language]?.[lookupKey]
-        ?? DICTIONARIES.en[lookupKey]
-        ?? DICTIONARIES[language]?.[key]
-        ?? DICTIONARIES.en[key]
+    // `dict` may be undefined for a locale whose chunk hasn't loaded yet
+    // (see loadLocale above) — that falls through to the `en` lookups below,
+    // identical to how a genuinely missing key already behaves.
+    const dict = loadedDictionaries[language];
+    const template = dict?.[lookupKey]
+        ?? en[lookupKey]
+        ?? dict?.[key]
+        ?? en[key]
         ?? key;
     if (!vars) return template;
     return template.replace(/\{(\w+)\}/g, (match, name) =>
@@ -89,5 +152,5 @@ export function translate(language: LanguageCode, key: string, vars?: Translatio
 }
 
 export function getDictionary(language: LanguageCode): LocaleDictionary {
-    return DICTIONARIES[language] ?? DICTIONARIES.en;
+    return loadedDictionaries[language] ?? en;
 }
