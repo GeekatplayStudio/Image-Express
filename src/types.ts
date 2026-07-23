@@ -88,6 +88,16 @@ export type ThreeDLayerSettings = {
     delitMix?: number;
     modelUrl?: string;
     threeD?: ThreeDSettings;
+    /** Object-mode bake parameters (live GLB layer). */
+    object?: {
+        rotationY?: number;
+        rotationX?: number;
+        scale?: number;
+        cameraFovV?: number;
+        cameraElevation?: number;
+        cameraDistance?: number;
+        shadowOpacity?: number;
+    };
 };
 
 export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white' | 'brightness-contrast' | 'color-balance' | 'light-and-color' | 'solid-color';

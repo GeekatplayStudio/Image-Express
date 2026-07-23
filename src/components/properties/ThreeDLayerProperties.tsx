@@ -17,6 +17,7 @@ import { estimateDepth, luminancePseudoDepth } from '@/lib/threeDLayer/depth';
 import { normalsFromDepth } from '@/lib/threeDLayer/normals';
 import { loadGlobalLight } from '@/lib/threeDLayer/globalLight';
 import { bakeRelight, ThreeDRelightControls } from './ThreeDRelightControls';
+import { bakeObject, ThreeDObjectControls } from './ThreeDObjectControls';
 
 interface ThreeDLayerPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -60,6 +61,37 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
     const settings = ext?.is3DLayer ? ext.threeDLayerSettings : undefined;
     const isImageLayer = !!ext && ext.type === 'image' && !ext.isAdjustmentLayer && !ext.is3DLayer;
     if (!ext || (!isImageLayer && !settings)) return null;
+
+    const handleCreateObject = async () => {
+        if (!canvas) return;
+        setBusy(true);
+        try {
+            // A baked 3D-model layer carries its GLB url — convert it to a
+            // live object layer; anything else starts with the placeholder.
+            const modelUrl = ext.is3DModel && ext.modelUrl ? ext.modelUrl : '__placeholder';
+            const layerSettings: ThreeDLayerSettings = {
+                mode: 'object',
+                modelUrl,
+                object: { rotationY: 30, scale: 1, cameraFovV: 40, cameraElevation: 12, shadowOpacity: 0.35 },
+            };
+            const img = await fabric.FabricImage.fromURL(
+                // 1x1 transparent seed; the bake below replaces the pixels.
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+            );
+            const objExt = img as unknown as ExtendedFabricObject;
+            objExt.is3DLayer = true;
+            objExt.threeDLayerSettings = layerSettings;
+            objExt.name = t('layer3d.objectLayerName');
+            await bakeObject(objExt, layerSettings, loadGlobalLight());
+            img.scaleToWidth(Math.min((canvas.width || 800) * 0.4, 480));
+            canvas.centerObject(img);
+            canvas.add(img);
+            canvas.setActiveObject(img);
+            canvas.requestRenderAll();
+        } finally {
+            setBusy(false);
+        }
+    };
 
     const openEditor = () => {
         const src = settings?.sourceRef ?? layerSourceUrl(ext);
@@ -257,7 +289,18 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
                     >
                         {depthProgress ?? t('layer3d.relight.open')}
                     </button>
+                    <button
+                        onClick={() => { void handleCreateObject(); }}
+                        disabled={busy}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
+                    >
+                        {t('layer3d.object.open')}
+                    </button>
                 </>
+            )}
+
+            {settings?.mode === 'object' && (
+                <ThreeDObjectControls canvas={canvas} layer={ext} settings={settings} />
             )}
 
             {settings?.mode === 'relight' && (
