@@ -6,6 +6,7 @@ import { Plus, Sun, Trash2 } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { ExtendedFabricObject, ThreeDLayerLight, ThreeDLayerSettings } from '@/types';
 import { renderRelight } from '@/lib/threeDLayer/relightShader';
+import { applyLensBlur } from '@/lib/threeDLayer/lensBlur';
 import {
     globalLightAsLayerLight,
     loadGlobalLight,
@@ -56,13 +57,16 @@ export async function bakeRelight(layer: LayerWithCache, settings: ThreeDLayerSe
     cache.source = cache.source ?? await loadCanvas(settings.sourceRef);
     cache.depth = cache.depth ?? await loadCanvas(settings.depthRef);
     cache.normals = cache.normals ?? await loadCanvas(settings.normalRef);
-    const result = renderRelight(
+    let result = renderRelight(
         cache.source,
         cache.normals,
         cache.depth,
         effectiveLights(settings, global),
         { ...DEFAULT_AMBIENT, ...settings.ambient },
     );
+    if (settings.lensBlur?.enabled) {
+        result = applyLensBlur(result, cache.depth, settings.lensBlur);
+    }
     (layer as unknown as fabric.Image).setElement(result as unknown as HTMLImageElement);
     layer.set('dirty', true);
 }
@@ -87,7 +91,10 @@ function Slider({ label, value, display, min, max, step, onChange }: {
     );
 }
 
-export function ThreeDRelightControls({ canvas, layer, settings }: ThreeDRelightControlsProps) {
+export function ThreeDRelightControls({ canvas, layer, settings: settingsProp }: ThreeDRelightControlsProps) {
+    // The parent doesn't re-render on our own updates — always read the
+    // layer's live settings, falling back to the prop for the first paint.
+    const settings = layer.threeDLayerSettings ?? settingsProp;
     const { t } = useI18n();
     const [global, setGlobal] = useState<GlobalLightState>(() => loadGlobalLight());
     const [, forceRender] = useState(0);
@@ -234,6 +241,41 @@ export function ThreeDRelightControls({ canvas, layer, settings }: ThreeDRelight
                     <Plus size={12} />
                 </button>
             </div>
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground pt-1">
+                {t('layer3d.vfx.lensBlur')}
+                <div className="flex-1" />
+                <input
+                    type="checkbox"
+                    checked={settings.lensBlur?.enabled ?? false}
+                    onChange={(e) => update({
+                        lensBlur: {
+                            focusX: 0.5, focusY: 0.5, focalOffset: 0, strength: 0.5, fieldOfDepth: 0.25,
+                            ...settings.lensBlur,
+                            enabled: e.target.checked,
+                        },
+                    })}
+                />
+            </div>
+            {settings.lensBlur?.enabled && (
+                <>
+                    <Slider label={t('layer3d.vfx.focusX')} value={settings.lensBlur.focusX}
+                        display={`${Math.round(settings.lensBlur.focusX * 100)}%`} min={0} max={1} step={0.01}
+                        onChange={(v) => update({ lensBlur: { ...settings.lensBlur!, focusX: v } })} />
+                    <Slider label={t('layer3d.vfx.focusY')} value={settings.lensBlur.focusY}
+                        display={`${Math.round(settings.lensBlur.focusY * 100)}%`} min={0} max={1} step={0.01}
+                        onChange={(v) => update({ lensBlur: { ...settings.lensBlur!, focusY: v } })} />
+                    <Slider label={t('layer3d.vfx.strength')} value={settings.lensBlur.strength}
+                        display={`${Math.round(settings.lensBlur.strength * 100)}%`} min={0} max={1} step={0.05}
+                        onChange={(v) => update({ lensBlur: { ...settings.lensBlur!, strength: v } })} />
+                    <Slider label={t('layer3d.vfx.fieldOfDepth')} value={settings.lensBlur.fieldOfDepth}
+                        display={`${Math.round(settings.lensBlur.fieldOfDepth * 100)}%`} min={0.02} max={1} step={0.02}
+                        onChange={(v) => update({ lensBlur: { ...settings.lensBlur!, fieldOfDepth: v } })} />
+                    <Slider label={t('layer3d.vfx.focalOffset')} value={settings.lensBlur.focalOffset}
+                        display={settings.lensBlur.focalOffset.toFixed(2)} min={-1} max={1} step={0.02}
+                        onChange={(v) => update({ lensBlur: { ...settings.lensBlur!, focalOffset: v } })} />
+                </>
+            )}
+
             {pointLights.map((light, idx) => (
                 <div key={light.id} className="p-2 rounded-md border border-border/60 space-y-2">
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground">

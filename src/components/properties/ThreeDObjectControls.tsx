@@ -47,7 +47,9 @@ function Slider({ label, value, display, min, max, step, onChange }: {
     );
 }
 
-export function ThreeDObjectControls({ canvas, layer, settings }: ThreeDObjectControlsProps) {
+export function ThreeDObjectControls({ canvas, layer, settings: settingsProp }: ThreeDObjectControlsProps) {
+    // Parent doesn't re-render on our own updates — read live settings.
+    const settings = layer.threeDLayerSettings ?? settingsProp;
     const { t } = useI18n();
     const bakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const fileRef = useRef<HTMLInputElement | null>(null);

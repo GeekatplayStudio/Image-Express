@@ -88,6 +88,15 @@ export type ThreeDLayerSettings = {
     delitMix?: number;
     modelUrl?: string;
     threeD?: ThreeDSettings;
+    /** Depth-driven lens blur (VFX), applied after relight. */
+    lensBlur?: {
+        enabled: boolean;
+        focusX: number;         // [0,1] image UV of the focus point
+        focusY: number;
+        focalOffset: number;    // [-1,1] shift of the sampled focal depth
+        strength: number;       // [0,1] -> max blur radius
+        fieldOfDepth: number;   // [0,1] in-focus band width
+    };
     /** Object-mode bake parameters (live GLB layer). */
     object?: {
         rotationY?: number;
