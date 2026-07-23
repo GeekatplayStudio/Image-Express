@@ -209,6 +209,8 @@ const it: LocaleDictionary = {
     'layer3d.vfx.fieldOfDepth': 'Profondità di campo',
     'layer3d.vfx.focalOffset': 'Offset focale',
     'layer3d.relight.fallbackDepth': 'Modello di profondità non disponibile — stima basata sulla luminosità. Illuminazione meno precisa.',
+    'layer3d.model.dragHint': 'Trascina per muovere il sole attorno all’oggetto',
+    'layer3d.model.failed': 'Impossibile caricare il modello 3D.',
     'layer3d.rewarp.adjust': 'Regola angoli…',
     'layer3d.rewarp.feather': 'Sfumatura',
     'layer3d.rewarp.edgeHardness': 'Durezza bordo',

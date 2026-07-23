@@ -158,3 +158,92 @@ export async function bakeObjectLayer(
     renderer.dispose();
     return out;
 }
+
+/**
+ * Bake a GLB with the full ThreeDSettings bag from the 3D View Editor —
+ * same lighting semantics (lightPosition direction, VSM shadow blur and
+ * intensity, ambient, model rotation/scale, saved camera) rendered
+ * headlessly for the in-panel layer workspace.
+ */
+export async function bakeModelWithSettings(
+    modelUrl: string,
+    settings: import('@/types').ThreeDSettings,
+    outSize: { width: number; height: number } = { width: 1024, height: 1024 },
+): Promise<HTMLCanvasElement> {
+    const model = await loadModel(modelUrl);
+    model.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    });
+    model.rotation.set(0, ((settings.modelRotationY ?? 0) * Math.PI) / 180, 0);
+    model.scale.setScalar(settings.modelScale ?? 1);
+    model.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(model);
+    const center = bounds.getCenter(new THREE.Vector3());
+    const groundY = bounds.min.y;
+    model.position.set(-center.x, 0, -center.z);
+    model.updateMatrixWorld(true);
+    const sphere = new THREE.Box3().setFromObject(model).getBoundingSphere(new THREE.Sphere());
+    const radius = Math.max(sphere.radius, 1e-3);
+
+    const scene = new THREE.Scene();
+    scene.add(model);
+    scene.add(new THREE.AmbientLight(0xffffff, settings.ambientIntensity ?? 0.35));
+
+    const lp = settings.lightPosition ?? { x: 5, y: 5, z: 5 };
+    const dir = new THREE.Vector3(lp.x, lp.y, lp.z).normalize();
+    const light = new THREE.DirectionalLight(settings.lightColor ?? '#ffffff', settings.lightIntensity ?? 1.2);
+    light.position.copy(dir.clone().multiplyScalar(radius * 6));
+    light.castShadow = settings.castShadowEnabled;
+    light.shadow.mapSize.set(2048, 2048);
+    light.shadow.bias = -0.0001;
+    light.shadow.normalBias = 0.02;
+    light.shadow.radius = Math.max(1, (settings.castShadowBlur ?? 22) * 0.6);
+    light.shadow.blurSamples = Math.min(32, Math.max(8, Math.round((settings.castShadowBlur ?? 22) / 2) + 8));
+    const extent = Math.max(3, radius * 3);
+    light.shadow.camera.left = -extent;
+    light.shadow.camera.right = extent;
+    light.shadow.camera.top = extent;
+    light.shadow.camera.bottom = -extent;
+    light.shadow.camera.near = 0.1;
+    light.shadow.camera.far = radius * 20;
+    scene.add(light);
+
+    if (settings.castShadowEnabled) {
+        const catcher = new THREE.Mesh(
+            new THREE.PlaneGeometry(radius * 12, radius * 12),
+            new THREE.ShadowMaterial({ opacity: settings.castShadowIntensity ?? 0.35 }),
+        );
+        catcher.rotation.x = -Math.PI / 2;
+        catcher.position.y = groundY;
+        catcher.receiveShadow = true;
+        scene.add(catcher);
+    }
+
+    const camera = new THREE.PerspectiveCamera(45, outSize.width / outSize.height, radius / 50, radius * 60);
+    if (settings.cameraPosition) {
+        camera.position.set(settings.cameraPosition.x, settings.cameraPosition.y, settings.cameraPosition.z);
+        const tgt = settings.cameraTarget ?? { x: 0, y: 0, z: 0 };
+        camera.lookAt(tgt.x, tgt.y, tgt.z);
+    } else {
+        camera.position.set(0, radius * 0.9, radius * 3.1);
+        camera.lookAt(0, radius * 0.5, 0);
+    }
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(1);
+    renderer.setSize(outSize.width, outSize.height);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.VSMShadowMap;
+    renderer.setClearColor(0x000000, 0);
+    renderer.render(scene, camera);
+
+    const out = document.createElement('canvas');
+    out.width = outSize.width;
+    out.height = outSize.height;
+    out.getContext('2d')!.drawImage(renderer.domElement, 0, 0);
+    renderer.dispose();
+    return out;
+}

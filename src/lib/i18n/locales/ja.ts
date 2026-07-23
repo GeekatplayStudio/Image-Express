@@ -201,6 +201,8 @@ const ja: LocaleDictionary = {
     'layer3d.vfx.fieldOfDepth': '被写界深度',
     'layer3d.vfx.focalOffset': '焦点オフセット',
     'layer3d.relight.fallbackDepth': '深度モデルを利用できません — 輝度ベースの推定を使用します。ライティング精度が低下します。',
+    'layer3d.model.dragHint': 'ドラッグして太陽をオブジェクトの周りに移動',
+    'layer3d.model.failed': '3Dモデルを読み込めませんでした。',
     'layer3d.rewarp.adjust': 'コーナーを調整…',
     'layer3d.rewarp.feather': 'ぼかし',
     'layer3d.rewarp.edgeHardness': 'エッジの硬さ',

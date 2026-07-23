@@ -217,6 +217,8 @@ const pl: LocaleDictionary = {
     'layer3d.vfx.fieldOfDepth': 'Głębia ostrości',
     'layer3d.vfx.focalOffset': 'Przesunięcie ogniskowej',
     'layer3d.relight.fallbackDepth': 'Model głębi niedostępny — użyto oszacowania na podstawie jasności. Mniejsza dokładność oświetlenia.',
+    'layer3d.model.dragHint': 'Przeciągnij, aby obracać słońce wokół obiektu',
+    'layer3d.model.failed': 'Nie udało się wczytać modelu 3D.',
     'layer3d.rewarp.adjust': 'Dostosuj rogi…',
     'layer3d.rewarp.feather': 'Wtapianie',
     'layer3d.rewarp.edgeHardness': 'Twardość krawędzi',

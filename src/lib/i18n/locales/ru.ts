@@ -2593,6 +2593,8 @@ const ru: LocaleDictionary = {
     'layer3d.vfx.fieldOfDepth': 'Глубина резкости',
     'layer3d.vfx.focalOffset': 'Сдвиг фокуса',
     'layer3d.relight.fallbackDepth': 'Модель глубины недоступна — используется оценка по яркости. Точность освещения снижена.',
+    'layer3d.model.dragHint': 'Перетащите, чтобы вращать солнце вокруг объекта',
+    'layer3d.model.failed': 'Не удалось загрузить 3D-модель.',
     'layer3d.rewarp.adjust': 'Настроить углы…',
     'layer3d.rewarp.feather': 'Растушёвка',
     'layer3d.rewarp.edgeHardness': 'Жёсткость края',

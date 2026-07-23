@@ -2816,6 +2816,8 @@ const en: LocaleDictionary = {
     'layer3d.vfx.fieldOfDepth': 'Depth of Field',
     'layer3d.vfx.focalOffset': 'Focal Offset',
     'layer3d.relight.fallbackDepth': 'Depth model unavailable — using a brightness-based estimate. Lighting accuracy is reduced.',
+    'layer3d.model.dragHint': 'Drag to move the sun around the object',
+    'layer3d.model.failed': 'Could not load the 3D model.',
     'layer3d.rewarp.adjust': 'Adjust Corners…',
     'layer3d.rewarp.feather': 'Feather',
     'layer3d.rewarp.edgeHardness': 'Edge Hardness',

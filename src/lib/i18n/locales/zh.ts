@@ -201,6 +201,8 @@ const zh: LocaleDictionary = {
     'layer3d.vfx.fieldOfDepth': '景深',
     'layer3d.vfx.focalOffset': '焦点偏移',
     'layer3d.relight.fallbackDepth': '深度模型不可用 — 使用基于亮度的估计。光照精度会降低。',
+    'layer3d.model.dragHint': '拖动以让太阳绕对象移动',
+    'layer3d.model.failed': '无法加载 3D 模型。',
     'layer3d.rewarp.adjust': '调整角点…',
     'layer3d.rewarp.feather': '羽化',
     'layer3d.rewarp.edgeHardness': '边缘硬度',

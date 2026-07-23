@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as fabric from 'fabric';
 
 import { ExtendedFabricObject, type BackgroundJob, type ThreeDImage } from '@/types';
@@ -110,6 +110,23 @@ export function useEditorThreeDWorkspace({
     const handleOpenThreeDEditor = useCallback((url: string) => {
         setEditingModelUrl(url);
     }, []);
+
+    // The in-panel 3D lighting workspace requests the full editor via a
+    // window event (avoids drilling props through four component layers).
+    useEffect(() => {
+        const onOpen = (e: Event) => {
+            const detail = (e as CustomEvent<{ url?: string; objectId?: string }>).detail;
+            if (!detail?.url) return;
+            if (detail.objectId && canvas) {
+                const target = (canvas.getObjects() as ExtendedFabricObject[])
+                    .find((o) => o.id === detail.objectId);
+                if (target) setEditingModelObject(target);
+            }
+            setEditingModelUrl(detail.url);
+        };
+        window.addEventListener('iex:open-3d-editor', onOpen);
+        return () => window.removeEventListener('iex:open-3d-editor', onOpen);
+    }, [canvas]);
 
     const handleCloseThreeDLayerEditor = useCallback(() => {
         setEditingModelUrl(null);

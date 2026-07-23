@@ -28,10 +28,10 @@ type CaptureGL = {
 
 type Vec3 = { x: number; y: number; z: number };
 
-const GIZMO_ORBIT_RADIUS = 2.2;
-const GIZMO_GROUP_NAME = 'light-gizmo-group';
+export const GIZMO_ORBIT_RADIUS = 2.2;
+export const GIZMO_GROUP_NAME = 'light-gizmo-group';
 
-type LightPreset = {
+export type LightPreset = {
     name: string;
     labelKey: string;
     swatch: string;
@@ -41,7 +41,7 @@ type LightPreset = {
     ambient: number;
 };
 
-const LIGHT_PRESETS: LightPreset[] = [
+export const LIGHT_PRESETS: LightPreset[] = [
     { name: 'Studio', labelKey: 'view3d.preset.studio', swatch: '#f5f5f5', direction: { x: 4, y: 6, z: 4 }, intensity: 1.3, color: '#ffffff', ambient: 0.4 },
     { name: 'Golden Hour', labelKey: 'view3d.preset.goldenHour', swatch: '#ffb36b', direction: { x: 6, y: 1.6, z: 3 }, intensity: 1.6, color: '#ffb36b', ambient: 0.3 },
     { name: 'Noon', labelKey: 'view3d.preset.noon', swatch: '#fff3c4', direction: { x: 0.5, y: 8, z: 2 }, intensity: 1.8, color: '#fff7e0', ambient: 0.5 },
@@ -106,14 +106,14 @@ const CAMERA_VIEWS: { name: string; labelKey: string; direction: Vec3 }[] = [
 ];
 
 const vecLength = (v: Vec3) => Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
-const vecScaleTo = (v: Vec3, length: number): Vec3 => {
+export const vecScaleTo = (v: Vec3, length: number): Vec3 => {
     const l = vecLength(v);
     return { x: (v.x / l) * length, y: (v.y / l) * length, z: (v.z / l) * length };
 };
 
-type ModelBounds = { groundY: number; radius: number };
+export type ModelBounds = { groundY: number; radius: number };
 
-const ModelViewer = ({ url, onBounds }: { url: string; onBounds?: (bounds: ModelBounds) => void }) => {
+export const ModelViewer = ({ url, onBounds }: { url: string; onBounds?: (bounds: ModelBounds) => void }) => {
     const { scene } = useGLTF(url);
     const clone = useMemo(() => scene.clone(), [scene]);
     useEffect(() => {
@@ -142,7 +142,7 @@ const ModelViewer = ({ url, onBounds }: { url: string; onBounds?: (bounds: Model
  * Dragging changes the light DIRECTION (distance is controlled separately),
  * so the widget always stays visible regardless of actual light distance.
  */
-const LightGizmo = ({
+export const LightGizmo = ({
     lightPosition,
     lightColor,
     visible,
@@ -227,14 +227,14 @@ const LightGizmo = ({
     );
 };
 
-const SectionTitle = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
+export const SectionTitle = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
     <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mt-4 mb-2 first:mt-0">
         {icon}
         {children}
     </h4>
 );
 
-const MiniSlider = ({
+export const MiniSlider = ({
     label, value, min, max, step, onChange, format,
 }: {
     label: string;
@@ -262,7 +262,7 @@ const MiniSlider = ({
     </div>
 );
 
-const MiniToggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
+export const MiniToggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
     <div className="flex items-center justify-between">
         <span className="text-[10px] text-muted-foreground uppercase">{label}</span>
         <div

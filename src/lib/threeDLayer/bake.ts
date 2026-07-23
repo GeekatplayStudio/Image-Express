@@ -30,6 +30,24 @@ function loadCanvas(src: string): Promise<HTMLCanvasElement> {
     });
 }
 
+/**
+ * Swap a fabric image layer's pixels while keeping its on-canvas footprint:
+ * setElement adopts the new natural size, so compensate via scale.
+ */
+export function setLayerElementPreservingSize(layer: ExtendedFabricObject, el: HTMLCanvasElement | HTMLImageElement) {
+    const img = layer as unknown as fabric.Image;
+    const displayW = img.getScaledWidth();
+    const displayH = img.getScaledHeight();
+    img.setElement(el as unknown as HTMLImageElement);
+    const w = 'naturalWidth' in el ? el.naturalWidth : el.width;
+    const h = 'naturalHeight' in el ? el.naturalHeight : el.height;
+    if (w > 0 && h > 0 && displayW > 0) {
+        img.set({ scaleX: displayW / w, scaleY: displayH / h });
+    }
+    img.setCoords();
+    layer.set('dirty', true);
+}
+
 /** All lights a relight bake actually uses for a settings snapshot. */
 export function effectiveLights(settings: ThreeDLayerSettings, global: GlobalLightState): ThreeDLayerLight[] {
     const locals = settings.lights ?? [];
@@ -55,8 +73,7 @@ export async function bakeRelight(layer: LayerWithCache, settings: ThreeDLayerSe
     if (settings.lensBlur?.enabled) {
         result = applyLensBlur(result, cache.depth, settings.lensBlur);
     }
-    (layer as unknown as fabric.Image).setElement(result as unknown as HTMLImageElement);
-    layer.set('dirty', true);
+    setLayerElementPreservingSize(layer, result);
 }
 
 export async function bakeObject(layer: ExtendedFabricObject, settings: ThreeDLayerSettings, sun: GlobalLightState) {
@@ -66,8 +83,7 @@ export async function bakeObject(layer: ExtendedFabricObject, settings: ThreeDLa
         sun,
         OBJECT_BAKE_SIZE,
     );
-    (layer as unknown as fabric.Image).setElement(result as unknown as HTMLImageElement);
-    layer.set('dirty', true);
+    setLayerElementPreservingSize(layer, result);
 }
 
 /**

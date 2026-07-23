@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import * as fabric from 'fabric';
-import { Box, Boxes, Scan, Sun } from 'lucide-react';
+import { Box, Scan, Sun } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { ExtendedFabricObject, ThreeDLayerSettings } from '@/types';
 import UnwarpEditorModal, { type UnwarpEditorResult } from '@/components/UnwarpEditorModal';
@@ -18,7 +18,8 @@ import { normalsFromDepth } from '@/lib/threeDLayer/normals';
 import { loadGlobalLight } from '@/lib/threeDLayer/globalLight';
 import { ThreeDRelightControls } from './ThreeDRelightControls';
 import { ThreeDObjectControls } from './ThreeDObjectControls';
-import { bakeObject, bakeRelight } from '@/lib/threeDLayer/bake';
+import { ThreeDModelLayerPanel } from './ThreeDModelLayerPanel';
+import { bakeRelight, setLayerElementPreservingSize } from '@/lib/threeDLayer/bake';
 
 interface ThreeDLayerPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -61,42 +62,13 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
     const ext = selectedObject;
     const settings = ext?.is3DLayer ? ext.threeDLayerSettings : undefined;
     const isImageLayer = !!ext && ext.type === 'image' && !ext.isAdjustmentLayer && !ext.is3DLayer;
+    // A placed 3D model layer gets the full in-panel lighting workspace.
+    const isModelLayer = !!ext?.is3DModel && !!ext.modelUrl;
     // Unwarp starts from plain image layers; relight also works on unwarp
     // layers (light the flattened surface, as the reference tools do).
-    const canUnwarp = isImageLayer;
-    const canRelight = isImageLayer || settings?.mode === 'unwarp';
+    const canUnwarp = isImageLayer && !isModelLayer;
+    const canRelight = (isImageLayer && !isModelLayer) || settings?.mode === 'unwarp';
     if (!ext || (!isImageLayer && !settings)) return null;
-
-    const handleCreateObject = async () => {
-        if (!canvas) return;
-        setBusy(true);
-        try {
-            // A baked 3D-model layer carries its GLB url — convert it to a
-            // live object layer; anything else starts with the placeholder.
-            const modelUrl = ext.is3DModel && ext.modelUrl ? ext.modelUrl : '__placeholder';
-            const layerSettings: ThreeDLayerSettings = {
-                mode: 'object',
-                modelUrl,
-                object: { rotationY: 30, scale: 1, cameraFovV: 40, cameraElevation: 12, shadowOpacity: 0.35 },
-            };
-            const img = await fabric.FabricImage.fromURL(
-                // 1x1 transparent seed; the bake below replaces the pixels.
-                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-            );
-            const objExt = img as unknown as ExtendedFabricObject;
-            objExt.is3DLayer = true;
-            objExt.threeDLayerSettings = layerSettings;
-            objExt.name = t('layer3d.objectLayerName');
-            await bakeObject(objExt, layerSettings, loadGlobalLight());
-            img.scaleToWidth(Math.min((canvas.width || 800) * 0.4, 480));
-            canvas.centerObject(img);
-            canvas.add(img);
-            canvas.setActiveObject(img);
-            canvas.requestRenderAll();
-        } finally {
-            setBusy(false);
-        }
-    };
 
     const openEditor = () => {
         const src = settings?.sourceRef ?? layerSourceUrl(ext);
@@ -119,9 +91,8 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
 
             if (settings && ext.is3DLayer) {
                 // Re-adjusting an existing 3D layer: swap its pixels and settings.
-                const img = ext as unknown as fabric.Image;
                 const el = await loadImage(flat.toDataURL('image/png'));
-                img.setElement(el);
+                setLayerElementPreservingSize(ext, el);
                 ext.threeDLayerSettings = {
                     ...settings,
                     corners: result.corners,
@@ -299,11 +270,22 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
                 <div className="flex items-center gap-1">
                     {canUnwarp && toolButton(t('layer3d.unwarp.open'), openEditor, <Scan size={13} />, 'layer3d-tool-unwarp')}
                     {canRelight && toolButton(t('layer3d.relight.open'), () => { void handleCreateRelight(); }, <Sun size={13} />, 'layer3d-tool-relight')}
-                    {isImageLayer && toolButton(t('layer3d.object.open'), () => { void handleCreateObject(); }, <Boxes size={13} />, 'layer3d-tool-object')}
                 </div>
             </div>
             {depthProgress && (
                 <p className="text-[10px] text-muted-foreground">{depthProgress}</p>
+            )}
+
+            {isModelLayer && (
+                <ThreeDModelLayerPanel
+                    canvas={canvas}
+                    layer={ext}
+                    onOpenFullEditor={(url, targetLayer) => {
+                        window.dispatchEvent(new CustomEvent('iex:open-3d-editor', {
+                            detail: { url, objectId: targetLayer.id },
+                        }));
+                    }}
+                />
             )}
 
             {settings?.mode === 'object' && (
