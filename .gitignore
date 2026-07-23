@@ -47,6 +47,9 @@ yarn-error.log*
 # local ComfyUI custom node secrets
 /comfyui custom nodes/hitem3d_node/hitem3d_api_key.local.json
 
+# transient i18n export/import working files (scripts/i18n-export-missing.mjs)
+/i18n-export-*.json
+
 # vercel
 .vercel
 

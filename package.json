@@ -26,6 +26,8 @@
     "audit:i18n:strings": "node scripts/i18n-scan.mjs",
     "audit:terms": "node scripts/terminology-audit.mjs",
     "audit:i18n:parity": "node scripts/i18n-audit.mjs --parity",
+    "i18n:export": "node scripts/i18n-export-missing.mjs",
+    "i18n:import": "node scripts/i18n-import-translated.mjs",
     "install:super": "node scripts/super-installer.mjs",
     "qa:install": "node scripts/qa-installation.mjs",
     "qa:ollama": "node scripts/qa-ollama.mjs",

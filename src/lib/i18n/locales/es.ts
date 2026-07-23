@@ -503,6 +503,10 @@ const es: LocaleDictionary = {
     'dashboard.canvasCount.other': '{count} páginas',
     'dashboard.showAll.one': '{count} página más',
     'dashboard.showAll.other': '{count} páginas más',
+
+    // Imported via i18n-import-translated.mjs from test_translated.json on 2026-07-23
+    'gen3d.title': 'Generador de IA 3D',
+    'stack.deletePageQuestion': '¿Eliminar página "{name}"? Contiene arte que se perderá.',
 };
 
 export default es;
