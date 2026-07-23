@@ -200,6 +200,7 @@ const ja: LocaleDictionary = {
     'layer3d.vfx.strength': 'ぼかしの強さ',
     'layer3d.vfx.fieldOfDepth': '被写界深度',
     'layer3d.vfx.focalOffset': '焦点オフセット',
+    'layer3d.relight.fallbackDepth': '深度モデルを利用できません — 輝度ベースの推定を使用します。ライティング精度が低下します。',
     'layer3d.rewarp.adjust': 'コーナーを調整…',
     'layer3d.rewarp.feather': 'ぼかし',
     'layer3d.rewarp.edgeHardness': 'エッジの硬さ',

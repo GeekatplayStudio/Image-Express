@@ -64,7 +64,7 @@ export function PanelModeRail({ mode, onModeChange, showHoverLabels = true, clas
     return (
         <div
             className={cn(
-                'min-h-[340px] max-h-[72vh] overflow-y-auto flex flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out',
+                'min-h-0 max-h-[80vh] overflow-y-auto flex flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out',
                 isExpanded ? 'w-44 items-stretch shadow-xl' : 'w-10 items-center',
                 expandDirection === 'left' ? 'origin-top-right' : 'origin-top-left',
                 className

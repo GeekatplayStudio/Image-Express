@@ -2592,6 +2592,7 @@ const uk: LocaleDictionary = {
     'layer3d.vfx.strength': 'Сила розмиття',
     'layer3d.vfx.fieldOfDepth': 'Глибина різкості',
     'layer3d.vfx.focalOffset': 'Зсув фокуса',
+    'layer3d.relight.fallbackDepth': 'Модель глибини недоступна — використовується оцінка за яскравістю. Точність освітлення знижена.',
     'layer3d.rewarp.adjust': 'Налаштувати кути…',
     'layer3d.rewarp.feather': 'Розтушовка',
     'layer3d.rewarp.edgeHardness': 'Жорсткість краю',

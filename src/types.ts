@@ -82,6 +82,8 @@ export type ThreeDLayerSettings = {
     normalRef?: string;
     albedoRef?: string;
     depthSpace?: 'disparity' | 'linear';
+    /** Where the depth map came from — 'fallback' means the ML model could not run. */
+    depthSource?: 'model' | 'fallback';
     useGlobalLight?: boolean;
     lights?: ThreeDLayerLight[];
     ambient?: { color: string; intensity: number };

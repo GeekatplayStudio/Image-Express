@@ -1,6 +1,6 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-07-14  
+Last updated: 2026-07-23  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
@@ -19,7 +19,21 @@ Future roadmap canonical source:
 Current-state baseline audit:
 - `docs/current_application_baseline_audit_2026-05-16.md` (verified feature inventory, workflow map, status reconciliation, priority buckets, and UI simplification plan)
 
-## Latest Delivery (2026-07-14) — v0.2.0
+## Latest Delivery (2026-07-23) — 3D Layer system (Phases 1–4)
+
+New live, re-editable **3D layer** type (`is3DLayer` + `threeDLayerSettings`, full undo/autosave/export support), inspired by ComfyUI-NKD-VFX-Tools (algorithms reimplemented from scratch; see `docs/prd_3d_layer_vfx_2026-07-23.md` for the PRD, roadmap and per-phase implementation status):
+
+- **Perspective Unwarp/Rewarp** — 4-corner homography editor (full-screen, VP-preserving edge handles, projective grid, magnifier loupe, Auto/Metric aspect), non-destructive round-trip with feather/edge-hardness/LAB color match.
+- **Relight** — Depth Anything V2 runs fully in-browser (WebGPU/WASM, cached ~50 MB download, brightness fallback with a panel warning), Sobel normals, WebGL screen-space relighting: global or per-layer sun, up to 8 point lights with falloff, ray-marched depth shadows, ambient. Relight also works on unwarp layers (light the flattened surface).
+- **Global sun** — one persisted canvas-wide light; editing it re-bakes every sun-following 3D layer (relight + object).
+- **3D Object layers** — headless Three.js GLB bake with VSM shadows on a shadow catcher, rotation/tilt/scale/camera/shadow controls, GLB file loading; fSpy 2-VP camera solver implemented and unit-tested (UI wiring pending).
+- **VFX** — depth-driven lens blur (focus point, focal offset, strength, depth of field).
+- **UI** — compact per-layer 3D tool icon row in Properties (Unwarp/Relight/Object); distinct Box icon in the Layers panel; 68 `layer3d.*` i18n keys in all 11 locales (ru/uk at 100% parity).
+- **Fixes in the same delivery** — SupportCorner no longer covers overlay windows (z 9997 → 55); panel-mode rail raised above corner pills and viewport-capped; missing ambience `effect.mjs` engines added for collie-hills and saucer-invasion (404s resolved); serialized-props list unified (Toolbar now imports `CUSTOM_SERIALIZED_PROPS`).
+
+Module map: `src/lib/threeDLayer/` (homography, warpRender, depth, normals, relightShader, globalLight, objectBake, fspySolver, lensBlur, bake) + `src/components/UnwarpEditorModal.tsx` + `src/components/properties/ThreeD{LayerProperties,RelightControls,ObjectControls}.tsx`. Tests: `src/lib/__tests__/threeDLayer-*.test.ts`.
+
+## Prior Delivery (2026-07-14) — v0.2.0
 
 **Login/startup rework**
 - App now always opens straight to the dashboard as a local guest — no automatic login popup or setup wizard on first run, local or server (`src/app/page.tsx`).

@@ -1,6 +1,6 @@
 # PRD: 3D Layer & VFX Tools for Image Express
 
-**Date:** 2026-07-23 · **Status:** Draft for review
+**Date:** 2026-07-23 · **Status:** Phases 1–4 implemented (see §11 Implementation status)
 **Reference:** [ComfyUI-NKD-VFX-Tools](https://github.com/Nekodificador/ComfyUI-NKD-VFX-Tools) (GPL-3.0 — reference for *algorithms and UX only*; we re-implement, we do not copy code — see §10 Licensing)
 
 ---
@@ -162,6 +162,18 @@ Each phase lands behind incremental commits with i18n parity green; Phases 1–2
 - **WebGPU/WASM depth inference** perf on low-end machines → gate + cloud fallback + "import depth map" escape hatch.
 - **Serialization bloat** (depth/normal maps) → store as IndexedDB blobs referenced by id, never inline in project JSON.
 - **PropertiesPanel monolith** (~3200 lines) — add as a delegated subcomponent, don't grow the switchboard.
+
+## 11. Implementation status (2026-07-23)
+
+Shipped on `main` (commits fc9a8ed → polish):
+
+- **Phase 1 — Unwarp/Rewarp**: `src/lib/threeDLayer/homography.ts` (DLT, Zhang & He metric aspect, VP-preserving edge drag; 12 unit tests) + `warpRender.ts` (WebGL projective warp, supersampling, inward feather, edge hardness, LAB color match); `UnwarpEditorModal` (z-300 full-screen, corners/edges/grid/loupe/zoom/pan).
+- **Phase 2 — Depth + Relight**: `depth.ts` (Depth Anything V2 in-browser via transformers.js, WebGPU/WASM, luminance fallback flagged as `depthSource: 'fallback'` with a panel warning), `normals.ts` (Sobel), `relightShader.ts` (Lambert sun, wrapped-diffuse point lights, windowed-quadratic falloff, 24-step ray-marched depth shadows, 8-light cap), `globalLight.ts` (persisted shared sun).
+- **Phase 3 — Objects + fSpy**: `objectBake.ts` (headless Three.js GLB bake, VSM shadows, shadow catcher, bottom pivot), `fspySolver.ts` (2-VP solve → quaternion + FOV, tested against synthetic projections; UI wiring pending).
+- **Phase 4 — VFX**: `lensBlur.ts` (depth-driven DoF, smoothed CoC, kernel-bank level lerp), chained after relight.
+- **Polish**: bakes centralized in `bake.ts` so global-sun edits re-bake every sun-following layer; relight available on unwarp layers (light the flattened surface, matching the reference workflow); compact per-layer 3D tool icon row in the Properties panel instead of stacked buttons; SupportCorner dropped below overlay windows (z-9997 → 55); panel rail raised to z-80 with viewport-capped scrolling; missing ambience `effect.mjs` engines added (collie-hills, saucer-invasion).
+
+Not yet implemented (backlog): fSpy line-drawing UI, on-canvas drag gizmos for lights/objects, canvas-IBL for object layers, occlusion-aware DoF gathering, depth-range masks, IndexedDB blob storage for depth maps, seamless (Poisson) rewarp edges.
 
 ## 10. Licensing
 NKD-VFX-Tools is **GPL-3.0**. We must not copy its code into Image Express. This PRD treats it as prior-art documentation: algorithms (DLT homography, Zhang & He rectification, fSpy solve, Blinn-Phong, ray-marched screen-space shadows) are standard published techniques we implement independently from first principles/papers. UX patterns are not copyrightable, but all code is written fresh.

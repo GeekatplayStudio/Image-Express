@@ -208,6 +208,7 @@ const de: LocaleDictionary = {
     'layer3d.vfx.strength': 'Unschärfestärke',
     'layer3d.vfx.fieldOfDepth': 'Schärfentiefe',
     'layer3d.vfx.focalOffset': 'Fokusversatz',
+    'layer3d.relight.fallbackDepth': 'Tiefenmodell nicht verfügbar — Helligkeits-Schätzung wird verwendet. Beleuchtung ist ungenauer.',
     'layer3d.rewarp.adjust': 'Ecken anpassen…',
     'layer3d.rewarp.feather': 'Weiche Kante',
     'layer3d.rewarp.edgeHardness': 'Kantenhärte',

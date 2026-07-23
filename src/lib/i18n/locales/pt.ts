@@ -208,6 +208,7 @@ const pt: LocaleDictionary = {
     'layer3d.vfx.strength': 'Força do desfoque',
     'layer3d.vfx.fieldOfDepth': 'Profundidade de campo',
     'layer3d.vfx.focalOffset': 'Deslocamento focal',
+    'layer3d.relight.fallbackDepth': 'Modelo de profundidade indisponível — usando estimativa por brilho. Iluminação menos precisa.',
     'layer3d.rewarp.adjust': 'Ajustar cantos…',
     'layer3d.rewarp.feather': 'Suavização',
     'layer3d.rewarp.edgeHardness': 'Dureza da borda',

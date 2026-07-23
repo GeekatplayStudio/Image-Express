@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import * as fabric from 'fabric';
-import { Box } from 'lucide-react';
+import { Box, Boxes, Scan, Sun } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { ExtendedFabricObject, ThreeDLayerSettings } from '@/types';
 import UnwarpEditorModal, { type UnwarpEditorResult } from '@/components/UnwarpEditorModal';
@@ -16,8 +16,9 @@ import { cornersToPx, rewarpQuad, unwarpQuad } from '@/lib/threeDLayer/warpRende
 import { estimateDepth, luminancePseudoDepth } from '@/lib/threeDLayer/depth';
 import { normalsFromDepth } from '@/lib/threeDLayer/normals';
 import { loadGlobalLight } from '@/lib/threeDLayer/globalLight';
-import { bakeRelight, ThreeDRelightControls } from './ThreeDRelightControls';
-import { bakeObject, ThreeDObjectControls } from './ThreeDObjectControls';
+import { ThreeDRelightControls } from './ThreeDRelightControls';
+import { ThreeDObjectControls } from './ThreeDObjectControls';
+import { bakeObject, bakeRelight } from '@/lib/threeDLayer/bake';
 
 interface ThreeDLayerPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -60,6 +61,10 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
     const ext = selectedObject;
     const settings = ext?.is3DLayer ? ext.threeDLayerSettings : undefined;
     const isImageLayer = !!ext && ext.type === 'image' && !ext.isAdjustmentLayer && !ext.is3DLayer;
+    // Unwarp starts from plain image layers; relight also works on unwarp
+    // layers (light the flattened surface, as the reference tools do).
+    const canUnwarp = isImageLayer;
+    const canRelight = isImageLayer || settings?.mode === 'unwarp';
     if (!ext || (!isImageLayer && !settings)) return null;
 
     const handleCreateObject = async () => {
@@ -169,12 +174,15 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
         try {
             const sourceImg = await loadImage(src);
             let depth: HTMLCanvasElement;
+            let depthSource: 'model' | 'fallback' = 'model';
             try {
                 depth = await estimateDepth(src);
-            } catch {
+            } catch (err) {
                 // Model unavailable (offline / unsupported) — degrade to the
-                // luminance pseudo-depth so the tool still works.
+                // luminance pseudo-depth so the tool still works, but say so.
+                console.warn('3D layer: depth model failed, using luminance fallback', err);
                 depth = luminancePseudoDepth(sourceImg);
+                depthSource = 'fallback';
             }
             setDepthProgress(t('layer3d.relight.generatingNormals'));
             const normals = normalsFromDepth(depth);
@@ -186,6 +194,7 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
                 depthRef: depth.toDataURL('image/png'),
                 normalRef: normals.toDataURL('image/png'),
                 depthSpace: 'disparity',
+                depthSource,
                 useGlobalLight: true,
                 lights: [],
                 ambient: { color: '#ffffff', intensity: 0.35 },
@@ -266,37 +275,35 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
 
     const rewarp = { ...DEFAULT_REWARP, ...settings?.rewarp };
 
+    // Compact tool row: one icon per 3D tool instead of stacked buttons —
+    // most layers never use these, so they should take a single line.
+    const toolButton = (title: string, onClick: () => void, icon: React.ReactNode, testId: string) => (
+        <button
+            onClick={onClick}
+            disabled={busy}
+            title={title}
+            aria-label={title}
+            data-testid={testId}
+            className="p-1.5 rounded-md border border-border/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40"
+        >
+            {icon}
+        </button>
+    );
+
     return (
         <div className="p-3 border-b border-border space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 <Box size={13} />
                 {t('layer3d.section')}
+                <div className="flex-1" />
+                <div className="flex items-center gap-1">
+                    {canUnwarp && toolButton(t('layer3d.unwarp.open'), openEditor, <Scan size={13} />, 'layer3d-tool-unwarp')}
+                    {canRelight && toolButton(t('layer3d.relight.open'), () => { void handleCreateRelight(); }, <Sun size={13} />, 'layer3d-tool-relight')}
+                    {isImageLayer && toolButton(t('layer3d.object.open'), () => { void handleCreateObject(); }, <Boxes size={13} />, 'layer3d-tool-object')}
+                </div>
             </div>
-
-            {isImageLayer && (
-                <>
-                    <button
-                        onClick={openEditor}
-                        disabled={busy}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
-                    >
-                        {t('layer3d.unwarp.open')}
-                    </button>
-                    <button
-                        onClick={() => { void handleCreateRelight(); }}
-                        disabled={busy}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
-                    >
-                        {depthProgress ?? t('layer3d.relight.open')}
-                    </button>
-                    <button
-                        onClick={() => { void handleCreateObject(); }}
-                        disabled={busy}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
-                    >
-                        {t('layer3d.object.open')}
-                    </button>
-                </>
+            {depthProgress && (
+                <p className="text-[10px] text-muted-foreground">{depthProgress}</p>
             )}
 
             {settings?.mode === 'object' && (

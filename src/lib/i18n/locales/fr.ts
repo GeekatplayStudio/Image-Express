@@ -208,6 +208,7 @@ const fr: LocaleDictionary = {
     'layer3d.vfx.strength': 'Force du flou',
     'layer3d.vfx.fieldOfDepth': 'Profondeur de champ',
     'layer3d.vfx.focalOffset': 'Décalage focal',
+    'layer3d.relight.fallbackDepth': 'Modèle de profondeur indisponible — estimation par luminosité utilisée. Éclairage moins précis.',
     'layer3d.rewarp.adjust': 'Ajuster les coins…',
     'layer3d.rewarp.feather': 'Contour progressif',
     'layer3d.rewarp.edgeHardness': 'Dureté du bord',

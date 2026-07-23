@@ -2815,6 +2815,7 @@ const en: LocaleDictionary = {
     'layer3d.vfx.strength': 'Blur Strength',
     'layer3d.vfx.fieldOfDepth': 'Depth of Field',
     'layer3d.vfx.focalOffset': 'Focal Offset',
+    'layer3d.relight.fallbackDepth': 'Depth model unavailable — using a brightness-based estimate. Lighting accuracy is reduced.',
     'layer3d.rewarp.adjust': 'Adjust Corners…',
     'layer3d.rewarp.feather': 'Feather',
     'layer3d.rewarp.edgeHardness': 'Edge Hardness',

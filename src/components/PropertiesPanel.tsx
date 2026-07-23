@@ -409,9 +409,10 @@ export default function PropertiesPanel({
             {content}
             {isClient && !isRailDetached && dockedRailAnchor && createPortal(
                 <div
-                    // Same stacking tier as the docked panel chrome: above the
-                    // canvas but BELOW every popup/window (those start at z-100).
-                    className="fixed z-[60]"
+                    // Above the canvas and every quick bar / corner pill, but
+                    // BELOW popups/windows (those start at z-100) — the rail
+                    // must never be buried when the panel is narrow.
+                    className="fixed z-[80]"
                     style={{ left: dockedRailAnchor.left, top: dockedRailAnchor.top }}
                 >
                     <div className="mb-1 flex w-10 flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm">

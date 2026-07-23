@@ -208,6 +208,7 @@ const it: LocaleDictionary = {
     'layer3d.vfx.strength': 'Intensità sfocatura',
     'layer3d.vfx.fieldOfDepth': 'Profondità di campo',
     'layer3d.vfx.focalOffset': 'Offset focale',
+    'layer3d.relight.fallbackDepth': 'Modello di profondità non disponibile — stima basata sulla luminosità. Illuminazione meno precisa.',
     'layer3d.rewarp.adjust': 'Regola angoli…',
     'layer3d.rewarp.feather': 'Sfumatura',
     'layer3d.rewarp.edgeHardness': 'Durezza bordo',

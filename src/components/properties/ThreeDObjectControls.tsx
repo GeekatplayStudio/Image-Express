@@ -5,26 +5,13 @@ import * as fabric from 'fabric';
 import { Upload } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { ExtendedFabricObject, ThreeDLayerSettings } from '@/types';
-import { bakeObjectLayer } from '@/lib/threeDLayer/objectBake';
-import { loadGlobalLight, subscribeGlobalLight, type GlobalLightState } from '@/lib/threeDLayer/globalLight';
+import { loadGlobalLight, subscribeGlobalLight } from '@/lib/threeDLayer/globalLight';
+import { bakeObject, rebakeGlobalLightLayers } from '@/lib/threeDLayer/bake';
 
 interface ThreeDObjectControlsProps {
     canvas: fabric.Canvas | null;
     layer: ExtendedFabricObject;
     settings: ThreeDLayerSettings;
-}
-
-export const OBJECT_BAKE_SIZE = { width: 1024, height: 1024 };
-
-export async function bakeObject(layer: ExtendedFabricObject, settings: ThreeDLayerSettings, sun: GlobalLightState) {
-    if (!settings.modelUrl) return;
-    const result = await bakeObjectLayer(
-        { modelUrl: settings.modelUrl, ...settings.object },
-        sun,
-        OBJECT_BAKE_SIZE,
-    );
-    (layer as unknown as fabric.Image).setElement(result as unknown as HTMLImageElement);
-    layer.set('dirty', true);
 }
 
 function Slider({ label, value, display, min, max, step, onChange }: {
@@ -72,14 +59,9 @@ export function ThreeDObjectControls({ canvas, layer, settings: settingsProp }: 
         scheduleBake(next);
     }, [layer, scheduleBake]);
 
-    // Object layers always follow the global sun; re-bake all of them on change.
+    // Global sun changes re-bake every sun-following 3D layer on the canvas.
     useEffect(() => subscribeGlobalLight((state) => {
-        if (!canvas) return;
-        (canvas.getObjects() as ExtendedFabricObject[])
-            .filter((o) => o.is3DLayer && o.threeDLayerSettings?.mode === 'object')
-            .forEach((o) => {
-                void bakeObject(o, o.threeDLayerSettings!, state).then(() => canvas.requestRenderAll());
-            });
+        if (canvas) rebakeGlobalLightLayers(canvas, state);
     }), [canvas]);
 
     useEffect(() => () => {

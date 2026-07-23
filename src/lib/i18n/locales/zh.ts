@@ -200,6 +200,7 @@ const zh: LocaleDictionary = {
     'layer3d.vfx.strength': '模糊强度',
     'layer3d.vfx.fieldOfDepth': '景深',
     'layer3d.vfx.focalOffset': '焦点偏移',
+    'layer3d.relight.fallbackDepth': '深度模型不可用 — 使用基于亮度的估计。光照精度会降低。',
     'layer3d.rewarp.adjust': '调整角点…',
     'layer3d.rewarp.feather': '羽化',
     'layer3d.rewarp.edgeHardness': '边缘硬度',

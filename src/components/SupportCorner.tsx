@@ -23,7 +23,7 @@ export default function SupportCorner() {
             onMouseLeave={() => setExpanded(false)}
             onFocus={() => setExpanded(true)}
             onBlur={() => setExpanded(false)}
-            className="fixed bottom-3 right-3 z-[9997] flex items-center gap-2 rounded-full border border-border bg-card/90 text-muted-foreground shadow-lg backdrop-blur-sm transition-all duration-300 hover:text-foreground hover:border-primary/60 overflow-hidden"
+            className="fixed bottom-3 right-3 z-[55] flex items-center gap-2 rounded-full border border-border bg-card/90 text-muted-foreground shadow-lg backdrop-blur-sm transition-all duration-300 hover:text-foreground hover:border-primary/60 overflow-hidden"
             style={{ padding: '0.45rem', maxWidth: expanded ? '15rem' : '2.1rem' }}
         >
             <Heart size={16} className="shrink-0 text-rose-400" fill="currentColor" />
