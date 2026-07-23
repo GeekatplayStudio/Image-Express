@@ -1,6 +1,12 @@
 import net from 'net';
 import fs from 'fs';
 import { spawn, spawnSync, exec } from 'child_process';
+import {
+    assertNoConflictingServer,
+    clearServerLock,
+    hasCompleteProductionBuild,
+    writeServerLock,
+} from './server-lock.mjs';
 
 function checkPort(port) {
     return new Promise((resolve) => {
@@ -17,7 +23,12 @@ function checkPort(port) {
                 resolve(true); // Port is free
             });
         });
-        server.listen(port, '127.0.0.1');
+        // Bind ALL interfaces (no host argument), matching how `next start`
+        // binds. Probing 127.0.0.1 specifically gives false "free" results on
+        // Windows, where binding a specific address can succeed even while
+        // another process holds 0.0.0.0/:: on the same port — which then blows
+        // up as EADDRINUSE once Next actually starts.
+        server.listen(port);
     });
 }
 
@@ -35,8 +46,23 @@ async function findAvailablePort(startPort) {
 async function main() {
     const mode = process.argv[2] === 'prod' ? 'prod' : 'dev';
     
-    // Auto-build in production mode if build files are missing
-    if (mode === 'prod' && !fs.existsSync('.next')) {
+    // A dev server continuously owns and rewrites .next. Starting a second
+    // server against the same folder corrupts the build, so refuse up front
+    // with an explanation rather than failing later in a confusing way.
+    assertNoConflictingServer(mode);
+    writeServerLock(mode);
+    for (const signal of ['exit', 'SIGINT', 'SIGTERM']) {
+        process.on(signal, () => {
+            clearServerLock();
+            if (signal !== 'exit') process.exit(0);
+        });
+    }
+
+    // Auto-build in production mode if the build is missing OR incomplete.
+    // Checking just for the .next directory (or even BUILD_ID) is not enough —
+    // a half-cleared or dev-clobbered .next leaves the folder in place while
+    // the server manifests `next start` needs are gone.
+    if (mode === 'prod' && !hasCompleteProductionBuild()) {
         console.log('[INFO] No production build found in .next directory. Building the application first...');
         const buildCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
         const buildResult = spawnSync(buildCmd, ['run', 'build'], {
@@ -50,11 +76,31 @@ async function main() {
         console.log('[INFO] Build complete. Continuing to start server...');
     }
 
+    // The build reported success — but confirm the artifacts are actually
+    // there before handing off. If something deleted them in the meantime
+    // (almost always a `next dev` server running against the same folder),
+    // say so plainly instead of letting `next start` die on a missing
+    // manifest with an opaque MODULE_NOT_FOUND stack.
+    if (mode === 'prod' && !hasCompleteProductionBuild()) {
+        console.error('');
+        console.error('[ERROR] The production build is incomplete — .next is missing files that');
+        console.error('        the server needs, even though the build reported success.');
+        console.error('');
+        console.error('  This almost always means something modified .next during the build.');
+        console.error('  The usual cause is a `next dev` server running against this same');
+        console.error('  folder: dev owns .next and will overwrite a production build.');
+        console.error('');
+        console.error('  Close any other running dev server or terminal for this project,');
+        console.error('  then run this again.');
+        console.error('');
+        process.exit(1);
+    }
+
     // Honor an explicit `-p <port>` argument (e.g. `npm run dev -- -p 3457`);
-    // otherwise pick the first free port from 3000 upward.
+    // otherwise pick the first free port from 3042 upward.
     const portFlagIndex = process.argv.indexOf('-p');
     const requestedPort = portFlagIndex >= 0 ? Number.parseInt(process.argv[portFlagIndex + 1], 10) : NaN;
-    const startPort = Number.isFinite(requestedPort) ? requestedPort : 3000;
+    const startPort = Number.isFinite(requestedPort) ? requestedPort : 3042;
     const port = Number.isFinite(requestedPort) ? requestedPort : await findAvailablePort(startPort);
 
     console.log(`[INFO] Target port: ${port} (Selected starting from ${startPort})`);

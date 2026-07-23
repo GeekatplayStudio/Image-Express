@@ -3,6 +3,7 @@ import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { ensureDependencies } from './ensure-deps.mjs';
+import { assertNoConflictingServer } from './server-lock.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -78,6 +79,11 @@ function checkForUpdates() {
 
 function main() {
     banner();
+
+    // Bail out before touching .next: if a dev server is live it owns that
+    // folder, and clearing it would break the running server AND produce a
+    // corrupt build here.
+    assertNoConflictingServer('prod');
 
     const updated = checkForUpdates();
     ensureDependencies(updated);
