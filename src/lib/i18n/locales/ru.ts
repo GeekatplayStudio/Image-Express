@@ -2541,6 +2541,27 @@ const ru: LocaleDictionary = {
     'tmpl.deleteFailedDesc': 'Не удалось удалить шаблон.',
     'tmpl.deleteErrorDesc': 'Во время удаления что-то пошло не так.',
 
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': '3D-слой',
+    'layer3d.layerName': '3D-слой (Выпрямление)',
+    'layer3d.rewarpLayerName': 'Репроекция',
+    'layer3d.working': 'Обработка…',
+    'layer3d.unwarp.open': 'Выпрямить перспективу…',
+    'layer3d.unwarp.title': 'Выпрямление перспективы',
+    'layer3d.unwarp.hint': 'Перетаскивайте углы и края • Колесо — масштаб • Перетащите фон для сдвига • Esc — отмена',
+    'layer3d.unwarp.grid': 'Сетка',
+    'layer3d.unwarp.aspect': 'Пропорции',
+    'layer3d.unwarp.aspectAuto': 'Авто',
+    'layer3d.unwarp.aspectMetric': 'Метрические (фокус)',
+    'layer3d.unwarp.focal': 'Фокус (35мм)',
+    'layer3d.unwarp.apply': 'Выпрямить',
+    'layer3d.unwarp.invalidQuad': 'Углы пересекаются или область слишком мала — поправьте четырёхугольник',
+    'layer3d.rewarp.adjust': 'Настроить углы…',
+    'layer3d.rewarp.feather': 'Растушёвка',
+    'layer3d.rewarp.edgeHardness': 'Жёсткость края',
+    'layer3d.rewarp.matchColors': 'Подогнать цвета под сцену',
+    'layer3d.rewarp.apply': 'Спроецировать обратно',
 };
 
 export default ru;

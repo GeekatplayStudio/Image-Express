@@ -507,6 +507,27 @@ const es: LocaleDictionary = {
     // Imported via i18n-import-translated.mjs from test_translated.json on 2026-07-23
     'gen3d.title': 'Generador de IA 3D',
     'stack.deletePageQuestion': '¿Eliminar página "{name}"? Contiene arte que se perderá.',
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': 'Capa 3D',
+    'layer3d.layerName': 'Capa 3D (Enderezar)',
+    'layer3d.rewarpLayerName': 'Reproyectado',
+    'layer3d.working': 'Procesando…',
+    'layer3d.unwarp.open': 'Enderezar perspectiva…',
+    'layer3d.unwarp.title': 'Enderezado de perspectiva',
+    'layer3d.unwarp.hint': 'Arrastra esquinas o bordes • Rueda para zoom • Arrastra el fondo para desplazar • Esc para cancelar',
+    'layer3d.unwarp.grid': 'Cuadrícula',
+    'layer3d.unwarp.aspect': 'Proporción',
+    'layer3d.unwarp.aspectAuto': 'Auto',
+    'layer3d.unwarp.aspectMetric': 'Métrica (focal)',
+    'layer3d.unwarp.focal': 'Focal (35mm)',
+    'layer3d.unwarp.apply': 'Enderezar',
+    'layer3d.unwarp.invalidQuad': 'Las esquinas se cruzan o el área es demasiado pequeña — ajusta el cuadrilátero',
+    'layer3d.rewarp.adjust': 'Ajustar esquinas…',
+    'layer3d.rewarp.feather': 'Difuminado',
+    'layer3d.rewarp.edgeHardness': 'Dureza del borde',
+    'layer3d.rewarp.matchColors': 'Igualar colores a la escena',
+    'layer3d.rewarp.apply': 'Reproyectar al origen',
 };
 
 export default es;

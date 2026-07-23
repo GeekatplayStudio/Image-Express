@@ -149,6 +149,27 @@ const zh: LocaleDictionary = {
     'stack.shareWithProjectsHint': '选择哪些其他相册也应链接到此图层。已链接的副本将保持同步。',
     'stack.shareWithProjectsNone': '您还没有其他相册。',
     'stack.layerSharedWithProjects': '图层已与选定的相册共享',
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': '3D 图层',
+    'layer3d.layerName': '3D 图层（透视校正）',
+    'layer3d.rewarpLayerName': '重新投影',
+    'layer3d.working': '处理中…',
+    'layer3d.unwarp.open': '透视校正…',
+    'layer3d.unwarp.title': '透视校正',
+    'layer3d.unwarp.hint': '拖动角点或边 • 滚轮缩放 • 拖动背景平移 • Esc 取消',
+    'layer3d.unwarp.grid': '网格',
+    'layer3d.unwarp.aspect': '长宽比',
+    'layer3d.unwarp.aspectAuto': '自动',
+    'layer3d.unwarp.aspectMetric': '实测（焦距）',
+    'layer3d.unwarp.focal': '焦距 (35mm)',
+    'layer3d.unwarp.apply': '校正',
+    'layer3d.unwarp.invalidQuad': '角点交叉或区域太小 — 请调整四边形',
+    'layer3d.rewarp.adjust': '调整角点…',
+    'layer3d.rewarp.feather': '羽化',
+    'layer3d.rewarp.edgeHardness': '边缘硬度',
+    'layer3d.rewarp.matchColors': '匹配场景颜色',
+    'layer3d.rewarp.apply': '重新投影回原图',
 };
 
 export default zh;

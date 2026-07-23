@@ -157,6 +157,27 @@ const de: LocaleDictionary = {
     'dashboard.canvasCount.other': '{count} Seiten',
     'dashboard.showAll.one': '{count} weitere Seite',
     'dashboard.showAll.other': '{count} weitere Seiten',
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': '3D-Ebene',
+    'layer3d.layerName': '3D-Ebene (Entzerren)',
+    'layer3d.rewarpLayerName': 'Rückprojiziert',
+    'layer3d.working': 'Wird verarbeitet…',
+    'layer3d.unwarp.open': 'Perspektivisch entzerren…',
+    'layer3d.unwarp.title': 'Perspektivische Entzerrung',
+    'layer3d.unwarp.hint': 'Ecken oder Kanten ziehen • Scrollen zum Zoomen • Hintergrund ziehen zum Verschieben • Esc zum Abbrechen',
+    'layer3d.unwarp.grid': 'Raster',
+    'layer3d.unwarp.aspect': 'Seitenverhältnis',
+    'layer3d.unwarp.aspectAuto': 'Auto',
+    'layer3d.unwarp.aspectMetric': 'Metrisch (Brennweite)',
+    'layer3d.unwarp.focal': 'Brennweite (35mm)',
+    'layer3d.unwarp.apply': 'Entzerren',
+    'layer3d.unwarp.invalidQuad': 'Ecken überschneiden sich oder die Fläche ist zu klein — Viereck anpassen',
+    'layer3d.rewarp.adjust': 'Ecken anpassen…',
+    'layer3d.rewarp.feather': 'Weiche Kante',
+    'layer3d.rewarp.edgeHardness': 'Kantenhärte',
+    'layer3d.rewarp.matchColors': 'Farben an Szene angleichen',
+    'layer3d.rewarp.apply': 'In Quelle rückprojizieren',
 };
 
 export default de;

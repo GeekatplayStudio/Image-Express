@@ -1,0 +1,262 @@
+'use client';
+
+import { useState } from 'react';
+import * as fabric from 'fabric';
+import { Box } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
+import type { ExtendedFabricObject, ThreeDLayerSettings } from '@/types';
+import UnwarpEditorModal, { type UnwarpEditorResult } from '@/components/UnwarpEditorModal';
+import {
+    autoAspect,
+    flatSizeForQuad,
+    metricAspect,
+    type Vec2,
+} from '@/lib/threeDLayer/homography';
+import { cornersToPx, rewarpQuad, unwarpQuad } from '@/lib/threeDLayer/warpRender';
+
+interface ThreeDLayerPropertiesProps {
+    canvas: fabric.Canvas | null;
+    selectedObject: ExtendedFabricObject | null;
+}
+
+const DEFAULT_REWARP = { feather: 6, edgeHardness: 0.15, matchColors: false, seamless: false };
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
+/** Source pixels of an image layer at natural resolution. */
+function layerSourceUrl(obj: ExtendedFabricObject): string | null {
+    if (obj.type === 'image') {
+        const img = obj as unknown as fabric.Image;
+        const el = img.getElement() as HTMLImageElement | HTMLCanvasElement | undefined;
+        if (el instanceof HTMLImageElement) return el.currentSrc || el.src;
+        if (el instanceof HTMLCanvasElement) return el.toDataURL('image/png');
+    }
+    try {
+        return obj.toDataURL({ format: 'png', multiplier: 1 });
+    } catch {
+        return null;
+    }
+}
+
+export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPropertiesProps) {
+    const { t } = useI18n();
+    const [editorSrc, setEditorSrc] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+
+    const ext = selectedObject;
+    const settings = ext?.is3DLayer ? ext.threeDLayerSettings : undefined;
+    const isImageLayer = !!ext && ext.type === 'image' && !ext.isAdjustmentLayer && !ext.is3DLayer;
+    if (!ext || (!isImageLayer && !settings)) return null;
+
+    const openEditor = () => {
+        const src = settings?.sourceRef ?? layerSourceUrl(ext);
+        if (src) setEditorSrc(src);
+    };
+
+    const handleApplyUnwarp = async (result: UnwarpEditorResult) => {
+        const src = editorSrc;
+        setEditorSrc(null);
+        if (!canvas || !src) return;
+        setBusy(true);
+        try {
+            const image = await loadImage(src);
+            const size = { width: image.naturalWidth, height: image.naturalHeight };
+            const quadPx = cornersToPx(result.corners, size);
+            const aspect = (result.aspectMode === 'metric' && metricAspect(quadPx, size, result.focal35))
+                || autoAspect(quadPx);
+            const flatSize = flatSizeForQuad(quadPx, aspect);
+            const flat = unwarpQuad(image, quadPx, flatSize);
+
+            if (settings && ext.is3DLayer) {
+                // Re-adjusting an existing 3D layer: swap its pixels and settings.
+                const img = ext as unknown as fabric.Image;
+                const el = await loadImage(flat.toDataURL('image/png'));
+                img.setElement(el);
+                ext.threeDLayerSettings = {
+                    ...settings,
+                    corners: result.corners,
+                    aspectMode: result.aspectMode,
+                    focal35: result.focal35,
+                    gridDivisions: result.gridDivisions,
+                    flatSize,
+                };
+                ext.set('dirty', true);
+                canvas.requestRenderAll();
+                canvas.fire('object:modified', { target: ext } as never);
+                return;
+            }
+
+            const flatImg = await fabric.FabricImage.fromURL(flat.toDataURL('image/png'));
+            const layerSettings: ThreeDLayerSettings = {
+                mode: 'unwarp',
+                sourceRef: src,
+                corners: result.corners,
+                aspectMode: result.aspectMode,
+                focal35: result.focal35,
+                gridDivisions: result.gridDivisions,
+                flatSize,
+                rewarp: { ...DEFAULT_REWARP },
+            };
+            const flatExt = flatImg as unknown as ExtendedFabricObject;
+            flatExt.is3DLayer = true;
+            flatExt.threeDLayerSettings = layerSettings;
+            flatExt.name = t('layer3d.layerName');
+            // Track the source layer so rewarp can land back on it.
+            (layerSettings as ThreeDLayerSettings & { sourceLayerId?: string }).sourceLayerId = ext.id;
+
+            const maxW = (canvas.width || 800) * 0.6;
+            if (flatImg.width! > maxW) flatImg.scaleToWidth(maxW);
+            flatImg.set({ left: (ext.left ?? 0) + 24, top: (ext.top ?? 0) + 24 });
+            canvas.add(flatImg);
+            canvas.setActiveObject(flatImg);
+            canvas.requestRenderAll();
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const updateRewarp = (patch: Partial<NonNullable<ThreeDLayerSettings['rewarp']>>) => {
+        if (!settings) return;
+        ext.threeDLayerSettings = {
+            ...settings,
+            rewarp: { ...DEFAULT_REWARP, ...settings.rewarp, ...patch },
+        };
+        canvas?.fire('object:modified', { target: ext } as never);
+    };
+
+    const handleRewarp = async () => {
+        if (!canvas || !settings?.sourceRef || !settings.corners || !settings.flatSize) return;
+        setBusy(true);
+        try {
+            const original = await loadImage(settings.sourceRef);
+            const size = { width: original.naturalWidth, height: original.naturalHeight };
+            const quadPx = cornersToPx(settings.corners, size);
+            // Render the flat layer at its native pixel size, including any
+            // filters/adjustments the user applied to it on the canvas.
+            const mult = 1 / Math.max(ext.scaleX ?? 1, 1e-6);
+            const editedUrl = ext.toDataURL({ format: 'png', multiplier: mult });
+            const edited = await loadImage(editedUrl);
+            const { element } = rewarpQuad(original, edited, quadPx, settings.flatSize, {
+                ...DEFAULT_REWARP,
+                ...settings.rewarp,
+            });
+
+            const resultImg = await fabric.FabricImage.fromURL(element.toDataURL('image/png'));
+            const sourceLayerId = (settings as ThreeDLayerSettings & { sourceLayerId?: string }).sourceLayerId;
+            const sourceLayer = sourceLayerId
+                ? (canvas.getObjects() as ExtendedFabricObject[]).find((o) => o.id === sourceLayerId)
+                : undefined;
+            if (sourceLayer) {
+                resultImg.set({
+                    left: sourceLayer.left,
+                    top: sourceLayer.top,
+                    scaleX: sourceLayer.scaleX,
+                    scaleY: sourceLayer.scaleY,
+                    angle: sourceLayer.angle,
+                    originX: sourceLayer.originX,
+                    originY: sourceLayer.originY,
+                    flipX: sourceLayer.flipX,
+                    flipY: sourceLayer.flipY,
+                });
+            } else {
+                canvas.centerObject(resultImg);
+            }
+            (resultImg as unknown as ExtendedFabricObject).name = t('layer3d.rewarpLayerName');
+            canvas.add(resultImg);
+            canvas.setActiveObject(resultImg);
+            canvas.requestRenderAll();
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const rewarp = { ...DEFAULT_REWARP, ...settings?.rewarp };
+
+    return (
+        <div className="p-3 border-b border-border space-y-2.5">
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <Box size={13} />
+                {t('layer3d.section')}
+            </div>
+
+            {isImageLayer && (
+                <button
+                    onClick={openEditor}
+                    disabled={busy}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
+                >
+                    {t('layer3d.unwarp.open')}
+                </button>
+            )}
+
+            {settings && (
+                <div className="space-y-2.5">
+                    <button
+                        onClick={openEditor}
+                        disabled={busy}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
+                    >
+                        {t('layer3d.rewarp.adjust')}
+                    </button>
+                    <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>{t('layer3d.rewarp.feather')}</span>
+                            <span>{rewarp.feather}px</span>
+                        </div>
+                        <input
+                            type="range" min={0} max={64} value={rewarp.feather}
+                            onChange={(e) => updateRewarp({ feather: parseInt(e.target.value) })}
+                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>{t('layer3d.rewarp.edgeHardness')}</span>
+                            <span>{Math.round(rewarp.edgeHardness * 100)}%</span>
+                        </div>
+                        <input
+                            type="range" min={0} max={100} value={Math.round(rewarp.edgeHardness * 100)}
+                            onChange={(e) => updateRewarp({ edgeHardness: parseInt(e.target.value) / 100 })}
+                            className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer"
+                        />
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={rewarp.matchColors}
+                            onChange={(e) => updateRewarp({ matchColors: e.target.checked })}
+                        />
+                        {t('layer3d.rewarp.matchColors')}
+                    </label>
+                    <button
+                        onClick={handleRewarp}
+                        disabled={busy}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+                    >
+                        {busy ? t('layer3d.working') : t('layer3d.rewarp.apply')}
+                    </button>
+                </div>
+            )}
+
+            {editorSrc && (
+                <UnwarpEditorModal
+                    imageSrc={editorSrc}
+                    initialCorners={settings?.corners as Vec2[] | undefined}
+                    initialAspectMode={settings?.aspectMode}
+                    initialFocal35={settings?.focal35}
+                    initialGridDivisions={settings?.gridDivisions}
+                    onCancel={() => setEditorSrc(null)}
+                    onApply={(r) => { void handleApplyUnwarp(r); }}
+                />
+            )}
+        </div>
+    );
+}

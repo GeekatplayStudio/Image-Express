@@ -12,6 +12,7 @@ import { ImageFilterProperties, ImageFilterValues } from './ImageFilterPropertie
 import { ShadowStrokeProperties, ShadowStrokeValues } from './ShadowStrokeProperties';
 import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
+import { ThreeDLayerProperties } from './ThreeDLayerProperties';
 import { readMaskGradientSettings } from './maskGradientUtils';
 import { Folder, Layers, Blend, ChevronDown, ChevronRight, Lock, Unlock, Box, Type, CornerLeftDown, Pencil, Check } from 'lucide-react';
 import { ColorPicker } from './ColorPicker';
@@ -31,6 +32,7 @@ const ADJUSTMENT_ACTION_ITEMS: Array<{ type: AdjustmentLayerType; enabled: boole
 ];
 
 interface SelectionPropertiesProps {
+    canvas?: fabric.Canvas | null;
     selectedObject: fabric.Object | null;
     selectedObjects: fabric.Object[]; // For multiple selection
     isGradient: boolean; // Just pass these down
@@ -89,6 +91,7 @@ interface SelectionPropertiesProps {
 }
 
 export function SelectionProperties({
+    canvas,
     selectedObject,
     selectedObjects,
     isGradient,
@@ -603,6 +606,14 @@ export function SelectionProperties({
                  </div>
             )}
             
+            {/* 3D layer: perspective unwarp/rewarp and related controls. */}
+            {!isAdjustment && (
+                <ThreeDLayerProperties
+                    canvas={canvas ?? null}
+                    selectedObject={selectedObject as ExtendedFabricObject | null}
+                />
+            )}
+
             {/* Image adjustments are the primary controls for image layers. */}
             {isImage && !isAdjustment && (
                 <ImageFilterProperties

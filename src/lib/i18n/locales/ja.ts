@@ -149,6 +149,27 @@ const ja: LocaleDictionary = {
     'stack.shareWithProjectsHint': 'このレイヤーにリンクする他のアルバムを選択してください。リンクされたコピーは同期されたままです。',
     'stack.shareWithProjectsNone': '他のアルバムはまだありません。',
     'stack.layerSharedWithProjects': '選択したアルバムとレイヤーを共有しました',
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': '3Dレイヤー',
+    'layer3d.layerName': '3Dレイヤー（歪み補正）',
+    'layer3d.rewarpLayerName': '再投影',
+    'layer3d.working': '処理中…',
+    'layer3d.unwarp.open': 'パース補正…',
+    'layer3d.unwarp.title': 'パース補正',
+    'layer3d.unwarp.hint': '角や辺をドラッグ • スクロールでズーム • 背景をドラッグで移動 • Escでキャンセル',
+    'layer3d.unwarp.grid': 'グリッド',
+    'layer3d.unwarp.aspect': '縦横比',
+    'layer3d.unwarp.aspectAuto': '自動',
+    'layer3d.unwarp.aspectMetric': '実寸（焦点距離）',
+    'layer3d.unwarp.focal': '焦点距離 (35mm)',
+    'layer3d.unwarp.apply': '補正',
+    'layer3d.unwarp.invalidQuad': '角が交差しているか領域が小さすぎます — 四角形を調整してください',
+    'layer3d.rewarp.adjust': 'コーナーを調整…',
+    'layer3d.rewarp.feather': 'ぼかし',
+    'layer3d.rewarp.edgeHardness': 'エッジの硬さ',
+    'layer3d.rewarp.matchColors': 'シーンに色を合わせる',
+    'layer3d.rewarp.apply': '元画像へ再投影',
 };
 
 export default ja;

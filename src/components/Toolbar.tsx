@@ -74,6 +74,7 @@ import AICritiqueModal from './AICritiqueModal';
 import { ColorWheelTool } from './ColorWheelTool';
 import { useToast } from '@/providers/ToastProvider';
 import { loadProfileSettings } from '@/lib/profile-utils';
+import { CUSTOM_SERIALIZED_PROPS } from '@/components/Editor/editorViewConfig';
 import { TOP_TEXT_FONT_FAMILIES } from '@/lib/typography';
 import { ensureDisplayableImage } from '@/lib/imageFormats/universalImageDecoder';
 import { buildImageAcceptAttribute, getImageFormatEntry } from '@/lib/imageFormats/supportedFormats';
@@ -2144,7 +2145,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
         try {
             // Include custom properties in serialization
-            const json = canvas.toObject(['id', 'gradient', 'pattern', 'is3DModel', 'modelUrl', 'isStar', 'starPoints', 'starInnerRadius', 'mediaType', 'mediaSource', 'layerTagColor', 'isAdjustmentLayer', 'adjustmentType', 'adjustmentSettings', 'baseFilters', 'channelSettings', 'isPenPath', 'penMode', 'penClosed', 'penNodes', 'penSourcePoints', 'textPathSourceId']);
+            const json = canvas.toObject(CUSTOM_SERIALIZED_PROPS);
             const artboardSize = getArtboardSize(canvas);
             if (artboardSize) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any

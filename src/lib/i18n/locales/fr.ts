@@ -157,6 +157,27 @@ const fr: LocaleDictionary = {
     'dashboard.canvasCount.other': '{count} pages',
     'dashboard.showAll.one': '{count} page de plus',
     'dashboard.showAll.other': '{count} pages de plus',
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': 'Calque 3D',
+    'layer3d.layerName': 'Calque 3D (Redressement)',
+    'layer3d.rewarpLayerName': 'Reprojeté',
+    'layer3d.working': 'Traitement…',
+    'layer3d.unwarp.open': 'Redresser la perspective…',
+    'layer3d.unwarp.title': 'Redressement de perspective',
+    'layer3d.unwarp.hint': 'Glissez les coins ou les bords • Molette pour zoomer • Glissez le fond pour déplacer • Échap pour annuler',
+    'layer3d.unwarp.grid': 'Grille',
+    'layer3d.unwarp.aspect': 'Proportions',
+    'layer3d.unwarp.aspectAuto': 'Auto',
+    'layer3d.unwarp.aspectMetric': 'Métrique (focale)',
+    'layer3d.unwarp.focal': 'Focale (35mm)',
+    'layer3d.unwarp.apply': 'Redresser',
+    'layer3d.unwarp.invalidQuad': 'Les coins se croisent ou la zone est trop petite — ajustez le quadrilatère',
+    'layer3d.rewarp.adjust': 'Ajuster les coins…',
+    'layer3d.rewarp.feather': 'Contour progressif',
+    'layer3d.rewarp.edgeHardness': 'Dureté du bord',
+    'layer3d.rewarp.matchColors': 'Adapter les couleurs à la scène',
+    'layer3d.rewarp.apply': 'Reprojeter vers la source',
 };
 
 export default fr;

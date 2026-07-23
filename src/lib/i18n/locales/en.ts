@@ -2765,6 +2765,27 @@ const en: LocaleDictionary = {
     // 3D view editor (ThreeDLayerEditor). Preset and camera-view `name`
     // fields stay English — they are React keys and the active-preset
     // comparison — so each entry carries a labelKey for display.
+    // 3D layer (perspective unwarp/rewarp, relight, live 3D objects).
+    'layer3d.section': '3D Layer',
+    'layer3d.layerName': '3D Layer (Unwarp)',
+    'layer3d.rewarpLayerName': 'Rewarped',
+    'layer3d.working': 'Working…',
+    'layer3d.unwarp.open': 'Perspective Unwarp…',
+    'layer3d.unwarp.title': 'Perspective Unwarp',
+    'layer3d.unwarp.hint': 'Drag corners or edges • Scroll to zoom • Drag background to pan • Esc to cancel',
+    'layer3d.unwarp.grid': 'Grid',
+    'layer3d.unwarp.aspect': 'Aspect',
+    'layer3d.unwarp.aspectAuto': 'Auto',
+    'layer3d.unwarp.aspectMetric': 'Metric (focal)',
+    'layer3d.unwarp.focal': 'Focal (35mm)',
+    'layer3d.unwarp.apply': 'Unwarp',
+    'layer3d.unwarp.invalidQuad': 'Corners cross or the area is too small — adjust the quad',
+    'layer3d.rewarp.adjust': 'Adjust Corners…',
+    'layer3d.rewarp.feather': 'Feather',
+    'layer3d.rewarp.edgeHardness': 'Edge Hardness',
+    'layer3d.rewarp.matchColors': 'Match colors to scene',
+    'layer3d.rewarp.apply': 'Rewarp to Source',
+
     'view3d.title': '3D View Editor',
     'view3d.hint': 'Drag sun to light • Drag to rotate • Scroll to zoom',
     'view3d.lightPresets': 'Light Presets',

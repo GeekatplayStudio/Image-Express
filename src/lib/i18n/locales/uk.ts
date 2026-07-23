@@ -2541,6 +2541,27 @@ const uk: LocaleDictionary = {
     'tmpl.deleteFailedDesc': 'Не вдалося видалити шаблон.',
     'tmpl.deleteErrorDesc': 'Під час видалення щось пішло не так.',
 
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': '3D-шар',
+    'layer3d.layerName': '3D-шар (Випрямлення)',
+    'layer3d.rewarpLayerName': 'Репроєкція',
+    'layer3d.working': 'Обробка…',
+    'layer3d.unwarp.open': 'Випрямити перспективу…',
+    'layer3d.unwarp.title': 'Випрямлення перспективи',
+    'layer3d.unwarp.hint': 'Перетягуйте кути та краї • Коліщатко — масштаб • Перетягніть тло для зсуву • Esc — скасувати',
+    'layer3d.unwarp.grid': 'Сітка',
+    'layer3d.unwarp.aspect': 'Пропорції',
+    'layer3d.unwarp.aspectAuto': 'Авто',
+    'layer3d.unwarp.aspectMetric': 'Метричні (фокус)',
+    'layer3d.unwarp.focal': 'Фокус (35мм)',
+    'layer3d.unwarp.apply': 'Випрямити',
+    'layer3d.unwarp.invalidQuad': 'Кути перетинаються або область замала — поправте чотирикутник',
+    'layer3d.rewarp.adjust': 'Налаштувати кути…',
+    'layer3d.rewarp.feather': 'Розтушовка',
+    'layer3d.rewarp.edgeHardness': 'Жорсткість краю',
+    'layer3d.rewarp.matchColors': 'Узгодити кольори зі сценою',
+    'layer3d.rewarp.apply': 'Спроєктувати назад',
 };
 
 export default uk;

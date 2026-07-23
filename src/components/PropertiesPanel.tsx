@@ -3760,7 +3760,8 @@ export default function PropertiesPanel({
         && !!((selectedObject as unknown as { path?: fabric.Path | null }).path);
 
     return withPanelRail(
-        <SelectionProperties 
+        <SelectionProperties
+             canvas={canvas}
              selectedObject={selectedObject}
              selectedObjects={canvas?.getActiveObjects() || []}
              color={color}

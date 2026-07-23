@@ -3,7 +3,7 @@ import * as fabric from 'fabric';
 import { useI18n } from '@/providers/I18nProvider';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Image as ImageIcon, ArrowLeft, Link2, SlidersHorizontal, MoreHorizontal, CornerLeftDown, CircleChevronDown, Share2 } from 'lucide-react';
+import { GripVertical, Folder, FolderOpen, ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock, Trash2, Blend, Box, Image as ImageIcon, ArrowLeft, Link2, SlidersHorizontal, MoreHorizontal, CornerLeftDown, CircleChevronDown, Share2 } from 'lucide-react';
 import { ExtendedFabricObject, LayerNode } from '@/types';
 
 interface SortableLayerItemProps {
@@ -180,7 +180,8 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
                     {obj.type === 'triangle' && <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-foreground opacity-50" />}
                     {(obj.type === 'text' || obj.type === 'i-text') && <span className="text-xs font-serif font-bold">T</span>}
                     {extendedObj.isAdjustmentLayer && <Blend size={14} />}
-                    {!extendedObj.isAdjustmentLayer && obj.type === 'image' && <ImageIcon size={14} />}
+                    {extendedObj.is3DLayer && <Box size={14} className="text-primary" />}
+                    {!extendedObj.isAdjustmentLayer && !extendedObj.is3DLayer && obj.type === 'image' && <ImageIcon size={14} />}
                     {obj.type === 'group' && (expanded ? <FolderOpen size={14} /> : <Folder size={14} />)}
                     {'isStar' in obj && <div className="text-[8px]">★</div>}
 

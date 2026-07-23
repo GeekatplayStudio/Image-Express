@@ -157,6 +157,27 @@ const pt: LocaleDictionary = {
     'dashboard.canvasCount.other': '{count} páginas',
     'dashboard.showAll.one': 'mais {count} página',
     'dashboard.showAll.other': 'mais {count} páginas',
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': 'Camada 3D',
+    'layer3d.layerName': 'Camada 3D (Endireitar)',
+    'layer3d.rewarpLayerName': 'Reprojetado',
+    'layer3d.working': 'Processando…',
+    'layer3d.unwarp.open': 'Endireitar perspectiva…',
+    'layer3d.unwarp.title': 'Endireitamento de perspectiva',
+    'layer3d.unwarp.hint': 'Arraste cantos ou bordas • Role para dar zoom • Arraste o fundo para mover • Esc para cancelar',
+    'layer3d.unwarp.grid': 'Grade',
+    'layer3d.unwarp.aspect': 'Proporção',
+    'layer3d.unwarp.aspectAuto': 'Auto',
+    'layer3d.unwarp.aspectMetric': 'Métrica (focal)',
+    'layer3d.unwarp.focal': 'Focal (35mm)',
+    'layer3d.unwarp.apply': 'Endireitar',
+    'layer3d.unwarp.invalidQuad': 'Os cantos se cruzam ou a área é muito pequena — ajuste o quadrilátero',
+    'layer3d.rewarp.adjust': 'Ajustar cantos…',
+    'layer3d.rewarp.feather': 'Suavização',
+    'layer3d.rewarp.edgeHardness': 'Dureza da borda',
+    'layer3d.rewarp.matchColors': 'Igualar cores à cena',
+    'layer3d.rewarp.apply': 'Reprojetar na origem',
 };
 
 export default pt;

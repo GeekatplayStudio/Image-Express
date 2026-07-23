@@ -173,6 +173,8 @@ export const CUSTOM_SERIALIZED_PROPS: string[] = [
         'taperBaseLeft',
         'taperBaseTop',
         'threeDSettings',
+        'is3DLayer',
+        'threeDLayerSettings',
         'isAdjustmentLayer',
         'adjustmentType',
         'adjustmentSettings',

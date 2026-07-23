@@ -38,6 +38,58 @@ export type ThreeDSettings = {
     modelScale?: number;
 };
 
+export type ThreeDLayerMode = 'unwarp' | 'relight' | 'object' | 'vfx';
+
+export type ThreeDLayerLight = {
+    id: string;
+    kind: 'point' | 'directional';
+    color: string;
+    intensity: number;
+    /** Point lights live in normalized layer space: x/y in [0,1], z against depth. */
+    x?: number;
+    y?: number;
+    z?: number;
+    /** Windowed-quadratic falloff radius (normalized units); lit region boundary. */
+    radius?: number;
+    softness?: number;
+    azimuth?: number;
+    elevation?: number;
+    shadows?: { enabled: boolean; strength: number; softness: number; range: number };
+};
+
+export type ThreeDLayerRewarpSettings = {
+    feather: number;
+    edgeHardness: number;
+    matchColors: boolean;
+    seamless: boolean;
+};
+
+export type ThreeDLayerSettings = {
+    mode: ThreeDLayerMode;
+    /** Asset/blob reference to the untouched source image. */
+    sourceRef?: string;
+    /** Normalized quad corners TL, TR, BR, BL in [0,1] of the source image. */
+    corners?: [number, number][];
+    aspectMode?: 'auto' | 'metric';
+    /** 35mm-equivalent focal length used by the metric aspect solve. */
+    focal35?: number;
+    gridDivisions?: number;
+    rewarp?: ThreeDLayerRewarpSettings;
+    /** Edited flat (unwarped) image; rewarp re-projects this over the source. */
+    flatRef?: string;
+    flatSize?: { width: number; height: number };
+    depthRef?: string;
+    normalRef?: string;
+    albedoRef?: string;
+    depthSpace?: 'disparity' | 'linear';
+    useGlobalLight?: boolean;
+    lights?: ThreeDLayerLight[];
+    ambient?: { color: string; intensity: number };
+    delitMix?: number;
+    modelUrl?: string;
+    threeD?: ThreeDSettings;
+};
+
 export type AdjustmentLayerType = 'curves' | 'levels' | 'saturation-vibrance' | 'hue-saturation' | 'exposure' | 'black-white' | 'brightness-contrast' | 'color-balance' | 'light-and-color' | 'solid-color';
 
 export type CurvesChannel = 'rgb' | 'r' | 'g' | 'b' | 'luminosity';
@@ -154,6 +206,9 @@ export type ExtendedFabricObject = fabric.Object & {
         }>;
     };
     threeDSettings?: ThreeDSettings;
+    /** Live re-editable 3D layer (unwarp / relight / object / vfx). */
+    is3DLayer?: boolean;
+    threeDLayerSettings?: ThreeDLayerSettings;
     isAdjustmentLayer?: boolean;
     adjustmentType?: AdjustmentLayerType;
     adjustmentSettings?: AdjustmentLayerSettings;

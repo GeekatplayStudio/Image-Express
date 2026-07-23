@@ -165,6 +165,27 @@ const pl: LocaleDictionary = {
     'dashboard.showAll.few': 'jeszcze {count} strony',
     'dashboard.showAll.many': 'jeszcze {count} stron',
     'dashboard.showAll.other': 'jeszcze {count} strony',
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': 'Warstwa 3D',
+    'layer3d.layerName': 'Warstwa 3D (Prostowanie)',
+    'layer3d.rewarpLayerName': 'Rzutowane ponownie',
+    'layer3d.working': 'Przetwarzanie…',
+    'layer3d.unwarp.open': 'Prostowanie perspektywy…',
+    'layer3d.unwarp.title': 'Prostowanie perspektywy',
+    'layer3d.unwarp.hint': 'Przeciągaj rogi lub krawędzie • Kółko myszy: zoom • Przeciągnij tło, aby przesunąć • Esc: anuluj',
+    'layer3d.unwarp.grid': 'Siatka',
+    'layer3d.unwarp.aspect': 'Proporcje',
+    'layer3d.unwarp.aspectAuto': 'Auto',
+    'layer3d.unwarp.aspectMetric': 'Metryczne (ogniskowa)',
+    'layer3d.unwarp.focal': 'Ogniskowa (35mm)',
+    'layer3d.unwarp.apply': 'Prostuj',
+    'layer3d.unwarp.invalidQuad': 'Rogi się przecinają lub obszar jest za mały — popraw czworokąt',
+    'layer3d.rewarp.adjust': 'Dostosuj rogi…',
+    'layer3d.rewarp.feather': 'Wtapianie',
+    'layer3d.rewarp.edgeHardness': 'Twardość krawędzi',
+    'layer3d.rewarp.matchColors': 'Dopasuj kolory do sceny',
+    'layer3d.rewarp.apply': 'Rzutuj z powrotem',
 };
 
 export default pl;

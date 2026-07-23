@@ -157,6 +157,27 @@ const it: LocaleDictionary = {
     'dashboard.canvasCount.other': '{count} pagine',
     'dashboard.showAll.one': 'altra {count} pagina',
     'dashboard.showAll.other': 'altre {count} pagine',
+
+    // 3D layer (perspective unwarp/rewarp).
+    'layer3d.section': 'Livello 3D',
+    'layer3d.layerName': 'Livello 3D (Raddrizza)',
+    'layer3d.rewarpLayerName': 'Riproiettato',
+    'layer3d.working': 'Elaborazione…',
+    'layer3d.unwarp.open': 'Raddrizza prospettiva…',
+    'layer3d.unwarp.title': 'Raddrizzamento prospettico',
+    'layer3d.unwarp.hint': 'Trascina angoli o bordi • Rotella per lo zoom • Trascina lo sfondo per spostare • Esc per annullare',
+    'layer3d.unwarp.grid': 'Griglia',
+    'layer3d.unwarp.aspect': 'Proporzioni',
+    'layer3d.unwarp.aspectAuto': 'Auto',
+    'layer3d.unwarp.aspectMetric': 'Metrica (focale)',
+    'layer3d.unwarp.focal': 'Focale (35mm)',
+    'layer3d.unwarp.apply': 'Raddrizza',
+    'layer3d.unwarp.invalidQuad': 'Gli angoli si incrociano o l\'area è troppo piccola — regola il quadrilatero',
+    'layer3d.rewarp.adjust': 'Regola angoli…',
+    'layer3d.rewarp.feather': 'Sfumatura',
+    'layer3d.rewarp.edgeHardness': 'Durezza bordo',
+    'layer3d.rewarp.matchColors': 'Adatta i colori alla scena',
+    'layer3d.rewarp.apply': 'Riproietta sull\'origine',
 };
 
 export default it;
