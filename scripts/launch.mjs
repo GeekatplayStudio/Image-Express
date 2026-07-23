@@ -9,7 +9,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 process.chdir(rootDir);
 
-const isWin = process.platform === 'win32';
 const gitCmd = 'git';
 
 function log(msg) {

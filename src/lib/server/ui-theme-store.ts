@@ -11,6 +11,7 @@ import {
     type InstalledUiTheme,
     type UiThemeManifest,
 } from '@/lib/ui-themes-shared';
+import { getBundledPublicDir, getDataDir } from '@/lib/server/appPaths';
 
 /**
  * Server-side store for installable UI theme packs.
@@ -19,9 +20,9 @@ import {
  * through /api/themes/files/<id>/<path>.
  */
 
-export const THEMES_DIR = path.join(process.cwd(), 'data', 'themes');
+export const THEMES_DIR = path.join(getDataDir(), 'themes');
 /** Built-in packs shipped with the app (committed in the repo, served statically). */
-export const BUILTIN_THEMES_DIR = path.join(process.cwd(), 'public', 'themes');
+export const BUILTIN_THEMES_DIR = path.join(getBundledPublicDir(), 'themes');
 
 export const MAX_THEME_ZIP_BYTES = 20 * 1024 * 1024;
 const MAX_UNCOMPRESSED_BYTES = 60 * 1024 * 1024;
@@ -198,7 +199,7 @@ export const installThemeFromZip = async (
     }
 
     // Extract to a temp dir, then swap into place.
-    const tempDir = path.join(process.cwd(), 'data', `.tmp-theme-${crypto.randomBytes(6).toString('hex')}`);
+    const tempDir = path.join(getDataDir(), `.tmp-theme-${crypto.randomBytes(6).toString('hex')}`);
     try {
         for (const [name, data] of contents) {
             const filePath = path.join(tempDir, ...name.split('/'));

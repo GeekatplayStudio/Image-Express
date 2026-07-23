@@ -10,6 +10,7 @@ import {
     type InstalledAmbience,
 } from '@/lib/ambience-shared';
 import { validateUiThemeSvg } from '@/lib/ui-themes-shared';
+import { getDataDir } from '@/lib/server/appPaths';
 
 /**
  * Server-side store for Dashboard Ambience packs. Mirrors the theme-pack store:
@@ -17,7 +18,7 @@ import { validateUiThemeSvg } from '@/lib/ui-themes-shared';
  * data/ambience/<id>/ (gitignored) and are served via /api/ambience/files/<id>/.
  */
 
-export const AMBIENCE_DIR = path.join(process.cwd(), 'data', 'ambience');
+export const AMBIENCE_DIR = path.join(getDataDir(), 'ambience');
 
 export const MAX_AMBIENCE_ZIP_BYTES = 25 * 1024 * 1024;
 const MAX_UNCOMPRESSED_BYTES = 80 * 1024 * 1024;
@@ -154,7 +155,7 @@ export const installAmbienceFromZip = async (
         throw new AmbienceInstallError(`Ambience pack "${manifest.name}" is already installed. Remove it first or reinstall with overwrite.`);
     }
 
-    const tempDir = path.join(process.cwd(), 'data', `.tmp-ambience-${crypto.randomBytes(6).toString('hex')}`);
+    const tempDir = path.join(getDataDir(), `.tmp-ambience-${crypto.randomBytes(6).toString('hex')}`);
     try {
         for (const [name, data] of contents) {
             const filePath = path.join(tempDir, ...name.split('/'));

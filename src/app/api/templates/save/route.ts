@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { getTemplatesDir } from '@/lib/server/appPaths';
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Missing data' }, { status: 400 });
     }
 
-    const templatesDir = path.join(process.cwd(), 'public', 'assets', 'templates');
+    const templatesDir = getTemplatesDir();
     
     // Ensure directory exists
     await mkdir(templatesDir, { recursive: true });
@@ -38,8 +39,8 @@ export async function POST(request: Request) {
         template: {
             id: baseFilename,
             name: name,
-            image: `/assets/templates/${baseFilename}.png`,
-            data: `/assets/templates/${baseFilename}.json`
+            image: `/api/assets/serve/templates/${baseFilename}.png`,
+            data: `/api/assets/serve/templates/${baseFilename}.json`
         }
     });
 

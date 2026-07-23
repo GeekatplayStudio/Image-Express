@@ -1,4 +1,5 @@
 import path from 'path';
+import { getAssetsDir } from '@/lib/server/appPaths';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 
 export const VALID_ASSET_TYPES = ['images', 'models', 'videos', 'audio'] as const;
@@ -16,7 +17,7 @@ export interface AssetMetadataEntry {
 
 type AssetMetadataIndex = Record<string, AssetMetadataEntry>;
 
-const ASSET_INDEX_PATH = path.join(process.cwd(), 'public', 'assets', 'asset-index.json');
+const getAssetIndexPath = () => path.join(getAssetsDir(), 'asset-index.json');
 
 const buildAssetKey = (category: AssetCategory, type: AssetType, name: string) => `${category}/${type}/${name}`;
 
@@ -27,7 +28,7 @@ const normalizeOwner = (owner?: string) => {
 
 const readIndex = async (): Promise<AssetMetadataIndex> => {
     try {
-        const raw = await readFile(ASSET_INDEX_PATH, 'utf8');
+        const raw = await readFile(getAssetIndexPath(), 'utf8');
         const parsed = JSON.parse(raw) as unknown;
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
             return {};
@@ -44,8 +45,9 @@ const readIndex = async (): Promise<AssetMetadataIndex> => {
 };
 
 const writeIndex = async (index: AssetMetadataIndex) => {
-    await mkdir(path.dirname(ASSET_INDEX_PATH), { recursive: true });
-    await writeFile(ASSET_INDEX_PATH, JSON.stringify(index, null, 2), 'utf8');
+    const assetIndexPath = getAssetIndexPath();
+    await mkdir(path.dirname(assetIndexPath), { recursive: true });
+    await writeFile(assetIndexPath, JSON.stringify(index, null, 2), 'utf8');
 };
 
 export async function getAssetMetadata(category: AssetCategory, type: AssetType, name: string) {

@@ -2,16 +2,17 @@ import { NextResponse } from 'next/server';
 import { unlink, access } from 'fs/promises';
 import { constants } from 'fs';
 import path from 'path';
+import { getDesignsDir } from '@/lib/server/appPaths';
 
 export async function POST(request: Request) {
   try {
     const { id } = await request.json();
 
-    if (!id) {
+    if (!id || !/^[a-zA-Z0-9_-]+$/.test(String(id))) {
       return NextResponse.json({ success: false, message: 'ID is required' }, { status: 400 });
     }
 
-    const designsDir = path.join(process.cwd(), 'public', 'assets', 'designs');
+    const designsDir = getDesignsDir();
     
     // Deleting .json and .png
     // The design IDs in my list implementation are filenames without extension (which includes timestamps for unique ones)

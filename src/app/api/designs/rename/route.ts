@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { access, rename } from 'fs/promises';
 import { constants } from 'fs';
 import path from 'path';
+import { getDesignsDir } from '@/lib/server/appPaths';
 
 function sanitizeDesignName(name: string) {
     const cleaned = name
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'Invalid design id.' }, { status: 400 });
         }
 
-        const designsDir = path.join(process.cwd(), 'public', 'assets', 'designs');
+        const designsDir = getDesignsDir();
         const oldJsonPath = path.join(designsDir, `${designId}.json`);
         const oldPngPath = path.join(designsDir, `${designId}.png`);
 
@@ -63,8 +64,8 @@ export async function POST(request: Request) {
             design: {
                 id: nextId,
                 name: designName,
-                data: `/assets/designs/${nextId}.json`,
-                image: `/assets/designs/${nextId}.png`,
+                data: `/api/assets/serve/designs/${nextId}.json`,
+                image: `/api/assets/serve/designs/${nextId}.png`,
                 lastModified: Date.now()
             }
         });

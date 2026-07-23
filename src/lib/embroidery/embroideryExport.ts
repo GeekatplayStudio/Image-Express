@@ -61,7 +61,7 @@ type StitchPoint = { x: number; y: number; jump: boolean };
 /** Median-cut color quantization over RGB pixels. */
 function medianCutPalette(pixels: Uint8ClampedArray, opaque: number[], colorCount: number): number[][] {
     type Bucket = number[]; // pixel indices
-    let buckets: Bucket[] = [opaque];
+    const buckets: Bucket[] = [opaque];
 
     while (buckets.length < colorCount) {
         // Split the bucket with the widest channel range.

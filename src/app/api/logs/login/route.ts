@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getLogsDir } from '@/lib/server/appPaths';
 
-const LOG_DIR = path.join(process.cwd(), 'logs');
+const LOG_DIR = getLogsDir();
 const LOG_FILE = path.join(LOG_DIR, 'login.log');
 
 async function ensureLogDir() {

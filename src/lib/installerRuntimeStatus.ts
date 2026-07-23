@@ -60,8 +60,10 @@ export async function fetchInstallerRuntimeStatus(comfyDir?: string): Promise<In
     const query = typeof comfyDir === 'string' && comfyDir.trim().length > 0
         ? `?comfyDir=${encodeURIComponent(comfyDir.trim())}`
         : '';
+    const authorizationHeaders = await getLocalRuntimeAuthorizationHeaders();
     const response = await fetch(`/api/runtime/installer/status${query}`, {
         cache: 'no-store',
+        headers: authorizationHeaders,
     });
     const data = await response.json();
     if (!response.ok) {
@@ -73,3 +75,4 @@ export async function fetchInstallerRuntimeStatus(comfyDir?: string): Promise<In
     }
     return data as InstallerRuntimeStatus;
 }
+import { getLocalRuntimeAuthorizationHeaders } from '@/lib/localRuntimeAuthorization';

@@ -11,6 +11,7 @@ import {
   type AssetCategory,
   getAssetMetadataByFolder
 } from '@/lib/server/asset-metadata';
+import { getAssetsDir } from '@/lib/server/appPaths';
 
 const VALID_SCOPES = ['personal', 'shared', 'all'] as const;
 const VALID_VISIBILITY = ['all', 'public', 'private'] as const;
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid type or category' }, { status: 400 });
     }
 
-    const dirPath = path.join(process.cwd(), 'public', 'assets', category, type);
+    const dirPath = path.join(getAssetsDir(), category, type);
 
     // Check if dir exists
     if (!fs.existsSync(dirPath)) {

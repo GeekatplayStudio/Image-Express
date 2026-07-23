@@ -25,7 +25,7 @@ describe('GET /api/runtime/dependencies/status', () => {
             },
         });
 
-        const response = await GET();
+        const response = await GET(new Request('http://localhost:3000/api/runtime/dependencies/status'));
         expect(response.status).toBe(200);
 
         const data = await response.json();

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import path from 'path';
 import { promises as fs } from 'fs';
+import { getDataDir } from '@/lib/server/appPaths';
 
 type UserApiKeys = Record<string, string>;
 
@@ -33,7 +34,7 @@ const KEY_BYTE_LENGTH = 32;
 const IV_BYTE_LENGTH = 12;
 
 // turbopackIgnore: runtime data directory, not a bundle dependency.
-const STORE_DIR = path.join(/* turbopackIgnore: true */ process.cwd(), 'data');
+const STORE_DIR = getDataDir();
 const DEFAULT_VAULT_FILE = path.join(STORE_DIR, 'user-key-vault.json');
 const DEFAULT_SECRET_FILE = path.join(STORE_DIR, 'user-key-vault.secret');
 

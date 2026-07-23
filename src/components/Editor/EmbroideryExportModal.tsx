@@ -32,6 +32,7 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
     // Preview zoom/pan. zoom 1 = fit-to-frame; panning only matters above that.
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isPanning, setIsPanning] = useState(false);
     const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
 
     // Stitch-out simulation: how much of the needle path is drawn (0..1).
@@ -79,6 +80,7 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
             // Ignore — dragging still works without capture.
         }
         panDragRef.current = { startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y };
+        setIsPanning(true);
     }, [pan.x, pan.y, zoom]);
 
     const handlePointerMove = useCallback((event: React.PointerEvent) => {
@@ -93,6 +95,7 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
     const endPan = useCallback((event: React.PointerEvent) => {
         if (!panDragRef.current) return;
         panDragRef.current = null;
+        setIsPanning(false);
         try {
             (event.currentTarget as Element).releasePointerCapture(event.pointerId);
         } catch {
@@ -103,6 +106,8 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
     // Rebuild the stitch plan (debounced) whenever an option changes.
     useEffect(() => {
         let cancelled = false;
+        // Rebuilding is an external canvas/image operation triggered by option changes.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsBuilding(true);
         setBuildError(null);
         const timer = window.setTimeout(() => {
@@ -193,6 +198,8 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
     }, [isPlaying, totalPoints]);
 
     useEffect(() => {
+        // Playback completion is synchronized with requestAnimationFrame progress.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (isPlaying && progress >= 1) setIsPlaying(false);
     }, [isPlaying, progress]);
 
@@ -234,7 +241,7 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
                     <div className="relative flex-1 min-h-0 bg-secondary/10 checkerboard-bg overflow-hidden">
                         <div
                             className="absolute inset-0 flex items-center justify-center p-4"
-                            style={{ cursor: zoom > 1 ? (panDragRef.current ? 'grabbing' : 'grab') : 'default', touchAction: 'none' }}
+                            style={{ cursor: zoom > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default', touchAction: 'none' }}
                             onWheel={handleWheel}
                             onPointerDown={handlePointerDown}
                             onPointerMove={handlePointerMove}

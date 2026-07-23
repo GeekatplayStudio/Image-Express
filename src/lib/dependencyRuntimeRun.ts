@@ -1,4 +1,5 @@
 import type { DependencyOutdatedPackage, DependencyVersionStrategy } from '@/lib/dependencyRuntimeStatus';
+import { getLocalRuntimeAuthorizationHeaders } from '@/lib/localRuntimeAuthorization';
 
 export type DependencyRunPayload = {
     strategy: DependencyVersionStrategy;
@@ -34,10 +35,12 @@ export type DependencyRunResult = {
 };
 
 export async function runDependencyRuntime(payload: DependencyRunPayload): Promise<DependencyRunResult> {
+    const authorizationHeaders = await getLocalRuntimeAuthorizationHeaders();
     const response = await fetch('/api/runtime/dependencies/run', {
         method: 'POST',
         headers: {
             'content-type': 'application/json',
+            ...authorizationHeaders,
         },
         body: JSON.stringify(payload),
         cache: 'no-store',

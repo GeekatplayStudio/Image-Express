@@ -9,6 +9,7 @@ import {
   type AssetType,
   upsertAssetMetadata
 } from '@/lib/server/asset-metadata';
+import { getAssetsDir } from '@/lib/server/appPaths';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.tif', '.tiff', '.heic']);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v', '.ogv']);
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
     const filename = `${sanitizeFilenameStem(path.basename(file.name, ext))}-${uniqueSuffix}${ext.toLowerCase()}`;
     
     // Determine directory
-    const uploadDir = path.join(process.cwd(), 'public', 'assets', category, type);
+    const uploadDir = path.join(getAssetsDir(), category, type);
 
     // Ensure directory exists
     try {

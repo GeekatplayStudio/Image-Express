@@ -11,6 +11,7 @@ import type {
     DependencyRunResult,
     DependencyRunStepResult,
 } from '@/lib/dependencyRuntimeRun';
+import { getProjectRoot } from '@/lib/server/appPaths';
 
 type ProjectManifest = {
     name?: string;
@@ -26,8 +27,8 @@ type NpmOutdatedEntry = {
 };
 
 const MAX_LOG_BYTES = 150_000;
-const PACKAGE_JSON_PATH = path.join(process.cwd(), 'package.json');
-const PACKAGE_LOCK_PATH = path.join(process.cwd(), 'package-lock.json');
+const PACKAGE_JSON_PATH = path.join(getProjectRoot(), 'package.json');
+const PACKAGE_LOCK_PATH = path.join(getProjectRoot(), 'package-lock.json');
 
 export class DependencyMaintenanceValidationError extends Error {
     statusCode: number;
@@ -61,7 +62,7 @@ async function runCommand(command: string, args: string[]): Promise<DependencyRu
 
     const exitCode = await new Promise<number>((resolve, reject) => {
         const child = spawn(command, args, {
-            cwd: process.cwd(),
+            cwd: getProjectRoot(),
             env: process.env,
             stdio: ['ignore', 'pipe', 'pipe'],
         });

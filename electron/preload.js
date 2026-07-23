@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('desktop', {
   isDesktop: true,
+  getLocalCapabilityToken: () => ipcRenderer.invoke('runtime/capability'),
   checkForUpdates: () => ipcRenderer.invoke('updates/check'),
   installUpdate: () => ipcRenderer.invoke('updates/install'),
   onUpdateStatus: (callback) => {

@@ -37,6 +37,11 @@ jest.mock('@/lib/assetStorageSettings', () => ({
     saveAssetStorageSettings: (...args: unknown[]) => mockSaveAssetStorageSettings(...args),
 }));
 
+jest.mock('@/components/setup/SetupCollieMascot', () => ({
+    __esModule: true,
+    default: () => <div data-testid="setup-collie-mascot" />,
+}));
+
 describe('SetupWizardModal', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -154,7 +159,8 @@ describe('SetupWizardModal', () => {
         await waitFor(() => {
             expect(screen.getByText('Runtime ready')).toBeInTheDocument();
         });
-        fireEvent.click(screen.getByRole('button', { name: /Next/i })); // runtime -> finish
+        fireEvent.click(screen.getByRole('button', { name: /Next/i })); // runtime -> extras
+        fireEvent.click(screen.getByRole('button', { name: /Next/i })); // extras -> finish
         fireEvent.click(screen.getByRole('button', { name: /Finish Setup/i }));
 
         expect(window.localStorage.getItem('openai_api_key')).toBe('sk-openai');

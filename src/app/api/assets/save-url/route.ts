@@ -8,6 +8,7 @@ import {
   type AssetCategory,
   upsertAssetMetadata
 } from '@/lib/server/asset-metadata';
+import { getAssetsDir } from '@/lib/server/appPaths';
 
 export async function POST(request: Request) {
   try {
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Save to disk
-    const uploadDir = path.join(process.cwd(), 'public', 'assets', folderCategory, folderType);
+    const uploadDir = path.join(getAssetsDir(), folderCategory, folderType);
     
     await mkdir(uploadDir, { recursive: true });
 

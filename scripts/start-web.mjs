@@ -1,5 +1,4 @@
 import net from 'net';
-import fs from 'fs';
 import { spawn, spawnSync, exec } from 'child_process';
 import {
     assertNoConflictingServer,
@@ -28,7 +27,7 @@ function checkPort(port) {
         // Windows, where binding a specific address can succeed even while
         // another process holds 0.0.0.0/:: on the same port — which then blows
         // up as EADDRINUSE once Next actually starts.
-        server.listen(port);
+        server.listen(port, '127.0.0.1');
     });
 }
 
@@ -106,9 +105,9 @@ async function main() {
     console.log(`[INFO] Target port: ${port} (Selected starting from ${startPort})`);
 
     const cmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    const args = mode === 'prod' 
-        ? ['next', 'start', '-p', port.toString()] 
-        : ['next', 'dev', '-p', port.toString()];
+    const args = mode === 'prod'
+        ? ['next', 'start', '-H', '127.0.0.1', '-p', port.toString()]
+        : ['next', 'dev', '-H', '127.0.0.1', '-p', port.toString()];
 
     console.log(`[INFO] Starting Next.js in ${mode} mode...`);
     

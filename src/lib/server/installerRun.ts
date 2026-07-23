@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { readInstallerConfig, type InstallerConfig } from '@/lib/server/comfyInstallerCatalog';
+import { getProjectRoot } from '@/lib/server/appPaths';
 
 export type InstallerRunPayload = {
     installComfy?: boolean;
@@ -209,7 +210,7 @@ async function runInstallerStep(step: InstallerStepPlan): Promise<InstallerRunSt
     const started = Date.now();
     // turbopackIgnore: the installer scripts are external tooling resolved at
     // runtime, not bundle dependencies — keep the file tracer out of them.
-    const scriptAbsolutePath = path.join(/* turbopackIgnore: true */ process.cwd(), step.scriptPath);
+    const scriptAbsolutePath = path.join(/* turbopackIgnore: true */ getProjectRoot(), step.scriptPath);
     const args = [scriptAbsolutePath, ...step.args];
 
     let stdout = '';
@@ -217,7 +218,7 @@ async function runInstallerStep(step: InstallerStepPlan): Promise<InstallerRunSt
 
     const exitCode = await new Promise<number>((resolve, reject) => {
         const child = spawn(process.execPath, args, {
-            cwd: process.cwd(),
+            cwd: getProjectRoot(),
             env: process.env,
             stdio: ['ignore', 'pipe', 'pipe'],
         });

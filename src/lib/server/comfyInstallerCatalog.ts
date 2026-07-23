@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs';
 import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 import { comfyWorkflowRegistry } from '@/lib/comfyui/registry';
 import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
+import { getProjectRoot } from '@/lib/server/appPaths';
 
 export type InstallerConfigModel = {
     id: string;
@@ -38,7 +39,7 @@ const WORKFLOW_JSON_SUFFIX = '.json';
 const MANIFEST_SUFFIX = '.manifest.json';
 const LOCAL_WORKSPACE_FALLBACK_DIR = 'ComfyUI workflows';
 const WORKFLOW_SYNC_DIRECTORIES = ['custom_nodes', 'user', 'models'] as const;
-const DEFAULT_CONFIG_FILE = path.join(process.cwd(), 'scripts', 'installers', 'config', 'sources.json');
+const DEFAULT_CONFIG_FILE = path.join(getProjectRoot(), 'scripts', 'installers', 'config', 'sources.json');
 const DEFAULT_COMFY_TARGET_DIR = 'external/ComfyUI';
 const WINDOWS_STANDARD_COMFY_DRIVE_LETTERS = 'CDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -87,7 +88,7 @@ export function resolveInstallerPath(targetPath: string): string {
     if (path.isAbsolute(trimmed)) {
         return path.normalize(trimmed);
     }
-    return path.resolve(process.cwd(), trimmed);
+    return path.resolve(getProjectRoot(), trimmed);
 }
 
 function expandComfyInstallCandidates(targetPath: string): string[] {

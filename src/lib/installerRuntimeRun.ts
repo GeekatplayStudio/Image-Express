@@ -41,10 +41,12 @@ export type InstallerRunResult = {
 };
 
 export async function runInstallerRuntime(payload: InstallerRunPayload): Promise<InstallerRunResult> {
+    const authorizationHeaders = await getLocalRuntimeAuthorizationHeaders();
     const response = await fetch('/api/runtime/installer/run', {
         method: 'POST',
         headers: {
             'content-type': 'application/json',
+            ...authorizationHeaders,
         },
         body: JSON.stringify(payload),
         cache: 'no-store',
@@ -59,3 +61,4 @@ export async function runInstallerRuntime(payload: InstallerRunPayload): Promise
     }
     return data as InstallerRunResult;
 }
+import { getLocalRuntimeAuthorizationHeaders } from '@/lib/localRuntimeAuthorization';

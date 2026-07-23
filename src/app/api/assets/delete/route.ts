@@ -11,6 +11,7 @@ import {
   getAssetMetadata,
   removeAssetMetadata
 } from '@/lib/server/asset-metadata';
+import { getAssetsDir } from '@/lib/server/appPaths';
 
 export async function POST(request: Request) {
   try {
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid file path restriction' }, { status: 403 });
     }
 
-    const assetsRoot = path.join(process.cwd(), 'public', 'assets');
+    const assetsRoot = getAssetsDir();
     const fullPath = path.join(assetsRoot, safePath);
     if (!fullPath.startsWith(assetsRoot)) {
       return NextResponse.json({ success: false, message: 'Invalid file path restriction' }, { status: 403 });

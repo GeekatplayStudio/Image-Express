@@ -11,6 +11,7 @@ import {
   getAssetMetadata,
   renameAssetMetadata
 } from '@/lib/server/asset-metadata';
+import { getAssetsDir } from '@/lib/server/appPaths';
 
 export async function POST(request: Request) {
   try {
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: 'Invalid filename' }, { status: 400 });
     }
 
-    const dirPath = path.join(process.cwd(), 'public', 'assets', folderCategory, folderType);
+    const dirPath = path.join(getAssetsDir(), folderCategory, folderType);
     const oldPath = path.join(dirPath, oldName);
     
     // Check if new name requires preserving extension

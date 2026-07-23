@@ -30,33 +30,32 @@ It runs anywhere: as a **desktop app** on Windows/macOS, as a **self-hosted web 
 
 ---
 
-## 🚀 Install & Run — Choose Your Path
+## 🚀 Install & Run
 
-Every path below **downloads your own copy from GitHub** — nothing is pre-bundled, so installs stay small and always current.
+### 🟢 Recommended: download one native installer
 
-### 🟢 Easiest: one file, double-click, done
+Open **[GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases/latest)** and download the single file for your computer:
 
-| Platform | Download | What happens |
+| Platform | File | Experience |
 |---|---|---|
-| **Windows** | [`install.bat`](install.bat) | Double-click. It installs Git/Node 24 if missing, downloads Image Express, installs dependencies, and offers to launch it. |
-| **macOS** | [`install.command`](install.command) | Same thing. Right-click → **Open** the first time to satisfy Gatekeeper. |
+| **Windows 10/11 x64** | `ImageExpress-Setup-<version>.exe` | Double-click, install, then launch from the Start menu or desktop icon. |
+| **macOS Apple Silicon** | `ImageExpress-<version>-arm64.dmg` | Open the DMG, drag Image Express to Applications, then launch normally. |
+| **macOS Intel** | `ImageExpress-<version>-x64.dmg` | Open the DMG, drag Image Express to Applications, then launch normally. |
+| **Linux x64** | `ImageExpress-<version>-x64.AppImage` or `.deb` | Run the AppImage or install the Debian package. |
 
-That's it — no terminal, no `git clone`, no npm commands. Every step (and any error) is written to a plain-text log you can send us if anything goes sideways:
-`%USERPROFILE%\ImageExpress-setup.log` (Windows) / `~/ImageExpress-setup.log` (macOS).
+The native application contains its own tested runtime. End users do **not** install Git, Node.js, npm, Homebrew, winget, or source code. Projects, assets, settings, and installed packs live in the operating system's user-data directory so application updates do not replace them.
 
-**Running it again later?** Use the matching **start** file already inside your install folder — `start.bat` / `start.command`. It checks for updates, rebuilds only if needed, and opens your browser automatically.
+Releases are built automatically from version tags. Windows signing and macOS signing/notarization are applied when the repository's protected signing credentials are configured; release maintainers must not publish unsigned stable artifacts.
 
-### 🖥️ Native app (no browser tab at all)
+If startup fails, attach `startup-trace.log` from the app's user-data folder to a bug report.
 
-Prefer a real desktop application with a dock/taskbar icon and its own window? Grab the packaged installer from **[GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases)**:
-- **Windows**: `ImageExpress-Setup-<version>.exe` — genuinely one-click (no dialogs, no options), installs and launches itself.
-- **macOS**: `ImageExpress-<version>-<arch>.dmg` (Intel + Apple Silicon).
+### Source installation (contributors and advanced users)
 
-If it ever fails to start, the crash reason is always saved to a startup log (`%APPDATA%\creative-flow\startup-trace.log` on Windows, `~/Library/Application Support/creative-flow/` on macOS) — attach it to a bug report and we'll know exactly what happened.
+The root [`install.bat`](install.bat) and [`install.command`](install.command) files remain available as source-build bootstrap tools. They install development prerequisites, clone the repository, install npm dependencies, and build locally. They are not the recommended path for non-technical users.
 
 ### 🔄 Auto-updates, on your terms
 
-Image Express checks GitHub for a newer version shortly after every launch and **asks before touching anything** — accept and it updates itself in place, or say no and keep working. Turn the automatic check on/off anytime in **Settings → Workspace → Updates**, or trigger it manually with one click. The updater refuses to run over local changes and only ever fast-forwards, so it can never overwrite your work or create a conflict.
+Packaged desktop releases use the native release updater and GitHub release metadata. Source installations use the separate Git fast-forward updater. The two update systems are intentionally not mixed.
 
 ### 🐳 Self-host it (Docker / your own server)
 

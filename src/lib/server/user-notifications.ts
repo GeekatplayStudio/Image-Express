@@ -1,7 +1,8 @@
 import path from 'path';
 import { promises as fs } from 'fs';
+import { getLogsDir } from '@/lib/server/appPaths';
 
-const LOG_DIR = path.join(process.cwd(), 'logs');
+const LOG_DIR = getLogsDir();
 const APPROVAL_LOG = path.join(LOG_DIR, 'approval-requests.log');
 const PASSWORD_RESET_LOG = path.join(LOG_DIR, 'password-reset.log');
 

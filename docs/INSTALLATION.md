@@ -4,20 +4,36 @@ This guide is the recommended **easy path** to run Image Express locally, with o
 
 ## 1) Core App (Required)
 
-### The one-file way (recommended — no terminal, no Git knowledge needed)
+### Native one-file installer (recommended)
 
-Download exactly **one file** and double-click it:
+Download exactly one platform installer from
+**[GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases/latest)**:
 
-- **Windows**: [`install.bat`](../install.bat)
-- **macOS**: [`install.command`](../install.command)
+- Windows x64: `ImageExpress-Setup-<version>.exe`
+- macOS Apple Silicon: `ImageExpress-<version>-arm64.dmg`
+- macOS Intel: `ImageExpress-<version>-x64.dmg`
+- Linux x64: `ImageExpress-<version>-x64.AppImage` or `.deb`
 
-It checks for Git and Node.js 24+ (installing them automatically via winget/Homebrew if missing — including finding a shadowed newer Node if a version manager like nvm has an old one first on PATH), clones Image Express from GitHub into a folder you choose, installs dependencies, verifies the install, offers the optional ComfyUI/Ollama setup, and launches the app.
+The native installer includes the application runtime. It does not install Git, Node.js, npm,
+Homebrew, winget, or source code. After installation, launch Image Express from the normal
+operating-system application icon.
+
+### Source bootstrap (contributors and advanced users)
+
+The repository also contains [`install.bat`](../install.bat) and
+[`install.command`](../install.command). These scripts clone and build the current source and
+therefore require development prerequisites. They are a fallback and contributor workflow, not
+the primary consumer installer.
+
+The source bootstrap checks for Git and Node.js 24+, installs dependencies, verifies the source
+build, and can offer optional ComfyUI/Ollama setup.
 
 Every step — and any error — is written to a log file you can hand to support if something goes wrong:
 - Windows: `%USERPROFILE%\ImageExpress-setup.log`
 - macOS: `~/ImageExpress-setup.log`
 
-On macOS, right-click the `.command` file and choose **Open** once to satisfy Gatekeeper; after that, double-clicking works normally.
+On macOS, downloaded source scripts may require right-clicking `.command` and choosing **Open**.
+The signed/notarized DMG path should not require this workaround.
 
 **If macOS says the file "can't be executed" or nothing happens**: browsers strip the execute permission from downloaded scripts. Skip the download entirely and paste this one line into Terminal (⌘-Space, type "Terminal") — it runs the exact same installer:
 

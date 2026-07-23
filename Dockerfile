@@ -39,8 +39,8 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 
 # Set the correct permissions for runtime-generated files.
-RUN mkdir -p .next data logs public/assets
-RUN chown -R nextjs:nodejs .next data logs public
+RUN mkdir -p .next /data/app /data/assets /data/logs public
+RUN chown -R nextjs:nodejs .next /data public
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
@@ -52,7 +52,11 @@ USER nextjs
 EXPOSE 3000
 
 ENV PORT=3000
-# set hostname to localhost
 ENV HOSTNAME=0.0.0.0
+ENV IMAGE_EXPRESS_RUNTIME=self-hosted
+ENV IMAGE_EXPRESS_DATA_DIR=/data/app
+ENV IMAGE_EXPRESS_ASSETS_DIR=/data/assets
+ENV IMAGE_EXPRESS_LOGS_DIR=/data/logs
+ENV IMAGE_EXPRESS_BUNDLED_PUBLIC_DIR=/app/public
 
 CMD ["node", "server.js"]

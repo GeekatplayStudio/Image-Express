@@ -357,7 +357,7 @@ describe('Toolbar', () => {
     it('switches to gradient tool and updates cursor behavior', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Fill / Gradient'));
+        fireEvent.click(screen.getByTitle('Fill / Gradient Tools (Fill / Gradient)'));
 
         expect(setActiveToolSpy).toHaveBeenCalledWith('gradient');
         expect(canvas.defaultCursor).toBe('crosshair');

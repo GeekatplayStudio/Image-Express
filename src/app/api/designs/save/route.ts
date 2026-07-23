@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { getDesignsDir } from '@/lib/server/appPaths';
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Missing data' }, { status: 400 });
     }
 
-    const designsDir = path.join(process.cwd(), 'public', 'assets', 'designs');
+    const designsDir = getDesignsDir();
     
     // Ensure directory exists
     await mkdir(designsDir, { recursive: true });
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
         baseFilename = existingId;
         designId = existingId;
         // Verify we aren't path traversing? existingId should be simple filename
-        if (baseFilename.includes('/') || baseFilename.includes('\\')) {
+        if (!/^[a-zA-Z0-9_-]+$/.test(String(baseFilename))) {
              return NextResponse.json({ success: false, message: 'Invalid ID' }, { status: 400 });
         }
     } else {
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
             const buffer = Buffer.from(matches[2], 'base64');
             const imagePath = path.join(designsDir, `${baseFilename}.png`);
             await writeFile(imagePath, buffer);
-            imagePathRel = `/assets/designs/${baseFilename}.png`;
+            imagePathRel = `/api/assets/serve/designs/${baseFilename}.png`;
         }
     }
 
@@ -56,9 +57,9 @@ export async function POST(request: Request) {
         design: {
             id: designId,
             name: name,
-            image: imagePathRel || `/assets/designs/${baseFilename}.png`, // Fallback to expected path
-        thumbnail: imagePathRel || `/assets/designs/${baseFilename}.png`,
-            data: `/assets/designs/${baseFilename}.json`,
+            image: imagePathRel || `/api/assets/serve/designs/${baseFilename}.png`,
+        thumbnail: imagePathRel || `/api/assets/serve/designs/${baseFilename}.png`,
+            data: `/api/assets/serve/designs/${baseFilename}.json`,
             lastModified: timestamp
         }
     });

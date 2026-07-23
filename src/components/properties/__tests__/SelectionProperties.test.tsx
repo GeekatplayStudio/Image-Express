@@ -3,6 +3,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import * as fabric from 'fabric';
 import { SelectionProperties } from '../SelectionProperties';
 
+jest.mock('../ThreeDLayerProperties', () => ({
+    ThreeDLayerProperties: () => null,
+}));
+
 const baseProps = {
     selectedObject: null,
     selectedObjects: [] as fabric.Object[],

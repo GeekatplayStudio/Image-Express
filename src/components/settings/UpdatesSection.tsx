@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, DownloadCloud, Loader2, RefreshCcw, TriangleAlert } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import { RichText } from '@/lib/i18n/RichText';
+import { getLocalRuntimeAuthorizationHeaders } from '@/lib/localRuntimeAuthorization';
 import { loadUpdateAutoCheck, saveUpdateAutoCheck } from '@/components/UpdateAutoCheck';
 
 type UpdateStatus = {
@@ -38,11 +39,15 @@ export default function UpdatesSection({ className }: { className?: string }) {
         setIsApplying(true);
         setApplyFeedback(null);
         try {
-            const response = await fetch('/api/system/update', { method: 'POST' });
+            const authorizationHeaders = await getLocalRuntimeAuthorizationHeaders();
+            const response = await fetch('/api/system/update', {
+                method: 'POST',
+                headers: authorizationHeaders,
+            });
             const result = await response.json() as { success: boolean; commit?: string; error?: string };
             if (result.success) {
                 setApplyFeedback(t('updates.updatedRestart', { commit: result.commit ?? '' }));
-                const refreshed = await fetch('/api/system/update');
+                const refreshed = await fetch('/api/system/update', { headers: authorizationHeaders });
                 setStatus(await refreshed.json() as UpdateStatus);
             } else {
                 setApplyFeedback(result.error || t('updates.updateFailed'));
@@ -57,7 +62,8 @@ export default function UpdatesSection({ className }: { className?: string }) {
     const checkForUpdates = useCallback(async () => {
         setIsChecking(true);
         try {
-            const response = await fetch('/api/system/update');
+            const authorizationHeaders = await getLocalRuntimeAuthorizationHeaders();
+            const response = await fetch('/api/system/update', { headers: authorizationHeaders });
             const data = (await response.json()) as UpdateStatus;
             setStatus(data);
         } catch (error) {

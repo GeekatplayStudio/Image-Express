@@ -3,12 +3,30 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-// electron-updater is optional: the asar ships without node_modules (the
-// bundled standalone server carries its own). When absent, auto-update simply
-// reports as unavailable and the in-app update flow still works.
+const crypto = require('crypto');
+
+function configureBrandedUserDataPath() {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  const legacyPath = app.getPath('userData');
+  const brandedPath = path.join(app.getPath('appData'), 'Image Express');
+  if (legacyPath !== brandedPath && fs.existsSync(legacyPath) && !fs.existsSync(brandedPath)) {
+    fs.cpSync(legacyPath, brandedPath, { recursive: true, force: false });
+  }
+  app.setName('Image Express');
+  app.setPath('userData', brandedPath);
+}
+
+configureBrandedUserDataPath();
+
 let autoUpdater = null;
 try {
-  ({ autoUpdater } = require('electron-updater'));
+  const updaterModule = app.isPackaged
+    ? path.join(process.resourcesPath, 'electron-runtime', 'node_modules', 'electron-updater')
+    : 'electron-updater';
+  ({ autoUpdater } = require(updaterModule));
 } catch {
   autoUpdater = null;
 }
@@ -19,6 +37,7 @@ const isDev = process.env.NEXT_DESKTOP === '1' || !app.isPackaged;
 const PREFERRED_PORT = Number(process.env.NEXT_DESKTOP_PORT) || 3927;
 let NEXT_PORT = PREFERRED_PORT;
 let NEXT_URL = `http://localhost:${NEXT_PORT}`;
+const localCapabilityToken = crypto.randomBytes(32).toString('hex');
 
 /** Find a free port starting at the preferred one — never fail because 3927 is taken. */
 function findFreePort(startPort, attempts = 10) {
@@ -42,6 +61,47 @@ function findFreePort(startPort, attempts = 10) {
 let mainWindow;
 let productionServerStarted = false;
 let serverProcess = null;
+
+function directoryIsEmpty(directory) {
+  try {
+    return fs.readdirSync(directory).length === 0;
+  } catch {
+    return true;
+  }
+}
+
+function prepareUserDataLayout(standaloneDir) {
+  const userDataRoot = app.getPath('userData');
+  const dataDir = path.join(userDataRoot, 'data');
+  const assetsDir = path.join(userDataRoot, 'assets');
+  const logsDir = path.join(userDataRoot, 'logs');
+  const migrationMarker = path.join(userDataRoot, '.storage-v2-migrated.json');
+
+  for (const directory of [userDataRoot, dataDir, assetsDir, logsDir]) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
+
+  if (!fs.existsSync(migrationMarker)) {
+    const migrations = [
+      { source: path.join(standaloneDir, 'data'), target: dataDir, label: 'data' },
+      { source: path.join(standaloneDir, 'public', 'assets'), target: assetsDir, label: 'assets' },
+    ];
+    const copied = [];
+    for (const migration of migrations) {
+      if (fs.existsSync(migration.source) && directoryIsEmpty(migration.target)) {
+        fs.cpSync(migration.source, migration.target, { recursive: true, force: false });
+        copied.push(migration.label);
+      }
+    }
+    fs.writeFileSync(migrationMarker, JSON.stringify({
+      version: 2,
+      migratedAt: new Date().toISOString(),
+      copied,
+    }, null, 2));
+  }
+
+  return { dataDir, assetsDir, logsDir };
+}
 
 function resolveResource(...segments) {
   const base = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
@@ -77,6 +137,7 @@ async function startProductionServer() {
   }
 
   const standaloneDir = resolveResource('next-standalone');
+  const userPaths = prepareUserDataLayout(standaloneDir);
   traceStartup(`standaloneDir=${standaloneDir} exists=${fs.existsSync(standaloneDir)}`);
   if (!fs.existsSync(standaloneDir)) {
     dialog.showErrorBox(
@@ -115,6 +176,13 @@ async function startProductionServer() {
         PORT: String(NEXT_PORT),
         HOSTNAME: '127.0.0.1',
         NODE_ENV: 'production',
+        IMAGE_EXPRESS_RUNTIME: 'desktop-local',
+        IMAGE_EXPRESS_LOCAL_CAPABILITY_TOKEN: localCapabilityToken,
+        IMAGE_EXPRESS_PROJECT_ROOT: standaloneDir,
+        IMAGE_EXPRESS_DATA_DIR: userPaths.dataDir,
+        IMAGE_EXPRESS_ASSETS_DIR: userPaths.assetsDir,
+        IMAGE_EXPRESS_LOGS_DIR: userPaths.logsDir,
+        IMAGE_EXPRESS_BUNDLED_PUBLIC_DIR: path.join(standaloneDir, 'public'),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
@@ -250,6 +318,8 @@ function createWindow() {
     }
   });
 }
+
+ipcMain.handle('runtime/capability', () => localCapabilityToken);
 
 ipcMain.handle('updates/check', async () => {
   if (isDev || !autoUpdater) {

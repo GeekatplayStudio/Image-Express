@@ -11,6 +11,7 @@ import {
   getAssetMetadata,
   upsertAssetMetadata
 } from '@/lib/server/asset-metadata';
+import { getAssetsDir } from '@/lib/server/appPaths';
 
 export async function POST(request: Request) {
   try {
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     const assetType = type as AssetType;
     const assetCategory = category as AssetCategory;
     const safeName = String(name);
-    const filePath = path.join(process.cwd(), 'public', 'assets', assetCategory, assetType, safeName);
+    const filePath = path.join(getAssetsDir(), assetCategory, assetType, safeName);
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ success: false, message: 'Asset not found' }, { status: 404 });
     }

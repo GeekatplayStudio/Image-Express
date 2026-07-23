@@ -17,6 +17,7 @@ declare global {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onUpdateStatus?: (callback: (payload: any) => void) => () => void;
       checkForUpdates?: () => Promise<DesktopUpdatePayload>;
+      getLocalCapabilityToken?: () => Promise<string>;
       downloadUpdate?: () => void;
       installUpdate?: () => Promise<void>;
       quitAndInstall?: () => void;

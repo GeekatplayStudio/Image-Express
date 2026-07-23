@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { authorizeLocalRuntimeCapability } from '@/lib/server/runtimeProfile';
+import { getProjectRoot } from '@/lib/server/appPaths';
 
 const execFileAsync = promisify(execFile);
 
 export const dynamic = 'force-dynamic';
 
 async function git(args: string[]): Promise<string> {
-    const { stdout } = await execFileAsync('git', args, { cwd: process.cwd(), timeout: 30_000 });
+    const { stdout } = await execFileAsync('git', args, { cwd: getProjectRoot(), timeout: 30_000 });
     return stdout.trim();
 }
 
@@ -20,7 +22,9 @@ async function git(args: string[]): Promise<string> {
  * terminal via `npm run update` (see scripts/update.mjs) so the running
  * server is never yanked out from under the user mid-request.
  */
-export async function GET() {
+export async function GET(request: Request) {
+    const unauthorized = authorizeLocalRuntimeCapability(request, 'app:update');
+    if (unauthorized) return unauthorized;
     try {
         await git(['rev-parse', '--is-inside-work-tree']);
     } catch {
@@ -75,7 +79,9 @@ export async function GET() {
  * same safety rules as running `npm run update` manually. The caller should
  * prompt the user to restart the app afterwards.
  */
-export async function POST() {
+export async function POST(request: Request) {
+    const unauthorized = authorizeLocalRuntimeCapability(request, 'app:update');
+    if (unauthorized) return unauthorized;
     try {
         await git(['rev-parse', '--is-inside-work-tree']);
     } catch {
@@ -96,7 +102,7 @@ export async function POST() {
 
         const scriptPath = './scripts/update.mjs';
         const { stdout, stderr } = await execFileAsync(process.execPath, [scriptPath], {
-            cwd: process.cwd(),
+            cwd: getProjectRoot(),
             timeout: 10 * 60_000,
         });
         const commit = await git(['rev-parse', '--short', 'HEAD']);

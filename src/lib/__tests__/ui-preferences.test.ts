@@ -10,6 +10,8 @@ describe('ui-preferences', () => {
             expandToolRailLabelsOnHover: false,
             suppressNumberDragHints: false,
             autosaveEnabled: false,
+            lastCanvasWidth: 1080,
+            lastCanvasHeight: 1080,
         });
     });
 

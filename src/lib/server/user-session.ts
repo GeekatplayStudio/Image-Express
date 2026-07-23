@@ -2,6 +2,7 @@ import crypto from 'crypto';
 
 import { normalizeEmail } from '@/lib/server/auth-utils';
 import { findUserByIdentifier, loadUsers, type ManagedUser } from '@/lib/server/user-auth-store';
+import { getRuntimeProfile } from '@/lib/server/runtimeProfile';
 
 const TOKEN_VERSION = 1;
 const DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -16,7 +17,12 @@ type SessionPayload = {
 };
 
 function getSessionSecret() {
-    return process.env.IMAGE_EXPRESS_SESSION_SECRET || 'image-express-dev-session-secret';
+    const configured = process.env.IMAGE_EXPRESS_SESSION_SECRET?.trim();
+    if (configured) return configured;
+    if (getRuntimeProfile() === 'self-hosted') {
+        throw new Error('IMAGE_EXPRESS_SESSION_SECRET is required in self-hosted mode.');
+    }
+    return 'image-express-dev-session-secret';
 }
 
 function encodeBase64Url(value: string) {

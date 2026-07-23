@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readdir, stat } from 'fs/promises';
 import path from 'path';
 import fs from 'fs';
+import { getDesignsDir } from '@/lib/server/appPaths';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const designsDir = path.join(process.cwd(), 'public', 'assets', 'designs');
+    const designsDir = getDesignsDir();
 
     // Check if dir exists
     if (!fs.existsSync(designsDir)) {
@@ -32,9 +33,9 @@ export async function GET(request: NextRequest) {
       return {
         id: id,
         name: readableName, // Simplified name extraction
-        data: `/assets/designs/${file}`, // The JSON data URL
-        image: `/assets/designs/${id}.png`, // The thumbnail URL
-        thumbnail: `/assets/designs/${id}.png`,
+        data: `/api/assets/serve/designs/${file}`,
+        image: `/api/assets/serve/designs/${id}.png`,
+        thumbnail: `/api/assets/serve/designs/${id}.png`,
         lastModified: stats.mtimeMs
       };
     }));

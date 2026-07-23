@@ -3,8 +3,11 @@ import {
     isInstallerRunValidationError,
     runInstallerWorkflow,
 } from '@/lib/server/installerRun';
+import { authorizeLocalRuntimeCapability } from '@/lib/server/runtimeProfile';
 
 export async function POST(request: Request): Promise<NextResponse> {
+    const unauthorized = authorizeLocalRuntimeCapability(request, 'runtime:install');
+    if (unauthorized) return unauthorized;
     try {
         const payload = await request.json().catch(() => ({}));
         const result = await runInstallerWorkflow(payload);

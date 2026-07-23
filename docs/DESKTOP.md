@@ -3,26 +3,25 @@
 Image Express runs in three ways. All three share the same code, the same setup
 wizard, and the same theme/ambience pack system.
 
-There are exactly **four user-facing files, all in the repo root** (never hidden
-in subfolders):
+The primary user-facing downloads are the native artifacts produced by the protected release
+workflow:
 
-| File | What it does |
+| Artifact | What it does |
 |---|---|
-| **`install.bat`** (Windows) / **`install.command`** (macOS) | One-file setup: double-click, everything is downloaded and installed |
-| **`start.bat`** (Windows) / **`start.command`** (macOS) | One-click run: updates, builds if needed, starts the app, opens the browser |
+| `ImageExpress-Setup-<version>.exe` | Windows per-user application installer |
+| `ImageExpress-<version>-<arch>.dmg` | macOS drag-to-Applications installer |
+| `ImageExpress-<version>-x64.AppImage` / `.deb` | Linux application packages |
 
-Plus the packaged binaries for users who prefer them:
-`ImageExpress-Setup-<version>.exe` (built with `npm run desktop:dist:win`) and
-the macOS dmg (`npm run desktop:dist:mac`, run on a Mac) — distribute these via
-GitHub Releases, not the repo.
+The four root `.bat`/`.command` files are source bootstrap and source launcher tools for
+contributors and advanced users.
 
 | Mode | Who it's for | How |
 |---|---|---|
-| **One-file installer** (recommended) | Everyone — designed for the least technical user; a single small file, everything pulled from GitHub | Download and double-click `install.bat` / `install.command` |
-| **Desktop app (exe / mac app)** | Users who prefer a packaged binary | `ImageExpress-Setup-<version>.exe` / dmg from Releases |
+| **Desktop app** (recommended) | Everyone, including non-technical users | Download one native artifact from Releases |
+| **Source bootstrap** | Contributors and source-build testers | `install.bat` / `install.command` |
 | **Server (web app)** | Teams hosting it themselves | `npm run build && npm run start` behind any reverse proxy |
 
-## One-file installer (`install.bat` / `install.command`)
+## Source bootstrap (`install.bat` / `install.command`)
 
 A single small self-contained file (the Windows one embeds its PowerShell body
 after a `#PS1#` marker — no companion files). Nothing is bundled; everything is

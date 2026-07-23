@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 import mime from 'mime';
+import { getAssetsDir } from '@/lib/server/appPaths';
 
 /**
  * Dynamic Asset Server
@@ -28,7 +29,7 @@ export async function GET(
              return new NextResponse('Invalid path', { status: 403 });
         }
 
-        const filePath = path.join(process.cwd(), 'public', 'assets', safePath);
+        const filePath = path.join(getAssetsDir(), safePath);
 
         if (!fs.existsSync(filePath)) {
             console.error(`File not found: ${filePath}`);

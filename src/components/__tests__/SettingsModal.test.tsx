@@ -11,6 +11,7 @@ const mockRequestOpenSetupWizard = jest.fn();
 const mockUseEscapeKey = jest.fn();
 const mockDialogConfirm = jest.fn();
 const mockInspectComfyServerCatalog = jest.fn();
+const mockToast = jest.fn();
 
 jest.mock('@/lib/googleDrive', () => ({
     connectGoogleDrive: (...args: unknown[]) => mockConnectGoogleDrive(...args),
@@ -44,6 +45,12 @@ jest.mock('@/lib/setupWizard', () => ({
 jest.mock('@/providers/DialogProvider', () => ({
     useDialog: () => ({
         confirm: (...args: unknown[]) => mockDialogConfirm(...args),
+    }),
+}));
+
+jest.mock('@/providers/ToastProvider', () => ({
+    useToast: () => ({
+        toast: (...args: unknown[]) => mockToast(...args),
     }),
 }));
 

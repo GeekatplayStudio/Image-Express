@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { useI18n } from '@/providers/I18nProvider';
+import { getLocalRuntimeAuthorizationHeaders } from '@/lib/localRuntimeAuthorization';
 
 export const UPDATE_AUTOCHECK_STORAGE_KEY = 'image-express-update-autocheck';
 
@@ -34,7 +35,8 @@ export default function UpdateAutoCheck() {
 
         const timer = window.setTimeout(async () => {
             try {
-                const response = await fetch('/api/system/update');
+                const authorizationHeaders = await getLocalRuntimeAuthorizationHeaders();
+                const response = await fetch('/api/system/update', { headers: authorizationHeaders });
                 const status = await response.json() as { supported?: boolean; updateAvailable?: boolean; behind?: number; dirty?: boolean };
                 if (!status.supported || !status.updateAvailable || status.dirty) return;
 
@@ -45,7 +47,10 @@ export default function UpdateAutoCheck() {
                 if (!wantsUpdate) return;
 
                 toast({ title: t('updates.updating'), description: t('updates.updatingBody') });
-                const apply = await fetch('/api/system/update', { method: 'POST' });
+                const apply = await fetch('/api/system/update', {
+                    method: 'POST',
+                    headers: authorizationHeaders,
+                });
                 const result = await apply.json() as { success: boolean; commit?: string; error?: string };
                 if (result.success) {
                     await alert(

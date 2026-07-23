@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getInstallerRuntimeStatus } from '@/lib/server/installerRuntimeStatus';
+import { authorizeLocalRuntimeCapability } from '@/lib/server/runtimeProfile';
 
 export async function GET(request: Request): Promise<NextResponse> {
+    const unauthorized = authorizeLocalRuntimeCapability(request, 'runtime:install');
+    if (unauthorized) return unauthorized;
     try {
         const requestUrl = new URL(request.url);
         const comfyDir = requestUrl.searchParams.get('comfyDir') || '';

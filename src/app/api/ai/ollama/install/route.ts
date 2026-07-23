@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
 import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
 import { formatOllamaModelList, normalizeOllamaBaseUrl } from '@/lib/ollama';
+import { authorizeLocalRuntimeCapability } from '@/lib/server/runtimeProfile';
 
 const OLLAMA_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -23,6 +24,8 @@ const extractModelNames = (payload: OllamaTagsPayload): string[] => (
 );
 
 export async function POST(request: NextRequest) {
+    const unauthorized = authorizeLocalRuntimeCapability(request, 'runtime:install');
+    if (unauthorized) return unauthorized;
     let payload: { baseUrl?: string; model?: string };
 
     try {

@@ -6,6 +6,8 @@ import {
     createOneTimeToken,
     hashPassword
 } from '@/lib/server/auth-utils';
+import { getDataDir } from '@/lib/server/appPaths';
+import { getRuntimeProfile } from '@/lib/server/runtimeProfile';
 
 export type UserStatus = 'pending' | 'approved' | 'rejected' | 'disabled';
 
@@ -33,7 +35,7 @@ interface UserStore {
     updatedAt: string;
 }
 
-const STORE_DIR = path.join(process.cwd(), 'data');
+const STORE_DIR = getDataDir();
 const STORE_FILE = path.join(STORE_DIR, 'users.json');
 
 const ADMIN_DEFAULT_EMAIL = normalizeEmail(process.env.IMAGE_EXPRESS_ADMIN_EMAIL || 'admin@local');
@@ -128,6 +130,12 @@ function createDefaultMemberSeedUser(): ManagedUser {
 }
 
 async function ensureSeedUsers(store: UserStore) {
+    if (
+        getRuntimeProfile() === 'self-hosted'
+        && (!process.env.IMAGE_EXPRESS_ADMIN_PASSWORD || ADMIN_DEFAULT_PASSWORD === 'admin')
+    ) {
+        throw new Error('IMAGE_EXPRESS_ADMIN_PASSWORD must be set to a non-default value in self-hosted mode.');
+    }
     let changed = false;
     const users = [...store.users];
 

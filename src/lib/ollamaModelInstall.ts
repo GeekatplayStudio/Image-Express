@@ -1,4 +1,5 @@
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
+import { getLocalRuntimeAuthorizationHeaders } from '@/lib/localRuntimeAuthorization';
 
 export type MissingOllamaModelDetails = {
     model: string;
@@ -47,10 +48,12 @@ export const requestOllamaModelInstall = async (options: {
     baseUrl?: string;
     model?: string;
 }): Promise<OllamaInstallResult> => {
+    const authorizationHeaders = await getLocalRuntimeAuthorizationHeaders();
     const response = await fetch('/api/ai/ollama/install', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            ...authorizationHeaders,
         },
         body: JSON.stringify({
             baseUrl: options.baseUrl?.trim() || DEFAULT_OLLAMA_BASE_URL,

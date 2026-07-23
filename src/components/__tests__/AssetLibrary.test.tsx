@@ -92,6 +92,10 @@ jest.mock('@/components/ui/DraggableResizablePanel', () => ({
     default: ({ children }: { children: React.ReactNode }) => <div data-testid="asset-library-panel">{children}</div>,
 }));
 
+jest.mock('@/lib/modelThumbnail', () => ({
+    renderModelThumbnail: jest.fn().mockResolvedValue(null),
+}));
+
 function makeJsonResponse(payload: unknown, ok = true): Response {
     return {
         ok,
@@ -267,7 +271,7 @@ describe('AssetLibrary', () => {
             expect(screen.getByTitle('server-image.png')).toBeInTheDocument();
         });
 
-        expect(mockUseEscapeKey).toHaveBeenCalledWith(onClose);
+        expect(mockUseEscapeKey).toHaveBeenCalledWith(expect.any(Function));
         expect(mockListLocalAssets).toHaveBeenCalledWith(expect.objectContaining({
             owner: 'alice@example.com',
             scope: 'personal',
@@ -402,9 +406,7 @@ describe('AssetLibrary', () => {
             expect(screen.getByTitle('clip.mp4')).toBeInTheDocument();
         });
 
-        const videoElement = document.querySelector('video');
-        expect(videoElement).not.toBeNull();
-        fireEvent.click(videoElement as HTMLElement);
+        fireEvent.doubleClick(screen.getByTitle('clip.mp4'));
 
         await waitFor(() => {
             expect(onSelect).toHaveBeenCalledWith(expect.stringMatching(/^blob:/), 'videos', 'clip.mp4');
