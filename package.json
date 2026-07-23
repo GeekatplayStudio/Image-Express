@@ -58,6 +58,7 @@
     "@fontsource/oswald": "^5.2.8",
     "@fontsource/pacifico": "^5.2.7",
     "@fontsource/playfair-display": "^5.2.8",
+    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",

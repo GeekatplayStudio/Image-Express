@@ -13,6 +13,10 @@ import {
     type Vec2,
 } from '@/lib/threeDLayer/homography';
 import { cornersToPx, rewarpQuad, unwarpQuad } from '@/lib/threeDLayer/warpRender';
+import { estimateDepth, luminancePseudoDepth } from '@/lib/threeDLayer/depth';
+import { normalsFromDepth } from '@/lib/threeDLayer/normals';
+import { loadGlobalLight } from '@/lib/threeDLayer/globalLight';
+import { bakeRelight, ThreeDRelightControls } from './ThreeDRelightControls';
 
 interface ThreeDLayerPropertiesProps {
     canvas: fabric.Canvas | null;
@@ -50,6 +54,7 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
     const { t } = useI18n();
     const [editorSrc, setEditorSrc] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [depthProgress, setDepthProgress] = useState<string | null>(null);
 
     const ext = selectedObject;
     const settings = ext?.is3DLayer ? ext.threeDLayerSettings : undefined;
@@ -123,6 +128,55 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
         }
     };
 
+    const handleCreateRelight = async () => {
+        if (!canvas) return;
+        const src = layerSourceUrl(ext);
+        if (!src) return;
+        setBusy(true);
+        setDepthProgress(t('layer3d.relight.loadingModel'));
+        try {
+            const sourceImg = await loadImage(src);
+            let depth: HTMLCanvasElement;
+            try {
+                depth = await estimateDepth(src);
+            } catch {
+                // Model unavailable (offline / unsupported) — degrade to the
+                // luminance pseudo-depth so the tool still works.
+                depth = luminancePseudoDepth(sourceImg);
+            }
+            setDepthProgress(t('layer3d.relight.generatingNormals'));
+            const normals = normalsFromDepth(depth);
+
+            const relightImg = await fabric.FabricImage.fromURL(src);
+            const layerSettings: ThreeDLayerSettings = {
+                mode: 'relight',
+                sourceRef: src,
+                depthRef: depth.toDataURL('image/png'),
+                normalRef: normals.toDataURL('image/png'),
+                depthSpace: 'disparity',
+                useGlobalLight: true,
+                lights: [],
+                ambient: { color: '#ffffff', intensity: 0.35 },
+            };
+            const relightExt = relightImg as unknown as ExtendedFabricObject;
+            relightExt.is3DLayer = true;
+            relightExt.threeDLayerSettings = layerSettings;
+            relightExt.name = t('layer3d.relightLayerName');
+            relightImg.set({
+                left: ext.left, top: ext.top,
+                scaleX: ext.scaleX, scaleY: ext.scaleY,
+                angle: ext.angle, originX: ext.originX, originY: ext.originY,
+            });
+            await bakeRelight(relightExt, layerSettings, loadGlobalLight());
+            canvas.add(relightImg);
+            canvas.setActiveObject(relightImg);
+            canvas.requestRenderAll();
+        } finally {
+            setBusy(false);
+            setDepthProgress(null);
+        }
+    };
+
     const updateRewarp = (patch: Partial<NonNullable<ThreeDLayerSettings['rewarp']>>) => {
         if (!settings) return;
         ext.threeDLayerSettings = {
@@ -188,16 +242,29 @@ export function ThreeDLayerProperties({ canvas, selectedObject }: ThreeDLayerPro
             </div>
 
             {isImageLayer && (
-                <button
-                    onClick={openEditor}
-                    disabled={busy}
-                    className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
-                >
-                    {t('layer3d.unwarp.open')}
-                </button>
+                <>
+                    <button
+                        onClick={openEditor}
+                        disabled={busy}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
+                    >
+                        {t('layer3d.unwarp.open')}
+                    </button>
+                    <button
+                        onClick={() => { void handleCreateRelight(); }}
+                        disabled={busy}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border hover:bg-secondary transition-colors text-left disabled:opacity-50"
+                    >
+                        {depthProgress ?? t('layer3d.relight.open')}
+                    </button>
+                </>
             )}
 
-            {settings && (
+            {settings?.mode === 'relight' && (
+                <ThreeDRelightControls canvas={canvas} layer={ext} settings={settings} />
+            )}
+
+            {settings && settings.mode === 'unwarp' && (
                 <div className="space-y-2.5">
                     <button
                         onClick={openEditor}
