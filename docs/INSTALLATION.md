@@ -134,6 +134,7 @@ ollama pull qwen2.5:7b
 - The toolbar `AI Critique` panel can then review either the selected layer or the full canvas using that local runtime.
 - The app validates model availability through `/api/ai/ollama/status` before critique requests are sent.
 - If the saved model is missing, the app can now prompt to install it through Ollama from Settings, AI Critique, or the Ollama image-generation flow.
+- The **Asset Library**'s optional AI indexing (toggle in its filter bar) reuses this same Ollama connection: it captions and tags new image uploads with any installed vision-capable model (e.g. `qwen2.5vl`, `llava`) so they become searchable by content, not just filename. Basic indexing (dimensions, embedded generation prompts from PNG metadata) always runs and needs no model at all — the vision step is the only part that needs Ollama.
 - For mixed host/container setups, keep using your normal Ollama URL. Server-side Ollama routes now retry transient network failures per candidate and also retry `localhost` through `host.docker.internal`, plus `host.docker.internal` back to `localhost`, so the same saved setting works whether Image Express is running on the host or inside Docker on macOS/Windows.
 
 ### Option B: LM Studio

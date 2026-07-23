@@ -115,11 +115,12 @@ Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key config
 
 ### One canvas, three disciplines
 - **Infinite 2D vector/raster canvas** (Fabric.js) with professional layer management — locking, folders, multi-select, arrange mode, non-destructive clip masks with gradient fades.
-- **Live 3D layer editor** (Three.js/WebGL) — pose, light, and shadow a generated or uploaded 3D model right inside a canvas layer.
+- **Switchable tool groups**: right-click Selection, Retouch, or **Fill/Gradient** on the rail to flip between their sub-tools, same as Photoshop's flyouts. Fill/Gradient includes a **New Fill/Gradient Layer** mode that drops a page-filling gradient layer ready to edit.
+- **Live 3D layer editor** (Three.js/WebGL) — pose, light, and shadow a generated or uploaded 3D model right inside a canvas layer, with realistic soft shadows (true penumbra, not a blurred pixel grid) that scale correctly with the model instead of clipping at a fixed radius. Your lighting setup carries over to the next new model you open, so you're not re-lighting from scratch every time.
 - **⚡ Frame Bake** — our name for capturing the exact 3D pose you like and baking it into a flat, further-editable 2D PNG layer with one click. Design in 3D, finish in 2D, no round-trip to another app.
 - **Real retouching brushes**: Spot Healing, Clone Stamp, Dodge, Burn, Sponge, History Brush, Blur/Sharpen — not filter presets, actual brush-based tools.
 - **Curved & circular text**, 13 font families, gradient editor, extended shape library, perspective front/back presets.
-- **Photoshop-grade shortcuts**: `V/M/L/W/T/U/P/B/J/S/O/G/I/C/H/Z`, Space-drag pan, Alt-drag duplicate, full undo/redo history.
+- **Photoshop-grade shortcuts**: `V/M/L/W/T/U/P/B/J/S/O/G/I/C/H/Z`, `Ctrl/Cmd+S` to save, Space-drag pan, Alt-drag duplicate, full undo/redo history.
 
 ### 🧩 Canvas Stacking & Cross-Canvas Sync *(unique to Image Express)*
 Most tools give you one canvas per document. Image Express gives every project a whole **deck of canvases** you flip between instantly — and any layer can be marked **Linked**, broadcasting itself into every other canvas (even across different projects). Edit the linked object once — move it, recolor it, adjust it — and every copy across your entire workspace updates in real time. The **Stack View** visualizes these links as glowing bridge-curves between floating 3D planes, so you can literally *see* your project's data flow, node-editor style. Perfect for template families, multi-page campaigns, and brand-kit consistency.
@@ -132,12 +133,17 @@ Most tools give you one canvas per document. Image Express gives every project a
 - A **polymorphic AI adapter layer** means every provider returns the same normalized shape to the UI — swap providers mid-project with zero rework.
 
 ### 📚 Real asset & project management
-- **Asset Library**: drag-drop ingestion, folders, search, personal-vs-shared scope, public/private visibility, and **live rotating 3D previews on hover** for 3D models, video, and audio thumbnails.
+- **Asset Library**: drag-and-drop multi-file ingestion (mixed images/video/audio/3D lands in the right tabs automatically), folders, search, personal-vs-shared scope, public/private visibility, and **live rotating 3D previews on hover** plus real rendered thumbnails for 3D models in the grid — not just an icon.
+- **Single click opens a large preview** for any asset with an Add-to-Canvas button; **double-click or the hover “+” button** adds it straight to the canvas. Video previews support real scrubbing and a **Capture Frame** button that grabs the current frame as a new image layer.
+- **AI-assisted asset search (optional, local)**: new uploads are indexed automatically — dimensions and any embedded generation prompt always, plus an AI caption + tags from a local Ollama vision model when you opt in — so you can find an asset by what's *in* it, not just its filename.
 - **Portable Library Bundles**: export your entire asset library (with owner/visibility metadata) as one file and re-import it on another machine or project.
-- **Server-side design storage** (no browser-storage limits), optional **Google Drive backup** mirroring every save automatically, and full **export** to PNG/JPG/SVG/PDF/JSON/self-contained offline HTML.
+- **Server-side design storage** (no browser-storage limits), optional **Google Drive backup** mirroring every save automatically, and full **export** to PNG/JPG/SVG/PDF/JSON/self-contained offline HTML — plus **machine embroidery (.DST)**, see below.
 
-### 🌍 11 languages out of the box
-English, German, Spanish, French, Italian, Japanese, Polish, Portuguese, Russian, Ukrainian, and Chinese — full UI coverage from the dashboard to the deepest properties panel, with automatic locale persistence.
+### 🧵 Machine Embroidery Export — design it, sew it
+Export any page straight to **Tajima .DST**, the format nearly every embroidery machine on the planet reads. Pick how many thread colors to reduce your design to, set physical width, fill density, and max stitch length, and optionally skip the background (transparent areas and the color dominating the page border are auto-detected and never stitched). The engine generates real running-stitch fills with tie-in/tie-off locks and proper jump-vs-travel logic — not a naive pixel-to-stitch dump — and the preview window includes **zoom/pan** plus a **stitch-out simulator**: drag a slider (or hit play) to watch the exact needle path draw itself in sewing order, thread by thread, before you commit it to a machine.
+
+### 🌍 11 languages, growing
+English, German, Spanish, French, Italian, Japanese, Polish, Portuguese, Russian, Ukrainian, and Chinese are all selectable from the top-bar globe menu, with automatic locale persistence. **English, Russian, and Ukrainian are at 100% UI coverage** today — every panel, from the dashboard to the deepest properties tab. The rest are being brought up to the same bar one functional area at a time (Spanish is next); until then they fall back to English string-by-string, so nothing ever renders blank.
 
 ### 🎭 Themes that are actually alive
 Keep reading — this is the part that has to be seen to be believed. →

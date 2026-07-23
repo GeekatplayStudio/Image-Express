@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
-import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square, SlidersHorizontal, AlertTriangle, CheckSquare, MoreHorizontal, Folder, FolderPlus, FolderMinus, ImagePlus } from 'lucide-react';
+import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square, SlidersHorizontal, AlertTriangle, CheckSquare, MoreHorizontal, Folder, FolderPlus, FolderMinus, ImagePlus, Plus, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
 import { AssetDescriptor, AssetType, AssetCategory } from '@/types';
@@ -50,6 +50,9 @@ import {
     type AssetLibraryBundleManifest,
 } from '@/lib/assetLibraryBundle';
 import { useI18n } from '@/providers/I18nProvider';
+import { canRenderModelThumbnail, getCachedModelThumbnail, renderModelThumbnail } from '@/lib/modelThumbnail';
+import { backfillLocalAssetIndex, indexLocalAsset } from '@/lib/assetIndexer';
+import { loadAssetIndexSettings, saveAssetIndexSettings } from '@/lib/assetIndexSettings';
 
 const ACCEPTED_FILE_TYPES = `${buildImageAcceptAttribute()},video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply`;
 
@@ -168,6 +171,9 @@ type LibraryAsset = AssetDescriptor & {
     storageId?: string;
     previewPath?: string;
     sourceAssets?: LibraryAsset[];
+    /** Search-index metadata (AI caption/tags, embedded prompt) when available. */
+    description?: string;
+    tags?: string[];
 };
 
 type ModelPreviewPopupState = {
@@ -357,6 +363,17 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     const [contextMenuPosition, setContextMenuPosition] = useState<{ left: number; top: number } | null>(null);
     const [assetGroups, setAssetGroups] = useState<AssetGroupMap>(() => loadAssetGroups(currentUser?.trim() || 'Guest'));
     const [activeGroup, setActiveGroup] = useState<string | null>(null);
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
+    const dragDepthRef = useRef(0);
+    // Rendered still-frame thumbnails for 3D model tiles, keyed by asset key.
+    const [modelThumbnails, setModelThumbnails] = useState<Record<string, string>>({});
+    const [indexSettings, setIndexSettings] = useState(() => loadAssetIndexSettings());
+    const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
+    // Large single-click preview modal: shows any asset at full size with
+    // add-to-canvas / capture-frame actions.
+    const [assetDetail, setAssetDetail] = useState<{ asset: LibraryAsset; url: string } | null>(null);
+    const [loadingDetailKey, setLoadingDetailKey] = useState<string | null>(null);
+    const detailVideoRef = useRef<HTMLVideoElement | null>(null);
 
     const contextMenuRef = useRef<HTMLDivElement | null>(null);
     const moreMenuRef = useRef<HTMLDivElement | null>(null);
@@ -542,6 +559,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 updatedAt: item.updatedAt,
                 storageProvider: 'local',
                 storageId: item.id,
+                description: item.description,
+                tags: item.tags,
             };
         });
 
@@ -627,12 +646,39 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         };
     }, [clearObjectUrls]);
 
+    // Backfill the search index for assets added before indexing existed (or
+    // before AI indexing was enabled). Runs once per library open, idle-paced.
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            void backfillLocalAssetIndex({
+                onProgress: (done, total) => {
+                    setBackfillProgress(done >= total ? null : { done, total });
+                },
+            }).then(({ indexed }) => {
+                setBackfillProgress(null);
+                if (indexed > 0) void fetchAssets();
+            }).catch(() => setBackfillProgress(null));
+        }, 1500);
+        return () => window.clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [indexSettings.aiIndexingEnabled]);
+
     useEffect(() => {
         const visibleKeys = new Set(assets.map((asset) => getAssetKey(asset)));
         setSelectedAssetKeys((current) => current.filter((assetKey) => visibleKeys.has(assetKey)));
     }, [assets, getAssetKey]);
 
-    useEscapeKey(onClose);
+    // Escape closes the detail preview first; a second press closes the library.
+    const assetDetailRef = useRef(assetDetail);
+    assetDetailRef.current = assetDetail;
+    const handleEscape = useCallback(() => {
+        if (assetDetailRef.current) {
+            setAssetDetail(null);
+        } else {
+            onClose();
+        }
+    }, [onClose]);
+    useEscapeKey(handleEscape);
 
     // Close the asset context menu / header overflow menu on outside clicks, based on
     // whether the click actually landed inside each menu's DOM — not on every opener
@@ -737,43 +783,20 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     }, [driveClientId]);
 
     /**
-     * Handles file selection from system dialog.
-     * Uploads to local, cloud, or both depending on storage settings.
+     * Uploads a batch of files (from the file picker or drag & drop).
+     * Each file is classified independently, so mixed batches (images + audio
+     * + models) land in their correct tabs. Uploads to local, cloud, or both
+     * depending on storage settings.
      */
-    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const originalFile = e.target.files?.[0];
-        if (!originalFile) return;
+    const processFiles = async (incoming: File[]) => {
+        if (incoming.length === 0) return;
 
         const config = TAB_CONFIG[activeTab];
-        const detectedType = inferAssetType(originalFile.name, originalFile.type);
         setIsUploading(true);
 
-        let file: File = originalFile;
-        if (detectedType === 'images') {
-            try {
-                const decoded = await ensureDisplayableImage(originalFile);
-                if (decoded.convertedFromLabel) {
-                    const baseName = originalFile.name.slice(0, originalFile.name.length - getExtension(originalFile.name).length);
-                    file = new File([decoded.blob], `${baseName}.png`, { type: 'image/png' });
-                    toast({
-                        title: `Converted from ${decoded.convertedFromLabel}`,
-                        description: decoded.isPreviewOnly
-                            ? 'Imported the embedded preview image; the original file was not modified.'
-                            : 'Converted to PNG so it can be edited and previewed.',
-                        variant: 'default'
-                    });
-                }
-            } catch (error) {
-                toast({
-                    title: t('assets.unsupportedFile'),
-                    description: error instanceof Error ? error.message : 'Could not open this file.',
-                    variant: 'warning'
-                });
-                setIsUploading(false);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-                return;
-            }
-        }
+        let successCount = 0;
+        const failedNames: string[] = [];
+        let lastUploadedType: AssetType | null = null;
 
         try {
             const settings = loadAssetStorageSettings();
@@ -808,34 +831,83 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 }
             }
 
-            if (uploadLocal) {
-                await saveLocalAsset({
-                    file,
-                    filename: file.name,
-                    type: detectedType,
-                    category: config.category,
-                    owner: normalizedUser,
-                    isPublic: false,
-                    mimeType: file.type || undefined
+            for (const originalFile of incoming) {
+                const detectedType = inferAssetType(originalFile.name, originalFile.type);
+
+                let file: File = originalFile;
+                if (detectedType === 'images') {
+                    try {
+                        const decoded = await ensureDisplayableImage(originalFile);
+                        if (decoded.convertedFromLabel) {
+                            const baseName = originalFile.name.slice(0, originalFile.name.length - getExtension(originalFile.name).length);
+                            file = new File([decoded.blob], `${baseName}.png`, { type: 'image/png' });
+                            toast({
+                                title: `Converted from ${decoded.convertedFromLabel}`,
+                                description: decoded.isPreviewOnly
+                                    ? 'Imported the embedded preview image; the original file was not modified.'
+                                    : 'Converted to PNG so it can be edited and previewed.',
+                                variant: 'default'
+                            });
+                        }
+                    } catch {
+                        failedNames.push(originalFile.name);
+                        continue;
+                    }
+                }
+
+                try {
+                    if (uploadLocal) {
+                        const saved = await saveLocalAsset({
+                            file,
+                            filename: file.name,
+                            type: detectedType,
+                            category: config.category,
+                            owner: normalizedUser,
+                            isPublic: false,
+                            mimeType: file.type || undefined
+                        });
+                        // Index in the background; search metadata lands shortly after upload.
+                        void indexLocalAsset(saved).catch(() => undefined);
+                    }
+
+                    if (uploadCloud && driveConfig.enabled && resolvedDriveClientId) {
+                        await uploadDriveAsset(resolvedDriveClientId, {
+                            file,
+                            filename: file.name,
+                            type: detectedType,
+                            category: config.category,
+                            owner: normalizedUser,
+                            isPublic: false,
+                        });
+                    }
+
+                    successCount += 1;
+                    lastUploadedType = detectedType;
+                } catch (error) {
+                    console.error(`Failed uploading ${originalFile.name}`, error);
+                    failedNames.push(originalFile.name);
+                }
+            }
+
+            if (failedNames.length > 0) {
+                toast({
+                    title: successCount === 0 ? t('assets.uploadError') : t('assets.uploadPartial'),
+                    description: t('assets.uploadFailedFiles', { names: failedNames.join(', ') }),
+                    variant: successCount === 0 ? 'destructive' : 'warning'
+                });
+            } else if (incoming.length > 1) {
+                toast({
+                    title: t('assets.uploadComplete'),
+                    description: t('assets.uploadCompleteBody', { count: successCount }),
+                    variant: 'success'
                 });
             }
 
-            if (uploadCloud && driveConfig.enabled && resolvedDriveClientId) {
-                await uploadDriveAsset(resolvedDriveClientId, {
-                    file,
-                    filename: file.name,
-                    type: detectedType,
-                    category: config.category,
-                    owner: normalizedUser,
-                    isPublic: false,
-                });
-            }
-
-            const targetTab = typeToTabKey[detectedType];
+            const targetTab = lastUploadedType ? typeToTabKey[lastUploadedType] : null;
             if (targetTab && targetTab !== activeTab) {
                 setActiveTab(targetTab);
                 await fetchAssets(targetTab);
-            } else {
+            } else if (successCount > 0) {
                 await fetchAssets();
             }
         } catch (error) {
@@ -845,6 +917,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
+    };
+
+    /** Handles file selection from the system dialog (now supports multi-select). */
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        await processFiles(files);
     };
 
     /**
@@ -1151,6 +1229,43 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         return null;
     }, [driveClientId, registerObjectUrl]);
 
+    // Generate still-frame thumbnails for 3D model tiles. Renders happen once per
+    // asset (module-level cache in modelThumbnail.ts) and are serialized so a large
+    // grid doesn't exhaust WebGL contexts. Non-GLTF formats fall back to the icon.
+    useEffect(() => {
+        let cancelled = false;
+        const modelAssets = assets.filter((asset) => asset.type === 'models' && canRenderModelThumbnail(asset.name));
+
+        modelAssets.forEach((asset) => {
+            const assetKey = getAssetKey(asset);
+            if (modelThumbnails[assetKey]) return;
+
+            const cached = getCachedModelThumbnail(assetKey);
+            if (cached) {
+                setModelThumbnails((prev) => (prev[assetKey] ? prev : { ...prev, [assetKey]: cached }));
+                return;
+            }
+
+            void (async () => {
+                try {
+                    const url = await resolveModelPreviewUrl(asset);
+                    if (!url || cancelled) return;
+                    const thumbnail = await renderModelThumbnail(assetKey, url);
+                    if (!cancelled) {
+                        setModelThumbnails((prev) => (prev[assetKey] ? prev : { ...prev, [assetKey]: thumbnail }));
+                    }
+                } catch (error) {
+                    console.error(`Failed rendering 3D thumbnail for ${asset.name}`, error);
+                }
+            })();
+        });
+
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [assets, getAssetKey, resolveModelPreviewUrl]);
+
     const openModelPreviewPopup = useCallback(async (asset: LibraryAsset, assetKey: string, anchorRect: DOMRect) => {
         if (loadingModelPreviewKey === assetKey) return;
         if (modelPreviewPopup?.key === assetKey) return;
@@ -1202,6 +1317,57 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             });
         }
     }, [onClose, onSelect, resolveAssetSelectionPath, toast, t]);
+
+    /** Opens the large single-click preview for any asset type. */
+    const openAssetDetail = useCallback(async (asset: LibraryAsset) => {
+        const assetKey = getAssetKey(asset);
+        setLoadingDetailKey(assetKey);
+        try {
+            const url = await resolveModelPreviewUrl(asset);
+            if (!url) throw new Error('No previewable source.');
+            setAssetDetail({ asset, url });
+        } catch (error) {
+            console.error('Failed to open asset preview', error);
+            toast({
+                title: t('assets.openFailed'),
+                description: t('assets.openFailedBody'),
+                variant: 'destructive'
+            });
+        } finally {
+            setLoadingDetailKey((current) => (current === assetKey ? null : current));
+        }
+    }, [getAssetKey, resolveModelPreviewUrl, toast, t]);
+
+    /** Grabs the current video frame in the detail preview and places it on the canvas as an image. */
+    const captureVideoFrame = useCallback(() => {
+        const video = detailVideoRef.current;
+        const detail = assetDetail;
+        if (!video || !detail || video.readyState < 2) {
+            toast({ title: t('assets.captureFrameNotReady'), variant: 'warning' });
+            return;
+        }
+        try {
+            const frameCanvas = document.createElement('canvas');
+            frameCanvas.width = video.videoWidth;
+            frameCanvas.height = video.videoHeight;
+            const context = frameCanvas.getContext('2d');
+            if (!context) throw new Error('No 2D context.');
+            context.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
+            const dataUrl = frameCanvas.toDataURL('image/png');
+            const seconds = video.currentTime;
+            const stamp = `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+            onSelect(dataUrl, 'images', `${detail.asset.name} @ ${stamp}`);
+            setAssetDetail(null);
+            onClose();
+        } catch (error) {
+            console.error('Frame capture failed', error);
+            toast({
+                title: t('assets.captureFrameFailed'),
+                description: t('assets.captureFrameFailedBody'),
+                variant: 'destructive'
+            });
+        }
+    }, [assetDetail, onClose, onSelect, toast, t]);
 
     const downloadAsset = async (asset: LibraryAsset, e?: React.MouseEvent) => {
         e?.stopPropagation();
@@ -1274,14 +1440,11 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
     }, [selectedAssetsInView]);
 
     const persistGroups = useCallback((next: AssetGroupMap) => {
-        // Drop groups that ended up empty so stale names don't linger in the chip row.
-        const cleaned: AssetGroupMap = {};
-        Object.entries(next).forEach(([name, keys]) => {
-            if (keys.length > 0) cleaned[name] = keys;
-        });
-        setAssetGroups(cleaned);
-        saveAssetGroups(normalizedUser, cleaned);
-        setActiveGroup((current) => (current && !cleaned[current] ? null : current));
+        // Empty groups are kept — users can pre-create groups before filling them.
+        // A group only disappears through an explicit delete.
+        setAssetGroups(next);
+        saveAssetGroups(normalizedUser, next);
+        setActiveGroup((current) => (current && !next[current] ? null : current));
     }, [normalizedUser]);
 
     const addAssetsToGroup = useCallback((groupName: string, targets: LibraryAsset[]) => {
@@ -1304,6 +1467,25 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         if (!name) return;
         addAssetsToGroup(name, targets);
     }, [addAssetsToGroup, dialog, t]);
+
+    const createEmptyGroup = useCallback(async () => {
+        const name = (await dialog.prompt('Name the new group:', { title: t('assets.newAssetGroup'), confirmText: 'Create' }))?.trim();
+        if (!name) return;
+        if (assetGroups[name]) {
+            toast({ title: t('assets.groupExists'), description: t('assets.groupExistsBody', { group: name }), variant: 'warning' });
+            return;
+        }
+        persistGroups({ ...assetGroups, [name]: [] });
+        toast({ title: t('assets.groupCreated'), description: t('assets.groupCreatedBody', { group: name }), variant: 'success' });
+    }, [assetGroups, dialog, persistGroups, toast, t]);
+
+    const deleteEmptyGroup = useCallback((groupName: string) => {
+        if ((assetGroups[groupName] || []).length > 0) return;
+        const next = { ...assetGroups };
+        delete next[groupName];
+        persistGroups(next);
+        toast({ title: t('assets.groupDeleted'), description: t('assets.groupDeletedBody', { group: groupName }), variant: 'success' });
+    }, [assetGroups, persistGroups, toast, t]);
 
     const removeAssetsFromGroups = useCallback((targets: LibraryAsset[]) => {
         if (targets.length === 0) return;
@@ -1866,6 +2048,30 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             </label>
                         )}
 
+                        <label
+                            className="h-7 px-2 flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none rounded-md border border-border/50 bg-background/70 shrink-0"
+                            title={t('assets.aiIndexingHint')}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={indexSettings.aiIndexingEnabled}
+                                onChange={(e) => {
+                                    const next = { ...indexSettings, aiIndexingEnabled: e.target.checked };
+                                    setIndexSettings(next);
+                                    saveAssetIndexSettings(next);
+                                }}
+                                className="rounded border-border text-primary focus:ring-primary/20"
+                            />
+                            {t('assets.aiIndexing')}
+                        </label>
+
+                        {backfillProgress && (
+                            <span className="h-7 px-2 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
+                                <Loader2 size={11} className="animate-spin text-primary" />
+                                {t('assets.indexingProgress', { done: backfillProgress.done, total: backfillProgress.total })}
+                            </span>
+                        )}
+
                         <span className="h-7 px-2 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background/70 text-[11px] text-muted-foreground shrink-0">
                             <HardDrive size={12} className="text-primary" />
                             {t('assets.storageLabel')} <span className="font-semibold text-foreground/90 capitalize">{storageSettings.mode}</span>
@@ -2057,10 +2263,11 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                         {t('assets.providerPlanned', { provider: getAssetCloudProviderLabel(storageSettings.cloudProvider) })}
                     </div>
                 )}
-                <input 
-                    type="file" 
+                <input
+                    type="file"
                     ref={fileInputRef}
                     className="hidden"
+                    multiple
                     // Allow all supported asset types; backend will classify them
                     accept={ACCEPTED_FILE_TYPES}
                     onChange={handleUpload}
@@ -2085,9 +2292,9 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 </div>
             </div>
 
-            {/* Group filter chips — shown only once the user has created groups */}
-            {groupNames.length > 0 && (
-                <div className="px-3 pt-2 flex items-center gap-1.5 flex-wrap">
+            {/* Group filter chips + create/delete group controls */}
+            <div className="px-3 pt-2 flex items-center gap-1.5 flex-wrap">
+                {groupNames.length > 0 && (
                     <button
                         onClick={() => setActiveGroup(null)}
                         className={cn(
@@ -2099,30 +2306,88 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                     >
                         {t('assets.all')}
                     </button>
-                    {groupNames.map((name) => (
-                        <button
+                )}
+                {groupNames.map((name) => {
+                    const memberCount = (assetGroups[name] || []).length;
+                    return (
+                        <span
                             key={name}
-                            onClick={() => setActiveGroup((current) => (current === name ? null : name))}
                             className={cn(
-                                "h-6 px-2.5 rounded-full text-[11px] font-medium inline-flex items-center gap-1 transition-colors",
+                                "h-6 rounded-full text-[11px] font-medium inline-flex items-center transition-colors",
                                 activeGroup === name
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
                             )}
-                            title={t('assets.showOnlyInGroup', { group: name })}
                         >
-                            <Folder size={11} />
-                            {name}
-                            <span className={cn("text-[10px]", activeGroup === name ? "text-primary-foreground/80" : "text-muted-foreground/70")}>
-                                {(assetGroups[name] || []).length}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-            )}
+                            <button
+                                onClick={() => setActiveGroup((current) => (current === name ? null : name))}
+                                className={cn("h-6 pl-2.5 inline-flex items-center gap-1", memberCount === 0 ? "pr-1" : "pr-2.5")}
+                                title={t('assets.showOnlyInGroup', { group: name })}
+                            >
+                                <Folder size={11} />
+                                {name}
+                                <span className={cn("text-[10px]", activeGroup === name ? "text-primary-foreground/80" : "text-muted-foreground/70")}>
+                                    {memberCount}
+                                </span>
+                            </button>
+                            {memberCount === 0 && (
+                                <button
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        deleteEmptyGroup(name);
+                                    }}
+                                    className="h-6 pr-1.5 pl-0.5 inline-flex items-center rounded-r-full hover:text-red-500"
+                                    title={t('assets.deleteEmptyGroup', { group: name })}
+                                    aria-label={t('assets.deleteEmptyGroup', { group: name })}
+                                >
+                                    <X size={11} />
+                                </button>
+                            )}
+                        </span>
+                    );
+                })}
+                <button
+                    onClick={() => void createEmptyGroup()}
+                    className="h-6 px-2.5 rounded-full text-[11px] font-medium inline-flex items-center gap-1 border border-dashed border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+                    title={t('assets.newGroupTitle')}
+                >
+                    <FolderPlus size={11} />
+                    {t('assets.newGroup')}
+                </button>
+            </div>
 
-            {/* Asset Grid Display */}
-            <div className="flex-1 overflow-y-auto p-3">
+            {/* Asset Grid Display — also a drop target for multi-file uploads */}
+            <div
+                className="relative flex-1 overflow-y-auto p-3"
+                onDragEnter={(event) => {
+                    if (!Array.from(event.dataTransfer.types).includes('Files')) return;
+                    event.preventDefault();
+                    dragDepthRef.current += 1;
+                    setIsDraggingOver(true);
+                }}
+                onDragOver={(event) => {
+                    if (!Array.from(event.dataTransfer.types).includes('Files')) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'copy';
+                }}
+                onDragLeave={() => {
+                    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+                    if (dragDepthRef.current === 0) setIsDraggingOver(false);
+                }}
+                onDrop={(event) => {
+                    event.preventDefault();
+                    dragDepthRef.current = 0;
+                    setIsDraggingOver(false);
+                    const files = Array.from(event.dataTransfer.files || []);
+                    void processFiles(files);
+                }}
+            >
+                {isDraggingOver && (
+                    <div className="absolute inset-2 z-40 rounded-lg border-2 border-dashed border-primary bg-primary/10 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                        <ImagePlus size={28} className="text-primary" />
+                        <span className="text-xs font-semibold text-primary">{t('assets.dropToUpload')}</span>
+                    </div>
+                )}
                 {isLoading ? (
                     <div className="flex justify-center py-8 text-muted-foreground">
                         <Loader2 className="animate-spin" size={20} />
@@ -2163,7 +2428,11 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                             ? "border-primary ring-2 ring-primary/40 shadow-md"
                                             : "border-border/60 hover:border-primary/50 hover:shadow-md"
                                     )}
-                                    title={asset.name}
+                                    title={[
+                                        asset.name,
+                                        asset.description,
+                                        asset.tags && asset.tags.length > 0 ? `#${asset.tags.join(' #')}` : undefined,
+                                    ].filter(Boolean).join('\n')}
                                     onContextMenu={(event) => openAssetContextMenu(asset, event)}
                                     onMouseEnter={(event) => {
                                         if (asset.type === 'models' || asset.type === 'videos' || asset.type === 'audio') {
@@ -2181,16 +2450,23 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                         }, 60);
                                     }}
                                     onClick={() => {
-                                        if (editingAsset !== assetKey) {
+                                        if (editingAsset === assetKey) return;
+                                        // 3D models keep their original flow: click goes straight
+                                        // into the full 3D layer editor with lighting controls.
+                                        // Other assets open the large preview; double click (below)
+                                        // and the hover + button add straight to the canvas.
+                                        if (asset.type === 'models') {
                                             void handleAssetSelect(asset);
+                                        } else {
+                                            void openAssetDetail(asset);
                                         }
                                     }}
                                     onDoubleClick={(e) => {
-                                        if (!managedByUser) return;
+                                        if (editingAsset === assetKey) return;
                                         e.stopPropagation();
                                         e.preventDefault();
-                                        setEditingAsset(assetKey);
-                                        setEditName(asset.name);
+                                        setAssetDetail(null);
+                                        void handleAssetSelect(asset);
                                     }}
                                 >
                                     <label
@@ -2219,6 +2495,24 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                     >
                                         <MoreHorizontal size={13} />
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            event.preventDefault();
+                                            void handleAssetSelect(asset);
+                                        }}
+                                        className="absolute right-1.5 top-9 z-30 flex h-6 w-6 items-center justify-center rounded-md bg-primary/85 text-primary-foreground backdrop-blur-[2px] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-primary transition-opacity"
+                                        aria-label={t('assets.addToCanvasFor', { name: asset.name })}
+                                        title={t('assets.addToCanvas')}
+                                    >
+                                        <Plus size={13} />
+                                    </button>
+                                    {loadingDetailKey === assetKey && (
+                                        <div className="absolute inset-0 z-20 bg-black/30 flex items-center justify-center pointer-events-none">
+                                            <Loader2 size={18} className="animate-spin text-white" />
+                                        </div>
+                                    )}
                                     {editingAsset === assetKey ? (
                                         <div className="absolute inset-0 z-30 bg-background/95 flex flex-col items-center justify-center p-1" onClick={(e) => e.stopPropagation()}>
                                             <div className="w-full flex items-center justify-center gap-1 mb-1">
@@ -2370,17 +2664,37 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                                                 )}
                                                 {asset.type === 'models' && (
                                                     <div className="relative w-full h-full flex items-center justify-center">
-                                                        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full w-full">
-                                                            <Box size={22} />
-                                                            {loadingModelPreviewKey === assetKey ? (
-                                                                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80">
-                                                                    <Loader2 size={10} className="animate-spin" />
-                                                                    {t('assets.loadingPreview')}
+                                                        {modelThumbnails[assetKey] ? (
+                                                            <div className="w-full h-full relative">
+                                                                {/* eslint-disable-next-line @next/next/no-img-element -- Rendered offscreen as a data URL. */}
+                                                                <img
+                                                                    src={modelThumbnails[assetKey]}
+                                                                    alt={asset.name}
+                                                                    className="w-full h-full object-contain"
+                                                                    loading="lazy"
+                                                                />
+                                                                <span className="absolute right-1.5 bottom-6 z-10 inline-flex items-center justify-center rounded bg-black/55 p-0.5 text-white/85 pointer-events-none">
+                                                                    <Box size={10} />
                                                                 </span>
-                                                            ) : (
-                                                                <span className="text-[10px] text-muted-foreground/80">{t('assets.hoverToPreview')}</span>
-                                                            )}
-                                                        </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground h-full w-full">
+                                                                <Box size={22} />
+                                                                {loadingModelPreviewKey === assetKey ? (
+                                                                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80">
+                                                                        <Loader2 size={10} className="animate-spin" />
+                                                                        {t('assets.loadingPreview')}
+                                                                    </span>
+                                                                ) : canRenderModelThumbnail(asset.name) ? (
+                                                                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80">
+                                                                        <Loader2 size={10} className="animate-spin" />
+                                                                        {t('assets.loadingPreview')}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] text-muted-foreground/80">{t('assets.hoverToPreview')}</span>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -2590,6 +2904,95 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 </div>
             );
         })()}
+        {assetDetail && (
+            <div
+                className="fixed inset-0 z-[130] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-150"
+                onClick={() => setAssetDetail(null)}
+            >
+                <div
+                    className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 shrink-0">
+                        <h3 className="font-semibold text-sm flex items-center gap-2 min-w-0">
+                            {assetDetail.asset.type === 'videos' ? <Video size={15} className="text-primary shrink-0" />
+                                : assetDetail.asset.type === 'audio' ? <Music size={15} className="text-primary shrink-0" />
+                                : assetDetail.asset.type === 'models' ? <Box size={15} className="text-primary shrink-0" />
+                                : <ImageIcon size={15} className="text-primary shrink-0" />}
+                            <span className="truncate" title={assetDetail.asset.name}>{assetDetail.asset.name}</span>
+                        </h3>
+                        <button
+                            onClick={() => setAssetDetail(null)}
+                            className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground"
+                            aria-label={t('assets.closePreview')}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                    <div className="flex-1 min-h-0 p-4 bg-secondary/10 flex items-center justify-center overflow-hidden">
+                        {assetDetail.asset.type === 'videos' ? (
+                            <video
+                                ref={detailVideoRef}
+                                src={assetDetail.url}
+                                className="max-w-full max-h-[60vh] rounded-md"
+                                controls
+                                playsInline
+                                preload="auto"
+                            />
+                        ) : assetDetail.asset.type === 'audio' ? (
+                            <div className="w-full max-w-md flex flex-col items-center gap-4 text-muted-foreground py-8">
+                                <Music size={48} />
+                                <audio src={assetDetail.url} className="w-full" controls />
+                            </div>
+                        ) : assetDetail.asset.type === 'models' ? (
+                            <div className="w-full h-[55vh]">
+                                <Asset3DPreview url={assetDetail.url} />
+                            </div>
+                        ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element -- Arbitrary user formats and blob URLs. */
+                            <img
+                                src={assetDetail.url}
+                                alt={assetDetail.asset.name}
+                                className="max-w-full max-h-[60vh] object-contain rounded-md"
+                            />
+                        )}
+                    </div>
+                    <div className="p-3 border-t border-border flex items-center justify-between gap-2 bg-card shrink-0">
+                        {assetDetail.asset.type === 'videos' ? (
+                            <span className="text-[11px] text-muted-foreground">{t('assets.captureFrameHint')}</span>
+                        ) : <span />}
+                        <div className="flex items-center gap-2">
+                            {assetDetail.asset.type === 'videos' && (
+                                <button
+                                    onClick={captureVideoFrame}
+                                    className="h-9 px-3 rounded-md border border-border text-xs font-semibold inline-flex items-center gap-2 hover:bg-secondary transition-colors"
+                                >
+                                    <Camera size={14} />
+                                    {t('assets.captureFrame')}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setAssetDetail(null)}
+                                className="h-9 px-3 rounded-md text-xs font-medium text-muted-foreground hover:bg-secondary transition-colors"
+                            >
+                                {t('common.cancel')}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const target = assetDetail.asset;
+                                    setAssetDetail(null);
+                                    void handleAssetSelect(target);
+                                }}
+                                className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center gap-2 hover:bg-primary/90 transition-colors"
+                            >
+                                <Plus size={14} />
+                                {t('assets.addToCanvas')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
         {modelPreviewPopup && (
             <div
                 className="fixed z-[120] bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"

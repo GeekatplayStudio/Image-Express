@@ -6,7 +6,23 @@ const DB_NAME = 'image-express-local-assets';
 const STORE_NAME = 'assets';
 const DB_VERSION = 1;
 
-export interface LocalAssetRecord {
+export interface LocalAssetSearchMetadata {
+    /** Short AI- or user-provided summary of the asset's content. */
+    description?: string;
+    /** Search keywords (AI-generated, extracted, or user-added). */
+    tags?: string[];
+    /** Generation prompt embedded in the file (e.g. PNG text chunks from AI tools). */
+    prompt?: string;
+    /** Pixel dimensions for images/videos, when known. */
+    width?: number;
+    height?: number;
+    /** When the indexing pass last ran; absent means never indexed. */
+    indexedAt?: string;
+    /** True once an AI captioning pass has run (kept separate from basic indexing). */
+    aiIndexed?: boolean;
+}
+
+export interface LocalAssetRecord extends LocalAssetSearchMetadata {
     id: string;
     name: string;
     type: AssetType;
@@ -150,8 +166,15 @@ export async function listLocalAssets(params: LocalAssetListParams): Promise<Loc
         })
         .filter((asset) => {
             if (!query) return true;
-            const haystack = `${asset.name} ${asset.owner}`.toLowerCase();
-            return haystack.includes(query);
+            const haystack = [
+                asset.name,
+                asset.owner,
+                asset.description || '',
+                asset.prompt || '',
+                ...(asset.tags || []),
+            ].join(' ').toLowerCase();
+            // Every whitespace-separated term must match somewhere in the metadata.
+            return query.split(/\s+/).every((term) => haystack.includes(term));
         })
         .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }
@@ -185,6 +208,28 @@ export async function setLocalAssetVisibility(assetId: string, isPublic: boolean
         await requestToPromise(store.put(existing));
         return undefined;
     });
+}
+
+/**
+ * Merges search metadata into an existing record. Does not bump updatedAt —
+ * indexing is a background concern and must not reshuffle "recently updated"
+ * sort order in the library.
+ */
+export async function updateLocalAssetMetadata(assetId: string, metadata: LocalAssetSearchMetadata) {
+    await withStore('readwrite', async (store) => {
+        const existing = await requestToPromise(store.get(assetId) as IDBRequest<LocalAssetRecord | undefined>);
+        if (!existing) throw new Error('Asset not found.');
+        await requestToPromise(store.put({ ...existing, ...metadata }));
+        return undefined;
+    });
+}
+
+/** Returns all records that have never been through the indexing pass. */
+export async function listUnindexedLocalAssets(options?: { requireAi?: boolean }): Promise<LocalAssetRecord[]> {
+    const all = await withStore('readonly', async (store) => {
+        return requestToPromise(store.getAll() as IDBRequest<LocalAssetRecord[]>);
+    });
+    return all.filter((asset) => !asset.indexedAt || (options?.requireAi && !asset.aiIndexed));
 }
 
 export async function getLocalAssetBlob(assetId: string) {

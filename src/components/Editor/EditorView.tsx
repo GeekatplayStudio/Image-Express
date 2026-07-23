@@ -8,6 +8,7 @@ import EditorHeaderActions from '@/components/Editor/EditorHeaderActions';
 import EditorPropertiesPanels from '@/components/Editor/EditorPropertiesPanels';
 import EditorTopToolOptionsBridge from '@/components/Editor/EditorTopToolOptionsBridge';
 import EditorViewOverlays from '@/components/Editor/EditorViewOverlays';
+import EmbroideryExportModal from '@/components/Editor/EmbroideryExportModal';
 import EditorWorkspaceShell from '@/components/Editor/EditorWorkspaceShell';
 import { type ToolbarHandle } from '@/components/Toolbar';
 import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
@@ -602,6 +603,8 @@ export default function EditorView({
         handleExport,
         handleShare,
         exportMediaOverlayFramesZip,
+        embroiderySourceDataUrl,
+        closeEmbroideryModal,
     } = useEditorExport({
         canvas,
         customHistoryProps,
@@ -771,6 +774,7 @@ export default function EditorView({
         onUndo: handleUndo,
         onRedo: handleRedo,
         onDuplicate: handleDuplicate,
+        onSave: handleSave,
     });
 
     const { gridStatusLabel, bottomRightUtilityStyle } = useEditorUtilityOverlayLayout({
@@ -1272,6 +1276,14 @@ export default function EditorView({
                 closeExportQualityModal={closeExportQualityModal}
                 confirmPendingQualityExport={confirmPendingQualityExport}
             />
+
+            {embroiderySourceDataUrl && (
+                <EmbroideryExportModal
+                    sourceDataUrl={embroiderySourceDataUrl}
+                    designName={propDesignName || 'design'}
+                    onClose={closeEmbroideryModal}
+                />
+            )}
 
             {/* Main Editor Layout */}
             <EditorWorkspaceShell

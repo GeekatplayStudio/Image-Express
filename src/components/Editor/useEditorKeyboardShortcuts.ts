@@ -14,6 +14,8 @@ type UseEditorKeyboardShortcutsArgs = {
     onUndo: () => void;
     onRedo: () => void;
     onDuplicate: () => void;
+    /** Ctrl/Cmd+S — save the page/album (persistence flow prompts for a name when new). */
+    onSave?: () => void;
 };
 
 const isTypingTarget = (target: EventTarget | null) => {
@@ -33,6 +35,7 @@ export function useEditorKeyboardShortcuts({
     onUndo,
     onRedo,
     onDuplicate,
+    onSave,
 }: UseEditorKeyboardShortcutsArgs) {
     // Internal object clipboard for Ctrl+C/X/V (canvas objects, not OS clipboard).
     const objectClipboardRef = useRef<fabric.Object[]>([]);
@@ -121,6 +124,13 @@ export function useEditorKeyboardShortcuts({
             const meta = event.metaKey || event.ctrlKey;
             if (!meta) return;
 
+            if (!event.shiftKey && !event.altKey && key === 's') {
+                // Always swallow the browser's save-page dialog, even if no
+                // save handler is wired up.
+                event.preventDefault();
+                onSave?.();
+                return;
+            }
             if ((!event.shiftKey && !event.altKey && key === 'z') || (event.altKey && key === 'z')) {
                 event.preventDefault();
                 onUndo();
@@ -188,7 +198,7 @@ export function useEditorKeyboardShortcuts({
 
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [canvas, onDuplicate, onRedo, onUndo]);
+    }, [canvas, onDuplicate, onRedo, onSave, onUndo]);
 
     useEffect(() => {
         const handler = (event: KeyboardEvent) => {

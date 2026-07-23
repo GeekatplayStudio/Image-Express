@@ -23,7 +23,7 @@ import type {
     DesignJson,
 } from '@/components/Editor/editorView.types';
 
-type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html';
+type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html' | 'embroidery';
 type SharePlatform = 'facebook' | 'instagram';
 
 type Toast = (options: ToastOptions) => void;
@@ -80,6 +80,8 @@ export function useEditorExport({
     const [exportQualitySize, setExportQualitySize] = useState<string>('');
     const [pendingExportFormat, setPendingExportFormat] = useState<'png' | 'jpg' | null>(null);
     const [includeCanvasBackground, setIncludeCanvasBackground] = useState(true);
+    // Non-null while the embroidery export modal is open; holds the PNG capture it works from.
+    const [embroiderySourceDataUrl, setEmbroiderySourceDataUrl] = useState<string | null>(null);
 
     const pendingExportFilenameRef = useRef('');
     const pendingExportCropRef = useRef<RectBounds | undefined>(undefined);
@@ -323,6 +325,21 @@ export function useEditorExport({
                 case 'html':
                     await exportHtmlBundle(filename.replace(/\.html$/, ''), timestamp);
                     break;
+                case 'embroidery': {
+                    // Plain capture (no export overlays/watermarks) — the modal
+                    // handles color reduction and background removal from here.
+                    await withViewportReset(() => {
+                        const dataUrl = safeCanvasToDataURL({
+                            format: 'png',
+                            quality: 1,
+                            multiplier: 1,
+                            enableRetinaScaling: true,
+                            ...cropOptions,
+                        });
+                        setEmbroiderySourceDataUrl(dataUrl);
+                    });
+                    break;
+                }
                 default:
                     break;
             }
@@ -341,7 +358,12 @@ export function useEditorExport({
         resolveCropOptions,
         safeCanvasToDataURL,
         withExportOverlays,
+        withViewportReset,
     ]);
+
+    const closeEmbroideryModal = useCallback(() => {
+        setEmbroiderySourceDataUrl(null);
+    }, []);
 
     const handleShare = useCallback(async (platform: SharePlatform) => {
         await handleExport('png');
@@ -445,5 +467,7 @@ export function useEditorExport({
         handleExport,
         handleShare,
         exportMediaOverlayFramesZip,
+        embroiderySourceDataUrl,
+        closeEmbroideryModal,
     };
 }

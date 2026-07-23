@@ -53,6 +53,50 @@ const LIGHT_PRESETS: LightPreset[] = [
 
 const ENVIRONMENTS = ['studio', 'city', 'apartment', 'dawn', 'sunset', 'forest', 'park', 'night', 'lobby', 'warehouse'] as const;
 
+/**
+ * Lighting defaults remembered across sessions. Applied only when opening a NEW
+ * model (e.g. from the asset library); layers reopened from the canvas keep the
+ * settings saved on the layer itself. Camera, rotation, scale, and resolution
+ * are deliberately per-model and never remembered here.
+ */
+const LIGHTING_DEFAULTS_KEY = 'imageExpressThreeDLightingDefaults';
+
+type LightingDefaults = {
+    lightPosition: Vec3;
+    lightIntensity: number;
+    lightColor: string;
+    ambientIntensity: number;
+    environment: string;
+    envIntensity: number;
+    castShadowEnabled: boolean;
+    castShadowBlur: number;
+    castShadowIntensity: number;
+    contactShadowEnabled: boolean;
+    contactShadowBlur: number;
+    contactShadowIntensity: number;
+};
+
+const loadLightingDefaults = (): Partial<LightingDefaults> => {
+    if (typeof window === 'undefined') return {};
+    try {
+        const raw = window.localStorage.getItem(LIGHTING_DEFAULTS_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as Partial<LightingDefaults>;
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const saveLightingDefaults = (defaults: LightingDefaults) => {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.setItem(LIGHTING_DEFAULTS_KEY, JSON.stringify(defaults));
+    } catch {
+        // Best effort — remembered lighting is a convenience.
+    }
+};
+
 const CAMERA_VIEWS: { name: string; labelKey: string; direction: Vec3 }[] = [
     { name: 'Front', labelKey: 'view3d.view.front', direction: { x: 0, y: 0.25, z: 1 } },
     { name: '¾ Left', labelKey: 'view3d.view.threeQuarterLeft', direction: { x: -1, y: 0.45, z: 1 } },
@@ -67,7 +111,9 @@ const vecScaleTo = (v: Vec3, length: number): Vec3 => {
     return { x: (v.x / l) * length, y: (v.y / l) * length, z: (v.z / l) * length };
 };
 
-const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) => void }) => {
+type ModelBounds = { groundY: number; radius: number };
+
+const ModelViewer = ({ url, onBounds }: { url: string; onBounds?: (bounds: ModelBounds) => void }) => {
     const { scene } = useGLTF(url);
     const clone = useMemo(() => scene.clone(), [scene]);
     useEffect(() => {
@@ -77,14 +123,17 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
                 child.receiveShadow = true;
             }
         });
-        if (onGroundY) {
+        if (onBounds) {
             const bounds = new THREE.Box3().setFromObject(clone);
             const center = new THREE.Vector3();
             bounds.getCenter(center);
-            const groundedY = bounds.min.y - center.y;
-            onGroundY(groundedY);
+            const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+            onBounds({
+                groundY: bounds.min.y - center.y,
+                radius: sphere.radius || 1,
+            });
         }
-    }, [clone, onGroundY]);
+    }, [clone, onBounds]);
     return <primitive object={clone} />;
 };
 
@@ -229,23 +278,31 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
     const { t } = useI18n();
     const [gl, setGl] = useState<CaptureGL | null>(null);
     const [resolution, setResolution] = useState<{ width: number, height: number }>({ width: 2048, height: 2048 });
-    const [lightPosition, setLightPosition] = useState<Vec3>({ x: 5, y: 5, z: 5 });
-    const [lightIntensity, setLightIntensity] = useState(1.2);
-    const [lightColor, setLightColor] = useState('#ffffff');
-    const [ambientIntensity, setAmbientIntensity] = useState(0.35);
-    const [environment, setEnvironment] = useState<string>('city');
-    const [envIntensity, setEnvIntensity] = useState(0.6);
-    const [castShadowEnabled, setCastShadowEnabled] = useState(true);
-    const [castShadowBlur, setCastShadowBlur] = useState(22);
-    const [castShadowIntensity, setCastShadowIntensity] = useState(0.35);
-    const [contactShadowEnabled, setContactShadowEnabled] = useState(true);
-    const [contactShadowBlur, setContactShadowBlur] = useState(8);
-    const [contactShadowIntensity, setContactShadowIntensity] = useState(0.6);
+    // New models start from the remembered lighting defaults; layers reopened
+    // from the canvas get these overwritten by their saved settings below.
+    const rememberedRef = useRef<Partial<LightingDefaults> | null>(null);
+    if (rememberedRef.current === null) {
+        rememberedRef.current = loadLightingDefaults();
+    }
+    const remembered = rememberedRef.current;
+    const [lightPosition, setLightPosition] = useState<Vec3>(remembered.lightPosition ?? { x: 5, y: 5, z: 5 });
+    const [lightIntensity, setLightIntensity] = useState(remembered.lightIntensity ?? 1.2);
+    const [lightColor, setLightColor] = useState(remembered.lightColor ?? '#ffffff');
+    const [ambientIntensity, setAmbientIntensity] = useState(remembered.ambientIntensity ?? 0.35);
+    const [environment, setEnvironment] = useState<string>(remembered.environment ?? 'city');
+    const [envIntensity, setEnvIntensity] = useState(remembered.envIntensity ?? 0.6);
+    const [castShadowEnabled, setCastShadowEnabled] = useState(remembered.castShadowEnabled ?? true);
+    const [castShadowBlur, setCastShadowBlur] = useState(remembered.castShadowBlur ?? 22);
+    const [castShadowIntensity, setCastShadowIntensity] = useState(remembered.castShadowIntensity ?? 0.35);
+    const [contactShadowEnabled, setContactShadowEnabled] = useState(remembered.contactShadowEnabled ?? true);
+    const [contactShadowBlur, setContactShadowBlur] = useState(remembered.contactShadowBlur ?? 8);
+    const [contactShadowIntensity, setContactShadowIntensity] = useState(remembered.contactShadowIntensity ?? 0.6);
     const [modelRotationY, setModelRotationY] = useState(0);
     const [modelScale, setModelScale] = useState(1);
     const [gizmoVisible, setGizmoVisible] = useState(true);
     const [activePreset, setActivePreset] = useState<string | null>(null);
     const [groundY, setGroundY] = useState(-1);
+    const [modelRadius, setModelRadius] = useState(1);
     const controlsRef = useRef<OrbitControlsImpl | null>(null);
     const canvasWrapperRef = useRef<HTMLDivElement>(null);
     const modelGroupRef = useRef<THREE.Group>(null);
@@ -308,6 +365,44 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
         useGLTF.preload(modelUrl);
     }, [modelUrl]);
 
+    // Remember lighting adjustments as the default for the NEXT new model.
+    // Only sessions editing a fresh model update the defaults — tweaking a
+    // layer reopened from the canvas must not overwrite them.
+    useEffect(() => {
+        if (existingObject) return;
+        const timer = window.setTimeout(() => {
+            saveLightingDefaults({
+                lightPosition,
+                lightIntensity,
+                lightColor,
+                ambientIntensity,
+                environment,
+                envIntensity,
+                castShadowEnabled,
+                castShadowBlur,
+                castShadowIntensity,
+                contactShadowEnabled,
+                contactShadowBlur,
+                contactShadowIntensity,
+            });
+        }, 400);
+        return () => window.clearTimeout(timer);
+    }, [
+        existingObject,
+        lightPosition,
+        lightIntensity,
+        lightColor,
+        ambientIntensity,
+        environment,
+        envIntensity,
+        castShadowEnabled,
+        castShadowBlur,
+        castShadowIntensity,
+        contactShadowEnabled,
+        contactShadowBlur,
+        contactShadowIntensity,
+    ]);
+
     // Model transform is applied by mutating the group directly; the R3F
     // frameloop picks it up without recreating the Stage (which reloads env maps).
     useEffect(() => {
@@ -316,13 +411,18 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
         modelGroupRef.current.scale.setScalar(modelScale);
     }, [modelRotationY, modelScale]);
 
+    const handleModelBounds = useCallback((bounds: ModelBounds) => {
+        setGroundY(bounds.groundY);
+        setModelRadius(bounds.radius);
+    }, []);
+
     const stageContent = useMemo(() => (
         <Stage environment={environment as 'city'} intensity={envIntensity} adjustCamera={false} shadows={false}>
             <group ref={modelGroupRef}>
-                <ModelViewer url={modelUrl} onGroundY={setGroundY} />
+                <ModelViewer url={modelUrl} onBounds={handleModelBounds} />
             </group>
         </Stage>
-    ), [modelUrl, environment, envIntensity]);
+    ), [modelUrl, environment, envIntensity, handleModelBounds]);
 
     const lightDistance = vecLength(lightPosition);
     const lightDistanceRef = useRef(lightDistance);
@@ -468,50 +568,62 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                             camera={{ position: [0, 0, 4], fov: 45 }}
                             onCreated={({ gl, scene, camera }) => {
                                 gl.shadowMap.enabled = true;
-                                gl.shadowMap.type = THREE.PCFSoftShadowMap;
+                                // VSM gives genuinely blurred (gaussian) shadow edges at full map
+                                // resolution — PCFSoft ignores shadow.radius, and shrinking the map
+                                // to fake blur is what made shadows pixelated before.
+                                gl.shadowMap.type = THREE.VSMShadowMap;
                                 setGl({ domElement: gl.domElement, render: () => gl.render(scene, camera), scene, camera, glInstance: gl });
                             }}
                         >
                             <ambientLight intensity={ambientIntensity} />
                             {(() => {
-                                const shadowMapSize = Math.max(256, 2048 - castShadowBlur * 28);
+                                // Size the shadow frustum, floor, and contact patch from the real
+                                // model bounds (including user scale) so large or scaled-up models
+                                // never get their shadows clipped at a hard edge.
+                                const effectiveRadius = Math.max(0.5, modelRadius * modelScale);
+                                const scaledGroundY = groundY * modelScale;
+                                const shadowExtent = Math.max(3, effectiveRadius * 3);
+                                const floorSize = Math.max(12, effectiveRadius * 12);
                                 return (
-                                    <directionalLight
-                                        key={`shadow-${castShadowBlur}-${castShadowEnabled}`}
-                                        position={[lightPosition.x, lightPosition.y, lightPosition.z]}
-                                        intensity={lightIntensity}
-                                        color={lightColor}
-                                        castShadow={castShadowEnabled}
-                                        shadow-mapSize-width={shadowMapSize}
-                                        shadow-mapSize-height={shadowMapSize}
-                                        shadow-radius={castShadowBlur * 1.5}
-                                        shadow-bias={-0.0002}
-                                        shadow-normalBias={0.02}
-                                        shadow-camera-near={0.1}
-                                        shadow-camera-far={20}
-                                        shadow-camera-left={-3}
-                                        shadow-camera-right={3}
-                                        shadow-camera-top={3}
-                                        shadow-camera-bottom={-3}
-                                    />
+                                    <>
+                                        <directionalLight
+                                            key={`shadow-${castShadowBlur}-${castShadowEnabled}`}
+                                            position={[lightPosition.x, lightPosition.y, lightPosition.z]}
+                                            intensity={lightIntensity}
+                                            color={lightColor}
+                                            castShadow={castShadowEnabled}
+                                            shadow-mapSize-width={2048}
+                                            shadow-mapSize-height={2048}
+                                            shadow-radius={Math.max(1, castShadowBlur * 0.6)}
+                                            shadow-blurSamples={Math.min(32, Math.max(8, Math.round(castShadowBlur / 2) + 8))}
+                                            shadow-bias={-0.0001}
+                                            shadow-normalBias={0.02}
+                                            shadow-camera-near={0.1}
+                                            shadow-camera-far={Math.max(50, lightDistance + effectiveRadius * 6)}
+                                            shadow-camera-left={-shadowExtent}
+                                            shadow-camera-right={shadowExtent}
+                                            shadow-camera-top={shadowExtent}
+                                            shadow-camera-bottom={-shadowExtent}
+                                        />
+                                        {castShadowEnabled && (
+                                            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, scaledGroundY, 0]} receiveShadow>
+                                                <planeGeometry args={[floorSize, floorSize]} />
+                                                <shadowMaterial opacity={castShadowIntensity} transparent />
+                                            </mesh>
+                                        )}
+                                        {contactShadowEnabled && (
+                                            <ContactShadows
+                                                position={[0, scaledGroundY + 0.02, 0]}
+                                                scale={Math.max(3.5, effectiveRadius * 5)}
+                                                blur={contactShadowBlur}
+                                                opacity={contactShadowIntensity}
+                                                far={Math.max(1.2, effectiveRadius * 1.5)}
+                                                color="#000000"
+                                            />
+                                        )}
+                                    </>
                                 );
                             })()}
-                            {castShadowEnabled && (
-                                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, groundY, 0]} receiveShadow>
-                                    <planeGeometry args={[8, 8]} />
-                                    <shadowMaterial opacity={castShadowIntensity} />
-                                </mesh>
-                            )}
-                            {contactShadowEnabled && (
-                                <ContactShadows
-                                    position={[0, groundY + 0.02, 0]}
-                                    scale={3.5}
-                                    blur={contactShadowBlur}
-                                    opacity={contactShadowIntensity}
-                                    far={1.2}
-                                    color="#000000"
-                                />
-                            )}
                             {stageContent}
                             <LightGizmo
                                 lightPosition={lightPosition}

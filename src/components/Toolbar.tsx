@@ -49,6 +49,7 @@ import {
     Flame,
     Droplets,
     Workflow,
+    Layers,
     type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -233,7 +234,7 @@ type ToolbarToolDefinition = {
     shortLabelKey?: string;
 };
 
-type ToolbarToolGroupId = 'selection' | 'retouch';
+type ToolbarToolGroupId = 'selection' | 'retouch' | 'fill';
 
 type ToolbarToolGroupDefinition = {
     id: ToolbarToolGroupId;
@@ -275,11 +276,22 @@ const RETOUCH_TOOL_GROUP: ToolbarToolGroupDefinition = {
     ],
 };
 
-const TOOL_GROUPS: ToolbarToolGroupDefinition[] = [SELECTION_TOOL_GROUP, RETOUCH_TOOL_GROUP];
+const FILL_TOOL_GROUP: ToolbarToolGroupDefinition = {
+    id: 'fill',
+    labelKey: 'toolbar.group.fill',
+    defaultTool: 'gradient',
+    tools: [
+        { name: 'gradient', icon: PaintBucket, labelKey: 'toolbar.fillGradient', shortLabelKey: 'toolbar.short.fill' },
+        { name: 'fill-layer', icon: Layers, labelKey: 'toolbar.fillLayer', shortLabelKey: 'toolbar.short.fillLayer' },
+    ],
+};
+
+const TOOL_GROUPS: ToolbarToolGroupDefinition[] = [SELECTION_TOOL_GROUP, RETOUCH_TOOL_GROUP, FILL_TOOL_GROUP];
 
 const TOOL_GROUP_BY_ID: Record<ToolbarToolGroupId, ToolbarToolGroupDefinition> = {
     selection: SELECTION_TOOL_GROUP,
     retouch: RETOUCH_TOOL_GROUP,
+    fill: FILL_TOOL_GROUP,
 };
 
 const CREATION_PRIMARY_TOOLS: ToolbarToolDefinition[] = [
@@ -288,7 +300,6 @@ const CREATION_PRIMARY_TOOLS: ToolbarToolDefinition[] = [
     { name: 'adjustments', icon: SlidersHorizontal, labelKey: 'toolbar.adjustmentLayers', shortLabelKey: 'toolbar.short.adjust' },
     { name: 'pen', icon: PenTool, labelKey: 'toolbar.pen' },
     { name: 'paint', icon: Brush, labelKey: 'toolbar.brushes', shortLabelKey: 'toolbar.short.brush' },
-    { name: 'gradient', icon: PaintBucket, labelKey: 'toolbar.fillGradient', shortLabelKey: 'toolbar.short.fill' },
 ];
 
 const CREATION_LIBRARY_TOOLS: ToolbarToolDefinition[] = [
@@ -625,11 +636,13 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const toolGroupMenuRef = useRef<HTMLDivElement>(null);
     const selectionGroupButtonRef = useRef<HTMLButtonElement>(null);
     const retouchGroupButtonRef = useRef<HTMLButtonElement>(null);
+    const fillGroupButtonRef = useRef<HTMLButtonElement>(null);
     const [openToolGroup, setOpenToolGroup] = useState<ToolbarToolGroupId | null>(null);
     const [toolGroupMenuPos, setToolGroupMenuPos] = useState<{ left: number; top: number } | null>(null);
     const [toolGroupPrimaryTool, setToolGroupPrimaryTool] = useState<Record<ToolbarToolGroupId, string>>({
         selection: SELECTION_TOOL_GROUP.defaultTool,
         retouch: RETOUCH_TOOL_GROUP.defaultTool,
+        fill: FILL_TOOL_GROUP.defaultTool,
     });
     const [isRailHovered, setIsRailHovered] = useState(false);
     const normalizedActiveTool = TOOL_ALIAS_MAP[activeTool] || activeTool;
@@ -1481,6 +1494,42 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     configureCanvasForTool(canvas, 'gradient');
                 }
                 break;
+            case 'fill-layer':
+                if (canvas) {
+                    // Create a page-sized fill/gradient layer seeded from the current
+                    // foreground → background colors, then hand editing over to the
+                    // gradient tool so its options bar adjusts the new layer.
+                    const artboard = getArtboardSize(canvas);
+                    const layerWidth = artboard?.width || canvas.getWidth();
+                    const layerHeight = artboard?.height || canvas.getHeight();
+                    const artboardOrigin = (canvas as CanvasWithArtboard & { artboardRect?: fabric.Rect }).artboardRect;
+                    const fillLayer = new fabric.Rect({
+                        left: artboardOrigin?.left ?? 0,
+                        top: artboardOrigin?.top ?? 0,
+                        // The editor defaults objects to center origins; pin to the
+                        // artboard's top-left so the layer covers the page exactly.
+                        originX: 'left',
+                        originY: 'top',
+                        width: layerWidth,
+                        height: layerHeight,
+                        strokeWidth: 0,
+                        fill: new fabric.Gradient({
+                            type: 'linear',
+                            gradientUnits: 'percentage',
+                            coords: { x1: 0, y1: 0, x2: 0, y2: 1 },
+                            colorStops: [
+                                { offset: 0, color: foregroundColor },
+                                { offset: 1, color: backgroundColor },
+                            ],
+                        }),
+                    });
+                    (fillLayer as fabric.Rect & ExtendedFabricObject).gradientTypeHint = 'linear';
+                    canvas.add(fillLayer);
+                    focusInsertedObject(fillLayer, { center: false });
+                    setActiveTool('gradient');
+                    configureCanvasForTool(canvas, 'gradient');
+                }
+                break;
             case 'pen':
                 if (canvas) {
                     configureCanvasForTool(canvas, 'pen');
@@ -1562,7 +1611,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     };
 
     const getToolGroupButtonRef = (groupId: ToolbarToolGroupId) => (
-        groupId === 'selection' ? selectionGroupButtonRef : retouchGroupButtonRef
+        groupId === 'selection'
+            ? selectionGroupButtonRef
+            : groupId === 'retouch'
+                ? retouchGroupButtonRef
+                : fillGroupButtonRef
     );
 
     const openToolGroupMenuFor = (groupId: ToolbarToolGroupId) => {
@@ -2239,7 +2292,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     const primaryTool = activeGroupTool
                         || group.tools.find((tool) => tool.name === toolGroupPrimaryTool[group.id])
                         || group.tools[0];
-                    const groupButtonRef = group.id === 'selection' ? selectionGroupButtonRef : retouchGroupButtonRef;
+                    const groupButtonRef = getToolGroupButtonRef(group.id);
                     return (
                         <button
                             key={group.id}

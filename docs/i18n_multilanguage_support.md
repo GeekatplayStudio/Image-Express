@@ -107,6 +107,17 @@ the Services tab, and the 3D view editor. Largest remaining files are the
 AI generator modals (`ImageGeneratorModal`, `AICritiqueModal`),
 `editorViewConfig.ts` and the paint/gradient tool-option bars.
 
+**Translation coverage** (`node scripts/i18n-progress.mjs`): **Russian and
+Ukrainian are at 100%** — every converted key is translated, including the
+newest panels (asset library AI-indexing, the Fill/Gradient tool group,
+the 3D lighting/shadow editor, and the embroidery export modal). The
+in-app manual/help copy (`docs.*`, ~215 keys) is intentionally excluded
+from that figure — it's being rewritten and isn't worth translating yet.
+Spanish is in progress (toolbar done, rest queued); German, French,
+Italian, Japanese, Polish, Portuguese, and Simplified Chinese still only
+cover common chrome (~6%) and are next in line, one functional area at a
+time, in the same order as the ru/uk pass.
+
 Shared copy gets its own area rather than being duplicated per panel:
 `pack.*` holds the zip install/remove flow used by both interface themes
 and dashboard ambience, and `common.*` holds the generic verbs. Reuse
