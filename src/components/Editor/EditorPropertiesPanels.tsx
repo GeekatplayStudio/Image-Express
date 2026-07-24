@@ -203,7 +203,7 @@ export default function EditorPropertiesPanels({
                         width: panelState.width,
                         height: 'min(70vh, calc(100vh - 1rem))',
                     }}
-                    className="z-50 flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+                    className="z-100 flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200"
                 >
                     <div className="h-8 bg-secondary border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
                         <div className="flex items-center gap-2 text-xs font-semibold"><GripHorizontal size={14} /> Properties (Floating)</div>

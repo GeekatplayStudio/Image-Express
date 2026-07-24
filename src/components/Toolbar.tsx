@@ -72,6 +72,7 @@ import ImageGeneratorModal from './ImageGeneratorModal';
 import ComfyWorkflowsModal from './comfy/ComfyWorkflowsModal';
 import AICritiqueModal from './AICritiqueModal';
 import { ColorWheelTool } from './ColorWheelTool';
+import BodyPortal from '@/components/ui/BodyPortal';
 import { useToast } from '@/providers/ToastProvider';
 import { loadProfileSettings } from '@/lib/profile-utils';
 import { CUSTOM_SERIALIZED_PROPS } from '@/components/Editor/editorViewConfig';
@@ -2507,17 +2508,19 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             )}
 
             {(activeTool === 'color-wheel' || activeTool === 'eyedropper') && (
-                <ColorWheelTool
-                    onColorSelect={(color) => {
-                        setForegroundColor(color);
-                        syncToolbarColorsToCanvas(color, backgroundColor);
-                    }}
-                    currentPalette={activePalette || null}
-                    onPaletteSelect={(palette) => {
-                        if (setActivePalette) setActivePalette(palette);
-                    }}
-                    selectedColor={foregroundColor}
-                />
+                <BodyPortal>
+                    <ColorWheelTool
+                        onColorSelect={(color) => {
+                            setForegroundColor(color);
+                            syncToolbarColorsToCanvas(color, backgroundColor);
+                        }}
+                        currentPalette={activePalette || null}
+                        onPaletteSelect={(palette) => {
+                            if (setActivePalette) setActivePalette(palette);
+                        }}
+                        selectedColor={foregroundColor}
+                    />
+                </BodyPortal>
             )}
 
             {/* AI Image Generation (Zone Selector Overlay) */}
@@ -2532,19 +2535,23 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             )}
 
             {activeTool === 'ai-critique' && canvas && (
-                <AICritiqueModal
-                    canvas={canvas}
-                    onClose={() => setActiveTool('select')}
-                />
+                <BodyPortal>
+                    <AICritiqueModal
+                        canvas={canvas}
+                        onClose={() => setActiveTool('select')}
+                    />
+                </BodyPortal>
             )}
 
             {/* ComfyUI Workflow Browser & Runner */}
             {activeTool === 'comfy-flows' && canvas && (
-                <ComfyWorkflowsModal
-                    canvas={canvas}
-                    onClose={() => setActiveTool('select')}
-                    onOpenSettings={onOpenSettings}
-                />
+                <BodyPortal>
+                    <ComfyWorkflowsModal
+                        canvas={canvas}
+                        onClose={() => setActiveTool('select')}
+                        onOpenSettings={onOpenSettings}
+                    />
+                </BodyPortal>
             )}
 
             {showSaveModal && (

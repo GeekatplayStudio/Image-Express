@@ -1125,7 +1125,7 @@ export default function EditorView({
     return (
         <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
             {/* Editor Header */}
-            <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-220 relative shadow-sm overflow-visible">
+            <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-90 relative shadow-sm overflow-visible">
                 <EditorHeaderPrimary
                     designName={propDesignName || 'Untitled Page'}
                     isRenamingDesignTitle={isRenamingDesignTitle}

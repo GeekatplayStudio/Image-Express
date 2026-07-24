@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
+import useIsClient from '@/hooks/useIsClient';
 
 interface PanelPosition {
     x: number;
@@ -54,6 +56,12 @@ export default function DraggableResizablePanel({
         originH: 0,
         resizing: false
     });
+
+    // Render through a portal to <body> so the panel escapes any ancestor
+    // stacking context (e.g. the toolbar's z-20 aside). Without this, a fixed
+    // z-[100] panel nested in a lower-z stacking context is trapped beneath the
+    // editor header and rails no matter how high its own z-index is.
+    const isClient = useIsClient();
 
     const clampFrameToViewport = useCallback((nextPosition: PanelPosition, nextSize: PanelSize) => {
         if (typeof window === 'undefined') {
@@ -194,7 +202,9 @@ export default function DraggableResizablePanel({
         toggleMaximizePanel();
     };
 
-    return (
+    if (!isClient) return null;
+
+    return createPortal(
         <div
             ref={containerRef}
             className={cn('fixed z-[100] flex flex-col', className)}
@@ -209,6 +219,7 @@ export default function DraggableResizablePanel({
                     className="absolute bottom-1 right-1 h-3 w-3 cursor-se-resize rounded-sm border border-border bg-background/70"
                 />
             )}
-        </div>
+        </div>,
+        document.body
     );
 }
