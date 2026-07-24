@@ -53,7 +53,7 @@
     "desktop:dist:win": "npm run build && electron-builder --win",
     "desktop:dist:mac": "npm run build && electron-builder --mac",
     "desktop:dist:linux": "npm run build && electron-builder --linux",
-    "desktop:pack": "npm run build && electron-builder --dir",
+    "desktop:pack": "npm run build && electron-builder --dir --publish never",
     "desktop:verify-package": "node scripts/verify-package.mjs",
     "desktop:smoke-package": "node scripts/smoke-package.mjs",
     "mcp": "node scripts/mcp-server.mjs"

@@ -59,7 +59,7 @@ function findLinuxExecutable() {
                 const name = path.basename(candidate);
                 return stats.isFile()
                     && (stats.mode & 0o111) !== 0
-                    && name !== 'chrome-sandbox'
+                    && !name.startsWith('chrome')
                     && !name.includes('.');
             });
         if (executable) return executable;
