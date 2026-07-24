@@ -35,6 +35,10 @@ It runs on relevant pushes and pull requests, can be started manually, and has a
 scheduled run. The release workflow runs the same smoke command for every platform before
 uploading installer artifacts.
 
+The Linux hosted-runner launch uses Chromium's `--no-sandbox` test flag because the unpacked
+`chrome-sandbox` helper cannot be installed setuid-root in an unprivileged CI workspace. This
+flag is limited to the explicit smoke process and does not change normal packaged launches.
+
 The structural `desktop:verify-package` check remains in place, so release artifacts must pass
 both content inspection and real startup.
 

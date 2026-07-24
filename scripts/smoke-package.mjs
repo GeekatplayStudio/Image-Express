@@ -83,7 +83,8 @@ await fsPromises.mkdir(userDataDirectory, { recursive: true });
 
 let output = '';
 let succeeded = false;
-const child = spawn(executable, [], {
+const smokeArguments = process.platform === 'linux' ? ['--no-sandbox'] : [];
+const child = spawn(executable, smokeArguments, {
     cwd: path.dirname(executable),
     env: {
         ...process.env,
