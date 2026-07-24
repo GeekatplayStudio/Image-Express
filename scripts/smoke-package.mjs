@@ -17,8 +17,25 @@ function listDirectories(directory) {
         .map((entry) => path.join(directory, entry.name));
 }
 
+function macDirectoryMatchesHostArch(name) {
+    // electron-builder names the arm64 output "mac-arm64" and the x64 output
+    // plain "mac" (universal builds land in "mac-universal", which runs on both).
+    // The unpacked .app is architecture-specific, so a smoke launch must use the
+    // build matching the runner or the process hangs (e.g. x64 app on an arm64
+    // runner without Rosetta), never reaching the ready checkpoint.
+    if (name === 'mac-universal') return true;
+    if (process.arch === 'arm64') return name === 'mac-arm64';
+    if (process.arch === 'x64') return name === 'mac';
+    return name.startsWith('mac');
+}
+
 function findMacExecutable() {
-    for (const directory of listDirectories(distDirectory)) {
+    const directories = listDirectories(distDirectory);
+    const ordered = [
+        ...directories.filter((directory) => macDirectoryMatchesHostArch(path.basename(directory))),
+        ...directories.filter((directory) => !macDirectoryMatchesHostArch(path.basename(directory))),
+    ];
+    for (const directory of ordered) {
         if (!path.basename(directory).startsWith('mac')) continue;
         for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
             if (!entry.isDirectory() || !entry.name.endsWith('.app')) continue;
