@@ -30,7 +30,9 @@ const requiredAsarEntries = [
 ];
 
 for (const asarFile of asarFiles) {
-    const entries = new Set(listPackage(asarFile));
+    // @electron/asar uses the host path separator in its listing. Normalize the
+    // archive paths so the same package assertions work on Windows and POSIX.
+    const entries = new Set(listPackage(asarFile).map((entry) => entry.replaceAll('\\', '/')));
     for (const required of requiredAsarEntries) {
         if (!entries.has(required)) {
             throw new Error(`${asarFile} is missing required packaged entry ${required}`);
