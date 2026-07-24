@@ -35,6 +35,7 @@
     "qa:install": "node scripts/qa-installation.mjs",
     "qa:ollama": "node scripts/qa-ollama.mjs",
     "qa:overlay": "playwright test e2e/export-verification.spec.ts e2e/media-overlay-verification.spec.ts",
+    "test:e2e:critical": "playwright test e2e/export-verification.spec.ts e2e/media-overlay-verification.spec.ts",
     "lint": "eslint --max-warnings=0 .",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "verify": "npm run audit:architecture && npm run lint && npm run typecheck && npm test -- --runInBand && npm run build && npm run audit:bundle",
@@ -54,6 +55,7 @@
     "desktop:dist:linux": "npm run build && electron-builder --linux",
     "desktop:pack": "npm run build && electron-builder --dir",
     "desktop:verify-package": "node scripts/verify-package.mjs",
+    "desktop:smoke-package": "node scripts/smoke-package.mjs",
     "mcp": "node scripts/mcp-server.mjs"
   },
   "dependencies": {

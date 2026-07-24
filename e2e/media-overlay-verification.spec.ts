@@ -65,6 +65,12 @@ test('converts, saves, exports, and cleans up a variant draft', async ({ page, r
     const savedId = (await designIdText.textContent())?.replace('Design ID: ', '').trim() || '';
     expect(savedId).not.toBe('');
 
+    const listResponse = await request.get('/api/designs/list');
+    expect(listResponse.ok()).toBe(true);
+    const listPayload = await listResponse.json() as { designs?: Array<{ id: string; data: string }> };
+    const persistedDesign = listPayload.designs?.find((design) => design.id === savedId);
+    expect(persistedDesign).toBeDefined();
+
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export Variant PNG' }).click({ force: true });
 
@@ -73,6 +79,15 @@ test('converts, saves, exports, and cleans up a variant draft', async ({ page, r
 
     expect(download.suggestedFilename()).toBe('variant-draft.png');
     expect(getPngDimensions(buffer)).toEqual({ width: 1080, height: 1080 });
+
+    await page.reload();
+    await expect(page.getByTestId('media-overlay-harness-status')).toHaveText('Harness ready');
+    const persistedDataResponse = await request.get(
+        persistedDesign?.data || `/api/assets/serve/designs/${savedId}.json`,
+    );
+    expect(persistedDataResponse.ok()).toBe(true);
+    const persistedCanvas = await persistedDataResponse.json() as { objects?: unknown[] };
+    expect(persistedCanvas.objects?.length).toBeGreaterThan(0);
 
     const cleanupResponse = await request.post('/api/designs/delete', {
         data: { id: savedId },

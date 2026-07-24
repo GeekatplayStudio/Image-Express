@@ -16,6 +16,11 @@
 > diagnostics, desktop Help support actions, production dependency-maintenance isolation,
 > dependency-audit governance, Dependabot, aligned Jest tooling, and enforceable client-bundle
 > budgets are implemented. See `docs/P2_HARDENING_IMPLEMENTATION.md`.
+>
+> P2.1 implementation update (2026-07-23): real packaged-app startup smoke tests now run across
+> Windows, macOS, and Linux CI/release matrices, and deterministic Playwright journeys cover
+> save persistence plus PNG, JPEG, PDF, and batch ZIP exports. See
+> `docs/P2_1_RELEASE_RELIABILITY.md`.
 
 Date: 2026-07-23  
 Repository: `GeekatplayStudio/Image-Express`  

@@ -27,3 +27,9 @@ jobs:
 
     - name: Verify
       run: npm run verify
+
+    - name: Install critical-journey browser
+      run: npx playwright install --with-deps chromium
+
+    - name: Run critical browser journeys
+      run: npm run test:e2e:critical

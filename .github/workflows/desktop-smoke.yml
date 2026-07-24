@@ -1,0 +1,53 @@
+name: Desktop smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 8 * * 1"
+  push:
+    branches: [ "main" ]
+    paths:
+      - "electron/**"
+      - "scripts/smoke-package.mjs"
+      - "scripts/verify-package.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/desktop-smoke.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "electron/**"
+      - "scripts/smoke-package.mjs"
+      - "scripts/verify-package.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/desktop-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package-and-launch:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            smoke: npm run desktop:smoke-package
+          - os: macos-latest
+            smoke: npm run desktop:smoke-package
+          - os: ubuntu-latest
+            smoke: xvfb-run -a npm run desktop:smoke-package
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:pack
+      - run: npm run desktop:verify-package
+      - name: Launch packaged application
+        run: ${{ matrix.smoke }}

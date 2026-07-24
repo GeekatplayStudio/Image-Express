@@ -7,10 +7,20 @@ const crypto = require('crypto');
 const PROCESS_STARTED_AT = Date.now();
 const LOG_MAX_BYTES = 2 * 1024 * 1024;
 const LOG_ROTATION_COUNT = 3;
+const isDesktopSmokeTest = process.env.IMAGE_EXPRESS_DESKTOP_SMOKE === '1';
 const startupTimings = {};
 let latestUpdateState = { status: 'idle', message: 'No update check has run.' };
 
 function configureBrandedUserDataPath() {
+  const smokeUserDataPath = process.env.IMAGE_EXPRESS_SMOKE_USER_DATA_DIR;
+  if (isDesktopSmokeTest && smokeUserDataPath) {
+    if (!path.isAbsolute(smokeUserDataPath)) {
+      throw new Error('IMAGE_EXPRESS_SMOKE_USER_DATA_DIR must be an absolute path.');
+    }
+    app.setName('Image Express');
+    app.setPath('userData', smokeUserDataPath);
+    return;
+  }
   if (!app.isPackaged) {
     return;
   }
@@ -376,6 +386,10 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     recordStartupTiming('window-ready');
+    if (isDesktopSmokeTest) {
+      writeStructuredLog('info', 'smoke.ready', { result: 'passed' });
+      return;
+    }
     mainWindow?.show();
   });
 
@@ -396,6 +410,10 @@ function createWindow() {
   // tried to block the close, and we supply the confirmation dialog ourselves.
   mainWindow.webContents.on('will-prevent-unload', (event) => {
     if (!mainWindow) return;
+    if (isDesktopSmokeTest) {
+      event.preventDefault();
+      return;
+    }
     const choice = dialog.showMessageBoxSync(mainWindow, {
       type: 'question',
       buttons: ['Quit Without Saving', 'Cancel'],

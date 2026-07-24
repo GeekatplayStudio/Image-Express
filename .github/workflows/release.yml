@@ -30,12 +30,15 @@ jobs:
         include:
           - os: windows-latest
             command: npm run desktop:dist:win -- --publish never
+            smoke: npm run desktop:smoke-package
             artifact: windows
           - os: macos-latest
             command: npm run desktop:dist:mac -- --publish never
+            smoke: npm run desktop:smoke-package
             artifact: macos
           - os: ubuntu-latest
             command: npm run desktop:dist:linux -- --publish never
+            smoke: xvfb-run -a npm run desktop:smoke-package
             artifact: linux
     runs-on: ${{ matrix.os }}
     env:
@@ -55,6 +58,8 @@ jobs:
       - run: npm ci
       - run: ${{ matrix.command }}
       - run: npm run desktop:verify-package
+      - name: Launch packaged application
+        run: ${{ matrix.smoke }}
       - uses: actions/upload-artifact@v4
         with:
           name: image-express-${{ matrix.artifact }}

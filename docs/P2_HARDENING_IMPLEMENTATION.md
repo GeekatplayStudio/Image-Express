@@ -117,9 +117,10 @@ Focused P2 coverage includes:
 This baseline does not claim that all maturity work is finished. Continue in small, measurable
 slices:
 
-1. Add packaged Electron smoke tests on Windows, macOS, and Linux CI runners.
-2. Add Playwright critical-journey coverage for save/reopen, export, provider failure, and
-   update/persistence behavior.
+1. ~~Add packaged Electron smoke tests on Windows, macOS, and Linux CI runners.~~ Implemented
+   in P2.1.
+2. Continue Playwright critical-journey coverage beyond the P2.1 save/persistence and export
+   journeys, particularly provider failure and update behavior.
 3. Add an opt-in crash-reporting design only after its privacy contract and retention policy
    are approved.
 4. Split and dynamically import the 3D editor, provider/setup modals, and large asset previews;
