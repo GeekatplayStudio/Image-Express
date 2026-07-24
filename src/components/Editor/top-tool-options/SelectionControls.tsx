@@ -51,7 +51,6 @@ export default function SelectionControls({
     const { t } = useI18n();
     const isMoveLikeTool = activeTool === 'select' || activeTool === 'path-select';
     const isSelectionFamilyTool = isMoveLikeTool || activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush';
-    const isPixelSelectionTool = activeTool === 'marquee' || activeTool === 'lasso' || activeTool === 'wand' || activeTool === 'quick-select' || activeTool === 'selection-brush';
     const supportsThreshold = activeTool === 'wand' || activeTool === 'quick-select';
 
     const tools: Array<{ key: SelectionFamilyTool; labelKey: string }> = [

@@ -1,19 +1,31 @@
-import { NextResponse } from 'next/server';
 import { readGenerateJob } from '@/lib/agentic-edit/jobs';
+import { GenerateJobIdSchema } from '@/features/generation/contracts/agenticEditJob';
+import { apiError, jsonWithRequestId } from '@/lib/server/apiContract';
 
 export const runtime = 'nodejs';
 
 export async function GET(
-    _request: Request,
+    request: Request,
     context: { params: Promise<{ id: string }> }
 ) {
     const { id } = await context.params;
+    if (!GenerateJobIdSchema.safeParse(id).success) {
+        return apiError(request, {
+            code: 'invalid_job_id',
+            message: 'Invalid generation job identifier.',
+            status: 400,
+        });
+    }
     const job = await readGenerateJob(id);
     if (!job) {
-        return NextResponse.json({ message: 'Job not found' }, { status: 404 });
+        return apiError(request, {
+            code: 'job_not_found',
+            message: 'Generation job was not found.',
+            status: 404,
+        });
     }
 
-    return NextResponse.json({
+    return jsonWithRequestId(request, {
         id: job.state.id,
         status: job.state.status,
         progress: job.state.progress,

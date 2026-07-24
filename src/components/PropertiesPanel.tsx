@@ -1602,7 +1602,7 @@ export default function PropertiesPanel({
     const updateAdjustment = (updates: Partial<AdjustmentLayerSettings>) => {
         if (!selectedObject || !selectedObject.isAdjustmentLayer) return;
         const newSettings = { ...selectedObject.adjustmentSettings, ...updates };
-        // eslint-disable-next-line react-hooks/immutability
+
         selectedObject.adjustmentSettings = newSettings as AdjustmentLayerSettings;
         setAdjustmentSettings(newSettings as AdjustmentLayerSettings);
         applyAdjustmentLayers();
@@ -1619,7 +1619,6 @@ export default function PropertiesPanel({
         const target = selectedObject as ExtendedFabricObject;
         if (!target.isAdjustmentLayer) return;
 
-        // eslint-disable-next-line react-hooks/immutability
         target.adjustmentType = type;
         target.adjustmentSettings = getDefaultAdjustmentSettings(type);
         target.name = getAdjustmentLabel(type);
@@ -2090,7 +2089,7 @@ export default function PropertiesPanel({
             const img = selectedObject as fabric.Image;
             if (img.type === 'image') {
                 // Ensure filters array
-                // eslint-disable-next-line react-hooks/immutability
+
                 if (!img.filters) img.filters = [];
                 
                 // Map UI type to Fabric filter class
@@ -2255,9 +2254,9 @@ export default function PropertiesPanel({
              if (('strokeColor' in v || 'strokeOpacity' in v) && strokeEnabled) { // Check local state or v? Use derived if persisted
                  const c = v.strokeColor || strokeColor;
                  const o = v.strokeOpacity !== undefined ? v.strokeOpacity : strokeOpacity;
-                 
+
                  // Update cache
-                 // eslint-disable-next-line react-hooks/immutability
+
                  t._strokeCachedColor = c;
                   
                  t._strokeCachedOpacity = o;
@@ -2286,7 +2285,7 @@ export default function PropertiesPanel({
              // --- BORDER STATE UPDATE ---
              if ('borderEnabled' in v) {
                  const isEnabled = !!v.borderEnabled;
-                 // eslint-disable-next-line react-hooks/immutability
+
                  t._borderEnabled = isEnabled; // Store UI intent
                  setBorderEnabled(isEnabled);
 
@@ -2340,8 +2339,7 @@ export default function PropertiesPanel({
              if (('borderColor' in v || 'borderOpacity' in v) && borderEnabled) {
                  const c = v.borderColor || borderColor;
                  const o = v.borderOpacity !== undefined ? v.borderOpacity : borderOpacity;
-                 
-                 // eslint-disable-next-line react-hooks/immutability
+
                  t._borderCachedColor = c;
                   
                  t._borderCachedOpacity = o;
@@ -2398,13 +2396,13 @@ export default function PropertiesPanel({
                         
                          if ('shadowColor' in v) setShadowColor(c);
                          if ('shadowOpacity' in v) setShadowOpacity(o);
-                         if ('shadowBlur' in v) { 
-                             // eslint-disable-next-line react-hooks/immutability
+                         if ('shadowBlur' in v) {
+
                              s.blur = v.shadowBlur || 0; 
                              setShadowBlur(v.shadowBlur); 
                          }
-                         if ('shadowOffsetX' in v) { 
-                              
+                         if ('shadowOffsetX' in v) {
+
                              s.offsetX = v.shadowOffsetX || 0; 
                              setShadowOffsetX(v.shadowOffsetX); 
                          }
@@ -2413,8 +2411,7 @@ export default function PropertiesPanel({
                              s.offsetY = v.shadowOffsetY || 0; 
                              setShadowOffsetY(v.shadowOffsetY); 
                          }
-                         
-                         // eslint-disable-next-line react-hooks/immutability
+
                          s.color = applyAlphaToColor(c, o);
                          selectedObject.set('dirty', true);
                     }

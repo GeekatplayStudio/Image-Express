@@ -1,0 +1,18 @@
+{
+  "exceptions": [
+    {
+      "package": "@hono/node-server",
+      "advisory": "GHSA-frvp-7c67-39w9",
+      "severity": "moderate",
+      "reason": "The vulnerable Windows serve-static adapter is not used. Image Express MCP uses StdioServerTransport only. Retain MCP 1.29.0 because older releases have high-severity cross-client leakage and ReDoS advisories.",
+      "expiresOn": "2026-10-31"
+    },
+    {
+      "package": "@modelcontextprotocol/sdk",
+      "advisory": "GHSA-frvp-7c67-39w9",
+      "severity": "moderate",
+      "reason": "npm reports the transitive Hono advisory against this direct dependency. The affected HTTP static-file transport is not used; MCP is stdio-only.",
+      "expiresOn": "2026-10-31"
+    }
+  ]
+}

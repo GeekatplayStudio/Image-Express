@@ -18,6 +18,8 @@ interface WorkspaceTabProps {
 
 /** Workspace tab: preferences, updates, appearance, dependency maintenance, and the login log. */
 export default function WorkspaceTab({ workspace, installer }: WorkspaceTabProps) {
+    const showDeveloperDependencyMaintenance = process.env.NODE_ENV !== 'production';
+
     return (
         <div className="grid gap-6 xl:col-span-12 xl:grid-cols-2">
             <PreferencesPanel />
@@ -25,7 +27,7 @@ export default function WorkspaceTab({ workspace, installer }: WorkspaceTabProps
             <AppearancePanel workspace={workspace} />
             <InterfaceThemesPanel />
             <DashboardAmbiencePanel />
-            <DependenciesPanel installer={installer} />
+            {showDeveloperDependencyMaintenance && <DependenciesPanel installer={installer} />}
             <LoginActivityPanel workspace={workspace} />
         </div>
     );

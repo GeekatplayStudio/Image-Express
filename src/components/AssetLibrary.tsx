@@ -2404,7 +2404,6 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                             const assetKey = getAssetKey(asset);
                             const sourceAssets = getSourceAssets(asset);
                             const representative = pickRepresentativeAsset(asset);
-                            const managedByUser = canManageAsset(asset);
                             const isUpdatingVisibility = updatingVisibilityKey === assetKey;
                             const imagePreviewUrl = representative.previewPath || (representative.storageProvider === 'server' ? representative.path : undefined);
                             const sourceLabels = Array.from(new Set(sourceAssets.map((entry) => (

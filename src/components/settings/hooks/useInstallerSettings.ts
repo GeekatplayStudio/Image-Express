@@ -136,7 +136,11 @@ export function useInstallerSettings(isOpen: boolean, activeSettingsTab: string,
     }, [isOpen, loadInstallerStatus]);
 
     useEffect(() => {
-        if (!isOpen || activeSettingsTab !== 'workspace') return;
+        if (
+            process.env.NODE_ENV === 'production'
+            || !isOpen
+            || activeSettingsTab !== 'workspace'
+        ) return;
         // eslint-disable-next-line react-hooks/set-state-in-effect
         void loadDependencyStatus();
     }, [activeSettingsTab, isOpen, loadDependencyStatus]);

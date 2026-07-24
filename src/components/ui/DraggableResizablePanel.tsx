@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface PanelPosition {
@@ -55,7 +55,7 @@ export default function DraggableResizablePanel({
         resizing: false
     });
 
-    const clampFrameToViewport = (nextPosition: PanelPosition, nextSize: PanelSize) => {
+    const clampFrameToViewport = useCallback((nextPosition: PanelPosition, nextSize: PanelSize) => {
         if (typeof window === 'undefined') {
             return { position: nextPosition, size: nextSize };
         }
@@ -79,7 +79,7 @@ export default function DraggableResizablePanel({
             },
             size: clampedSize,
         };
-    };
+    }, [minHeight, minWidth]);
 
     const maximizePanel = () => {
         if (typeof window === 'undefined') return;
@@ -143,7 +143,7 @@ export default function DraggableResizablePanel({
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [minWidth, minHeight, position, size]);
+    }, [clampFrameToViewport, minWidth, minHeight, position, size]);
 
     useEffect(() => {
         const handleWindowResize = () => {
@@ -164,7 +164,7 @@ export default function DraggableResizablePanel({
         return () => {
             window.removeEventListener('resize', handleWindowResize);
         };
-    }, [isMaximized, position, size]);
+    }, [clampFrameToViewport, isMaximized, minHeight, minWidth, position, size]);
 
     const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
         if (isMaximized) return;

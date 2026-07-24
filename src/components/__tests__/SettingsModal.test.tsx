@@ -569,7 +569,7 @@ describe('SettingsModal', () => {
     it('falls back to local storage when account key sync returns a non-ok response', async () => {
         window.localStorage.setItem('meshy_api_key', 'local-meshy');
 
-        (global as unknown as { fetch: jest.Mock }).fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        (global as unknown as { fetch: jest.Mock }).fetch = jest.fn(async (input: RequestInfo | URL) => {
             const url = String(input);
             if (url.startsWith('/api/user/keys?')) {
                 return {

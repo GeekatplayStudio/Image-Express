@@ -53,6 +53,7 @@ import { parseMissingOllamaModelMessage, requestOllamaModelInstall } from '@/lib
 import { persistAssetToLibrary } from '@/lib/assetPersistence';
 import { compileAnnotationPrompts } from '@/lib/agentic-edit/promptCompiler';
 import type { AnnotationDocument, AnnotationRecord, ReferenceRecord } from '@/lib/agentic-edit/types';
+import { runAgenticEditJob } from '@/features/generation/application/agenticEditJobClient';
 import { buildAnnotatedReferenceLayerDataUrl, buildAnnotationLayerArtifacts, clamp01, readBoxGeometry, renderAnnotationShape } from '@/components/image-generator/annotationCanvasUtils';
 import { buildComfyTaskModelOptions, findComfyTaskModelOption } from '@/lib/comfyui/localModelOptions';
 import { fetchInstallerRuntimeStatus, type InstallerRuntimeStatus } from '@/lib/installerRuntimeStatus';
@@ -501,29 +502,6 @@ const dataUrlToFile = async (dataUrl: string, filename: string): Promise<File> =
     return new File([blob], filename, { type: blob.type || 'image/png' });
 };
 
-const AI_EDIT_NOTES_MAX_WAIT_MS = 30 * 60 * 1000;
-const AI_EDIT_NOTES_POLL_INTERVAL_MS = 1500;
-
-const waitWithAbort = (ms: number, signal?: AbortSignal): Promise<void> => new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-        reject(new DOMException('Aborted', 'AbortError'));
-        return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-        signal?.removeEventListener('abort', onAbort);
-        resolve();
-    }, ms);
-
-    const onAbort = () => {
-        window.clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', onAbort);
-        reject(new DOMException('Aborted', 'AbortError'));
-    };
-
-    signal?.addEventListener('abort', onAbort, { once: true });
-});
-
 const mapGenerativeProviderToAgenticProvider = (provider: GenerativeProviderId): 'mock' | 'flux' | 'nanobanana' => {
     if (provider === 'banana') {
         return 'nanobanana';
@@ -575,7 +553,6 @@ export default function ImageGeneratorModal({
     const [lastRemovedAnnotation, setLastRemovedAnnotation] = useState<RemovedAnnotationSnapshot | null>(null);
     const lastRemovedAnnotationTimeoutRef = useRef<number | null>(null);
     const aiEditNotesAbortControllerRef = useRef<AbortController | null>(null);
-    const aiEditNotesAbortRequestedRef = useRef(false);
   
   // --- First-run gate (no AI service configured yet) ---
   const [setupGateDismissed, setSetupGateDismissed] = useState<boolean>(() => (
@@ -1207,7 +1184,7 @@ export default function ImageGeneratorModal({
       } finally {
           setIsInstallingComfyRequirements(false);
       }
-  }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyCustomNodesPath, comfyInstallPath, comfyServerUrl, comfyWorkflowLibraryPath, dialog, inspectComfyCatalog]);
+  }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyCustomNodesPath, comfyInstallPath, comfyServerUrl, comfyTunnelUrl, comfyWorkflowLibraryPath, dialog, inspectComfyCatalog, t]);
 
   const handleVerifyComfyConnection = async () => {
       if (isCheckingComfyConnection) {
@@ -2289,7 +2266,7 @@ export default function ImageGeneratorModal({
             canvas.requestRenderAll();
         }
     };
-  }, [canvas, mode]);
+  }, [appTheme.zoneOverlayFill, appTheme.zoneStroke, canvas, mode]);
 
   // --- Helper Functions ---
 
@@ -2405,7 +2382,6 @@ export default function ImageGeneratorModal({
 
     try {
       if (useAgenticEditNotes) {
-          aiEditNotesAbortRequestedRef.current = false;
           const aiAbortController = new AbortController();
           aiEditNotesAbortControllerRef.current = aiAbortController;
 
@@ -2553,62 +2529,20 @@ export default function ImageGeneratorModal({
           }
           formData.append('references_meta', JSON.stringify(referenceMeta));
 
-          const queueResponse = await fetch('/api/generate', {
-              method: 'POST',
-              body: formData,
+          const completedResult = await runAgenticEditJob(formData, {
               signal: aiAbortController.signal,
+              onState: (state) => {
+                  if (state.status === 'validating') {
+                      setStatusMessage('Validating AI Edit Notes request…');
+                  }
+                  if (state.status === 'running') {
+                      const percent = Math.round(Math.max(0, Math.min(1, state.progress ?? 0)) * 100);
+                      setStatusMessage(`AI Edit Notes: ${state.message} (${percent}%)`);
+                  }
+              },
           });
 
-          const queueData = await queueResponse.json();
-          if (!queueResponse.ok || !queueData.job_id) {
-              throw new Error(queueData.message || 'Failed to queue AI Edit Notes job.');
-          }
-
-          const jobId = queueData.job_id as string;
-          setStatusMessage(`Job queued (${jobId.slice(-8)}). Waiting for worker...`);
-
-          let completedResultUrl = '';
-          const startedAt = Date.now();
-          while (Date.now() - startedAt < AI_EDIT_NOTES_MAX_WAIT_MS) {
-              if (aiEditNotesAbortRequestedRef.current) {
-                  throw new DOMException('Aborted', 'AbortError');
-              }
-
-              await waitWithAbort(AI_EDIT_NOTES_POLL_INTERVAL_MS, aiAbortController.signal);
-
-              const statusResponse = await fetch(`/api/jobs/${jobId}`, {
-                  signal: aiAbortController.signal,
-              });
-              const statusData = await statusResponse.json();
-              if (!statusResponse.ok) {
-                  throw new Error(statusData.message || 'Failed to poll job status.');
-              }
-
-              const percent = Math.max(0, Math.min(100, Math.round((statusData.progress || 0) * 100)));
-              setStatusMessage(`AI Edit Notes: ${statusData.message || statusData.status} (${percent}%)`);
-
-              if (statusData.status === 'failed') {
-                  throw new Error(statusData.error || 'AI Edit Notes generation failed.');
-              }
-
-              if (statusData.status === 'succeeded') {
-                  const resultResponse = await fetch(`/api/jobs/${jobId}/result`, {
-                      signal: aiAbortController.signal,
-                  });
-                  const resultData = await resultResponse.json();
-                  if (!resultResponse.ok || !resultData.imageUrl) {
-                      throw new Error(resultData.message || 'Job completed but result image is unavailable.');
-                  }
-                  completedResultUrl = resultData.imageUrl as string;
-                  break;
-              }
-          }
-
-          if (!completedResultUrl) {
-              throw new Error('Timed out waiting for AI Edit Notes result after 30 minutes.');
-          }
-
-          setGeneratedImage(completedResultUrl);
+          setGeneratedImage(completedResult.imageUrl);
           setStatusMessage('AI Edit Notes generation complete!');
           aiEditNotesAbortControllerRef.current = null;
           setIsGenerating(false);
@@ -2973,13 +2907,11 @@ export default function ImageGeneratorModal({
                                 }
                         }
             aiEditNotesAbortControllerRef.current = null;
-            aiEditNotesAbortRequestedRef.current = false;
       setIsGenerating(false);
     }
   };
 
     const handleAbortAiEditNotes = useCallback(() => {
-            aiEditNotesAbortRequestedRef.current = true;
             aiEditNotesAbortControllerRef.current?.abort();
             setStatusMessage('Aborting AI Edit Notes request...');
     }, []);

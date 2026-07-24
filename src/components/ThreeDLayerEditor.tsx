@@ -505,7 +505,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                 const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
 
                 renderer.setSize(resolution.width, resolution.height, false);
-                // eslint-disable-next-line react-hooks/immutability
+
                 (camera as THREE.PerspectiveCamera).aspect = resolution.width / resolution.height;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
 
@@ -515,7 +515,6 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
 
                 renderer.setSize(originalSize.x, originalSize.y, false);
 
-                // eslint-disable-next-line react-hooks/immutability
                 (camera as THREE.PerspectiveCamera).aspect = originalAspect;
                 (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
 

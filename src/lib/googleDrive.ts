@@ -338,7 +338,7 @@ type GapiClient = {
   };
 };
 
-async function initGapiClient(clientId: string) {
+async function initGapiClient() {
   await loadGapiScript();
   const gapi = window.gapi as GapiClient | undefined;
   if (!gapi) {
@@ -644,7 +644,7 @@ async function ensureDriveSession(clientId?: string, options?: DriveSessionOptio
     throw new Error('Google Drive client ID is missing.');
   }
 
-  const gapi = await initGapiClient(resolvedClientId);
+  const gapi = await initGapiClient();
   const drive = gapi.client.drive;
   if (!drive) {
     throw new Error('Google Drive API client is unavailable.');
@@ -719,7 +719,7 @@ export async function connectGoogleDrive(clientId: string): Promise<StoredConfig
   try {
     const config = loadDriveConfig();
     const token = await requestGoogleAccessToken(clientId, 'consent');
-    const gapi = await initGapiClient(clientId);
+    const gapi = await initGapiClient();
     gapi.client.setToken?.({ access_token: token.accessToken });
     config.enabled = true;
     config.clientId = clientId;
@@ -793,7 +793,7 @@ export async function uploadBackup(
     throw new Error('Google Drive backup not enabled.');
   }
 
-  const gapi = await initGapiClient(clientId);
+  const gapi = await initGapiClient();
   const drive = gapi.client.drive;
   if (!drive) {
     throw new Error('Google Drive API client is unavailable.');

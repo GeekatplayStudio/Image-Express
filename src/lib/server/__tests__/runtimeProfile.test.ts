@@ -53,6 +53,28 @@ describe('runtimeProfile', () => {
         )).toBeNull();
     });
 
+    it('never exposes source dependency maintenance from a packaged desktop', async () => {
+        process.env.IMAGE_EXPRESS_RUNTIME = 'desktop-local';
+        process.env.IMAGE_EXPRESS_LOCAL_CAPABILITY_TOKEN = 'desktop-secret';
+        const response = authorizeLocalRuntimeCapability(
+            new Request('http://127.0.0.1:3927/api/runtime/dependencies/run', {
+                headers: { 'x-image-express-capability': 'desktop-secret' },
+            }),
+            'dependencies:manage',
+        );
+        expect(response?.status).toBe(403);
+        await expect(response?.json()).resolves.toEqual(expect.objectContaining({
+            message: expect.stringContaining('local developer workspace'),
+        }));
+    });
+
+    it('allows dependency maintenance in a loopback developer workspace', () => {
+        expect(authorizeLocalRuntimeCapability(
+            new Request('http://localhost:3000/api/runtime/dependencies/run'),
+            'dependencies:manage',
+        )).toBeNull();
+    });
+
     it('rejects non-loopback developer requests', () => {
         expect(authorizeLocalRuntimeCapability(
             new Request('http://192.168.1.25:3000/api/runtime/dependencies/run'),

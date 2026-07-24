@@ -15,7 +15,6 @@ import {
     resolveConfigFilePath,
     resolveInstallerComfyDirectory,
     resolveInstallerLocalWorkspaceDirectory,
-    type InstallerConfig,
 } from '@/lib/server/comfyInstallerCatalog';
 
 async function pathExists(targetPath: string) {

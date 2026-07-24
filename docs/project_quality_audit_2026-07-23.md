@@ -5,6 +5,17 @@
 > package verification, and installer-first documentation described in this audit have been
 > implemented. Signing/notarization and clean-machine Windows/Linux release validation remain
 > external release prerequisites.
+>
+> P1 implementation update (2026-07-23): the first generation feature slice now has typed
+> operation states, Zod API contracts, bounded requests, safe public errors with request IDs,
+> atomic/versioned job persistence, secret redaction, path-traversal protection, architecture
+> boundary enforcement, CODEOWNERS, and a zero-warning lint gate. See
+> `docs/P1_ENGINEERING_IMPLEMENTATION.md`.
+>
+> P2 implementation update (2026-07-23): privacy-safe rotating JSON logs, startup and updater
+> diagnostics, desktop Help support actions, production dependency-maintenance isolation,
+> dependency-audit governance, Dependabot, aligned Jest tooling, and enforceable client-bundle
+> budgets are implemented. See `docs/P2_HARDENING_IMPLEMENTATION.md`.
 
 Date: 2026-07-23  
 Repository: `GeekatplayStudio/Image-Express`  

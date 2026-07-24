@@ -1,8 +1,14 @@
-import { NextResponse } from 'next/server';
 import { createGenerateJob, processGenerateJob } from '@/lib/agentic-edit/jobs';
 import type { AnnotationDocument } from '@/lib/agentic-edit/types';
+import {
+    ApiRequestError,
+    assertRequestContentLength,
+    jsonWithRequestId,
+    toApiErrorResponse,
+} from '@/lib/server/apiContract';
 
 export const runtime = 'nodejs';
+const MAX_GENERATE_REQUEST_BYTES = 64 * 1024 * 1024;
 
 const asString = (value: FormDataEntryValue | null): string => (
     typeof value === 'string' ? value : ''
@@ -18,11 +24,26 @@ const parseJson = <T>(value: string, fallback: T): T => {
 
 export async function POST(request: Request) {
     try {
+        assertRequestContentLength(request, MAX_GENERATE_REQUEST_BYTES);
         const form = await request.formData();
+        const parsedSize = Array.from(form.values()).reduce((total, entry) => (
+            total + (entry instanceof File ? entry.size : Buffer.byteLength(entry, 'utf8'))
+        ), 0);
+        if (parsedSize > MAX_GENERATE_REQUEST_BYTES) {
+            throw new ApiRequestError(
+                'request_too_large',
+                'Generation request exceeds the 64 MB limit.',
+                413,
+            );
+        }
 
         const original = form.get('original');
         if (!(original instanceof File)) {
-            return NextResponse.json({ message: 'Missing original file' }, { status: 400 });
+            throw new ApiRequestError(
+                'original_file_required',
+                'Missing original file.',
+                400,
+            );
         }
 
         const annotationsRaw = asString(form.get('annotations_json'));
@@ -57,11 +78,19 @@ export async function POST(request: Request) {
         if (hasAnnotationNotes) {
             const hasNotesOverlayFile = notesOverlay instanceof File || embeddedNotesImage instanceof File;
             if (!hasNotesOverlayFile) {
-                return NextResponse.json({ message: 'Missing notes_overlay file for annotated edit request' }, { status: 400 });
+                throw new ApiRequestError(
+                    'notes_overlay_required',
+                    'Missing notes overlay for annotated edit request.',
+                    400,
+                );
             }
 
             if (!(combinedMask instanceof File)) {
-                return NextResponse.json({ message: 'Missing combined_mask file for annotated edit request' }, { status: 400 });
+                throw new ApiRequestError(
+                    'combined_mask_required',
+                    'Missing combined mask for annotated edit request.',
+                    400,
+                );
             }
         }
 
@@ -95,9 +124,13 @@ export async function POST(request: Request) {
 
         void processGenerateJob(state.id);
 
-        return NextResponse.json({ job_id: state.id });
+        return jsonWithRequestId(request, { job_id: state.id }, { status: 202 });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to queue generate job';
-        return NextResponse.json({ message }, { status: 500 });
+        return toApiErrorResponse(request, error, {
+            code: 'generate_queue_failed',
+            message: 'Failed to queue generation job.',
+            status: 500,
+            retryable: true,
+        });
     }
 }

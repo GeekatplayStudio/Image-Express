@@ -17,7 +17,7 @@ import {
     FabricBaseFilter,
 } from '@/types';
 import { CurvesFilter, isAdjustmentGeneratedFilter, reviveImageFilters, tagAdjustmentFilters } from '@/lib/fabric-filters';
-import { applyAlphaToColor, applyImageFiltersPreservingGeometry } from '@/lib/fabric-utils';
+import { applyImageFiltersPreservingGeometry } from '@/lib/fabric-utils';
 
 /**
  * Build an array of Fabric.js image filters that implement a given

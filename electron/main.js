@@ -1,9 +1,14 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
+const PROCESS_STARTED_AT = Date.now();
+const LOG_MAX_BYTES = 2 * 1024 * 1024;
+const LOG_ROTATION_COUNT = 3;
+const startupTimings = {};
+let latestUpdateState = { status: 'idle', message: 'No update check has run.' };
 
 function configureBrandedUserDataPath() {
   if (!app.isPackaged) {
@@ -20,6 +25,81 @@ function configureBrandedUserDataPath() {
 }
 
 configureBrandedUserDataPath();
+
+function redactDiagnosticValue(value, depth = 0) {
+  if (depth > 5) return '[truncated]';
+  if (typeof value === 'string') {
+    let redacted = value;
+    const sensitiveRoots = [
+      app.getPath('home'),
+      app.getPath('userData'),
+      app.getAppPath(),
+    ].filter(Boolean);
+    for (const root of sensitiveRoots) {
+      redacted = redacted.split(root).join(root === app.getPath('home') ? '<home>' : '<app-data>');
+    }
+    return redacted
+      .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [redacted]')
+      .replace(/((?:api.?key|token|password|secret)\s*[=:]\s*)[^\s,;]+/gi, '$1[redacted]')
+      .slice(0, 1200);
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 50).map((entry) => redactDiagnosticValue(entry, depth + 1));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => (
+      [key, /(api.?key|authorization|bearer|password|secret|token|prompt|image)/i.test(key)
+        ? '[redacted]'
+        : redactDiagnosticValue(entry, depth + 1)]
+    )));
+  }
+  return value;
+}
+
+function getStructuredLogPath() {
+  const logsDir = path.join(app.getPath('userData'), 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+  return path.join(logsDir, 'desktop.jsonl');
+}
+
+function rotateStructuredLogs(logPath) {
+  try {
+    if (!fs.existsSync(logPath) || fs.statSync(logPath).size < LOG_MAX_BYTES) return;
+    for (let index = LOG_ROTATION_COUNT; index >= 1; index -= 1) {
+      const source = index === 1 ? logPath : `${logPath}.${index - 1}`;
+      const destination = `${logPath}.${index}`;
+      if (!fs.existsSync(source)) continue;
+      if (fs.existsSync(destination)) fs.unlinkSync(destination);
+      fs.renameSync(source, destination);
+    }
+  } catch {
+    // Logging must never prevent startup or shutdown.
+  }
+}
+
+function writeStructuredLog(level, event, details = {}) {
+  try {
+    const logPath = getStructuredLogPath();
+    rotateStructuredLogs(logPath);
+    const entry = {
+      timestamp: new Date().toISOString(),
+      level,
+      event,
+      details: redactDiagnosticValue(details),
+    };
+    fs.appendFileSync(logPath, `${JSON.stringify(entry)}\n`, 'utf8');
+  } catch {
+    // Logging must never affect application behavior.
+  }
+}
+
+function recordStartupTiming(phase) {
+  startupTimings[phase] = Date.now() - PROCESS_STARTED_AT;
+  writeStructuredLog('info', 'startup.phase', {
+    phase,
+    elapsedMs: startupTimings[phase],
+  });
+}
 
 let autoUpdater = null;
 try {
@@ -124,11 +204,7 @@ async function waitForServer(url, attempts = 40, delay = 250) {
 }
 
 function traceStartup(message) {
-  try {
-    fs.appendFileSync(path.join(app.getPath('userData'), 'startup-trace.log'), `[${new Date().toISOString()}] ${message}\n`);
-  } catch {
-    // best effort only
-  }
+  writeStructuredLog('info', 'startup.trace', { message });
 }
 
 async function startProductionServer() {
@@ -187,12 +263,21 @@ async function startProductionServer() {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
-    serverProcess.stdout.on('data', (chunk) => traceStartup(`server: ${String(chunk).trim()}`));
-    serverProcess.stderr.on('data', (chunk) => traceStartup(`server err: ${String(chunk).trim()}`));
-    serverProcess.on('exit', (code) => traceStartup(`server exited code=${code}`));
+    serverProcess.stdout.on('data', (chunk) => {
+      writeStructuredLog('debug', 'server.stdout', { bytes: Buffer.byteLength(chunk) });
+    });
+    serverProcess.stderr.on('data', (chunk) => {
+      writeStructuredLog('warn', 'server.stderr', { bytes: Buffer.byteLength(chunk) });
+    });
+    serverProcess.on('exit', (code) => writeStructuredLog(
+      code === 0 ? 'info' : 'error',
+      'server.exit',
+      { code },
+    ));
 
     await waitForServer(NEXT_URL, 120, 250);
     traceStartup('server ready');
+    recordStartupTiming('server-ready');
     productionServerStarted = true;
   } catch (error) {
     logStartupError(error);
@@ -203,16 +288,21 @@ async function startProductionServer() {
 
 /** Persist startup failures where support can find them (userData/startup-error.log). */
 function logStartupError(error) {
-  try {
-    const logPath = path.join(app.getPath('userData'), 'startup-error.log');
-    const detail = error && error.stack ? error.stack : String(error);
-    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${detail}\n`);
-  } catch {
-    // never let logging break the error path
-  }
+  writeStructuredLog('error', 'startup.error', {
+    error: error && error.stack ? error.stack : String(error),
+  });
 }
 
 function sendUpdateStatus(status, message) {
+  latestUpdateState = {
+    status,
+    message: redactDiagnosticValue(message),
+    updatedAt: new Date().toISOString(),
+  };
+  writeStructuredLog(status === 'error' ? 'error' : 'info', 'updater.status', {
+    status,
+    message,
+  });
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('updates/status', { status, message });
   }
@@ -285,6 +375,7 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    recordStartupTiming('window-ready');
     mainWindow?.show();
   });
 
@@ -319,7 +410,97 @@ function createWindow() {
   });
 }
 
+function collectSupportDiagnostics() {
+  const userDataPath = app.getPath('userData');
+  const logsPath = path.join(userDataPath, 'logs');
+  fs.mkdirSync(logsPath, { recursive: true });
+  let availableDiskBytes;
+  try {
+    const disk = fs.statfsSync(userDataPath);
+    availableDiskBytes = disk.bavail * disk.bsize;
+  } catch {
+    availableDiskBytes = undefined;
+  }
+  let logFiles = [];
+  try {
+    logFiles = fs.readdirSync(logsPath, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .slice(0, 20)
+      .map((entry) => {
+        const stats = fs.statSync(path.join(logsPath, entry.name));
+        return { name: entry.name, bytes: stats.size };
+      });
+  } catch {
+    logFiles = [];
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    application: {
+      name: app.getName(),
+      version: app.getVersion(),
+      packaged: app.isPackaged,
+    },
+    system: {
+      platform: process.platform,
+      architecture: process.arch,
+      electron: process.versions.electron,
+      chrome: process.versions.chrome,
+      node: process.versions.node,
+    },
+    runtime: {
+      profile: isDev ? 'developer-local' : 'desktop-local',
+      uptimeSeconds: Math.round(process.uptime()),
+      startupTimingsMs: { ...startupTimings },
+      updater: latestUpdateState,
+      availableDiskBytes,
+    },
+    storage: {
+      userData: '<user-data>',
+      data: '<user-data>/data',
+      assets: '<user-data>/assets',
+      logs: '<user-data>/logs',
+    },
+    logs: logFiles,
+  };
+}
+
+async function openSupportFolder(folderPath, event) {
+  try {
+    fs.mkdirSync(folderPath, { recursive: true });
+    const errorMessage = await shell.openPath(folderPath);
+    if (errorMessage) throw new Error(errorMessage);
+    writeStructuredLog('info', event, { result: 'opened' });
+    return { success: true };
+  } catch (error) {
+    const message = error?.message || 'Unable to open folder.';
+    writeStructuredLog('error', event, { result: 'failed', message });
+    return { success: false, message };
+  }
+}
+
 ipcMain.handle('runtime/capability', () => localCapabilityToken);
+
+ipcMain.handle('support/open-logs', () => (
+  openSupportFolder(path.join(app.getPath('userData'), 'logs'), 'support.open-logs')
+));
+
+ipcMain.handle('support/open-user-data', () => (
+  openSupportFolder(app.getPath('userData'), 'support.open-user-data')
+));
+
+ipcMain.handle('support/copy-diagnostics', () => {
+  try {
+    const diagnostics = collectSupportDiagnostics();
+    clipboard.writeText(JSON.stringify(diagnostics, null, 2));
+    writeStructuredLog('info', 'support.copy-diagnostics', { result: 'copied' });
+    return { success: true };
+  } catch (error) {
+    const message = error?.message || 'Unable to copy diagnostics.';
+    writeStructuredLog('error', 'support.copy-diagnostics', { result: 'failed', message });
+    return { success: false, message };
+  }
+});
 
 ipcMain.handle('updates/check', async () => {
   if (isDev || !autoUpdater) {
@@ -352,6 +533,7 @@ ipcMain.handle('updates/install', async () => {
 });
 
 app.whenReady().then(async () => {
+  recordStartupTiming('electron-ready');
   traceStartup(`app ready; isDev=${isDev} packaged=${app.isPackaged}`);
   if (!isDev) {
     await startProductionServer();
@@ -376,6 +558,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  writeStructuredLog('info', 'application.quit', { uptimeSeconds: Math.round(process.uptime()) });
   if (serverProcess && !serverProcess.killed) {
     serverProcess.kill();
   }

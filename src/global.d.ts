@@ -18,6 +18,9 @@ declare global {
       onUpdateStatus?: (callback: (payload: any) => void) => () => void;
       checkForUpdates?: () => Promise<DesktopUpdatePayload>;
       getLocalCapabilityToken?: () => Promise<string>;
+      openLogsFolder?: () => Promise<{ success: boolean; message?: string }>;
+      openUserDataFolder?: () => Promise<{ success: boolean; message?: string }>;
+      copyDiagnostics?: () => Promise<{ success: boolean; message?: string }>;
       downloadUpdate?: () => void;
       installUpdate?: () => Promise<void>;
       quitAndInstall?: () => void;

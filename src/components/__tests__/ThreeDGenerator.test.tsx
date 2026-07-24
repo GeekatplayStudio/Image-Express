@@ -6,6 +6,8 @@ import ThreeDGenerator from '../ThreeDGenerator';
 jest.mock('next/image', () => ({
     __esModule: true,
     default: ({ fill, unoptimized, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; unoptimized?: boolean }) => {
+        void fill;
+        void unoptimized;
         // eslint-disable-next-line @next/next/no-img-element
         return <img {...props} alt={props.alt || ''} />;
     },

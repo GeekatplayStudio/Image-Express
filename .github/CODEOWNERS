@@ -1,0 +1,11 @@
+# Default ownership
+* @GeekatplayStudio
+
+# Changes in these areas require deliberate security/release review.
+/.github/workflows/ @GeekatplayStudio
+/electron/ @GeekatplayStudio
+/scripts/verify-package.mjs @GeekatplayStudio
+/src/lib/server/ @GeekatplayStudio
+/src/app/api/user/ @GeekatplayStudio
+/src/app/api/runtime/ @GeekatplayStudio
+/src/features/generation/contracts/ @GeekatplayStudio

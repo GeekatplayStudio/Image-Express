@@ -50,6 +50,11 @@ export function authorizeLocalRuntimeCapability(
 ): NextResponse | null {
     const profile = getRuntimeProfile();
 
+    if (capability === 'dependencies:manage' && profile !== 'developer-local') {
+        return NextResponse.json({
+            message: `${capability} is available only in a local developer workspace.`,
+        }, { status: 403 });
+    }
     if (profile === 'self-hosted') {
         return NextResponse.json({
             message: `${capability} is disabled in self-hosted mode.`,

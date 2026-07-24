@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { readdir } from 'fs/promises';
-import path from 'path';
 import fs from 'fs';
 import { getTemplatesDir } from '@/lib/server/appPaths';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const templatesDir = getTemplatesDir();
 

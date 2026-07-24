@@ -2,6 +2,8 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { resolveModelProvider } from '@/lib/agentic-edit/providers';
 import type { AnnotationDocument, GenerateJobState } from '@/lib/agentic-edit/types';
+import { getAssetsDir, getDataDir } from '@/lib/server/appPaths';
+import { isGenerateJobId } from '@/features/generation/contracts/agenticEditJob';
 
 interface StoredReferenceFile {
     id: string;
@@ -11,6 +13,7 @@ interface StoredReferenceFile {
 }
 
 interface StoredGenerateJob {
+    schemaVersion: 1;
     state: GenerateJobState;
     files: {
         originalPath: string;
@@ -38,12 +41,14 @@ interface StoredGenerateJob {
     };
 }
 
-const dataRoot = path.join(process.cwd(), 'data');
+const dataRoot = getDataDir();
 const jobsDir = path.join(dataRoot, 'ai-jobs');
 const uploadsDir = path.join(jobsDir, 'uploads');
 const revisionsDir = path.join(dataRoot, 'ai-revisions');
-const outputDir = path.join(process.cwd(), 'public', 'assets', 'generated', 'images');
+const outputDir = path.join(getAssetsDir(), 'generated', 'images');
 const DEFAULT_OLD_JOB_RETENTION_MS = 6 * 60 * 60 * 1000;
+const runtimeProviderParams = new Map<string, Record<string, unknown>>();
+const SENSITIVE_PARAMETER_PATTERN = /(api.?key|authorization|bearer|password|secret|token)/i;
 
 const ensureDirs = async () => {
     await fs.mkdir(jobsDir, { recursive: true });
@@ -52,15 +57,30 @@ const ensureDirs = async () => {
     await fs.mkdir(outputDir, { recursive: true });
 };
 
-const jobFilePath = (jobId: string) => path.join(jobsDir, `${jobId}.json`);
+const jobFilePath = (jobId: string) => {
+    if (!isGenerateJobId(jobId)) {
+        throw new Error('Invalid generation job identifier.');
+    }
+    return path.join(jobsDir, `${jobId}.json`);
+};
 
 const nowIso = () => new Date().toISOString();
 
 const writeJson = async (targetPath: string, value: unknown) => {
-    await fs.writeFile(targetPath, JSON.stringify(value, null, 2), 'utf-8');
+    const temporaryPath = `${targetPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    try {
+        await fs.writeFile(temporaryPath, JSON.stringify(value, null, 2), 'utf-8');
+        await fs.rename(temporaryPath, targetPath);
+    } catch (error) {
+        await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+        throw error;
+    }
 };
 
 export const readGenerateJob = async (jobId: string): Promise<StoredGenerateJob | null> => {
+    if (!isGenerateJobId(jobId)) {
+        return null;
+    }
     try {
         const raw = await fs.readFile(jobFilePath(jobId), 'utf-8');
         return JSON.parse(raw) as StoredGenerateJob;
@@ -122,6 +142,25 @@ const safeExt = (filename: string, fallback = '.bin'): string => {
     return ext;
 };
 
+const safeFilenameSegment = (value: string, fallback: string): string => {
+    const normalized = value.trim().replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80);
+    return normalized || fallback;
+};
+
+const redactSensitiveParameters = (
+    value: Record<string, unknown>,
+): Record<string, unknown> => Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => {
+        if (SENSITIVE_PARAMETER_PATTERN.test(key)) {
+            return [key, '[redacted]'];
+        }
+        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+            return [key, redactSensitiveParameters(entry as Record<string, unknown>)];
+        }
+        return [key, entry];
+    }),
+);
+
 const isTerminalJobStatus = (status: GenerateJobState['status']): boolean => (
     status === 'succeeded' || status === 'failed'
 );
@@ -130,6 +169,7 @@ const createRevisionRecord = async (job: StoredGenerateJob) => {
     if (!job.output) return;
 
     const revision = {
+        schemaVersion: 1,
         id: `rev_${job.state.id}`,
         originalImageId: job.annotationDocument.image.id,
         annotationJson: job.annotationDocument,
@@ -285,12 +325,13 @@ export const createGenerateJob = async (input: CreateGenerateJobInput): Promise<
     }
 
     const refs: StoredReferenceFile[] = [];
-    for (const reference of input.references) {
+    for (const [index, reference] of input.references.entries()) {
         const ext = safeExt(reference.file.name, '.png');
-        const refPath = path.join(uploadsDir, `${jobId}-ref-${reference.id}${ext}`);
+        const referenceId = safeFilenameSegment(reference.id, `reference-${index + 1}`);
+        const refPath = path.join(uploadsDir, `${jobId}-ref-${referenceId}${ext}`);
         await saveBuffer(refPath, await toBuffer(reference.file));
         refs.push({
-            id: reference.id,
+            id: referenceId,
             role: reference.role,
             path: refPath,
             name: reference.file.name,
@@ -316,6 +357,7 @@ export const createGenerateJob = async (input: CreateGenerateJobInput): Promise<
     };
 
     const job: StoredGenerateJob = {
+        schemaVersion: 1,
         state,
         files: {
             originalPath,
@@ -329,7 +371,7 @@ export const createGenerateJob = async (input: CreateGenerateJobInput): Promise<
         provider: {
             name: input.providerName,
             model: input.providerModel,
-            params: input.providerParams,
+            params: redactSensitiveParameters(input.providerParams),
         },
         prompts: {
             positive: input.promptPositive,
@@ -338,6 +380,7 @@ export const createGenerateJob = async (input: CreateGenerateJobInput): Promise<
         annotationDocument: input.annotationsJson,
     };
 
+    runtimeProviderParams.set(jobId, input.providerParams);
     await persistGenerateJob(job);
     return state;
 };
@@ -374,7 +417,7 @@ export const processGenerateJob = async (jobId: string): Promise<void> => {
             promptPositive: job.prompts.positive,
             promptNegative: job.prompts.negative,
             params: {
-                ...job.provider.params,
+                ...(runtimeProviderParams.get(jobId) ?? job.provider.params),
                 model: job.provider.model,
             },
         });
@@ -385,7 +428,7 @@ export const processGenerateJob = async (jobId: string): Promise<void> => {
         const outputPath = path.join(outputDir, outputName);
         await saveBuffer(outputPath, providerResult.outputImage);
 
-        const imageUrl = `/assets/generated/images/${outputName}`;
+        const imageUrl = `/api/assets/serve/generated/images/${encodeURIComponent(outputName)}`;
         const latest = await readGenerateJob(jobId);
         if (!latest) return;
 
@@ -421,6 +464,8 @@ export const processGenerateJob = async (jobId: string): Promise<void> => {
             removeJobRecord: false,
             removeUploads: true,
         });
+    } finally {
+        runtimeProviderParams.delete(jobId);
     }
 };
 
@@ -433,6 +478,9 @@ export const cleanupGenerateJobArtifacts = async (
         removeRevisionRecord?: boolean;
     }
 ): Promise<void> => {
+    if (!isGenerateJobId(jobId)) {
+        return;
+    }
     const removeJobRecord = options?.removeJobRecord ?? true;
     const removeUploads = options?.removeUploads ?? true;
     const removeOutput = options?.removeOutput ?? false;

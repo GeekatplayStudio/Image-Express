@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getLogsDir } from '@/lib/server/appPaths';
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 }
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
     try {
         await ensureLogDir();
         let content = '';

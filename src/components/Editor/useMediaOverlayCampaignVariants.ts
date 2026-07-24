@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { ToastOptions } from '@/providers/ToastProvider';
-import type { DesignJson, RectBounds } from '@/components/Editor/editorView.types';
+import type { RectBounds } from '@/components/Editor/editorView.types';
 import type {
     CampaignVariant,
     CampaignWorkspace,

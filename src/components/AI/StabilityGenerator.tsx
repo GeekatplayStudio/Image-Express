@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import * as fabric from 'fabric';
 import { useToast } from '@/providers/ToastProvider';
-import { ExtendedFabricObject } from '@/types';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import useSingleFlight from '@/hooks/useSingleFlight';
 import StabilityGeneratorContent from './stability-generator/StabilityGeneratorContent';

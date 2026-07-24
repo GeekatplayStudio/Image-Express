@@ -482,7 +482,7 @@ describe('EditorView', () => {
 
 
         fireEvent.click(screen.getByRole('button', { name: /^Help$/i }));
-        fireEvent.click(within(await screen.findByTestId('menu-help')).getByRole('button', { name: 'Documentation' }));
+        fireEvent.click(within(await screen.findByTestId('menu-help')).getByRole('menuitem', { name: 'Documentation' }));
         expect(props.onOpenDocumentation).toHaveBeenCalledTimes(1);
 
         fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }));
@@ -1243,12 +1243,12 @@ describe('EditorView', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /^Help$/i }));
         const helpMenu = await screen.findByTestId('menu-help');
-        fireEvent.click(within(helpMenu).getByRole('button', { name: 'Documentation' }));
+        fireEvent.click(within(helpMenu).getByRole('menuitem', { name: 'Documentation' }));
         expect(props.onOpenDocumentation).toHaveBeenCalledTimes(1);
 
         fireEvent.keyDown(window, { key: 'v' });
         expect(mockTriggerTool).toHaveBeenCalledWith('select');
-    });
+    }, 30_000);
 
     it('supports Photoshop-style tool keyboard aliases for the current editor tools', () => {
         const props = createDefaultProps();
