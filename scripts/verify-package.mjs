@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { listPackage } from '@electron/asar';
 
 const root = process.cwd();
 const distDir = path.join(root, 'dist');
@@ -30,16 +30,9 @@ const requiredAsarEntries = [
 ];
 
 for (const asarFile of asarFiles) {
-    const result = spawnSync(
-        process.platform === 'win32' ? 'npx.cmd' : 'npx',
-        ['asar', 'list', asarFile],
-        { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
-    );
-    if (result.status !== 0) {
-        throw new Error(`Unable to inspect ${asarFile}: ${result.stderr || result.stdout}`);
-    }
+    const entries = new Set(listPackage(asarFile));
     for (const required of requiredAsarEntries) {
-        if (!result.stdout.includes(required)) {
+        if (!entries.has(required)) {
             throw new Error(`${asarFile} is missing required packaged entry ${required}`);
         }
     }
