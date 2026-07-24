@@ -41,20 +41,29 @@ jobs:
             smoke: xvfb-run -a npm run desktop:smoke-package
             artifact: linux
     runs-on: ${{ matrix.os }}
-    env:
-      CSC_LINK: ${{ secrets.CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - name: Configure code signing env
+        shell: bash
+        run: |
+          set -e
+          add_if_set() {
+            if [ -n "$2" ]; then
+              echo "$1=$2" >> "$GITHUB_ENV"
+            fi
+          }
+          add_if_set CSC_LINK "${{ secrets.CSC_LINK }}"
+          add_if_set CSC_KEY_PASSWORD "${{ secrets.CSC_KEY_PASSWORD }}"
+          add_if_set APPLE_API_KEY "${{ secrets.APPLE_API_KEY }}"
+          add_if_set APPLE_API_KEY_ID "${{ secrets.APPLE_API_KEY_ID }}"
+          add_if_set APPLE_API_ISSUER "${{ secrets.APPLE_API_ISSUER }}"
+          add_if_set WIN_CSC_LINK "${{ secrets.WIN_CSC_LINK }}"
+          add_if_set WIN_CSC_KEY_PASSWORD "${{ secrets.WIN_CSC_KEY_PASSWORD }}"
+          echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
       - run: npm ci
       - run: ${{ matrix.command }}
       - run: npm run desktop:verify-package
