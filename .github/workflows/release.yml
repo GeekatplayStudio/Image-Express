@@ -60,7 +60,7 @@ jobs:
       - run: npm run desktop:verify-package
       - name: Launch packaged application
         run: ${{ matrix.smoke }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: image-express-${{ matrix.artifact }}
           path: |
