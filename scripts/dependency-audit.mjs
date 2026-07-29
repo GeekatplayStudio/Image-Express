@@ -12,9 +12,13 @@ if (expired.length > 0) {
     process.exit(1);
 }
 
-const audit = spawnSync('npm', ['audit', '--omit=dev', '--json'], {
+// Windows resolves npm through npm.cmd, which spawnSync cannot execute without
+// a shell; without this the gate silently fails to run on developer machines.
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const audit = spawnSync(npmCommand, ['audit', '--omit=dev', '--json'], {
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
+    shell: process.platform === 'win32',
 });
 let report;
 try {

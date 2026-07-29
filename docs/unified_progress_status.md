@@ -19,7 +19,18 @@ Future roadmap canonical source:
 Current-state baseline audit:
 - `docs/current_application_baseline_audit_2026-05-16.md` (verified feature inventory, workflow map, status reconciliation, priority buckets, and UI simplification plan)
 
-## Latest Delivery (2026-07-23) — Core Refactoring & UI Stacking Fixes
+## Latest Delivery (2026-07-29) — Dependency Security Hardening
+
+Policy and rationale: `docs/DEPENDENCY_SECURITY.md`.
+
+- **Production advisory count is now zero** (`npm audit --omit=dev`, previously 2 moderate). Fixes are pinned in the `overrides` block of `package.json` so they survive every `npm install` / `npm ci`: `builder-util-runtime` 9.5.1 → 9.7.0 (electron-updater credential leak on cross-origin redirect, CVE-2026-54673), `@hono/node-server` 1.19.14 → 2.0.12 (serve-static path traversal via encoded backslash), `tar` 7.5.20 → 7.5.22, the `js-yaml` 3.15.0 subtree replaced by 4.3.0, and `http-cache-semantics` pinned to `^4.2.0`.
+- **`brace-expansion` pinned per release line** (1.1.17 / 2.1.3 / 5.0.8) because the majors are not interchangeable: 5.x dropped the callable default export, so forcing 5.0.8 everywhere makes `minimatch@3` and `minimatch@9` throw `expand is not a function`, which breaks eslint, jest and electron-builder. The 1.x/2.x pins are the verified backports of CVE-2026-14257.
+- **New override-integrity gate** — `scripts/security-overrides-check.mjs` (`npm run audit:overrides`) fails the build when `package-lock.json` resolves any package below its pinned override floor, which is how pinned security fixes silently regress. Wired into `audit:dependencies` and `verify`, so it runs in CI and locally.
+- **Fixed the audit gate on Windows** — `scripts/dependency-audit.mjs` spawned bare `npm`, which cannot be executed without a shell on Windows, so the gate had never actually run on developer machines; it only printed "Unable to parse npm audit output" and exited non-zero.
+- **Waiver register trimmed to what is genuinely unfixable** — `config/dependency-audit-exceptions.json` now documents only `brace-expansion` (advisory range is the flat `<=5.0.7`, dev-only, patched via backports) and the withdrawn `cacheable-request` advisory (v10+ is ESM-only while its consumer `got@11` is CommonJS). The stale `@hono/node-server` and MCP SDK waivers were removed because that advisory is now genuinely resolved.
+- **Out of scope** — `mobile-companion/` is a separate Expo workspace with its own lockfile, covered by neither Dependabot (scoped to `/`) nor these overrides.
+
+## Prior Delivery (2026-07-23) — Core Refactoring & UI Stacking Fixes
 
 - **UI Popups Stacking Fix** — Floating property popups and toolbar modals (Color Wheel, AI Critique, Comfy Workflows) now portal to `<body>` using `BodyPortal` and SSR-safe `useIsClient` hook. Adjusted header z-index to `z-90` and floating properties panel to `z-100` so popups layer cleanly above application chrome.
 - **Google Drive Integration Modularization** — Decomposed `googleDrive.ts` (1,047 lines) into constants, types, errors, config, helpers, auth, folders, session, and index barrel exports. Added unit tests for pure helpers.

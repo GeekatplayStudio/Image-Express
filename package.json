@@ -8,10 +8,17 @@
   },
   "main": "electron/main.js",
   "overrides": {
-    "tar": "^7.5.6",
+    "tar": "^7.5.21",
     "fast-uri": "^3.1.4",
     "sharp": "^0.35.0",
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.10",
+    "brace-expansion@1": "^1.1.17",
+    "brace-expansion@2": "^2.1.3",
+    "brace-expansion@5": "^5.0.8",
+    "builder-util-runtime": "^9.7.0",
+    "@hono/node-server": "^2.0.12",
+    "js-yaml": "^4.3.0",
+    "http-cache-semantics": "^4.2.0"
   },
   "scripts": {
     "predev": "node scripts/ensure-deps.mjs",
@@ -24,7 +31,8 @@
     "audit:repo": "node scripts/repo-audit.mjs",
     "audit:architecture": "node scripts/architecture-check.mjs",
     "audit:bundle": "node scripts/bundle-budget.mjs",
-    "audit:dependencies": "node scripts/dependency-audit.mjs",
+    "audit:dependencies": "node scripts/security-overrides-check.mjs && node scripts/dependency-audit.mjs",
+    "audit:overrides": "node scripts/security-overrides-check.mjs",
     "audit:i18n": "node scripts/i18n-audit.mjs --parity && node scripts/i18n-scan.mjs",
     "audit:i18n:strings": "node scripts/i18n-scan.mjs",
     "audit:terms": "node scripts/terminology-audit.mjs",
@@ -38,7 +46,7 @@
     "test:e2e:critical": "playwright test e2e/export-verification.spec.ts e2e/media-overlay-verification.spec.ts",
     "lint": "eslint --max-warnings=0 .",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
-    "verify": "npm run audit:architecture && npm run lint && npm run typecheck && npm test -- --runInBand && npm run build && npm run audit:bundle",
+    "verify": "npm run audit:overrides && npm run audit:architecture && npm run lint && npm run typecheck && npm test -- --runInBand && npm run build && npm run audit:bundle",
     "validate": "npm run lint && npm run test && npm run build",
     "test": "jest",
     "test:e2e": "playwright test",
