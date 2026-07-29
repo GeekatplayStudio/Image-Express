@@ -32,6 +32,7 @@ import {
     Diamond,
     PenTool,
     ShieldCheck,
+    Bot,
     Copy,
     History,
     Blend,
@@ -71,6 +72,8 @@ import InputModal from './InputModal';
 import ImageGeneratorModal from './ImageGeneratorModal';
 import ComfyWorkflowsModal from './comfy/ComfyWorkflowsModal';
 import AICritiqueModal from './AICritiqueModal';
+import BrandManagerModal from './BrandManagerModal';
+import SuperAgentModal from './SuperAgentModal';
 import { ColorWheelTool } from './ColorWheelTool';
 import BodyPortal from '@/components/ui/BodyPortal';
 import { useToast } from '@/providers/ToastProvider';
@@ -153,7 +156,13 @@ const resolveToolCursorConfig = (
     tool: string,
     options?: { zoomMode?: 'in' | 'out' }
 ): ToolCursorConfig | null => {
-    if (tool === 'select' || tool === 'ai-zone' || tool === 'ai-critique') {
+    if (
+        tool === 'select' ||
+        tool === 'ai-zone' ||
+        tool === 'ai-critique' ||
+        tool === 'ai-brand-manager' ||
+        tool === 'super-agent'
+    ) {
         return {
             defaultCursor: 'default',
             hoverCursor: 'move',
@@ -310,6 +319,8 @@ const CREATION_LIBRARY_TOOLS: ToolbarToolDefinition[] = [
     { name: 'ai-zone', icon: Sparkles, labelKey: 'toolbar.aiZone' },
     { name: 'comfy-flows', icon: Workflow, labelKey: 'toolbar.comfyWorkflows', shortLabelKey: 'toolbar.short.comfy' },
     { name: 'ai-critique', icon: MessageSquare, labelKey: 'toolbar.aiCritique', shortLabelKey: 'toolbar.short.critique' },
+    { name: 'ai-brand-manager', icon: ShieldCheck, labelKey: 'toolbar.aiBrandManager', shortLabelKey: 'toolbar.short.brand' },
+    { name: 'super-agent', icon: Bot, labelKey: 'toolbar.superAgent', shortLabelKey: 'toolbar.short.agent' },
     { name: '3d-gen', icon: Box, labelKey: 'toolbar.ai3d' },
 ];
 
@@ -2537,6 +2548,24 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             {activeTool === 'ai-critique' && canvas && (
                 <BodyPortal>
                     <AICritiqueModal
+                        canvas={canvas}
+                        onClose={() => setActiveTool('select')}
+                    />
+                </BodyPortal>
+            )}
+
+            {activeTool === 'ai-brand-manager' && canvas && (
+                <BodyPortal>
+                    <BrandManagerModal
+                        canvas={canvas}
+                        onClose={() => setActiveTool('select')}
+                    />
+                </BodyPortal>
+            )}
+
+            {activeTool === 'super-agent' && canvas && (
+                <BodyPortal>
+                    <SuperAgentModal
                         canvas={canvas}
                         onClose={() => setActiveTool('select')}
                     />

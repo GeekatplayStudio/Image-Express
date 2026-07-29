@@ -62,6 +62,11 @@ The server speaks standard MCP JSON-RPC (SDK `@modelcontextprotocol/sdk`).
 | `list_ambience_packs` | Installed dashboard ambience packs |
 | `install_ambience_from_url` | Install an ambience pack zip from a URL |
 | `generate_image` | Queue an AI image generation job (e.g. via local ComfyUI) |
+| `get_brand_profile` | Fetch active Brand Kit profile guidelines (palette, typography, logo layout rules) |
+| `audit_brand_compliance` | Run a VLM or heuristic brand compliance audit on canvas state |
+| `list_super_agents` | List active Super Agent and sub-agent definitions |
+| `create_super_agent` | Register a custom specialized sub-agent |
+| `execute_super_agent_task` | Generate a multi-step design execution plan for a prompt |
 
 ## Security notes
 

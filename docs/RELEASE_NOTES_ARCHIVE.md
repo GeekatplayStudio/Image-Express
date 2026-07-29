@@ -4,6 +4,26 @@ This archive consolidates historical release notes for Image Express.
 
 ---
 
+## Release Notes — 2026-07-29
+
+### Highlights
+- Added **AI Brand Manager**: Brand Kit setup, VLM compliance auditor, visual canvas bounding box overlays for detected violations, and local storage persistence.
+- Added **Super Agent System & Agent Creator**: Autonomous single-prompt design execution engine, step timeline runner, and sub-agent creator for custom design roles.
+- Exposed 5 new MCP tools in `scripts/mcp-server.mjs` (`get_brand_profile`, `audit_brand_compliance`, `list_super_agents`, `create_super_agent`, `execute_super_agent_task`).
+
+### AI Brand Manager
+- Integrated `BrandManagerModal` into top tools dropdown and toolbar AI menu.
+- Added `brandProfile.ts` for managing color palettes, approved fonts, logo rules, and layout margins.
+- Added `brandAuditEngine.ts` featuring automatic metadata extraction, VLM audit prompt builder, and a deterministic heuristic evaluation fallback.
+- Added interactive canvas visual highlights (`[left, top, width, height]`) on top of Fabric.js canvas when inspecting audit violations.
+
+### Super Agent System
+- Integrated `SuperAgentModal` for entering natural language prompts and generating multi-step design execution plans.
+- Added `superAgentEngine.ts` for executing sequential step actions (`SET_CANVAS_SIZE`, `SET_BACKGROUND_COLOR`, `ADD_SHAPE`, `ADD_TEXT`, `RUN_BRAND_AUDIT`) directly on the canvas.
+- Added Custom Agent Creator drawer for creating, configuring, and storing specialized sub-agents with custom canvas dimensions and instructions.
+
+---
+
 ## Release Notes — 2026-07-23
 
 ### Highlights

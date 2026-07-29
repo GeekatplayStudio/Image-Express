@@ -41,7 +41,13 @@ export function getEditorCanvasToolConfig(
 ): EditorCanvasToolConfig | null {
     const normalizedTool = normalizeTool(tool);
 
-    if (normalizedTool === 'select' || normalizedTool === 'ai-zone' || normalizedTool === 'ai-critique') {
+    if (
+        normalizedTool === 'select' ||
+        normalizedTool === 'ai-zone' ||
+        normalizedTool === 'ai-critique' ||
+        normalizedTool === 'ai-brand-manager' ||
+        normalizedTool === 'super-agent'
+    ) {
         return {
             defaultCursor: 'default',
             hoverCursor: 'move',

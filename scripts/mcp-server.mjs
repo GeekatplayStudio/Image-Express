@@ -180,7 +180,7 @@ server.registerTool('install_ambience_from_url', {
     method: 'POST', body: JSON.stringify({ url, overwrite }), timeoutMs: 60_000,
 })));
 
-// ---- AI generation --------------------------------------------------------
+// ---- AI generation & Brand / Super Agent tools ----------------------------
 server.registerTool('generate_image', {
     title: 'Generate an image (AI)',
     description: 'Queue an AI image generation job in Image Express using the configured provider (e.g. local ComfyUI). Returns a job/prompt id; generation is asynchronous.',
@@ -190,6 +190,51 @@ server.registerTool('generate_image', {
     },
 }, handler(async ({ prompt, provider }) => api('/api/ai/generate-image', {
     method: 'POST', body: JSON.stringify({ prompt, provider: provider || 'comfy' }), timeoutMs: 60_000,
+})));
+
+server.registerTool('get_brand_profile', {
+    title: 'Get active brand profile',
+    description: 'Fetch the active Brand Kit profile guidelines including palette, fonts, and logo layout rules.',
+    inputSchema: {},
+}, handler(async () => api('/api/ai/brand-manager/profile')));
+
+server.registerTool('audit_brand_compliance', {
+    title: 'Audit canvas for brand compliance',
+    description: 'Run a VLM or heuristic brand compliance check on the active canvas against current brand guidelines.',
+    inputSchema: {
+        imageDataUrl: z.string().optional().describe('Base64 image data URL of canvas (optional)'),
+    },
+}, handler(async ({ imageDataUrl }) => api('/api/ai/brand-manager/audit', {
+    method: 'POST', body: JSON.stringify({ imageDataUrl }), timeoutMs: 45_000,
+})));
+
+server.registerTool('list_super_agents', {
+    title: 'List Super Agents',
+    description: 'List available autonomous Super Agents and custom sub-agent definitions.',
+    inputSchema: {},
+}, handler(async () => api('/api/ai/super-agent/agents')));
+
+server.registerTool('create_super_agent', {
+    title: 'Create custom sub-agent',
+    description: 'Register a new specialized sub-agent with custom dimensions, role, and prompt instructions.',
+    inputSchema: {
+        name: z.string().min(1).describe('Name of the agent'),
+        description: z.string().optional().describe('Agent role and capabilities'),
+        defaultWidth: z.number().optional().describe('Default target canvas width'),
+        defaultHeight: z.number().optional().describe('Default target canvas height'),
+    },
+}, handler(async (agent) => api('/api/ai/super-agent/agents', {
+    method: 'POST', body: JSON.stringify({ agent }),
+})));
+
+server.registerTool('execute_super_agent_task', {
+    title: 'Execute Super Agent task plan',
+    description: 'Generates a multi-step design plan and step execution sequence for a natural language prompt.',
+    inputSchema: {
+        prompt: z.string().min(1).describe('High-level design prompt'),
+    },
+}, handler(async ({ prompt }) => api('/api/ai/super-agent/plan', {
+    method: 'POST', body: JSON.stringify({ prompt }), timeoutMs: 60_000,
 })));
 
 // ---------------------------------------------------------------------------

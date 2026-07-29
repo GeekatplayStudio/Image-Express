@@ -33,6 +33,7 @@ import {
     Image as ImageIcon,
     LayoutTemplate,
     Box,
+    Bot,
 } from 'lucide-react';
 
 interface ToolsDropdownMenuProps {
@@ -163,6 +164,12 @@ export default function ToolsDropdownMenu({ onTriggerTool }: ToolsDropdownMenuPr
             <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">{t('tools.section.ai3d')}</div>
             <button onClick={() => onTriggerTool('ai-zone')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                 <Sparkles size={16} className="text-primary group-hover:text-primary/90 transition-colors" /> <span>{t('toolbar.aiZone')}</span>
+            </button>
+            <button onClick={() => onTriggerTool('ai-brand-manager')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                <ShieldCheck size={16} className="text-primary group-hover:text-primary/90 transition-colors" /> <span>{t('toolbar.aiBrandManager')}</span>
+            </button>
+            <button onClick={() => onTriggerTool('super-agent')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                <Bot size={16} className="text-primary group-hover:text-primary/90 transition-colors" /> <span>{t('toolbar.superAgent')}</span>
             </button>
             <button onClick={() => onTriggerTool('3d-gen')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                 <Box size={16} className="text-primary group-hover:text-primary/90 transition-colors" /> <span>{t('toolbar.ai3d')}</span>

@@ -31,6 +31,12 @@ const en: LocaleDictionary = {
     'common.retry': 'Retry',
     'common.refresh': 'Refresh',
 
+    // AI Brand Manager & Super Agent Toolbar Keys
+    'toolbar.aiBrandManager': 'AI Brand Manager',
+    'toolbar.short.brand': 'Brand',
+    'toolbar.superAgent': 'Super Agent',
+    'toolbar.short.agent': 'Agent',
+
     // Auth / user
     'auth.dialogAria': 'Authentication',
     'auth.brandTitle': 'Creative Flow',
