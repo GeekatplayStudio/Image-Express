@@ -71,9 +71,12 @@ next-env.d.ts
 /theme-packs/
 /ambience-packs/
 
-# local state, logs, and tool output (never commit)
+# local state, assets, logs, and tool output (never commit)
 /data/
 /logs/
+/Packs-Assets-NotInclude/
+/3d-models/
+/tree.glb
 *.log
 build_output.*
 lint_output.txt

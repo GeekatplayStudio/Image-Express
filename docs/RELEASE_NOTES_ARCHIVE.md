@@ -4,6 +4,30 @@ This archive consolidates historical release notes for Image Express.
 
 ---
 
+## Release Notes — 2026-07-23
+
+### Highlights
+- Fixed popup window z-index layering above editor header and rails by portalled floating overlays to `document.body`.
+- Refactored core modules (`googleDrive.ts`, ComfyUI `registry.ts`, `runner.ts`, `connection.ts`) into smaller, modular sub-components for improved maintainability.
+- Expanded unit test coverage for Google Drive auth/query helpers and ComfyUI workflow registry & graph inspection helpers.
+
+### UI & Popups Layering Fix
+- Floating property popups and toolbar modals (Color Wheel, AI Critique, Comfy Workflows) now portal to `<body>` using `BodyPortal` and SSR-safe `useIsClient` hook.
+- Adjusted editor header z-index to `z-90` and floating properties panel to `z-100` to guarantee popups render above application chrome.
+
+### Modular Architecture Refactoring
+- Decomposed `googleDrive.ts` into single-responsibility modules: `constants.ts`, `types.ts`, `errors.ts`, `config.ts`, `helpers.ts`, `auth.ts`, `folders.ts`, `session.ts`, and index barrel exports.
+- Decomposed ComfyUI subsystem into modular files:
+  - `registry.ts` split into `registryTypes.ts`, `promptBlueprint.ts`, and `registry.ts`.
+  - `runner.ts` split into `runnerTypes.ts`, `workflowInspection.ts`, and `runner.ts`.
+  - `connection.ts` split into `connectionTypes.ts`, `cloudConfig.ts`, `transport.ts`, and `connection.ts`.
+- Preserved exact public import surfaces for all refactored modules to ensure full backward compatibility.
+
+### Validation
+- All unit test suites and TypeScript checks passing.
+
+---
+
 ## Release Notes — 2026-05-22
 
 ### Highlights

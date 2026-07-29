@@ -1,6 +1,6 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-07-23  
+Last updated: 2026-07-29  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
@@ -19,7 +19,13 @@ Future roadmap canonical source:
 Current-state baseline audit:
 - `docs/current_application_baseline_audit_2026-05-16.md` (verified feature inventory, workflow map, status reconciliation, priority buckets, and UI simplification plan)
 
-## Latest Delivery (2026-07-23) — 3D Layer system (Phases 1–4)
+## Latest Delivery (2026-07-23) — Core Refactoring & UI Stacking Fixes
+
+- **UI Popups Stacking Fix** — Floating property popups and toolbar modals (Color Wheel, AI Critique, Comfy Workflows) now portal to `<body>` using `BodyPortal` and SSR-safe `useIsClient` hook. Adjusted header z-index to `z-90` and floating properties panel to `z-100` so popups layer cleanly above application chrome.
+- **Google Drive Integration Modularization** — Decomposed `googleDrive.ts` (1,047 lines) into constants, types, errors, config, helpers, auth, folders, session, and index barrel exports. Added unit tests for pure helpers.
+- **ComfyUI Subsystem Modularization** — Split `registry.ts`, `runner.ts`, and `connection.ts` into single-responsibility modules (`registryTypes`, `promptBlueprint`, `runnerTypes`, `workflowInspection`, `connectionTypes`, `cloudConfig`, `transport`) while maintaining backward-compatible public index barrels. Added comprehensive test coverage for WorkflowRegistry and graph inspection logic.
+
+## Prior Delivery (2026-07-23) — 3D Layer system (Phases 1–4)
 
 New live, re-editable **3D layer** type (`is3DLayer` + `threeDLayerSettings`, full undo/autosave/export support), inspired by ComfyUI-NKD-VFX-Tools (algorithms reimplemented from scratch; see `docs/prd_3d_layer_vfx_2026-07-23.md` for the PRD, roadmap and per-phase implementation status):
 
