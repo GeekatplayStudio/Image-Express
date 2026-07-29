@@ -34,16 +34,22 @@ describe('appPaths', () => {
     });
 
     it('uses explicit packaged runtime paths', () => {
-        process.env.IMAGE_EXPRESS_PROJECT_ROOT = '/opt/image-express/app';
-        process.env.IMAGE_EXPRESS_DATA_DIR = '/var/lib/image-express/data';
-        process.env.IMAGE_EXPRESS_ASSETS_DIR = '/var/lib/image-express/assets';
-        process.env.IMAGE_EXPRESS_LOGS_DIR = '/var/log/image-express';
-        process.env.IMAGE_EXPRESS_BUNDLED_PUBLIC_DIR = '/opt/image-express/public';
+        const root = path.resolve('/opt/image-express/app');
+        const data = path.resolve('/var/lib/image-express/data');
+        const assets = path.resolve('/var/lib/image-express/assets');
+        const logs = path.resolve('/var/log/image-express');
+        const publicDir = path.resolve('/opt/image-express/public');
 
-        expect(getProjectRoot()).toBe('/opt/image-express/app');
-        expect(getDataDir()).toBe('/var/lib/image-express/data');
-        expect(getAssetsDir()).toBe('/var/lib/image-express/assets');
-        expect(getLogsDir()).toBe('/var/log/image-express');
-        expect(getBundledPublicDir()).toBe('/opt/image-express/public');
+        process.env.IMAGE_EXPRESS_PROJECT_ROOT = root;
+        process.env.IMAGE_EXPRESS_DATA_DIR = data;
+        process.env.IMAGE_EXPRESS_ASSETS_DIR = assets;
+        process.env.IMAGE_EXPRESS_LOGS_DIR = logs;
+        process.env.IMAGE_EXPRESS_BUNDLED_PUBLIC_DIR = publicDir;
+
+        expect(getProjectRoot()).toBe(root);
+        expect(getDataDir()).toBe(data);
+        expect(getAssetsDir()).toBe(assets);
+        expect(getLogsDir()).toBe(logs);
+        expect(getBundledPublicDir()).toBe(publicDir);
     });
 });
