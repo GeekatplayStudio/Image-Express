@@ -9,10 +9,10 @@
 [![License: Open Source](https://img.shields.io/badge/license-open--source-2563eb)](#-license)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)](https://www.typescriptlang.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Docker%20%7C%20Web-6b7280)](#-install--run-choose-your-path)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Docker%20%7C%20Web-6b7280)](#-install--run)
 [![Languages](https://img.shields.io/badge/UI%20languages-11-16a34a)](#-11-languages-out-of-the-box)
 
-**[Quick Install](#-install--run-choose-your-path)** ·
+**[Quick Install](#-install--run)** ·
 **[Features](#-why-image-express)** ·
 **[Screenshots](#-see-it-in-action)** ·
 **[Themes](#-make-it-yours-animated-theme-packs)** ·
@@ -32,30 +32,49 @@ It runs anywhere: as a **desktop app** on Windows/macOS, as a **self-hosted web 
 
 ## 🚀 Install & Run
 
-### 🟢 Recommended: download one native installer
+No native `.exe`/`.dmg` installer is published yet — the installer below is the
+real, working path today. It's still just "download one file, double-click
+it, answer a couple of questions" — no experience with computers required,
+and it installs everything else (Git, Node.js) for you.
 
-Open **[GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases/latest)** and download the single file for your computer:
+### 🪟 Windows — step by step
 
-| Platform | File | Experience |
-|---|---|---|
-| **Windows 10/11 x64** | `ImageExpress-Setup-<version>.exe` | Double-click, install, then launch from the Start menu or desktop icon. |
-| **macOS Apple Silicon** | `ImageExpress-<version>-arm64.dmg` | Open the DMG, drag Image Express to Applications, then launch normally. |
-| **macOS Intel** | `ImageExpress-<version>-x64.dmg` | Open the DMG, drag Image Express to Applications, then launch normally. |
-| **Linux x64** | `ImageExpress-<version>-x64.AppImage` or `.deb` | Run the AppImage or install the Debian package. |
+1. **[Click here to open `install.bat`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.bat)**, then click the little **⬇ download icon** near the top-right of the code box to save it.
+2. Open your **Downloads** folder and **double-click `install.bat`**.
+3. If a blue **"Windows protected your PC"** screen appears, click **More info**, then **Run anyway**. *(This only means the file isn't sold through the Microsoft Store — Image Express is free, open-source software, so it doesn't have a paid publisher certificate. It is not a virus warning.)*
+4. A black window opens and walks you through everything else. **Press Enter** at each question to accept the suggested answer. It installs Git and Node.js if you don't already have them, then downloads and sets up Image Express — this takes a few minutes.
+5. When it finishes, answer **yes** to "Create a desktop shortcut?" and **yes** to "Launch now?" — Image Express opens in your web browser.
+6. **Next time**, just double-click the **Image Express** shortcut on your desktop (or `start.bat` inside `C:\Users\<you>\ImageExpress`).
 
-The native application contains its own tested runtime. End users do **not** install Git, Node.js, npm, Homebrew, winget, or source code. Projects, assets, settings, and installed packs live in the operating system's user-data directory so application updates do not replace them.
+### 🍎 macOS — step by step
 
-Releases are built automatically from version tags. Windows signing and macOS signing/notarization are applied when the repository's protected signing credentials are configured; release maintainers must not publish unsigned stable artifacts.
+The easiest way uses **Terminal** and skips every "unidentified developer"
+warning entirely — it's three steps:
 
-If startup fails, attach `startup-trace.log` from the app's user-data folder to a bug report.
+1. Open **Terminal**: press <kbd>⌘ Cmd</kbd> + <kbd>Space</kbd>, type `Terminal`, press Return.
+2. **Copy** the line below, **paste** it into the Terminal window (right-click → Paste, or <kbd>⌘ Cmd</kbd> + <kbd>V</kbd>), then press Return:
+   ```bash
+   bash <(curl -fsSL https://raw.githubusercontent.com/GeekatplayStudio/Image-Express/main/install.command)
+   ```
+3. It asks a few questions — **press Return** at each one to accept the suggested answer. It installs Git and Node.js if needed, then downloads and sets up Image Express (a few minutes). When it asks, answer **yes** to "Launch Image Express now?"
+4. **Next time**, open **Finder → your home folder → ImageExpress**, and double-click **`start.command`**.
 
-### Source installation (easiest contributor / power-user path)
+<details>
+<summary><b>Prefer clicking a file instead of using Terminal?</b> (needs one extra step to get past macOS's security warning)</summary>
+<br>
 
-1. Double-click **[`install.bat`](install.bat)** (Windows) or **[`install.command`](install.command)** (macOS).
-2. The installer installs Git + Node 24+ if missing (or picks up a supported Node that a version manager has shadowed on `PATH`), clones this repo, installs npm packages, and optionally offers ComfyUI/Ollama.
-3. Later, double-click **`start.bat` / `start.command`** — it pulls safe updates, repairs dependencies if needed, builds, and opens the app.
+Download **[`install.command`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.command)** (click the **⬇ download icon** on that page). In **Finder**, **right-click** (or Control-click) `install.command` and choose **Open** — don't double-click it the first time. macOS will warn that it can't verify the developer; this is normal for open-source software that isn't sold through the App Store, **not** a sign of malware. Click **Open** to continue.
 
-No terminal required for the common path. Full details: **[docs/INSTALLATION.md](docs/INSTALLATION.md)**.
+If macOS still refuses — a stronger warning about malware, or no "Open" button — go to **Apple menu → System Settings → Privacy & Security**, scroll down to the message about `install.command` being blocked, click **Open Anyway**, and confirm with your password or Touch ID. Then go back to Finder and right-click → **Open** once more.
+
+If nothing happens at all when you open it, use the Terminal method above instead — it always works, because it never downloads a blocked file in the first place.
+</details>
+
+That's it. You never need to know what Git, Node.js, or npm are — the
+installer handles all of that. Every step it takes is logged to a file you
+can hand to support if anything goes wrong: `~/ImageExpress-setup.log` (macOS)
+or `%USERPROFILE%\ImageExpress-setup.log` (Windows). Full details, Linux, and
+manual/advanced setup: **[docs/INSTALLATION.md](docs/INSTALLATION.md)**.
 
 ### 🔄 Keep it updated (source installs)
 

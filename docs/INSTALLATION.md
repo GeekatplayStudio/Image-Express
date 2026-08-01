@@ -4,42 +4,56 @@ This guide is the recommended **easy path** to run Image Express locally, with o
 
 ## 1) Core App (Required)
 
-### Native one-file installer (recommended)
+### The installer (recommended — this is the current, working way to install)
 
-Download exactly one platform installer from
-**[GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases/latest)**:
-
-- Windows x64: `ImageExpress-Setup-<version>.exe`
-- macOS Apple Silicon: `ImageExpress-<version>-arm64.dmg`
-- macOS Intel: `ImageExpress-<version>-x64.dmg`
-- Linux x64: `ImageExpress-<version>-x64.AppImage` or `.deb`
-
-The native installer includes the application runtime. It does not install Git, Node.js, npm,
-Homebrew, winget, or source code. After installation, launch Image Express from the normal
-operating-system application icon.
-
-### Source bootstrap (contributors and advanced users)
-
-The repository also contains [`install.bat`](../install.bat) and
-[`install.command`](../install.command). These scripts clone and build the current source and
-therefore require development prerequisites. They are a fallback and contributor workflow, not
-the primary consumer installer.
-
-The source bootstrap checks for Git and Node.js 24+, installs dependencies, verifies the source
-build, and can offer optional ComfyUI/Ollama setup.
+No native `.exe`/`.dmg` installer is published yet, so use
+[`install.bat`](../install.bat) (Windows) or [`install.command`](../install.command) (macOS) —
+these are the real installer, not a fallback. They install Git and Node.js
+24+ if you don't have them (or use one a version manager has hidden on
+`PATH`), download the app, install its dependencies, verify the build, and
+can offer optional ComfyUI/Ollama setup. No terminal knowledge, no
+understanding of Git/Node/npm required.
 
 Every step — and any error — is written to a log file you can hand to support if something goes wrong:
 - Windows: `%USERPROFILE%\ImageExpress-setup.log`
 - macOS: `~/ImageExpress-setup.log`
 
-On macOS, downloaded source scripts may require right-clicking `.command` and choosing **Open**.
-The signed/notarized DMG path should not require this workaround.
+#### Windows
 
-**If macOS says the file "can't be executed" or nothing happens**: browsers strip the execute permission from downloaded scripts. Skip the download entirely and paste this one line into Terminal (⌘-Space, type "Terminal") — it runs the exact same installer:
+1. [Open `install.bat` on GitHub](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.bat) and click the **⬇ download icon** near the top-right of the file view.
+2. Double-click the downloaded `install.bat` in your Downloads folder.
+3. If a blue **"Windows protected your PC"** screen appears, click **More info**, then **Run anyway**. That screen appears for any free/open-source app without a paid Microsoft publisher certificate — it is not a virus warning.
+4. Press **Enter** at each question in the window that opens to accept the suggested answer.
+
+#### macOS
+
+The simplest way avoids every Gatekeeper ("unidentified developer") warning
+entirely, because it never downloads a file through the browser at all —
+paste this one line into **Terminal** (press <kbd>⌘ Cmd</kbd>+<kbd>Space</kbd>, type `Terminal`, press Return):
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/GeekatplayStudio/Image-Express/main/install.command)
 ```
+
+Press Return, then press **Return** again at each question it asks to accept
+the suggested default.
+
+**If you'd rather download and double-click the file instead:** get
+[`install.command`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.command)
+from GitHub (the **⬇** icon on that page), then in Finder **right-click**
+(not double-click) it and choose **Open**. macOS will say it can't verify the
+developer — click **Open** anyway; this is normal for any open-source app not
+sold through the App Store, not a sign of malware.
+
+If macOS still won't run it — a stronger message mentioning malware, or no
+"Open" option is offered — go to **Apple menu → System Settings → Privacy &
+Security**, scroll to the blocked-file notice near the bottom, click **Open
+Anyway**, confirm with your password or Touch ID, then right-click →
+**Open** the file once more in Finder.
+
+If double-clicking does nothing at all (some browsers strip the file's
+permission to run), that's exactly what the Terminal one-liner above avoids —
+use it instead; it always works.
 
 ### Prerequisites (if installing manually instead)
 - Node.js 24+ (the repo pins 24.14.1 in `.nvmrc`)
@@ -90,12 +104,12 @@ Open `http://localhost:3000`.
 npm run desktop:dev
 ```
 
-Or download the packaged installer from the project's GitHub Releases page —
-`ImageExpress-Setup-<version>.exe` (Windows, one-click) or the `.dmg` (macOS) — for
-a native app with no terminal at all. If the desktop app fails to start, check
-its startup log: `%APPDATA%\creative-flow\startup-trace.log` (Windows) or
-`~/Library/Application Support/creative-flow/startup-trace.log` (macOS); failures
-also write `startup-error.log` next to it.
+A packaged native installer (one-click `.exe` / drag-to-Applications `.dmg`,
+no terminal at all) isn't published yet — see [DESKTOP.md](DESKTOP.md) for how
+to build one yourself in the meantime. If the desktop app fails to start,
+check its startup log: `%APPDATA%\creative-flow\startup-trace.log` (Windows)
+or `~/Library/Application Support/creative-flow/startup-trace.log` (macOS);
+failures also write `startup-error.log` next to it.
 
 ### Running it again later
 

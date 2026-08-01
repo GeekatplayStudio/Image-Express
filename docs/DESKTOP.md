@@ -3,8 +3,15 @@
 Image Express runs in three ways. All three share the same code, the same setup
 wizard, and the same theme/ambience pack system.
 
-The primary user-facing downloads are the native artifacts produced by the protected release
-workflow:
+No native artifact is published to GitHub Releases yet (the release workflow
+produces them — see "Building the installers" below — but nothing has been
+published from it). Until that changes, **`install.bat` / `install.command`
+are the primary user-facing install path**, including for non-technical
+users: double-click, answer a few questions, done. See the README and
+[INSTALLATION.md](INSTALLATION.md) for the exact walkthrough, including the
+macOS Gatekeeper workaround.
+
+Once a native artifact is published, it will look like this:
 
 | Artifact | What it does |
 |---|---|
@@ -12,13 +19,10 @@ workflow:
 | `ImageExpress-<version>-<arch>.dmg` | macOS drag-to-Applications installer |
 | `ImageExpress-<version>-x64.AppImage` / `.deb` | Linux application packages |
 
-The four root `.bat`/`.command` files are source bootstrap and source launcher tools for
-contributors and advanced users.
-
 | Mode | Who it's for | How |
 |---|---|---|
-| **Desktop app** (recommended) | Everyone, including non-technical users | Download one native artifact from Releases |
-| **Source bootstrap** | Contributors and source-build testers | `install.bat` / `install.command` |
+| **Source bootstrap** (current recommended path) | Everyone, including non-technical users | `install.bat` / `install.command` |
+| **Desktop app** (not yet published) | Everyone, once released | Download one native artifact from Releases |
 | **Server (web app)** | Teams hosting it themselves | `npm run build && npm run start` behind any reverse proxy |
 
 ## Source bootstrap (`install.bat` / `install.command`)
