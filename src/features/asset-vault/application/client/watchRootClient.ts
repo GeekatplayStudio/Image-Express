@@ -93,11 +93,41 @@ export function fileUriToAbsolutePath(fileUri: string): string {
 }
 
 export async function resolveLocalFilePreviewUrl(fileUri: string): Promise<string | null> {
-    if (typeof window === 'undefined' || !window.desktop?.readLocalVaultFile) return null;
-    const absolute = fileUriToAbsolutePath(fileUri);
-    const result = await window.desktop.readLocalVaultFile(absolute);
-    if (!result.success || !result.base64) return null;
-    const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: result.mimeType || 'application/octet-stream' });
-    return URL.createObjectURL(blob);
+    if (typeof window === 'undefined') return null;
+
+    // Desktop: read through Electron IPC, which needs no HTTP round trip.
+    if (window.desktop?.readLocalVaultFile) {
+        const absolute = fileUriToAbsolutePath(fileUri);
+        const result = await window.desktop.readLocalVaultFile(absolute);
+        if (result.success && result.base64) {
+            const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: result.mimeType || 'application/octet-stream' });
+            return URL.createObjectURL(blob);
+        }
+        return null;
+    }
+
+    // Browser: stream it from the server instead. Without this, drive-indexed
+    // assets were searchable but rendered with no preview in the web app. The
+    // route re-checks the access policy and that the file is inside a
+    // registered watch root, so this is not a filesystem escape hatch.
+    return `/api/assets/vault/file?uri=${encodeURIComponent(fileUri)}`;
+}
+
+export type VaultDrive = { path: string; label: string };
+
+/** Drives/volumes the server will let this install index. */
+export async function listIndexableDrives(): Promise<{
+    mode: 'all-drives' | 'allowlist';
+    drives: VaultDrive[];
+}> {
+    const data = await vaultFetch<{
+        success: true;
+        mode: 'all-drives' | 'allowlist';
+        drives: VaultDrive[];
+    }>('/api/assets/vault/drives');
+    return {
+        mode: data?.mode === 'allowlist' ? 'allowlist' : 'all-drives',
+        drives: Array.isArray(data?.drives) ? data.drives : [],
+    };
 }

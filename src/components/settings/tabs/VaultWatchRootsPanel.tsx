@@ -8,10 +8,12 @@ import type { WatchRoot } from '@/features/asset-vault/contracts/watchRoot';
 import {
     createWatchRootId,
     deleteWatchRoot,
+    listIndexableDrives,
     listWatchRoots,
     pickDesktopWatchFolder,
     saveWatchRoot,
     scanWatchRoot,
+    type VaultDrive,
 } from '@/features/asset-vault/application/client/watchRootClient';
 import { modalSectionClass } from '../settingsTypes';
 
@@ -22,6 +24,7 @@ export default function VaultWatchRootsPanel() {
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [manualPath, setManualPath] = useState('');
+    const [drives, setDrives] = useState<VaultDrive[]>([]);
     const isDesktop = typeof window !== 'undefined' && Boolean(window.desktop?.pickWatchRootFolder);
 
     const refresh = useCallback(async () => {
@@ -39,6 +42,15 @@ export default function VaultWatchRootsPanel() {
     useEffect(() => {
         void refresh();
     }, [refresh]);
+
+    // The browser has no native folder dialog, so offer the drives the server
+    // is willing to index instead. Desktop already has a real picker.
+    useEffect(() => {
+        if (isDesktop) return;
+        void listIndexableDrives()
+            .then((result) => setDrives(result.drives))
+            .catch(() => setDrives([]));
+    }, [isDesktop]);
 
     const addPath = async (rootUri: string, label?: string) => {
         const trimmed = rootUri.trim();
@@ -147,6 +159,25 @@ export default function VaultWatchRootsPanel() {
                     </button>
                 </div>
             </div>
+
+            {!isDesktop && drives.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {t('vault.availableDrives')}
+                    </span>
+                    {drives.map((drive) => (
+                        <button
+                            key={drive.path}
+                            type="button"
+                            onClick={() => setManualPath(drive.path)}
+                            className="px-2 py-1 text-[11px] font-mono rounded border border-border hover:bg-secondary inline-flex items-center gap-1"
+                            title={drive.path}
+                        >
+                            <HardDrive size={11} /> {drive.label}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             <div className="flex gap-2">
                 <input

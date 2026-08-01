@@ -499,6 +499,7 @@ const en: LocaleDictionary = {
     'vault.watchRootsHint': 'Add local drives, network shares, or folders. Image Express scans them, builds searchable metadata, and organizes assets into vault albums you can reshape anytime.',
     'vault.addDriveFolder': 'Add drive / folder',
     'vault.addPath': 'Add path',
+    'vault.availableDrives': 'Drives:',
     'vault.watchRootPathPlaceholder': 'D:\\Photos or \\\\NAS\\Media or /Volumes/Drive',
     'vault.watchRootsEmpty': 'No indexed roots yet. Add a drive or folder to start organizing your library.',
     'vault.watchRootsLoadFailed': 'Could not load watch roots',

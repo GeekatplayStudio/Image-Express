@@ -19,6 +19,7 @@ import {
 } from '@/features/asset-vault/domain/vectorMath';
 import { readVectorStore, writeVectorStore } from '@/lib/server/vaultWatchStore';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
+import { decideVaultPathAccess } from '@/lib/server/vaultFilesystemPolicy';
 
 export async function GET(request: Request) {
     const store = await readWatchRootStore();
@@ -30,7 +31,19 @@ const UpsertBodySchema = WatchRootSchema;
 export async function POST(request: Request) {
     try {
         const root = await parseJsonRequest(request, UpsertBodySchema, 32_768);
-        const store = await upsertWatchRoot(root);
+
+        // On a local install this always passes; when self-hosted it enforces the
+        // operator's authorised folders, so an arbitrary path cannot be registered.
+        const decision = decideVaultPathAccess(root.rootUri);
+        if (!decision.allowed) {
+            return apiError(request, {
+                code: 'watch_root_not_authorized',
+                message: decision.reason,
+                status: 403,
+            });
+        }
+
+        const store = await upsertWatchRoot({ ...root, rootUri: decision.resolvedPath });
         return jsonWithRequestId(request, { success: true as const, roots: store.roots });
     } catch (error) {
         console.error('Watch root upsert failed:', error);
@@ -78,6 +91,17 @@ export async function PUT(request: Request) {
                 code: 'watch_root_not_found',
                 message: 'Watch root not found.',
                 status: 404,
+            });
+        }
+
+        // Re-check at scan time too: the allowlist may have been tightened after
+        // this root was registered, and a stored root must never outlive the policy.
+        const decision = decideVaultPathAccess(root.rootUri);
+        if (!decision.allowed) {
+            return apiError(request, {
+                code: 'watch_root_not_authorized',
+                message: decision.reason,
+                status: 403,
             });
         }
 

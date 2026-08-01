@@ -136,6 +136,63 @@ Safe by design: refuses to overwrite uncommitted local edits, and only fast-forw
 
 Packaged desktop releases use the separate native GitHub Releases updater — do not mix the two.
 
+## 1b) Indexing your drives into the Asset Vault
+
+The Asset Vault can index local drives, network shares and folders, then find
+assets by meaning with Smart search. **Scanning runs on the server**, so what
+is reachable depends on where the app runs -- and the rule is deliberately
+different for the two cases:
+
+| Where it runs | Runtime profile | What can be indexed |
+|---|---|---|
+| Your own computer (desktop app, `npm run dev`, `npm start`) | `desktop-local` / `developer-local` | **Every drive you can see.** The server is your machine, so indexing exposes nothing you could not already open in Explorer/Finder. |
+| A server other people reach | `self-hosted` | **Only folders the operator authorised.** The filesystem belongs to the operator, not the visitor. |
+
+The profile is auto-detected (`NEXT_DESKTOP=1` -> desktop, `NODE_ENV=production`
+-> self-hosted) and can be forced with `IMAGE_EXPRESS_RUNTIME`.
+
+### On your own computer
+
+Settings -> Storage -> watch roots. The desktop build opens a native folder
+picker; in a browser there is no such dialog, so the panel lists your drives as
+one-click chips and you can type or paste any path:
+
+```text
+D:\Photos\2026
+\\NAS\media\renders         (UNC network share)
+/Volumes/Archive            (macOS)
+```
+
+### On a self-hosted server
+
+Authorise folders explicitly. **Unset means nothing is indexable** -- a
+misconfigured server fails closed rather than exposing its filesystem:
+
+```bash
+IMAGE_EXPRESS_VAULT_ALLOWED_ROOTS="/srv/media,/mnt/shared"
+```
+
+Separate entries with `,` or `;`. Subfolders of an authorised root are allowed;
+anything else is refused with HTTP 403, including `..` traversal and lookalike
+siblings (authorising `/srv/media` does **not** expose `/srv/media-private`).
+The check runs both when a folder is added and again at scan time, so
+tightening the allowlist immediately applies to roots that were already saved.
+
+> **Before exposing the app beyond localhost:** the vault API has no
+> per-user authentication yet. `start.bat` / `start.command` bind to
+> `127.0.0.1`, so a default install is only reachable from your own machine.
+> If you put it behind a reverse proxy, set
+> `IMAGE_EXPRESS_VAULT_ALLOWED_ROOTS` **and** add authentication in front of
+> it.
+
+### Getting search-by-meaning (not just filenames)
+
+A scan stores a hash of the name/path, so Smart search initially behaves like
+filename matching. True semantic search needs the enrichment pass, which
+captions and embeds each image with a local vision model -- see the Ollama
+section below. Enrichment reads files server-side, so it works in the browser
+too.
+
 ## 2) Optional ComfyUI (Local or Cloud)
 
 ### Local ComfyUI (recommended for power users)
