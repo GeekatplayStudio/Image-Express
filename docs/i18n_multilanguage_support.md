@@ -91,6 +91,30 @@ const label = translate('de', 'common.close'); // "Schließen"
 
 That's it — the language automatically appears in the top-bar dropdown.
 
+## File encoding — locale files must be UTF-8
+
+Locale dictionaries hold non-ASCII text and **must** be read and written as
+UTF-8. Every non-English locale was once corrupted by a tool that read the
+UTF-8 bytes as Windows-1252 and wrote them back out as UTF-8, so `страница`
+became `ÑÑ‚Ñ€Ð°Ð½Ð¸Ñ†Ð°` (mojibake) and shipped that way in every language
+except English — 6,624 strings across all ten files.
+
+`scripts/i18n-fix-mojibake.mjs` detects and repairs this:
+
+```bash
+node scripts/i18n-fix-mojibake.mjs --check
+```
+
+It reports (and with no flag, repairs) any string literal that round-trips
+cleanly back through cp1252 to valid UTF-8. Text that is genuinely correct —
+`Größe`, `créé`, `Configurações` — does not round-trip and is left alone, and
+the pass is idempotent, so it is safe to run any time and to wire into CI.
+
+Run `--check` after any bulk locale edit, especially one made outside this repo
+(a spreadsheet round-trip, a translation service export, `i18n:import`, or an
+editor saving as ANSI). PowerShell in particular defaults `Set-Content` and
+`Add-Content` to the system ANSI codepage — always pass `-Encoding utf8`.
+
 ## Migration policy
 
 The app has many legacy hard-coded strings. The agreed approach is
