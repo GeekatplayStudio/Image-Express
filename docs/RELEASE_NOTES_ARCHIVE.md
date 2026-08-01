@@ -4,6 +4,46 @@ This archive consolidates historical release notes for Image Express.
 
 ---
 
+## Release Notes — 2026-08-01
+
+Reliability release: the install → build → package chain now works from a clean
+clone, and the shipped UI is no longer corrupted in ten languages.
+
+### Installers and build
+- **Node 24+ is enforced instead of warned about.** A version manager that
+  leaves an older Node first on `PATH` no longer produces a broken install:
+  installers and launchers switch to a supported Node automatically, and
+  `npm run build` stops with the exact command to fix your shell. Added
+  `npm run doctor:node`.
+- **`desktop:*` scripts provision the Electron runtime on demand**
+  (`npm run electron:ensure`). Previously `node_modules/electron/dist` never
+  existed on a fresh clone, so every desktop script failed.
+- **Desktop package shrank from 2.6 GB to 453 MB** (installer: 122.7 MB). Next's
+  file tracing had been pulling the entire project root — including the 1.2 GB
+  `3d-models/` folder and previous installer builds — into the app.
+  `desktop:verify-package` now fails on leaked entries and a size budget.
+
+### Internationalisation
+- **Fixed mojibake in every non-English language.** Russian, Ukrainian, German,
+  French, Spanish, Italian, Polish, Portuguese, Japanese and Chinese all
+  displayed double-encoded text (`страница` shown as `ÑÑ‚Ñ€Ð°Ð½Ð¸Ñ†Ð°`).
+  6,624 strings repaired; `scripts/i18n-fix-mojibake.mjs --check` prevents a
+  recurrence.
+
+### Fixes
+- Storage settings no longer crash when the watch-roots endpoint returns a
+  response without a `roots` array.
+- Asset Vault page-size label no longer had an unreachable branch.
+
+### Quality
+- Test suite restored to green: **148 suites, 864 tests**, from 63 failures.
+- `npm run verify` (audits → lint → types → tests → build → bundle) passes.
+- Dependencies: six unused packages removed, Jest 29→30 and `@electron/asar`
+  3→4 to drop deprecated transitives, all in-range updates applied.
+  `npm audit`: 0 vulnerabilities.
+
+---
+
 ## Release Notes — 2026-07-29
 
 ### Highlights

@@ -1,6 +1,6 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-07-29  
+Last updated: 2026-08-01  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
@@ -19,7 +19,51 @@ Future roadmap canonical source:
 Current-state baseline audit:
 - `docs/current_application_baseline_audit_2026-05-16.md` (verified feature inventory, workflow map, status reconciliation, priority buckets, and UI simplification plan)
 
-## Latest Delivery (2026-07-29) — Dependency Security Hardening
+## Latest Delivery (2026-08-01) — Release Chain, Dependencies, i18n Encoding
+
+Four defects that each blocked a clean release. Policy detail:
+`docs/DEPENDENCY_SECURITY.md`, `docs/DESKTOP.md`, `docs/i18n_multilanguage_support.md`.
+
+- **Node engine is now enforced, not warned about.** npm downgrades an `engines`
+  miss to `EBADENGINE` and installs anyway, so any shell whose PATH served an
+  older Node (nvm/nvm4w, volta, fnm shims are the usual cause) produced a subtly
+  wrong tree and failed later with an unrelated error. `scripts/node-guard.mjs`
+  finds a supported Node across the common install layouts; installers and
+  launchers re-exec under it with a patched PATH, and `npm run build` stops with
+  the exact fix. New: `npm run doctor:node`.
+- **The Electron runtime was never provisioned.** `ensure-deps` skips the binary
+  download to keep web installs fast and npm 11 blocks install scripts by
+  default, so `node_modules/electron/dist` never existed and every `desktop:*`
+  script failed on a fresh clone. `scripts/ensure-electron.mjs` now fetches it on
+  demand as a pre-hook on all seven desktop scripts.
+- **The desktop package shipped the whole repository.** `appPaths.ts` resolves
+  from `process.cwd()`, so Next traced the project root into `.next/standalone`,
+  and `extraResources` copied it into the installer: `3d-models/` (1.2 GB),
+  previous `dist-installer`/`dist-close-test` builds, `tree.glb`. Excludes are now
+  comprehensive and `desktop:verify-package` fails on known-bad entries plus a
+  400 MB standalone budget. **win-unpacked 2,604 MB → 453 MB; standalone
+  2,271 MB → 120 MB; `ImageExpress-Setup-0.2.0.exe` builds at 122.7 MB** and
+  passes the launch smoke test.
+- **Every non-English locale shipped mojibake.** All ten dictionaries stored
+  UTF-8 that had been decoded once as Windows-1252 and re-encoded — `страница`
+  was rendered as `ÑÑ‚Ñ€Ð°Ð½Ð¸Ñ†Ð°`. 6,624 strings repaired via the new
+  idempotent `scripts/i18n-fix-mojibake.mjs` (`--check` gates CI). Keys are
+  untouched: locale parity is byte-identical before and after.
+- **Test suite restored: 63 failures → 0** (148 suites, 864 tests). Root causes:
+  `three`'s ESM add-ons were not transformed by Jest, which killed every suite
+  reaching `modelThumbnail.ts` (57 tests); `VaultWatchRootsPanel` crashed on a
+  watch-roots response without a `roots` array (a real product bug, now
+  normalised at the client boundary); a test queried RTL's `container` for a
+  portalled modal; two assertions had drifted from the component.
+- **Dependencies cleaned.** Removed six unused/redundant packages
+  (`@types/jspdf`, `@types/jszip`, `@types/mime`, `@testing-library/user-event`,
+  `@tiptap/extension-underline`, `jsdom`), upgraded `@electron/asar` 3→4 and the
+  Jest 29→30 family to drop deprecated transitives, and applied every in-range
+  update. Six deprecation warnings remain — all transitive, dev-only, no
+  advisories — each documented with its path and why it cannot be overridden.
+  `npm audit`: 0 vulnerabilities across 363 production dependencies.
+
+## Prior Delivery (2026-07-29) — Dependency Security Hardening
 
 Policy and rationale: `docs/DEPENDENCY_SECURITY.md`.
 
