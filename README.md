@@ -89,6 +89,7 @@ npm run build && npm run start
 ### 🧑‍💻 Developer / npm scripts
 
 ```bash
+npm run setup            # install/repair dependencies on the right Node + npm
 npm run dev              # web dev server → http://localhost:3000
 npm run desktop:dev      # Electron desktop shell, hot reload
 npm run desktop:build    # package installers (Win NSIS / mac DMG / Linux AppImage)
@@ -97,11 +98,36 @@ npm run doctor:node      # is this shell's Node new enough? where's a good one?
 npm run verify           # the full gate: audits, lint, types, tests, build, bundle
 ```
 
-**Node 24+ is required.** A version manager (nvm, nvm4w, volta, fnm) will
-happily leave an older Node first on `PATH`, and npm downgrades that to a
-warning — so the installers and launchers detect it and switch to a supported
-Node automatically, while `npm run build` stops with the exact fix rather than
-building on the wrong engine. `npm run doctor:node` shows the current state.
+### Node 24+ is required — and the toolchain enforces it for you
+
+A version manager (nvm, nvm4w, volta, fnm) will happily leave an older Node
+first on `PATH`, and npm downgrades that mismatch to a warning and installs
+anyway — which is how you get a subtly wrong `node_modules`, a rewritten
+lockfile, or a build that fails much later with an unrelated error.
+
+So `setup`, `build`, `dev`, `start`, `update` and every `desktop:*` script
+re-execute themselves under a supported Node when one exists anywhere on the
+machine, and use **that** Node's npm rather than whatever the shell provides.
+You do not have to fix your shell first. `npm run doctor:node` reports what is
+being used.
+
+Verified end-to-end from a shell serving Node 22.22.0 / npm 10.9.4, with a
+supported Node 26.4.0 installed elsewhere and shadowed on `PATH`:
+
+| Command | Exit | Result |
+|---|---|---|
+| `npm run setup` | 0 | switches to Node 26.4.0 **and npm 11.17.0** — no `EBADENGINE` |
+| `npm run build` | 0 | |
+| `npm run verify` | 0 | 148 suites, 864 tests |
+| `npm run desktop:pack` | 0 | |
+| `npm run desktop:verify-package` | 0 | standalone 120 MB, inside the 400 MB budget |
+| `npm run desktop:smoke-package` | 0 | packaged app launches: electron-ready → server-ready → window-ready |
+| `package-lock.json` after install | — | unchanged |
+
+The one path that cannot self-correct is a bare `npm install`: that is npm's own
+process, so nothing in the repo runs before it. Use `npm run setup` instead, or
+point your version manager at the pinned release — `nvm install 24.14.1 && nvm
+use 24.14.1` (see [`.nvmrc`](.nvmrc)).
 
 Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key configuration: **[docs/INSTALLATION.md](docs/INSTALLATION.md)** · desktop packaging internals: **[docs/DESKTOP.md](docs/DESKTOP.md)** · driving the app from AI agents (Claude Desktop/Code) via Model Context Protocol: **[docs/MCP.md](docs/MCP.md)** · canonical terminology (workspace / canvas / page / album / library): **[docs/GLOSSARY.md](docs/GLOSSARY.md)**.
 
