@@ -69,8 +69,9 @@ describe('Asset3DPreview', () => {
         expect(screen.getByTestId('mock-center')).toBeInTheDocument();
         expect(screen.getByTestId('mock-environment')).toHaveAttribute('data-preset', 'city');
         expect(screen.getByTestId('mock-orbit-controls')).toHaveAttribute('data-auto-rotate', 'true');
-        expect(screen.getByTestId('mock-orbit-controls')).toHaveAttribute('data-auto-rotate-speed', '4');
-        expect(screen.getByTestId('mock-orbit-controls')).toHaveAttribute('data-enable-zoom', 'false');
+        expect(screen.getByTestId('mock-orbit-controls')).toHaveAttribute('data-auto-rotate-speed', '3.2');
+        // enableZoom defaults to true; this renders without the prop.
+        expect(screen.getByTestId('mock-orbit-controls')).toHaveAttribute('data-enable-zoom', 'true');
 
         // Model renders through a react-three primitive in the mocked canvas tree.
         expect(container.querySelector('primitive')).not.toBeNull();

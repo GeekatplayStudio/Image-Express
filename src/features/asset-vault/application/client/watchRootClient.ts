@@ -20,9 +20,19 @@ async function vaultFetch<T>(path: string, init?: RequestInit): Promise<T> {
     return data;
 }
 
+/**
+ * A 200 response is not a guarantee of the expected body -- a proxy, an older
+ * server, or a stubbed fetch can all return JSON without `roots`. Callers render
+ * straight off this value (`roots.length`, `roots.map`), so normalise here
+ * rather than making every consumer defend itself.
+ */
+function toWatchRoots(value: unknown): WatchRoot[] {
+    return Array.isArray(value) ? value as WatchRoot[] : [];
+}
+
 export async function listWatchRoots(): Promise<WatchRoot[]> {
     const data = await vaultFetch<{ success: true; roots: WatchRoot[] }>('/api/assets/vault/watch-roots');
-    return data.roots;
+    return toWatchRoots(data?.roots);
 }
 
 export async function saveWatchRoot(root: WatchRoot): Promise<WatchRoot[]> {
@@ -30,7 +40,7 @@ export async function saveWatchRoot(root: WatchRoot): Promise<WatchRoot[]> {
         method: 'POST',
         body: JSON.stringify(root),
     });
-    return data.roots;
+    return toWatchRoots(data?.roots);
 }
 
 export async function deleteWatchRoot(id: string): Promise<WatchRoot[]> {
@@ -38,7 +48,7 @@ export async function deleteWatchRoot(id: string): Promise<WatchRoot[]> {
         method: 'DELETE',
         body: JSON.stringify({ id }),
     });
-    return data.roots;
+    return toWatchRoots(data?.roots);
 }
 
 export async function scanWatchRoot(rootId: string, embed = true): Promise<{ fileCount: number }> {
@@ -46,7 +56,7 @@ export async function scanWatchRoot(rootId: string, embed = true): Promise<{ fil
         method: 'PUT',
         body: JSON.stringify({ rootId, embed }),
     });
-    return { fileCount: data.fileCount };
+    return { fileCount: Number.isFinite(data?.fileCount) ? data.fileCount : 0 };
 }
 
 export function createWatchRootId() {

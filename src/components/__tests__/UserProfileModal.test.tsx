@@ -145,7 +145,9 @@ describe('UserProfileModal', () => {
     });
 
     it('uploads profile image and renders preview', () => {
-        const { container } = render(
+        // ModalShell portals its content into <body>, so the RTL `container`
+        // wrapper is empty -- query the base element like the other tests do.
+        const { baseElement } = render(
             <UserProfileModal
                 isOpen
                 onClose={jest.fn()}
@@ -154,7 +156,7 @@ describe('UserProfileModal', () => {
             />
         );
 
-        const fileInput = container.querySelector('input[type="file"]');
+        const fileInput = baseElement.querySelector('input[type="file"]');
         expect(fileInput).not.toBeNull();
         const file = new File(['img'], 'avatar.png', { type: 'image/png' });
         fireEvent.change(fileInput as HTMLInputElement, { target: { files: [file] } });
