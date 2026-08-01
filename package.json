@@ -22,7 +22,18 @@
     "@electron/asar": "$@electron/asar",
     "test-exclude": "^8.0.0",
     "global-agent": "^4.1.3",
-    "glob@10": "^13.0.6"
+    "glob@10": "^13.0.6",
+    "rimraf": "^5.0.5",
+    "eslint-plugin-react-hooks": "7.0.1"
+  },
+  "allowScripts": {
+    "core-js": true,
+    "electron": true,
+    "electron-winstaller": true,
+    "canvas": true,
+    "onnxruntime-node": true,
+    "protobufjs": true,
+    "unrs-resolver": true
   },
   "scripts": {
     "doctor:node": "node scripts/node-guard.mjs",

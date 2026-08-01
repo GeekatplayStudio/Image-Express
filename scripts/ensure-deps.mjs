@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
@@ -34,6 +35,102 @@ function criticalBinsPresent() {
 }
 
 /**
+ * Tail of the newest npm debug log. npm prints real diagnostics to a log file
+ * ("A complete log of this run can be found in: ..."); reading it back after a
+ * failure lets us tell a deterministic config error apart from a transient
+ * filesystem race WITHOUT capturing/buffering npm's live output (which would
+ * make long installs look frozen).
+ */
+function newestNpmLogTail(notBeforeMs) {
+    const candidates = [
+        process.env.npm_config_cache && path.join(process.env.npm_config_cache, '_logs'),
+        isWin && process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'npm-cache', '_logs'),
+        path.join(os.homedir(), '.npm', '_logs'),
+    ].filter(Boolean);
+    for (const logsDir of candidates) {
+        try {
+            const newest = fs.readdirSync(logsDir)
+                .filter((name) => name.endsWith('.log'))
+                .map((name) => {
+                    const full = path.join(logsDir, name);
+                    return { full, mtime: fs.statSync(full).mtimeMs };
+                })
+                .sort((a, b) => b.mtime - a.mtime)[0];
+            if (!newest) continue;
+            // Only accept a log written by THE RUN WE JUST MADE. npm flushes its
+            // debug log on exit, slightly after our spawnSync returns — without
+            // this check the first failed attempt reads the PREVIOUS session's
+            // log and misclassifies (observed: a lock-sync error diagnosed as
+            // 'unknown' on attempt 1, correctly on attempt 2).
+            if (notBeforeMs && newest.mtime < notBeforeMs) continue;
+            const stat = fs.statSync(newest.full);
+            const start = Math.max(0, stat.size - 16_384);
+            const fd = fs.openSync(newest.full, 'r');
+            try {
+                const buffer = Buffer.alloc(stat.size - start);
+                fs.readSync(fd, buffer, 0, buffer.length, start);
+                return buffer.toString('utf8');
+            } finally {
+                fs.closeSync(fd);
+            }
+        } catch {
+            // try the next candidate dir
+        }
+    }
+    return '';
+}
+
+function sleepMs(ms) {
+    // Synchronous wait; Atomics.wait needs a SharedArrayBuffer and never spins.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Why did the npm command that started at `startedAtMs` fail?
+ * - 'lock-sync': package.json and package-lock.json disagree (someone changed
+ *   deps/overrides without reinstalling). Deterministic — retrying `npm ci`
+ *   can never fix it; only `npm install` (which regenerates the lock) can.
+ * - 'file-lock': EPERM/ENOTEMPTY/EBUSY/UNKNOWN — a scanner or indexer holding
+ *   handles mid-operation.
+ * - 'unknown': anything else (network, registry, disk full...).
+ */
+function classifyNpmFailure(startedAtMs) {
+    // npm writes its debug log on exit; give it a moment to land.
+    let tail = '';
+    for (let waited = 0; waited <= 2000 && !tail; waited += 250) {
+        tail = newestNpmLogTail(startedAtMs);
+        if (!tail) sleepMs(250);
+    }
+    if (/EUSAGE|are in sync|does not satisfy|Missing: .* from lock file/.test(tail)) return 'lock-sync';
+    if (/EPERM|ENOTEMPTY|EBUSY|UNKNOWN: unknown error/.test(tail)) return 'file-lock';
+    return 'unknown';
+}
+
+/**
+ * Retrying only makes sense for BRIEF interference. When a full install
+ * attempt ground on for minutes and then died on a file lock, the scanner
+ * contention is sustained — another attempt will burn the same minutes and
+ * fail the same way (measured on this machine: 3 × ~13 min, all ENOTEMPTY).
+ * Fail fast with the actual fix instead of pretending persistence helps.
+ */
+const SUSTAINED_INTERFERENCE_MS = 3 * 60 * 1000;
+
+function explainSustainedInterference() {
+    console.error('');
+    console.error('[ERROR] The install keeps failing on locked files, and each attempt is taking');
+    console.error('        minutes — this is sustained interference from real-time file scanning');
+    console.error('        (Windows Defender / Search Indexer), not a temporary glitch. Retrying');
+    console.error('        will only waste more time.');
+    console.error('');
+    console.error('        The fix (run once, as Administrator, then re-run npm run setup):');
+    console.error(`          Add-MpPreference -ExclusionPath "${rootDir}"`);
+    console.error('');
+    console.error('        This excludes only this project folder from real-time scanning. It');
+    console.error('        also makes every future install several times faster.');
+    console.error('');
+}
+
+/**
  * Install / repair npm dependencies when missing, incomplete, or out of date.
  * Safe to call from installers, launchers, and the self-updater.
  */
@@ -43,14 +140,22 @@ export function ensureDependencies(forceInstall = false) {
     const lockPath = path.join(rootDir, 'package-lock.json');
     const pkgPath = path.join(rootDir, 'package.json');
 
-    const lockHash = sha1File(lockPath);
-    const pkgHash = sha1File(pkgPath);
-    const expectedMarker = `${pkgHash}:${lockHash}`;
+    // The marker must always be computed from the CURRENT files at write time.
+    // It was once captured before the install — but a fallback `npm install`
+    // legitimately rewrites package-lock.json (e.g. after an overrides edit),
+    // so the pre-captured hash never matched again and every subsequent run
+    // reinstalled from scratch: a full multi-minute install loop.
+    function currentMarker() {
+        return `${sha1File(pkgPath)}:${sha1File(lockPath)}`;
+    }
+    function writeMarker() {
+        fs.writeFileSync(markerPath, currentMarker());
+    }
 
     let markerOk = false;
     if (fs.existsSync(markerPath)) {
         try {
-            markerOk = fs.readFileSync(markerPath, 'utf8').trim() === expectedMarker;
+            markerOk = fs.readFileSync(markerPath, 'utf8').trim() === currentMarker();
         } catch {
             markerOk = false;
         }
@@ -85,14 +190,21 @@ export function ensureDependencies(forceInstall = false) {
     // how an install kept landing on npm 10 even after switching to Node 26.
     const npmCli = npmCliFor();
     function runNpm(args) {
+        // --prefer-offline for `npm ci` only: ci installs the exact versions the
+        // lockfile pins (integrity-checked), so trusting the local cache instead
+        // of revalidating ~1200 tarballs against the registry is pure speed-up.
+        // Range-resolving commands (`npm install`) must NOT get it — a stale
+        // cached package listing has produced ETARGET for a version that exists.
+        const speedFlags = args[0] === 'ci' ? ['--prefer-offline'] : [];
+        const fullArgs = [...args, ...speedFlags, '--no-fund', '--no-audit'];
         if (npmCli) {
-            return spawnSync(process.execPath, [npmCli, ...args], {
+            return spawnSync(process.execPath, [npmCli, ...fullArgs], {
                 stdio: 'inherit',
                 cwd: rootDir,
                 env: installEnv,
             });
         }
-        return spawnSync(npmCmd, args, {
+        return spawnSync(npmCmd, fullArgs, {
             stdio: 'inherit',
             cwd: rootDir,
             env: installEnv,
@@ -103,84 +215,133 @@ export function ensureDependencies(forceInstall = false) {
     /**
      * `npm ci` deletes and rebuilds node_modules itself, reconciling against
      * whatever is already there. On Windows, a real-time antivirus scanner or
-     * the Search Indexer can be holding a handle on a file inside node_modules
-     * at that exact moment (both processes were confirmed running on this
-     * machine), and npm's own delta-uninstall then fails outright:
-     * `ENOTEMPTY: directory not empty, rmdir '...\node_modules\core-js\modules'`.
-     * That is a real, fatal exit — not the many `npm warn tar ENOENT` lines
-     * around it, which are non-fatal warnings from extraction racing the same
-     * scanner and do not by themselves break the install.
+     * the Search Indexer holding a handle on a file at that moment makes npm's
+     * own delta-uninstall fail (`ENOTEMPTY ... rmdir`) — and a direct
+     * `fs.rmSync` of the whole tree hits the same wall, because the scanner
+     * re-locks files faster than the retry/backoff releases them (measured:
+     * 48s of deleting, then ENOTEMPTY anyway).
      *
-     * Removing node_modules ourselves first, with Node's own `fs.rmSync`
-     * retry/backoff (built for exactly this Windows failure mode), turns every
-     * `npm ci` into a clean extract-into-empty-directory instead of a
-     * reconcile-against-a-possibly-locked-tree. That eliminates the failure
-     * class instead of retrying past it.
+     * The robust pattern is rename-then-delete, the same one launch.mjs uses
+     * for `.next`: renaming the top-level directory is near-instant and works
+     * even while a scanner holds handles on files inside it, npm then
+     * extracts into a genuinely empty node_modules, and deleting the renamed
+     * leftover happens off the critical path — tolerating failure, because a
+     * stray `node_modules.stale-*` directory costs disk space, not a broken
+     * install. Leftovers are swept on later runs.
      */
     function removeNodeModules() {
-        if (!fs.existsSync(nodeModulesPath)) return;
-        log('Clearing node_modules before a clean install...');
-        fs.rmSync(nodeModulesPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
-    }
-
-    /**
-     * Retries a full install attempt a bounded number of times. This is
-     * deliberately NOT silent: every attempt's real npm output goes straight to
-     * the terminal (stdio: 'inherit' above), and this only decides whether to
-     * try again — it never hides a failure, it exhausts retries and then exits
-     * with the exact same error the first attempt would have shown.
-     */
-    function withRetries(attempt, description) {
-        const maxAttempts = 3;
-        for (let n = 1; n <= maxAttempts; n += 1) {
-            if (attempt()) return true;
-            if (n < maxAttempts) {
-                log(`${description} did not produce a working install (attempt ${n}/${maxAttempts}) — `
-                    + 'this usually means a real-time antivirus scanner or the Windows Search '
-                    + 'Indexer briefly locked a file mid-install. Retrying...');
+        // Best-effort sweep of leftovers from previous attempts.
+        for (const entry of fs.readdirSync(rootDir)) {
+            if (entry.startsWith('node_modules.stale-')) {
+                try {
+                    fs.rmSync(path.join(rootDir, entry), { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+                } catch {
+                    // still locked — a later run will get it
+                }
             }
         }
-        return false;
+        if (!fs.existsSync(nodeModulesPath)) return;
+
+        log('Clearing node_modules before a clean install...');
+        const stale = path.join(rootDir, `node_modules.stale-${Date.now()}`);
+        try {
+            fs.renameSync(nodeModulesPath, stale);
+        } catch {
+            // Even the rename is blocked — fall back to an in-place delete, and
+            // tolerate failure: npm ci can still reconcile a partial tree, which
+            // is worse than a clean dir but far better than crashing here.
+            try {
+                fs.rmSync(nodeModulesPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+            } catch (err) {
+                log(`Could not fully clear node_modules (${err.code}); continuing — npm will reconcile in place.`);
+            }
+            return;
+        }
+        try {
+            fs.rmSync(stale, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+        } catch {
+            log(`Left ${path.basename(stale)} behind (files still locked); it will be swept on a later run.`);
+        }
     }
+
+    const maxAttempts = 3;
 
     // Prefer a clean lockfile install when the lock exists.
     const preferCi = fs.existsSync(lockPath) && !process.argv.includes('--no-ci');
     if (preferCi) {
-        const ciSucceeded = withRetries(() => {
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
             removeNodeModules();
-            const ci = runNpm(['ci', '--no-fund', '--no-audit']);
-            // `npm ci` can also exit 0 while the tree is actually broken (extraction
-            // raced the same scanner without a fatal exit code) — seen on this
-            // machine as `react` missing entirely while npm still reported success.
-            // Checking criticalBinsPresent() here, not just on the fallback below,
-            // is what catches that instead of failing confusingly at build time.
-            return ci.status === 0 && criticalBinsPresent();
-        }, 'npm ci');
+            const startedAt = Date.now();
+            const ci = runNpm(['ci']);
+            // Exit 0 is not proof of a working tree: extraction racing a scanner
+            // has produced "success" with react missing entirely. Verify.
+            if (ci.status === 0 && criticalBinsPresent()) {
+                writeMarker();
+                log('Dependencies installed (npm ci).');
+                return true;
+            }
 
-        if (ciSucceeded) {
-            fs.writeFileSync(markerPath, expectedMarker);
-            log('Dependencies installed (npm ci).');
-            return true;
+            const elapsed = Date.now() - startedAt;
+            const reason = classifyNpmFailure(startedAt);
+            if (reason === 'lock-sync') {
+                // Deterministic: package.json changed (deps or overrides) without a
+                // reinstall. Retrying npm ci can never succeed — only npm install
+                // can, because it regenerates the lockfile. Go straight there.
+                log('package.json and package-lock.json are out of sync — someone changed');
+                log('dependencies or overrides without reinstalling. Regenerating the');
+                log('lockfile with npm install (this is expected, not an error)...');
+                break;
+            }
+            if (reason === 'file-lock' && elapsed > SUSTAINED_INTERFERENCE_MS) {
+                explainSustainedInterference();
+                process.exit(1);
+            }
+            if (attempt < maxAttempts) {
+                log(`npm ci did not produce a working install (attempt ${attempt}/${maxAttempts})`
+                    + (reason === 'file-lock'
+                        ? ' — a real-time antivirus scanner or the Windows Search Indexer locked a file mid-install. Retrying...'
+                        : '. Retrying...'));
+            } else {
+                log('npm ci did not succeed after retries — falling back to npm install...');
+            }
         }
-        log('npm ci did not succeed after retries — falling back to npm install...');
     }
 
-    const installSucceeded = withRetries(() => {
-        const install = runNpm(['install', '--no-fund', '--no-audit']);
-        return install.status === 0 && criticalBinsPresent();
-    }, 'npm install');
+    // Fallback / lockfile regeneration path. Every attempt's real npm output is
+    // on the terminal already (stdio: 'inherit'); nothing is suppressed.
+    let installSucceeded = false;
+    for (let attempt = 1; attempt <= maxAttempts && !installSucceeded; attempt += 1) {
+        const startedAt = Date.now();
+        const install = runNpm(['install']);
+        installSucceeded = install.status === 0 && criticalBinsPresent();
+        if (!installSucceeded) {
+            const elapsed = Date.now() - startedAt;
+            const reason = classifyNpmFailure(startedAt);
+            if (reason === 'file-lock' && elapsed > SUSTAINED_INTERFERENCE_MS) {
+                explainSustainedInterference();
+                process.exit(1);
+            }
+            if (attempt < maxAttempts) {
+                log(`npm install did not produce a working install (attempt ${attempt}/${maxAttempts})`
+                    + (reason === 'file-lock'
+                        ? ' — a scanner/indexer locked a file mid-install. Retrying...'
+                        : '. Retrying...'));
+            }
+        }
+    }
 
     if (!installSucceeded) {
         console.error('[ERROR] npm install failed to produce a working install after retries.');
         console.error('        See the npm output above for the underlying error.');
-        console.error('        If every attempt showed ENOTEMPTY / EPERM / EBUSY on a rmdir or lstat,');
-        console.error('        that is Windows Defender or Search Indexer locking a file mid-install.');
-        console.error('        An admin can add a Defender exclusion for this folder to speed installs up:');
+        console.error('        If attempts showed ENOTEMPTY / EPERM / EBUSY / UNKNOWN on file operations,');
+        console.error('        that is Windows Defender or Search Indexer locking files mid-install.');
+        console.error('        An admin can exclude this folder from real-time scanning to fix that');
+        console.error('        permanently (and make installs several times faster):');
         console.error(`          Add-MpPreference -ExclusionPath "${rootDir}"`);
         process.exit(1);
     }
 
-    fs.writeFileSync(markerPath, expectedMarker);
+    writeMarker();
     log('Dependencies installed.');
     return true;
 }

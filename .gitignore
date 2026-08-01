@@ -5,6 +5,8 @@
 
 # dependencies
 /node_modules
+# rename-then-delete leftovers from ensure-deps (locked files mid-clear)
+/node_modules.stale-*
 /.pnp
 .pnp.*
 .yarn/*

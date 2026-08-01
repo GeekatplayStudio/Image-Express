@@ -57,25 +57,26 @@ suggested version is not installable:
 
 ## Install scripts (npm 11 `allowScripts`)
 
-npm 11 blocks package install scripts unless the package is listed in
-`allowScripts`. This repo deliberately keeps that default-deny in place — no
-`allowScripts` entry exists — so `npm ci` prints an `allow-scripts` warning for
-seven packages. Each was checked rather than assumed:
+npm 11 blocks package install scripts unless the package is covered by an
+`allowScripts` policy, and prints a recurring warning for every uncovered
+package. This repo now **declares** the policy in `package.json` — all seven
+packages with install scripts are explicitly allowed — which silences that
+warning permanently. Each entry was verified rather than assumed:
 
-| Package | Script does | Why it stays blocked |
+| Package | Script does | Why allowing it is safe |
 |---|---|---|
-| `electron` | downloads the Electron binary | Provisioned explicitly by `npm run electron:ensure`, so web installs skip a several-hundred-MB download they never use |
-| `canvas` | builds/downloads a native binding | Only reachable through `fabric`'s and `jsdom`'s optional Node canvas support; nothing renders server-side |
-| `onnxruntime-node` | downloads native ONNX runtime | `@huggingface/transformers` is used **only** in the browser (WebGPU/WASM) — see `clipEmbedder.ts` and `threeDLayer/depth.ts` |
-| `electron-winstaller` | selects a 7-zip build | Squirrel target only; this app ships NSIS |
-| `core-js` | prints a funding notice | No build effect |
-| `protobufjs` | generates CLI helpers | Runtime library path does not need them |
-| `unrs-resolver` | verifies a napi binding | ESLint resolves fine without it |
+| `electron` | downloads the Electron binary | The script runs but no-ops: installs set `ELECTRON_SKIP_BINARY_DOWNLOAD=1`, and `npm run electron:ensure` provisions the binary on demand for desktop builds |
+| `canvas` | `prebuild-install` (downloads a prebuilt native binding) | canvas is an **optionalDependency** of fabric — if the script fails (offline, no prebuilt for the platform), npm skips the package and the install still succeeds |
+| `onnxruntime-node` | post-install platform setup | Transformers.js is used only in the browser (WebGPU/WASM); the node runtime is never loaded by app code |
+| `electron-winstaller` | selects a 7-zip build | Tiny local script; Squirrel target only (this app ships NSIS) |
+| `core-js` | prints a notice | No build effect |
+| `protobufjs` | generates CLI helpers | Harmless |
+| `unrs-resolver` | verifies a napi binding | Harmless |
 
-Verified with all of `npm run lint`, `typecheck`, `test`, `build`,
-`desktop:pack`, `desktop:verify-package` and `desktop:smoke-package` passing on
-a clean `npm ci`. Approve a package (`npm approve-scripts <pkg>`) only after
-re-checking that the build genuinely needs it.
+Verified with `npm run verify`, `desktop:pack`, `desktop:verify-package` and
+`desktop:smoke-package` passing on a clean install with the policy declared.
+When a NEW package with an install script appears in the tree, npm warns again
+— vet it before adding it to `allowScripts`.
 
 ## Deprecation warnings on install
 
@@ -92,7 +93,8 @@ sometimes wrong.
 | `"@electron/asar": "$@electron/asar"` | `glob@7` + `inflight` under electron-builder | asar 4 uses `glob@13`. The `$name` form is required because asar is also a direct dependency; a literal version there is an `EOVERRIDE` error. Verified by `desktop:pack` + `verify-package` + `smoke-package` |
 | `"test-exclude": "^8.0.0"` | `glob@7` + `inflight` under jest | test-exclude 8 uses `glob@13`. Verified by the full suite **and** `jest --coverage`, which is the code path that actually calls it |
 | `"global-agent": "^4.1.3"` | `boolean@3.2.0` | global-agent 4 dropped the dependency outright |
-| `"glob@10": "^13.0.6"` | `glob@10.5.0` under jest | Scoped to the 10.x line so `rimraf@2`'s callback-based `glob@7` is left alone. Verified by 148 suites / 864 tests plus coverage |
+| `"glob@10": "^13.0.6"` | `glob@10.5.0` under jest and rimraf | Scoped to the 10.x line. Verified by 148 suites / 864 tests plus coverage |
+| `"rimraf": "^5.0.5"` | `rimraf@2.6.3` + `glob@7.2.3` + `inflight@1.0.6` under electron-winstaller's `temp` | rimraf 5 is promise-based while `temp` calls the rimraf 2 callback API — but that call only ever happens on the **Squirrel** packaging path, and this app ships NSIS, so the module is never even loaded. Verified by `desktop:pack` + `verify-package` + `smoke-package` (the NSIS path end to end) |
 
 ### Structurally unfixable
 
@@ -104,8 +106,8 @@ lag behind an unpublished fix, but here there is nothing to lag behind:
 |---|---|---|
 | `lodash.isequal@4.5.0` | `electron-updater` | **23 versions have ever been published; 4.5.0 is the last one.** The deprecation asks consumers to switch to `node:util.isDeepStrictEqual` — an API change only electron-updater can make |
 | `whatwg-encoding@3.1.1` | `fabric → jsdom` | **10 versions have ever been published; 3.1.1 is the last one**, deprecated in favour of a different package (`@exodus/bytes`). Nothing to upgrade to |
-| `rimraf@2.6.3`, and the `glob@7.2.3` + `inflight@1.0.6` it drags in | `electron-builder → app-builder-lib → electron-builder-squirrel-windows → electron-winstaller@5.4.4 (latest) → temp@0.9.4 (latest)` | `temp`'s latest release still pins `rimraf: ~2.6.2`. **rimraf 3.x is also deprecated with the identical message** — jumping to it buys nothing; only 4+ is clean, but 4+ replaced the callback API `temp` calls, so forcing it breaks directory cleanup during Squirrel packaging. Same story for glob: **7.x and 8.x are both deprecated**; only 9+ is clean, which is the same API break. `inflight` has had exactly one release, ever — there is no newer version to move to. The Squirrel package itself cannot be dropped: checked its newest release (26.15.7, one patch ahead of what we use) and it still requires `electron-winstaller`; it is also a **non-optional peerDependency** of `app-builder-lib`, installed even though this app ships NSIS, not Squirrel |
 
+These two are the only deprecation warnings a clean install prints now.
 The rule these follow: an override can change a version, it cannot change an
 API or remove a dependency. When the latest published version *is* the
 deprecated one, the warning can only be retired by the parent package.
@@ -113,30 +115,46 @@ deprecated one, the warning can only be retired by the parent package.
 Re-check this table whenever `electron-builder`, `electron-updater`, `jsdom` or
 `jest` move a major.
 
-## Windows install failures (`ENOTEMPTY`, `EPERM`, `TAR_ENTRY_ERROR`)
+## Windows install failures (`ENOTEMPTY`, `EPERM`, `TAR_ENTRY_ERROR`) and slow installs
 
-`npm ci` deletes and rebuilds `node_modules` itself, reconciling against
-whatever is already on disk. A real-time antivirus scanner or the Windows
-Search Indexer can be holding a handle on a file inside `node_modules` at that
-exact moment — both were confirmed running during an install that failed this
-way — and npm's own delta-uninstall then exits non-zero:
-`ENOTEMPTY: directory not empty, rmdir '...\node_modules\core-js\modules'`.
-The many `npm warn tar ... ENOENT` lines that usually surround it are
-non-fatal extraction warnings from the same race and are not themselves the
-failure.
+Real-time file scanning (Windows Defender / Search Indexer — both confirmed
+running during failed installs on a dev machine) intercepts npm's file
+operations. Consequences observed and measured, worst first:
 
-`scripts/ensure-deps.mjs` handles this at the source rather than papering over
-it: it removes `node_modules` itself with Node's own retry/backoff-capable
-`fs.rmSync` (`maxRetries`/`retryDelay` exist in that API specifically for this
-Windows failure mode) before invoking `npm ci`, turning every install into a
-clean extract-into-empty-directory instead of a reconcile-against-a-possibly-
-locked-tree. If an install still doesn't leave a working tree (`npm ci` exits
-non-zero, or exits 0 but `next`/`react` are missing — seen on this machine),
-the whole attempt retries up to three times with full, un-suppressed npm
-output on every attempt before failing.
+- `npm ci` / `npm install` **fail outright** with `ENOTEMPTY`/`EPERM` when the
+  scanner holds a handle during a delete/rename.
+- Extraction **into a brand-new empty directory** still sprays
+  `npm warn tar TAR_ENTRY_ERROR ENOENT/UNKNOWN` warnings — proof the scanner
+  intercepts file *creates*, not just deletes. Usually non-fatal, but it has
+  produced an exit-0 install with `react` missing entirely.
+- Installs that take ~5 minutes on a quiet machine took **13+ minutes per
+  attempt** under sustained scanning.
 
-An admin can eliminate the underlying race by excluding the project folder
-from real-time scanning (optional, only ever speeds installs up):
+`scripts/ensure-deps.mjs` defends in layers:
+
+1. **Rename-then-delete** for clearing `node_modules` (same pattern
+   `launch.mjs` uses for `.next`): renaming the top directory is instant when
+   possible; deleting the renamed `node_modules.stale-*` leftover happens
+   off the critical path and tolerates failure (swept on later runs). A locked
+   rename falls back to a retried in-place delete, and a failed delete is
+   *survived*, not crashed on — npm reconciles in place as a last resort.
+2. **Verified success**: exit 0 is not trusted; `next`/`react` presence is
+   checked after every attempt, and the integrity marker is recomputed from
+   the files' hashes **at write time** (it was once captured pre-install,
+   which made every lockfile-regenerating install loop forever).
+3. **Failure classification** from npm's own debug log (waiting for it to
+   flush, and only accepting a log newer than the attempt): a lockfile
+   out-of-sync error (`EUSAGE`) goes **straight** to `npm install` to
+   regenerate the lock — retrying `npm ci` against a stale lock can never
+   succeed. File-lock errors retry.
+4. **Fail-fast on sustained interference**: when an attempt ground on for
+   over 3 minutes and still died on a file lock, more retries provably waste
+   time (measured: 3 × ~13 min, all ENOTEMPTY) — the script stops and prints
+   the actual fix instead.
+
+The actual fix — run once in an **Administrator** PowerShell; it excludes only
+this project folder from real-time scanning and makes every install several
+times faster:
 
 ```powershell
 Add-MpPreference -ExclusionPath "D:\path\to\Image-Express"

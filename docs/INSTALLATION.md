@@ -234,6 +234,28 @@ When using AI Edit Notes with reference image editing:
 
 ## 5) Troubleshooting
 
+### Install is very slow, or fails with ENOTEMPTY / EPERM / TAR_ENTRY_ERROR (Windows)
+
+That is real-time antivirus scanning (Windows Defender) and/or the Windows
+Search Indexer intercepting npm's file operations - `node_modules` holds over
+a thousand small packages, and scanning each file as it is written slows the
+install several times over and occasionally breaks it mid-write. The
+installer detects this, retries brief glitches, and stops with instructions
+when the interference is sustained instead of retrying forever.
+
+The permanent fix is one command in an **Administrator** PowerShell (right-
+click PowerShell -> "Run as administrator"). It excludes only this project
+folder from real-time scanning - the rest of your system stays protected:
+
+```powershell
+Add-MpPreference -ExclusionPath "$env:USERPROFILE\ImageExpress"
+```
+
+(Adjust the path if you installed somewhere else.) Then run `npm run setup`
+again. This is optional - installs succeed without it - but it is the
+difference between ~5 minutes and 15-40 minutes on affected machines.
+
+
 - If `npm` fails in PowerShell due policy, run commands via `npm.cmd`:
 ```powershell
 cmd /c npm.cmd run build

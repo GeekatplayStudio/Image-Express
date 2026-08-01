@@ -76,6 +76,12 @@ can hand to support if anything goes wrong: `~/ImageExpress-setup.log` (macOS)
 or `%USERPROFILE%\ImageExpress-setup.log` (Windows). Full details, Linux, and
 manual/advanced setup: **[docs/INSTALLATION.md](docs/INSTALLATION.md)**.
 
+> **Windows install slow (15+ min) or failing with `ENOTEMPTY`/`TAR_ENTRY_ERROR`?**
+> That's real-time antivirus scanning fighting npm over thousands of small
+> files. One admin-PowerShell command excludes just this project folder and
+> makes installs several times faster — see
+> [Troubleshooting](docs/INSTALLATION.md#5-troubleshooting).
+
 ### 🔄 Keep it updated (source installs)
 
 | Action | Command / file |
