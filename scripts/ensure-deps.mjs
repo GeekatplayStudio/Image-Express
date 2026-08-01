@@ -3,7 +3,13 @@ import path from 'path';
 import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { enforceSupportedNode, envWithSupportedNode, requiredNodeMajor } from './node-guard.mjs';
+import {
+    enforceSupportedNode,
+    envWithoutInheritedNpm,
+    envWithSupportedNode,
+    npmCliFor,
+    requiredNodeMajor,
+} from './node-guard.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -69,17 +75,35 @@ export function ensureDependencies(forceInstall = false) {
         : 'Dependencies missing, incomplete, or out of date. Installing (this may take a few minutes)...');
     log(`Using node ${process.version} (requires >=${requiredNodeMajor()}).`);
 
-    const installEnv = { ...envWithSupportedNode(), ELECTRON_SKIP_BINARY_DOWNLOAD: '1' };
+    const installEnv = {
+        ...envWithoutInheritedNpm(envWithSupportedNode()),
+        ELECTRON_SKIP_BINARY_DOWNLOAD: '1',
+    };
 
-    // Prefer a clean lockfile install when the lock exists.
-    const preferCi = fs.existsSync(lockPath) && !process.argv.includes('--no-ci');
-    if (preferCi) {
-        const ci = spawnSync(npmCmd, ['ci', '--no-fund', '--no-audit'], {
+    // Run npm's CLI directly with this Node rather than the `npm` shim: the shim
+    // resolves the global prefix and defers to a globally-installed npm, which is
+    // how an install kept landing on npm 10 even after switching to Node 26.
+    const npmCli = npmCliFor();
+    function runNpm(args) {
+        if (npmCli) {
+            return spawnSync(process.execPath, [npmCli, ...args], {
+                stdio: 'inherit',
+                cwd: rootDir,
+                env: installEnv,
+            });
+        }
+        return spawnSync(npmCmd, args, {
             stdio: 'inherit',
             cwd: rootDir,
             env: installEnv,
             shell: isWin,
         });
+    }
+
+    // Prefer a clean lockfile install when the lock exists.
+    const preferCi = fs.existsSync(lockPath) && !process.argv.includes('--no-ci');
+    if (preferCi) {
+        const ci = runNpm(['ci', '--no-fund', '--no-audit']);
         if (ci.status === 0) {
             fs.writeFileSync(markerPath, expectedMarker);
             log('Dependencies installed (npm ci).');
@@ -88,12 +112,7 @@ export function ensureDependencies(forceInstall = false) {
         log('npm ci failed — falling back to npm install...');
     }
 
-    const install = spawnSync(npmCmd, ['install', '--no-fund', '--no-audit'], {
-        stdio: 'inherit',
-        cwd: rootDir,
-        env: installEnv,
-        shell: isWin,
-    });
+    const install = runNpm(['install', '--no-fund', '--no-audit']);
 
     if (install.status !== 0) {
         console.error('[ERROR] npm install failed. See output above for details.');

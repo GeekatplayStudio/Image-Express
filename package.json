@@ -22,11 +22,12 @@
   },
   "scripts": {
     "doctor:node": "node scripts/node-guard.mjs",
+    "setup": "node scripts/ensure-deps.mjs --force",
     "predev": "node scripts/ensure-deps.mjs",
     "dev": "node scripts/start-web.mjs dev",
     "launch": "node scripts/launch.mjs",
     "prebuild": "node scripts/ensure-deps.mjs && node scripts/prepare-build.mjs",
-    "build": "next build",
+    "build": "node scripts/build.mjs",
     "prestart": "node scripts/ensure-deps.mjs",
     "start": "node scripts/start-web.mjs prod",
     "audit:repo": "node scripts/repo-audit.mjs",

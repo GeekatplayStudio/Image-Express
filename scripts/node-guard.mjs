@@ -158,22 +158,68 @@ function guidance(minMajor) {
 }
 
 /**
+ * Copy of `env` with `dir` first on PATH.
+ *
+ * `process.env` is case-insensitive on Windows but a plain spread of it is not:
+ * the copy keeps the original `Path` key, so adding `PATH` leaves two entries
+ * and the child may inherit the unpatched one. That is not theoretical — it is
+ * why a re-exec once switched Node to 26 while npm stayed on the 10.x that
+ * shipped with the shadowing Node 22. Every path-like key is removed first.
+ */
+function withDirOnPath(env, dir) {
+    const patched = { ...env };
+    let existing = '';
+    for (const key of Object.keys(patched)) {
+        if (key.toLowerCase() === 'path') {
+            existing = patched[key] || existing;
+            delete patched[key];
+        }
+    }
+    patched.PATH = `${dir}${path.delimiter}${existing}`;
+    return patched;
+}
+
+/**
  * Returns a PATH-patched env that puts a supported Node (and its matching npm) first,
  * so any `npm` we spawn runs under the right engine even if we could not re-exec.
  */
 export function envWithSupportedNode(env = process.env, minMajor = requiredNodeMajor()) {
-    const patched = { ...env };
-    if (Number(process.versions.node.split('.')[0]) >= minMajor) return patched;
+    // Already running on a supported Node, but PATH may still lead to a stale
+    // npm — the re-exec that got us here prepended the right directory, so keep
+    // whatever PATH we were given rather than searching again.
+    if (Number(process.versions.node.split('.')[0]) >= minMajor) return { ...env };
     const better = findSupportedNode(minMajor);
-    if (!better) return patched;
+    if (!better) return { ...env };
+    return withDirOnPath(env, better.dir);
+}
 
-    // Windows env vars are case-insensitive; a plain spread can leave both PATH and Path.
-    const existing = env.PATH || env.Path || '';
-    for (const key of Object.keys(patched)) {
-        if (key.toLowerCase() === 'path') delete patched[key];
+/**
+ * Path to the npm CLI that ships with `nodeExePath`, or null.
+ *
+ * Never invoke `npm`/`npm.cmd` from PATH for an install. The Windows shim runs
+ * `npm prefix -g` and, if a globally-installed npm exists at that prefix, uses
+ * it *instead of* its own bundled copy — so a script launched by an old npm
+ * inherits `npm_config_prefix` and the shim politely hands control back to that
+ * old npm even when the correct one is first on PATH. Calling this file with
+ * `process.execPath` bypasses the shim, the global prefix and the shell.
+ */
+export function npmCliFor(nodeExePath = process.execPath) {
+    const cli = path.join(path.dirname(nodeExePath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    return fs.existsSync(cli) ? cli : null;
+}
+
+/**
+ * Drops the `npm_*` variables a parent npm injects into lifecycle scripts.
+ * They describe *that* npm's config and would otherwise steer the npm we are
+ * about to run. Real user settings live in .npmrc and are re-read from disk.
+ */
+export function envWithoutInheritedNpm(env = process.env) {
+    const clean = {};
+    for (const [key, value] of Object.entries(env)) {
+        if (/^npm_/i.test(key)) continue;
+        clean[key] = value;
     }
-    patched.PATH = `${better.dir}${path.delimiter}${existing}`;
-    return patched;
+    return clean;
 }
 
 /**
@@ -202,11 +248,7 @@ export function enforceSupportedNode({ reexec = true, exitOnFailure = true, labe
         const result = spawnSync(better.exePath, [script, ...process.argv.slice(2)], {
             stdio: 'inherit',
             cwd: process.cwd(),
-            env: {
-                ...process.env,
-                [REEXEC_FLAG]: '1',
-                PATH: `${better.dir}${path.delimiter}${process.env.PATH || ''}`,
-            },
+            env: { ...withDirOnPath(process.env, better.dir), [REEXEC_FLAG]: '1' },
         });
         process.exit(result.status === null ? 1 : result.status);
     }

@@ -19,7 +19,12 @@ import path from 'path';
 import { execFileSync, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { ensureDependencies } from './ensure-deps.mjs';
-import { enforceSupportedNode } from './node-guard.mjs';
+import {
+    enforceSupportedNode,
+    envWithoutInheritedNpm,
+    envWithSupportedNode,
+    npmCliFor,
+} from './node-guard.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -46,12 +51,16 @@ function fileFingerprint(relativePath) {
 
 function runNpm(args, label) {
     console.log(`[update] ${label}...`);
-    const result = spawnSync(npmCmd, args, {
-        cwd: rootDir,
-        stdio: 'inherit',
-        shell: isWindows,
-        env: { ...process.env, ELECTRON_SKIP_BINARY_DOWNLOAD: '1' },
-    });
+    // See scripts/node-guard.mjs: the npm shim can defer to a globally-installed
+    // npm, so call the CLI that ships with this Node directly.
+    const env = {
+        ...envWithoutInheritedNpm(envWithSupportedNode()),
+        ELECTRON_SKIP_BINARY_DOWNLOAD: '1',
+    };
+    const npmCli = npmCliFor();
+    const result = npmCli
+        ? spawnSync(process.execPath, [npmCli, ...args], { cwd: rootDir, stdio: 'inherit', env })
+        : spawnSync(npmCmd, args, { cwd: rootDir, stdio: 'inherit', shell: isWindows, env });
     if (result.status !== 0) {
         fail(`${label} failed. See output above.`);
     }
