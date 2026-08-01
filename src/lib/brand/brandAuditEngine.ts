@@ -110,6 +110,60 @@ function normalizeHexColor(color?: string): string | null {
     return cleaned;
 }
 
+function hexToRgb(color: string): { r: number; g: number; b: number } | null {
+    const normalized = normalizeHexColor(color);
+    if (!normalized || !normalized.startsWith('#') || normalized.length !== 7) return null;
+    const r = parseInt(normalized.slice(1, 3), 16);
+    const g = parseInt(normalized.slice(3, 5), 16);
+    const b = parseInt(normalized.slice(5, 7), 16);
+    if ([r, g, b].some((v) => Number.isNaN(v))) return null;
+    return { r, g, b };
+}
+
+/** WCAG relative luminance; null for non-hex inputs. */
+export function relativeLuminance(color: string): number | null {
+    const rgb = hexToRgb(color);
+    if (!rgb) return null;
+    const channel = (v: number) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b);
+}
+
+/** WCAG contrast ratio between two hex colors; null when either is not hex. */
+export function contrastRatio(colorA: string, colorB: string): number | null {
+    const la = relativeLuminance(colorA);
+    const lb = relativeLuminance(colorB);
+    if (la === null || lb === null) return null;
+    const lighter = Math.max(la, lb);
+    const darker = Math.min(la, lb);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+/** Closest allowed brand color by RGB distance; falls back to the first allowed color. */
+export function nearestPaletteColor(color: string, allowedColors: string[]): string {
+    const target = hexToRgb(color);
+    const candidates = allowedColors
+        .map((c) => ({ hex: c, rgb: hexToRgb(c) }))
+        .filter((c): c is { hex: string; rgb: { r: number; g: number; b: number } } => c.rgb !== null);
+    if (!target || candidates.length === 0) return allowedColors[0] || '#000000';
+
+    let best = candidates[0];
+    let bestDistance = Infinity;
+    for (const candidate of candidates) {
+        const distance =
+            (candidate.rgb.r - target.r) ** 2 +
+            (candidate.rgb.g - target.g) ** 2 +
+            (candidate.rgb.b - target.b) ** 2;
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            best = candidate;
+        }
+    }
+    return best.hex;
+}
+
 export function runHeuristicBrandAudit(
     metadata: CanvasMetadataSummary,
     profile: BrandProfile
@@ -201,6 +255,59 @@ export function runHeuristicBrandAudit(
                 });
             }
         }
+
+        // 4. Contrast check for text layers against the brand background color
+        if (layer.text !== undefined && layer.fill && layout.contrastRatioMin > 0) {
+            const ratio = contrastRatio(layer.fill, profile.palette.background);
+            if (ratio !== null && ratio < layout.contrastRatioMin) {
+                violations.push({
+                    id: `viol-contrast-${layer.id}`,
+                    category: 'layout',
+                    severity: 'high',
+                    message: `Text "${layer.name}" has contrast ratio ${ratio.toFixed(1)}:1 against the brand background — below the required ${layout.contrastRatioMin}:1.`,
+                    suggestion: `Use a higher-contrast fill such as ${relativeLuminance(profile.palette.background)! > 0.5 ? profile.palette.secondary : '#ffffff'}.`,
+                    layerId: layer.id,
+                    layerName: layer.name,
+                    boundingBox: box,
+                });
+            }
+        }
+
+        // 5. Logo placement rules for layers named like a logo
+        if ((layer.name || '').toLowerCase().includes('logo')) {
+            const { requiredPosition, minWidth } = profile.logo;
+            if (minWidth > 0 && layer.width < minWidth) {
+                violations.push({
+                    id: `viol-logo-size-${layer.id}`,
+                    category: 'logo',
+                    severity: 'medium',
+                    message: `Logo "${layer.name}" is ${layer.width}px wide — below the minimum logo width of ${minWidth}px.`,
+                    suggestion: `Scale the logo to at least ${minWidth}px wide.`,
+                    layerId: layer.id,
+                    layerName: layer.name,
+                    boundingBox: box,
+                });
+            }
+            if (requiredPosition !== 'any') {
+                const centerX = layer.left + layer.width / 2;
+                const centerY = layer.top + layer.height / 2;
+                const inLeft = centerX < metadata.canvasWidth / 2;
+                const inTop = centerY < metadata.canvasHeight / 2;
+                const actual = `${inTop ? 'top' : 'bottom'}-${inLeft ? 'left' : 'right'}`;
+                if (actual !== requiredPosition) {
+                    violations.push({
+                        id: `viol-logo-pos-${layer.id}`,
+                        category: 'logo',
+                        severity: 'medium',
+                        message: `Logo "${layer.name}" sits in the ${actual} quadrant but brand rules require ${requiredPosition}.`,
+                        suggestion: `Move the logo to the ${requiredPosition} corner with at least ${profile.logo.minPadding}px padding.`,
+                        layerId: layer.id,
+                        layerName: layer.name,
+                        boundingBox: box,
+                    });
+                }
+            }
+        }
     });
 
     let overallScore = 100 - violations.reduce((acc, v) => {
@@ -225,6 +332,84 @@ export function runHeuristicBrandAudit(
         violations,
         summary,
     };
+}
+
+function findLayerObject(canvas: fabric.Canvas, layerId?: string): fabric.Object | null {
+    if (!layerId) return null;
+    const objects = canvas.getObjects();
+    const byId = objects.find((o) => (o as fabric.Object & { id?: string }).id === layerId);
+    if (byId) return byId;
+    // extractCanvasMetadata falls back to positional ids: "layer-<index+1>"
+    const positional = layerId.match(/^layer-(\d+)$/);
+    if (positional) {
+        const index = parseInt(positional[1], 10) - 1;
+        if (index >= 0 && index < objects.length) return objects[index];
+    }
+    return null;
+}
+
+/**
+ * Mechanically corrects a violation on the canvas. Returns true when a fix
+ * was applied; false when the violation type has no automatic remedy or the
+ * layer could not be found.
+ */
+export function autoFixViolationOnCanvas(
+    violation: BrandViolation,
+    canvas: fabric.Canvas,
+    profile: BrandProfile
+): boolean {
+    const obj = findLayerObject(canvas, violation.layerId);
+    if (!obj) return false;
+    const target = obj as fabric.Object & {
+        fontFamily?: string;
+        fontSize?: number;
+        fill?: string;
+        width?: number;
+    };
+
+    if (violation.id.startsWith('viol-font-')) {
+        target.set('fontFamily', profile.typography.primaryFont);
+    } else if (violation.id.startsWith('viol-fontsize-')) {
+        target.set('fontSize', profile.typography.minBodySize);
+    } else if (violation.id.startsWith('viol-color-')) {
+        const current = typeof target.fill === 'string' ? target.fill : profile.palette.primary;
+        target.set('fill', nearestPaletteColor(current, profile.palette.allowedColors));
+    } else if (violation.id.startsWith('viol-contrast-')) {
+        const bgLum = relativeLuminance(profile.palette.background);
+        target.set('fill', bgLum !== null && bgLum > 0.5 ? profile.palette.secondary : '#ffffff');
+    } else if (violation.id.startsWith('viol-margin-')) {
+        const margin = profile.layout.minMargin;
+        const bounds = obj.getBoundingRect();
+        const canvasWidth = canvas.getWidth() || 800;
+        const canvasHeight = canvas.getHeight() || 600;
+        const maxLeft = Math.max(margin, canvasWidth - margin - bounds.width);
+        const maxTop = Math.max(margin, canvasHeight - margin - bounds.height);
+        const clampedLeft = Math.min(Math.max(bounds.left, margin), maxLeft);
+        const clampedTop = Math.min(Math.max(bounds.top, margin), maxTop);
+        obj.set({
+            left: (obj.left || 0) + (clampedLeft - bounds.left),
+            top: (obj.top || 0) + (clampedTop - bounds.top),
+        });
+        obj.setCoords();
+    } else {
+        return false;
+    }
+
+    canvas.requestRenderAll();
+    return true;
+}
+
+/** Applies every mechanically fixable violation; returns the number fixed. */
+export function autoFixAllViolationsOnCanvas(
+    report: BrandAuditReport,
+    canvas: fabric.Canvas,
+    profile: BrandProfile
+): number {
+    let fixed = 0;
+    for (const violation of report.violations) {
+        if (autoFixViolationOnCanvas(violation, canvas, profile)) fixed += 1;
+    }
+    return fixed;
 }
 
 export function buildBrandAuditVlmPrompt(

@@ -305,8 +305,9 @@ export default function Home() {
         <div className="flex items-center gap-6">
            <div className="flex items-center gap-2">
                <BrandIcon />
-               <span className="font-bold text-lg hidden lg:block ui-brand-gradient-text">
-                 Image Express
+               <span className="font-bold text-lg hidden lg:inline-flex items-baseline gap-1.5 ui-brand-gradient-text">
+                 <em>{t('dashboard.appName')}</em>
+                 <em className="text-sm font-semibold text-primary/90">{t('dashboard.appBeta')}</em>
                </span>
            </div>
         </div>

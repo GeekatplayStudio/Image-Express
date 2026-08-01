@@ -14,20 +14,26 @@ import {
 } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import {
+    autoFixAllViolationsOnCanvas,
+    autoFixViolationOnCanvas,
     BrandAuditReport,
     BrandViolation,
     extractCanvasMetadata,
     runHeuristicBrandAudit,
 } from '@/lib/brand/brandAuditEngine';
 import {
+    ApprovedAsset,
     BrandProfile,
     DEFAULT_BRAND_PROFILE,
     getActiveBrandProfile,
     loadBrandProfiles,
+    pushBrandProfileToServer,
     saveBrandProfile,
     setActiveBrandProfileId,
+    syncBrandProfilesFromServer,
 } from '@/lib/brand/brandProfile';
 import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
+import { loadGenerativePreferences } from '@/lib/generative-preferences';
 import { useI18n } from '@/providers/I18nProvider';
 
 interface BrandManagerModalProps {
@@ -57,64 +63,109 @@ export default function BrandManagerModal({
     const [formSecondaryColor, setFormSecondaryColor] = useState('');
     const [formAccentColor, setFormAccentColor] = useState('');
     const [formPrimaryFont, setFormPrimaryFont] = useState('');
+    const [formAllowedFonts, setFormAllowedFonts] = useState('');
+    const [formAllowedColors, setFormAllowedColors] = useState('');
     const [formMargin, setFormMargin] = useState(20);
+    const [formLogoPosition, setFormLogoPosition] = useState<BrandProfile['logo']['requiredPosition']>('top-left');
+    const [formLogoDataUrl, setFormLogoDataUrl] = useState('');
+    const [formAssets, setFormAssets] = useState<ApprovedAsset[]>([]);
+    const [newAssetType, setNewAssetType] = useState<ApprovedAsset['type']>('shape');
 
     useEscapeKey(onClose, { enabled: isOpen });
 
-    // Refresh profiles on open
+    const applyProfileToForm = useCallback((active: BrandProfile) => {
+        setFormName(active.name);
+        setFormPrimaryColor(active.palette.primary);
+        setFormSecondaryColor(active.palette.secondary);
+        setFormAccentColor(active.palette.accent);
+        setFormPrimaryFont(active.typography.primaryFont);
+        setFormAllowedFonts(active.typography.allowedFonts.join(', '));
+        setFormAllowedColors(active.palette.allowedColors.join(', '));
+        setFormMargin(active.layout.minMargin);
+        setFormLogoPosition(active.logo.requiredPosition);
+        setFormLogoDataUrl(active.logo.logoAssetUrl || '');
+        setFormAssets(active.assets || []);
+    }, []);
+
+    // Refresh profiles on open: local cache first, then the server store
+    // (shared with MCP clients) as source of truth once reachable.
     useEffect(() => {
         if (!isOpen) return;
         const loaded = loadBrandProfiles();
         setProfiles(loaded);
         const active = getActiveBrandProfile();
         setActiveProfile(active);
+        applyProfileToForm(active);
 
-        setFormName(active.name);
-        setFormPrimaryColor(active.palette.primary);
-        setFormSecondaryColor(active.palette.secondary);
-        setFormAccentColor(active.palette.accent);
-        setFormPrimaryFont(active.typography.primaryFont);
-        setFormMargin(active.layout.minMargin);
-    }, [isOpen]);
+        let cancelled = false;
+        void syncBrandProfilesFromServer().then((synced) => {
+            if (!synced || cancelled) return;
+            setProfiles(synced.profiles);
+            setActiveProfile(synced.activeProfile);
+            applyProfileToForm(synced.activeProfile);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, applyProfileToForm]);
 
-    // Canvas overlay highlight helper
-    const highlightViolationOnCanvas = useCallback((violation: BrandViolation) => {
+    const SEVERITY_COLORS: Record<BrandViolation['severity'], string> = {
+        high: '#ef4444',
+        medium: '#f59e0b',
+        low: '#38bdf8',
+    };
+
+    const removeOverlayObjects = useCallback(() => {
+        if (!canvas) return;
+        const overlays = canvas.getObjects().filter((o) =>
+            String(o.get('id') || '').startsWith('__brand_audit_overlay')
+        );
+        overlays.forEach((o) => canvas.remove(o));
+    }, [canvas]);
+
+    const addOverlayRect = useCallback((violation: BrandViolation, suffix: string) => {
         if (!canvas || !violation.boundingBox) return;
-        setSelectedViolation(violation);
-
-        // Find existing highlight rect or add temporary overlay box
-        const existingHighlight = canvas.getObjects().find((o) => o.get('id') === '__brand_audit_overlay__');
-        if (existingHighlight) {
-            canvas.remove(existingHighlight);
-        }
-
         const { left, top, width, height } = violation.boundingBox;
+        const color = SEVERITY_COLORS[violation.severity] || '#ef4444';
         const highlightRect = new fabric.Rect({
             left,
             top,
             width,
             height,
-            fill: 'rgba(239, 68, 68, 0.15)',
-            stroke: '#ef4444',
+            fill: `${color}26`,
+            stroke: color,
             strokeWidth: 2,
             strokeDashArray: [6, 4],
             selectable: false,
             evented: false,
         });
-        highlightRect.set('id', '__brand_audit_overlay__');
+        highlightRect.set('id', `__brand_audit_overlay__${suffix}`);
         canvas.add(highlightRect);
-        canvas.requestRenderAll();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [canvas]);
+
+    // Canvas overlay highlight helpers
+    const highlightViolationOnCanvas = useCallback((violation: BrandViolation) => {
+        if (!canvas || !violation.boundingBox) return;
+        setSelectedViolation(violation);
+        removeOverlayObjects();
+        addOverlayRect(violation, violation.id);
+        canvas.requestRenderAll();
+    }, [canvas, removeOverlayObjects, addOverlayRect]);
+
+    const highlightAllViolationsOnCanvas = useCallback((violations: BrandViolation[]) => {
+        if (!canvas) return;
+        removeOverlayObjects();
+        violations.filter((v) => v.boundingBox).forEach((v) => addOverlayRect(v, v.id));
+        canvas.requestRenderAll();
+    }, [canvas, removeOverlayObjects, addOverlayRect]);
 
     const clearCanvasHighlight = useCallback(() => {
         if (!canvas) return;
-        const existingHighlight = canvas.getObjects().find((o) => o.get('id') === '__brand_audit_overlay__');
-        if (existingHighlight) {
-            canvas.remove(existingHighlight);
-            canvas.requestRenderAll();
-        }
+        removeOverlayObjects();
+        canvas.requestRenderAll();
         setSelectedViolation(null);
-    }, [canvas]);
+    }, [canvas, removeOverlayObjects]);
 
     const handleRunAudit = async () => {
         if (!canvas) {
@@ -138,6 +189,14 @@ export default function BrandManagerModal({
                 // ignore image export errors for local metadata audit
             }
 
+            // Use the configured external VLM (OpenAI/Gemini) when it is the
+            // default generative provider and a key is saved; otherwise Ollama.
+            const generative = loadGenerativePreferences();
+            const externalProvider = generative.defaultProvider === 'openai' || generative.defaultProvider === 'google'
+                ? generative.defaultProvider
+                : null;
+            const externalKey = externalProvider ? localStorage.getItem(`${externalProvider}_api_key`) || '' : '';
+
             const response = await fetch('/api/ai/brand-manager/audit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -145,8 +204,11 @@ export default function BrandManagerModal({
                     metadata,
                     brandProfile: activeProfile,
                     baseUrl: prefs.ollamaBaseUrl,
-                    model: prefs.ollamaModel,
+                    model: externalProvider && externalKey ? undefined : prefs.ollamaModel,
                     imageDataUrl: dataUrl,
+                    ...(externalProvider && externalKey
+                        ? { provider: externalProvider, apiKey: externalKey }
+                        : {}),
                 }),
             });
 
@@ -168,6 +230,56 @@ export default function BrandManagerModal({
         }
     };
 
+    const handleAutoFix = (violation: BrandViolation) => {
+        if (!canvas) return;
+        const fixed = autoFixViolationOnCanvas(violation, canvas, activeProfile);
+        if (!fixed) {
+            setErrorMessage(`"${violation.message}" has no automatic fix — adjust the layer manually.`);
+            return;
+        }
+        clearCanvasHighlight();
+        // Re-audit locally so the report reflects the corrected canvas
+        const metadata = extractCanvasMetadata(canvas);
+        setAuditReport(runHeuristicBrandAudit(metadata, activeProfile));
+    };
+
+    const handleAutoFixAll = () => {
+        if (!canvas || !auditReport) return;
+        autoFixAllViolationsOnCanvas(auditReport, canvas, activeProfile);
+        clearCanvasHighlight();
+        const metadata = extractCanvasMetadata(canvas);
+        setAuditReport(runHeuristicBrandAudit(metadata, activeProfile));
+    };
+
+    const handleLogoUpload = (file: File | undefined) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === 'string') setFormLogoDataUrl(reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleAssetUpload = (file: File | undefined) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result !== 'string') return;
+            const asset: ApprovedAsset = {
+                id: `asset-${Date.now()}`,
+                name: file.name.replace(/\.[^.]+$/, ''),
+                type: newAssetType,
+                url: reader.result,
+            };
+            setFormAssets((prev) => [...prev, asset]);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleRemoveAsset = (assetId: string) => {
+        setFormAssets((prev) => prev.filter((a) => a.id !== assetId));
+    };
+
     const handleSaveSetup = () => {
         const updated: BrandProfile = {
             ...activeProfile,
@@ -177,27 +289,32 @@ export default function BrandManagerModal({
                 primary: formPrimaryColor || '#2563eb',
                 secondary: formSecondaryColor || '#0f172a',
                 accent: formAccentColor || '#f59e0b',
-                allowedColors: [
-                    formPrimaryColor,
-                    formSecondaryColor,
-                    formAccentColor,
-                    '#ffffff',
-                    '#000000',
-                ].filter(Boolean),
+                allowedColors: formAllowedColors
+                    ? formAllowedColors.split(',').map((c) => c.trim()).filter(Boolean)
+                    : [formPrimaryColor, formSecondaryColor, formAccentColor, '#ffffff', '#000000'].filter(Boolean),
             },
             typography: {
                 ...activeProfile.typography,
                 primaryFont: formPrimaryFont || 'Inter',
-                allowedFonts: [formPrimaryFont, 'Inter', 'Roboto', 'Arial'].filter(Boolean),
+                allowedFonts: formAllowedFonts
+                    ? formAllowedFonts.split(',').map((f) => f.trim()).filter(Boolean)
+                    : [formPrimaryFont, 'Inter', 'Roboto', 'Arial'].filter(Boolean),
+            },
+            logo: {
+                ...activeProfile.logo,
+                requiredPosition: formLogoPosition,
+                logoAssetUrl: formLogoDataUrl || activeProfile.logo.logoAssetUrl,
             },
             layout: {
                 ...activeProfile.layout,
                 minMargin: Number(formMargin) || 20,
             },
+            assets: formAssets,
             updatedAt: new Date().toISOString(),
         };
 
         const nextProfiles = saveBrandProfile(updated);
+        pushBrandProfileToServer({ profile: updated });
         setProfiles(nextProfiles);
         setActiveProfile(updated);
         setActiveTab('audit');
@@ -244,6 +361,8 @@ export default function BrandManagerModal({
                                 if (selected) {
                                     setActiveProfile(selected);
                                     setActiveBrandProfileId(selected.id);
+                                    pushBrandProfileToServer({ activeProfileId: selected.id });
+                                    applyProfileToForm(selected);
                                 }
                             }}
                             className="text-xs font-medium bg-background border border-border rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -359,9 +478,31 @@ export default function BrandManagerModal({
 
                                     {/* Violations List */}
                                     <div className="space-y-2">
-                                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                            Detected Issues ({auditReport.violations.length})
-                                        </h4>
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                Detected Issues ({auditReport.violations.length})
+                                            </h4>
+                                            {auditReport.violations.length > 0 && (
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => highlightAllViolationsOnCanvas(auditReport.violations)}
+                                                        className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-secondary hover:bg-accent transition-colors"
+                                                        title="Show every violation bounding box on the canvas, color-coded by severity"
+                                                    >
+                                                        <Eye size={12} />
+                                                        <span>Highlight All</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={handleAutoFixAll}
+                                                        className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
+                                                        title="Automatically correct all mechanically fixable violations"
+                                                    >
+                                                        <ShieldCheck size={12} />
+                                                        <span>Auto-Fix All</span>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
 
                                         {auditReport.violations.length === 0 ? (
                                             <div className="p-6 text-center rounded-xl border border-dashed border-border bg-muted/20 text-xs text-muted-foreground">
@@ -391,16 +532,26 @@ export default function BrandManagerModal({
                                                             </p>
                                                         </div>
 
-                                                        {v.boundingBox && (
+                                                        <div className="flex flex-col gap-1 shrink-0">
+                                                            {v.boundingBox && (
+                                                                <button
+                                                                    onClick={() => highlightViolationOnCanvas(v)}
+                                                                    className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors"
+                                                                    title="Highlight issue bounding area on canvas"
+                                                                >
+                                                                    <Eye size={12} />
+                                                                    <span>Highlight</span>
+                                                                </button>
+                                                            )}
                                                             <button
-                                                                onClick={() => highlightViolationOnCanvas(v)}
-                                                                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors shrink-0"
-                                                                title="Highlight issue bounding area on canvas"
+                                                                onClick={() => handleAutoFix(v)}
+                                                                className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-emerald-600/90 text-white hover:bg-emerald-500 transition-colors"
+                                                                title="Automatically correct this violation"
                                                             >
-                                                                <Eye size={12} />
-                                                                <span>Highlight</span>
+                                                                <ShieldCheck size={12} />
+                                                                <span>Auto-Fix</span>
                                                             </button>
-                                                        )}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -501,6 +652,125 @@ export default function BrandManagerModal({
                                         className="w-full text-xs bg-background border border-border rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:outline-none"
                                     />
                                 </div>
+
+                                <div className="space-y-1 md:col-span-2">
+                                    <label className="text-xs font-medium text-muted-foreground">Allowed Fonts (comma-separated)</label>
+                                    <input
+                                        type="text"
+                                        value={formAllowedFonts}
+                                        onChange={(e) => setFormAllowedFonts(e.target.value)}
+                                        className="w-full text-xs bg-background border border-border rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:outline-none"
+                                        placeholder="e.g. Inter, Roboto, Outfit, Arial"
+                                    />
+                                </div>
+
+                                <div className="space-y-1 md:col-span-2">
+                                    <label className="text-xs font-medium text-muted-foreground">Allowed Colors (comma-separated hex)</label>
+                                    <input
+                                        type="text"
+                                        value={formAllowedColors}
+                                        onChange={(e) => setFormAllowedColors(e.target.value)}
+                                        className="w-full text-xs bg-background border border-border rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:outline-none"
+                                        placeholder="e.g. #2563eb, #0f172a, #f59e0b, #ffffff"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-muted-foreground">Required Logo Position</label>
+                                    <select
+                                        value={formLogoPosition}
+                                        onChange={(e) => setFormLogoPosition(e.target.value as BrandProfile['logo']['requiredPosition'])}
+                                        className="w-full text-xs bg-background border border-border rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:outline-none"
+                                    >
+                                        <option value="top-left">Top Left</option>
+                                        <option value="top-right">Top Right</option>
+                                        <option value="bottom-left">Bottom Left</option>
+                                        <option value="bottom-right">Bottom Right</option>
+                                        <option value="any">Any Position</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-muted-foreground">Brand Logo</label>
+                                    <div className="flex items-center gap-2">
+                                        {formLogoDataUrl && (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={formLogoDataUrl}
+                                                alt="Brand logo preview"
+                                                className="w-8 h-8 object-contain rounded border border-border bg-background"
+                                            />
+                                        )}
+                                        <input
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                            aria-label="Upload brand logo"
+                                            onChange={(e) => handleLogoUpload(e.target.files?.[0])}
+                                            className="flex-1 text-xs text-muted-foreground file:mr-2 file:px-2 file:py-1 file:text-xs file:rounded file:border-0 file:bg-secondary file:text-foreground hover:file:bg-accent"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Approved Assets Library */}
+                            <div className="space-y-2 pt-2">
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                    Approved Assets ({formAssets.length})
+                                </h4>
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={newAssetType}
+                                        onChange={(e) => setNewAssetType(e.target.value as ApprovedAsset['type'])}
+                                        aria-label="New asset type"
+                                        className="text-xs bg-background border border-border rounded-md px-2 py-2 focus:ring-1 focus:ring-primary focus:outline-none"
+                                    >
+                                        <option value="shape">Shape</option>
+                                        <option value="icon">Icon</option>
+                                        <option value="logo">Logo</option>
+                                        <option value="template">Template</option>
+                                    </select>
+                                    <input
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                        aria-label="Upload approved asset"
+                                        onChange={(e) => {
+                                            handleAssetUpload(e.target.files?.[0]);
+                                            e.target.value = '';
+                                        }}
+                                        className="flex-1 text-xs text-muted-foreground file:mr-2 file:px-2 file:py-1 file:text-xs file:rounded file:border-0 file:bg-secondary file:text-foreground hover:file:bg-accent"
+                                    />
+                                </div>
+
+                                {formAssets.length > 0 && (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {formAssets.map((asset) => (
+                                            <div
+                                                key={asset.id}
+                                                className="flex items-center gap-2 p-2 rounded-lg border border-border/70 bg-card/50 text-xs"
+                                            >
+                                                {asset.url && (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img
+                                                        src={asset.url}
+                                                        alt={asset.name}
+                                                        className="w-8 h-8 object-contain rounded bg-background border border-border/60"
+                                                    />
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium truncate">{asset.name}</p>
+                                                    <p className="text-[10px] uppercase text-muted-foreground">{asset.type}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleRemoveAsset(asset.id)}
+                                                    className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                                    title={`Remove ${asset.name}`}
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="pt-4 flex justify-end">

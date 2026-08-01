@@ -41,9 +41,17 @@ export const DEFAULT_SOCIAL_AGENT: CustomAgentDefinition = {
     updatedAt: new Date().toISOString(),
 };
 
+export type AgentStepAction =
+    | 'SET_CANVAS_SIZE'
+    | 'SET_BACKGROUND_COLOR'
+    | 'GENERATE_AI_BACKGROUND'
+    | 'ADD_TEXT'
+    | 'ADD_SHAPE'
+    | 'RUN_BRAND_AUDIT';
+
 export interface AgentStepPlanItem {
     id: string;
-    action: 'SET_CANVAS_SIZE' | 'SET_BACKGROUND_COLOR' | 'ADD_TEXT' | 'ADD_SHAPE' | 'RUN_BRAND_AUDIT';
+    action: AgentStepAction;
     description: string;
     params: Record<string, unknown>;
     status: 'pending' | 'running' | 'completed' | 'failed';
@@ -99,12 +107,101 @@ export function saveCustomAgent(agent: CustomAgentDefinition): CustomAgentDefini
     return next;
 }
 
+/** Hydrates agents from the server store shared with MCP; null when unreachable. */
+export async function syncCustomAgentsFromServer(): Promise<CustomAgentDefinition[] | null> {
+    try {
+        const response = await fetch('/api/ai/super-agent/agents');
+        if (!response.ok) return null;
+        const data = await response.json() as { success?: boolean; agents?: CustomAgentDefinition[] };
+        if (!data.success || !Array.isArray(data.agents) || data.agents.length === 0) return null;
+        saveCustomAgents(data.agents);
+        return data.agents;
+    } catch {
+        return null;
+    }
+}
+
+/** Pushes an agent definition to the server store; best-effort. */
+export function pushCustomAgentToServer(agent: CustomAgentDefinition): void {
+    try {
+        void fetch('/api/ai/super-agent/agents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent }),
+        }).catch(() => undefined);
+    } catch {
+        // offline
+    }
+}
+
 export function deleteCustomAgent(id: string): CustomAgentDefinition[] {
     const agents = loadCustomAgents();
     const filtered = agents.filter((a) => a.id !== id);
     const result = filtered.length > 0 ? filtered : [DEFAULT_SUPER_AGENT];
     saveCustomAgents(result);
     return result;
+}
+
+export interface PromptDesignHints {
+    width?: number;
+    height?: number;
+    backgroundColor?: string;
+    accentColor?: string;
+    title?: string;
+    wantsAiBackground: boolean;
+}
+
+const COLOR_KEYWORDS: Record<string, { background: string; accent: string }> = {
+    blue: { background: '#0f172a', accent: '#2563eb' },
+    navy: { background: '#0b1220', accent: '#1d4ed8' },
+    brown: { background: '#2b1d12', accent: '#92400e' },
+    coffee: { background: '#2b1d12', accent: '#92400e' },
+    green: { background: '#052e16', accent: '#16a34a' },
+    red: { background: '#450a0a', accent: '#dc2626' },
+    orange: { background: '#431407', accent: '#ea580c' },
+    purple: { background: '#2e1065', accent: '#7c3aed' },
+    pink: { background: '#500724', accent: '#db2777' },
+    yellow: { background: '#422006', accent: '#eab308' },
+    teal: { background: '#042f2e', accent: '#0d9488' },
+    black: { background: '#09090b', accent: '#fafafa' },
+    'dark-mode': { background: '#09090b', accent: '#38bdf8' },
+    dark: { background: '#09090b', accent: '#38bdf8' },
+    white: { background: '#ffffff', accent: '#0f172a' },
+    light: { background: '#f8fafc', accent: '#0f172a' },
+};
+
+/**
+ * Extracts concrete design directives from a natural-language prompt so the
+ * offline fallback planner still honors requested sizes and palettes.
+ */
+export function parsePromptDesignHints(prompt: string): PromptDesignHints {
+    const hints: PromptDesignHints = { wantsAiBackground: false };
+    const lower = prompt.toLowerCase();
+
+    const dimensionMatch = lower.match(/(\d{2,4})\s*[x×]\s*(\d{2,4})/);
+    if (dimensionMatch) {
+        const w = parseInt(dimensionMatch[1], 10);
+        const h = parseInt(dimensionMatch[2], 10);
+        if (w >= 16 && h >= 16 && w <= 8192 && h <= 8192) {
+            hints.width = w;
+            hints.height = h;
+        }
+    }
+
+    for (const [keyword, colors] of Object.entries(COLOR_KEYWORDS)) {
+        if (lower.includes(keyword)) {
+            hints.backgroundColor = colors.background;
+            hints.accentColor = colors.accent;
+            break;
+        }
+    }
+
+    hints.wantsAiBackground = /\b(photo|photograph|image of|scene|landscape|realistic|illustration|generate .*background|ai background)\b/.test(lower);
+
+    const quotedTitle = prompt.match(/["“”']([^"“”']{2,80})["“”']/);
+    if (quotedTitle) hints.title = quotedTitle[1];
+
+    return hints;
 }
 
 /**
@@ -115,12 +212,30 @@ export function generateSuperAgentPlan(
     agent: CustomAgentDefinition,
     brandProfile?: BrandProfile
 ): AgentExecutionPlan {
-    const width = agent.defaultWidth || 1080;
-    const height = agent.defaultHeight || 1080;
-    const primaryColor = brandProfile?.palette.primary || '#2563eb';
-    const secondaryColor = brandProfile?.palette.secondary || '#0f172a';
+    const hints = parsePromptDesignHints(userPrompt);
+    const width = hints.width || agent.defaultWidth || 1080;
+    const height = hints.height || agent.defaultHeight || 1080;
+    const primaryColor = hints.accentColor || brandProfile?.palette.primary || '#2563eb';
+    const secondaryColor = hints.backgroundColor || brandProfile?.palette.secondary || '#0f172a';
     const font = brandProfile?.typography.primaryFont || 'Inter';
     const accentFont = brandProfile?.typography.accentFont || 'Outfit';
+    const title = hints.title || (userPrompt.length > 40 ? userPrompt.slice(0, 40) + '...' : userPrompt);
+
+    const backgroundStep: AgentStepPlanItem = hints.wantsAiBackground
+        ? {
+            id: 'step-2-bg',
+            action: 'GENERATE_AI_BACKGROUND',
+            description: 'Generate AI background image from prompt',
+            params: { prompt: userPrompt, width, height, fallbackColor: secondaryColor },
+            status: 'pending',
+        }
+        : {
+            id: 'step-2-bg',
+            action: 'SET_BACKGROUND_COLOR',
+            description: `Apply background color (${secondaryColor})`,
+            params: { color: secondaryColor },
+            status: 'pending',
+        };
 
     const steps: AgentStepPlanItem[] = [
         {
@@ -130,13 +245,7 @@ export function generateSuperAgentPlan(
             params: { width, height },
             status: 'pending',
         },
-        {
-            id: 'step-2-bg',
-            action: 'SET_BACKGROUND_COLOR',
-            description: `Apply background color (${secondaryColor})`,
-            params: { color: secondaryColor },
-            status: 'pending',
-        },
+        backgroundStep,
         {
             id: 'step-3-accent-shape',
             action: 'ADD_SHAPE',
@@ -158,7 +267,7 @@ export function generateSuperAgentPlan(
             action: 'ADD_TEXT',
             description: `Add main title heading`,
             params: {
-                text: userPrompt.length > 30 ? userPrompt.slice(0, 30) + '...' : userPrompt,
+                text: title,
                 fontSize: Math.round(width * 0.05),
                 fontFamily: accentFont,
                 fill: '#ffffff',
@@ -198,6 +307,107 @@ export function generateSuperAgentPlan(
         steps,
         status: 'planned',
         summary: `Plan generated for "${userPrompt}" with ${steps.length} sequential execution steps.`,
+    };
+}
+
+const VALID_STEP_ACTIONS: AgentStepAction[] = [
+    'SET_CANVAS_SIZE',
+    'SET_BACKGROUND_COLOR',
+    'GENERATE_AI_BACKGROUND',
+    'ADD_TEXT',
+    'ADD_SHAPE',
+    'RUN_BRAND_AUDIT',
+];
+
+/**
+ * Builds the planning prompt sent to the local/external LLM. The model plans
+ * the concrete step list; the heuristic template is only the offline fallback.
+ */
+export function buildSuperAgentPlanLlmPrompt(
+    userPrompt: string,
+    agent: CustomAgentDefinition,
+    brandProfile?: BrandProfile
+): string {
+    const brand = brandProfile
+        ? `BRAND KIT "${brandProfile.name}": primary ${brandProfile.palette.primary}, secondary ${brandProfile.palette.secondary}, accent ${brandProfile.palette.accent}, fonts ${brandProfile.typography.allowedFonts.join(', ')} (primary "${brandProfile.typography.primaryFont}"), min margin ${brandProfile.layout.minMargin}px.`
+        : 'No brand kit active — use tasteful modern defaults.';
+
+    return `${agent.systemPrompt}
+
+You plan design tasks as an ordered JSON list of canvas operations.
+${brand}
+Default canvas: ${agent.defaultWidth}x${agent.defaultHeight}px (override if the user asks for a size).
+
+Allowed actions and params:
+- SET_CANVAS_SIZE {width, height}
+- SET_BACKGROUND_COLOR {color}
+- GENERATE_AI_BACKGROUND {prompt, width, height, fallbackColor}
+- ADD_TEXT {text, fontSize, fontFamily, fill, left, top}
+- ADD_SHAPE {shapeType:"rect", left, top, width, height, fill, rx, ry}
+- RUN_BRAND_AUDIT {}
+
+Rules: first step must be SET_CANVAS_SIZE; last step must be RUN_BRAND_AUDIT; use brand fonts/colors; keep all elements inside margins; 4-10 steps total.
+
+USER REQUEST: ${userPrompt}
+
+Return ONLY a JSON array like:
+[{"action":"SET_CANVAS_SIZE","description":"...","params":{"width":1080,"height":1080}}, ...]`;
+}
+
+/**
+ * Parses and validates an LLM planning response into an execution plan.
+ * Returns null when the response has no usable step list.
+ */
+export function parseLlmPlanResponse(
+    responseText: string,
+    userPrompt: string,
+    agent: CustomAgentDefinition
+): AgentExecutionPlan | null {
+    const arrayMatch = responseText.match(/\[[\s\S]*\]/);
+    if (!arrayMatch) return null;
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(arrayMatch[0]);
+    } catch {
+        return null;
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+    const steps: AgentStepPlanItem[] = [];
+    for (const item of parsed) {
+        if (!item || typeof item !== 'object') continue;
+        const candidate = item as { action?: string; description?: string; params?: Record<string, unknown> };
+        const action = String(candidate.action || '').toUpperCase() as AgentStepAction;
+        if (!VALID_STEP_ACTIONS.includes(action)) continue;
+        steps.push({
+            id: `step-${steps.length + 1}-${action.toLowerCase()}`,
+            action,
+            description: String(candidate.description || action),
+            params: candidate.params && typeof candidate.params === 'object' ? candidate.params : {},
+            status: 'pending',
+        });
+    }
+
+    if (steps.length < 2) return null;
+    if (!steps.some((s) => s.action === 'RUN_BRAND_AUDIT')) {
+        steps.push({
+            id: `step-${steps.length + 1}-run_brand_audit`,
+            action: 'RUN_BRAND_AUDIT',
+            description: 'Delegate to AI Brand Manager for compliance audit',
+            params: {},
+            status: 'pending',
+        });
+    }
+
+    return {
+        id: `plan-${Date.now()}`,
+        agentId: agent.id,
+        agentName: agent.name,
+        prompt: userPrompt,
+        steps,
+        status: 'planned',
+        summary: `LLM plan generated for "${userPrompt}" with ${steps.length} steps.`,
     };
 }
 
@@ -268,6 +478,55 @@ export async function executeAgentStepOnCanvas(
                 width: Math.min(600, (canvas.getWidth() || 800) * 0.7),
             });
             canvas.add(textObj);
+            canvas.requestRenderAll();
+            break;
+        }
+
+        case 'GENERATE_AI_BACKGROUND': {
+            const prompt = String(step.params.prompt || 'abstract background');
+            const width = Number(step.params.width) || canvas.getWidth() || 1080;
+            const height = Number(step.params.height) || canvas.getHeight() || 1080;
+            const fallbackColor = String(step.params.fallbackColor || '#0f172a');
+
+            let imageUrl: string | null = null;
+            try {
+                const prefs = typeof window !== 'undefined'
+                    ? JSON.parse(localStorage.getItem('image-express-local-ai-preferences') || '{}') as {
+                        ollamaBaseUrl?: string;
+                        ollamaModel?: string;
+                    }
+                    : {};
+                const response = await fetch('/api/ai/generate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt,
+                        width,
+                        height,
+                        provider: 'remote',
+                        specificProvider: String(step.params.specificProvider || 'ollama'),
+                        localAiBaseUrl: prefs.ollamaBaseUrl,
+                        localAiModel: prefs.ollamaModel,
+                    }),
+                });
+                const data = await response.json() as { success?: boolean; imageUrl?: string };
+                if (response.ok && data.success && data.imageUrl) {
+                    imageUrl = data.imageUrl;
+                }
+            } catch {
+                // generation unavailable — fall back to a solid brand background
+            }
+
+            if (imageUrl) {
+                const img = await fabric.FabricImage.fromURL(imageUrl, { crossOrigin: 'anonymous' });
+                const scale = Math.max(width / (img.width || width), height / (img.height || height));
+                img.set({ left: 0, top: 0, scaleX: scale, scaleY: scale, selectable: false, evented: false });
+                img.set('id', '__super_agent_background__');
+                canvas.add(img);
+                canvas.sendObjectToBack(img);
+            } else {
+                canvas.backgroundColor = fallbackColor;
+            }
             canvas.requestRenderAll();
             break;
         }

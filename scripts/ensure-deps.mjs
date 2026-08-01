@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
@@ -13,31 +14,75 @@ function log(msg) {
     console.log(`[DEPS] ${msg}`);
 }
 
+function sha1File(filePath) {
+    if (!fs.existsSync(filePath)) return 'missing';
+    return createHash('sha1').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function criticalBinsPresent() {
+    const nextBin = path.join(rootDir, 'node_modules', '.bin', isWin ? 'next.cmd' : 'next');
+    const react = path.join(rootDir, 'node_modules', 'react', 'package.json');
+    const nextPkg = path.join(rootDir, 'node_modules', 'next', 'package.json');
+    return fs.existsSync(nextBin) && fs.existsSync(react) && fs.existsSync(nextPkg);
+}
+
+/**
+ * Install / repair npm dependencies when missing, incomplete, or out of date.
+ * Safe to call from installers, launchers, and the self-updater.
+ */
 export function ensureDependencies(forceInstall = false) {
     const nodeModulesPath = path.join(rootDir, 'node_modules');
     const markerPath = path.join(nodeModulesPath, '.install-complete');
     const lockPath = path.join(rootDir, 'package-lock.json');
+    const pkgPath = path.join(rootDir, 'package.json');
+
+    const lockHash = sha1File(lockPath);
+    const pkgHash = sha1File(pkgPath);
+    const expectedMarker = `${pkgHash}:${lockHash}`;
+
+    let markerOk = false;
+    if (fs.existsSync(markerPath)) {
+        try {
+            markerOk = fs.readFileSync(markerPath, 'utf8').trim() === expectedMarker;
+        } catch {
+            markerOk = false;
+        }
+    }
 
     const needsInstall =
         forceInstall ||
         !fs.existsSync(nodeModulesPath) ||
-        !fs.existsSync(path.join(nodeModulesPath, '.bin', isWin ? 'next.cmd' : 'next')) ||
-        !fs.existsSync(markerPath) ||
-        (fs.existsSync(lockPath) &&
-            fs.statSync(lockPath).mtimeMs > (fs.existsSync(markerPath) ? fs.statSync(markerPath).mtimeMs : 0));
+        !criticalBinsPresent() ||
+        !markerOk;
 
     if (!needsInstall) {
-        return;
+        return false;
     }
 
-    log('Dependencies missing or out of date. Installing (this may take a few minutes)...');
-    // Electron's postinstall downloads a large binary and is only needed for
-    // the desktop app shell, not the web app. Skipping it avoids failures
-    // behind corporate proxies/firewalls with custom SSL certs.
+    log(forceInstall
+        ? 'Refreshing dependencies...'
+        : 'Dependencies missing, incomplete, or out of date. Installing (this may take a few minutes)...');
+
     const installEnv = { ...process.env, ELECTRON_SKIP_BINARY_DOWNLOAD: '1' };
-    // Windows blocks spawning .cmd files without a shell (Node CVE-2024-27980 fix),
-    // so a shell is required there; elsewhere skip it to avoid DEP0190.
-    const install = spawnSync(npmCmd, ['install'], {
+
+    // Prefer a clean lockfile install when the lock exists.
+    const preferCi = fs.existsSync(lockPath) && !process.argv.includes('--no-ci');
+    if (preferCi) {
+        const ci = spawnSync(npmCmd, ['ci', '--no-fund', '--no-audit'], {
+            stdio: 'inherit',
+            cwd: rootDir,
+            env: installEnv,
+            shell: isWin,
+        });
+        if (ci.status === 0) {
+            fs.writeFileSync(markerPath, expectedMarker);
+            log('Dependencies installed (npm ci).');
+            return true;
+        }
+        log('npm ci failed — falling back to npm install...');
+    }
+
+    const install = spawnSync(npmCmd, ['install', '--no-fund', '--no-audit'], {
         stdio: 'inherit',
         cwd: rootDir,
         env: installEnv,
@@ -49,11 +94,16 @@ export function ensureDependencies(forceInstall = false) {
         process.exit(install.status || 1);
     }
 
-    fs.writeFileSync(markerPath, new Date().toISOString());
+    if (!criticalBinsPresent()) {
+        console.error('[ERROR] Install finished but critical packages are still missing (next/react).');
+        process.exit(1);
+    }
+
+    fs.writeFileSync(markerPath, expectedMarker);
     log('Dependencies installed.');
+    return true;
 }
 
-// Allow running directly (`node scripts/ensure-deps.mjs`) as well as importing.
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isMain) {
     ensureDependencies(process.argv.includes('--force'));

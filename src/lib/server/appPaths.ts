@@ -44,3 +44,7 @@ export function getDesignsDir() {
 export function getTemplatesDir() {
     return path.join(getAssetsDir(), 'templates');
 }
+
+export function getVaultDir() {
+    return path.join(getDataDir(), 'vault');
+}

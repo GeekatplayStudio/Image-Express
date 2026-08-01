@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import * as fabric from 'fabric';
 
 import type { CanvasWithArtboard } from '@/components/Editor/editorView.types';
@@ -13,6 +13,8 @@ type UseEditorMediaPreviewArgs = {
     setActiveTool: (tool: string) => void;
 };
 
+const OPEN_MEDIA_PREVIEW_EVENT = 'iex:open-media-preview';
+
 export function useEditorMediaPreview({
     canvas,
     mediaPreview,
@@ -20,6 +22,17 @@ export function useEditorMediaPreview({
     setMediaPreview,
     setActiveTool,
 }: UseEditorMediaPreviewArgs) {
+    useEffect(() => {
+        const onOpen = (event: Event) => {
+            const detail = (event as CustomEvent<{ type?: string; url?: string }>).detail;
+            if (!detail?.url) return;
+            if (detail.type !== 'video' && detail.type !== 'audio') return;
+            setMediaPreview({ type: detail.type, url: detail.url });
+        };
+        window.addEventListener(OPEN_MEDIA_PREVIEW_EVENT, onOpen);
+        return () => window.removeEventListener(OPEN_MEDIA_PREVIEW_EVENT, onOpen);
+    }, [setMediaPreview]);
+
     const handleCaptureVideoFrame = useCallback(() => {
         if (!canvas || !mediaPreview || mediaPreview.type !== 'video') return;
         const video = videoPreviewRef.current;

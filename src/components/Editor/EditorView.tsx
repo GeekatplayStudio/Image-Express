@@ -56,6 +56,8 @@ import { useEditorUtilityOverlayLayout } from '@/components/Editor/useEditorUtil
 import { useEditorPaintPenEffects } from '@/components/Editor/useEditorPaintPenEffects';
 import { useEditorPanelModePersistence } from '@/components/Editor/useEditorPanelModePersistence';
 import { useEditorWorkspaceCompositionProps } from '@/components/Editor/useEditorWorkspaceCompositionProps';
+import type { BookcaseFilter } from '@/features/asset-vault/contracts/bookcase';
+import type { VaultCircularAction } from '@/components/VaultCircularMenu';
 import { useEditorTopToolOptionsBridgeProps } from '@/components/Editor/useEditorTopToolOptionsBridgeProps';
 import type { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
 import { CUSTOM_SERIALIZED_PROPS } from '@/components/Editor/editorViewConfig';
@@ -385,6 +387,40 @@ export default function EditorView({
         dodgeTopSize,
     });
 
+    const [vaultCircularMenu, setVaultCircularMenu] = useState({ x: 0, y: 0, isOpen: false });
+    const [showAssetVault, setShowAssetVault] = useState(false);
+    const [vaultInitialFilter, setVaultInitialFilter] = useState<BookcaseFilter | undefined>();
+    const [vaultInitialBookcaseId, setVaultInitialBookcaseId] = useState<string | undefined>();
+    const [vaultFocusSearch, setVaultFocusSearch] = useState(false);
+
+    const handleVaultContextMenu = useCallback((x: number, y: number) => {
+        setVaultCircularMenu({ x, y, isOpen: true });
+    }, []);
+
+    const handleCloseVaultCircularMenu = useCallback(() => {
+        setVaultCircularMenu((current) => ({ ...current, isOpen: false }));
+    }, []);
+
+    const handleVaultCircularAction = useCallback((action: VaultCircularAction, filter?: BookcaseFilter) => {
+        if (action === 'vault-classic') {
+            setActiveTool('assets');
+            return;
+        }
+        const bookcaseByAction: Partial<Record<VaultCircularAction, string>> = {
+            'vault-photos': 'bc_images',
+            'vault-videos': 'bc_videos',
+            'vault-audio': 'bc_audio',
+            'vault-3d': 'bc_models',
+            'vault-generated': 'bc_generated',
+            'vault-drive': 'bc_drive',
+            'vault-timeline': 'bc_timeline',
+        };
+        setVaultInitialFilter(filter);
+        setVaultInitialBookcaseId(bookcaseByAction[action]);
+        setVaultFocusSearch(action === 'vault-search');
+        setShowAssetVault(true);
+    }, [setActiveTool]);
+
     const {
         handleAssetSelect,
         handleCanvasModified,
@@ -396,6 +432,7 @@ export default function EditorView({
         pushHistory,
         setIsDirty,
         setContextMenu,
+        onVaultContextMenu: handleVaultContextMenu,
         toast,
     });
 
@@ -500,6 +537,18 @@ export default function EditorView({
         getDisplayName,
     });
 
+    /** Gallery toolbar / menus open the vault; classic library stays via setActiveTool('assets'). */
+    const handleEditorToolChange = useCallback((tool: string) => {
+        if (tool === 'assets') {
+            setVaultInitialFilter(undefined);
+            setVaultInitialBookcaseId(undefined);
+            setVaultFocusSearch(false);
+            setShowAssetVault((open) => !open);
+            return;
+        }
+        handleToolbarToolChange(tool);
+    }, [handleToolbarToolChange]);
+
     const exportRef = useRef<HTMLDivElement>(null);
     const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
     const toolbarRef = useRef<ToolbarHandle | null>(null);
@@ -537,7 +586,7 @@ export default function EditorView({
         showTransformControls,
         selectAntiAlias,
         initialActiveTool,
-        setActiveTool,
+        setActiveTool: handleEditorToolChange,
         exportRef,
         setShowExportMenu,
         setZoom,
@@ -901,7 +950,7 @@ export default function EditorView({
         user,
         activePalette,
         setActivePalette,
-        handleToolbarToolChange,
+        handleToolbarToolChange: handleEditorToolChange,
         handleRequestPropertiesPanel,
         onOpenSettings,
         handleOpenThreeDEditor,
@@ -1239,7 +1288,7 @@ export default function EditorView({
                 />
             </header>
 
-            <EditorTopToolOptionsBridge activeTool={activeTool} onTriggerTool={handleToolbarToolChange} {...topToolOptionsBridgeProps} />
+            <EditorTopToolOptionsBridge activeTool={activeTool} onTriggerTool={handleEditorToolChange} {...topToolOptionsBridgeProps} />
 
             {/* Overlays */}
             <EditorViewOverlays
@@ -1275,6 +1324,13 @@ export default function EditorView({
                 setIncludeCanvasBackground={setIncludeCanvasBackground}
                 closeExportQualityModal={closeExportQualityModal}
                 confirmPendingQualityExport={confirmPendingQualityExport}
+                showAssetVault={showAssetVault}
+                setShowAssetVault={setShowAssetVault}
+                vaultInitialFilter={vaultInitialFilter}
+                vaultInitialBookcaseId={vaultInitialBookcaseId}
+                vaultFocusSearch={vaultFocusSearch}
+                onAssetVaultSelect={handleAssetSelect}
+                onOpenClassicLibrary={() => setActiveTool('assets')}
             />
 
             {embroiderySourceDataUrl && (
@@ -1358,6 +1414,13 @@ export default function EditorView({
                 )}
                 jobFooterProps={workspaceShellJobFooterProps}
                 contextMenuProps={workspaceShellContextMenuProps}
+                vaultCircularMenuProps={{
+                    x: vaultCircularMenu.x,
+                    y: vaultCircularMenu.y,
+                    isOpen: vaultCircularMenu.isOpen,
+                    onClose: handleCloseVaultCircularMenu,
+                    onAction: handleVaultCircularAction,
+                }}
             />
             <OpenDesignModal
                 isOpen={showOpenDesignModal}

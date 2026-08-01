@@ -79,16 +79,19 @@ Each run checks for updates, rebuilds only if needed, and opens the app in your 
 
 ### Updating
 
-Three ways, pick whichever is easiest:
-1. **Automatic**: the app checks for updates on every launch and asks before installing (toggle in Settings → Workspace → Updates → "Check for updates automatically").
-2. **In-app manual check**: **Settings → Workspace → Updates** shows your current version and an "Update Now" button.
-3. **From a terminal**:
-   ```bash
-   npm run update          # pull latest code + reinstall deps if changed
-   npm run update:check    # just report whether an update exists
-   ```
+Source installs stay current with one command (or automatically on every start):
 
-The updater is always safe: it refuses to run over uncommitted local changes and only fast-forwards, so it can never create a merge conflict or overwrite your work. The **start** file also pulls safe updates automatically on every run.
+```bash
+npm run update              # pull latest code + refresh npm deps when needed
+npm run update -- --check   # report only (exit 2 if commits are waiting)
+npm run update -- --libs    # also bump libraries within package.json ranges
+npm run update -- --main    # switch to main first, then update (everyday installs)
+```
+
+Safe by design: refuses to overwrite uncommitted local edits, and only fast-forwards (`git pull --ff-only`).
+`start.bat` / `start.command` / `npm run launch` also auto-pull when the tree is clean, then verify `node_modules`.
+
+Packaged desktop releases use the separate native GitHub Releases updater — do not mix the two.
 
 ## 2) Optional ComfyUI (Local or Cloud)
 

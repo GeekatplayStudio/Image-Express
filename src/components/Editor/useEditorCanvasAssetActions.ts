@@ -15,6 +15,7 @@ type UseEditorCanvasAssetActionsArgs = {
     pushHistory: () => void;
     setIsDirty: (value: boolean) => void;
     setContextMenu: React.Dispatch<React.SetStateAction<{ x: number; y: number; isOpen: boolean }>>;
+    onVaultContextMenu?: (x: number, y: number) => void;
     toast: Toast;
 };
 
@@ -24,6 +25,7 @@ export function useEditorCanvasAssetActions({
     pushHistory,
     setIsDirty,
     setContextMenu,
+    onVaultContextMenu,
     toast,
 }: UseEditorCanvasAssetActionsArgs) {
     const handleAssetSelect = useCallback((url: string, type: string, name?: string) => {
@@ -70,12 +72,16 @@ export function useEditorCanvasAssetActions({
 
     const handleRightClick = useCallback((e: MouseEvent) => {
         e.preventDefault();
+        if (e.altKey && onVaultContextMenu) {
+            onVaultContextMenu(e.clientX, e.clientY);
+            return;
+        }
         setContextMenu({
             x: e.clientX,
             y: e.clientY,
             isOpen: true,
         });
-    }, [setContextMenu]);
+    }, [setContextMenu, onVaultContextMenu]);
 
     const handleFileDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();

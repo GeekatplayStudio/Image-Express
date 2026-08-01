@@ -24,6 +24,14 @@ declare global {
       downloadUpdate?: () => void;
       installUpdate?: () => Promise<void>;
       quitAndInstall?: () => void;
+      pickWatchRootFolder?: () => Promise<{ success: boolean; path?: string; canceled?: boolean; message?: string }>;
+      readLocalVaultFile?: (filePath: string) => Promise<{
+        success: boolean;
+        base64?: string;
+        size?: number;
+        mimeType?: string;
+        message?: string;
+      }>;
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     gapi?: any;

@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 import { X } from 'lucide-react';
 
 import AssetLibrary from '@/components/AssetLibrary';
+import AssetVaultModal from '@/components/AssetVault/AssetVaultModal';
 import EditorExportQualityModal from '@/components/Editor/EditorExportQualityModal';
 import { GradientControls } from '@/components/GradientControls';
 import { GridOverlay, type GridType } from '@/components/GridOverlay';
@@ -10,6 +11,8 @@ import MissingAssetsModal from '@/components/MissingAssetsModal';
 import UserProfileModal from '@/components/UserProfileModal';
 import type { MissingItem } from '@/components/Editor/editorView.types';
 import type { UserProfileSettings } from '@/lib/profile-utils';
+import type { AssetType } from '@/types';
+import type { BookcaseFilter } from '@/features/asset-vault/contracts/bookcase';
 
 type MediaPreviewState = { type: 'video' | 'audio'; url: string } | null;
 type PendingExportFormat = 'png' | 'jpg' | null;
@@ -47,6 +50,13 @@ type EditorViewOverlaysProps = {
     setIncludeCanvasBackground: (includeBackground: boolean) => void;
     closeExportQualityModal: () => void;
     confirmPendingQualityExport: () => void;
+    showAssetVault: boolean;
+    setShowAssetVault: (show: boolean) => void;
+    vaultInitialFilter?: BookcaseFilter;
+    vaultInitialBookcaseId?: string;
+    vaultFocusSearch?: boolean;
+    onAssetVaultSelect: (path: string, type: AssetType, name?: string) => void;
+    onOpenClassicLibrary: () => void;
 };
 
 export default function EditorViewOverlays({
@@ -82,6 +92,13 @@ export default function EditorViewOverlays({
     setIncludeCanvasBackground,
     closeExportQualityModal,
     confirmPendingQualityExport,
+    showAssetVault,
+    setShowAssetVault,
+    vaultInitialFilter,
+    vaultInitialBookcaseId,
+    vaultFocusSearch,
+    onAssetVaultSelect,
+    onOpenClassicLibrary,
 }: EditorViewOverlaysProps) {
     return (
         <>
@@ -119,6 +136,17 @@ export default function EditorViewOverlays({
                 </div>
             )}
 
+            <AssetVaultModal
+                isOpen={showAssetVault}
+                onClose={() => setShowAssetVault(false)}
+                onSelect={onAssetVaultSelect}
+                onOpenClassicLibrary={onOpenClassicLibrary}
+                currentUser={user}
+                initialFilter={vaultInitialFilter}
+                initialBookcaseId={vaultInitialBookcaseId}
+                focusSearch={vaultFocusSearch}
+            />
+
             <MissingAssetsModal
                 isOpen={showMissingAssetsModal}
                 missingItems={missingItems}
@@ -129,7 +157,7 @@ export default function EditorViewOverlays({
 
             {mediaPreview && (
                 <div
-                    className="fixed inset-0 z-[85] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
+                    className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
                     onClick={() => setMediaPreview(null)}
                 >
                     <div

@@ -163,9 +163,13 @@ Set-Location $InstallDir
 
 Step '4/7 Installing dependencies (the longest step - several minutes)'
 try {
-    Run-Logged 'npm' @('install','--no-fund','--no-audit') 'npm install'
+    Run-Logged 'node' @('scripts/ensure-deps.mjs','--force') 'ensure-deps'
 } catch {
-    Fail "Dependency install failed ($_). The log above shows the exact npm error."
+    try {
+        Run-Logged 'npm' @('install','--no-fund','--no-audit') 'npm install'
+    } catch {
+        Fail "Dependency install failed ($_). The log above shows the exact npm error."
+    }
 }
 Ok 'dependencies installed'
 

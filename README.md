@@ -49,13 +49,27 @@ Releases are built automatically from version tags. Windows signing and macOS si
 
 If startup fails, attach `startup-trace.log` from the app's user-data folder to a bug report.
 
-### Source installation (contributors and advanced users)
+### Source installation (easiest contributor / power-user path)
 
-The root [`install.bat`](install.bat) and [`install.command`](install.command) files remain available as source-build bootstrap tools. They install development prerequisites, clone the repository, install npm dependencies, and build locally. They are not the recommended path for non-technical users.
+1. Double-click **[`install.bat`](install.bat)** (Windows) or **[`install.command`](install.command)** (macOS).
+2. The installer installs Git + Node 24 if missing, clones this repo, installs npm packages, and optionally offers ComfyUI/Ollama.
+3. Later, double-click **`start.bat` / `start.command`** — it pulls safe updates, repairs dependencies if needed, builds, and opens the app.
 
-### 🔄 Auto-updates, on your terms
+No terminal required for the common path. Full details: **[docs/INSTALLATION.md](docs/INSTALLATION.md)**.
 
-Packaged desktop releases use the native release updater and GitHub release metadata. Source installations use the separate Git fast-forward updater. The two update systems are intentionally not mixed.
+### 🔄 Keep it updated (source installs)
+
+| Action | Command / file |
+|---|---|
+| **Run (auto-updates when clean)** | `start.bat` (Windows) · `start.command` (macOS) · `npm run launch` |
+| **Update code + deps** | `npm run update` |
+| **Check only** | `npm run update -- --check` |
+| **Also refresh libraries in-range** | `npm run update -- --libs` |
+| **Force main branch + update** | `npm run update -- --main` |
+
+The updater never destroys local edits (dirty tree → refuse) and only fast-forwards. Dependencies are repaired automatically via `scripts/ensure-deps.mjs` (`npm ci` when possible, `npm install` fallback, integrity marker).
+
+Packaged desktop releases use the native GitHub Releases updater instead — the two systems are not mixed.
 
 ### 🐳 Self-host it (Docker / your own server)
 

@@ -10,6 +10,7 @@ const rootDir = path.resolve(__dirname, '..');
 process.chdir(rootDir);
 
 const gitCmd = 'git';
+const isWin = process.platform === 'win32';
 
 function log(msg) {
     console.log(`[LAUNCH] ${msg}`);
@@ -20,7 +21,7 @@ function run(cmd, args, opts = {}) {
 }
 
 function runQuiet(cmd, args) {
-    return spawnSync(cmd, args, { stdio: 'pipe', encoding: 'utf8' });
+    return spawnSync(cmd, args, { stdio: 'pipe', encoding: 'utf8', cwd: rootDir });
 }
 
 function banner() {
@@ -29,6 +30,10 @@ function banner() {
     console.log('===================================================');
 }
 
+/**
+ * Soft self-update: ff-only pull when clean + behind origin.
+ * Returns true when code changed (caller should force-deps).
+ */
 function checkForUpdates() {
     if (!fs.existsSync(path.join(rootDir, '.git'))) {
         log('Not a git checkout, skipping update check.');
@@ -48,10 +53,15 @@ function checkForUpdates() {
         return false;
     }
 
-    const status = runQuiet(gitCmd, ['status', '-uno']);
-    const isBehind = status.stdout.includes('is behind');
-    const isDiverged = status.stdout.includes('and have') && status.stdout.includes('different commits');
+    const branchResult = runQuiet(gitCmd, ['rev-parse', '--abbrev-ref', 'HEAD']);
+    const branch = (branchResult.stdout || 'main').trim() || 'main';
+    const behindResult = runQuiet(gitCmd, ['rev-list', '--count', `HEAD..origin/${branch}`]);
+    let behind = Number.parseInt((behindResult.stdout || '0').trim(), 10);
+    if (!Number.isFinite(behind)) behind = 0;
+
     const isDirty = runQuiet(gitCmd, ['status', '--porcelain']).stdout.trim().length > 0;
+    const status = runQuiet(gitCmd, ['status', '-uno']);
+    const isDiverged = status.stdout.includes('and have') && status.stdout.includes('different commits');
 
     if (isDiverged) {
         log('Local branch has diverged from remote. Skipping auto-update to avoid conflicts.');
@@ -61,13 +71,13 @@ function checkForUpdates() {
         log('Local changes detected. Skipping auto-update to avoid overwriting your work.');
         return false;
     }
-    if (!isBehind) {
+    if (behind <= 0) {
         log('Already up to date.');
         return false;
     }
 
-    log('Update available. Pulling latest changes...');
-    const pull = run(gitCmd, ['pull', '--ff-only']);
+    log(`Update available (${behind} commit(s)). Pulling latest changes...`);
+    const pull = run(gitCmd, ['pull', '--ff-only', 'origin', branch]);
     if (pull.status !== 0) {
         log('Update failed, continuing with current version.');
         return false;
@@ -79,31 +89,19 @@ function checkForUpdates() {
 function main() {
     banner();
 
-    // Bail out before touching .next: if a dev server is live it owns that
-    // folder, and clearing it would break the running server AND produce a
-    // corrupt build here.
     assertNoConflictingServer('prod');
 
     const updated = checkForUpdates();
+    // Always verify deps; force reinstall after a successful code pull.
     ensureDependencies(updated);
 
     const buildDir = path.join(rootDir, '.next');
     if (fs.existsSync(buildDir)) {
         log('Rebuilding to pick up the latest code...');
-        // On Windows, a lingering process (e.g. a dev server from a previous
-        // run) can hold a persistent lock on a file inside .next, which makes
-        // even a retried rmSync fail forever. Renaming the directory out of
-        // the way only requires the PARENT directory entry to be free, which
-        // works even while a file inside is still locked; `next build`
-        // recreates .next fresh either way. The stale copy is then cleaned
-        // up best-effort in the background so a stubborn lock never blocks
-        // the launch.
         const staleDir = `${buildDir}.stale-${Date.now()}`;
         try {
             fs.renameSync(buildDir, staleDir);
         } catch {
-            // Rename itself failed (e.g. cross-device or exotic lock) — fall
-            // back to an in-place retrying delete.
             try {
                 fs.rmSync(buildDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
             } catch (err) {
@@ -114,7 +112,6 @@ function main() {
             try {
                 fs.rmSync(staleDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
             } catch {
-                // Leave it; harmless leftover, cleaned up on a future run.
                 log(`Left ${path.basename(staleDir)} behind for later cleanup (still locked).`);
             }
         }

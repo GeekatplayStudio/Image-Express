@@ -198,6 +198,49 @@ server.registerTool('get_brand_profile', {
     inputSchema: {},
 }, handler(async () => api('/api/ai/brand-manager/profile')));
 
+server.registerTool('save_brand_profile', {
+    title: 'Save brand profile',
+    description: 'Create or update a Brand Kit profile (palette, fonts, logo and layout rules). Pass the full profile object; it becomes the active profile.',
+    inputSchema: {
+        profile: z.object({
+            id: z.string().min(1),
+            name: z.string().min(1),
+        }).passthrough().describe('BrandProfile object (id, name, palette, typography, logo, layout, assets)'),
+    },
+}, handler(async ({ profile }) => api('/api/ai/brand-manager/profile', {
+    method: 'POST', body: JSON.stringify({ profile }),
+})));
+
+server.registerTool('set_active_brand_profile', {
+    title: 'Set active brand profile',
+    description: 'Switch which saved Brand Kit profile is active for audits and Super Agent tasks.',
+    inputSchema: {
+        profileId: z.string().min(1).describe('Id of the profile to activate'),
+    },
+}, handler(async ({ profileId }) => api('/api/ai/brand-manager/profile', {
+    method: 'POST', body: JSON.stringify({ activeProfileId: profileId }),
+})));
+
+server.registerTool('delete_brand_profile', {
+    title: 'Delete brand profile',
+    description: 'Delete a saved Brand Kit profile by id. The default kit is restored if the last profile is removed.',
+    inputSchema: {
+        profileId: z.string().min(1).describe('Id of the profile to delete'),
+    },
+}, handler(async ({ profileId }) => api(`/api/ai/brand-manager/profile?id=${encodeURIComponent(profileId)}`, {
+    method: 'DELETE',
+})));
+
+server.registerTool('delete_super_agent', {
+    title: 'Delete custom sub-agent',
+    description: 'Delete a registered Super Agent / sub-agent definition by id.',
+    inputSchema: {
+        agentId: z.string().min(1).describe('Id of the agent to delete'),
+    },
+}, handler(async ({ agentId }) => api(`/api/ai/super-agent/agents?id=${encodeURIComponent(agentId)}`, {
+    method: 'DELETE',
+})));
+
 server.registerTool('audit_brand_compliance', {
     title: 'Audit canvas for brand compliance',
     description: 'Run a VLM or heuristic brand compliance check on the active canvas against current brand guidelines.',

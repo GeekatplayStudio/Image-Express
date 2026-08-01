@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('desktop', {
   copyDiagnostics: () => ipcRenderer.invoke('support/copy-diagnostics'),
   checkForUpdates: () => ipcRenderer.invoke('updates/check'),
   installUpdate: () => ipcRenderer.invoke('updates/install'),
+  pickWatchRootFolder: () => ipcRenderer.invoke('vault/pick-watch-root'),
+  readLocalVaultFile: (filePath) => ipcRenderer.invoke('vault/read-file', filePath),
   onUpdateStatus: (callback) => {
     if (typeof callback !== 'function') {
       return () => {};

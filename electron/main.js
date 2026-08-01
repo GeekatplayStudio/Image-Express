@@ -375,7 +375,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     show: false,
-    title: 'Image Express',
+    title: 'Image Express Beta',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -547,6 +547,51 @@ ipcMain.handle('updates/install', async () => {
     const message = error?.message || 'Unable to install the update.';
     sendUpdateStatus('error', message);
     return { status: 'error', message };
+  }
+});
+
+ipcMain.handle('vault/pick-watch-root', async () => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow || undefined, {
+      properties: ['openDirectory', 'createDirectory', 'treatPackageAsDirectory'],
+      title: 'Browse drive or folder to index',
+      buttonLabel: 'Index this folder',
+      message: 'Choose a local drive, folder, or mounted network share to index in Asset Vault.',
+    });
+    if (result.canceled || !result.filePaths?.[0]) {
+      return { success: false, canceled: true };
+    }
+    return { success: true, path: result.filePaths[0] };
+  } catch (error) {
+    const message = error?.message || 'Unable to open folder picker.';
+    writeStructuredLog('error', 'vault.pick-watch-root', { result: 'failed', message });
+    return { success: false, message };
+  }
+});
+
+ipcMain.handle('vault/read-file', async (_event, filePath) => {
+  try {
+    if (typeof filePath !== 'string' || filePath.length < 2) {
+      return { success: false, message: 'Invalid path.' };
+    }
+    // Basic path traversal guard: must be absolute.
+    if (!path.isAbsolute(filePath)) {
+      return { success: false, message: 'Path must be absolute.' };
+    }
+    const buffer = fs.readFileSync(filePath);
+    // Cap preview reads at 40MB to protect renderer memory.
+    if (buffer.length > 40 * 1024 * 1024) {
+      return { success: false, message: 'File too large to preview.' };
+    }
+    return {
+      success: true,
+      base64: buffer.toString('base64'),
+      size: buffer.length,
+      mimeType: 'application/octet-stream',
+    };
+  } catch (error) {
+    const message = error?.message || 'Unable to read file.';
+    return { success: false, message };
   }
 });
 

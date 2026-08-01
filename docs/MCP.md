@@ -63,6 +63,10 @@ The server speaks standard MCP JSON-RPC (SDK `@modelcontextprotocol/sdk`).
 | `install_ambience_from_url` | Install an ambience pack zip from a URL |
 | `generate_image` | Queue an AI image generation job (e.g. via local ComfyUI) |
 | `get_brand_profile` | Fetch active Brand Kit profile guidelines (palette, typography, logo layout rules) |
+| `save_brand_profile` | Create or update a Brand Kit profile (becomes the active profile) |
+| `set_active_brand_profile` | Switch the active Brand Kit profile |
+| `delete_brand_profile` | Delete a saved Brand Kit profile |
+| `delete_super_agent` | Delete a custom sub-agent definition |
 | `audit_brand_compliance` | Run a VLM or heuristic brand compliance audit on canvas state |
 | `list_super_agents` | List active Super Agent and sub-agent definitions |
 | `create_super_agent` | Register a custom specialized sub-agent |

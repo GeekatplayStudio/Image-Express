@@ -22,9 +22,13 @@ import {
     executeAgentStepOnCanvas,
     generateSuperAgentPlan,
     loadCustomAgents,
+    pushCustomAgentToServer,
     saveCustomAgent,
+    syncCustomAgentsFromServer,
 } from '@/lib/agent/superAgentEngine';
 import { getActiveBrandProfile } from '@/lib/brand/brandProfile';
+import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
+import { loadGenerativePreferences } from '@/lib/generative-preferences';
 import { useI18n } from '@/providers/I18nProvider';
 
 interface SuperAgentModalProps {
@@ -56,6 +60,7 @@ export default function SuperAgentModal({
     const [newAgentPrompt, setNewAgentPrompt] = useState('');
     const [newAgentWidth, setNewAgentWidth] = useState(1080);
     const [newAgentHeight, setNewAgentHeight] = useState(1080);
+    const [newAgentModel, setNewAgentModel] = useState('');
 
     useEscapeKey(onClose, { enabled: isOpen });
 
@@ -66,6 +71,17 @@ export default function SuperAgentModal({
         if (loaded.length > 0) {
             setSelectedAgent(loaded[0]);
         }
+
+        // Server store (shared with MCP) is source of truth once reachable
+        let cancelled = false;
+        void syncCustomAgentsFromServer().then((synced) => {
+            if (!synced || cancelled) return;
+            setAgents(synced);
+            setSelectedAgent((current) => synced.find((a) => a.id === current.id) || synced[0]);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, [isOpen]);
 
     const handleGeneratePlan = async () => {
@@ -81,6 +97,13 @@ export default function SuperAgentModal({
 
         try {
             const brandProfile = getActiveBrandProfile();
+            const prefs = loadLocalAiPreferences();
+            const generative = loadGenerativePreferences();
+            const externalProvider = generative.defaultProvider === 'openai' || generative.defaultProvider === 'google'
+                ? generative.defaultProvider
+                : null;
+            const externalKey = externalProvider ? localStorage.getItem(`${externalProvider}_api_key`) || '' : '';
+
             const response = await fetch('/api/ai/super-agent/plan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -88,6 +111,11 @@ export default function SuperAgentModal({
                     prompt: userPrompt,
                     agent: selectedAgent,
                     brandProfile,
+                    baseUrl: prefs.ollamaBaseUrl,
+                    model: selectedAgent.preferredModel || undefined,
+                    ...(externalProvider && externalKey
+                        ? { provider: externalProvider, apiKey: externalKey }
+                        : {}),
                 }),
             });
 
@@ -159,17 +187,20 @@ export default function SuperAgentModal({
             role: 'Specialized Sub-Agent',
             defaultWidth: Number(newAgentWidth) || 1080,
             defaultHeight: Number(newAgentHeight) || 1080,
-            enabledTools: ['set_canvas_size', 'add_text', 'add_shape', 'set_background'],
+            preferredModel: newAgentModel.trim() || undefined,
+            enabledTools: ['set_canvas_size', 'add_text', 'add_shape', 'set_background', 'generate_ai_background'],
             updatedAt: new Date().toISOString(),
         };
 
         const updated = saveCustomAgent(created);
+        pushCustomAgentToServer(created);
         setAgents(updated);
         setSelectedAgent(created);
         setShowCreateAgent(false);
         setNewAgentName('');
         setNewAgentDescription('');
         setNewAgentPrompt('');
+        setNewAgentModel('');
     };
 
     if (!isOpen) return null;
@@ -281,6 +312,26 @@ export default function SuperAgentModal({
                                         onChange={(e) => setNewAgentDescription(e.target.value)}
                                         className="w-full bg-background border border-border rounded px-3 py-1.5"
                                         placeholder="e.g. Specializes in typography layouts with subtle background gradients"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-muted-foreground mb-1">System Prompt (agent personality & instructions)</label>
+                                    <textarea
+                                        value={newAgentPrompt}
+                                        onChange={(e) => setNewAgentPrompt(e.target.value)}
+                                        rows={3}
+                                        className="w-full bg-background border border-border rounded px-3 py-1.5 resize-y"
+                                        placeholder="e.g. You are a minimalist poster designer. Prefer generous whitespace, one bold headline, and at most two colors."
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-muted-foreground mb-1">Preferred LLM Model (optional, for planning)</label>
+                                    <input
+                                        type="text"
+                                        value={newAgentModel}
+                                        onChange={(e) => setNewAgentModel(e.target.value)}
+                                        className="w-full bg-background border border-border rounded px-3 py-1.5"
+                                        placeholder="e.g. llama3.2, qwen2.5-coder (defaults to llama3.2)"
                                     />
                                 </div>
                             </div>

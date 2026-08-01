@@ -14,7 +14,7 @@ import '@fontsource/oswald/700.css';
 import '@fontsource/pacifico/400.css';
 
 export const metadata: Metadata = {
-  title: "Image Express - AI Design Studio",
+  title: "Image Express Beta - AI Design Studio",
   description: "Advanced content creation platform with AI-powered 3D generation, templates, and professional design tools.",
   icons: {
     icon: "/icon.svg"

@@ -7,6 +7,7 @@ import { updateDriveConfig } from '@/lib/googleDrive';
 import { ASSET_CLOUD_PROVIDER_OPTIONS, type AssetCloudProvider, type AssetStorageMode } from '@/lib/assetStorageSettings';
 import type { StorageSettings } from '../hooks/useStorageSettings';
 import { modalSectionClass } from '../settingsTypes';
+import VaultWatchRootsPanel from './VaultWatchRootsPanel';
 
 interface StorageTabProps {
     storage: StorageSettings;
@@ -248,6 +249,8 @@ export default function StorageTab({ storage }: StorageTabProps) {
                     </div>
                 )}
             </section>
+
+            <VaultWatchRootsPanel />
         </>
     );
 }

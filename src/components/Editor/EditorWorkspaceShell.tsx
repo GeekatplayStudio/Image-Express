@@ -3,11 +3,13 @@
 import { type ComponentProps, type ReactNode, type RefObject } from 'react';
 
 import CircularContextMenu from '@/components/CircularContextMenu';
+import VaultCircularMenu, { type VaultCircularAction } from '@/components/VaultCircularMenu';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import Toolbar, { type ToolbarHandle } from '@/components/Toolbar';
 
 type ToolbarProps = ComponentProps<typeof Toolbar>;
 type ContextMenuProps = ComponentProps<typeof CircularContextMenu>;
+type VaultMenuProps = ComponentProps<typeof VaultCircularMenu>;
 type JobFooterProps = ComponentProps<typeof JobStatusFooter>;
 
 interface EditorWorkspaceShellProps {
@@ -18,6 +20,7 @@ interface EditorWorkspaceShellProps {
     afterWorkspace?: ReactNode;
     jobFooterProps: JobFooterProps;
     contextMenuProps: ContextMenuProps;
+    vaultCircularMenuProps?: VaultMenuProps;
 }
 
 export default function EditorWorkspaceShell({
@@ -28,6 +31,7 @@ export default function EditorWorkspaceShell({
     afterWorkspace,
     jobFooterProps,
     contextMenuProps,
+    vaultCircularMenuProps,
 }: EditorWorkspaceShellProps) {
     return (
         <>
@@ -47,6 +51,9 @@ export default function EditorWorkspaceShell({
                 <JobStatusFooter {...jobFooterProps} />
             </div>
             <CircularContextMenu {...contextMenuProps} />
+            {vaultCircularMenuProps?.isOpen && (
+                <VaultCircularMenu {...vaultCircularMenuProps} />
+            )}
         </>
     );
 }
