@@ -1,0 +1,86 @@
+========================================================================
+ Image Express — macOS: "Apple could not verify this app is free of
+ malware" / "install.command cannot be opened"
+========================================================================
+
+If macOS blocked install.command, nothing is wrong with your download.
+Here is what is happening and how to get past it in about ten seconds.
+
+
+WHY IT HAPPENS
+--------------
+macOS blocks any program downloaded from the internet unless its author
+pays Apple $99/year for a Developer ID certificate and registers each
+release with Apple ("notarization").
+
+Image Express is free and open source, so it has no paid certificate.
+macOS cannot tell "free software with no certificate" apart from "actual
+malware", so it shows the same scary wording for both. It has NOT found
+a virus in this file — it is telling you it does not recognise the
+publisher. Every line of this installer is readable at:
+
+  https://github.com/GeekatplayStudio/Image-Express/blob/main/install.command
+
+
+PICK ONE OF THESE THREE
+-----------------------
+
+--- OPTION 1: drag into Terminal (easiest, no settings to change) ------
+
+  1. Open Terminal:  press Cmd + Space, type  Terminal , press Return.
+  2. Type these five characters, INCLUDING the trailing space:
+
+         bash
+
+  3. Drag  install.command  from your Finder window and drop it onto the
+     Terminal window. It fills in the path for you.
+  4. Press Return.
+
+  This works because you are handing the file to Terminal yourself
+  instead of asking macOS to launch it, so Gatekeeper never gets a vote.
+  No password, no settings changes.
+
+
+--- OPTION 2: approve it once in System Settings ------------------------
+
+  1. Double-click  install.command . Let it get blocked. Click  Done .
+  2. Apple menu -> System Settings -> Privacy & Security.
+  3. Scroll down. There is a line saying "install.command was blocked".
+     Click  Open Anyway  next to it, and confirm with Touch ID or your
+     password.
+  4. Double-click  install.command  again. Click  Open .
+
+  (On older macOS there is no such line: instead, right-click — or
+  Control-click — install.command in Finder and choose  Open , then
+  click  Open  in the dialog.)
+
+
+--- OPTION 3: skip the download entirely -------------------------------
+
+  Open Terminal (Cmd + Space, type Terminal, Return), then paste this
+  one line and press Return:
+
+    bash <(curl -fsSL https://raw.githubusercontent.com/GeekatplayStudio/Image-Express/main/install.command)
+
+  Nothing is downloaded through the browser, so nothing gets quarantined
+  and no warning ever appears. This also always fetches the newest
+  installer.
+
+
+YOU ONLY HAVE TO DO THIS ONCE
+-----------------------------
+Whichever option you pick, the installer clears the quarantine flag from
+its own folder as it runs. Afterwards you can double-click
+start.command normally, every time, with no warnings.
+
+
+IF IT STILL WILL NOT RUN
+------------------------
+Every step is written to a log file at:
+
+    ~/ImageExpress-setup.log
+
+Open it (in Finder: Go -> Go to Folder -> paste ~/ImageExpress-setup.log)
+and send it with your report to:
+
+    https://github.com/GeekatplayStudio/Image-Express/issues

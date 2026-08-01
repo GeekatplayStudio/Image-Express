@@ -13,7 +13,87 @@ type OllamaTagsPayload = {
 type OllamaPullPayload = {
     status?: string;
     error?: string;
+    total?: number;
+    completed?: number;
 };
+
+/**
+ * Drain a streaming /api/pull response.
+ *
+ * Ollama emits one JSON object per line while downloading. We only need the
+ * last status and any error, but the stream must be read to completion —
+ * abandoning it mid-download would cancel the pull. Returns the final byte
+ * counts so the caller can report what actually landed.
+ */
+async function consumePullStream(response: Response): Promise<{
+    error?: string;
+    status?: string;
+    total?: number;
+    completed?: number;
+}> {
+    // Ollama streams NDJSON, but a proxy in front of it may buffer the whole
+    // thing, and not every Response implementation exposes a reader. Accept
+    // all three shapes rather than assuming the happy one.
+    const body = response.body;
+    if (!body) {
+        if (typeof response.text === 'function') {
+            return parsePullLines(await response.text());
+        }
+        if (typeof response.json === 'function') {
+            const single = await response.json() as OllamaPullPayload;
+            return {
+                error: single.error,
+                status: single.status,
+                total: single.total,
+                completed: single.completed,
+            };
+        }
+        return {};
+    }
+
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = '';
+    let latest: ReturnType<typeof parsePullLines> = {};
+
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffered += decoder.decode(value, { stream: true });
+        // Keep the trailing partial line for the next chunk.
+        const lines = buffered.split('\n');
+        buffered = lines.pop() ?? '';
+        const parsed = parsePullLines(lines.join('\n'));
+        latest = { ...latest, ...parsed };
+        if (parsed.error) return latest;
+    }
+
+    const tail = parsePullLines(buffered);
+    return { ...latest, ...tail };
+}
+
+function parsePullLines(text: string): {
+    error?: string;
+    status?: string;
+    total?: number;
+    completed?: number;
+} {
+    const result: { error?: string; status?: string; total?: number; completed?: number } = {};
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+            const entry = JSON.parse(trimmed) as OllamaPullPayload;
+            if (entry.error) result.error = entry.error;
+            if (entry.status) result.status = entry.status;
+            if (typeof entry.total === 'number') result.total = entry.total;
+            if (typeof entry.completed === 'number') result.completed = entry.completed;
+        } catch {
+            // A partial or non-JSON line mid-stream is normal; skip it.
+        }
+    }
+    return result;
+}
 
 const extractModelNames = (payload: OllamaTagsPayload): string[] => (
     Array.isArray(payload.models)
@@ -85,6 +165,13 @@ export async function POST(request: NextRequest) {
             });
         }
 
+        // Stream the pull rather than waiting on one blocking response.
+        //
+        // A vision model is several gigabytes. With stream:false the socket
+        // sits silent for the whole download, which looks identical to a hang
+        // and can trip the timeout with no indication of how far it got.
+        // Streaming also lets the deadline measure *stalled* time instead of
+        // total time, so a slow-but-progressing download is never killed.
         const pullResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/pull', {
             method: 'POST',
             headers: {
@@ -94,7 +181,7 @@ export async function POST(request: NextRequest) {
             timeoutMs: OLLAMA_INSTALL_TIMEOUT_MS,
             body: JSON.stringify({
                 model: requestedModel,
-                stream: false,
+                stream: true,
             }),
         });
 
@@ -114,11 +201,11 @@ export async function POST(request: NextRequest) {
         }
 
         resolvedBaseUrl = pullResult.baseUrl;
-        const pullPayload = await pullResult.response.json() as OllamaPullPayload;
-        if (pullPayload.error) {
+        const pullProgress = await consumePullStream(pullResult.response);
+        if (pullProgress.error) {
             return NextResponse.json({
                 success: false,
-                message: `Ollama could not install "${requestedModel}": ${pullPayload.error}`,
+                message: `Ollama could not install "${requestedModel}": ${pullProgress.error}`,
             }, { status: 502 });
         }
 

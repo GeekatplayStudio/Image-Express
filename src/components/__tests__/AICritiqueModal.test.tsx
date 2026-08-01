@@ -306,6 +306,24 @@ describe('AICritiqueModal', () => {
                 } as Response;
             }
 
+            // The picker asks which vision models exist and what to install.
+            if (input.startsWith('/api/ai/ollama/vision-models')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        ollamaReachable: true,
+                        installed: ['llava:7b', 'llama3.2-vision:latest'],
+                        suggestions: [
+                            { model: 'qwen3-vl:4b', size: '3.3 GB', note: 'Balanced default.', stillListed: true },
+                        ],
+                        newerInLibrary: ['gemma4'],
+                        libraryChecked: true,
+                        defaultModel: 'qwen3-vl:4b',
+                    }),
+                } as Response;
+            }
+
             throw new Error(`Unexpected fetch call: ${input}`);
         });
 
@@ -323,9 +341,79 @@ describe('AICritiqueModal', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText(/does not appear to support image input/i)).toBeInTheDocument();
+            expect(screen.getByText(/cannot read images/i)).toBeInTheDocument();
         });
         expect(screen.getByText(/AI Critique needs a vision-capable Ollama model/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Analyze with Ollama' })).toBeDisabled();
+
+        // The failure must come with a way out: the models that would work,
+        // and one to install if none would.
+        await waitFor(() => {
+            expect(screen.getByTestId('vision-model-picker')).toBeInTheDocument();
+        });
+        expect(screen.getByTestId('vision-use-llava:7b')).toBeInTheDocument();
+        expect(screen.getByTestId('vision-install-qwen3-vl:4b')).toBeInTheDocument();
+    });
+
+    it('switching to an installed vision model saves it and rechecks', async () => {
+        const canvas = createCanvasStub(createObjectStub());
+        let statusCalls = 0;
+        (global.fetch as jest.Mock).mockImplementation(async (input: string) => {
+            if (input.startsWith('/api/ai/ollama/status?')) {
+                statusCalls += 1;
+                // First check reports the saved text-only model; after the
+                // switch the URL carries the vision model instead.
+                const usingVision = input.includes('llava');
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        requestedModel: usingVision ? 'llava:7b' : 'qwen2.5:7b',
+                        modelFound: true,
+                        visionCapable: usingVision,
+                        visionModels: ['llava:7b'],
+                        count: 2,
+                        models: ['qwen2.5:7b', 'llava:7b'],
+                    }),
+                } as Response;
+            }
+            if (input.startsWith('/api/ai/ollama/vision-models')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        ollamaReachable: true,
+                        installed: ['llava:7b'],
+                        suggestions: [],
+                        newerInLibrary: [],
+                        libraryChecked: true,
+                        defaultModel: 'qwen3-vl:4b',
+                    }),
+                } as Response;
+            }
+            throw new Error(`Unexpected fetch call: ${input}`);
+        });
+
+        localStorage.setItem(LOCAL_AI_PREFERENCES_STORAGE_KEY, JSON.stringify({
+            ollamaBaseUrl: 'http://localhost:11434',
+            ollamaModel: 'qwen2.5:7b',
+        }));
+
+        render(<AICritiqueModal isOpen canvas={canvas as unknown as never} onClose={jest.fn()} />);
+
+        const useButton = await screen.findByTestId('vision-use-llava:7b');
+        const callsBefore = statusCalls;
+        fireEvent.click(useButton);
+
+        // The choice is persisted, not just held in the modal — every other
+        // local-AI feature reads the same preference.
+        await waitFor(() => {
+            const saved = JSON.parse(localStorage.getItem(LOCAL_AI_PREFERENCES_STORAGE_KEY) || '{}');
+            expect(saved.ollamaModel).toBe('llava:7b');
+        });
+        await waitFor(() => expect(statusCalls).toBeGreaterThan(callsBefore));
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Analyze with Ollama' })).not.toBeDisabled();
+        });
     });
 });

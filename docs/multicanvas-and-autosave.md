@@ -2,36 +2,46 @@
 
 > **Terminology note:** the code names below predate our canonical vocabulary
 > ([GLOSSARY.md](GLOSSARY.md)). In canonical terms this hierarchy is
-> **Library → Album → Page**: a code *Project* is an **Album**, a code *Canvas*
-> is a **Page**, and the *Federation* level is the **Library**. The code names
-> are kept in this document because they match the identifiers in
+> **Library → Bookshelf → Album → Page**: a code *Bookshelf* is a **Bookshelf**,
+> a code *Project* is an **Album**, and a code *Canvas* is a **Page**. The code
+> names are kept in this document because they match the identifiers in
 > `lib/multicanvas/projectStore.ts`.
 
 ## Concepts
 
-The code hierarchy is **Projects → Canvases → Layers** (canonical: **Album →
-Page → Layers**):
+The code hierarchy is **Bookshelves → Projects → Canvases → Layers**
+(canonical: **Bookshelf → Album → Page → Layers**):
 
-- **Projects** is the whole local workspace: every project you have. In the
-  3D view, zooming all the way out (or the **Projects** button) shows each
-  project as a wireframe cube with its canvases as glass slices; projects
-  that share linked layers are connected by glowing channels. Arrow keys
-  move between cubes, Enter/double-click dives into a project's stack.
-- A **Project** holds any number of canvases. All projects are persisted
-  locally (`image-express-projects` in localStorage; the older single-project
-  storage migrates automatically). Starting a new design creates its own
-  project — unless the current project is still empty (untouched), in which
-  case it's reused instead of piling up blank projects.
+- A **Bookshelf** is a collection of projects and a **hard resource
+  boundary**: shared layers never link or sync across shelves, the
+  "Share with other albums" picker only offers albums on the same shelf,
+  and the album lattice in the 3D view only shows the active shelf.
+  Deleting a shelf deletes the albums on it (confirmed when any hold
+  artwork); the last shelf — and a shelf's last album — cannot be deleted.
+- **Bookshelves and Albums render on the same 3D lattice** (`gridPose`):
+  an axis-aligned grid of wireframe boxes that stays flat up to six boxes
+  and then grows *upward* into a true 3D matrix instead of sprawling
+  outward. Each box shows its contents as glass slices (albums in a shelf,
+  pages in an album). Albums that share linked layers are connected by
+  glowing channels; shelves deliberately never are — the absence of
+  channels at the shelf level is the resource boundary made visible.
+- A **Project** holds any number of canvases. The whole workspace persists
+  to IndexedDB (`image-express` / `projects-state`), with automatic
+  migration from the older localStorage formats and from pre-bookshelf
+  workspaces (everything lands on one default shelf). Starting a new design
+  creates its own project — unless an untouched project already exists *on
+  the active shelf*, in which case it's reused.
 - Each **Canvas** is a full artboard with its own layer stack. Only the active
   canvas lives inside the Fabric editor; the rest are kept as serialized
   snapshots.
 - **Layers** can be marked *shared*. Sharing broadcasts a linked copy into
   every other canvas of the project, and shared layers can also be linked
-  across OTHER projects: adjustment and appearance changes (adjustment
-  settings, filters, opacity, visibility, fill) propagate to every instance
-  with the same `sharedLayerId` anywhere in the workspace. Geometry
+  across other projects **on the same bookshelf**: adjustment and appearance
+  changes (adjustment settings, filters, opacity, visibility, fill) propagate
+  to every instance with the same `sharedLayerId` on that shelf. Geometry
   (position/scale) stays per-canvas. Duplicating a shared layer keeps the
-  link, so copies stay synchronized.
+  link; duplicating a whole bookshelf copies its internal links without
+  reaching back into the source shelf.
 
 ## Using it
 
@@ -46,11 +56,22 @@ Page → Layers**):
   the rest render in x-ray. Layers within a canvas are chained by dashed
   in-plane links in stacking order, and shared layers are connected by
   animated node-style paths between planes (documents).
-  - Drag to orbit, Shift+drag to pan, scroll to zoom.
-  - ↑/↓ (or ←/→) move the selection between canvases, Enter opens the
-    selected canvas, Esc closes the view.
-  - Click a plane to select it; double-click (or **Open**) to load it in the
-    editor. Rename/duplicate/delete/add from the control strip.
+  - **Three zoom levels**: pages (stack) → albums (lattice) → bookshelves
+    (lattice). Scrolling out past a threshold rises a level; scrolling in
+    dives back down. The toolbar buttons jump levels directly.
+  - Drag to orbit · **Space**/Shift/middle-drag to pan (Space works
+    mid-drag) · scroll to zoom · **Alt+scroll** to dolly through the scene
+    in depth · double-click a box to dive into it.
+  - ↑/↓ (or ←/→) cycle the selection at every level (albums cycle within
+    the current shelf), Enter dives, Esc steps back down toward the pages
+    and closes from there.
+  - Hovering a lattice box gently parts its neighbours (inverse-square
+    repulsion; the hovered box never moves). Deleting a box plays a
+    wind-up: it shrinks, swells past full size, then bursts into debris
+    and hot spark streaks at its own screen position.
+  - Click a plane/box to select it; double-click (or **Open**) to load it
+    in the editor. Rename/duplicate/delete/add from the control strip at
+    every level.
 
 ## Shared-layer indicators & dashboard
 
@@ -64,16 +85,19 @@ Page → Layers**):
   project automatically.
 - Snapshots inline `blob:` image sources as data URLs so images added from
   the asset library survive canvas switches and reloads (capped to 2048px
-  for uncropped images to keep localStorage usage bounded), and each
+  for uncropped images to keep storage usage bounded), and each
   snapshot refreshes the stored canvas width/height so 3D plane ratios stay
   correct after artboard resizes.
 - **Share with other projects** (globe icon next to Share, canvas tabs bar):
-  pick which other projects should also link to the selected layer. Linked
-  copies land in each target project's active canvas and stay synchronized
-  the same way as same-project sharing.
-- If localStorage fills up, saves fall back to dropping thumbnails (they're
-  regenerable) before giving up; a one-time toast warns if a save still
-  can't be persisted so work isn't silently lost.
+  pick which other projects **on the same bookshelf** should also link to
+  the selected layer. Linked copies land in each target project's active
+  canvas and stay synchronized the same way as same-project sharing.
+  Cross-shelf targets are never offered, and the store refuses them even if
+  a caller passes one.
+- If storage fills up (IndexedDB quota, or the localStorage fallback), saves
+  fall back to dropping thumbnails (they're regenerable) before giving up; a
+  one-time toast warns if a save still can't be persisted so work isn't
+  silently lost.
 - Starting a new design from the Dashboard reuses the current project if
   it's still empty (no layers drawn yet) instead of creating a fresh one on
   every click — prevents blank projects from piling up.

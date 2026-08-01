@@ -116,6 +116,36 @@ export async function resolveLocalFilePreviewUrl(fileUri: string): Promise<strin
 
 export type VaultDrive = { path: string; label: string };
 
+export type VaultDirectoryEntry = { path: string; name: string };
+
+export type VaultDirectoryListing = {
+    path: string;
+    /** null at a drive root or the top of the allowlist — nothing above to browse. */
+    parent: string | null;
+    entries: VaultDirectoryEntry[];
+};
+
+/**
+ * Subfolders of `path`, so the browser can offer a real folder picker.
+ *
+ * The File System Access API cannot help here: it yields an opaque handle,
+ * and the indexer needs an actual path. On a local install the server is the
+ * same machine, so it does the walking.
+ */
+export async function browseVaultDirectory(path: string): Promise<VaultDirectoryListing> {
+    const data = await vaultFetch<{
+        success: true;
+        path: string;
+        parent: string | null;
+        entries: VaultDirectoryEntry[];
+    }>(`/api/assets/vault/browse?path=${encodeURIComponent(path)}`);
+    return {
+        path: typeof data?.path === 'string' ? data.path : path,
+        parent: typeof data?.parent === 'string' ? data.parent : null,
+        entries: Array.isArray(data?.entries) ? data.entries : [],
+    };
+}
+
 /** Drives/volumes the server will let this install index. */
 export async function listIndexableDrives(): Promise<{
     mode: 'all-drives' | 'allowlist';

@@ -124,11 +124,25 @@ describe('/api/ai/ollama/critique', () => {
     });
 
     it('rejects text-only models for critique even when they are installed', async () => {
-        global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+        // Vision support comes from Ollama's own /api/show capabilities, so the
+        // mock answers per model rather than relying on the name.
+        global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
             if (String(input) === 'http://localhost:11434/api/tags') {
                 return {
                     ok: true,
                     json: async () => ({ models: [{ name: 'qwen2.5:7b' }, { name: 'llava:7b' }] }),
+                } as Response;
+            }
+
+            if (String(input) === 'http://localhost:11434/api/show') {
+                const asked = JSON.parse(String(init?.body ?? '{}')).model as string;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        capabilities: asked === 'llava:7b'
+                            ? ['completion', 'vision']
+                            : ['completion', 'tools'],
+                    }),
                 } as Response;
             }
 
@@ -153,8 +167,49 @@ describe('/api/ai/ollama/critique', () => {
         expect(response.status).toBe(400);
         expect(payload).toEqual(expect.objectContaining({
             success: false,
-            message: expect.stringContaining('does not appear to support image input'),
+            reason: 'model_not_vision_capable',
+            requestedModel: 'qwen2.5:7b',
+            visionSource: 'capabilities',
+            // The installed vision model is offered as the fix, so the UI can
+            // switch to it without the user guessing a model name.
+            visionModels: ['llava:7b'],
         }));
+        expect(payload.message).toContain('cannot read images');
+    });
+
+    it('trusts capabilities over the model name in both directions', async () => {
+        // A vision model whose name matches nothing in the old pattern list
+        // must still be accepted — that list misses most of the current library.
+        global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+            if (String(input) === 'http://localhost:11434/api/tags') {
+                return { ok: true, json: async () => ({ models: [{ name: 'qwen3-vl:8b' }] }) } as Response;
+            }
+            if (String(input) === 'http://localhost:11434/api/show') {
+                return { ok: true, json: async () => ({ capabilities: ['completion', 'vision'] }) } as Response;
+            }
+            if (String(input) === 'http://localhost:11434/api/generate') {
+                return { ok: true, json: async () => ({ response: 'Summary\nLooks good.' }) } as Response;
+            }
+            throw new Error(`Unexpected fetch call: ${String(input)}`);
+        }) as typeof global.fetch;
+
+        const request = new Request('http://localhost:3000/api/ai/ollama/critique', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                baseUrl: 'http://localhost:11434',
+                model: 'qwen3-vl:8b',
+                target: 'canvas',
+                targetLabel: 'Full canvas',
+                imageDataUrl: 'data:image/png;base64,AAAAAA==',
+            }),
+        });
+
+        const response = await POST(request as never);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload).toEqual(expect.objectContaining({ success: true, model: 'qwen3-vl:8b' }));
     });
 
     it('falls back from host.docker.internal to localhost when the app is running outside Docker', async () => {

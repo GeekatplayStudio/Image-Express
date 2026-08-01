@@ -1,9 +1,19 @@
 import { idbDelete, idbGet, idbPut, isIndexedDbAvailable, PROJECTS_RECORD_KEY } from '@/lib/multicanvas/projectDb';
 
 // Project store for the multi-canvas workflow.
-// Hierarchy: a Project contains Canvases, a Canvas contains Layers (fabric
-// objects). Layers marked shared (sharedLayerId) are linked across canvases;
-// adjustment settings propagate globally through syncSharedLayerAcrossCanvases.
+// Hierarchy: a Bookshelf contains Projects (albums), a Project contains
+// Canvases (pages), a Canvas contains Layers (fabric objects). Layers marked
+// shared (sharedLayerId) are linked across canvases; adjustment settings
+// propagate through syncSharedLayerAcrossCanvases.
+//
+// A Bookshelf is a hard resource boundary: shared layers never link or sync
+// across shelves. Two albums on different shelves that happen to carry the
+// same sharedLayerId are unrelated documents.
+//
+// Not to be confused with the asset vault's Bookcase
+// (features/asset-vault/contracts/bookcase.ts), which is a saved collection
+// of vault ASSETS. A Bookshelf here is a collection of ALBUMS.
+//
 // Pure functions + a thin localStorage persistence layer for determinism.
 
 export type SerializedLayer = Record<string, unknown> & {
@@ -34,20 +44,35 @@ export type Project = {
     name: string;
     canvases: ProjectCanvas[];
     activeCanvasId: string;
+    /** Owning shelf. Workspaces saved before shelves existed adopt DEFAULT_BOOKSHELF_ID on load. */
+    bookshelfId: string;
 };
 
 export const PROJECT_STORAGE_KEY = 'image-express-project';
 export const PROJECT_CHANGED_EVENT = 'image-express:project-changed';
 
+/** The shelf every pre-bookshelf workspace is migrated onto. */
+export const DEFAULT_BOOKSHELF_ID = 'shf-default';
+
 const newId = () => `cnv-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-export const createProject = (name: string, width: number, height: number): Project => {
+const newProjectId = () => `prj-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+const newBookshelfId = () => `shf-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+export const createProject = (
+    name: string,
+    width: number,
+    height: number,
+    bookshelfId: string = DEFAULT_BOOKSHELF_ID,
+): Project => {
     const canvas = createCanvasEntry('Canvas 1', width, height);
     return {
-        id: `prj-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+        id: newProjectId(),
         name,
         canvases: [canvas],
         activeCanvasId: canvas.id,
+        bookshelfId,
     };
 };
 
@@ -205,20 +230,169 @@ export const clearProject = (): void => {
     window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT));
 };
 
-// --- Federation level: a workspace holds many Projects -----------------------
-// Hierarchy (matches the LogiTensor reference): Federation (all projects) →
-// Project (cube) → Canvases (planes) → Layers.
+// --- Bookshelf level: a workspace holds many Bookshelves ---------------------
+// Hierarchy: Bookshelf (box) → Project/album (box) → Canvases/pages (planes)
+// → Layers. The first two levels render on the same 3D lattice (gridPose.ts).
+
+/** A collection of albums. Resources are never shared across shelves. */
+export type Bookshelf = {
+    id: string;
+    name: string;
+};
 
 export type ProjectsState = {
     projects: Project[];
     activeProjectId: string;
+    bookshelves: Bookshelf[];
+    activeBookshelfId: string;
 };
 
 export const PROJECTS_STORAGE_KEY = 'image-express-projects';
 
-export const createProjectsState = (name: string, width: number, height: number): ProjectsState => {
-    const project = createProject(name, width, height);
-    return { projects: [project], activeProjectId: project.id };
+export const createBookshelf = (name: string, id: string = newBookshelfId()): Bookshelf => ({ id, name });
+
+export const createProjectsState = (
+    name: string,
+    width: number,
+    height: number,
+    bookshelfName = 'Bookshelf 1',
+): ProjectsState => {
+    const bookshelf = createBookshelf(bookshelfName, DEFAULT_BOOKSHELF_ID);
+    const project = createProject(name, width, height, bookshelf.id);
+    return {
+        projects: [project],
+        activeProjectId: project.id,
+        bookshelves: [bookshelf],
+        activeBookshelfId: bookshelf.id,
+    };
+};
+
+/**
+ * Bring any persisted workspace up to the current shape.
+ *
+ * Workspaces written before shelves existed have no `bookshelves` array and
+ * no `bookshelfId` on their projects; they all land on one default shelf, so
+ * an upgrading user sees exactly the albums they had, on one shelf. Also
+ * repairs dangling active ids and orphaned shelf references, which is cheap
+ * here and saves every reader from defensive lookups.
+ */
+export const normalizeProjectsState = (state: ProjectsState): ProjectsState => {
+    const shelves = Array.isArray(state.bookshelves) && state.bookshelves.length > 0
+        ? state.bookshelves
+        : [createBookshelf('Bookshelf 1', DEFAULT_BOOKSHELF_ID)];
+    const shelfIds = new Set(shelves.map((shelf) => shelf.id));
+    const fallbackShelfId = shelves[0].id;
+
+    const projects = state.projects.map((project) => (
+        project.bookshelfId && shelfIds.has(project.bookshelfId)
+            ? project
+            : { ...project, bookshelfId: fallbackShelfId }
+    ));
+
+    const activeProject = projects.find((project) => project.id === state.activeProjectId) ?? projects[0];
+    const activeBookshelfId = shelfIds.has(state.activeBookshelfId)
+        ? state.activeBookshelfId
+        : (activeProject?.bookshelfId ?? fallbackShelfId);
+
+    return {
+        projects,
+        activeProjectId: activeProject?.id ?? state.activeProjectId,
+        bookshelves: shelves,
+        activeBookshelfId,
+    };
+};
+
+export const getActiveBookshelf = (state: ProjectsState): Bookshelf => (
+    state.bookshelves.find((shelf) => shelf.id === state.activeBookshelfId) ?? state.bookshelves[0]
+);
+
+/** Albums that live on a given shelf, in workspace order. */
+export const projectsInBookshelf = (state: ProjectsState, bookshelfId: string): Project[] => (
+    state.projects.filter((project) => project.bookshelfId === bookshelfId)
+);
+
+/** The shelf a given album belongs to, or the active shelf if it is unknown. */
+export const bookshelfIdOfProject = (state: ProjectsState, projectId: string): string => (
+    state.projects.find((project) => project.id === projectId)?.bookshelfId ?? state.activeBookshelfId
+);
+
+/**
+ * Add a shelf. A shelf is never empty — it opens with one album holding one
+ * page, mirroring how a new album opens with one page — and becomes active
+ * along with that album.
+ */
+export const addBookshelf = (
+    state: ProjectsState,
+    name: string,
+    albumName: string,
+    width: number,
+    height: number,
+): ProjectsState => {
+    const bookshelf = createBookshelf(name);
+    const project = createProject(albumName, width, height, bookshelf.id);
+    return {
+        projects: [...state.projects, project],
+        activeProjectId: project.id,
+        bookshelves: [...state.bookshelves, bookshelf],
+        activeBookshelfId: bookshelf.id,
+    };
+};
+
+export const renameBookshelf = (state: ProjectsState, bookshelfId: string, name: string): ProjectsState => ({
+    ...state,
+    bookshelves: state.bookshelves.map((shelf) => (shelf.id === bookshelfId ? { ...shelf, name } : shelf)),
+});
+
+/** Deleting a shelf deletes the albums on it. The last shelf cannot be deleted. */
+export const deleteBookshelf = (state: ProjectsState, bookshelfId: string): ProjectsState => {
+    if (state.bookshelves.length <= 1) return state;
+    const bookshelves = state.bookshelves.filter((shelf) => shelf.id !== bookshelfId);
+    const projects = state.projects.filter((project) => project.bookshelfId !== bookshelfId);
+    if (projects.length === 0) return state;
+    const activeBookshelfId = state.activeBookshelfId === bookshelfId
+        ? bookshelves[0].id
+        : state.activeBookshelfId;
+    const activeProjectId = projects.some((project) => project.id === state.activeProjectId)
+        ? state.activeProjectId
+        : (projects.find((project) => project.bookshelfId === activeBookshelfId) ?? projects[0]).id;
+    return { projects, activeProjectId, bookshelves, activeBookshelfId };
+};
+
+/**
+ * Copy a shelf and every album on it. sharedLayerIds are copied verbatim: they
+ * only ever link within a shelf, so the copy reproduces the original's
+ * internal links without reaching back into the source shelf.
+ */
+export const duplicateBookshelf = (state: ProjectsState, bookshelfId: string): ProjectsState => {
+    const source = state.bookshelves.find((shelf) => shelf.id === bookshelfId);
+    if (!source) return state;
+    const copy = createBookshelf(`${source.name} copy`);
+    const copiedProjects = projectsInBookshelf(state, bookshelfId).map((project, offset) => {
+        const clone = JSON.parse(JSON.stringify(project)) as Project;
+        clone.id = `${newProjectId()}-${offset}`;
+        clone.bookshelfId = copy.id;
+        return clone;
+    });
+    if (copiedProjects.length === 0) return state;
+    const index = state.bookshelves.findIndex((shelf) => shelf.id === bookshelfId);
+    const bookshelves = [...state.bookshelves];
+    bookshelves.splice(index + 1, 0, copy);
+    return {
+        projects: [...state.projects, ...copiedProjects],
+        activeProjectId: copiedProjects[0].id,
+        bookshelves,
+        activeBookshelfId: copy.id,
+    };
+};
+
+/** Select a shelf, moving the album selection onto it. */
+export const setActiveBookshelf = (state: ProjectsState, bookshelfId: string): ProjectsState => {
+    if (!state.bookshelves.some((shelf) => shelf.id === bookshelfId)) return state;
+    const onShelf = projectsInBookshelf(state, bookshelfId);
+    const activeProjectId = onShelf.some((project) => project.id === state.activeProjectId)
+        ? state.activeProjectId
+        : (onShelf[0]?.id ?? state.activeProjectId);
+    return { ...state, activeBookshelfId: bookshelfId, activeProjectId };
 };
 
 export const getActiveProject = (state: ProjectsState): Project => (
@@ -230,9 +404,10 @@ export const updateActiveProject = (state: ProjectsState, updater: (project: Pro
     projects: state.projects.map((p) => (p.id === state.activeProjectId ? updater(p) : p)),
 });
 
+/** New albums land on the shelf currently in view. */
 export const addProject = (state: ProjectsState, name: string, width: number, height: number): ProjectsState => {
-    const project = createProject(name, width, height);
-    return { projects: [...state.projects, project], activeProjectId: project.id };
+    const project = createProject(name, width, height, state.activeBookshelfId);
+    return { ...state, projects: [...state.projects, project], activeProjectId: project.id };
 };
 
 export const renameProject = (state: ProjectsState, projectId: string, name: string): ProjectsState => ({
@@ -246,40 +421,53 @@ export const isProjectEmpty = (project: Project): boolean => (
     && project.canvases.every((c) => !c.json || !c.json.objects || c.json.objects.length === 0)
 );
 
-/** Find an untouched project to reuse instead of spawning a new one. */
+/**
+ * Find an untouched project to reuse instead of spawning a new one.
+ * Confined to the active shelf: reusing an empty album from another shelf
+ * would silently move the user's work across a resource boundary.
+ */
 export const findEmptyProject = (state: ProjectsState): Project | null => (
-    state.projects.find((p) => isProjectEmpty(p)) ?? null
+    projectsInBookshelf(state, state.activeBookshelfId).find((p) => isProjectEmpty(p)) ?? null
 );
 
+/** A shelf always keeps at least one album, so its last album cannot be deleted. */
 export const deleteProject = (state: ProjectsState, projectId: string): ProjectsState => {
     if (state.projects.length <= 1) return state;
+    const target = state.projects.find((p) => p.id === projectId);
+    if (!target) return state;
+    if (projectsInBookshelf(state, target.bookshelfId).length <= 1) return state;
     const projects = state.projects.filter((p) => p.id !== projectId);
-    const activeProjectId = state.activeProjectId === projectId ? projects[0].id : state.activeProjectId;
-    return { projects, activeProjectId };
+    const activeProjectId = state.activeProjectId === projectId
+        ? (projects.find((p) => p.bookshelfId === target.bookshelfId) ?? projects[0]).id
+        : state.activeProjectId;
+    return { ...state, projects, activeProjectId };
 };
 
 export const duplicateProject = (state: ProjectsState, projectId: string): ProjectsState => {
     const source = state.projects.find((p) => p.id === projectId);
     if (!source) return state;
     const copy = JSON.parse(JSON.stringify(source)) as Project;
-    copy.id = `prj-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    copy.id = newProjectId();
     copy.name = `${source.name} copy`;
     const index = state.projects.findIndex((p) => p.id === projectId);
     const projects = [...state.projects];
     projects.splice(index + 1, 0, copy);
-    return { projects, activeProjectId: copy.id };
+    return { ...state, projects, activeProjectId: copy.id };
 };
 
-export const setActiveProject = (state: ProjectsState, projectId: string): ProjectsState => (
-    state.projects.some((p) => p.id === projectId)
-        ? { ...state, activeProjectId: projectId }
-        : state
-);
+/** Selecting an album also brings its shelf into view. */
+export const setActiveProject = (state: ProjectsState, projectId: string): ProjectsState => {
+    const target = state.projects.find((p) => p.id === projectId);
+    if (!target) return state;
+    return { ...state, activeProjectId: projectId, activeBookshelfId: target.bookshelfId };
+};
 
 /**
- * Federation links: one entry per shared asset per album pair, carrying the
+ * Album links: one entry per shared asset per album pair, carrying the
  * layer's identity so the view can say WHAT is shared, not just that
  * something is. Three shared assets between two albums are three links.
+ *
+ * Links never cross a shelf — see listProjectLinks.
  */
 export type ProjectLink = {
     sharedLayerId: string;
@@ -291,9 +479,18 @@ export type ProjectLink = {
     layerSrc?: string;
 };
 
-export const listProjectLinks = (state: ProjectsState): ProjectLink[] => {
+/**
+ * Links between albums on one shelf. Defaults to the active shelf: albums on
+ * different shelves are unrelated documents even when they carry matching
+ * sharedLayerIds (a duplicated shelf produces exactly that), so pairing across
+ * shelves would draw connections the user never made.
+ */
+export const listProjectLinks = (
+    state: ProjectsState,
+    bookshelfId: string = state.activeBookshelfId,
+): ProjectLink[] => {
     const byShared = new Map<string, { ids: Set<string>; layer: SerializedLayer }>();
-    for (const project of state.projects) {
+    for (const project of projectsInBookshelf(state, bookshelfId)) {
         for (const canvas of project.canvases) {
             for (const layer of canvas.json?.objects ?? []) {
                 if (!layer.sharedLayerId) continue;
@@ -324,18 +521,28 @@ export const listProjectLinks = (state: ProjectsState): ProjectLink[] => {
     return links;
 };
 
-/** Propagate a shared layer's linked settings to every project in the workspace. */
+/**
+ * Propagate a shared layer's linked settings across the source album's shelf.
+ * Albums on other shelves are left untouched — the shelf is the boundary for
+ * shared resources, so an edit here must not reach into a neighbouring shelf
+ * that happens to hold a copy with the same sharedLayerId.
+ */
 export const syncSharedLayerAcrossProjects = (
     state: ProjectsState,
     sourceProjectId: string,
     sourceCanvasId: string,
     sourceLayer: SerializedLayer,
-): ProjectsState => ({
-    ...state,
-    projects: state.projects.map((project) => (
-        syncSharedLayerAcrossCanvases(project, project.id === sourceProjectId ? sourceCanvasId : '', sourceLayer)
-    )),
-});
+): ProjectsState => {
+    const scope = bookshelfIdOfProject(state, sourceProjectId);
+    return {
+        ...state,
+        projects: state.projects.map((project) => (
+            project.bookshelfId !== scope
+                ? project
+                : syncSharedLayerAcrossCanvases(project, project.id === sourceProjectId ? sourceCanvasId : '', sourceLayer)
+        )),
+    };
+};
 
 /**
  * Session cache — the synchronous authority while the app is running.
@@ -361,18 +568,29 @@ const isUsableState = (value: unknown): value is ProjectsState => {
     return Boolean(state && Array.isArray(state.projects) && state.projects.length > 0);
 };
 
-/** Read the pre-IndexedDB localStorage copies, newest format first. */
+/**
+ * Read the pre-IndexedDB localStorage copies, newest format first.
+ * Everything is normalized on the way out, so pre-bookshelf and
+ * single-project workspaces both arrive on a default shelf.
+ */
 const readLegacyLocalStorage = (): ProjectsState | null => {
     if (typeof window === 'undefined') return null;
     try {
         const raw = window.localStorage.getItem(PROJECTS_STORAGE_KEY);
         if (raw) {
             const parsed = JSON.parse(raw) as ProjectsState;
-            if (isUsableState(parsed)) return parsed;
+            if (isUsableState(parsed)) return normalizeProjectsState(parsed);
         }
         // Single-project era.
         const legacy = loadProject();
-        if (legacy) return { projects: [legacy], activeProjectId: legacy.id };
+        if (legacy) {
+            return normalizeProjectsState({
+                projects: [legacy],
+                activeProjectId: legacy.id,
+                bookshelves: [],
+                activeBookshelfId: '',
+            });
+        }
         return null;
     } catch {
         return null;
@@ -414,8 +632,10 @@ export const loadProjectsState = async (): Promise<ProjectsState | null> => {
     if (isIndexedDbAvailable()) {
         const stored = await idbGet<ProjectsState>(PROJECTS_RECORD_KEY);
         if (isUsableState(stored)) {
-            cachedState = stored;
-            return stored;
+            // Workspaces written before shelves existed land on a default one.
+            const migrated = normalizeProjectsState(stored);
+            cachedState = migrated;
+            return migrated;
         }
         // Nothing in IndexedDB yet — adopt whatever localStorage still holds
         // and move it across, so an existing workspace survives the upgrade.

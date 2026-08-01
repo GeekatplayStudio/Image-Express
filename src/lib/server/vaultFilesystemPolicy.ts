@@ -136,6 +136,76 @@ async function isReadableDirectory(target: string) {
 }
 
 /**
+ * Windows puts these at the root of every volume. They are never what anyone
+ * means to index, and they are unreadable anyway, so they are pure noise in a
+ * picker. Matched case-insensitively — the casing varies by Windows version.
+ */
+const NOISE_FOLDERS = new Set([
+    '$recycle.bin',
+    'system volume information',
+    '$windows.~ws',
+    '$windows.~bt',
+    'recovery',
+]);
+
+export type VaultDirectoryEntry = {
+    /** Absolute path, ready to hand back as a watch root. */
+    path: string;
+    /** Folder name on its own, for display. */
+    name: string;
+};
+
+export type VaultDirectoryListing = {
+    /** The folder that was listed, resolved. */
+    path: string;
+    /** Parent folder, or null at a drive/allowlist root — the "up" target. */
+    parent: string | null;
+    entries: VaultDirectoryEntry[];
+};
+
+/**
+ * Immediate subfolders of `requestedPath`, for the in-app folder browser.
+ *
+ * The browser has no native folder dialog, but on a local install the server
+ * IS the user's machine — so it can walk the filesystem on their behalf and
+ * hand back real paths, which is what the indexer needs and what a
+ * `showDirectoryPicker()` handle could never provide.
+ *
+ * Access runs through decideVaultPathAccess, so a self-hosted deployment
+ * exposes only what the operator allowlisted and nothing above it. Files are
+ * omitted entirely: this picker chooses folders, and listing a stranger's
+ * filenames is a disclosure with no purpose here.
+ */
+export async function listVaultDirectory(requestedPath: string): Promise<VaultDirectoryListing> {
+    const decision = decideVaultPathAccess(requestedPath);
+    if (!decision.allowed) {
+        throw new Error(decision.reason);
+    }
+    const target = decision.resolvedPath;
+
+    const entries: VaultDirectoryEntry[] = [];
+    for (const entry of await readdir(target, { withFileTypes: true })) {
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+        // Hidden/system folders are noise in a picker and are rarely what
+        // anyone means to index.
+        if (entry.name.startsWith('.')) continue;
+        if (NOISE_FOLDERS.has(entry.name.toLowerCase())) continue;
+        const full = path.join(target, entry.name);
+        // A symlink can point at a file, or at somewhere unreadable.
+        if (entry.isSymbolicLink() && !(await isReadableDirectory(full))) continue;
+        entries.push({ path: full, name: entry.name });
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+    const parentPath = path.dirname(target);
+    // path.dirname of a root returns the root itself — that is the top.
+    const atTop = parentPath === target
+        || decideVaultPathAccess(parentPath).allowed === false;
+
+    return { path: target, parent: atTop ? null : parentPath, entries };
+}
+
+/**
  * Drives/volumes the user could index, for a picker in the browser (where the
  * native folder dialog is unavailable).
  *

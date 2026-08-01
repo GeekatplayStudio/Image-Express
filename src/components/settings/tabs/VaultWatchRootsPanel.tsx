@@ -16,6 +16,7 @@ import {
     type VaultDrive,
 } from '@/features/asset-vault/application/client/watchRootClient';
 import { modalSectionClass } from '../settingsTypes';
+import VaultFolderBrowser from '../VaultFolderBrowser';
 
 export default function VaultWatchRootsPanel() {
     const { t } = useI18n();
@@ -25,6 +26,7 @@ export default function VaultWatchRootsPanel() {
     const [busyId, setBusyId] = useState<string | null>(null);
     const [manualPath, setManualPath] = useState('');
     const [drives, setDrives] = useState<VaultDrive[]>([]);
+    const [browserOpen, setBrowserOpen] = useState(false);
     const isDesktop = typeof window !== 'undefined' && Boolean(window.desktop?.pickWatchRootFolder);
 
     const refresh = useCallback(async () => {
@@ -88,15 +90,19 @@ export default function VaultWatchRootsPanel() {
         }
     };
 
+    /**
+     * Desktop gets the real OS dialog. The browser gets the in-app folder
+     * browser, which walks the filesystem server-side — on a local install
+     * that is the user's own machine, so it produces the same real paths the
+     * indexer needs. Only a genuine desktop cancel falls through to nothing.
+     */
     const handlePick = async () => {
-        const picked = await pickDesktopWatchFolder();
-        if (picked) {
-            await addPath(picked);
+        if (isDesktop) {
+            const picked = await pickDesktopWatchFolder();
+            if (picked) await addPath(picked);
             return;
         }
-        if (!isDesktop) {
-            toast({ title: t('vault.browseDesktopRequired'), variant: 'destructive' });
-        }
+        setBrowserOpen(true);
     };
 
     const handleScan = async (root: WatchRoot) => {
@@ -129,7 +135,12 @@ export default function VaultWatchRootsPanel() {
     };
 
     return (
-        <section className={`${modalSectionClass} xl:col-span-12`}>
+        <section className={`${modalSectionClass} xl:col-span-12 relative`}>
+            <VaultFolderBrowser
+                isOpen={browserOpen}
+                onClose={() => setBrowserOpen(false)}
+                onPick={(picked) => void addPath(picked)}
+            />
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <h4 className="text-sm font-semibold flex items-center gap-2">

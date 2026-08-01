@@ -3,11 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { DEFAULT_OLLAMA_BASE_URL } from '@/lib/localAiPreferences';
 import {
     extractBase64PayloadFromDataUrl,
-    isOllamaVisionModel,
-    listOllamaVisionModels,
     normalizeOllamaBaseUrl,
 } from '@/lib/ollama';
-import { fetchOllamaWithFallback } from '@/lib/ollamaServer';
+import {
+    fetchOllamaWithFallback,
+    checkOllamaModelVision,
+    listOllamaVisionModelsByCapability,
+} from '@/lib/ollamaServer';
 import { readVaultCatalog, writeVaultCatalog } from '@/lib/server/vault-store';
 import { readVectorStore, writeVectorStore } from '@/lib/server/vaultWatchStore';
 import { embedTextWithOllama } from '@/lib/server/ollamaEmbeddings';
@@ -99,11 +101,19 @@ async function describeImageWithOllama(options: {
     const models = Array.isArray(tagsPayload.models)
         ? tagsPayload.models.map((entry) => entry.name || entry.model || '').filter(Boolean)
         : [];
-    const visionModels = listOllamaVisionModels(models);
+    // Pick by what Ollama says each model can do, not by its name — the name
+    // patterns miss most of the current library, which would leave vault
+    // enrichment silently doing nothing on a machine that has a vision model.
     const requested = options.model?.trim() || '';
-    const model = requested && models.includes(requested) && isOllamaVisionModel(requested)
-        ? requested
-        : visionModels[0];
+    let model = '';
+    if (requested && models.includes(requested)) {
+        const check = await checkOllamaModelVision(tagsResult.baseUrl, requested);
+        if (check.supportsVision) model = requested;
+    }
+    if (!model) {
+        const visionModels = await listOllamaVisionModelsByCapability(tagsResult.baseUrl, models);
+        model = visionModels[0] ?? '';
+    }
     if (!model) return null;
 
     const imageBase64 = extractBase64PayloadFromDataUrl(options.imageDataUrl);

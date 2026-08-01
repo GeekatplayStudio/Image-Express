@@ -55,6 +55,12 @@ If double-clicking does nothing at all (some browsers strip the file's
 permission to run), that's exactly what the Terminal one-liner above avoids —
 use it instead; it always works.
 
+**You only ever fight Gatekeeper once.** As the installer runs it clears the
+download-quarantine flag from its own folder (`xattr -dr com.apple.quarantine`),
+so `start.command` — and every later launch — opens with a plain double-click.
+If you downloaded the whole repository as a ZIP, the same explanation ships
+inside it as `macOS-READ-ME-FIRST.txt`.
+
 ### Prerequisites (if installing manually instead)
 - Node.js 24+ (the repo pins 24.14.1 in `.nvmrc`)
 - npm 11.x (ships with Node 24+)

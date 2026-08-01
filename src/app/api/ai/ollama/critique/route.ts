@@ -4,13 +4,29 @@ import {
     buildOllamaCritiquePrompt,
     extractBase64PayloadFromDataUrl,
     formatOllamaModelList,
-    isOllamaVisionModel,
-    listOllamaVisionModels,
     normalizeOllamaBaseUrl,
 } from '@/lib/ollama';
-import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
+import {
+    formatOllamaAttemptedBaseUrls,
+    fetchOllamaWithFallback,
+    checkOllamaModelVision,
+    listOllamaVisionModelsByCapability,
+} from '@/lib/ollamaServer';
+import { buildVisionCatalog } from '@/lib/server/ollamaVisionCatalog';
 
-const OLLAMA_CRITIQUE_TIMEOUT_MS = 45000;
+/**
+ * Budget for a local vision critique.
+ *
+ * Generous on purpose. The first request after installing a model pays to
+ * load several gigabytes into memory before a single token is produced —
+ * measured at ~40s for a 4B model on a trivial 64x64 image, and a real canvas
+ * with a full critique prompt takes considerably longer. The old 45s budget
+ * meant a freshly installed model reliably failed on its first use, which
+ * reads as "the feature is broken" rather than "the model is still loading".
+ */
+const OLLAMA_CRITIQUE_TIMEOUT_MS = 4 * 60 * 1000;
+/** Listing installed models is a metadata call and should never take this long. */
+const OLLAMA_TAGS_TIMEOUT_MS = 10000;
 
 type OllamaTagsPayload = {
     models?: Array<{ name?: string; model?: string }>;
@@ -64,7 +80,7 @@ export async function POST(request: NextRequest) {
         const tagsResult = await fetchOllamaWithFallback(resolvedBaseUrl, '/api/tags', {
             method: 'GET',
             cache: 'no-store',
-            timeoutMs: OLLAMA_CRITIQUE_TIMEOUT_MS,
+            timeoutMs: OLLAMA_TAGS_TIMEOUT_MS,
         });
 
         if (!tagsResult.ok || !tagsResult.response) {
@@ -98,11 +114,25 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        if (!isOllamaVisionModel(requestedModel)) {
-            const visionModels = listOllamaVisionModels(models);
+        // Ollama's own capability list, not a guess from the model's name.
+        const visionCheck = await checkOllamaModelVision(resolvedBaseUrl, requestedModel);
+        if (!visionCheck.supportsVision) {
+            const visionModels = await listOllamaVisionModelsByCapability(resolvedBaseUrl, models);
+            const catalog = await buildVisionCatalog();
+            const installable = catalog.suggestions.filter((entry) => entry.stillListed !== false);
             return NextResponse.json({
                 success: false,
-                message: `Model "${requestedModel}" is installed in Ollama at ${resolvedBaseUrl}, but it does not appear to support image input. AI Critique requires a vision-capable model. Available vision models: ${formatOllamaModelList(visionModels)}.`,
+                // The structured fields let the UI offer a fix; the message is
+                // the fallback for anywhere that only shows text.
+                message: visionModels.length > 0
+                    ? `Model "${requestedModel}" cannot read images. Switch to one of your installed vision models: ${formatOllamaModelList(visionModels)}.`
+                    : `Model "${requestedModel}" cannot read images, and no installed model can. Install one, for example ${installable.slice(0, 3).map((entry) => `${entry.model} (${entry.size})`).join(', ')}.`,
+                reason: 'model_not_vision_capable',
+                requestedModel,
+                baseUrl: resolvedBaseUrl,
+                visionModels,
+                suggestions: installable,
+                visionSource: visionCheck.source,
             }, { status: 400 });
         }
 
@@ -173,7 +203,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: false,
             message: isAbortError
-                ? `Timed out contacting Ollama after ${Math.round(OLLAMA_CRITIQUE_TIMEOUT_MS / 1000)} seconds.`
+                // Say what is probably happening. A first run after install
+                // spends most of its time loading the model, not generating.
+                ? `Ollama did not finish within ${Math.round(OLLAMA_CRITIQUE_TIMEOUT_MS / 60000)} minutes. A newly installed model loads into memory on its first use — try once more, or pick a smaller vision model.`
                 : (error instanceof Error ? error.message : 'Failed to contact Ollama.'),
         }, { status: 502 });
     }

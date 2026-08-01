@@ -59,6 +59,19 @@ export const formatOllamaModelList = (models: string[], maxItems = 8): string =>
     return remainder > 0 ? `${preview}, +${remainder} more` : preview;
 };
 
+/**
+ * Last-resort name matching for vision support.
+ *
+ * Ollama reports what a model can actually do via /api/show `capabilities`
+ * (see fetchOllamaModelCapabilities), and that is what the app uses. This list
+ * only covers Ollama builds old enough not to report capabilities at all.
+ *
+ * Do not treat it as the set of supported models: matching on names cannot
+ * keep up with the library. When this was last measured against
+ * ollama.com/search?c=vision it recognised 4 of the 19 listed vision models —
+ * it misses qwen3-vl, gemma4, minicpm-v4.x and everything newer. That is the
+ * whole reason detection moved to capabilities.
+ */
 const VISION_MODEL_PATTERNS = [
     /(^|[:\-/])llava([:\-/]|$)/i,
     /(^|[:\-/])bakllava([:\-/]|$)/i,
@@ -71,6 +84,12 @@ const VISION_MODEL_PATTERNS = [
     /(^|[:\-/])pixtral([:\-/]|$)/i,
 ] as const;
 
+/**
+ * Guess vision support from a model's name.
+ *
+ * Only for Ollama builds that do not report capabilities. Prefer
+ * `modelHasVisionCapability` wherever the capability list is available.
+ */
 export const isOllamaVisionModel = (model: string): boolean => {
     const normalized = model.trim().toLowerCase();
     if (!normalized) {
@@ -83,6 +102,25 @@ export const isOllamaVisionModel = (model: string): boolean => {
 export const listOllamaVisionModels = (models: string[]): string[] => (
     models.filter((model) => isOllamaVisionModel(model))
 );
+
+/** Capability names Ollama reports from /api/show. */
+export const OLLAMA_VISION_CAPABILITY = 'vision';
+
+/**
+ * Whether Ollama itself says this model accepts images.
+ *
+ * `capabilities` is absent on older Ollama builds, which is different from
+ * "present and without vision" — the first means we do not know and must fall
+ * back to the name, the second is a definite no. Returning null for unknown
+ * keeps those two apart, so an old build does not report every model as
+ * text-only.
+ */
+export const modelHasVisionCapability = (capabilities: unknown): boolean | null => {
+    if (!Array.isArray(capabilities)) return null;
+    return capabilities.some((entry) => (
+        typeof entry === 'string' && entry.trim().toLowerCase() === OLLAMA_VISION_CAPABILITY
+    ));
+};
 
 export const buildOllamaCritiquePrompt = (options: {
     target: 'selection' | 'canvas';

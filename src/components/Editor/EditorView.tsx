@@ -726,6 +726,12 @@ export default function EditorView({
         handleDuplicateProject,
         handleDeleteProject,
         handleRenameProject,
+        selectBookshelf,
+        openBookshelf,
+        handleAddBookshelf,
+        handleDuplicateBookshelf,
+        handleDeleteBookshelf,
+        handleRenameBookshelf,
         toggleShareActiveLayer,
         shareActiveLayerWithProjects,
         saveActiveCanvasSnapshot,
@@ -781,7 +787,13 @@ export default function EditorView({
     }, [canvas, dialog, multiCanvasProject, t, toast, toggleShareActiveLayer]);
 
     const [showShareWithProjectsModal, setShowShareWithProjectsModal] = useState(false);
-    const otherProjects = (multiProjectsState?.projects ?? []).filter((p) => p.id !== multiProjectsState?.activeProjectId);
+    // Only albums on the same shelf: resources are never shared across shelves,
+    // so offering one as a target would create a link the 3D view cannot draw
+    // and the sync pass would refuse to honour.
+    const otherProjects = (multiProjectsState?.projects ?? []).filter((p) => (
+        p.id !== multiProjectsState?.activeProjectId
+        && p.bookshelfId === multiProjectsState?.activeBookshelfId
+    ));
     const handleConfirmShareWithProjects = useCallback((targetProjectIds: string[]) => {
         const result = shareActiveLayerWithProjects(targetProjectIds);
         if (result === null) {
@@ -1395,6 +1407,12 @@ export default function EditorView({
                                     onDuplicateProject={handleDuplicateProject}
                                     onDeleteProject={handleDeleteProject}
                                     onRenameProject={handleRenameProject}
+                                    onSelectBookshelf={selectBookshelf}
+                                    onOpenBookshelf={openBookshelf}
+                                    onAddBookshelf={handleAddBookshelf}
+                                    onDuplicateBookshelf={handleDuplicateBookshelf}
+                                    onDeleteBookshelf={handleDeleteBookshelf}
+                                    onRenameBookshelf={handleRenameBookshelf}
                                     onClose={closeStackView}
                                 />
                             )}

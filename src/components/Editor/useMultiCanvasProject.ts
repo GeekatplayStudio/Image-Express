@@ -8,9 +8,13 @@ import type { ExtendedFabricObject } from '@/types';
 import { useI18n } from '@/providers/I18nProvider';
 import type { Project, ProjectsState, SerializedCanvasJson, SerializedLayer } from '@/lib/multicanvas/projectStore';
 import {
+    addBookshelf as addBookshelfToState,
     addCanvas as addCanvasToProject,
     addProject as addProjectToState,
+    bookshelfIdOfProject,
     createProjectsState,
+    deleteBookshelf as deleteBookshelfFromState,
+    duplicateBookshelf as duplicateBookshelfInState,
     deleteCanvas as deleteCanvasFromProject,
     deleteProject as deleteProjectFromState,
     duplicateCanvas as duplicateCanvasInProject,
@@ -18,9 +22,11 @@ import {
     getActiveProject,
     getProjectsStateSync,
     loadProjectsState,
+    renameBookshelf as renameBookshelfInState,
     renameCanvas as renameCanvasInProject,
     renameProject as renameProjectInState,
     saveProjectsState,
+    setActiveBookshelf,
     setActiveCanvas,
     setActiveProject,
     syncSharedLayerAcrossProjects,
@@ -322,6 +328,75 @@ export function useMultiCanvasProject({
         commit(renameProjectInState(current, projectId, name));
     }, [commit, getFreshState]);
 
+    // --- Bookshelf level ------------------------------------------------------
+    // Same shape as the album handlers: snapshot the loaded page first so
+    // nothing in the editor is lost, commit, then pull whichever album the new
+    // selection lands on into the editor.
+
+    const selectBookshelf = useCallback((bookshelfId: string) => {
+        const current = snapshotLoadedCanvas();
+        if (!current) return;
+        commit(setActiveBookshelf(current, bookshelfId));
+    }, [commit, snapshotLoadedCanvas]);
+
+    const openBookshelf = useCallback((bookshelfId: string) => {
+        const current = snapshotLoadedCanvas();
+        if (!current) return;
+        const next = setActiveBookshelf(current, bookshelfId);
+        commit(next);
+        const project = getActiveProject(next);
+        if (project.id !== loadedProjectIdRef.current) {
+            loadCanvasIntoEditor(project, project.activeCanvasId);
+        }
+    }, [commit, loadCanvasIntoEditor, snapshotLoadedCanvas]);
+
+    const handleAddBookshelf = useCallback(() => {
+        const current = snapshotLoadedCanvas();
+        if (!current) return;
+        const next = addBookshelfToState(
+            current,
+            t('stack.bookshelfName', { n: current.bookshelves.length + 1 }),
+            t('stack.albumName', { n: 1 }),
+            initialWidth,
+            initialHeight,
+        );
+        commit(next);
+        const project = getActiveProject(next);
+        loadCanvasIntoEditor(project, project.activeCanvasId);
+    }, [commit, initialHeight, initialWidth, loadCanvasIntoEditor, snapshotLoadedCanvas, t]);
+
+    const handleDuplicateBookshelf = useCallback((bookshelfId: string) => {
+        const current = snapshotLoadedCanvas();
+        if (!current) return;
+        const next = duplicateBookshelfInState(current, bookshelfId);
+        commit(next);
+        const project = getActiveProject(next);
+        loadCanvasIntoEditor(project, project.activeCanvasId);
+    }, [commit, loadCanvasIntoEditor, snapshotLoadedCanvas]);
+
+    const handleDeleteBookshelf = useCallback((bookshelfId: string) => {
+        const current = getFreshState();
+        if (!current) return;
+        // Deleting a shelf takes its albums with it, so the editor may be
+        // holding a page that no longer exists.
+        const losingLoadedAlbum = current.projects.some((project) => (
+            project.bookshelfId === bookshelfId && project.id === loadedProjectIdRef.current
+        ));
+        const next = deleteBookshelfFromState(current, bookshelfId);
+        if (next === current) return;
+        commit(next);
+        if (losingLoadedAlbum) {
+            const project = getActiveProject(next);
+            loadCanvasIntoEditor(project, project.activeCanvasId);
+        }
+    }, [commit, getFreshState, loadCanvasIntoEditor]);
+
+    const handleRenameBookshelf = useCallback((bookshelfId: string, name: string) => {
+        const current = getFreshState();
+        if (!current) return;
+        commit(renameBookshelfInState(current, bookshelfId, name));
+    }, [commit, getFreshState]);
+
     const openStackView = useCallback(() => {
         const current = snapshotLoadedCanvas();
         if (current) commit(current);
@@ -402,7 +477,16 @@ export function useMultiCanvasProject({
         const current = snapshotLoadedCanvas();
         if (!current) return null;
         const serialized = (active as unknown as { toObject: (props?: string[]) => SerializedLayer }).toObject(customHistoryProps);
-        const targets = new Set(targetProjectIds);
+        // Enforce the shelf boundary here too, not just in the picker: a link
+        // across shelves would never sync and never render, so it must not be
+        // possible to create one at all.
+        const scope = bookshelfIdOfProject(current, loadedProjectIdRef.current ?? current.activeProjectId);
+        const targets = new Set(
+            targetProjectIds.filter((id) => (
+                current.projects.find((project) => project.id === id)?.bookshelfId === scope
+            )),
+        );
+        if (targets.size === 0) return null;
 
         const next: ProjectsState = {
             ...current,
@@ -470,6 +554,12 @@ export function useMultiCanvasProject({
         handleDuplicateProject,
         handleDeleteProject,
         handleRenameProject,
+        selectBookshelf,
+        openBookshelf,
+        handleAddBookshelf,
+        handleDuplicateBookshelf,
+        handleDeleteBookshelf,
+        handleRenameBookshelf,
         toggleShareActiveLayer,
         shareActiveLayerWithProjects,
         saveActiveCanvasSnapshot,

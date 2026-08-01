@@ -8,10 +8,11 @@ always wins in discussion; the code column tells you where to look.
 ## The hierarchy
 
 ```
-Library ──▶ Album ──▶ Page ──▶ (Workspace, Canvas, Layers)
- (all       (a set    (one     ├─ Workspace: the whole editing area where layers live
-  albums)    of        design   ├─ Canvas: the export boundary inside the workspace
-             pages)     spread)  └─ Layers: the objects (images, text, shapes, …)
+Library ──▶ Bookshelf ──▶ Album ──▶ Page ──▶ (Workspace, Canvas, Layers)
+ (all        (a set of     (a set    (one     ├─ Workspace: the whole editing area where layers live
+  shelves)    albums; a     of        design   ├─ Canvas: the export boundary inside the workspace
+              resource      pages)     spread)  └─ Layers: the objects (images, text, shapes, …)
+              boundary)
 ```
 
 ## Terms
@@ -23,7 +24,8 @@ Library ──▶ Album ──▶ Page ──▶ (Workspace, Canvas, Layers)
 | **Layer** | A single object on a page — an image, text block, shape, adjustment, etc. Layers live in the workspace; only the parts inside the canvas export. |
 | **Page** | One canvas together with all its layers — a single design surface. Pages are what you switch between and see in the 3D stack view. |
 | **Album** | A collection of pages (a multi-page design / project). |
-| **Library** | The collection of **all albums** — the user's whole body of work. |
+| **Bookshelf** | A collection of albums, and a **hard resource boundary**: linked/shared layers never sync or connect across shelves. Rendered in the 3D stack view as the widest zoom level — a lattice of boxes, one per shelf. Not to be confused with the Asset Vault's `Bookcase` (a saved collection of vault *assets*). |
+| **Library** | The collection of **all bookshelves** — the user's whole body of work. |
 
 ## Mapping to the code (important)
 
@@ -36,7 +38,8 @@ code, translate:
 | **Workspace** (full editing surface) | the Fabric `canvas` instance / viewport | everywhere a `fabric.Canvas` is used |
 | **Page** | `canvas` (a `Canvas` entry in a project) | `lib/multicanvas/projectStore.ts`, `useMultiCanvasProject.ts` |
 | **Album** | `project` (a `Project`) | `lib/multicanvas/projectStore.ts`, `Dashboard.tsx` |
-| **Library** | `Federation` / the projects state (all projects) | `lib/multicanvas/projectStore.ts` (`image-express-projects` in localStorage) |
+| **Bookshelf** | `Bookshelf` (`bookshelfId` on each `Project`) | `lib/multicanvas/projectStore.ts`, `Editor/BookshelfScene.tsx` |
+| **Library** | `Federation` / the projects state (all projects) | `lib/multicanvas/projectStore.ts` (IndexedDB `image-express` / `projects-state`) |
 
 > ⚠️ The biggest foot-gun: the code word **`canvas`** means two different
 > canonical things. A `fabric.Canvas` instance is the **Workspace**; a

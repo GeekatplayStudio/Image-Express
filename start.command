@@ -2,6 +2,15 @@
 # Double-click this file in Finder to install (if needed), update, and run Image Express.
 cd "$(dirname "$0")"
 
+# Clear the download-quarantine flag from this folder. Files unpacked from a
+# downloaded .zip are quarantined, and macOS blocks quarantined scripts that
+# carry no Developer ID signature. Reaching this line means the user already
+# chose to run this file, so the remaining copies should not stop them again.
+if [ "$(uname -s)" = "Darwin" ] && command -v xattr >/dev/null 2>&1; then
+    xattr -dr com.apple.quarantine . 2>/dev/null || true
+    chmod +x ./*.command 2>/dev/null || true
+fi
+
 if ! command -v node >/dev/null 2>&1; then
     echo "[ERROR] Node.js is not installed."
     if [ -f "./install.command" ]; then

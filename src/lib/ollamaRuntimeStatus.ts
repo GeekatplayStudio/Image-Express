@@ -14,7 +14,12 @@ export const formatOllamaRuntimeStatusMessage = (result: OllamaRuntimeStatusResu
     result.modelFound
         ? result.visionCapable
             ? `Ollama is reachable. Found ${result.requestedModel}${typeof result.count === 'number' ? ` (${result.count} model${result.count === 1 ? '' : 's'} installed)` : ''}.`
-            : `Ollama is reachable. Found ${result.requestedModel}, but it does not appear to support image input. AI Critique needs a vision model such as ${result.visionModels.slice(0, 3).join(', ') || 'llava, llama3.2-vision, or gemma3'}.`
+            // No hardcoded model names in the fallback: any list written here
+            // goes stale as the Ollama library moves. When nothing installed
+            // can see, the picker below offers current models to install.
+            : `Ollama is reachable. ${result.requestedModel} cannot read images.${result.visionModels.length > 0
+                ? ` Switch to one of your vision models: ${result.visionModels.slice(0, 3).join(', ')}.`
+                : ' None of your installed models can — pick one to install below.'}`
         : `Ollama is reachable, but ${result.requestedModel} is not installed yet.${result.models.length > 0 ? ` Available: ${result.models.slice(0, 3).join(', ')}${result.models.length > 3 ? '…' : ''}.` : ''}`
 );
 

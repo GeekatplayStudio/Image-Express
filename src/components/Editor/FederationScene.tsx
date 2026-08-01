@@ -1,24 +1,23 @@
 'use client';
-// The zoomed-out Federation level: every Project renders as a wireframe cube
-// with its canvases visible as glass slices inside, linked by glowing channel
-// curves between projects that share linked layers. Adapted from
-// GeekatplayStudio/LogiTensor (federation-scene.tsx).
+// The Album level: every album on the current bookshelf renders as a
+// wireframe box with its pages visible as glass slices inside, linked by
+// glowing channel curves between albums that share linked layers.
+//
+// Albums sit on the same 3D lattice as bookshelves (gridPose), so the two
+// levels read as one spatial model. This replaced an earlier ring layout,
+// whose radius grew with the album count — every new album pushed the camera
+// further back and crowded the labels. The lattice spreads growth across
+// three axes instead, stacking a new layer once the floor is full.
+//
+// Scoped to one shelf: shelves never share resources, so an album on another
+// shelf is neither drawn here nor reachable by a link curve.
+// Adapted from GeekatplayStudio/LogiTensor (federation-scene.tsx).
 import React, { useMemo } from 'react';
 import { StackCamera, project as project3d } from '@/lib/multicanvas/stack3dMath';
 import type { ProjectLink, ProjectsState } from '@/lib/multicanvas/projectStore';
-import { listProjectLinks } from '@/lib/multicanvas/projectStore';
-
-const CUBE_HALF = 96;
-
-// Cube face definitions as corner multipliers [x, y, z] of CUBE_HALF
-const FACES: [number, number, number][][] = [
-    [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1]], // front
-    [[-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]],     // back
-    [[-1, -1, -1], [-1, -1, 1], [-1, 1, 1], [-1, 1, -1]], // left
-    [[1, -1, -1], [1, -1, 1], [1, 1, 1], [1, 1, -1]],     // right
-    [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1]], // top
-    [[-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1]],     // bottom
-];
+import { listProjectLinks, projectsInBookshelf } from '@/lib/multicanvas/projectStore';
+import LatticeBox, { sortByDepth } from '@/components/Editor/LatticeBox';
+import { useLatticeSettle } from '@/components/Editor/useLatticeSettle';
 
 type FederationSceneProps = {
     cam: StackCamera;
@@ -32,6 +31,12 @@ type FederationSceneProps = {
     onSelectLink?: (links: ProjectLink[]) => void;
     /** Currently inspected pair, as "idA::idB" — highlights those curves. */
     selectedPairKey?: string | null;
+    /** Box under the cursor; its neighbours drift aside. Owned by the parent
+     *  so an orbit drag can suppress it. */
+    hoveredId?: string | null;
+    onHoverBox?: (projectId: string | null) => void;
+    /** Album mid-delete, with its wind-up/swell scale. */
+    destroying?: { id: string; scale: number } | null;
     /** i18n label formatter for the "<n> canvases · <m> linked" caption. */
     formatCaption: (canvasCount: number, linkedCount: number) => string;
 };
@@ -39,25 +44,31 @@ type FederationSceneProps = {
 export const pairKeyOf = (a: string, b: string): string => (a < b ? `${a}::${b}` : `${b}::${a}`);
 
 export default function FederationScene({
-    cam, projectsState, onSelectProject, onEnterProject, onSelectLink, selectedPairKey, formatCaption,
+    cam, projectsState, onSelectProject, onEnterProject, onSelectLink, selectedPairKey,
+    hoveredId = null, onHoverBox, destroying = null, formatCaption,
 }: FederationSceneProps) {
-    const { projects, activeProjectId } = projectsState;
+    const { activeProjectId, activeBookshelfId } = projectsState;
 
-    // Projects float on a ring with a slight per-project vertical drift.
-    const poses = useMemo(() => {
-        const n = projects.length;
-        const radius = n <= 1 ? 0 : Math.max(300, n * 95);
-        return projects.map((project, i) => {
-            const angle = (i / Math.max(1, n)) * Math.PI * 2 - Math.PI / 2;
-            const cx = Math.cos(angle) * radius;
-            const cz = Math.sin(angle) * radius;
-            const cy = (i % 3 - 1) * 46;
-            const center = project3d(cx, cy, cz, cam);
-            return { project, cx, cy, cz, depth: center.depth };
-        });
-    }, [projects, cam]);
+    // Only this shelf's albums.
+    const projects = useMemo(
+        () => projectsInBookshelf(projectsState, activeBookshelfId),
+        [projectsState, activeBookshelfId],
+    );
 
-    const links = useMemo(() => listProjectLinks(projectsState), [projectsState]);
+    const poses = useLatticeSettle(projects.map((project) => project.id), { hoveredId });
+
+    const boxes = useMemo(() => {
+        const entries = projects.map((project, index) => ({
+            project,
+            pose: poses[project.id] ?? { cx: index * 0, cy: 0, cz: 0 },
+        }));
+        return sortByDepth(entries, cam);
+    }, [projects, poses, cam]);
+
+    const links = useMemo(
+        () => listProjectLinks(projectsState, activeBookshelfId),
+        [projectsState, activeBookshelfId],
+    );
     // All links between the same album pair, so a click can report the full
     // shared-asset list and the curves can fan out instead of overlapping.
     const linksByPair = useMemo(() => {
@@ -69,73 +80,33 @@ export default function FederationScene({
         }
         return groups;
     }, [links]);
-    const poseById = useMemo(() => new Map(poses.map((p) => [p.project.id, p])), [poses]);
-    const drawOrder = useMemo(() => [...poses].sort((a, b) => b.depth - a.depth), [poses]);
+    const poseById = useMemo(
+        () => new Map(boxes.map((entry) => [entry.project.id, entry.pose])),
+        [boxes],
+    );
 
     return (
         <g data-testid="federation-scene">
-            {drawOrder.map(({ project, cx, cy, cz }) => {
-                const active = project.id === activeProjectId;
-                const h = CUBE_HALF * (active ? 1.12 : 1);
-                const stroke = active ? 'rgba(127,170,176,0.6)' : 'rgba(148,163,184,0.32)';
-
-                const faceEls = FACES.map((face, fi) => {
-                    const pts = face.map(([mx, my, mz]) => project3d(cx + mx * h, cy + my * h, cz + mz * h, cam));
-                    const depth = pts.reduce((s, p) => s + p.depth, 0) / 4;
-                    const d = `M ${pts.map((p) => `${p.x} ${p.y}`).join(' L ')} Z`;
-                    return { fi, depth, d };
-                }).sort((a, b) => b.depth - a.depth);
-
-                // Canvases as horizontal glass slices stacked inside the cube
-                const sliceCount = Math.min(project.canvases.length, 5);
-                const slices = Array.from({ length: sliceCount }, (_, j) => {
-                    const y = cy + h - ((j + 1) * (2 * h)) / (sliceCount + 1);
-                    const inset = h - 16;
-                    const pts = [
-                        project3d(cx - inset, y, cz - inset, cam),
-                        project3d(cx + inset, y, cz - inset, cam),
-                        project3d(cx + inset, y, cz + inset, cam),
-                        project3d(cx - inset, y, cz + inset, cam),
-                    ];
-                    return `M ${pts.map((p) => `${p.x} ${p.y}`).join(' L ')} Z`;
-                });
-
-                const top = project3d(cx, cy - h - 30, cz, cam);
+            {boxes.map(({ project, pose }) => {
                 const linkedCount = project.canvases.reduce(
                     (sum, canvasEntry) => sum + (canvasEntry.json?.objects ?? []).filter((layer) => layer.sharedLayerId).length,
                     0,
                 );
-
                 return (
-                    <g
+                    <LatticeBox
                         key={project.id}
-                        onClick={() => onSelectProject(project.id)}
-                        onDoubleClick={() => onEnterProject(project.id)}
-                        className="cursor-pointer"
-                        opacity={active ? 1 : 0.72}
-                        style={{ transition: 'opacity 0.3s' }}
-                        data-testid={`federation-cube-${project.id}`}
-                    >
-                        {faceEls.map((f) => (
-                            <path
-                                key={f.fi}
-                                d={f.d}
-                                fill={active ? 'rgba(127,170,176,0.04)' : 'rgba(255,255,255,0.02)'}
-                                stroke={stroke}
-                                strokeWidth={active ? 1.4 : 0.9}
-                                filter={active ? 'url(#csv-glow)' : undefined}
-                            />
-                        ))}
-                        {slices.map((d, j) => (
-                            <path key={j} d={d} fill="rgba(127,170,176,0.04)" stroke="rgba(127,170,176,0.3)" strokeWidth={0.8} />
-                        ))}
-                        <text x={top.x} y={top.y} textAnchor="middle" fontSize={active ? 16 : 13} fontWeight={600} fill={active ? '#B9D3D6' : '#94a3b8'}>
-                            {project.name}
-                        </text>
-                        <text x={top.x} y={top.y + 15} textAnchor="middle" fontSize={9.5} fill="#64748b">
-                            {formatCaption(project.canvases.length, linkedCount)}
-                        </text>
-                    </g>
+                        cam={cam}
+                        pose={pose}
+                        active={project.id === activeProjectId}
+                        label={project.name}
+                        caption={formatCaption(project.canvases.length, linkedCount)}
+                        sliceCount={project.canvases.length}
+                        onSelect={() => onSelectProject(project.id)}
+                        onEnter={() => onEnterProject(project.id)}
+                        onHover={(hovering) => onHoverBox?.(hovering ? project.id : null)}
+                        scale={destroying?.id === project.id ? destroying.scale : 1}
+                        testId={`federation-cube-${project.id}`}
+                    />
                 );
             })}
 

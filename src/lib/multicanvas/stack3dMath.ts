@@ -14,9 +14,16 @@ export interface StackCamera {
     zoom: number;
     panX: number;
     panY: number;
+    /**
+     * Dolly along the view axis (Alt+wheel): positive pushes the scene away.
+     * Unlike zoom, which scales uniformly, this changes the perspective divide
+     * — so it travels *through* a deep lattice instead of just magnifying it.
+     * Optional so every existing camera literal stays valid.
+     */
+    depth?: number;
 }
 
-export const DEFAULT_STACK_CAMERA: StackCamera = { yaw: -0.34, pitch: 0.52, zoom: 1, panX: 0, panY: 0 };
+export const DEFAULT_STACK_CAMERA: StackCamera = { yaw: -0.34, pitch: 0.52, zoom: 1, panX: 0, panY: 0, depth: 0 };
 
 export interface Projected {
     x: number;
@@ -34,7 +41,9 @@ export function project(x: number, y: number, z: number, cam: StackCamera): Proj
     const z1 = -x * sy + z * cy;
     // Pitch: rotate around the horizontal (x) axis
     const y2 = y * cp - z1 * sp;
-    const z2 = y * sp + z1 * cp;
+    // Dolly is applied in view space, after the orbit, so it always travels
+    // along the direction the camera is actually looking.
+    const z2 = y * sp + z1 * cp + (cam.depth ?? 0);
     const s = FOCAL / Math.max(200, FOCAL + z2);
     return {
         x: VIEW_W / 2 + x1 * s * cam.zoom + cam.panX,
@@ -45,3 +54,5 @@ export function project(x: number, y: number, z: number, cam: StackCamera): Proj
 
 export const clampPitch = (p: number) => Math.min(1.25, Math.max(-0.2, p));
 export const clampZoom = (z: number) => Math.min(2.6, Math.max(0.3, z));
+/** Kept short of -FOCAL, where the perspective divide would invert the scene. */
+export const clampDepth = (d: number) => Math.min(1200, Math.max(-1200, d));

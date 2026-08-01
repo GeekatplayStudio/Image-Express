@@ -60,14 +60,52 @@ warning entirely — it's three steps:
 4. **Next time**, open **Finder → your home folder → ImageExpress**, and double-click **`start.command`**.
 
 <details>
-<summary><b>Prefer clicking a file instead of using Terminal?</b> (needs one extra step to get past macOS's security warning)</summary>
+<summary><b>Downloaded the ZIP instead, and macOS says it "could not verify this app is free of malware"?</b></summary>
 <br>
 
-Download **[`install.command`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.command)** (click the **⬇ download icon** on that page). In **Finder**, **right-click** (or Control-click) `install.command` and choose **Open** — don't double-click it the first time. macOS will warn that it can't verify the developer; this is normal for open-source software that isn't sold through the App Store, **not** a sign of malware. Click **Open** to continue.
+**Nothing is wrong with your download, and no virus was found.** macOS blocks
+*every* downloaded program whose author hasn't paid Apple $99/year for a
+Developer ID certificate. Image Express is free and open source, so it doesn't
+have one — and macOS shows the same wording for "unrecognised publisher" as it
+does for real malware. The whole installer is readable
+[here](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.command)
+before you run it. The same note ships inside the ZIP as
+`macOS-READ-ME-FIRST.txt`.
 
-If macOS still refuses — a stronger warning about malware, or no "Open" button — go to **Apple menu → System Settings → Privacy & Security**, scroll down to the message about `install.command` being blocked, click **Open Anyway**, and confirm with your password or Touch ID. Then go back to Finder and right-click → **Open** once more.
+Pick whichever you prefer:
 
-If nothing happens at all when you open it, use the Terminal method above instead — it always works, because it never downloads a blocked file in the first place.
+**Drag it into Terminal** — easiest, changes no settings, needs no password.
+Open **Terminal** (<kbd>⌘ Cmd</kbd> + <kbd>Space</kbd>, type `Terminal`,
+Return), type `bash` followed by a **space**, then drag `install.command` from
+Finder onto the Terminal window and press Return. Handing the file to Terminal
+yourself isn't "launching an app", so Gatekeeper never gets a vote.
+
+**Or approve it once.** Double-click `install.command`, let it be blocked, click
+**Done**. Go to **Apple menu → System Settings → Privacy & Security**, scroll
+down to the line saying `install.command` was blocked, click **Open Anyway**,
+confirm with Touch ID or your password, then double-click the file again and
+choose **Open**. *(On older macOS there's no such line — instead right-click, or
+Control-click, the file in Finder and choose **Open**.)*
+
+**You only do this once.** As it runs, the installer clears the quarantine flag
+from its own folder, so `start.command` opens with a plain double-click from
+then on.
+
+</details>
+
+<details>
+<summary><b>Why isn't there just a normal installer with no warnings?</b></summary>
+<br>
+
+Because that requires Apple's paid Developer Program ($99/year) to sign and
+notarize each release. The release pipeline is already wired for it —
+[`.github/workflows/release.yml`](.github/workflows/release.yml) picks up
+`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_API_KEY`, `APPLE_API_KEY_ID` and
+`APPLE_API_ISSUER` if those repository secrets are set, and produces a signed,
+notarized `.dmg` that opens with no warning at all. Until those secrets exist,
+every macOS build is unsigned and Gatekeeper will object. No script can work
+around that; it's the point of the mechanism.
+
 </details>
 
 That's it. You never need to know what Git, Node.js, or npm are — the
@@ -171,7 +209,7 @@ Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key config
 </td>
 <td width="50%">
 
-**The Stack** — every canvas in your project floating as a live plane in true 3D space. Drag to orbit, scroll to zoom, arrow-key between pages. Zoom out further and it becomes **Federation** view — your whole workspace as a flyable map of projects.
+**The Stack** — every canvas in your project floating as a live plane in true 3D space, with three zoom levels: pages in an album, albums arranged as a 3D lattice of boxes, and **Bookshelves** — collections of albums, each shelf a hard boundary that never shares resources with its neighbors. Full 3D navigation everywhere: drag to orbit, Space/Shift-drag to pan, scroll to zoom between levels, Alt+scroll to travel in depth, arrow keys to cycle, hover to part the lattice. Deleting a box winds up, swells, and bursts into sparks.
 
 </td>
 </tr>
@@ -200,7 +238,7 @@ Most tools give you one canvas per document. Image Express gives every project a
 ### 🤖 Any AI you want — local or cloud, your keys, your rules
 - **3D generation**: Meshy, Tripo, and Hitem3D — full PBR texturing, background job polling.
 - **2D generation**: Stability AI, OpenAI (DALL·E 3), Google Gemini, Banana.dev/NanoBanana, and full **ComfyUI** integration (local, Docker, or Comfy Cloud) with a workflow library browser and same-origin proxying.
-- **100% local option**: run **Ollama** for local SVG generation and layer/canvas **AI Critique** — nothing ever leaves your machine. The app auto-detects missing local models and offers an inline one-click install.
+- **100% local option**: run **Ollama** for local SVG generation and layer/canvas **AI Critique** — nothing ever leaves your machine. Vision support is detected from Ollama's own per-model capability report (never a hardcoded model list, so brand-new models like `qwen3-vl` and `gemma4` just work), and when your saved model can't read images the critique panel shows every installed vision model plus a curated, size-labeled install list — checked live against the Ollama library — for one-click switch or install with streamed download progress.
 - **AI Edit Notes (Beta)**: annotate a layer with point notes, save a flattened reference layer with embedded edit instructions, and hand it straight to a ComfyUI/Flux workflow for guided AI editing.
 - A **polymorphic AI adapter layer** means every provider returns the same normalized shape to the UI — swap providers mid-project with zero rework.
 
@@ -208,6 +246,7 @@ Most tools give you one canvas per document. Image Express gives every project a
 - **Asset Library**: drag-and-drop multi-file ingestion (mixed images/video/audio/3D lands in the right tabs automatically), folders, search, personal-vs-shared scope, public/private visibility, and **live rotating 3D previews on hover** plus real rendered thumbnails for 3D models in the grid — not just an icon.
 - **Single click opens a large preview** for any asset with an Add-to-Canvas button; **double-click or the hover “+” button** adds it straight to the canvas. Video previews support real scrubbing and a **Capture Frame** button that grabs the current frame as a new image layer.
 - **AI-assisted asset search (optional, local)**: new uploads are indexed automatically — dimensions and any embedded generation prompt always, plus an AI caption + tags from a local Ollama vision model when you opt in — so you can find an asset by what's *in* it, not just its filename.
+- **Index whole drives & folders — from the browser too**: on a local install, "Browse drive / folder" opens a real server-backed folder picker (the browser's File System API can't return paths; the server on your own machine can), so the Asset Vault can index any drive without the desktop build. Self-hosted servers expose only operator-allowlisted roots — never a visitor-browsable filesystem.
 - **Portable Library Bundles**: export your entire asset library (with owner/visibility metadata) as one file and re-import it on another machine or project.
 - **Server-side design storage** (no browser-storage limits), optional **Google Drive backup** mirroring every save automatically, and full **export** to PNG/JPG/SVG/PDF/JSON/self-contained offline HTML — plus **machine embroidery (.DST)**, see below.
 

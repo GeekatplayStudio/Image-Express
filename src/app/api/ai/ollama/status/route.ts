@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
-import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
-import { listOllamaVisionModels, normalizeOllamaBaseUrl, isOllamaVisionModel } from '@/lib/ollama';
+import {
+    formatOllamaAttemptedBaseUrls,
+    fetchOllamaWithFallback,
+    checkOllamaModelVision,
+    listOllamaVisionModelsByCapability,
+} from '@/lib/ollamaServer';
+import { normalizeOllamaBaseUrl } from '@/lib/ollama';
 
 const OLLAMA_STATUS_TIMEOUT_MS = 5000;
 
@@ -50,7 +55,14 @@ export async function GET(request: NextRequest) {
                 .filter((entry) => entry.trim().length > 0)
             : [];
         const modelFound = models.includes(requestedModel);
-        const visionModels = listOllamaVisionModels(models);
+        // Ask Ollama what each model can do rather than guessing from its
+        // name — the name patterns miss most of the current library.
+        const [visionCheck, visionModels] = await Promise.all([
+            modelFound
+                ? checkOllamaModelVision(tagsResult.baseUrl, requestedModel)
+                : Promise.resolve({ supportsVision: false, source: 'capabilities' as const }),
+            listOllamaVisionModelsByCapability(tagsResult.baseUrl, models),
+        ]);
 
         return NextResponse.json({
             success: true,
@@ -58,7 +70,9 @@ export async function GET(request: NextRequest) {
             attemptedBaseUrls: tagsResult.attemptedBaseUrls,
             requestedModel,
             modelFound,
-            visionCapable: modelFound && isOllamaVisionModel(requestedModel),
+            visionCapable: modelFound && visionCheck.supportsVision,
+            /** 'capabilities' when Ollama answered; 'name-heuristic' on old builds. */
+            visionSource: visionCheck.source,
             visionModels,
             models,
             count: models.length,

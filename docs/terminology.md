@@ -13,10 +13,12 @@ Workspace          the whole editing environment (chrome, panels, rails)
      Page          one composed unit of work (what the user saves/opens)
          ↓ collect into
      Album         a set of related pages
+         ↓ collect into
+     Bookshelf     a set of albums; a hard resource boundary (no cross-shelf links)
 ```
 
 Read it as: *layers sit on the **canvas**; a finished canvas is a **page**;
-pages are collected into an **album**.*
+pages are collected into an **album**; albums stand on a **bookshelf**.*
 
 ## Rules
 

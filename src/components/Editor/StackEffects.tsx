@@ -34,6 +34,9 @@ export const EXPLOSION_DURATION_MS = 1400;
 // Champagne golds with the occasional cool fleck, like real pixie dust.
 const DUST_COLORS = ['#ffe9a8', '#fff3c9', '#ffd76e', '#fff7e0', '#ffffff', '#bfeef2'];
 const EXPLOSION_COLORS = ['#ff9d5c', '#ffce7a', '#ff6b4a', '#fff3d6', '#ffb36b'];
+// Sparks run hotter than the debris they fly ahead of — white and yellow core
+// shades rather than the deeper oranges.
+const SPARK_COLORS = ['#fff8e2', '#ffe9a8', '#ffd166', '#ffffff', '#ffc14d'];
 
 /**
  * The wisp's flight: an expanding spiral, squashed vertically so it reads as
@@ -104,6 +107,38 @@ const makeDebris = (count: number, reach: number): Debris[] => (
             color: EXPLOSION_COLORS[Math.floor(Math.random() * EXPLOSION_COLORS.length)],
             delay: Math.random() * 0.06,
             dur: 0.7 + Math.random() * 0.5,
+        };
+    })
+);
+
+/**
+ * Sparks, as distinct from debris: a spark is a hot streak that flies fast,
+ * stretches along its own direction of travel, and burns out. Debris is
+ * round, slower, and falls. Having both is what makes the burst read as
+ * something igniting rather than a puff of dots.
+ */
+type Spark = {
+    angle: number;  // degrees, so the streak can be rotated to face its travel
+    dist: number;
+    length: number;
+    width: number;
+    color: string;
+    delay: number;
+    dur: number;
+};
+
+const makeSparks = (count: number, reach: number): Spark[] => (
+    Array.from({ length: count }, () => {
+        const angle = Math.random() * Math.PI * 2;
+        return {
+            angle: (angle * 180) / Math.PI,
+            // Sparks outrun the debris, so the leading edge of the burst is hot.
+            dist: reach * (0.55 + Math.random() * 0.8),
+            length: 14 + Math.random() * 30,
+            width: 1.1 + Math.random() * 1.6,
+            color: SPARK_COLORS[Math.floor(Math.random() * SPARK_COLORS.length)],
+            delay: Math.random() * 0.05,
+            dur: 0.45 + Math.random() * 0.4,
         };
     })
 );
@@ -190,6 +225,21 @@ export function StackFxStyles() {
                 55%  { opacity: 1; }
                 100% { transform: translate(var(--dx), var(--dy)) scale(0.15); opacity: 0; }
             }
+            /*
+             * A spark is drawn as a horizontal streak on the +x axis and the
+             * whole group is rotated to its flight angle, so travel and
+             * stretch always agree. It shortens as it burns out.
+             */
+            .csv-fx-spark {
+                opacity: 0;
+                animation: csvFxSpark var(--dur) cubic-bezier(0.02, 0.75, 0.25, 1) var(--delay) forwards;
+            }
+            @keyframes csvFxSpark {
+                0%   { transform: rotate(var(--angle)) translateX(0px) scaleX(0.3); opacity: 0; }
+                8%   { opacity: 1; }
+                60%  { opacity: 1; }
+                100% { transform: rotate(var(--angle)) translateX(var(--dist)) scaleX(1.35); opacity: 0; }
+            }
         `}</style>
     );
 }
@@ -242,10 +292,34 @@ function PixieDust({ fx }: { fx: StackFx }) {
 
 function ExplosionBurst({ fx }: { fx: StackFx }) {
     const debris = useMemo(() => makeDebris(40, 240), []);
+    const sparks = useMemo(() => makeSparks(34, 260), []);
     return (
         <g transform={`translate(${fx.x} ${fx.y})`} pointerEvents="none" data-testid="stack-fx-explosion">
             <circle r={52} fill="#fff7e0" className="csv-fx-flash" />
             <circle r={160} fill="none" stroke="#ffb36b" strokeWidth={3} className="csv-fx-ring" />
+            {/* Sparks first, so the slower debris draws over their tails. */}
+            {sparks.map((s, i) => (
+                <g
+                    key={`spark-${i}`}
+                    className="csv-fx-spark"
+                    style={{
+                        ['--angle' as string]: `${s.angle}deg`,
+                        ['--dist' as string]: `${s.dist}px`,
+                        ['--dur' as string]: `${s.dur}s`,
+                        ['--delay' as string]: `${s.delay}s`,
+                    }}
+                >
+                    <rect
+                        x={-s.length}
+                        y={-s.width / 2}
+                        width={s.length}
+                        height={s.width}
+                        rx={s.width / 2}
+                        fill={s.color}
+                        filter="url(#csv-glow)"
+                    />
+                </g>
+            ))}
             {debris.map((p, i) => (
                 <g
                     key={i}

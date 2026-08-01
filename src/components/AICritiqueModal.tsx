@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as fabric from 'fabric';
 import { Loader2, MessageSquare, X } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
-import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
+import { loadLocalAiPreferences, saveLocalAiPreferences } from '@/lib/localAiPreferences';
 import { requestOllamaModelInstall } from '@/lib/ollamaModelInstall';
+import VisionModelPicker from '@/components/VisionModelPicker';
 import { formatOllamaRuntimeStatusMessage, requestOllamaRuntimeStatus } from '@/lib/ollamaRuntimeStatus';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -299,6 +300,20 @@ export default function AICritiqueModal({
         }
     };
 
+    /**
+     * Adopt a vision model chosen from the picker.
+     *
+     * Saved to preferences, not just held in this modal's state — the whole
+     * point is that the next critique, and every other local-AI feature, uses
+     * a model that can actually see the image.
+     */
+    const handleChooseVisionModel = useCallback((model: string) => {
+        saveLocalAiPreferences({ ollamaModel: model });
+        setOllamaModel(model);
+        setErrorMessage('');
+        void checkRuntime(ollamaBaseUrl, model);
+    }, [checkRuntime, ollamaBaseUrl]);
+
     const handleInstallModel = useCallback(async () => {
         if (!ollamaModel.trim()) {
             setErrorMessage('Set an Ollama model before installing it.');
@@ -400,9 +415,13 @@ export default function AICritiqueModal({
                         </div>
                     ) : null}
                     {runtimeCheck.modelFound && !runtimeCheck.visionCapable && runtimeCheck.state !== 'checking' ? (
-                        <div className="mt-3 text-xs text-muted-foreground">
-                            {t('critique.visionRequired')}
-                        </div>
+                        <>
+                            <div className="mt-3 text-xs text-muted-foreground">
+                                {t('critique.visionRequired')}
+                            </div>
+                            {/* Naming the problem is not enough — offer the fix. */}
+                            <VisionModelPicker baseUrl={ollamaBaseUrl} onChooseModel={handleChooseVisionModel} />
+                        </>
                     ) : null}
                 </div>
 
