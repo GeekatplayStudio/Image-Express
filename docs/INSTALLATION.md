@@ -55,9 +55,25 @@ npm run doctor:node
 ```
 
 It prints the running version, the required minimum, and the location of a
-supported Node if one is installed elsewhere. The installers and `start.bat` /
-`start.command` switch to that Node automatically; `npm run build` stops with
-the exact command to fix your `PATH` instead of building on the wrong engine.
+supported Node if one is installed elsewhere.
+
+You do not have to fix your shell: `npm run setup`, `npm run build`,
+`npm run dev`, `npm start`, `npm run update` and every `desktop:*` script
+re-execute themselves under a supported Node when they find one, and use that
+Node's npm rather than whatever the shell provides. Only `npm install` run
+directly is outside our reach -- it prints npm's own `EBADENGINE` warning and
+can write a subtly different lockfile, so prefer:
+
+```bash
+npm run setup
+```
+
+To fix the shell permanently instead, point your version manager at the pinned
+release (`.nvmrc`):
+
+```bash
+nvm install 24.14.1 && nvm use 24.14.1
+```
 
 ### Manual install + run
 ```bash
