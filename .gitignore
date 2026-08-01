@@ -96,4 +96,5 @@ ollama-fix-build-output.txt
 footer-jest*
 jest-editorview-output.txt
 .claude/
+.cursor/
 /public/assets/

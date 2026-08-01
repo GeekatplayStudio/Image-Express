@@ -1323,7 +1323,7 @@ export default function AssetVaultModal({
                                                             {' · '}
                                                             {t('vault.resultCount', { count: displayedAssets.length })}
                                                             {' / '}
-                                                            {pageSize === 'all' ? t('vault.pageSizeAll') : pageSize}
+                                                            {pageSize}
                                                         </span>
                                                         <button
                                                             type="button"

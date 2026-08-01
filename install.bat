@@ -105,19 +105,39 @@ function Get-NodeMajor {
     return 0
 }
 function Use-BestNode {
+    # Standard install locations, plus the per-version folders that nvm-windows,
+    # volta and fnm create - a good Node is often installed but shadowed on PATH.
     $candidates = @(
         (Join-Path $env:ProgramFiles 'nodejs'),
         (Join-Path ${env:ProgramFiles(x86)} 'nodejs'),
         (Join-Path $env:LOCALAPPDATA 'Programs\nodejs')
-    ) | Where-Object { $_ -and (Test-Path (Join-Path $_ 'node.exe')) }
-    foreach ($dir in $candidates) {
-        $exe = Join-Path $dir 'node.exe'
-        $v = (& $exe -v) 2>$null
-        if ($v -match '^v(\d+)' -and [int]$Matches[1] -ge 24) {
-            Write-Host "    Using Node $v from $dir (an older node was first on PATH)."
-            $env:Path = "$dir;$env:Path"
-            return $true
+    )
+    foreach ($root in @($env:NVM_HOME, 'C:\nvm4w', (Join-Path $env:APPDATA 'nvm'))) {
+        if ($root -and (Test-Path $root)) {
+            $candidates += (Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
         }
+    }
+    $voltaRoot = Join-Path $env:LOCALAPPDATA 'Volta\tools\image\node'
+    if (Test-Path $voltaRoot) {
+        $candidates += (Get-ChildItem $voltaRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+    }
+    $fnmRoot = Join-Path $env:APPDATA 'fnm\node-versions'
+    if (Test-Path $fnmRoot) {
+        $candidates += (Get-ChildItem $fnmRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'installation' })
+    }
+
+    $best = $null
+    foreach ($dir in ($candidates | Where-Object { $_ -and (Test-Path (Join-Path $_ 'node.exe')) })) {
+        $v = (& (Join-Path $dir 'node.exe') -v) 2>$null
+        if ($v -match '^v(\d+)\.(\d+)\.(\d+)' -and [int]$Matches[1] -ge 24) {
+            $ver = [version]("{0}.{1}.{2}" -f $Matches[1], $Matches[2], $Matches[3])
+            if (-not $best -or $ver -gt $best.Version) { $best = [pscustomobject]@{ Dir = $dir; Version = $ver } }
+        }
+    }
+    if ($best) {
+        Write-Host "    Using Node v$($best.Version) from $($best.Dir) (an older node was first on PATH)."
+        $env:Path = "$($best.Dir);$env:Path"
+        return $true
     }
     return $false
 }

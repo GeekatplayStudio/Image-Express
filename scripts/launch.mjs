@@ -3,14 +3,18 @@ import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { ensureDependencies } from './ensure-deps.mjs';
+import { enforceSupportedNode } from './node-guard.mjs';
 import { assertNoConflictingServer } from './server-lock.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 process.chdir(rootDir);
 
+// Switch to a supported Node before anything else so the whole launch chain
+// (install, build, next start) inherits the right engine and PATH.
+enforceSupportedNode({ reexec: true, exitOnFailure: true, label: 'LAUNCH' });
+
 const gitCmd = 'git';
-const isWin = process.platform === 'win32';
 
 function log(msg) {
     console.log(`[LAUNCH] ${msg}`);

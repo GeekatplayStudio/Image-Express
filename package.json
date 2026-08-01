@@ -21,6 +21,7 @@
     "http-cache-semantics": "^4.2.0"
   },
   "scripts": {
+    "doctor:node": "node scripts/node-guard.mjs",
     "predev": "node scripts/ensure-deps.mjs",
     "dev": "node scripts/start-web.mjs dev",
     "launch": "node scripts/launch.mjs",
@@ -52,6 +53,14 @@
     "test:e2e": "playwright test",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
+    "electron:ensure": "node scripts/ensure-electron.mjs",
+    "predesktop:dev": "node scripts/ensure-electron.mjs",
+    "predesktop:serve": "node scripts/ensure-electron.mjs",
+    "predesktop:build": "node scripts/ensure-electron.mjs",
+    "predesktop:pack": "node scripts/ensure-electron.mjs",
+    "predesktop:dist:win": "node scripts/ensure-electron.mjs",
+    "predesktop:dist:mac": "node scripts/ensure-electron.mjs",
+    "predesktop:dist:linux": "node scripts/ensure-electron.mjs",
     "desktop:dev": "concurrently \"cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 next dev -p 3927\" \"wait-on http://localhost:3927 && cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 electron .\"",
     "desktop:serve": "concurrently \"cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 next start -p 3927\" \"wait-on http://localhost:3927 && cross-env NEXT_DESKTOP=1 NEXT_DESKTOP_PORT=3927 electron .\"",
     "desktop:start": "npm run build && npm run desktop:serve",

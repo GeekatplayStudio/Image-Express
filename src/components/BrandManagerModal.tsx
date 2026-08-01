@@ -4,12 +4,8 @@ import {
     AlertTriangle,
     CheckCircle2,
     Eye,
-    FolderKanban,
     Loader2,
-    Palette,
-    Plus,
     ShieldCheck,
-    Type,
     X,
 } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
@@ -220,7 +216,7 @@ export default function BrandManagerModal({
             } else {
                 setAuditReport(data.report);
             }
-        } catch (err) {
+        } catch {
             // Local fallback
             const metadata = extractCanvasMetadata(canvas);
             const heuristicReport = runHeuristicBrandAudit(metadata, activeProfile);
@@ -415,7 +411,7 @@ export default function BrandManagerModal({
                                 <div>
                                     <h3 className="text-sm font-semibold">Inspect Active Canvas</h3>
                                     <p className="text-xs text-muted-foreground mt-0.5">
-                                        Audits fonts, palette adherence, contrast, and layout safety against "{activeProfile.name}".
+                                        Audits fonts, palette adherence, contrast, and layout safety against &ldquo;{activeProfile.name}&rdquo;.
                                     </p>
                                 </div>
                                 <button

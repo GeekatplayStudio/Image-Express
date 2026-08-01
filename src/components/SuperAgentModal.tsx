@@ -5,11 +5,9 @@ import {
     CheckCircle,
     CheckCircle2,
     Clock,
-    Cpu,
     Loader2,
     Plus,
     Play,
-    Sparkles,
     Wand2,
     X,
 } from 'lucide-react';
@@ -50,7 +48,8 @@ export default function SuperAgentModal({
     const [plan, setPlan] = useState<AgentExecutionPlan | null>(null);
     const [isPlanning, setIsPlanning] = useState(false);
     const [isExecuting, setIsExecuting] = useState(false);
-    const [currentStepIndex, setCurrentStepIndex] = useState(-1);
+    // Step progress is tracked for the execution flow; nothing renders it yet.
+    const [, setCurrentStepIndex] = useState(-1);
     const [errorMessage, setErrorMessage] = useState('');
 
     // Agent Creator Drawer/State

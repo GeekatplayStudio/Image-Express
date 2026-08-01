@@ -59,7 +59,13 @@ echo "=== 2/7 Checking Node.js (24 or newer) ==="
 NODE_MAJOR="$(node -v 2>/dev/null | sed 's/^v\([0-9]*\).*/\1/')"
 if [ -z "$NODE_MAJOR" ] || [ "$NODE_MAJOR" -lt 24 ] 2>/dev/null; then
     # A good node may exist but be shadowed by a version manager - check common spots.
-    for CAND in /usr/local/bin/node /opt/homebrew/bin/node; do
+    CANDIDATES="/usr/local/bin/node /opt/homebrew/bin/node"
+    CANDIDATES="$CANDIDATES $(ls -d "${NVM_DIR:-$HOME/.nvm}"/versions/node/*/bin/node 2>/dev/null | sort -Vr)"
+    CANDIDATES="$CANDIDATES $(ls -d "$HOME"/.volta/tools/image/node/*/bin/node 2>/dev/null | sort -Vr)"
+    CANDIDATES="$CANDIDATES $(ls -d "$HOME"/.local/share/fnm/node-versions/*/installation/bin/node 2>/dev/null | sort -Vr)"
+    CANDIDATES="$CANDIDATES $(ls -d "$HOME"/.asdf/installs/nodejs/*/bin/node 2>/dev/null | sort -Vr)"
+    CANDIDATES="$CANDIDATES $(ls -d /opt/homebrew/opt/node@*/bin/node /usr/local/opt/node@*/bin/node 2>/dev/null | sort -Vr)"
+    for CAND in $CANDIDATES; do
         if [ -x "$CAND" ]; then
             CAND_MAJOR="$("$CAND" -v | sed 's/^v\([0-9]*\).*/\1/')"
             if [ "$CAND_MAJOR" -ge 24 ] 2>/dev/null; then
@@ -93,7 +99,11 @@ fi
 cd "$INSTALL_DIR" || fail "Could not enter $INSTALL_DIR"
 
 echo "=== 4/7 Installing dependencies (longest step) ==="
-npm install --no-fund --no-audit || fail "npm install failed - the log above shows the exact error."
+# ensure-deps enforces the Node engine and prefers `npm ci` off the lockfile;
+# fall back to a plain install only if it cannot complete.
+node scripts/ensure-deps.mjs --force \
+    || npm install --no-fund --no-audit \
+    || fail "npm install failed - the log above shows the exact error."
 
 echo "=== 5/7 Optional local AI engines (ComfyUI / Ollama) ==="
 echo "Nothing large is downloaded unless you say yes; no AI models by default."

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Component, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
+import React, { Component, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, Loader2, RotateCcw, Sun } from 'lucide-react';
 import { Center, Environment, OrbitControls, Resize, useGLTF } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
@@ -61,10 +61,15 @@ export default function Asset3DPreview({
     const [failed, setFailed] = useState(false);
     const [reloadKey, setReloadKey] = useState(0);
 
-    useEffect(() => {
+    // Reset the error state and remount the canvas when the model changes.
+    // Adjusting state during render (rather than in an effect) is React's
+    // recommended pattern here — it avoids the extra cascading render pass.
+    const [renderedUrl, setRenderedUrl] = useState(url);
+    if (url !== renderedUrl) {
+        setRenderedUrl(url);
         setFailed(false);
         setReloadKey((value) => value + 1);
-    }, [url]);
+    }
 
     const unsupported = Boolean(name && !canRenderModelThumbnail(name));
 

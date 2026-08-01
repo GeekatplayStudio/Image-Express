@@ -373,7 +373,6 @@ export function albumGridPose(index: number, total: number) {
 
     const cols = Math.max(2, Math.ceil(Math.cbrt(n)));
     const depthRows = Math.max(2, Math.ceil(Math.sqrt(n / cols)));
-    const layers = Math.max(1, Math.ceil(n / (cols * depthRows)));
     const col = index % cols;
     const row = Math.floor(index / cols) % depthRows;
     const layer = Math.floor(index / (cols * depthRows));

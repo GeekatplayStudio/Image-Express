@@ -3,7 +3,7 @@
 import { type ComponentProps, type ReactNode, type RefObject } from 'react';
 
 import CircularContextMenu from '@/components/CircularContextMenu';
-import VaultCircularMenu, { type VaultCircularAction } from '@/components/VaultCircularMenu';
+import VaultCircularMenu from '@/components/VaultCircularMenu';
 import JobStatusFooter from '@/components/JobStatusFooter';
 import Toolbar, { type ToolbarHandle } from '@/components/Toolbar';
 

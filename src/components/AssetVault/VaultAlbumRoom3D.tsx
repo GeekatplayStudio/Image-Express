@@ -55,7 +55,6 @@ export default function VaultAlbumRoom3D({
     const {
         cam,
         depthShift,
-        dragRef,
         spaceDown,
         onPointerDown,
         onPointerMove,

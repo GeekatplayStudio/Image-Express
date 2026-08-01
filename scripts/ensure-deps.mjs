@@ -3,6 +3,7 @@ import path from 'path';
 import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { enforceSupportedNode, envWithSupportedNode, requiredNodeMajor } from './node-guard.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -59,11 +60,16 @@ export function ensureDependencies(forceInstall = false) {
         return false;
     }
 
+    // Never install under an unsupported engine: npm downgrades that to a warning and
+    // leaves behind a subtly broken tree. Re-exec under a good Node, or stop with guidance.
+    enforceSupportedNode({ reexec: true, exitOnFailure: true });
+
     log(forceInstall
         ? 'Refreshing dependencies...'
         : 'Dependencies missing, incomplete, or out of date. Installing (this may take a few minutes)...');
+    log(`Using node ${process.version} (requires >=${requiredNodeMajor()}).`);
 
-    const installEnv = { ...process.env, ELECTRON_SKIP_BINARY_DOWNLOAD: '1' };
+    const installEnv = { ...envWithSupportedNode(), ELECTRON_SKIP_BINARY_DOWNLOAD: '1' };
 
     // Prefer a clean lockfile install when the lock exists.
     const preferCi = fs.existsSync(lockPath) && !process.argv.includes('--no-ci');

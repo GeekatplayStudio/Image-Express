@@ -19,9 +19,12 @@ import path from 'path';
 import { execFileSync, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { ensureDependencies } from './ensure-deps.mjs';
+import { enforceSupportedNode } from './node-guard.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
+
+enforceSupportedNode({ reexec: true, exitOnFailure: true, label: 'update' });
 const isWindows = process.platform === 'win32';
 const npmCmd = isWindows ? 'npm.cmd' : 'npm';
 

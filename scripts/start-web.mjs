@@ -1,5 +1,6 @@
 import net from 'net';
 import { spawn, spawnSync, exec } from 'child_process';
+import { enforceSupportedNode } from './node-guard.mjs';
 import {
     assertNoConflictingServer,
     clearServerLock,
@@ -43,8 +44,12 @@ async function findAvailablePort(startPort) {
 }
 
 async function main() {
+    // The dev/prod server, and the build it may trigger below, must run on a
+    // supported Node — re-exec (with a patched PATH) when PATH hands us an old one.
+    enforceSupportedNode({ reexec: true, exitOnFailure: true, label: 'INFO' });
+
     const mode = process.argv[2] === 'prod' ? 'prod' : 'dev';
-    
+
     // A dev server continuously owns and rewrites .next. Starting a second
     // server against the same folder corrupts the build, so refuse up front
     // with an explanation rather than failing later in a confusing way.

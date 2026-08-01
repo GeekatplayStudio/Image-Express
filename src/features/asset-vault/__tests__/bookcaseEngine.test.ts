@@ -1,7 +1,6 @@
 import {
     dedupeVaultAssets,
     filterAssetsByBookcase,
-    groupAssetsByTimelineMonth,
     searchAssetsKeyword,
 } from '@/features/asset-vault/domain/bookcaseEngine';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';

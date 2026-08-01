@@ -36,7 +36,6 @@ export default function VaultPageStack3D({
     const {
         cam,
         depthShift,
-        dragRef,
         spaceDown,
         onPointerDown,
         onPointerMove,
