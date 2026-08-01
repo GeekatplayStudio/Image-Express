@@ -104,12 +104,21 @@ export function ensureDependencies(forceInstall = false) {
     const preferCi = fs.existsSync(lockPath) && !process.argv.includes('--no-ci');
     if (preferCi) {
         const ci = runNpm(['ci', '--no-fund', '--no-audit']);
-        if (ci.status === 0) {
+        // `npm ci` can exit 0 while the tree is actually broken: on Windows an
+        // antivirus/indexer holding a handle on a file during the pre-install
+        // `rm -rf node_modules` produces `npm warn cleanup ... EPERM` warnings
+        // (not errors) and can leave the extraction incomplete — seen here as
+        // `react` missing entirely while npm still reported success. Verifying
+        // criticalBinsPresent() here, not just on the install fallback below,
+        // is what catches that instead of failing confusingly at build time.
+        if (ci.status === 0 && criticalBinsPresent()) {
             fs.writeFileSync(markerPath, expectedMarker);
             log('Dependencies installed (npm ci).');
             return true;
         }
-        log('npm ci failed — falling back to npm install...');
+        log(ci.status === 0
+            ? 'npm ci reported success but the install looks incomplete — falling back to npm install...'
+            : 'npm ci failed — falling back to npm install...');
     }
 
     const install = runNpm(['install', '--no-fund', '--no-audit']);

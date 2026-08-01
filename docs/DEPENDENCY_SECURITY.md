@@ -79,22 +79,35 @@ re-checking that the build genuinely needs it.
 
 ## Deprecation warnings on install
 
-`npm ci` reports six deprecated packages. All are transitive, dev/build-time
-only, and carry **no** advisory (`npm audit` reports 0 vulnerabilities). They are
-listed here so a reviewer does not re-investigate them each release:
+`npm ci` prints a warning for every transitive package whose author marked it
+deprecated. None of them is an error, none carries an advisory (`npm audit`
+reports 0 vulnerabilities), and all are dev/build-time only. They were still
+worth attacking one by one, because "upstream's problem" is easy to say and
+sometimes wrong.
 
-| Deprecated | Reached through | Status |
+### Cleared by an override
+
+| Override | Removes | Why it is safe |
 |---|---|---|
-| `glob@7.2.3`, `inflight@1.0.6` | `electron-builder → @electron/asar@3`, `electron-winstaller → temp → rimraf@2`, `jest → babel-plugin-istanbul → test-exclude@6` | Upstream. Our own direct `@electron/asar` is on 4.x (glob@13); electron-builder pins its own copy |
-| `rimraf@2.6.3` | `electron-builder → electron-builder-squirrel-windows → electron-winstaller → temp` | Upstream, and only on the Squirrel path this app does not target |
-| `glob@10.5.0` | `jest@30` reporters/config/runtime | Upstream; latest Jest still ships it |
-| `lodash.isequal@4.5.0` | `electron-updater` | Hard dependency, still present in the newest 6.8.x |
-| `whatwg-encoding@3.1.1` | `fabric → jsdom@26` | Current jsdom still depends on it |
-| `boolean@3.2.0` | `@huggingface/transformers → onnxruntime-node → global-agent` | Still present in transformers 4.x |
+| `"@electron/asar": "$@electron/asar"` | `glob@7` + `inflight` under electron-builder | asar 4 uses `glob@13`. The `$name` form is required because asar is also a direct dependency; a literal version there is an `EOVERRIDE` error. Verified by `desktop:pack` + `verify-package` + `smoke-package` |
+| `"test-exclude": "^8.0.0"` | `glob@7` + `inflight` under jest | test-exclude 8 uses `glob@13`. Verified by the full suite **and** `jest --coverage`, which is the code path that actually calls it |
+| `"global-agent": "^4.1.3"` | `boolean@3.2.0` | global-agent 4 dropped the dependency outright |
+| `"glob@10": "^13.0.6"` | `glob@10.5.0` under jest | Scoped to the 10.x line so `rimraf@2`'s callback-based `glob@7` is left alone. Verified by 148 suites / 864 tests plus coverage |
 
-None can be cleared with an `overrides` entry without breaking a consumer — the
-`glob` majors are not API-compatible (7 is callback-based, 9+ is not), and the
-rest have no drop-in replacement. Re-check when the parent packages move.
+### Structurally unfixable
+
+| Deprecated | Reached through | Why no override helps |
+|---|---|---|
+| `lodash.isequal@4.5.0` | `electron-updater` | **4.5.0 is the latest published version.** The deprecation asks consumers to switch to `node:util.isDeepStrictEqual` — an API change only electron-updater can make |
+| `whatwg-encoding@3.1.1` | `fabric → jsdom` | **3.1.1 is the latest published version**, deprecated in favour of a different package (`@exodus/bytes`). Nothing to upgrade to |
+| `rimraf@2.6.3`, and the `glob@7.2.3` + `inflight@1.0.6` it drags in | `electron-builder → app-builder-lib → electron-builder-squirrel-windows → electron-winstaller → temp@0.9.4` | `temp` pins `rimraf: ~2.6.2`, and rimraf 4+ replaced the callback API, so forcing it breaks `temp`. rimraf 3 is *also* deprecated and *also* uses `glob@7`, so it buys nothing. The Squirrel package cannot be dropped either: it is a **non-optional peerDependency** of `app-builder-lib`, installed even though this app ships NSIS |
+
+The rule these follow: an override can change a version, it cannot change an
+API or remove a dependency. When the latest published version *is* the
+deprecated one, the warning can only be retired by the parent package.
+
+Re-check this table whenever `electron-builder`, `electron-updater`, `jsdom` or
+`jest` move a major.
 
 ## Removing a dependency
 
