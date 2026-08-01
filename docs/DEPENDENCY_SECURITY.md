@@ -96,11 +96,15 @@ sometimes wrong.
 
 ### Structurally unfixable
 
+Checked against every version each package has ever published (`npm view <pkg>
+versions`), not just `latest` — the distinction matters, because "latest" can
+lag behind an unpublished fix, but here there is nothing to lag behind:
+
 | Deprecated | Reached through | Why no override helps |
 |---|---|---|
-| `lodash.isequal@4.5.0` | `electron-updater` | **4.5.0 is the latest published version.** The deprecation asks consumers to switch to `node:util.isDeepStrictEqual` — an API change only electron-updater can make |
-| `whatwg-encoding@3.1.1` | `fabric → jsdom` | **3.1.1 is the latest published version**, deprecated in favour of a different package (`@exodus/bytes`). Nothing to upgrade to |
-| `rimraf@2.6.3`, and the `glob@7.2.3` + `inflight@1.0.6` it drags in | `electron-builder → app-builder-lib → electron-builder-squirrel-windows → electron-winstaller → temp@0.9.4` | `temp` pins `rimraf: ~2.6.2`, and rimraf 4+ replaced the callback API, so forcing it breaks `temp`. rimraf 3 is *also* deprecated and *also* uses `glob@7`, so it buys nothing. The Squirrel package cannot be dropped either: it is a **non-optional peerDependency** of `app-builder-lib`, installed even though this app ships NSIS |
+| `lodash.isequal@4.5.0` | `electron-updater` | **23 versions have ever been published; 4.5.0 is the last one.** The deprecation asks consumers to switch to `node:util.isDeepStrictEqual` — an API change only electron-updater can make |
+| `whatwg-encoding@3.1.1` | `fabric → jsdom` | **10 versions have ever been published; 3.1.1 is the last one**, deprecated in favour of a different package (`@exodus/bytes`). Nothing to upgrade to |
+| `rimraf@2.6.3`, and the `glob@7.2.3` + `inflight@1.0.6` it drags in | `electron-builder → app-builder-lib → electron-builder-squirrel-windows → electron-winstaller@5.4.4 (latest) → temp@0.9.4 (latest)` | `temp`'s latest release still pins `rimraf: ~2.6.2`. **rimraf 3.x is also deprecated with the identical message** — jumping to it buys nothing; only 4+ is clean, but 4+ replaced the callback API `temp` calls, so forcing it breaks directory cleanup during Squirrel packaging. Same story for glob: **7.x and 8.x are both deprecated**; only 9+ is clean, which is the same API break. `inflight` has had exactly one release, ever — there is no newer version to move to. The Squirrel package itself cannot be dropped: checked its newest release (26.15.7, one patch ahead of what we use) and it still requires `electron-winstaller`; it is also a **non-optional peerDependency** of `app-builder-lib`, installed even though this app ships NSIS, not Squirrel |
 
 The rule these follow: an override can change a version, it cannot change an
 API or remove a dependency. When the latest published version *is* the
@@ -108,6 +112,35 @@ deprecated one, the warning can only be retired by the parent package.
 
 Re-check this table whenever `electron-builder`, `electron-updater`, `jsdom` or
 `jest` move a major.
+
+## Windows install failures (`ENOTEMPTY`, `EPERM`, `TAR_ENTRY_ERROR`)
+
+`npm ci` deletes and rebuilds `node_modules` itself, reconciling against
+whatever is already on disk. A real-time antivirus scanner or the Windows
+Search Indexer can be holding a handle on a file inside `node_modules` at that
+exact moment — both were confirmed running during an install that failed this
+way — and npm's own delta-uninstall then exits non-zero:
+`ENOTEMPTY: directory not empty, rmdir '...\node_modules\core-js\modules'`.
+The many `npm warn tar ... ENOENT` lines that usually surround it are
+non-fatal extraction warnings from the same race and are not themselves the
+failure.
+
+`scripts/ensure-deps.mjs` handles this at the source rather than papering over
+it: it removes `node_modules` itself with Node's own retry/backoff-capable
+`fs.rmSync` (`maxRetries`/`retryDelay` exist in that API specifically for this
+Windows failure mode) before invoking `npm ci`, turning every install into a
+clean extract-into-empty-directory instead of a reconcile-against-a-possibly-
+locked-tree. If an install still doesn't leave a working tree (`npm ci` exits
+non-zero, or exits 0 but `next`/`react` are missing — seen on this machine),
+the whole attempt retries up to three times with full, un-suppressed npm
+output on every attempt before failing.
+
+An admin can eliminate the underlying race by excluding the project folder
+from real-time scanning (optional, only ever speeds installs up):
+
+```powershell
+Add-MpPreference -ExclusionPath "D:\path\to\Image-Express"
+```
 
 ## Removing a dependency
 

@@ -100,36 +100,83 @@ export function ensureDependencies(forceInstall = false) {
         });
     }
 
+    /**
+     * `npm ci` deletes and rebuilds node_modules itself, reconciling against
+     * whatever is already there. On Windows, a real-time antivirus scanner or
+     * the Search Indexer can be holding a handle on a file inside node_modules
+     * at that exact moment (both processes were confirmed running on this
+     * machine), and npm's own delta-uninstall then fails outright:
+     * `ENOTEMPTY: directory not empty, rmdir '...\node_modules\core-js\modules'`.
+     * That is a real, fatal exit — not the many `npm warn tar ENOENT` lines
+     * around it, which are non-fatal warnings from extraction racing the same
+     * scanner and do not by themselves break the install.
+     *
+     * Removing node_modules ourselves first, with Node's own `fs.rmSync`
+     * retry/backoff (built for exactly this Windows failure mode), turns every
+     * `npm ci` into a clean extract-into-empty-directory instead of a
+     * reconcile-against-a-possibly-locked-tree. That eliminates the failure
+     * class instead of retrying past it.
+     */
+    function removeNodeModules() {
+        if (!fs.existsSync(nodeModulesPath)) return;
+        log('Clearing node_modules before a clean install...');
+        fs.rmSync(nodeModulesPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+    }
+
+    /**
+     * Retries a full install attempt a bounded number of times. This is
+     * deliberately NOT silent: every attempt's real npm output goes straight to
+     * the terminal (stdio: 'inherit' above), and this only decides whether to
+     * try again — it never hides a failure, it exhausts retries and then exits
+     * with the exact same error the first attempt would have shown.
+     */
+    function withRetries(attempt, description) {
+        const maxAttempts = 3;
+        for (let n = 1; n <= maxAttempts; n += 1) {
+            if (attempt()) return true;
+            if (n < maxAttempts) {
+                log(`${description} did not produce a working install (attempt ${n}/${maxAttempts}) — `
+                    + 'this usually means a real-time antivirus scanner or the Windows Search '
+                    + 'Indexer briefly locked a file mid-install. Retrying...');
+            }
+        }
+        return false;
+    }
+
     // Prefer a clean lockfile install when the lock exists.
     const preferCi = fs.existsSync(lockPath) && !process.argv.includes('--no-ci');
     if (preferCi) {
-        const ci = runNpm(['ci', '--no-fund', '--no-audit']);
-        // `npm ci` can exit 0 while the tree is actually broken: on Windows an
-        // antivirus/indexer holding a handle on a file during the pre-install
-        // `rm -rf node_modules` produces `npm warn cleanup ... EPERM` warnings
-        // (not errors) and can leave the extraction incomplete — seen here as
-        // `react` missing entirely while npm still reported success. Verifying
-        // criticalBinsPresent() here, not just on the install fallback below,
-        // is what catches that instead of failing confusingly at build time.
-        if (ci.status === 0 && criticalBinsPresent()) {
+        const ciSucceeded = withRetries(() => {
+            removeNodeModules();
+            const ci = runNpm(['ci', '--no-fund', '--no-audit']);
+            // `npm ci` can also exit 0 while the tree is actually broken (extraction
+            // raced the same scanner without a fatal exit code) — seen on this
+            // machine as `react` missing entirely while npm still reported success.
+            // Checking criticalBinsPresent() here, not just on the fallback below,
+            // is what catches that instead of failing confusingly at build time.
+            return ci.status === 0 && criticalBinsPresent();
+        }, 'npm ci');
+
+        if (ciSucceeded) {
             fs.writeFileSync(markerPath, expectedMarker);
             log('Dependencies installed (npm ci).');
             return true;
         }
-        log(ci.status === 0
-            ? 'npm ci reported success but the install looks incomplete — falling back to npm install...'
-            : 'npm ci failed — falling back to npm install...');
+        log('npm ci did not succeed after retries — falling back to npm install...');
     }
 
-    const install = runNpm(['install', '--no-fund', '--no-audit']);
+    const installSucceeded = withRetries(() => {
+        const install = runNpm(['install', '--no-fund', '--no-audit']);
+        return install.status === 0 && criticalBinsPresent();
+    }, 'npm install');
 
-    if (install.status !== 0) {
-        console.error('[ERROR] npm install failed. See output above for details.');
-        process.exit(install.status || 1);
-    }
-
-    if (!criticalBinsPresent()) {
-        console.error('[ERROR] Install finished but critical packages are still missing (next/react).');
+    if (!installSucceeded) {
+        console.error('[ERROR] npm install failed to produce a working install after retries.');
+        console.error('        See the npm output above for the underlying error.');
+        console.error('        If every attempt showed ENOTEMPTY / EPERM / EBUSY on a rmdir or lstat,');
+        console.error('        that is Windows Defender or Search Indexer locking a file mid-install.');
+        console.error('        An admin can add a Defender exclusion for this folder to speed installs up:');
+        console.error(`          Add-MpPreference -ExclusionPath "${rootDir}"`);
         process.exit(1);
     }
 
