@@ -42,9 +42,22 @@ bash <(curl -fsSL https://raw.githubusercontent.com/GeekatplayStudio/Image-Expre
 ```
 
 ### Prerequisites (if installing manually instead)
-- Node.js 24+
-- npm 11+
+- Node.js 24+ (the repo pins 24.14.1 in `.nvmrc`)
+- npm 11.x (ships with Node 24+)
 - Git
+
+Check what your shell will actually use — a version manager (nvm, nvm4w, volta,
+fnm) often puts an older Node first on `PATH` even when a newer one is
+installed:
+
+```bash
+npm run doctor:node
+```
+
+It prints the running version, the required minimum, and the location of a
+supported Node if one is installed elsewhere. The installers and `start.bat` /
+`start.command` switch to that Node automatically; `npm run build` stops with
+the exact command to fix your `PATH` instead of building on the wrong engine.
 
 ### Manual install + run
 ```bash

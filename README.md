@@ -52,7 +52,7 @@ If startup fails, attach `startup-trace.log` from the app's user-data folder to 
 ### Source installation (easiest contributor / power-user path)
 
 1. Double-click **[`install.bat`](install.bat)** (Windows) or **[`install.command`](install.command)** (macOS).
-2. The installer installs Git + Node 24 if missing, clones this repo, installs npm packages, and optionally offers ComfyUI/Ollama.
+2. The installer installs Git + Node 24+ if missing (or picks up a supported Node that a version manager has shadowed on `PATH`), clones this repo, installs npm packages, and optionally offers ComfyUI/Ollama.
 3. Later, double-click **`start.bat` / `start.command`** — it pulls safe updates, repairs dependencies if needed, builds, and opens the app.
 
 No terminal required for the common path. Full details: **[docs/INSTALLATION.md](docs/INSTALLATION.md)**.
@@ -93,7 +93,15 @@ npm run dev              # web dev server → http://localhost:3000
 npm run desktop:dev      # Electron desktop shell, hot reload
 npm run desktop:build    # package installers (Win NSIS / mac DMG / Linux AppImage)
 npm run install:super    # interactive ComfyUI + Ollama installer, models fully opt-in
+npm run doctor:node      # is this shell's Node new enough? where's a good one?
+npm run verify           # the full gate: audits, lint, types, tests, build, bundle
 ```
+
+**Node 24+ is required.** A version manager (nvm, nvm4w, volta, fnm) will
+happily leave an older Node first on `PATH`, and npm downgrades that to a
+warning — so the installers and launchers detect it and switch to a supported
+Node automatically, while `npm run build` stops with the exact fix rather than
+building on the wrong engine. `npm run doctor:node` shows the current state.
 
 Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key configuration: **[docs/INSTALLATION.md](docs/INSTALLATION.md)** · desktop packaging internals: **[docs/DESKTOP.md](docs/DESKTOP.md)** · driving the app from AI agents (Claude Desktop/Code) via Model Context Protocol: **[docs/MCP.md](docs/MCP.md)** · canonical terminology (workspace / canvas / page / album / library): **[docs/GLOSSARY.md](docs/GLOSSARY.md)**.
 

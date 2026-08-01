@@ -30,11 +30,14 @@ overwriting it, and if the file is double-clicked *inside* an existing checkout
 it installs in place. **Fully tested end-to-end** (fresh clone → install →
 `start.bat` → app answering HTTP 200):
 
-1. Installs **Git** and **Node 24** if missing (winget / Homebrew).
+1. Installs **Git** and **Node 24+** if missing (winget / Homebrew). If a supported
+   Node is already installed but shadowed on `PATH` by a version manager
+   (nvm/nvm4w, volta, fnm, asdf), the installer finds and uses it rather than
+   installing another copy.
 2. **Shallow-clones** the app from GitHub (`--depth 1`, no history, no submodules —
    the ComfyUI custom-node submodules and all models/assets stay out; the repo has
    **zero tracked files over 1 MB**).
-3. `npm install` + `npm run qa:install` verification.
+3. `node scripts/ensure-deps.mjs --force` + `npm run qa:install` verification.
 4. Chains into the interactive super-installer: ComfyUI local install? Ollama?
    (models always opt-in, never default).
 5. Theme-pack support note (gumroad), desktop shortcut prompt, launch prompt.
@@ -91,7 +94,23 @@ Node install, no terminal, nothing for the user to configure:
 npm run desktop:dist:win   # → dist/ImageExpress-Setup-<version>.exe  (one-click NSIS)
 npm run desktop:dist:mac   # → dist/ImageExpress-<version>-<arch>.dmg (run on macOS)
 npm run desktop:pack       # unpacked build in dist/ for smoke-testing (no installer)
+npm run desktop:verify-package   # asserts package contents and size budget
+npm run desktop:smoke-package    # launches the packaged app and waits for its window
 ```
+
+Every `desktop:*` script first runs `scripts/ensure-electron.mjs`, which
+downloads the Electron runtime binary on demand. Dependency installs
+deliberately skip that download (`ELECTRON_SKIP_BINARY_DOWNLOAD=1`) so a
+web-only install stays fast, and npm 11 blocks the package's install script
+anyway — see [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
+
+`desktop:verify-package` is the guard against packaging regressions. Next.js
+traces the whole project root into `.next/standalone` (`appPaths.ts` resolves
+from `process.cwd()`), and `extraResources` copies that into the installer, so
+anything missing from `outputFileTracingExcludes` in `next.config.ts` ships to
+users. That once put `3d-models/`, previous `dist-*` builds and `tree.glb`
+inside the app — a 2.6 GB package. The verifier now fails on known-bad entries
+and on a 400 MB standalone budget (a healthy build is ~120 MB).
 
 - The Windows installer is **one-click**: no directory prompts, no options,
   launches the app when done (`nsis.oneClick` in package.json `build`).

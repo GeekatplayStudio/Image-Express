@@ -55,6 +55,57 @@ suggested version is not installable:
 4. If the advisory cannot be cleared, add a waiver with an expiry instead of
    loosening the gate.
 
+## Install scripts (npm 11 `allowScripts`)
+
+npm 11 blocks package install scripts unless the package is listed in
+`allowScripts`. This repo deliberately keeps that default-deny in place — no
+`allowScripts` entry exists — so `npm ci` prints an `allow-scripts` warning for
+seven packages. Each was checked rather than assumed:
+
+| Package | Script does | Why it stays blocked |
+|---|---|---|
+| `electron` | downloads the Electron binary | Provisioned explicitly by `npm run electron:ensure`, so web installs skip a several-hundred-MB download they never use |
+| `canvas` | builds/downloads a native binding | Only reachable through `fabric`'s and `jsdom`'s optional Node canvas support; nothing renders server-side |
+| `onnxruntime-node` | downloads native ONNX runtime | `@huggingface/transformers` is used **only** in the browser (WebGPU/WASM) — see `clipEmbedder.ts` and `threeDLayer/depth.ts` |
+| `electron-winstaller` | selects a 7-zip build | Squirrel target only; this app ships NSIS |
+| `core-js` | prints a funding notice | No build effect |
+| `protobufjs` | generates CLI helpers | Runtime library path does not need them |
+| `unrs-resolver` | verifies a napi binding | ESLint resolves fine without it |
+
+Verified with all of `npm run lint`, `typecheck`, `test`, `build`,
+`desktop:pack`, `desktop:verify-package` and `desktop:smoke-package` passing on
+a clean `npm ci`. Approve a package (`npm approve-scripts <pkg>`) only after
+re-checking that the build genuinely needs it.
+
+## Deprecation warnings on install
+
+`npm ci` reports six deprecated packages. All are transitive, dev/build-time
+only, and carry **no** advisory (`npm audit` reports 0 vulnerabilities). They are
+listed here so a reviewer does not re-investigate them each release:
+
+| Deprecated | Reached through | Status |
+|---|---|---|
+| `glob@7.2.3`, `inflight@1.0.6` | `electron-builder → @electron/asar@3`, `electron-winstaller → temp → rimraf@2`, `jest → babel-plugin-istanbul → test-exclude@6` | Upstream. Our own direct `@electron/asar` is on 4.x (glob@13); electron-builder pins its own copy |
+| `rimraf@2.6.3` | `electron-builder → electron-builder-squirrel-windows → electron-winstaller → temp` | Upstream, and only on the Squirrel path this app does not target |
+| `glob@10.5.0` | `jest@30` reporters/config/runtime | Upstream; latest Jest still ships it |
+| `lodash.isequal@4.5.0` | `electron-updater` | Hard dependency, still present in the newest 6.8.x |
+| `whatwg-encoding@3.1.1` | `fabric → jsdom@26` | Current jsdom still depends on it |
+| `boolean@3.2.0` | `@huggingface/transformers → onnxruntime-node → global-agent` | Still present in transformers 4.x |
+
+None can be cleared with an `overrides` entry without breaking a consumer — the
+`glob` majors are not API-compatible (7 is callback-based, 9+ is not), and the
+rest have no drop-in replacement. Re-check when the parent packages move.
+
+## Removing a dependency
+
+A package is removed only when nothing imports it and nothing resolves it by
+name (test environments, PostCSS plugins and CSS `@import` all count as usage).
+These are kept despite having no `import` statement, and must not be "cleaned up":
+
+- `jest-environment-jsdom` — resolved by name from `testEnvironment: 'jsdom'`
+- `tailwindcss` — loaded via `@import "tailwindcss"` in `src/app/globals.css`
+- `ts-node` — how Jest loads the TypeScript `jest.config.ts`
+
 ## Out of scope
 
 [mobile-companion/](../mobile-companion) is a separate Expo workspace with its
