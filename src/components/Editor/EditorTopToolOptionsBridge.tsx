@@ -51,6 +51,11 @@ type SelectionControlsState = {
 type RetouchControlsState = {
     wandTopThreshold: WandOptions['threshold'];
     setWandTopThreshold: (threshold: number) => void;
+    wandSampleMode: WandOptions['sampleMode'];
+    setWandSampleMode: (mode: WandOptions['sampleMode']) => void;
+    wandSampleColor: WandOptions['sampleColor'];
+    setWandSampleColor: (hex: string) => void;
+    onWandApplyColor: () => void;
     healingTopSize: HealingOptions['size'];
     setHealingTopSize: (size: number) => void;
     healingTopHardness: HealingOptions['hardness'];
@@ -243,22 +248,9 @@ export default function EditorTopToolOptionsBridge({
             onSelectionModeChange={selectionControls.setSelectionMode}
             onTransformControlsChange={selectionControls.setShowTransformControls}
             onSelectFeatherChange={(feather) => {
+                // Store preference only — do not fake "feather" with Fabric Shadow on objects.
                 const normalizedFeather = Math.max(0, Math.min(100, Math.round(feather)));
                 selectionControls.setSelectFeather(normalizedFeather);
-                if (!canvas) return;
-                const active = canvas.getActiveObject() as (fabric.Object & { set: (props: unknown) => void }) | null;
-                if (!active) return;
-                active.set({
-                    shadow: normalizedFeather > 0
-                        ? new fabric.Shadow({
-                            color: 'rgba(0, 0, 0, 0.35)',
-                            blur: normalizedFeather,
-                            offsetX: 0,
-                            offsetY: 0,
-                        })
-                        : null,
-                });
-                canvas.requestRenderAll();
             }}
             onSelectAntiAliasChange={selectionControls.setSelectAntiAlias}
             onSelectionModifyPixelsChange={(pixels) => {
@@ -271,10 +263,15 @@ export default function EditorTopToolOptionsBridge({
             }}
             wandOptions={{
                 threshold: retouchControls.wandTopThreshold,
+                sampleMode: retouchControls.wandSampleMode,
+                sampleColor: retouchControls.wandSampleColor,
             }}
             onWandThresholdChange={(threshold) => {
                 retouchControls.setWandTopThreshold(Math.max(0, Math.min(180, Math.round(threshold))));
             }}
+            onWandSampleModeChange={retouchControls.setWandSampleMode}
+            onWandSampleColorChange={retouchControls.setWandSampleColor}
+            onWandApplyColor={retouchControls.onWandApplyColor}
             healingOptions={{
                 size: retouchControls.healingTopSize,
                 hardness: retouchControls.healingTopHardness,

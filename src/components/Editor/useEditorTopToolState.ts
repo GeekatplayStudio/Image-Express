@@ -13,6 +13,8 @@ export function useEditorTopToolState() {
     const [selectionModifyPixels, setSelectionModifyPixels] = useState(12);
 
     const [wandTopThreshold, setWandTopThreshold] = useState(48);
+    const [wandSampleMode, setWandSampleMode] = useState<'contiguous' | 'color'>('contiguous');
+    const [wandSampleColor, setWandSampleColor] = useState('#336699');
     const [healingTopSize, setHealingTopSize] = useState(24);
     const [healingTopHardness, setHealingTopHardness] = useState(70);
     const [healingTopSampleAllLayers, setHealingTopSampleAllLayers] = useState(true);
@@ -68,6 +70,10 @@ export function useEditorTopToolState() {
         setSelectionModifyPixels,
         wandTopThreshold,
         setWandTopThreshold,
+        wandSampleMode,
+        setWandSampleMode,
+        wandSampleColor,
+        setWandSampleColor,
         healingTopSize,
         setHealingTopSize,
         healingTopHardness,

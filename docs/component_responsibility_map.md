@@ -55,13 +55,23 @@ Use it before adding features/refactoring so changes go to the correct module.
 | `src/components/Editor/useEditorPanelState.ts` | Docked/floating panel mode and sizing/position state management. |
 | `src/components/Editor/useEditorCanvasAssetActions.ts` | Canvas-facing asset actions: library insert, desktop drop upload/insert, canvas-modified dirty/history sync, and right-click menu open. |
 | `src/components/Editor/useEditorCanvasOverlayState.ts` | Canvas overlay state/orchestration: context menu, lock badges, cursor preview, and lock-toggle interactions extracted from `EditorView`. |
-| `src/components/Editor/useEditorCanvasSelectionInteractions.ts` | Canvas selection interaction wiring: marquee/lasso/wand plus quick-select and selection-brush routing, selection helper overlays, and commit/cancel lifecycle extracted from `EditorView`. |
+| `src/components/Editor/useEditorCanvasSelectionInteractions.ts` | Marquee/Lasso/Wand/Quick Select/Selection Brush → content pixel mask; Space-pan coexistence. |
+| `src/components/Editor/contentSelectionCommit.ts` | Commit helpers for marquee/lasso/wand content masks. |
+| `src/components/Editor/contentSelectionBrushPaint.ts` | Selection Brush / Quick Select stamp into the document mask. |
+| `src/components/Editor/useSelectionMaskOverlay.ts` | Tint + ants overlay synced to document selection mask. |
+| `src/lib/selection/documentSelectionMask.ts` | Artboard alpha mask model (feather, morph, luminance export). |
+| `src/lib/selection/selectionMaskRasterize.ts` | Rect/polygon writers into the mask. |
+| `src/lib/selection/selectionWandFloodFill.ts` | Contiguous color flood-fill + color-range union into the mask. |
+| `src/lib/selection/selectionBrushStamp.ts` | Soft brush stamp + Quick Select color-grow into the mask. |
+| `src/lib/selection/selectionLayerCapture.ts` | Target layer resolve + artboard-aligned pixel capture. |
+| `src/lib/selection/documentSelectionStore.ts` | Canvas-attached selection mask state + subscribers. |
+| `src/components/Editor/selectionBrushPaint.ts` | Legacy brush↔AABB helpers (object-paint era; prefer `selectionBrushStamp`). |
 | `src/components/Editor/useEditorCanvasRetouchInteractions.ts` | Retouch canvas orchestration: retouch-layer bootstrap/reuse plus healing/clone/history/blur/sharpen/dodge stroke interactions extracted from `EditorView`. |
 | `src/components/Editor/useEditorCanvasExportSupport.ts` | Canvas export support helpers: background-color resolution, viewport reset wrapper, and resilient `toDataURL` fallback logic extracted from `EditorView`. |
 | `src/components/Editor/useEditorShellEffects.ts` | Editor shell side-effects: initial-tool hydration, export-menu outside click, zoom/hand mode sync, media-preview escape handling, UI preference sync, and canvas selection/control display effects extracted from `EditorView`. |
 | `src/components/Editor/useEditorTopCanvasControls.ts` | Top utility control state/effects: crop apply flow, eyedropper sampling, zoom controls, and viewport/utility canvas size sync. |
 | `src/components/Editor/useEditorShapeGradientControls.ts` | Shape and gradient top-control orchestration: state sync from active object plus apply/update handlers for top-bar mutations. |
-| `src/components/Editor/useEditorSelectionModify.ts` | Selection expand/contract top-control logic over active selection bounds with layer/group-aware commit behavior. |
+| `src/components/Editor/useEditorSelectionModify.ts` | Expand/contract morph of the document content selection mask (top-bar modify radius). |
 | `src/components/Editor/useEditorCanvasInteractionEffects.ts` | Editor canvas effect wiring helper module for interaction side-effects. |
 | `src/components/Editor/useEditorCanvasToolInteractions.ts` | Tool-specific canvas interaction wiring helper module. |
 | `src/components/Editor/useBackgroundJobsStore.ts` | Background AI/3D job state store utilities for editor runtime. |
@@ -78,7 +88,7 @@ Use it before adding features/refactoring so changes go to the correct module.
 | File | Responsibility |
 |---|---|
 | `src/components/Editor/top-tool-options/AdvancedToolControls.tsx` | Advanced utility controls cluster for top bar actions. |
-| `src/components/Editor/top-tool-options/SelectionControls.tsx` | Top-bar selection controls (feather/anti-alias/modify/etc). |
+| `src/components/Editor/top-tool-options/SelectionControls.tsx` | Top-bar selection family chips (Move/Marquee/Lasso/Wand/Quick/Brush), Layer/Group, wand threshold, brush size readout, anti-alias/modify. Path Select omitted (Move alias). Fake feather UI removed. |
 | `src/components/Editor/top-tool-options/PaintControls.tsx` | Top-bar paint brush controls. |
 | `src/components/Editor/top-tool-options/RetouchControls.tsx` | Top-bar retouch tool controls (healing/clone/blur/sharpen/dodge/history). |
 | `src/components/Editor/top-tool-options/GradientControls.tsx` | Top-bar gradient controls and parameter UI. |
@@ -98,7 +108,10 @@ Use it before adding features/refactoring so changes go to the correct module.
 | `src/components/AssetLibrary.tsx` | Asset browser/listing/upload/select UI and actions. |
 | `src/components/ThreeDGenerator.tsx` | 3D generation workflow shell and provider integration. |
 | `src/components/ThreeDLayerEditor.tsx` | Existing 3D layer editing UI/workflow. |
-| `src/components/ColorWheelTool.tsx` | Advanced color wheel + harmony/swatch workflows. |
+| `src/components/ColorWheelTool.tsx` | Advanced color wheel + harmony/swatch workflows (classic). |
+| `src/components/ColorConstellation/ColorPickerModeHost.tsx` | Classic vs Color Constellation mode host (shared hex/harmony APIs). |
+| `src/components/ColorConstellation/ColorConstellationPicker.tsx` | 3D OKLCH Color Constellation picker shell. |
+| `src/features/color-constellation/` | OKLCH math, harmony geometry, shared palette storage. |
 | `src/components/DocumentationModal.tsx` | In-app docs/modal viewer. |
 | `src/components/SettingsModal.tsx` | App settings panel (providers, keys, feature toggles). |
 | `src/components/TemplateLibrary.tsx` | Template browsing/selection surface. |
@@ -233,3 +246,5 @@ Use it before adding features/refactoring so changes go to the correct module.
 - 2026-02-27: Added `EditorWorkspaceShell` and adopted it in `EditorView` to own outer workspace chrome (tool rail, footer, context menu, and panel slots).
 - 2026-02-27: Added `useEditorThreeDWorkspace` and adopted it in `EditorView` to own 3D state plus generator/editor handlers previously in the main integration file.
 - 2026-02-27: Added `useEditorCanvasOverlayState` and adopted it in `EditorView` to own context-menu state, lock-badge overlays, cursor-preview effects, and canvas lock-toggle actions.
+- 2026-08-02: Selection family: Quick Select + Selection Brush are first-class paint engines (not wand/lasso aliases); wand prefers seed in Layer mode; feather no longer fakes Fabric Shadow; Path chip removed from top-bar (Move alias).
+- 2026-08-02: Content selection v2 — Selection Brush / Quick Select stamp the document alpha mask (Alt contracts); wand Contiguous/Color + picker; expand/contract morph the mask.

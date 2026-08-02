@@ -64,6 +64,35 @@ jest.mock('../AICritiqueModal', () => ({
     default: () => <div data-testid="mock-ai-critique-modal">AI Critique</div>,
 }));
 
+jest.mock('../ColorConstellation/ColorPickerModeHost', () => ({
+    __esModule: true,
+    default: ({
+        onColorSelect,
+        onPaletteSelect,
+        selectedColor,
+    }: {
+        onColorSelect: (color: string) => void;
+        onPaletteSelect: (palette: { id: string; name: string; colors: string[] }) => void;
+        selectedColor?: string;
+    }) => (
+        <div data-testid="mock-color-wheel-tool">
+            <div data-testid="mock-wheel-selected-color">{selectedColor}</div>
+            <button onClick={() => onColorSelect('#123456')}>Apply Color</button>
+            <button
+                onClick={() =>
+                    onPaletteSelect({
+                        id: 'palette-1',
+                        name: 'Warm',
+                        colors: ['#123456', '#ff9900'],
+                    })
+                }
+            >
+                Pick Palette
+            </button>
+        </div>
+    ),
+}));
+
 jest.mock('../ColorWheelTool', () => ({
     ColorWheelTool: ({
         onColorSelect,

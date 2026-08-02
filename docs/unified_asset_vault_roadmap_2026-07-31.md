@@ -94,6 +94,9 @@ Legend: ✅ done · 🔄 partial · 🔜 planned · ⬜ not started
 - [x] Vault UI: smart cluster + find similar
 - [x] Local AI captioning + text embeddings (`/api/assets/vault/enrich`)
 - [x] CLIP visual embedding helper (Transformers.js, lazy client load)
+- [x] Sources panel closed by default on vault open
+- [x] Local/dev Browse drive uses in-app folder browser (same paths as desktop)
+- [x] Drag-and-drop upload into vault grid → local IndexedDB + index + type albums
 
 ## Phase 2 — Full CRUD parity & richer previews
 
@@ -146,7 +149,11 @@ Until then: **toolbar Gallery → Asset Vault** (Classic Library remains availab
 | `src/features/asset-vault/application/client/clipEmbedder.ts` | Optional Transformers.js CLIP helper |
 | `src/lib/server/ollamaEmbeddings.ts` | Ollama embeddings + query expansion |
 | `src/lib/server/vaultEnrichment.ts` | Caption + embed enrich pipeline |
-| `src/components/AssetVault/` | Vault UI (Album room, Page stack, modal) |
+| `src/components/AssetVault/` | Vault UI (modal shell, toolbar, sidebar, grid, overlays, hooks) |
+| `src/components/AssetVault/AssetVaultModal.tsx` | Thin modal orchestrator (≤500 lines) |
+| `src/components/AssetVault/useVaultCatalog.ts` | Load / Smart search / sync / enrich |
+| `src/components/AssetVault/useVaultBrowse.ts` | Album→Page nav, lenses, pagination, chrome persistence |
+| `src/components/AssetVault/useVaultPreviews.ts` | Thumbnails, hover preview, detail, classic 3D/media open |
 | `src/features/asset-vault/domain/vaultAlbumTree.ts` | Album→Page trees per organize lens |
 | `src/components/VaultCircularMenu.tsx` | Alt+right-click ring |
 | `src/components/AssetLibrary.tsx` | Classic library (unchanged) |

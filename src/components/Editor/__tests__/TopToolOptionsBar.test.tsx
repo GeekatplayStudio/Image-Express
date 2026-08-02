@@ -46,7 +46,6 @@ describe('TopToolOptionsBar', () => {
         const onAutoSelectChange = jest.fn();
         const onSelectionModeChange = jest.fn();
         const onTransformControlsChange = jest.fn();
-        const onSelectFeatherChange = jest.fn();
         const onSelectAntiAliasChange = jest.fn();
         const onSelectionModifyPixelsChange = jest.fn();
         const onSelectionExpand = jest.fn();
@@ -67,7 +66,6 @@ describe('TopToolOptionsBar', () => {
                 onAutoSelectChange={onAutoSelectChange}
                 onSelectionModeChange={onSelectionModeChange}
                 onTransformControlsChange={onTransformControlsChange}
-                onSelectFeatherChange={onSelectFeatherChange}
                 onSelectAntiAliasChange={onSelectAntiAliasChange}
                 onSelectionModifyPixelsChange={onSelectionModifyPixelsChange}
                 onSelectionExpand={onSelectionExpand}
@@ -94,8 +92,8 @@ describe('TopToolOptionsBar', () => {
         fireEvent.click(screen.getByLabelText('Show Transform Controls'));
         expect(onTransformControlsChange).toHaveBeenCalledWith(false);
 
-        fireEvent.change(screen.getByLabelText('Select feather'), { target: { value: '24' } });
-        expect(onSelectFeatherChange).toHaveBeenCalledWith(24);
+        // Feather applies to content tools (marquee/lasso/wand), not Move.
+        expect(screen.queryByLabelText('Select feather')).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByLabelText('Select anti-alias'));
         expect(onSelectAntiAliasChange).toHaveBeenCalledWith(false);
@@ -132,8 +130,8 @@ describe('TopToolOptionsBar', () => {
         expect(moveButton.className).toMatch(/text-muted-foreground/);
     });
 
-    it('reuses select controls for marquee tool mode', () => {
-        const onSelectionModeChange = jest.fn();
+    it('reuses select controls for marquee tool mode with content feather', () => {
+        const onSelectFeatherChange = jest.fn();
 
         render(
             <TopToolOptionsBar
@@ -145,17 +143,16 @@ describe('TopToolOptionsBar', () => {
                     feather: 0,
                     antiAlias: true,
                 }}
-                onSelectionModeChange={onSelectionModeChange}
+                onSelectFeatherChange={onSelectFeatherChange}
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Selection mode group' }));
-        expect(onSelectionModeChange).toHaveBeenCalledWith('group');
+        expect(screen.queryByRole('button', { name: 'Selection mode group' })).not.toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Select feather'), { target: { value: '12' } });
+        expect(onSelectFeatherChange).toHaveBeenCalledWith(12);
     });
 
-    it('reuses select controls for lasso tool mode', () => {
-        const onSelectionModeChange = jest.fn();
-
+    it('reuses select controls for lasso tool mode with content feather', () => {
         render(
             <TopToolOptionsBar
                 activeTool="lasso"
@@ -163,15 +160,14 @@ describe('TopToolOptionsBar', () => {
                     autoSelectEnabled: true,
                     selectionMode: 'layer',
                     showTransformControls: true,
-                    feather: 0,
+                    feather: 4,
                     antiAlias: true,
                 }}
-                onSelectionModeChange={onSelectionModeChange}
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Selection mode group' }));
-        expect(onSelectionModeChange).toHaveBeenCalledWith('group');
+        expect(screen.getByLabelText('Select feather')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Selection mode group' })).not.toBeInTheDocument();
     });
 
     it('renders wand threshold controls and emits updates', () => {
@@ -189,18 +185,52 @@ describe('TopToolOptionsBar', () => {
                 }}
                 wandOptions={{
                     threshold: 48,
+                    sampleMode: 'contiguous',
+                    sampleColor: '#336699',
                 }}
                 onWandThresholdChange={onWandThresholdChange}
             />
         );
 
-        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '72' } });
+        fireEvent.change(screen.getByLabelText('Color match range'), { target: { value: '72' } });
         expect(onWandThresholdChange).toHaveBeenCalledWith(72);
     });
 
-    it('reuses wand threshold controls for quick selection mode', () => {
-        const onWandThresholdChange = jest.fn();
+    it('wires wand color mode, picker, and apply', () => {
+        const onWandSampleModeChange = jest.fn();
+        const onWandSampleColorChange = jest.fn();
+        const onWandApplyColor = jest.fn();
 
+        render(
+            <TopToolOptionsBar
+                activeTool="wand"
+                selectOptions={{
+                    autoSelectEnabled: true,
+                    selectionMode: 'layer',
+                    showTransformControls: true,
+                    feather: 0,
+                    antiAlias: true,
+                }}
+                wandOptions={{
+                    threshold: 40,
+                    sampleMode: 'color',
+                    sampleColor: '#112233',
+                }}
+                onWandSampleModeChange={onWandSampleModeChange}
+                onWandSampleColorChange={onWandSampleColorChange}
+                onWandApplyColor={onWandApplyColor}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Wand contiguous fill' }));
+        expect(onWandSampleModeChange).toHaveBeenCalledWith('contiguous');
+        fireEvent.change(screen.getByLabelText('Wand sample color'), { target: { value: '#abcdef' } });
+        expect(onWandSampleColorChange).toHaveBeenCalledWith('#abcdef');
+        fireEvent.click(screen.getByRole('button', { name: 'Select by picker color' }));
+        expect(onWandApplyColor).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows brush size for quick selection instead of wand threshold', () => {
         render(
             <TopToolOptionsBar
                 activeTool="quick-select"
@@ -213,13 +243,15 @@ describe('TopToolOptionsBar', () => {
                 }}
                 wandOptions={{
                     threshold: 30,
+                    sampleMode: 'contiguous',
+                    sampleColor: '#336699',
                 }}
-                onWandThresholdChange={onWandThresholdChange}
             />
         );
 
-        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '44' } });
-        expect(onWandThresholdChange).toHaveBeenCalledWith(44);
+        expect(screen.queryByLabelText('Color match range')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Selection brush size')).toBeInTheDocument();
+        expect(screen.getByText('Brush 10px')).toBeInTheDocument();
     });
 
     it('renders and wires healing brush bootstrap controls', () => {

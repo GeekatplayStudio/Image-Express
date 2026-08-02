@@ -7,6 +7,7 @@ type EditorHeaderSelectMenuProps = {
     setShowSelectMenu: (next: boolean | ((prev: boolean) => boolean)) => void;
     handleSelectAllFromMenu: () => void;
     handleDeselectFromMenu: () => void;
+    handleMaskFromSelection: () => void;
     handleSelectionModify: (direction: 'expand' | 'contract') => void;
     triggerToolbarTool: (toolName: string) => void;
 };
@@ -17,6 +18,7 @@ export default function EditorHeaderSelectMenu({
     setShowSelectMenu,
     handleSelectAllFromMenu,
     handleDeselectFromMenu,
+    handleMaskFromSelection,
     handleSelectionModify,
     triggerToolbarTool,
 }: EditorHeaderSelectMenuProps) {
@@ -50,6 +52,15 @@ export default function EditorHeaderSelectMenu({
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
                     >
                         {t('selMenu.deselect')}
+                    </button>
+                    <button
+                        onClick={() => {
+                            setShowSelectMenu(false);
+                            void handleMaskFromSelection();
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                    >
+                        {t('selMenu.maskFromSelection')}
                     </button>
                     <button
                         onClick={() => {

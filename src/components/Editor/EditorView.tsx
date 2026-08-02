@@ -48,6 +48,7 @@ import { useEditorCanvasExportSupport } from '@/components/Editor/useEditorCanva
 import { useEditorShellEffects } from '@/components/Editor/useEditorShellEffects';
 import { useEditorShapeGradientControls } from '@/components/Editor/useEditorShapeGradientControls';
 import { useEditorSelectionModify } from '@/components/Editor/useEditorSelectionModify';
+import { commitWandColorPickerSelection } from '@/components/Editor/contentSelectionCommit';
 import { useEditorThreeDWorkspace } from '@/components/Editor/useEditorThreeDWorkspace';
 import { useBackgroundJobsStore } from '@/components/Editor/useBackgroundJobsStore';
 import { useBackgroundJobPolling } from '@/components/Editor/useBackgroundJobPolling';
@@ -226,6 +227,8 @@ export default function EditorView({
         showTransformControls, setShowTransformControls, selectFeather, setSelectFeather,
         selectAntiAlias, setSelectAntiAlias, selectionModifyPixels, setSelectionModifyPixels,
         wandTopThreshold, setWandTopThreshold,
+        wandSampleMode, setWandSampleMode,
+        wandSampleColor, setWandSampleColor,
         healingTopSize, setHealingTopSize, healingTopHardness, setHealingTopHardness,
         healingTopSampleAllLayers, setHealingTopSampleAllLayers,
         historyBrushTopSize, setHistoryBrushTopSize, historyBrushTopHardness, setHistoryBrushTopHardness,
@@ -438,16 +441,39 @@ export default function EditorView({
 
     const { handleSelectionModify } = useEditorSelectionModify({
         canvas,
-        selectionMode,
         selectionModifyPixels,
     });
 
     useEditorCanvasSelectionInteractions({
         canvas,
         activeTool,
-        selectionMode,
         wandTopThreshold,
+        selectFeather,
+        wandSampleMode,
+        wandSampleColor,
+        onWandSampleColorChange: setWandSampleColor,
+        toast,
+        emptyTargetTitle: t('sel.contentEmptyTarget'),
+        emptyTargetDescription: t('sel.contentEmptyTargetHint'),
+        noPixelsTitle: t('sel.contentNoPixels'),
+        noPixelsDescription: t('sel.contentNoPixelsHint'),
     });
+
+    const handleWandApplyColor = useCallback(() => {
+        if (!canvas) return;
+        commitWandColorPickerSelection({
+            canvas,
+            seedColorHex: wandSampleColor,
+            threshold: wandTopThreshold,
+            featherPx: selectFeather,
+            addToSelection: false,
+            toast,
+            emptyTargetTitle: t('sel.contentEmptyTarget'),
+            emptyTargetDescription: t('sel.contentEmptyTargetHint'),
+            noPixelsTitle: t('sel.contentNoPixels'),
+            noPixelsDescription: t('sel.contentNoPixelsHint'),
+        });
+    }, [canvas, wandSampleColor, wandTopThreshold, selectFeather, toast, t]);
 
     useEditorCanvasRetouchInteractions({
         canvas,
@@ -864,6 +890,7 @@ export default function EditorView({
         handleLayerToggleLockFromMenu,
         handleSelectAllFromMenu,
         handleDeselectFromMenu,
+        handleMaskFromSelection,
         handleResetZoomFromMenu,
         handleShowShortcutsFromMenu,
         handleShowAboutFromMenu,
@@ -1064,6 +1091,11 @@ export default function EditorView({
         handleSelectionModify,
         wandTopThreshold,
         setWandTopThreshold,
+        wandSampleMode,
+        setWandSampleMode,
+        wandSampleColor,
+        setWandSampleColor,
+        onWandApplyColor: handleWandApplyColor,
         healingTopSize,
         setHealingTopSize,
         healingTopHardness,
@@ -1240,6 +1272,7 @@ export default function EditorView({
                             handleLayerOrderAction={handleLayerOrderAction}
                             handleSelectAllFromMenu={handleSelectAllFromMenu}
                             handleDeselectFromMenu={handleDeselectFromMenu}
+                            handleMaskFromSelection={handleMaskFromSelection}
                             handleSelectionModify={handleSelectionModify}
                             handleUndo={handleUndo}
                             handleRedo={handleRedo}

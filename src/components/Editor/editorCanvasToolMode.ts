@@ -4,10 +4,12 @@ type EditorCanvasToolOptions = {
     zoomMode?: 'in' | 'out';
 };
 
-type EditorCanvasToolConfig = {
+export type EditorCanvasToolConfig = {
     defaultCursor: string;
     hoverCursor: string;
     selection: boolean;
+    /** When true, Fabric will not hit-test / drag objects under the cursor. */
+    skipTargetFind: boolean;
 };
 
 const CROSSHAIR_TOOLS = new Set([
@@ -33,7 +35,18 @@ const CROSSHAIR_TOOLS = new Set([
     'eyedropper',
 ]);
 
+/** Drawing / region tools must not grab objects under the cursor. */
+const SKIP_TARGET_TOOLS = new Set([
+    ...CROSSHAIR_TOOLS,
+]);
+
 const normalizeTool = (tool: string) => (tool === 'path-select' ? 'select' : tool);
+
+type CanvasWithToolMemory = fabric.Canvas & {
+    __ieActiveTool?: string;
+    __ieZoomMode?: 'in' | 'out';
+    skipTargetFind?: boolean;
+};
 
 export function getEditorCanvasToolConfig(
     tool: string,
@@ -52,6 +65,7 @@ export function getEditorCanvasToolConfig(
             defaultCursor: 'default',
             hoverCursor: 'move',
             selection: true,
+            skipTargetFind: false,
         };
     }
 
@@ -61,6 +75,7 @@ export function getEditorCanvasToolConfig(
             defaultCursor: zoomCursor,
             hoverCursor: zoomCursor,
             selection: false,
+            skipTargetFind: true,
         };
     }
 
@@ -69,6 +84,7 @@ export function getEditorCanvasToolConfig(
             defaultCursor: 'grab',
             hoverCursor: 'grab',
             selection: false,
+            skipTargetFind: true,
         };
     }
 
@@ -77,6 +93,7 @@ export function getEditorCanvasToolConfig(
             defaultCursor: 'crosshair',
             hoverCursor: 'crosshair',
             selection: false,
+            skipTargetFind: SKIP_TARGET_TOOLS.has(normalizedTool),
         };
     }
 
@@ -91,8 +108,24 @@ export function applyEditorCanvasToolConfig(
     const config = getEditorCanvasToolConfig(tool, options);
     if (!config) return;
 
+    const typed = canvas as CanvasWithToolMemory;
+    typed.__ieActiveTool = normalizeTool(tool);
+    if (options?.zoomMode) typed.__ieZoomMode = options.zoomMode;
+
     canvas.defaultCursor = config.defaultCursor;
     canvas.hoverCursor = config.hoverCursor;
     canvas.selection = config.selection;
+    typed.skipTargetFind = config.skipTargetFind;
     canvas.requestRenderAll();
+}
+
+/**
+ * Re-apply the last tool config after pan/hand handlers clobber canvas.selection / cursors.
+ * Defaults to Move (select) when no tool has been recorded yet.
+ */
+export function restoreEditorCanvasToolConfig(canvas: fabric.Canvas) {
+    const typed = canvas as CanvasWithToolMemory;
+    const tool = typed.__ieActiveTool || 'select';
+    const zoomMode = typed.__ieZoomMode;
+    applyEditorCanvasToolConfig(canvas, tool, zoomMode ? { zoomMode } : undefined);
 }

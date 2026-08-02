@@ -32,6 +32,11 @@ type UseEditorTopToolOptionsBridgePropsArgs = {
     handleSelectionModify: (direction: 'expand' | 'contract') => void;
     wandTopThreshold: number;
     setWandTopThreshold: (value: number) => void;
+    wandSampleMode: 'contiguous' | 'color';
+    setWandSampleMode: (mode: 'contiguous' | 'color') => void;
+    wandSampleColor: string;
+    setWandSampleColor: (hex: string) => void;
+    onWandApplyColor: () => void;
     healingTopSize: number;
     setHealingTopSize: (value: number) => void;
     healingTopHardness: number;
@@ -187,6 +192,11 @@ export function useEditorTopToolOptionsBridgeProps(args: UseEditorTopToolOptions
         handleSelectionModify,
         wandTopThreshold,
         setWandTopThreshold,
+        wandSampleMode,
+        setWandSampleMode,
+        wandSampleColor,
+        setWandSampleColor,
+        onWandApplyColor,
         healingTopSize,
         setHealingTopSize,
         healingTopHardness,
@@ -316,7 +326,9 @@ export function useEditorTopToolOptionsBridgeProps(args: UseEditorTopToolOptions
             selectAntiAlias, setSelectAntiAlias, selectionModifyPixels, setSelectionModifyPixels, handleSelectionModify,
         },
         retouchControls: {
-            wandTopThreshold, setWandTopThreshold, healingTopSize, setHealingTopSize, healingTopHardness, setHealingTopHardness,
+            wandTopThreshold, setWandTopThreshold,
+            wandSampleMode, setWandSampleMode, wandSampleColor, setWandSampleColor, onWandApplyColor,
+            healingTopSize, setHealingTopSize, healingTopHardness, setHealingTopHardness,
             healingTopSampleAllLayers, setHealingTopSampleAllLayers, historyBrushTopSize, setHistoryBrushTopSize,
             historyBrushTopHardness, setHistoryBrushTopHardness, historyBrushTopSampleAllLayers, setHistoryBrushTopSampleAllLayers,
             blurTopSize, setBlurTopSize, blurTopStrength, setBlurTopStrength, blurTopSampleAllLayers, setBlurTopSampleAllLayers,

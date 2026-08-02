@@ -222,12 +222,20 @@ History shortcuts:
 
 ### 6.5 Selection Engines
 `useEditorCanvasSelectionInteractions` supports:
-- rectangular marquee,
-- polygon lasso,
-- wand/quick-select color-threshold matching with fallback to hit target,
-- layer/group selection mode commit semantics.
 
-Selection excludes helper/anchor/retouch/artboard objects.
+**Content (pixel) selection** — Marquee, Lasso, Wand, Quick Select, Selection Brush:
+- write an artboard-aligned document alpha mask inside a target layer,
+- Wand: Contiguous flood-fill **or** Color Range (all matching pixels) with color picker + range,
+- Shift+click / Shift+drag **adds** to the current selection,
+- Selection Brush: soft stamp expand; **Alt+paint** contracts,
+- Quick Select: stamp + grow into similar colors under the brush (wand Range); **Alt** contracts,
+- tint + dashed ants overlay until Clear / Deselect,
+- Mask from Selection → layer raster mask (`applyRasterMaskToObject`),
+- expand/contract top controls morph the mask.
+
+**Object pick** — Move (`select`) / Path Select alias only.
+
+Selection excludes helper/anchor/retouch/artboard chrome objects.
 
 ### 6.6 Retouch Engine
 `useEditorCanvasRetouchInteractions` + `retouch-engine`:

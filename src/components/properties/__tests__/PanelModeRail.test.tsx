@@ -76,4 +76,11 @@ describe('PanelModeRail', () => {
         fireEvent.mouseEnter(screen.getByTestId('panel-mode-rail'));
         expect(screen.queryByText('Layers')).not.toBeInTheDocument();
     });
+
+    it('clips horizontal overflow so a vertical scrollbar cannot spawn an X-axis bar', () => {
+        render(<PanelModeRail mode="layers" onModeChange={jest.fn()} />);
+        const rail = screen.getByTestId('panel-mode-rail');
+        expect(rail.className).toMatch(/overflow-x-hidden/);
+        expect(rail.className).toMatch(/overflow-y-auto/);
+    });
 });

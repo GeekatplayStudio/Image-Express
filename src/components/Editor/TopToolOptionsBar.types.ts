@@ -81,8 +81,13 @@ export interface TopToolOptionsBarProps {
     onCloneClearSource?: () => void;
     wandOptions?: {
         threshold: number;
+        sampleMode: 'contiguous' | 'color';
+        sampleColor: string;
     };
     onWandThresholdChange?: (threshold: number) => void;
+    onWandSampleModeChange?: (mode: 'contiguous' | 'color') => void;
+    onWandSampleColorChange?: (hex: string) => void;
+    onWandApplyColor?: () => void;
     paintOptions?: {
         brushPreset: RasterBrushPreset;
         size: number;

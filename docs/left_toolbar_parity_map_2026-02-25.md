@@ -50,7 +50,7 @@ Legend:
 | Size & position | Move + transform/crop entry point | Move exists; Crop is dropdown-only | Crop not persistent in rail group; move panel parity missing | P1 |
 | Generative | Dedicated left-rail group with fill/expand/upscale actions | `AI Zone` exists | No reference-style grouped Generative panel flow | P2 |
 | Adjust | Dedicated adjust group | Adjustments exist mainly in right rail/panels | Left-rail adjust identity missing | P2 |
-| Select | Object selection, selection brush, quick selection, lasso, marquee | Move/marquee/lasso/wand/path-select | Missing `Object Selection` mode identity, `Selection Brush`, `Quick Selection`, detect-object panel flow | P1 |
+| Select | Object selection, selection brush, quick selection, lasso, marquee | Move + content mask tools (marquee/lasso/wand/quick-select/selection-brush) + path-select alias | Content pixel selection shipped (ants mask). Remaining: object-selection mode identity, detect-object panel | P2 |
 | Retouch | Remove, spot healing, healing, clone, liquify, dodge/burn/sponge | healing/clone/history/blur/sharpen/dodge done | Missing `Remove`, `Spot Healing`, `Liquify`, `Burn`, `Sponge`; tool naming/stack parity incomplete | P1 |
 | Quick actions | Dedicated left-rail quick actions group | No dedicated group | Missing | P2 |
 | Effects | Dedicated effects browser group | Effects are mostly in properties flows | Missing left-rail group identity | P2 |
@@ -89,7 +89,7 @@ Legend:
    - Add FG/BG/swap utility cluster in left rail.
    - Introduce centralized cursor resolver + zoom in/out cursor.
 2. **Step 2 (P1): Selection group parity**
-   - Add Selection Brush + Quick Selection identities.
+   - ~~Add Selection Brush + Quick Selection identities.~~ Done — both paint the content mask (2026-08-02).
    - Add Object Selection mode affordance and detect-object section parity.
 3. **Step 3 (P1): Retouch parity**
    - Add Spot Healing/Remove/Liquify/Burn/Sponge identities.

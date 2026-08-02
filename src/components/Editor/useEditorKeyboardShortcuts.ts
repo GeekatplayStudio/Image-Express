@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 
 import type { ToolbarHandle } from '@/components/Toolbar';
 import type { ExtendedFabricObject } from '@/types';
+import { clearDocumentSelection } from '@/lib/selection/documentSelectionStore';
 
 type UseEditorKeyboardShortcutsArgs = {
     canvas: fabric.Canvas | null;
@@ -143,6 +144,7 @@ export function useEditorKeyboardShortcuts({
             }
             if (!event.shiftKey && !event.altKey && key === 'd') {
                 event.preventDefault();
+                clearDocumentSelection(canvas);
                 canvas.discardActiveObject();
                 canvas.requestRenderAll();
                 return;

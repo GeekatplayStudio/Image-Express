@@ -57,6 +57,7 @@ type EditorHeaderMenusProps = {
     handleLayerOrderAction: (action: LayerOrderAction) => void;
     handleSelectAllFromMenu: () => void;
     handleDeselectFromMenu: () => void;
+    handleMaskFromSelection: () => void;
     handleSelectionModify: (direction: 'expand' | 'contract') => void;
     handleUndo: () => void;
     handleRedo: () => void;
@@ -84,7 +85,7 @@ export default function EditorHeaderMenus({
     setShowLayerMenu, setShowSelectMenu, setShowFilterMenu, setShowViewMenu, setShowWindowMenu, setShowSettingsMenu,
     setShowHelpMenu, handleSave, onOpenDesignPicker, onOpenRecentDesign, autosaveEnabled, onToggleAutosave, handleFitToScreen, handleResetZoomFromMenu, openPanelModeFromMenu, triggerToolbarTool,
     handleDuplicate, handleLayerDeleteFromMenu, handleLayerToggleLockFromMenu, menuLayerTarget, activeLayerOrderState,
-    handleLayerOrderAction, handleSelectAllFromMenu, handleDeselectFromMenu, handleSelectionModify, handleUndo, handleRedo,
+    handleLayerOrderAction, handleSelectAllFromMenu, handleDeselectFromMenu, handleMaskFromSelection, handleSelectionModify, handleUndo, handleRedo,
     historyState, handleZoom, gridType, setGridType, isPropertiesPanelVisible, propertiesPanelMode, handleWindowPanelToggle,
     setPanelState, panelState, handleWindowDockMode, onOpenSettings, isAdminUser, onOpenAdminArea, onOpenDocumentation,
     handleShowShortcutsFromMenu, handleShowAboutFromMenu,
@@ -365,6 +366,7 @@ export default function EditorHeaderMenus({
                 setShowSelectMenu={setShowSelectMenu}
                 handleSelectAllFromMenu={handleSelectAllFromMenu}
                 handleDeselectFromMenu={handleDeselectFromMenu}
+                handleMaskFromSelection={handleMaskFromSelection}
                 handleSelectionModify={handleSelectionModify}
                 triggerToolbarTool={triggerToolbarTool}
             />

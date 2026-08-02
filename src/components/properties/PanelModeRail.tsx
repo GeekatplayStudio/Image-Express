@@ -64,8 +64,10 @@ export function PanelModeRail({ mode, onModeChange, showHoverLabels = true, clas
     return (
         <div
             className={cn(
-                'min-h-0 max-h-[80vh] overflow-y-auto flex flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out',
-                isExpanded ? 'w-44 items-stretch shadow-xl' : 'w-10 items-center',
+                // overflow-x-hidden: a vertical scrollbar on this narrow rail must not
+                // steal width and spawn a tiny horizontal scrollbar at the bottom.
+                'min-h-0 max-h-[80vh] overflow-y-auto overflow-x-hidden flex flex-col gap-1 rounded-md border border-border/60 bg-card/90 p-1 backdrop-blur-sm scrollbar-thin transition-[width] duration-200 ease-out items-stretch',
+                isExpanded ? 'w-44 shadow-xl' : 'w-10',
                 expandDirection === 'left' ? 'origin-top-right' : 'origin-top-left',
                 className
             )}
@@ -82,8 +84,8 @@ export function PanelModeRail({ mode, onModeChange, showHoverLabels = true, clas
                     data-testid={`panel-mode-${item.mode}`}
                     onClick={() => onModeChange(item.mode)}
                     className={cn(
-                        'rounded-sm flex transition-colors',
-                        isExpanded ? 'h-8 w-full items-center justify-start gap-2 px-2' : 'h-8 w-8 items-center justify-center',
+                        'rounded-sm flex w-full min-w-0 transition-colors',
+                        isExpanded ? 'h-8 items-center justify-start gap-2 px-2' : 'h-8 items-center justify-center',
                         mode === item.mode ? 'bg-tool-accent text-tool-accent-foreground' : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
                     )}
                     title={item.title}

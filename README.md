@@ -226,6 +226,7 @@ Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key config
 ### One canvas, three disciplines
 - **Infinite 2D vector/raster canvas** (Fabric.js) with professional layer management — locking, folders, multi-select, arrange mode, non-destructive clip masks with gradient fades.
 - **Switchable tool groups**: right-click Selection, Retouch, or **Fill/Gradient** on the rail to flip between their sub-tools, same as Photoshop's flyouts. Fill/Gradient includes a **New Fill/Gradient Layer** mode that drops a page-filling gradient layer ready to edit.
+- **Content (pixel) selection**: Marquee, Lasso, Magic Wand (contiguous or color-range), **Quick Select** (paint-grow into similar colors), and **Selection Brush** (paint expand / Alt contract) write a marching-ants mask inside the layer — not whole-layer picks. Clear with Escape / Ctrl+D; **Mask from Selection** builds a real layer mask.
 - **Live 3D layer editor** (Three.js/WebGL) — pose, light, and shadow a generated or uploaded 3D model right inside a canvas layer, with realistic soft shadows (true penumbra, not a blurred pixel grid) that scale correctly with the model instead of clipping at a fixed radius. Your lighting setup carries over to the next new model you open, so you're not re-lighting from scratch every time.
 - **⚡ Frame Bake** — our name for capturing the exact 3D pose you like and baking it into a flat, further-editable 2D PNG layer with one click. Design in 3D, finish in 2D, no round-trip to another app.
 - **Real retouching brushes**: Spot Healing, Clone Stamp, Dodge, Burn, Sponge, History Brush, Blur/Sharpen — not filter presets, actual brush-based tools.
@@ -436,7 +437,7 @@ graph TD
 ### Photoshop-Style Shortcuts
 - **Navigation**: Space + Drag pans, Scroll zooms, and Double-click empty canvas recenters the artboard.
 - **Layer Duplication**: Alt/Option + Drag duplicates the selected layer and drags the copy.
-- **Selection Tools**: `V` Move, `M` Marquee, `L` Lasso, `W` Quick Selection, `Shift+W` Magic Wand, `A` Path Select.
+- **Selection Tools**: `V` Move, `M` Marquee, `L` Lasso, `W` Quick Select, `Shift+W` Magic Wand, `K` Selection Brush, `A` Path Select. Content tools paint a pixel mask (Shift adds; Alt on brush/quick contracts).
 - **Creation & Retouch**: `T` Text, `U` Shapes, `P` Pen, `B` Brush, `R` Blur, `J` Healing, `S` Clone Stamp, `O` Dodge, `G` Gradient, `I` Eyedropper, `C` Crop, `H` Hand, `Z` Zoom.
 - **History & Selection**: `Cmd/Ctrl+J` duplicates, `Cmd/Ctrl+D` deselects, `Cmd/Ctrl+Z` and `Cmd/Ctrl+Alt+Z` undo, `Cmd/Ctrl+Shift+Z` redo.
 

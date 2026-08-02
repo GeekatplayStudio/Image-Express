@@ -70,8 +70,8 @@ export default function VaultFolderBrowser({ isOpen, onClose, onPick }: VaultFol
     if (!isOpen) return null;
 
     return (
-        <div
-            className="absolute inset-0 z-30 flex items-center justify-center bg-background/70 backdrop-blur-sm"
+                <div
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-background/70 backdrop-blur-sm"
             data-testid="vault-folder-browser"
         >
             <div className="w-[min(560px,92%)] max-h-[70%] flex flex-col rounded-lg border border-border bg-card shadow-2xl">

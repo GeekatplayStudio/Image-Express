@@ -2,6 +2,7 @@
 // Extracted from DesignCanvas.tsx to keep files small and behavior testable.
 import * as fabric from 'fabric';
 import { duplicateCanvasObjects } from '@/components/Editor/duplicateCanvasSelection';
+import { restoreEditorCanvasToolConfig } from '@/components/Editor/editorCanvasToolMode';
 
 const isEditableElement = (element: Element | null): boolean => {
     if (!element || !(element instanceof HTMLElement)) return false;
@@ -114,10 +115,16 @@ export function installPanZoomNavigation(
         if (!isDragging) return;
         canvas.setViewportTransform(canvas.viewportTransform!);
         isDragging = false;
-        canvas.selection = !handModeLocked;
-        canvas.defaultCursor = handModeLocked ? 'grab' : 'default';
-        canvas.hoverCursor = handModeLocked ? 'grab' : 'move';
-        canvas.setCursor(handModeLocked ? 'grab' : 'default');
+        if (handModeLocked) {
+            canvas.selection = false;
+            canvas.defaultCursor = 'grab';
+            canvas.hoverCursor = 'grab';
+            canvas.setCursor('grab');
+            return;
+        }
+        // Restore marquee/lasso/etc. flags — do not force selection=true (that steals draws).
+        restoreEditorCanvasToolConfig(canvas);
+        canvas.setCursor(canvas.defaultCursor);
     };
 
     const handlePanKeyDown = (event: KeyboardEvent) => {
@@ -145,11 +152,19 @@ export function installPanZoomNavigation(
 
     const handleHandModeSet = (payload?: { enabled?: boolean }) => {
         handModeLocked = Boolean(payload?.enabled);
-        canvas.selection = !handModeLocked;
-        canvas.defaultCursor = handModeLocked ? 'grab' : 'default';
-        canvas.hoverCursor = handModeLocked ? 'grab' : 'move';
-        if (!isDragging) {
-            canvas.setCursor(handModeLocked ? 'grab' : 'default');
+        if (handModeLocked) {
+            canvas.selection = false;
+            (canvas as fabric.Canvas & { skipTargetFind?: boolean }).skipTargetFind = true;
+            canvas.defaultCursor = 'grab';
+            canvas.hoverCursor = 'grab';
+            if (!isDragging) {
+                canvas.setCursor('grab');
+            }
+        } else {
+            restoreEditorCanvasToolConfig(canvas);
+            if (!isDragging) {
+                canvas.setCursor(canvas.defaultCursor);
+            }
         }
         canvas.requestRenderAll();
     };
@@ -208,16 +223,23 @@ export function installPanZoomNavigation(
 
     const handleMouseDown = (opt: { e: Event; target?: fabric.Object }) => {
         const evt = opt.e as MouseEvent;
-        // Pan with Space + Left Click on empty canvas so object/pen controls stay usable.
-        if ((isSpacePressed || handModeLocked) && evt.button === 0 && !opt.target) {
-            onUserNavigate();
-            isDragging = true;
-            canvas.selection = false;
-            lastPosX = evt.clientX;
-            lastPosY = evt.clientY;
-            canvas.defaultCursor = 'grabbing';
-            canvas.setCursor('grabbing');
-        }
+        if (!(isSpacePressed || handModeLocked) || evt.button !== 0) return;
+
+        // Move tool: Space-pan only on empty canvas so object clicks stay usable.
+        // Region tools set skipTargetFind (opt.target always empty) — Space always pans.
+        // Hand tool: pan anywhere.
+        const regionTool = Boolean(
+            (canvas as fabric.Canvas & { __ieRegionSelectionTool?: boolean }).__ieRegionSelectionTool,
+        );
+        if (!handModeLocked && !regionTool && opt.target) return;
+
+        onUserNavigate();
+        isDragging = true;
+        canvas.selection = false;
+        lastPosX = evt.clientX;
+        lastPosY = evt.clientY;
+        canvas.defaultCursor = 'grabbing';
+        canvas.setCursor('grabbing');
     };
 
     const handleMouseMove = (opt: { e: Event }) => {

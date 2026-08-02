@@ -3,7 +3,7 @@ import { History, Undo2, Redo2, Compass, Info, Palette, Grid3x3, Blend, Brush } 
 import { AdjustmentLayerType } from '@/types';
 import type { RasterBlendMode, RasterBrushPreset } from '@/lib/raster-engine';
 import { APP_THEME } from '@/lib/theme-tokens';
-import { ColorWheelTool } from '../ColorWheelTool';
+import ColorPickerModeHost from '../ColorConstellation/ColorPickerModeHost';
 import { useI18n } from '@/providers/I18nProvider';
 
 
@@ -633,7 +633,7 @@ export function ColorPanelView({
                     </div>
                 )}
 
-                <ColorWheelTool
+                <ColorPickerModeHost
                     variant="panel"
                     selectedColor={effectivePreviewColor}
                     currentPalette={null}

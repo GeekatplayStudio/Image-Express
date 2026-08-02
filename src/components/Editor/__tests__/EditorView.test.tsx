@@ -40,9 +40,13 @@ function createCanvasStub() {
         height: 800,
         viewportTransform: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number],
         artboardRect: null as object | null,
+        artboard: { left: 0, top: 0, width: 800, height: 600 },
         backgroundColor: '#ffffff',
         contextContainer,
         contextTop,
+        defaultCursor: 'default',
+        hoverCursor: 'move',
+        selection: true,
         on: jest.fn(),
         off: jest.fn(),
         fire: jest.fn(),
@@ -1512,7 +1516,7 @@ describe('EditorView', () => {
         expect(latestCanvasStub?.fire).toHaveBeenCalledWith('object:modified', { target: lockedChildObject });
     });
 
-    it('uses marquee drag bounds to select the top-most intersecting object', async () => {
+    it('writes marquee drag into a content selection mask on the target layer', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="marquee" />);
 
@@ -1520,23 +1524,17 @@ describe('EditorView', () => {
             expect(screen.getByText('marquee')).toBeInTheDocument();
         });
 
-        const backObject = {
+        const targetObject = {
             type: 'rect',
+            id: 'layer-target',
             selectable: true,
             evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 60, top: 60, width: 80, height: 80 })),
-        };
-        const frontObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 120, top: 120, width: 90, height: 90 })),
+            getBoundingRect: jest.fn(() => ({ left: 100, top: 100, width: 200, height: 200 })),
         };
 
-        latestCanvasStub?.getObjects.mockReturnValue([
-            backObject as any,
-            frontObject as any,
-        ]);
+        latestCanvasStub!.defaultCursor = 'crosshair';
+        latestCanvasStub?.getObjects.mockReturnValue([targetObject as any]);
+        latestCanvasStub!.getActiveObject.mockReturnValue(targetObject);
 
         const getHandlers = (eventName: string) => (
             latestCanvasStub?.on.mock.calls
@@ -1544,17 +1542,20 @@ describe('EditorView', () => {
                 .map((call) => call[1] as (payload: unknown) => void) || []
         );
 
-        const dragStart = { scenePoint: { x: 40, y: 40 }, e: { button: 0 } };
-        const dragMove = { scenePoint: { x: 250, y: 250 }, e: { button: 0 } };
+        const dragStart = { scenePoint: { x: 120, y: 120 }, e: { button: 0 } };
+        const dragMove = { scenePoint: { x: 200, y: 200 }, e: { button: 0 } };
 
         getHandlers('mouse:down').forEach((handler) => handler(dragStart));
         getHandlers('mouse:move').forEach((handler) => handler(dragMove));
         getHandlers('mouse:up').forEach((handler) => handler(dragMove));
 
-        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(frontObject);
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(targetObject);
+        const mask = (latestCanvasStub as any).__ieSelectionMask;
+        expect(mask).toBeTruthy();
+        expect(mask.data.some((v: number) => v > 0)).toBe(true);
     });
 
-    it('uses lasso path bounds to select the top-most object inside polygon', async () => {
+    it('writes lasso polygon into a content selection mask clipped to the target layer', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="lasso" />);
 
@@ -1562,30 +1563,17 @@ describe('EditorView', () => {
             expect(screen.getByText('lasso')).toBeInTheDocument();
         });
 
-        const backObject = {
+        const targetObject = {
             type: 'rect',
+            id: 'layer-lasso',
             selectable: true,
             evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 60, top: 60, width: 60, height: 60 })),
-        };
-        const frontObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 140, top: 120, width: 80, height: 80 })),
-        };
-        const outsideObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 420, top: 350, width: 60, height: 60 })),
+            getBoundingRect: jest.fn(() => ({ left: 50, top: 50, width: 250, height: 250 })),
         };
 
-        latestCanvasStub?.getObjects.mockReturnValue([
-            backObject as any,
-            frontObject as any,
-            outsideObject as any,
-        ]);
+        latestCanvasStub!.defaultCursor = 'crosshair';
+        latestCanvasStub?.getObjects.mockReturnValue([targetObject as any]);
+        latestCanvasStub!.getActiveObject.mockReturnValue(targetObject);
 
         const getHandlers = (eventName: string) => (
             latestCanvasStub?.on.mock.calls
@@ -1594,31 +1582,29 @@ describe('EditorView', () => {
         );
 
         getHandlers('mouse:down').forEach((handler) => handler({
-            scenePoint: { x: 40, y: 40 },
+            scenePoint: { x: 80, y: 80 },
             e: { button: 0 },
         }));
         getHandlers('mouse:move').forEach((handler) => handler({
-            scenePoint: { x: 260, y: 70 },
+            scenePoint: { x: 220, y: 90 },
             e: { button: 0 },
         }));
         getHandlers('mouse:move').forEach((handler) => handler({
-            scenePoint: { x: 260, y: 250 },
-            e: { button: 0 },
-        }));
-        getHandlers('mouse:move').forEach((handler) => handler({
-            scenePoint: { x: 40, y: 250 },
+            scenePoint: { x: 200, y: 220 },
             e: { button: 0 },
         }));
         getHandlers('mouse:up').forEach((handler) => handler({
-            scenePoint: { x: 40, y: 40 },
+            scenePoint: { x: 80, y: 80 },
             e: { button: 0 },
         }));
 
-        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(frontObject);
-        expect(latestCanvasStub?.setActiveObject).not.toHaveBeenCalledWith(outsideObject);
+        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(targetObject);
+        const mask = (latestCanvasStub as any).__ieSelectionMask;
+        expect(mask).toBeTruthy();
+        expect(mask.data.some((v: number) => v > 0)).toBe(true);
     });
 
-    it('routes selection brush interactions through the lasso selection pipeline', async () => {
+    it('paints selection-brush stamps into the content selection mask', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="selection-brush" />);
 
@@ -1626,30 +1612,17 @@ describe('EditorView', () => {
             expect(screen.getByText('selection brush')).toBeInTheDocument();
         });
 
-        const backObject = {
+        const targetObject = {
             type: 'rect',
+            id: 'layer-brush',
             selectable: true,
             evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 60, top: 60, width: 60, height: 60 })),
-        };
-        const frontObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 140, top: 120, width: 80, height: 80 })),
-        };
-        const outsideObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 420, top: 350, width: 60, height: 60 })),
+            getBoundingRect: jest.fn(() => ({ left: 0, top: 0, width: 400, height: 400 })),
         };
 
-        latestCanvasStub?.getObjects.mockReturnValue([
-            backObject as any,
-            frontObject as any,
-            outsideObject as any,
-        ]);
+        latestCanvasStub!.defaultCursor = 'crosshair';
+        latestCanvasStub?.getObjects.mockReturnValue([targetObject as any]);
+        latestCanvasStub!.getActiveObject.mockReturnValue(targetObject);
 
         const getHandlers = (eventName: string) => (
             latestCanvasStub?.on.mock.calls
@@ -1658,31 +1631,24 @@ describe('EditorView', () => {
         );
 
         getHandlers('mouse:down').forEach((handler) => handler({
-            scenePoint: { x: 40, y: 40 },
+            scenePoint: { x: 120, y: 120 },
             e: { button: 0 },
         }));
         getHandlers('mouse:move').forEach((handler) => handler({
-            scenePoint: { x: 260, y: 70 },
-            e: { button: 0 },
-        }));
-        getHandlers('mouse:move').forEach((handler) => handler({
-            scenePoint: { x: 260, y: 250 },
-            e: { button: 0 },
-        }));
-        getHandlers('mouse:move').forEach((handler) => handler({
-            scenePoint: { x: 40, y: 250 },
+            scenePoint: { x: 160, y: 140 },
             e: { button: 0 },
         }));
         getHandlers('mouse:up').forEach((handler) => handler({
-            scenePoint: { x: 40, y: 40 },
+            scenePoint: { x: 160, y: 140 },
             e: { button: 0 },
         }));
 
-        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(frontObject);
-        expect(latestCanvasStub?.setActiveObject).not.toHaveBeenCalledWith(outsideObject);
+        const mask = (latestCanvasStub as any).__ieSelectionMask;
+        expect(mask).toBeTruthy();
+        expect(mask.data.some((v: number) => v > 0)).toBe(true);
     });
 
-    it('uses wand threshold matching and falls back to pointer-hit target when direct target is missing', async () => {
+    it('uses wand flood-fill on layer pixels instead of picking whole layers by fill color', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="wand" />);
 
@@ -1690,36 +1656,30 @@ describe('EditorView', () => {
             expect(screen.getByText('wand')).toBeInTheDocument();
         });
 
+        const pixelCanvas = document.createElement('canvas');
+        pixelCanvas.width = 40;
+        pixelCanvas.height = 40;
+        const pixelCtx = pixelCanvas.getContext('2d');
+        if (pixelCtx) {
+            pixelCtx.fillStyle = '#336699';
+            pixelCtx.fillRect(0, 0, 40, 40);
+        }
+
         const seedObject = {
-            type: 'rect',
+            type: 'image',
+            id: 'layer-wand',
             selectable: true,
             evented: true,
             fill: '#336699',
             stroke: null,
-            getBoundingRect: jest.fn(() => ({ left: 120, top: 120, width: 80, height: 80 })),
-        };
-        const nearObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            fill: '#3a6ea4',
-            stroke: null,
-            getBoundingRect: jest.fn(() => ({ left: 320, top: 120, width: 80, height: 80 })),
-        };
-        const farObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            fill: '#e11d48',
-            stroke: null,
-            getBoundingRect: jest.fn(() => ({ left: 520, top: 120, width: 80, height: 80 })),
+            getBoundingRect: jest.fn(() => ({ left: 0, top: 0, width: 40, height: 40 })),
+            toCanvasElement: jest.fn(() => pixelCanvas),
         };
 
-        latestCanvasStub?.getObjects.mockReturnValue([
-            seedObject as any,
-            nearObject as any,
-            farObject as any,
-        ]);
+        latestCanvasStub!.defaultCursor = 'crosshair';
+        latestCanvasStub?.getObjects.mockReturnValue([seedObject as any]);
+        latestCanvasStub!.getActiveObject.mockReturnValue(seedObject);
+        (latestCanvasStub as any).artboard = { left: 0, top: 0, width: 40, height: 40 };
 
         const getHandlers = (eventName: string) => (
             latestCanvasStub?.on.mock.calls
@@ -1727,25 +1687,20 @@ describe('EditorView', () => {
                 .map((call) => call[1] as (payload: unknown) => void) || []
         );
 
-        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '20' } });
+        fireEvent.change(screen.getByLabelText('Color match range'), { target: { value: '20' } });
         getHandlers('mouse:down').forEach((handler) => handler({
-            scenePoint: { x: 140, y: 140 },
+            scenePoint: { x: 10, y: 10 },
             e: { button: 0 },
             target: seedObject,
         }));
-        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(nearObject);
 
-        latestCanvasStub?.setActiveObject.mockClear();
-
-        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '0' } });
-        getHandlers('mouse:down').forEach((handler) => handler({
-            scenePoint: { x: 140, y: 140 },
-            e: { button: 0 },
-        }));
         expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(seedObject);
+        const mask = (latestCanvasStub as any).__ieSelectionMask;
+        expect(mask).toBeTruthy();
+        expect(mask.data.some((v: number) => v > 0)).toBe(true);
     });
 
-    it('routes quick selection interactions through the wand selection pipeline', async () => {
+    it('paints quick-select into the content selection mask while dragging', async () => {
         const props = createDefaultProps();
         render(<EditorView {...props} initialActiveTool="quick-select" />);
 
@@ -1754,35 +1709,30 @@ describe('EditorView', () => {
         });
 
         const seedObject = {
-            type: 'rect',
+            type: 'image',
+            id: 'layer-quick',
             selectable: true,
             evented: true,
             fill: '#336699',
             stroke: null,
-            getBoundingRect: jest.fn(() => ({ left: 120, top: 120, width: 80, height: 80 })),
-        };
-        const nearObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            fill: '#3a6ea4',
-            stroke: null,
-            getBoundingRect: jest.fn(() => ({ left: 320, top: 120, width: 80, height: 80 })),
-        };
-        const farObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            fill: '#e11d48',
-            stroke: null,
-            getBoundingRect: jest.fn(() => ({ left: 520, top: 120, width: 80, height: 80 })),
+            getBoundingRect: jest.fn(() => ({ left: 0, top: 0, width: 200, height: 200 })),
+            toCanvasElement: jest.fn(() => {
+                const c = document.createElement('canvas');
+                c.width = 200;
+                c.height = 200;
+                const ctx = c.getContext('2d');
+                if (ctx) {
+                    ctx.fillStyle = '#336699';
+                    ctx.fillRect(0, 0, 200, 200);
+                }
+                return c;
+            }),
         };
 
-        latestCanvasStub?.getObjects.mockReturnValue([
-            seedObject as any,
-            nearObject as any,
-            farObject as any,
-        ]);
+        latestCanvasStub!.defaultCursor = 'crosshair';
+        latestCanvasStub?.getObjects.mockReturnValue([seedObject as any]);
+        latestCanvasStub!.getActiveObject.mockReturnValue(seedObject);
+        (latestCanvasStub as any).artboard = { left: 0, top: 0, width: 200, height: 200 };
 
         const getHandlers = (eventName: string) => (
             latestCanvasStub?.on.mock.calls
@@ -1790,13 +1740,22 @@ describe('EditorView', () => {
                 .map((call) => call[1] as (payload: unknown) => void) || []
         );
 
-        fireEvent.change(screen.getByLabelText('Wand threshold'), { target: { value: '20' } });
         getHandlers('mouse:down').forEach((handler) => handler({
-            scenePoint: { x: 140, y: 140 },
+            scenePoint: { x: 40, y: 40 },
             e: { button: 0 },
-            target: seedObject,
         }));
-        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(nearObject);
+        getHandlers('mouse:move').forEach((handler) => handler({
+            scenePoint: { x: 55, y: 48 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:up').forEach((handler) => handler({
+            scenePoint: { x: 55, y: 48 },
+            e: { button: 0 },
+        }));
+
+        const mask = (latestCanvasStub as any).__ieSelectionMask;
+        expect(mask).toBeTruthy();
+        expect(mask.data.some((v: number) => v > 0)).toBe(true);
     });
 
     it('captures clone source point on option-click and updates clone source status', async () => {
@@ -2115,34 +2074,48 @@ describe('EditorView', () => {
             expect(screen.getByText('marquee')).toBeInTheDocument();
         });
 
-        const selectedObject = {
+        const targetObject = {
             type: 'rect',
+            id: 'layer-modify',
             selectable: true,
             evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 100, top: 100, width: 60, height: 60 })),
-        };
-        const neighborObject = {
-            type: 'rect',
-            selectable: true,
-            evented: true,
-            getBoundingRect: jest.fn(() => ({ left: 180, top: 100, width: 60, height: 60 })),
+            getBoundingRect: jest.fn(() => ({ left: 50, top: 50, width: 300, height: 300 })),
         };
 
-        latestCanvasStub?.getObjects.mockReturnValue([
-            selectedObject as any,
-            neighborObject as any,
-        ]);
-        latestCanvasStub?.getActiveObject.mockReturnValue(selectedObject as any);
-        latestCanvasStub?.getActiveObjects.mockReturnValue([selectedObject as any]);
+        latestCanvasStub!.defaultCursor = 'crosshair';
+        latestCanvasStub?.getObjects.mockReturnValue([targetObject as any]);
+        latestCanvasStub!.getActiveObject.mockReturnValue(targetObject);
 
-        fireEvent.change(screen.getByLabelText('Selection modify pixels'), { target: { value: '40' } });
+        const getHandlers = (eventName: string) => (
+            latestCanvasStub?.on.mock.calls
+                .filter((call) => call[0] === eventName)
+                .map((call) => call[1] as (payload: unknown) => void) || []
+        );
+
+        getHandlers('mouse:down').forEach((handler) => handler({
+            scenePoint: { x: 100, y: 100 },
+            e: { button: 0 },
+        }));
+        getHandlers('mouse:up').forEach((handler) => handler({
+            scenePoint: { x: 140, y: 140 },
+            e: { button: 0 },
+        }));
+
+        const maskBefore = (latestCanvasStub as any).__ieSelectionMask;
+        expect(maskBefore?.data.some((v: number) => v > 0)).toBe(true);
+        const selectedBefore = maskBefore.data.filter((v: number) => v > 0).length;
+
+        fireEvent.change(screen.getByLabelText('Selection modify pixels'), { target: { value: '8' } });
         fireEvent.click(screen.getByRole('button', { name: 'Selection expand' }));
-        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(neighborObject);
 
-        latestCanvasStub?.setActiveObject.mockClear();
+        const maskExpanded = (latestCanvasStub as any).__ieSelectionMask;
+        const selectedExpanded = maskExpanded.data.filter((v: number) => v > 0).length;
+        expect(selectedExpanded).toBeGreaterThan(selectedBefore);
 
         fireEvent.click(screen.getByRole('button', { name: 'Selection contract' }));
-        expect(latestCanvasStub?.setActiveObject).toHaveBeenCalledWith(selectedObject);
+        const maskContracted = (latestCanvasStub as any).__ieSelectionMask;
+        const selectedContracted = maskContracted.data.filter((v: number) => v > 0).length;
+        expect(selectedContracted).toBeLessThan(selectedExpanded);
     });
 
     it('handles grid selection, context menu tool trigger, and zoom controls', async () => {

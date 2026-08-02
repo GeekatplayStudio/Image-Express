@@ -61,6 +61,9 @@ export default function TopToolOptionsBar({
     onCloneClearSource,
     wandOptions,
     onWandThresholdChange,
+    onWandSampleModeChange,
+    onWandSampleColorChange,
+    onWandApplyColor,
     paintOptions,
     onPaintPresetChange,
     onPaintSizeChange,
@@ -218,6 +221,9 @@ export default function TopToolOptionsBar({
                         onSelectionContract={onSelectionContract}
                         onSelectToolChange={onSelectToolChange}
                         onWandThresholdChange={onWandThresholdChange}
+                        onWandSampleModeChange={onWandSampleModeChange}
+                        onWandSampleColorChange={onWandSampleColorChange}
+                        onWandApplyColor={onWandApplyColor}
                     />
                 )}
 

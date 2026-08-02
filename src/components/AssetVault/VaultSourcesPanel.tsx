@@ -10,10 +10,11 @@ import {
     createWatchRootId,
     deleteWatchRoot,
     listWatchRoots,
-    pickWatchFolderInteractive,
+    pickDesktopWatchFolder,
     saveWatchRoot,
     scanWatchRoot,
 } from '@/features/asset-vault/application/client/watchRootClient';
+import VaultFolderBrowser from '@/components/settings/VaultFolderBrowser';
 
 type VaultSourcesPanelProps = {
     onIndexed?: () => void;
@@ -34,7 +35,8 @@ export default function VaultSourcesPanel({ onIndexed, onClose }: VaultSourcesPa
     const [busyId, setBusyId] = useState<string | null>(null);
     const [manualPath, setManualPath] = useState('');
     const [showAdvancedPath, setShowAdvancedPath] = useState(false);
-    const canNativeBrowse = typeof window !== 'undefined' && Boolean(window.desktop?.pickWatchRootFolder);
+    const [browserOpen, setBrowserOpen] = useState(false);
+    const isDesktop = typeof window !== 'undefined' && Boolean(window.desktop?.pickWatchRootFolder);
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -88,16 +90,17 @@ export default function VaultSourcesPanel({ onIndexed, onClose }: VaultSourcesPa
         }
     };
 
+    /**
+     * Desktop → native OS folder picker.
+     * Local browser / `npm run dev` → in-app browser (server walks this machine).
+     */
     const handleBrowse = async () => {
-        const result = await pickWatchFolderInteractive();
-        if (result.path) {
-            await addPath(result.path);
+        if (isDesktop) {
+            const picked = await pickDesktopWatchFolder();
+            if (picked) await addPath(picked);
             return;
         }
-        if (result.reason === 'unsupported') {
-            setShowAdvancedPath(true);
-            await dialog.alert(t('vault.browseDesktopRequired'), { title: t('vault.browseDriveFolder') });
-        }
+        setBrowserOpen(true);
     };
 
     const handleScan = async (root: WatchRoot) => {
@@ -139,9 +142,15 @@ export default function VaultSourcesPanel({ onIndexed, onClose }: VaultSourcesPa
 
     return (
         <div
-            className="border-b border-border bg-secondary/10 px-2 py-2 space-y-2 shrink-0"
+            className="border-b border-border bg-secondary/10 px-2 py-2 space-y-2 shrink-0 relative"
             data-testid="vault-sources-panel"
         >
+            <VaultFolderBrowser
+                isOpen={browserOpen}
+                onClose={() => setBrowserOpen(false)}
+                onPick={(picked) => void addPath(picked)}
+            />
+
             <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-semibold inline-flex items-center gap-1.5">
@@ -181,10 +190,6 @@ export default function VaultSourcesPanel({ onIndexed, onClose }: VaultSourcesPa
                     {t('vault.sourceCloudHint')}
                 </span>
             </div>
-
-            {!canNativeBrowse && (
-                <p className="text-[10px] text-amber-700 dark:text-amber-300">{t('vault.browseDesktopRequired')}</p>
-            )}
 
             <button
                 type="button"

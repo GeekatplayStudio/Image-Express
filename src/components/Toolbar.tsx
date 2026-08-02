@@ -5,6 +5,7 @@ import * as fabric from 'fabric';
 import { placeAtViewportCenter } from '@/lib/canvas-placement';
 import { getArtboardSize, applyArtboardSize } from '@/lib/fabric-utils';
 import { useI18n } from '@/providers/I18nProvider';
+import { applyEditorCanvasToolConfig } from '@/components/Editor/editorCanvasToolMode';
 import {
     Type,
     Square,
@@ -74,7 +75,7 @@ import ComfyWorkflowsModal from './comfy/ComfyWorkflowsModal';
 import AICritiqueModal from './AICritiqueModal';
 import BrandManagerModal from './BrandManagerModal';
 import SuperAgentModal from './SuperAgentModal';
-import { ColorWheelTool } from './ColorWheelTool';
+import ColorPickerModeHost from './ColorConstellation/ColorPickerModeHost';
 import BodyPortal from '@/components/ui/BodyPortal';
 import { useToast } from '@/providers/ToastProvider';
 import { loadProfileSettings } from '@/lib/profile-utils';
@@ -112,34 +113,13 @@ type CanvasWithArtboard = fabric.Canvas & {
     artboard?: { width: number; height: number };
 };
 
-type ToolCursorConfig = {
-    defaultCursor: string;
-    hoverCursor: string;
-    selection: boolean;
+const configureCanvasForTool = (
+    canvas: fabric.Canvas,
+    tool: string,
+    options?: { zoomMode?: 'in' | 'out' }
+) => {
+    applyEditorCanvasToolConfig(canvas, tool, options);
 };
-
-const CROSSHAIR_TOOLS = new Set([
-    'marquee',
-    'lasso',
-    'wand',
-    'quick-select',
-    'selection-brush',
-    'spot-healing',
-    'remove',
-    'healing',
-    'clone-stamp',
-    'history-brush',
-    'blur',
-    'sharpen',
-    'dodge',
-    'burn',
-    'sponge',
-    'paint',
-    'gradient',
-    'pen',
-    'crop',
-    'eyedropper',
-]);
 
 const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: number) => {
     const points = [];
@@ -150,70 +130,6 @@ const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: numb
         points.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
     }
     return points;
-};
-
-const resolveToolCursorConfig = (
-    tool: string,
-    options?: { zoomMode?: 'in' | 'out' }
-): ToolCursorConfig | null => {
-    if (
-        tool === 'select' ||
-        tool === 'ai-zone' ||
-        tool === 'ai-critique' ||
-        tool === 'ai-brand-manager' ||
-        tool === 'super-agent'
-    ) {
-        return {
-            defaultCursor: 'default',
-            hoverCursor: 'move',
-            selection: true,
-        };
-    }
-
-    if (tool === 'zoom') {
-        const zoomCursor = options?.zoomMode === 'out' ? 'zoom-out' : 'zoom-in';
-        return {
-            defaultCursor: zoomCursor,
-            hoverCursor: zoomCursor,
-            selection: false,
-        };
-    }
-
-    if (tool === 'hand') {
-        return {
-            defaultCursor: 'grab',
-            hoverCursor: 'grab',
-            selection: false,
-        };
-    }
-
-    if (CROSSHAIR_TOOLS.has(tool)) {
-        return {
-            defaultCursor: 'crosshair',
-            hoverCursor: 'crosshair',
-            selection: false,
-        };
-    }
-
-    return null;
-};
-
-const configureCanvasForTool = (
-    canvas: fabric.Canvas,
-    tool: string,
-    options?: { zoomMode?: 'in' | 'out' }
-) => {
-    const config = resolveToolCursorConfig(tool, options);
-    if (!config) return;
-
-    if (tool === 'select') {
-        // canvas.discardActiveObject(); // Don't clear selection when switching to select tool
-        canvas.requestRenderAll();
-    }
-
-    canvas.defaultCursor = config.defaultCursor;
-    canvas.hoverCursor = config.hoverCursor;
-    canvas.selection = config.selection;
 };
 
 type PenClosure = 'open' | 'closed';
@@ -2520,7 +2436,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
             {(activeTool === 'color-wheel' || activeTool === 'eyedropper') && (
                 <BodyPortal>
-                    <ColorWheelTool
+                    <ColorPickerModeHost
+                        variant="floating"
                         onColorSelect={(color) => {
                             setForegroundColor(color);
                             syncToolbarColorsToCanvas(color, backgroundColor);

@@ -6,6 +6,14 @@ import type { PanelMode as PanelRailMode } from '@/components/properties/PanelMo
 import type { ExtendedFabricObject } from '@/types';
 import type { CanvasWithArtboard, PanelDockMode } from '@/components/Editor/editorView.types';
 import type { ToastOptions } from '@/providers/ToastProvider';
+import { applyRasterMaskToObject } from '@/lib/layerMasks';
+import { documentSelectionToLuminanceDataUrl } from '@/lib/selection/documentSelectionMask';
+import {
+    clearDocumentSelection,
+    getDocumentSelectionMask,
+    getDocumentSelectionTargetId,
+    hasDocumentSelection,
+} from '@/lib/selection/documentSelectionStore';
 
 type PanelState = {
     mode: PanelDockMode;
@@ -267,9 +275,57 @@ export function useEditorMenuActions({
 
     const handleDeselectFromMenu = useCallback(() => {
         if (!canvas) return;
+        clearDocumentSelection(canvas);
         canvas.discardActiveObject();
         canvas.requestRenderAll();
     }, [canvas]);
+
+    const handleMaskFromSelection = useCallback(async () => {
+        if (!canvas) return;
+        if (!hasDocumentSelection(canvas)) {
+            toast({ title: t('sel.maskFromSelectionEmpty'), variant: 'warning' });
+            return;
+        }
+
+        const mask = getDocumentSelectionMask(canvas);
+        const targetId = getDocumentSelectionTargetId(canvas);
+        if (!mask || !targetId) {
+            toast({ title: t('sel.maskFromSelectionEmpty'), variant: 'warning' });
+            return;
+        }
+
+        const target = canvas.getObjects().find((obj) => {
+            const ext = obj as ExtendedFabricObject;
+            return ext.id === targetId;
+        });
+        if (!target) {
+            toast({ title: t('sel.maskFromSelectionEmpty'), variant: 'warning' });
+            return;
+        }
+
+        const dataUrl = documentSelectionToLuminanceDataUrl(mask);
+        if (!dataUrl) {
+            toast({ title: t('sel.maskFromSelectionFailed'), variant: 'destructive' });
+            return;
+        }
+
+        const applied = await applyRasterMaskToObject(target, dataUrl, {
+            left: mask.left,
+            top: mask.top,
+            width: mask.width,
+            height: mask.height,
+        });
+        if (!applied) {
+            toast({ title: t('sel.maskFromSelectionFailed'), variant: 'destructive' });
+            return;
+        }
+
+        canvas.fire('object:modified', { target });
+        canvas.requestRenderAll();
+        setIsDirty(true);
+        pushHistory();
+        toast({ title: t('sel.maskFromSelectionDone'), variant: 'success' });
+    }, [canvas, pushHistory, setIsDirty, t, toast]);
 
     const handleResetZoomFromMenu = useCallback(() => {
         if (!canvas) return;
@@ -311,6 +367,7 @@ export function useEditorMenuActions({
         handleLayerToggleLockFromMenu,
         handleSelectAllFromMenu,
         handleDeselectFromMenu,
+        handleMaskFromSelection,
         handleResetZoomFromMenu,
         handleShowShortcutsFromMenu,
         handleShowAboutFromMenu,

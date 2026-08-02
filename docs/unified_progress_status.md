@@ -496,8 +496,23 @@ Completed in this pass (layer lock canvas interaction slice):
 
 ### E) Missing Tools Program
 - [x] Alias/identity first phase (Move/Hand/Zoom/Path select aliases)
-- [x] Raster selection tools (marquee/lasso/wand/selection modify complete)
+- [~] Raster selection tools — **content pixel selection v2** (marquee/lasso/wand/quick-select/selection-brush → document alpha mask + ants + clear + mask-from-selection + expand/contract). Delete/Cut/Fill constrained to selection still pending.
 - [ ] Advanced retouch tools (healing/clone bootstrap complete; full raster retouch behavior pending)
+
+Completed in this pass (2026-08-02 content pixel selection v1):
+- [x] DocumentSelectionMask + rect/polygon writers + wand flood-fill on layer pixels (`src/lib/selection/*`).
+- [x] Marquee / Lasso / Wand write content mask (not Fabric ActiveSelection of whole layers).
+- [x] Persistent tint + dashed ants overlay; Escape / Ctrl+D / Select→Deselect clear mask.
+- [x] Select → Mask from Selection via `applyRasterMaskToObject`.
+- [x] Feather applies to mask edge; Layer/Group chrome hidden on content tools (Move only).
+- [x] Domain + EditorView tests updated; docs corrected so object-pick ≠ content selection.
+
+Completed in this pass (2026-08-02 content pixel selection v2 — brush / quick / wand color):
+- [x] Selection Brush stamps soft expand into the mask; Alt+paint contracts.
+- [x] Quick Select paint-grows into similar colors under the brush (wand Range); Alt contracts.
+- [x] Wand Contiguous vs Color modes + color picker / Apply; Shift+click adds to mask.
+- [x] Expand/Contract top controls morph the document mask (not object AABB).
+- [x] Tests: `selectionBrushStamp`, brush/quick EditorView paints, `keyIntegrity`; i18n hints in all locales.
 
 Completed in this pass (E1 alias/identity first phase):
 - [x] Added Move naming alias over Select across toolbar/tool surfaces while preserving underlying `select` behavior.
@@ -634,7 +649,7 @@ Completed in this pass (Phase 4 cursor realism + test-coverage audit slice):
 
 Completed in this pass (Phase 4 selection-group parity slice):
 - [x] Added `Quick Selection` and `Selection Brush` identities across tool surfaces (left rail group, tools dropdown, select menu, keyboard aliases).
-- [x] Routed `Quick Selection` through the existing wand-selection pipeline and `Selection Brush` through the existing lasso-selection pipeline with safe fallback behavior.
+- [x] *(Superseded 2026-08-02)* Both tools now paint the document content mask directly — Quick Select is no longer a wand alias; Selection Brush is no longer a lasso alias.
 - [x] Added top-options parity for selection subtool switching and wand-threshold behavior in quick-select mode.
 - [x] Synced circular right-click tool menu with new selection tools so context actions reflect current tool taxonomy.
 - [x] Added/updated regression coverage in:

@@ -2,6 +2,15 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ColorPanelView, ComingSoonPanelView, NavigatorPanelView, SwatchesPanelView } from '../PanelUtilityViews';
 
+jest.mock('../../ColorConstellation/ColorPickerModeHost', () => ({
+    __esModule: true,
+    default: ({ onColorSelect }: { onColorSelect?: (color: string) => void }) => (
+        <button type="button" onClick={() => onColorSelect?.('#445566')}>
+            Mock wheel apply
+        </button>
+    ),
+}));
+
 jest.mock('../../ColorWheelTool', () => ({
     ColorWheelTool: ({ onColorSelect }: { onColorSelect?: (color: string) => void }) => (
         <button type="button" onClick={() => onColorSelect?.('#445566')}>
