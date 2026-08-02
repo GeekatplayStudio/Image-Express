@@ -17,9 +17,9 @@ Scope: Left tool rail only (tool identity, grouping, discoverability, and cursor
 
 ### A) Persistent icons on left rail (currently visible)
 1. `Selection` group button
-   - Subtools: `Move`, `Marquee`, `Lasso`, `Magic Wand`, `Path Select`
-   - Shortcuts: `V`, `M`, `L`, `W`, `A`
-2. `Retouch` group button
+   - Subtools: `Move`, `Marquee`, `Lasso`, `Magic Wand`, `Quick Select`, `Selection Brush`, `Path Select` (Move alias)
+   - Shortcuts: `V`, `M`, `L`, `Shift+W`, `W`, `K`, `A`
+   - Content tools (marquee→brush) paint a document pixel mask; Move/Path Select pick objects.2. `Retouch` group button
    - Subtools: `Healing Brush`, `Clone Stamp`, `History Brush`, `Blur Tool`, `Sharpen Tool`, `Dodge Tool`
    - Shortcuts: `J`, `S`, `Y`, `B`, `(none for sharpen)`, `O`
 3. `Text`

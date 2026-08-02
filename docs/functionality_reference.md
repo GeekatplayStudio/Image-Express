@@ -16,6 +16,7 @@ Scope note:
 ### Session Updates
 | Date | Component | Change | Status |
 |------|-----------|--------|--------|
+| Aug 2 2026 | Content selection (`src/lib/selection/*` + editor selection hooks) | Marquee/Lasso/Wand/Quick Select/Selection Brush write document alpha mask + ants; Mask from Selection; Alt contracts brush tools | ✅ Done |
 | Feb 27 2026 | `EditorView.tsx` + extracted `src/components/Editor/*` modules | Continued modularization of editor integration shell; header/workspace/export/selection/retouch/shell effects moved to dedicated modules | ✅ Done |
 | Feb 27 2026 | Build + focused `EditorView` regressions | Revalidated export/share, top utility controls, selection, and retouch behavior after refactor slices | ✅ Verified |
 | Feb 1 2026 | `ShadowStrokeProperties.tsx` | Increased shadow offset range from ±50 to ±200 | ✅ Done |
@@ -59,6 +60,11 @@ Scope note:
 - [x] **Multi-Selection**: Shows "Multiple Selection" header, Alignment tools, Group button.
 - [x] **Group Selection**: Shows "Group" header, Ungroup button.
 - [x] **No Selection**: Shows Canvas Settings (Size, Background Color).
+- [x] **Content (pixel) selection**: Marquee / Lasso / Wand / Quick Select / Selection Brush write a document alpha mask with tint + ants (not whole-layer picks).
+- [x] **Wand modes**: Contiguous flood-fill and Color Range + picker; Shift adds to mask.
+- [x] **Brush modify**: Selection Brush expand / Alt contract; Quick Select paint-grows similar colors; top-bar Expand/Contract morph the mask.
+- [x] **Clear + Mask from Selection**: Escape / Ctrl+D / Deselect clear; Select menu builds a layer raster mask.
+- [ ] **Edit constrained to selection**: Delete / Cut / Fill limited to the active mask (pending).
 
 ## 3. Global Properties (All Object Types)
 - [x] **Opacity**: Slider works, updates canvas in real-time.

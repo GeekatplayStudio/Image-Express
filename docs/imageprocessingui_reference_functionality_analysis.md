@@ -325,10 +325,12 @@ Legend:
 
 | Reference tool | Image Express equivalent | Status | Better in reference | Better in Image Express | Improvement action |
 |---|---|---:|---|---|---|
-| Move | Select | ✅ | Classic naming parity | Real Fabric selection/edit pipeline | Optional alias label “Move (V)” |
-| Rectangular Marquee | No dedicated marquee tool | ❌ | Dedicated selection mental model | N/A | Add marquee/lasso family as optional advanced selection module |
-| Lasso | No dedicated lasso | ❌ | Familiar pixel-region workflow affordance | N/A | Add lasso selection mode if raster selection pipeline is introduced |
-| Magic Wand | No dedicated wand | ❌ | Fast region select discoverability | N/A | Add only after pixel sampling/threshold architecture exists |
+| Move | Select / Move | ✅ | Classic naming parity | Real Fabric selection/edit pipeline | Optional alias label “Move (V)” |
+| Rectangular Marquee | Marquee (`M`) — content mask | ✅ | Dedicated selection mental model | Artboard alpha mask + ants | Delete/Cut/Fill constrained to mask |
+| Lasso | Lasso (`L`) — content mask | ✅ | Familiar pixel-region workflow | Polygon capture into mask | Same constrained-edit follow-through |
+| Magic Wand | Wand (`Shift+W`) Contiguous / Color | ✅ | Fast region select discoverability | Flood-fill + color-range + picker | Channel→selection still pending |
+| Quick Select | Quick Select (`W`) paint-grow | ✅ | Edge/color-aware paint select | Grows into similar colors under brush | Live brush-size slider polish |
+| Selection Brush | Selection Brush (`K`) | ✅ | Soft expand/contract of mask | Alt+paint contracts | Live brush-size slider polish |
 | Crop | No dedicated crop tool mode | 🟨 | Explicit crop presets/options in tool bar | Export crop and canvas/artboard controls exist | Add crop mode UX + handles tied to canvas/artboard crop model |
 | Eyedropper | No standalone eyedropper tool mode | 🟨 | Tool-level sample options | Color pickers exist in properties | Add quick eyedropper action in top contextual bar |
 | Healing Brush | No healing tool | ❌ | Retouch workflow discoverability | N/A | Backlog; requires raster brush processing layer |

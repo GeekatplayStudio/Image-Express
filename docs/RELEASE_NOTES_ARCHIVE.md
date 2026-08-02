@@ -4,6 +4,23 @@ This archive consolidates historical release notes for Image Express.
 
 ---
 
+## Release Notes — 2026-08-02
+
+### Content (pixel) selection
+- **Marquee, Lasso, Magic Wand, Quick Select, and Selection Brush** now write an artboard-aligned **document alpha mask** with tint + marching ants — content inside a layer, not whole-layer Fabric picks.
+- **Magic Wand**: Contiguous flood-fill or Color Range modes, color picker + range, Shift+click adds to the mask.
+- **Selection Brush**: paint to expand; **Alt+paint** contracts.
+- **Quick Select**: paint-grows into similar colors under the brush (uses wand Range); Alt contracts.
+- **Clear** via Escape / Ctrl+D / Select → Deselect; **Mask from Selection** builds a real layer raster mask.
+- Expand/Contract top controls morph the mask. Remaining: Delete/Cut/Fill constrained to the selection.
+
+### Also shipped
+- Asset Vault modal chrome split into focused modules (sidebar, grid, toolbar, overlays).
+- **Color Constellation** OKLCH picker mode (classic vs constellation host).
+- Docs/README/feature tracker updated for the selection stack.
+
+---
+
 ## Release Notes — 2026-08-01
 
 Reliability release: the install → build → package chain now works from a clean

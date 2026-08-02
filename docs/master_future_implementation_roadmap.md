@@ -261,6 +261,22 @@ Acceptance criteria:
 
 Dependencies:
 - Selection engine/state compatibility in editor shell.
+  *(2026-08-02: document content selection mask is live — channel load should write into that mask.)*
+
+---
+
+### R-06b: Selection edit ops constrained to mask (P2)
+Goal:
+- Delete / Cut / Fill (and similar edit ops) honor the active content selection mask.
+
+Primary current files:
+- `src/lib/selection/*`
+- `src/components/Editor/useEditorCanvasSelectionInteractions.ts`
+- `src/components/Editor/useEditorMenuActions.ts`
+
+Acceptance criteria:
+- With an active mask, Delete/Cut/Fill affect only selected pixels (or clear outside accordingly).
+- Deselect / Mask from Selection remain unchanged.
 
 ---
 
