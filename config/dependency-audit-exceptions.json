@@ -4,14 +4,7 @@
       "package": "brace-expansion",
       "advisory": "GHSA-mh99-v99m-4gvg",
       "severity": "high",
-      "reason": "CVE-2026-14257 is fixed by the backports pinned per release line in package.json overrides (1.1.17, 2.1.3, 5.0.8 — each verified to carry the EXPANSION_MAX_LENGTH cap). The advisory range is the flat '<=5.0.7', so scanners keep reporting the patched 1.x/2.x builds. Forcing 5.0.8 everywhere is not possible: 5.x dropped the callable default export, so minimatch@3 and minimatch@9 throw 'expand is not a function' at runtime, and those are required by eslint, jest, and electron-builder. Every affected instance is dev-only build/lint/test tooling; the production tree is clean.",
-      "expiresOn": "2026-12-31"
-    },
-    {
-      "package": "cacheable-request",
-      "advisory": "GHSA-8x6c-cv3v-vp6g",
-      "severity": "high",
-      "reason": "Advisory was withdrawn on 2023-02-14; it only proxied the http-cache-semantics ReDoS, which is pinned to ^4.2.0 via overrides. cacheable-request 10+ is ESM-only while its consumer got@11 is CommonJS, so the suggested bump is not installable. Dev-only: reaches the tree through electron-builder's @electron/get.",
+      "reason": "CVE-2026-14257 is fixed by the backports pinned per release line in package.json overrides (1.1.18, 2.1.4, 5.0.9). Verified in the installed builds, not assumed: node_modules/**/brace-expansion/index.js on the 1.x and 2.x lines carries 'var EXPANSION_MAX_LENGTH = 4000000' with an explicit CVE-2026-14257 comment and applies it as the default options.maxLength. The advisory range is the flat '<=5.0.7', so scanners keep reporting the patched 1.x/2.x builds as vulnerable. Forcing 5.x everywhere remains impossible and this was re-verified on 2026-08-07: brace-expansion@5 exports an object ({ EXPANSION_MAX, EXPANSION_MAX_LENGTH, expand }) rather than a callable default, while minimatch@3 does 'var expand = require(\"brace-expansion\")' then calls 'expand(pattern)' directly, so it would throw 'expand is not a function' at runtime. minimatch@3 and minimatch@9 are required by eslint, jest and electron-builder. 1.1.18 and 2.1.4 are the newest releases on their lines, so there is nothing further to upgrade to. Every affected instance is dev-only build/lint/test tooling; the production tree is clean and npm audit reports 0 vulnerabilities.",
       "expiresOn": "2026-12-31"
     }
   ]

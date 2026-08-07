@@ -181,9 +181,9 @@ supported Node 26.4.0 installed elsewhere and shadowed on `PATH`:
 |---|---|---|
 | `npm run setup` | 0 | switches to Node 26.4.0 **and npm 11.17.0** — no `EBADENGINE` |
 | `npm run build` | 0 | |
-| `npm run verify` | 0 | 148 suites, 864 tests |
-| `npm run desktop:pack` | 0 | |
-| `npm run desktop:verify-package` | 0 | standalone 120 MB, inside the 400 MB budget |
+| `npm run verify` | 0 | 163 suites, 1005 tests |
+| `npm run desktop:pack` | 0 | Electron 41.10.4 |
+| `npm run desktop:verify-package` | 0 | standalone 114 MB, inside the 400 MB budget |
 | `npm run desktop:smoke-package` | 0 | packaged app launches: electron-ready → server-ready → window-ready |
 | `package-lock.json` after install | — | unchanged |
 
@@ -490,7 +490,7 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three
 - [docs/THEME_PACKS_SPEC.md](docs/THEME_PACKS_SPEC.md) — build your own theme/ambience pack (no code required)
 - [docs/html-export-notes.md](docs/html-export-notes.md) — HTML export details and asset coverage
 - [docs/i18n_multilanguage_support.md](docs/i18n_multilanguage_support.md) — translation system and adding a language
-- [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived
+- [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived (current state: `npm audit` clean)
 
 ---
 

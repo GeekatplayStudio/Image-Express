@@ -2,6 +2,30 @@
 
 How advisory alerts are resolved and kept resolved in this repository.
 
+## Current state (2026-08-07)
+
+`npm audit` reports **0 vulnerabilities**. The last advisory sweep resolved:
+
+| Advisory | Package | Resolution |
+|---|---|---|
+| CVE-2026-70608 | `electron` 40.10.6 | Direct dep bumped to `^41.10.4` |
+| GHSA-55q2-fjhq-7xh7 | `dompurify` 3.4.12 (via `jspdf`) | Override `^3.4.13` |
+| CVE-2026-69207 + 3 more | `hono` 4.12.33 (via `@modelcontextprotocol/sdk`) | Override `^4.13.1` |
+| GHSA-8x6c-cv3v-vp6g | `cacheable-request` 7.0.4 | Chain removed via `@electron/get` override — waiver retired |
+| CVE-2026-14257 | `brace-expansion` 1.1.18 / 2.1.4 | Already patched in those builds; waived (see below) |
+
+Verified with `audit:overrides`, `audit:dependencies`, the full test suite,
+`build`, `desktop:pack`, `desktop:verify-package` and `desktop:smoke-package`
+(`electron-ready → server-ready → window-ready` on Electron 41).
+
+> **Install under the supported Node, or pinned overrides silently regress.**
+> Running `npm install` under an older Node — and therefore an older npm — does
+> not honour the major-scoped override keys. Doing so on npm 10 dropped
+> `glob` back to `10.5.0` beneath the pinned `^13.0.6` floor, which
+> `npm run audit:overrides` then failed on. If that happens, restore
+> `package-lock.json` from git and reinstall under Node >=24. `npm run setup`
+> re-execs under a supported Node and avoids this entirely.
+
 ## Where the fixes live
 
 All transitive security fixes are pinned in the `overrides` block of [package.json](../package.json).
@@ -30,19 +54,29 @@ is the only place an advisory may be accepted. Each entry needs the advisory ID,
 a technical reason, and an `expiresOn` date; the audit script fails once a date
 passes, forcing a re-review rather than letting a waiver become permanent.
 
-Only two advisories are currently waived, both dev-only and both because the
-suggested version is not installable:
+Exactly one advisory is currently waived, dev-only, and only because the
+suggested version is not loadable by its consumers:
 
-- **brace-expansion / GHSA-mh99-v99m-4gvg.** The patched backports `1.1.17` and
-  `2.1.3` are pinned, but the advisory range is the flat `<=5.0.7`, so scanners
-  keep reporting them. `5.0.8` cannot be forced everywhere: 5.x dropped the
-  callable default export, so `minimatch@3` and `minimatch@9` fail with
-  `expand is not a function`, and those are required by eslint, jest and
+- **brace-expansion / GHSA-mh99-v99m-4gvg (CVE-2026-14257).** The patched
+  backports `1.1.18` and `2.1.4` are pinned, but the advisory range is the flat
+  `<=5.0.7`, so scanners keep reporting them. The fix is present in the
+  installed code — verified, not assumed: the 1.x and 2.x `index.js` both carry
+  `var EXPANSION_MAX_LENGTH = 4000000` with an explicit CVE comment and apply it
+  as the default `options.maxLength`. `1.1.18` and `2.1.4` are the newest
+  releases on their lines, so there is nothing further to upgrade to.
+  `5.x` still cannot be forced everywhere (re-verified 2026-08-07): it exports
+  an **object** — `{ EXPANSION_MAX, EXPANSION_MAX_LENGTH, expand }` — not a
+  callable default, while `minimatch@3` does `var expand = require('brace-expansion')`
+  and then calls `expand(pattern)`, so it would throw `expand is not a function`
+  at runtime. `minimatch@3`/`@9` are required by eslint, jest and
   electron-builder. Clearing the alert outright needs upstream tooling to move
   to `minimatch@10`.
-- **cacheable-request / GHSA-8x6c-cv3v-vp6g.** Withdrawn upstream in 2023. It
-  proxied the `http-cache-semantics` ReDoS, which is pinned to `^4.2.0`.
-  `cacheable-request@10+` is ESM-only while its consumer `got@11` is CommonJS.
+
+**Retired waiver — cacheable-request / GHSA-8x6c-cv3v-vp6g.** Fixed properly on
+2026-08-07 instead of waived. `@electron/get@5` dropped `got` from its
+dependencies entirely, so overriding it removes the whole
+`got@11 → cacheable-request@7` chain — 27 packages, `cacheable-request` no
+longer in the tree at all. See the override table below.
 
 ## Adding a fix
 
@@ -95,6 +129,7 @@ sometimes wrong.
 | `"global-agent": "^4.1.3"` | `boolean@3.2.0` | global-agent 4 dropped the dependency outright |
 | `"glob@10": "^13.0.6"` | `glob@10.5.0` under jest and rimraf | Scoped to the 10.x line. Verified by 148 suites / 864 tests plus coverage |
 | `"rimraf": "^5.0.5"` | `rimraf@2.6.3` + `glob@7.2.3` + `inflight@1.0.6` under electron-winstaller's `temp` | rimraf 5 is promise-based while `temp` calls the rimraf 2 callback API — but that call only ever happens on the **Squirrel** packaging path, and this app ships NSIS, so the module is never even loaded. Verified by `desktop:pack` + `verify-package` + `smoke-package` (the NSIS path end to end) |
+| `"@electron/get": "^5.1.0"` | `got@11` + `cacheable-request@7` + `http-cache-semantics` (27 packages) under electron-builder | v5 dropped `got` outright. It is ESM-only (`"type": "module"`) while `app-builder-lib` does a plain `require("@electron/get")`, which works because `require(esm)` is supported from Node 22.12+ and this repo requires Node >=24 — probed directly before adopting, and both APIs app-builder-lib calls (`downloadArtifact`, `ElectronDownloadCacheMode`) exist in v5. Verified by `desktop:pack` + `verify-package` + `smoke-package` |
 
 ### Structurally unfixable
 
