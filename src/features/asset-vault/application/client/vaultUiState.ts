@@ -1,6 +1,9 @@
 import type { VaultOrganizeLens } from '@/features/asset-vault/domain/vaultAlbumTree';
 import type { VaultSortMode } from '@/features/asset-vault/domain/vaultNaturalQuery';
 
+/** Left-sidebar mode: derived groupings, or the real folder tree on disk. */
+export type VaultNavMode = 'groups' | 'folders';
+
 export const VAULT_UI_STATE_STORAGE_KEY = 'image-express-vault-ui-state';
 
 export type VaultPageSize = 24 | 48 | 96 | 'all';
@@ -13,6 +16,8 @@ export type VaultUiState = {
     query: string;
     pageSize: VaultPageSize;
     sourcesOpen: boolean;
+    /** Left sidebar: derived groupings, or the real on-disk folder tree. */
+    navMode: VaultNavMode;
 };
 
 export const DEFAULT_VAULT_UI_STATE: VaultUiState = {
@@ -23,6 +28,7 @@ export const DEFAULT_VAULT_UI_STATE: VaultUiState = {
     query: '',
     pageSize: 48,
     sourcesOpen: false,
+    navMode: 'groups',
 };
 
 const LENSES: VaultOrganizeLens[] = ['type', 'date', 'location', 'subject'];
@@ -30,6 +36,13 @@ const SORTS: VaultSortMode[] = [
     'relevance', 'name-asc', 'name-desc', 'newest', 'oldest', 'largest', 'smallest', 'type',
 ];
 const PAGE_SIZES: VaultPageSize[] = [24, 48, 96, 'all'];
+const NAV_MODES: VaultNavMode[] = ['groups', 'folders'];
+
+function coerceNavMode(value: unknown): VaultNavMode {
+    return typeof value === 'string' && (NAV_MODES as string[]).includes(value)
+        ? (value as VaultNavMode)
+        : DEFAULT_VAULT_UI_STATE.navMode;
+}
 
 function coerceLens(value: unknown): VaultOrganizeLens {
     return typeof value === 'string' && (LENSES as string[]).includes(value)
@@ -64,6 +77,7 @@ export function loadVaultUiState(): VaultUiState {
             query: typeof parsed.query === 'string' ? parsed.query : DEFAULT_VAULT_UI_STATE.query,
             pageSize: coercePageSize(parsed.pageSize),
             sourcesOpen: typeof parsed.sourcesOpen === 'boolean' ? parsed.sourcesOpen : DEFAULT_VAULT_UI_STATE.sourcesOpen,
+            navMode: coerceNavMode(parsed.navMode),
         };
     } catch {
         return { ...DEFAULT_VAULT_UI_STATE };

@@ -6,6 +6,56 @@ Audience: engineering, product, AI agent contributors
 
 ---
 
+## Addendum 2026-08-07 — folder navigation, and two consistency defects
+
+### Folder navigation (`navMode`)
+
+The left sidebar now has two modes, persisted in `vaultUiState`:
+
+- **Groups** — the derived lenses this document specifies (type / date / location / subject), rendered by `VaultFlatSidebar`.
+- **Folders** — the real directory tree on disk, rendered by `VaultFolderTreeSidebar` from `domain/vaultFolderTree.ts`.
+
+Folder mode answers "where does this file live", which the derived lenses
+structurally cannot. Design points that matter:
+
+- **Node ids are the folder path** (`d:/360-raw/Camera01`). They survive
+  re-indexing, unlike album page ids (below).
+- **Built in one pass**, O(total path segments), from `origin.uri`. Measured on
+  the real catalog: 200,081 assets → 700 folder nodes in ~550 ms. Because that
+  cost is real, the tree is memoised on `workingAssets` alone — deliberately
+  *not* on `t`/`language`, whose identities change far more often — and is not
+  built at all while the folder sidebar is closed.
+- **Only expanded branches are flattened into rows**, so render cost tracks what
+  the user opened rather than catalog size.
+- `includeSubfolders` toggles between the folder's own assets and its whole
+  subtree.
+
+### Two defects behind "the vault is not consistent / it disappears"
+
+1. **A transient empty catalog destroyed the browsing position.** An effect in
+   `useVaultBrowse` cleared `activeAlbumId`/`activePageId` whenever the selected
+   album was absent from `albums`. An empty list is not a deletion — it happens
+   while the catalog reloads or a re-index runs — so a refresh wiped the
+   selection permanently. Empty is now treated as transient.
+2. **Album page ids are positional** (`<album>::page_N`), so indexing more
+   assets or changing the page size renumbers them and the active page ceases to
+   exist, snapping the reader back to page 1. Selection now clamps to the
+   nearest surviving page. The new folder tree avoids the class of bug entirely
+   by keying on paths.
+
+### Unrelated but adjacent: every vault file returned 403
+
+`next start` sets `NODE_ENV=production`, and `getRuntimeProfile()` fell through
+to `self-hosted` for production without an explicit profile — a mode meant for a
+server whose filesystem belongs to an operator, which authorises no folders. So
+`/api/assets/vault/file` answered 403 for every asset a local user had indexed
+themselves. `scripts/start-web.mjs` now declares
+`IMAGE_EXPRESS_RUNTIME=developer-local`; it binds `127.0.0.1` only, and the
+Dockerfile still declares `self-hosted` for real deployments. See
+`docs/DEPENDENCY_SECURITY.md` for the related override-regression trap.
+
+---
+
 ## Executive summary
 
 Image Express already has a strong **creative hierarchy** (Library → Album → Page → Layers) with an innovative **3D stack and federation view**, plus a separate **asset library** spread across IndexedDB, server filesystem, and Google Drive. Search today is keyword-only and store-specific.

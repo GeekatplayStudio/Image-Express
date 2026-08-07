@@ -23,7 +23,15 @@ import {
     type VaultNaturalQuery,
     type VaultSortMode,
 } from '@/features/asset-vault/domain/vaultNaturalQuery';
+import {
+    assetIdsInVaultFolder,
+    buildVaultFolderTree,
+    vaultFolderPath,
+} from '@/features/asset-vault/domain/vaultFolderTree';
 import type { NavDepth } from '@/components/AssetVault/vaultModalTypes';
+import type { VaultNavMode } from '@/features/asset-vault/application/client/vaultUiState';
+
+export type { VaultNavMode };
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
@@ -66,6 +74,68 @@ export function useVaultBrowse({
     const [overflowOpen, setOverflowOpen] = useState(false);
     const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<string>>(() => new Set());
     const pendingFlatRematchRef = useRef(false);
+
+    const [navMode, setNavMode] = useState<VaultNavMode>(savedUi?.navMode ?? 'groups');
+    const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+    const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => new Set());
+    const [includeSubfolders, setIncludeSubfolders] = useState(true);
+
+    /**
+     * Building the tree is a full pass over the catalog — ~550 ms for 200k
+     * assets — so it depends on `workingAssets` alone and is skipped entirely
+     * while the folder sidebar is closed. Deliberately NOT keyed on `t` or
+     * `language`: folder names come from the filesystem and never translate,
+     * and those identities change far more often than the catalog does.
+     */
+    const folderTree = useMemo(() => {
+        if (navMode !== 'folders') return null;
+        return buildVaultFolderTree(workingAssets);
+    }, [navMode, workingAssets]);
+
+    const activeFolderPath = useMemo(() => (
+        folderTree && activeFolderId ? vaultFolderPath(folderTree, activeFolderId) : []
+    ), [folderTree, activeFolderId]);
+
+    const folderAssetIds = useMemo(() => {
+        if (!folderTree || !activeFolderId) return null;
+        return new Set(assetIdsInVaultFolder(folderTree, activeFolderId, {
+            recursive: includeSubfolders,
+        }));
+    }, [folderTree, activeFolderId, includeSubfolders]);
+
+    const toggleFolderExpanded = useCallback((folderId: string) => {
+        setExpandedFolderIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(folderId)) next.delete(folderId);
+            else next.add(folderId);
+            return next;
+        });
+    }, []);
+
+    /** Select a folder and reveal it by expanding every ancestor. */
+    const selectFolder = useCallback((folderId: string) => {
+        setActiveFolderId(folderId);
+        onClearContextMenu();
+        setExpandedFolderIds((prev) => {
+            const next = new Set(prev);
+            const segments = folderId.split('/');
+            let walked = '';
+            for (const segment of segments) {
+                walked = walked ? `${walked}/${segment}` : segment;
+                next.add(walked);
+            }
+            return next;
+        });
+    }, [onClearContextMenu]);
+
+    const selectAllFolders = useCallback(() => {
+        setActiveFolderId(null);
+        onClearContextMenu();
+    }, [onClearContextMenu]);
+
+    const toggleIncludeSubfolders = useCallback(() => {
+        setIncludeSubfolders((prev) => !prev);
+    }, []);
 
     const effectiveSort = naturalQuery.sort !== 'relevance' ? naturalQuery.sort : sortMode;
     const effectiveLens = naturalQuery.lensHint || lens;
@@ -136,6 +206,13 @@ export function useVaultBrowse({
         let list: VaultAssetRecord[] = [];
         if (searchHits) {
             list = searchHits;
+        } else if (navMode === 'folders') {
+            // Folder mode replaces the album/page path entirely: the grid shows
+            // exactly what lives in the chosen folder (optionally recursively),
+            // or the whole catalog when nothing is selected.
+            list = folderAssetIds
+                ? workingAssets.filter((asset) => folderAssetIds.has(asset.id))
+                : workingAssets;
         } else if (activePage) {
             list = assetsForPage(workingAssets, activePage);
         } else if (!use3d && activeAlbum) {
@@ -148,7 +225,7 @@ export function useVaultBrowse({
             list = list.filter((asset) => asset.type === naturalQuery.typeFilter);
         }
         return sortVaultAssets(list, effectiveSort, language);
-    }, [activePage, activeAlbum, workingAssets, use3d, naturalQuery.typeFilter, effectiveSort, language, searchHits]);
+    }, [activePage, activeAlbum, workingAssets, use3d, naturalQuery.typeFilter, effectiveSort, language, searchHits, navMode, folderAssetIds]);
 
     const displayedAssets = useMemo(() => {
         if (searchHits) return fileManagerAssets;
@@ -177,7 +254,8 @@ export function useVaultBrowse({
 
     useEffect(() => {
         setPageIndex(0);
-    }, [pageSize, activeAlbumId, activePageId, naturalQuery.text, effectiveLens, effectiveSort]);
+    }, [pageSize, activeAlbumId, activePageId, naturalQuery.text, effectiveLens, effectiveSort,
+        activeFolderId, includeSubfolders, navMode]);
 
     useEffect(() => {
         if (!activeAlbumId) return;
@@ -221,8 +299,9 @@ export function useVaultBrowse({
             query,
             pageSize,
             sourcesOpen,
+            navMode,
         });
-    }, [isOpen, smartSearch, lens, sortMode, query, pageSize, sourcesOpen]);
+    }, [isOpen, smartSearch, lens, sortMode, query, pageSize, sourcesOpen, navMode]);
 
     useEffect(() => {
         if (!isOpen || use3d || activeAlbumId || albums.length === 0) return;
@@ -366,6 +445,17 @@ export function useVaultBrowse({
         overflowOpen,
         setOverflowOpen,
         expandedAlbumIds,
+        navMode,
+        setNavMode,
+        folderTree,
+        activeFolderId,
+        activeFolderPath,
+        expandedFolderIds,
+        includeSubfolders,
+        selectFolder,
+        selectAllFolders,
+        toggleFolderExpanded,
+        toggleIncludeSubfolders,
         effectiveSort,
         effectiveLens,
         albums,

@@ -7,6 +7,8 @@ import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 import VaultSourcesPanel from '@/components/AssetVault/VaultSourcesPanel';
 import VaultModalToolbar from '@/components/AssetVault/VaultModalToolbar';
 import VaultFlatSidebar from '@/components/AssetVault/VaultFlatSidebar';
+import VaultFolderTreeSidebar from '@/components/AssetVault/VaultFolderTreeSidebar';
+import VaultNavModeSwitch from '@/components/AssetVault/VaultNavModeSwitch';
 import VaultAssetGridPanel from '@/components/AssetVault/VaultAssetGridPanel';
 import VaultModalFooter from '@/components/AssetVault/VaultModalFooter';
 import VaultModalOverlays from '@/components/AssetVault/VaultModalOverlays';
@@ -324,25 +326,45 @@ export default function AssetVaultModal({
                             ) : (
                                 <div className="h-full flex min-h-0 border border-border/60 rounded-md overflow-hidden bg-card/30">
                                     {!showSearchResults && (
-                                        <VaultFlatSidebar
-                                            albums={browse.albums}
-                                            effectiveLens={browse.effectiveLens}
-                                            workingAssetsCount={catalog.workingAssets.length}
-                                            activeAlbumId={browse.activeAlbumId}
-                                            activePageId={browse.activePageId}
-                                            expandedAlbumIds={browse.expandedAlbumIds}
-                                            onSelectAll={browse.selectFlatAll}
-                                            onSelectAlbum={browse.selectFlatAlbum}
-                                            onSelectPage={browse.selectFlatPage}
-                                            onToggleExpanded={browse.toggleAlbumExpanded}
-                                            onAlbumContextMenu={(album, event) => previews.openContextMenu({ kind: 'album', album }, event)}
-                                            onPageContextMenu={(album, pageId, event) => {
-                                                const page = album.pages.find((entry) => entry.id === pageId);
-                                                if (!page) return;
-                                                previews.openContextMenu({ kind: 'page', page, album }, event);
-                                            }}
-                                            labelOf={browse.labelOf}
-                                        />
+                                        <div className="flex flex-col min-h-0 shrink-0">
+                                            <VaultNavModeSwitch
+                                                navMode={browse.navMode}
+                                                onChange={browse.setNavMode}
+                                            />
+                                            {browse.navMode === 'folders' && browse.folderTree ? (
+                                                <VaultFolderTreeSidebar
+                                                    tree={browse.folderTree}
+                                                    totalAssetCount={catalog.workingAssets.length}
+                                                    activeFolderId={browse.activeFolderId}
+                                                    expandedFolderIds={browse.expandedFolderIds}
+                                                    includeSubfolders={browse.includeSubfolders}
+                                                    onSelectAll={browse.selectAllFolders}
+                                                    onSelectFolder={browse.selectFolder}
+                                                    onToggleExpanded={browse.toggleFolderExpanded}
+                                                    onToggleIncludeSubfolders={browse.toggleIncludeSubfolders}
+                                                />
+                                            ) : (
+                                                <VaultFlatSidebar
+                                                    albums={browse.albums}
+                                                    effectiveLens={browse.effectiveLens}
+                                                    workingAssetsCount={catalog.workingAssets.length}
+                                                    activeAlbumId={browse.activeAlbumId}
+                                                    activePageId={browse.activePageId}
+                                                    expandedAlbumIds={browse.expandedAlbumIds}
+                                                    onSelectAll={browse.selectFlatAll}
+                                                    onSelectAlbum={browse.selectFlatAlbum}
+                                                    onSelectPage={browse.selectFlatPage}
+                                                    onToggleExpanded={browse.toggleAlbumExpanded}
+                                                    onAlbumContextMenu={(album, event) => previews.openContextMenu({ kind: 'album', album }, event)}
+                                                    onPageContextMenu={(album, pageId, event) => {
+                                                        const page = album.pages.find((entry) => entry.id === pageId);
+                                                        if (!page) return;
+                                                        previews.openContextMenu({ kind: 'page', page, album }, event);
+                                                    }}
+                                                    labelOf={browse.labelOf}
+                                                />
+                                            )}
+                                        </div>
                                     )}
                                     <div className="flex-1 min-w-0 overflow-y-auto p-2">
                                         <VaultAssetGridPanel
