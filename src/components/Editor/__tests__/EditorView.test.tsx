@@ -2139,7 +2139,10 @@ describe('EditorView', () => {
 
         expect(screen.getByTestId('bottom-right-utilities')).toBeInTheDocument();
         expect(screen.getByText('Grid Thirds')).toBeInTheDocument();
-        expect(screen.getByText('Canvas 1200x800')).toBeInTheDocument();
+        // The badge reports the artboard (page) size, not the fabric canvas
+        // element. The stub's canvas is 1200x800 but its artboard is 800x600,
+        // and the artboard wins — see resolveUtilityCanvasSize precedence.
+        expect(screen.getByText('Canvas 800x600')).toBeInTheDocument();
 
         fireEvent.click(screen.getByTitle('Zoom In'));
         fireEvent.click(screen.getByTitle('Zoom Out'));
