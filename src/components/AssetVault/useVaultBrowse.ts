@@ -181,6 +181,13 @@ export function useVaultBrowse({
 
     useEffect(() => {
         if (!activeAlbumId) return;
+        // An empty album list is a transient state, not a deleted album: it
+        // happens while the catalog reloads or a re-index is in flight. Clearing
+        // the selection here is what made the vault "disappear" — the browsing
+        // position was destroyed by a momentary gap in the data and never came
+        // back once the assets returned.
+        if (albums.length === 0) return;
+
         const album = findVaultAlbum(albums, activeAlbumId);
         if (!album) {
             setActiveAlbumId(null);
@@ -188,7 +195,15 @@ export function useVaultBrowse({
             return;
         }
         if (!activePageId || !album.pages.some((page) => page.id === activePageId)) {
-            setActivePageId(album.pages[0]?.id ?? null);
+            // Page ids are positional (`<album>::page_N`), so indexing more
+            // assets or changing the page size renumbers them. Hold the reader's
+            // place at the nearest surviving page instead of snapping to the
+            // first one.
+            const previousIndex = activePageId
+                ? Math.max(0, Number.parseInt(activePageId.split('::page_')[1] ?? '1', 10) - 1)
+                : 0;
+            const clampedIndex = Math.min(previousIndex, album.pages.length - 1);
+            setActivePageId(album.pages[clampedIndex]?.id ?? album.pages[0]?.id ?? null);
         }
     }, [albums, activeAlbumId, activePageId, pageSize]);
 

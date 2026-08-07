@@ -24,6 +24,24 @@ describe('runtimeProfile', () => {
         expect(getRuntimeProfile()).toBe('developer-local');
     });
 
+    /**
+     * `next start` sets NODE_ENV=production, so an undeclared production server
+     * falls through to self-hosted — which authorises no vault folders and made
+     * every /api/assets/vault/file request answer 403 for users running
+     * `npm run start` on their own machine. The launcher now declares the
+     * profile; these pin both halves of that contract.
+     */
+    it('falls back to self-hosted when production sets no explicit profile', () => {
+        process.env.NODE_ENV = 'production';
+        expect(getRuntimeProfile()).toBe('self-hosted');
+    });
+
+    it('lets an explicit profile win over the production fallback', () => {
+        process.env.NODE_ENV = 'production';
+        process.env.IMAGE_EXPRESS_RUNTIME = 'developer-local';
+        expect(getRuntimeProfile()).toBe('developer-local');
+    });
+
     it('denies machine maintenance in self-hosted mode', async () => {
         process.env.IMAGE_EXPRESS_RUNTIME = 'self-hosted';
         const response = authorizeLocalRuntimeCapability(

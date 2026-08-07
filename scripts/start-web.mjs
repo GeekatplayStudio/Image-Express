@@ -115,12 +115,33 @@ async function main() {
         : ['next', 'dev', '-H', '127.0.0.1', '-p', port.toString()];
 
     console.log(`[INFO] Starting Next.js in ${mode} mode...`);
-    
+
+    // Declare the runtime profile explicitly.
+    //
+    // Without this, `next start` sets NODE_ENV=production and getRuntimeProfile()
+    // falls through to "self-hosted" — which is meant for a server whose
+    // filesystem belongs to an operator rather than the visitor, so the Asset
+    // Vault authorises nothing and every /api/assets/vault/file request answers
+    // 403. That is wrong here: this server is started by the user, on their own
+    // machine, and is bound to 127.0.0.1 above, so it can never serve anyone
+    // else. It is the same machine and the same filesystem as in `dev` mode,
+    // which already resolves to "developer-local".
+    //
+    // Real self-hosted deployments are unaffected: the Dockerfile sets
+    // IMAGE_EXPRESS_RUNTIME=self-hosted itself, and an explicit value set by the
+    // operator always wins over this default.
+    const childEnv = {
+        ...process.env,
+        IMAGE_EXPRESS_RUNTIME: process.env.IMAGE_EXPRESS_RUNTIME?.trim() || 'developer-local',
+    };
+    console.log(`[INFO] Runtime profile: ${childEnv.IMAGE_EXPRESS_RUNTIME}`);
+
     // Windows blocks spawning .cmd files without a shell (Node CVE-2024-27980 fix),
     // so a shell is required there; elsewhere skip it to avoid DEP0190.
     const child = spawn(cmd, args, {
         stdio: 'inherit',
-        shell: process.platform === 'win32'
+        shell: process.platform === 'win32',
+        env: childEnv,
     });
 
     let hasExited = false;
