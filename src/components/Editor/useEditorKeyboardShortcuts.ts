@@ -4,6 +4,7 @@ import * as fabric from 'fabric';
 import type { ToolbarHandle } from '@/components/Toolbar';
 import type { ExtendedFabricObject } from '@/types';
 import { clearDocumentSelection } from '@/lib/selection/documentSelectionStore';
+import { CUSTOM_SERIALIZED_PROPS } from '@/components/Editor/editorViewConfig';
 
 type UseEditorKeyboardShortcutsArgs = {
     canvas: fabric.Canvas | null;
@@ -57,7 +58,12 @@ export function useEditorKeyboardShortcuts({
             // Discard first so multi-selection members report absolute coords,
             // then restore the selection so copying is non-destructive.
             canvas.discardActiveObject();
-            const clones = await Promise.all(active.map((object) => object.clone()));
+            // Clone WITH the custom prop whitelist. Fabric round-trips through
+            // toObject(), so without it a 3D layer loses is3DModel/modelUrl and
+            // pastes back as an inert 2D group.
+            const clones = await Promise.all(
+                active.map((object) => object.clone(CUSTOM_SERIALIZED_PROPS)),
+            );
             if (active.length === 1) {
                 canvas.setActiveObject(active[0]);
             } else {
@@ -96,7 +102,7 @@ export function useEditorKeyboardShortcuts({
             canvas.discardActiveObject();
             const added: fabric.Object[] = [];
             for (const item of stored) {
-                const clone = (await item.clone()) as unknown as fabric.Object;
+                const clone = (await item.clone(CUSTOM_SERIALIZED_PROPS)) as unknown as fabric.Object;
                 clone.set({
                     left: (clone.left || 0) + 16,
                     top: (clone.top || 0) + 16,

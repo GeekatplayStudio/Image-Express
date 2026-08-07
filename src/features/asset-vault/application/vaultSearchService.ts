@@ -17,6 +17,12 @@ export function runVaultSearch(
     assets: VaultAssetRecord[],
     request: VaultSearchRequest,
     vectors: VectorRecord[] = [],
+    /**
+     * Optional model-native query vectors (e.g. Ollama nomic-embed-text).
+     * Each is searched only against store records of the same dimension, so
+     * hash vectors and real embeddings never cross-compare.
+     */
+    semanticQueryVectors: number[][] = [],
 ): VaultSearchResult[] {
     const keywordHits = searchAssetsKeyword(assets, request.query, request.filter, request.limit);
 
@@ -29,13 +35,17 @@ export function runVaultSearch(
         ? vectors
         : ensureAssetVectors(assets, vectors);
 
-    const queryVector = hashTextEmbedding(request.query, 64);
-    const vectorHits = searchVectors(ensured, queryVector, Math.max(request.limit, 40));
+    const vectorLimit = Math.max(request.limit, 40);
+    const queryVectors = [...semanticQueryVectors, hashTextEmbedding(request.query, 64)];
+    const vectorHitLists = queryVectors
+        .map((queryVector) => searchVectors(ensured, queryVector, vectorLimit))
+        .filter((hits) => hits.length > 0);
+    const vectorHits = vectorHitLists.flat();
     const byId = new Map(assets.map((asset) => [asset.id, asset]));
 
     const fused = reciprocalRankFusion([
         keywordHits.map((hit) => ({ id: hit.asset.id, score: hit.score })),
-        vectorHits.map((hit) => ({ id: hit.assetId, score: hit.score })),
+        ...vectorHitLists.map((hits) => hits.map((hit) => ({ id: hit.assetId, score: hit.score }))),
     ]);
 
     const ranked = fused
@@ -60,7 +70,14 @@ export function runVaultSearch(
 
     // Never return empty when vectors found neighbors but RRF/filter dropped them.
     if (ranked.length === 0 && vectorHits.length > 0) {
-        return vectorHits
+        const bestByAsset = new Map<string, number>();
+        for (const hit of vectorHits) {
+            const prev = bestByAsset.get(hit.assetId);
+            if (prev === undefined || hit.score > prev) bestByAsset.set(hit.assetId, hit.score);
+        }
+        return Array.from(bestByAsset.entries())
+            .map(([assetId, score]) => ({ assetId, score }))
+            .sort((a, b) => b.score - a.score)
             .map((hit) => {
                 const asset = byId.get(hit.assetId);
                 if (!asset) return null;

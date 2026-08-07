@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
+/**
+ * Poll a Stability creative-upscale result.
+ *
+ * Exported as both GET and POST: this reads a result by id and carries no
+ * body, so GET is the natural verb and is what the background-job poller
+ * sends. POST is kept because existing callers use it. Previously only POST
+ * existed, so the poller's GET returned 405; the poller treats a non-ok
+ * response as "still running", which left every Stability upscale job polling
+ * forever and never surfacing an error.
+ */
+async function handlePoll(request: Request) {
   try {
     const apiKey = request.headers.get('Authorization')?.replace('Bearer ', '');
 
@@ -45,3 +55,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export const GET = handlePoll;
+export const POST = handlePoll;

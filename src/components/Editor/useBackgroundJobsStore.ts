@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type { BackgroundJob } from '@/types';
 
-const BACKGROUND_JOBS_STORAGE_KEY = 'image-express-background-jobs';
+export const BACKGROUND_JOBS_STORAGE_KEY = 'image-express-background-jobs';
+/** Fired after each same-tab persist so global UI (pipeline rail) can react. */
+export const BACKGROUND_JOBS_CHANGED_EVENT = 'image-express:background-jobs-changed';
 const MAX_PERSISTED_JOBS = 80;
 const MAX_JOB_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -159,6 +161,7 @@ export function useBackgroundJobsStore() {
                     request: getPersistableRequest(job.request),
                 }));
             localStorage.setItem(BACKGROUND_JOBS_STORAGE_KEY, JSON.stringify(compact));
+            window.dispatchEvent(new Event(BACKGROUND_JOBS_CHANGED_EVENT));
         } catch (error) {
             console.error('Failed to persist background jobs', error);
         }

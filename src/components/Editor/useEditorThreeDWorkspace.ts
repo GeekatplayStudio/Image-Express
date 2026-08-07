@@ -190,11 +190,13 @@ export function useEditorThreeDWorkspace({
 
         toast({
             title: 'Generation Started',
-            description: 'Monitor progress in the bottom status area.',
+            description: 'Queued — you can start another while this one runs.',
         });
 
-        handleCloseThreeDGenerator();
-    }, [canvas, handleCloseThreeDGenerator, sourceObjectFor3D, toast, upsertBackgroundJob]);
+        // Deliberately keep the panel open: closing it discarded the in-flight
+        // guard and made queueing a second generation awkward. Jobs are
+        // tracked in the panel's own list and in the status area.
+    }, [canvas, sourceObjectFor3D, toast, upsertBackgroundJob]);
 
     const handleThreeDGeneratorRecoverBackgroundJob = useCallback((jobData: Partial<BackgroundJob>) => {
         upsertBackgroundJob(jobData);
@@ -247,10 +249,20 @@ export function useEditorThreeDWorkspace({
         });
     }, [canvas, getDisplayName, handleCloseThreeDGenerator, sourceObjectFor3D]);
 
-    const activeJob = useMemo(
-        () => backgroundJobs.find((job) => job.status === 'IN_PROGRESS' || job.status === 'PENDING'),
+    // Every running job, so the panel can show them all rather than silently
+    // reporting the first one's progress while others run unseen.
+    const activeJobs = useMemo(
+        () => backgroundJobs.filter((job) => job.status === 'IN_PROGRESS' || job.status === 'PENDING'),
         [backgroundJobs]
     );
+
+    // The single job the preview pane follows: the most recent finished result
+    // if there is one, else the newest still running.
+    const activeJob = useMemo(() => {
+        const succeeded = backgroundJobs.filter((job) => job.status === 'SUCCEEDED' && job.resultUrl);
+        if (succeeded.length > 0) return succeeded[succeeded.length - 1];
+        return activeJobs[activeJobs.length - 1];
+    }, [activeJobs, backgroundJobs]);
 
     return {
         setEditingModelUrl,
@@ -269,6 +281,7 @@ export function useEditorThreeDWorkspace({
             currentUser: user,
             onOpenSettings,
             activeJob,
+            activeJobs,
             onStartBackgroundJob: handleThreeDGeneratorStartBackgroundJob,
             onRecoverBackgroundJob: handleThreeDGeneratorRecoverBackgroundJob,
             onAddToCanvas: handleThreeDGeneratorAddToCanvas,

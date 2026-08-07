@@ -3,6 +3,7 @@
 import { RefreshCcw, Server } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { ThemePreferenceMode } from '@/lib/themePreferences';
+import type { PipelineRailMode } from '@/lib/ui-preferences';
 import type { WorkspacePreferences } from '../../hooks/useWorkspacePreferences';
 import { modalSectionClass } from '../../settingsTypes';
 
@@ -17,8 +18,16 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
         themeMode, setThemeMode, themeAccentPreset, setThemeAccentPreset,
         expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover,
         suppressNumberDragHints, setSuppressNumberDragHints,
+        pipelineRailMode, setPipelineRailMode,
+        notifyOnJobComplete, setNotifyOnJobComplete,
         handleResetNumberDragHint, THEME_ACCENT_OPTIONS, THEME_MODE_OPTIONS,
     } = workspace;
+
+    const pipelineRailOptions: Array<{ value: PipelineRailMode; labelKey: string }> = [
+        { value: 'off', labelKey: 'settings.workspace.pipelineRailOff' },
+        { value: 'minimal', labelKey: 'settings.workspace.pipelineRailMinimal' },
+        { value: 'detailed', labelKey: 'settings.workspace.pipelineRailDetailed' },
+    ];
 
     return (
         <section className={modalSectionClass}>
@@ -100,6 +109,38 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                         className="rounded border-border text-primary focus:ring-primary/20"
                     />
                     {t('settings.workspace.suppressDragHints')}
+                </label>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                    <label htmlFor="settings-pipeline-rail" className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                        {t('settings.workspace.pipelineRail')}
+                    </label>
+                    <select
+                        id="settings-pipeline-rail"
+                        aria-label={t('settings.workspace.pipelineRail')}
+                        value={pipelineRailMode}
+                        onChange={(event) => setPipelineRailMode(event.target.value as PipelineRailMode)}
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                    >
+                        {pipelineRailOptions.map((option) => (
+                            <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+                        ))}
+                    </select>
+                    <p className="text-[11px] text-muted-foreground">
+                        {t('settings.workspace.pipelineRailHint')}
+                    </p>
+                </div>
+
+                <label className="flex items-center gap-2 self-start text-xs text-muted-foreground cursor-pointer select-none rounded-xl border border-border/50 bg-background/50 px-3 py-2 md:mt-6">
+                    <input
+                        type="checkbox"
+                        checked={notifyOnJobComplete}
+                        onChange={(event) => setNotifyOnJobComplete(event.target.checked)}
+                        className="rounded border-border text-primary focus:ring-primary/20"
+                    />
+                    {t('settings.workspace.notifyOnJobComplete')}
                 </label>
             </div>
 

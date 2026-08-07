@@ -1,6 +1,6 @@
 # Unified Progress Status (Canonical)
 
-Last updated: 2026-08-01  
+Last updated: 2026-08-07  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
@@ -18,6 +18,72 @@ Future roadmap canonical source:
 
 Current-state baseline audit:
 - `docs/current_application_baseline_audit_2026-05-16.md` (verified feature inventory, workflow map, status reconciliation, priority buckets, and UI simplification plan)
+
+## Latest Delivery (2026-08-07) — Unified Job Queue ("Q") + Pipeline Rail
+
+Roadmap item **R-06 Background Jobs Control Center**, core delivered. Full
+architecture record and extension guide: `docs/JOB_QUEUE.md`.
+
+The app had **no queue**. Two disconnected job systems existed, and both
+could strand the user:
+
+- **`POST /api/generate` executed inside the request handler** via
+  `void processGenerateJob(id)` — no concurrency cap (five clicks meant five
+  concurrent provider calls, which on the local GPU path means OOM), no
+  crash recovery. Provider params lived in a module-level `Map` that HMR and
+  restarts wiped, so an interrupted job reported `running` **forever** —
+  and `cleanupOldGenerateJobs` only reaped *terminal* jobs, so those zombies
+  accumulated permanently.
+- **`GET /api/jobs/[id]/result` deleted the result on first read.** A reload
+  at the wrong moment lost the output.
+- **3D/Stability jobs were polled from the browser**, so closing the tab
+  abandoned them; the 3-concurrent cap was per-tab; API keys were read from
+  `localStorage`. Completion notified nobody — the polling loop never called
+  the toast system that was already mounted.
+
+Delivered, modeled on Adobe Firefly Services' async job contract (accept
+instantly, small flat status enum, ephemeral status vs durable result,
+events over polling, limits as a contract):
+
+- **`src/lib/server/jobQueue/`** — durable atomic store (`data/queue/jobs.json`),
+  and a scheduler pinned to `globalThis` so HMR cannot orphan in-flight work.
+  **Lane-based concurrency**: `local-gpu` = 1 (one GPU, serialize or die),
+  `local-cpu` = 4, each `remote:<provider>` = 3 — a slow provider cannot
+  starve another lane. Priority + FIFO within a lane, retries, and
+  **lease-based crash recovery**: any job persisted as `running` belonged to
+  a dead process and is failed as `interrupted` on boot. Zombie jobs are now
+  structurally impossible.
+- **SSE push** at `/api/queue/stream` (snapshot on connect, event per
+  transition, heartbeat) replaces client polling; `/api/queue` remains as a
+  snapshot fallback. Cancel/retry at `/api/queue/[id]/cancel|retry`.
+- **A validation stage that did not exist**: a provider returning 200 with a
+  missing or empty image is now `failed: validation`, not a corrupt asset.
+- **Retrieval is non-destructive**, and failed jobs now **keep their uploads**
+  — they are the inputs a retry needs (age-based retention still reaps them).
+- **Pipeline Rail** (`src/components/PipelineRail.tsx`), mounted globally: a
+  3px strip below the top toolbar with one segment per pipeline stage
+  (Request → API → Queue → Worker → AI → Validate → Store → Notify →
+  Retrieve). Hover drops down a card showing each job, an **External API vs
+  Local** chip, stage, progress, inline failure reason, and cancel/retry.
+  Merges both job systems. Toasts on completion. Honors
+  `prefers-reduced-motion`; pure CSS, no animation library (bundle budget).
+- **Preferences** (Settings → Workspace): `pipelineRailMode`
+  (Hidden/Minimal/Detailed) and `notifyOnJobComplete`, localized en/ru/uk.
+- Fixed in passing: `flux` is ComfyUI-backed, so it now serializes on the
+  `local-gpu` lane instead of being treated as a remote provider; and
+  `QueueStore` resolves its directory once at construction, so an async write
+  can no longer land in whatever directory `IMAGE_EXPRESS_DATA_DIR` points at
+  when it flushes.
+- **21 new tests** (13 scheduler + 8 rail) covering lane caps, cross-lane
+  starvation, zombie recovery, retry/cancel semantics, priority ordering,
+  event emission, and the rail's action round-trips. Verified live against
+  the dev server: 202 accept, SSE stream, repeat result fetch, failure path,
+  and a full retry round-trip from the UI.
+
+**Remaining for R-06:** server-side provider polling (a closed tab still
+abandons Meshy/Tripo/Hitems/Stability jobs), running-job cancellation via
+handler abort signals, a full Activity history panel, and OS-level
+notifications when the window is unfocused.
 
 ## Latest Delivery (2026-08-01) — Release Chain, Dependencies, i18n Encoding
 

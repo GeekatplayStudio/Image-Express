@@ -1,4 +1,5 @@
-import { createGenerateJob, processGenerateJob } from '@/lib/agentic-edit/jobs';
+import { createGenerateJob } from '@/lib/agentic-edit/jobs';
+import { getQueue, isExternalGenerateProvider, laneForGenerateProvider } from '@/lib/server/jobQueue';
 import type { AnnotationDocument } from '@/lib/agentic-edit/types';
 import {
     ApiRequestError,
@@ -122,7 +123,16 @@ export async function POST(request: Request) {
             references,
         });
 
-        void processGenerateJob(state.id);
+        // Admission control: the request handler only accepts the job. The
+        // queue owns execution, lane concurrency, and crash recovery.
+        await getQueue().enqueue({
+            id: state.id,
+            kind: 'generate',
+            lane: laneForGenerateProvider(providerName),
+            external: isExternalGenerateProvider(providerName),
+            label: `Generate (${providerName})`,
+            payload: { generateJobId: state.id },
+        });
 
         return jsonWithRequestId(request, { job_id: state.id }, { status: 202 });
     } catch (error) {

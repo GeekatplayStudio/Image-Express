@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
+import { loadUiPreferences, saveUiPreferences, type PipelineRailMode } from '@/lib/ui-preferences';
 import {
     THEME_ACCENT_OPTIONS,
     THEME_MODE_OPTIONS,
@@ -19,6 +19,8 @@ import { resetNumberDragHintSeen } from '@/lib/number-drag-hints';
 export function useWorkspacePreferences(isOpen: boolean, onSaved: () => void) {
     const [expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover] = useState(true);
     const [suppressNumberDragHints, setSuppressNumberDragHints] = useState(false);
+    const [pipelineRailMode, setPipelineRailMode] = useState<PipelineRailMode>('minimal');
+    const [notifyOnJobComplete, setNotifyOnJobComplete] = useState(true);
     const [themeMode, setThemeMode] = useState<ThemePreferenceMode>('system');
     const [themeAccentPreset, setThemeAccentPreset] = useState<ThemeAccentPreset>('ocean');
 
@@ -32,6 +34,8 @@ export function useWorkspacePreferences(isOpen: boolean, onSaved: () => void) {
         const uiPreferences = loadUiPreferences();
         setExpandToolRailLabelsOnHover(uiPreferences.expandToolRailLabelsOnHover);
         setSuppressNumberDragHints(uiPreferences.suppressNumberDragHints);
+        setPipelineRailMode(uiPreferences.pipelineRailMode);
+        setNotifyOnJobComplete(uiPreferences.notifyOnJobComplete);
         const themePreferences = loadThemePreferences();
         setThemeMode(themePreferences.mode);
         setThemeAccentPreset(themePreferences.accentPreset);
@@ -64,13 +68,20 @@ export function useWorkspacePreferences(isOpen: boolean, onSaved: () => void) {
     }, [onSaved]);
 
     const saveWorkspacePreferences = useCallback(() => {
-        saveUiPreferences({ expandToolRailLabelsOnHover, suppressNumberDragHints });
+        saveUiPreferences({
+            expandToolRailLabelsOnHover,
+            suppressNumberDragHints,
+            pipelineRailMode,
+            notifyOnJobComplete,
+        });
         saveThemePreferences({ mode: themeMode, accentPreset: themeAccentPreset });
-    }, [expandToolRailLabelsOnHover, suppressNumberDragHints, themeAccentPreset, themeMode]);
+    }, [expandToolRailLabelsOnHover, suppressNumberDragHints, pipelineRailMode, notifyOnJobComplete, themeAccentPreset, themeMode]);
 
     return {
         expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover,
         suppressNumberDragHints, setSuppressNumberDragHints,
+        pipelineRailMode, setPipelineRailMode,
+        notifyOnJobComplete, setNotifyOnJobComplete,
         themeMode, setThemeMode,
         themeAccentPreset, setThemeAccentPreset,
         isLogVisible,

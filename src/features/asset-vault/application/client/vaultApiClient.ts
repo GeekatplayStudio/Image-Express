@@ -157,6 +157,7 @@ export async function searchVaultUnified(
             total: 0,
             query: request.query,
             expandedTerms: [] as string[],
+            engine: undefined,
         })),
         includeLocal ? loadAllLocalVaultRecords(owner) : Promise.resolve([] as VaultAssetRecord[]),
         includeDrive ? loadAllDriveVaultRecords(owner) : Promise.resolve([] as VaultAssetRecord[]),
@@ -191,6 +192,7 @@ export async function searchVaultUnified(
             total: results.length,
             query: request.query,
             expandedTerms,
+            engine: serverResponse.engine,
         };
     }
 
@@ -229,6 +231,7 @@ export async function searchVaultUnified(
             total: results.length,
             query: request.query,
             expandedTerms,
+            engine: serverResponse.engine,
         };
     }
 

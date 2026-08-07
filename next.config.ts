@@ -141,6 +141,16 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "github.com" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" }
     ]
+  },
+  // The setup wizard is a modal on "/", not its own route, so these URLs used
+  // to 404. Redirect them onto the page with the marker the wizard listens for,
+  // so a bookmarked or shared link actually opens it.
+  async redirects() {
+    return ["/setup", "/wizard", "/onboarding", "/first-run"].map((source) => ({
+      source,
+      destination: "/?setup=1",
+      permanent: false,
+    }));
   }
 };
 

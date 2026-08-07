@@ -1,10 +1,18 @@
+export type PipelineRailMode = 'off' | 'minimal' | 'detailed';
+
 export type UiPreferences = {
     expandToolRailLabelsOnHover: boolean;
     suppressNumberDragHints: boolean;
     autosaveEnabled: boolean;
     lastCanvasWidth: number;
     lastCanvasHeight: number;
+    /** Pipeline activity rail below the top toolbar. */
+    pipelineRailMode: PipelineRailMode;
+    /** Toast when a background job reaches a terminal state. */
+    notifyOnJobComplete: boolean;
 };
+
+const PIPELINE_RAIL_MODES: readonly PipelineRailMode[] = ['off', 'minimal', 'detailed'];
 
 export const UI_PREFERENCES_STORAGE_KEY = 'image-express-ui-preferences';
 export const UI_PREFERENCES_CHANGED_EVENT = 'image-express:ui-preferences-changed';
@@ -15,7 +23,13 @@ const DEFAULT_UI_PREFERENCES: UiPreferences = {
     autosaveEnabled: false,
     lastCanvasWidth: 1080,
     lastCanvasHeight: 1080,
+    pipelineRailMode: 'minimal',
+    notifyOnJobComplete: true,
 };
+
+const coercePipelineRailMode = (value: unknown, fallback: PipelineRailMode): PipelineRailMode => (
+    PIPELINE_RAIL_MODES.includes(value as PipelineRailMode) ? value as PipelineRailMode : fallback
+);
 
 const coerceBoolean = (value: unknown, fallback: boolean): boolean => (
     typeof value === 'boolean' ? value : fallback
@@ -51,6 +65,14 @@ export const loadUiPreferences = (): UiPreferences => {
             lastCanvasHeight: coercePositiveNumber(
                 parsed.lastCanvasHeight,
                 DEFAULT_UI_PREFERENCES.lastCanvasHeight
+            ),
+            pipelineRailMode: coercePipelineRailMode(
+                parsed.pipelineRailMode,
+                DEFAULT_UI_PREFERENCES.pipelineRailMode
+            ),
+            notifyOnJobComplete: coerceBoolean(
+                parsed.notifyOnJobComplete,
+                DEFAULT_UI_PREFERENCES.notifyOnJobComplete
             ),
         };
     } catch {

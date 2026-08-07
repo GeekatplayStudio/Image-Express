@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from 'next/script';
 import "./globals.css";
 import "./ui-theme.css";
 import '@fontsource/inter/400.css';
@@ -28,6 +27,7 @@ import ThemePreferenceSync from '@/components/ThemePreferenceSync';
 import UiThemeSync from '@/components/UiThemeSync';
 import UpdateAutoCheck from '@/components/UpdateAutoCheck';
 import SpriteTheater from '@/components/SpriteTheater';
+import PipelineRail from '@/components/PipelineRail';
 import SupportCorner from '@/components/SupportCorner';
 import { buildUiThemeInitScript } from '@/lib/ui-themes-shared';
 import RangeResetListener from "@/components/ui/RangeResetListener";
@@ -57,19 +57,25 @@ export default function RootLayout({
       style={{ colorScheme: DEFAULT_THEME_RESOLVED_MODE }}
     >
       <head>
-        <Script
+        {/*
+          Plain <script> tags, not next/script. These must run before first
+          paint to stamp theme attributes on <html> and avoid a flash of the
+          wrong theme. next/script with strategy="beforeInteractive" inside a
+          manual <head> makes React try to render a script element on the
+          client, which it never executes ("Encountered a script tag while
+          rendering React component") and which perturbs hydration. Inline
+          scripts in <head> are the supported way to do this in the App Router.
+        */}
+        <script
           id="runtime-performance-shim"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: performanceShimSource }}
         />
-        <Script
+        <script
           id="theme-preferences-init"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: themePreferenceInitScript }}
         />
-        <Script
+        <script
           id="ui-theme-init"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: uiThemeInitScript }}
         />
       </head>
@@ -88,6 +94,7 @@ export default function RootLayout({
               <div className="ui-theme-overlay" aria-hidden="true" />
               <SpriteTheater />
               <SupportCorner />
+              <PipelineRail />
             </ToastProvider>
           </DialogProvider>
         </I18nProvider>

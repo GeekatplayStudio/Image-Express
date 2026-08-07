@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, stat, rename } from 'node:fs/promises';
 import { getAssetsDir, getVaultDir } from '@/lib/server/appPaths';
 import {
     VALID_ASSET_TYPES,
@@ -25,22 +25,32 @@ const BOOKCASES_PATH = () => path.join(getVaultDir(), 'bookcases.json');
 
 async function atomicWriteJson(filePath: string, data: unknown) {
     await mkdir(path.dirname(filePath), { recursive: true });
+    // Serialize once, then rename into place. The previous version stringified
+    // and wrote the payload twice and left the real file non-atomic, which on a
+    // large catalog meant hundreds of MB of redundant IO per save.
     const tempPath = `${filePath}.${process.pid}.tmp`;
     await writeFile(tempPath, JSON.stringify(data, null, 2), 'utf8');
-    await writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
-    try {
-        const { unlink } = await import('node:fs/promises');
-        await unlink(tempPath);
-    } catch {
-        // temp cleanup best-effort
-    }
+    await rename(tempPath, filePath);
 }
 
+// Parsing (and Zod-validating) a large catalog on every request dominates
+// search latency once a whole drive is indexed. Cache in memory, keyed on the
+// file's mtime so an external write is still picked up.
+let catalogCache: { catalog: VaultCatalog; mtimeMs: number } | null = null;
+
 export async function readVaultCatalog(): Promise<VaultCatalog> {
+    const filePath = CATALOG_PATH();
     try {
-        const raw = await readFile(CATALOG_PATH(), 'utf8');
+        const fileStat = await stat(filePath);
+        if (catalogCache && catalogCache.mtimeMs === fileStat.mtimeMs) {
+            return catalogCache.catalog;
+        }
+        const raw = await readFile(filePath, 'utf8');
         const parsed = VaultCatalogSchema.safeParse(JSON.parse(raw));
-        if (parsed.success) return parsed.data;
+        if (parsed.success) {
+            catalogCache = { catalog: parsed.data, mtimeMs: fileStat.mtimeMs };
+            return parsed.data;
+        }
     } catch (error) {
         const maybeErr = error as NodeJS.ErrnoException;
         if (maybeErr.code !== 'ENOENT') {
@@ -51,7 +61,14 @@ export async function readVaultCatalog(): Promise<VaultCatalog> {
 }
 
 export async function writeVaultCatalog(catalog: VaultCatalog): Promise<void> {
-    await atomicWriteJson(CATALOG_PATH(), catalog);
+    const filePath = CATALOG_PATH();
+    await atomicWriteJson(filePath, catalog);
+    try {
+        const fileStat = await stat(filePath);
+        catalogCache = { catalog, mtimeMs: fileStat.mtimeMs };
+    } catch {
+        catalogCache = null;
+    }
 }
 
 export async function readBookcaseStore(): Promise<BookcaseStore> {

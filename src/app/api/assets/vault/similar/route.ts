@@ -34,7 +34,10 @@ export async function POST(request: Request) {
                 updatedAt: new Date().toISOString(),
             };
             vectors = upsertVector(vectors, seedVector);
-            await writeVectorStore(vectors);
+            if (seedVector.model !== 'hash-text-v1') {
+                // Derived hash vectors are recomputed on read, never stored.
+                await writeVectorStore(vectors.filter((entry) => entry.model !== 'hash-text-v1'));
+            }
         }
 
         const similarHits = findSimilarAssetIds(seed.id, vectors, { limit: body.limit });

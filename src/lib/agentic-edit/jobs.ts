@@ -47,6 +47,12 @@ const uploadsDir = path.join(jobsDir, 'uploads');
 const revisionsDir = path.join(dataRoot, 'ai-revisions');
 const outputDir = path.join(getAssetsDir(), 'generated', 'images');
 const DEFAULT_OLD_JOB_RETENTION_MS = 6 * 60 * 60 * 1000;
+/**
+ * Unredacted provider params, held in memory only — never written to disk,
+ * where `redactSensitiveParameters` strips secrets. Entries are dropped on
+ * success and when a job's artifacts are cleaned up; a failed job keeps its
+ * entry so an in-process retry can reuse the original credentials.
+ */
 const runtimeProviderParams = new Map<string, Record<string, unknown>>();
 const SENSITIVE_PARAMETER_PATTERN = /(api.?key|authorization|bearer|password|secret|token)/i;
 
@@ -448,6 +454,7 @@ export const processGenerateJob = async (jobId: string): Promise<void> => {
 
         await persistGenerateJob(latest);
         await createRevisionRecord(latest);
+        runtimeProviderParams.delete(jobId);
         await cleanupGenerateJobArtifacts(jobId, {
             removeJobRecord: false,
             removeUploads: true,
@@ -460,12 +467,9 @@ export const processGenerateJob = async (jobId: string): Promise<void> => {
             message: 'Failed',
             error: message,
         });
-        await cleanupGenerateJobArtifacts(jobId, {
-            removeJobRecord: false,
-            removeUploads: true,
-        });
-    } finally {
-        runtimeProviderParams.delete(jobId);
+        // Uploads and the in-memory provider params are deliberately preserved
+        // on failure: they are the inputs a retry needs. `cleanupOldGenerateJobs`
+        // still reaps both by age, so this cannot leak indefinitely.
     }
 };
 
@@ -507,6 +511,9 @@ export const cleanupGenerateJobArtifacts = async (
     }
 
     if (removeJobRecord) {
+        // The record is gone, so nothing can retry this job — drop its
+        // in-memory credentials with it.
+        runtimeProviderParams.delete(jobId);
         await removeFileIfExists(jobFilePath(jobId));
     }
 };

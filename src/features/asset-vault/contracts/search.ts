@@ -22,12 +22,24 @@ export const VaultSearchResultSchema = z.object({
 
 export type VaultSearchResult = z.infer<typeof VaultSearchResultSchema>;
 
+export const VaultSearchEngineStatusSchema = z.object({
+    ollamaRunning: z.boolean(),
+    embedModel: z.string(),
+    /** True when the query itself was semantically embedded (not hash fallback). */
+    semanticQuery: z.boolean(),
+    /** Assets still waiting for a real embedding (backfilled a batch per search). */
+    pendingSemantic: z.number(),
+});
+
+export type VaultSearchEngineStatus = z.infer<typeof VaultSearchEngineStatusSchema>;
+
 export const VaultSearchResponseSchema = z.object({
     success: z.literal(true),
     results: z.array(VaultSearchResultSchema),
     total: z.number(),
     query: z.string(),
     expandedTerms: z.array(z.string()).optional(),
+    engine: VaultSearchEngineStatusSchema.optional(),
 });
 
 export type VaultSearchResponse = z.infer<typeof VaultSearchResponseSchema>;

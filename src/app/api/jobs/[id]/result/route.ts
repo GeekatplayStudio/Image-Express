@@ -39,9 +39,12 @@ export async function GET(
         meta: job.output.meta,
     };
 
+    // Retrieval is non-destructive: the job record (and its stable result
+    // URL) survives reloads and repeat fetches. Uploads are transient inputs
+    // and can go; the record itself is garbage-collected by retention later.
     try {
         await cleanupGenerateJobArtifacts(id, {
-            removeJobRecord: true,
+            removeJobRecord: false,
             removeUploads: true,
         });
     } catch {

@@ -18,12 +18,17 @@ type MockObject = {
     visible: boolean;
     name?: string;
     isAdjustmentLayer?: boolean;
+    is3DModel?: boolean;
+    modelUrl?: string;
     group?: { remove: jest.Mock };
     set: (props: Record<string, unknown>) => void;
-    clone: () => Promise<MockObject>;
+    clone: (propertiesToInclude?: string[]) => Promise<MockObject>;
 };
 
-const makeObject = (left = 100, top = 100): MockObject => {
+/** Props Fabric carries on its own, without a propertiesToInclude whitelist. */
+const STANDARD_PROPS = ['left', 'top', 'visible'];
+
+const makeObject = (left = 100, top = 100, extra: Partial<MockObject> = {}): MockObject => {
     const object: MockObject = {
         left,
         top,
@@ -31,9 +36,20 @@ const makeObject = (left = 100, top = 100): MockObject => {
         set(props: Record<string, unknown>) {
             Object.assign(this, props);
         },
-        async clone() {
-            return makeObject(this.left, this.top);
+        // Mirrors Fabric v6: clone() round-trips via toObject(), so a custom
+        // prop only survives when named in propertiesToInclude.
+        async clone(propertiesToInclude?: string[]) {
+            const next = makeObject(this.left, this.top);
+            const carried = [...STANDARD_PROPS, ...(propertiesToInclude ?? [])];
+            for (const prop of carried) {
+                const value = (this as unknown as Record<string, unknown>)[prop];
+                if (value !== undefined) {
+                    (next as unknown as Record<string, unknown>)[prop] = value;
+                }
+            }
+            return next;
         },
+        ...extra,
     };
     return object;
 };
@@ -125,6 +141,30 @@ describe('useEditorKeyboardShortcuts', () => {
         expect(pasted.top).toBe(116);
         expect(canvas.setActiveObject).toHaveBeenCalled();
         expect(canvas._objects).toHaveLength(2);
+    });
+
+    it('keeps a 3D layer 3D through copy and paste', async () => {
+        // Regression: clone() was called without the custom prop whitelist, so
+        // is3DModel/modelUrl were dropped and the pasted layer came back as an
+        // inert 2D copy that no longer opened the 3D editor.
+        const original = makeObject(100, 100, {
+            name: 'Dragon',
+            is3DModel: true,
+            modelUrl: 'https://example.com/dragon.glb',
+        });
+        const canvas = makeCanvas([original]);
+        canvas.setSelection([original]);
+        render(<Harness canvas={canvas} />);
+
+        pressCtrl('c');
+        await flush();
+        pressCtrl('v');
+        await flush();
+
+        const pasted = canvas.add.mock.calls[0][0] as MockObject;
+        expect(pasted.is3DModel).toBe(true);
+        expect(pasted.modelUrl).toBe('https://example.com/dragon.glb');
+        expect(pasted.name).toBe('Dragon');
     });
 
     it('Ctrl+V without a prior copy does nothing', () => {

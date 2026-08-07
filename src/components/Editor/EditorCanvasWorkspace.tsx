@@ -52,6 +52,7 @@ type ThreeDControls = {
     currentUser: ThreeDGeneratorProps['currentUser'];
     onOpenSettings: ThreeDGeneratorProps['onOpenSettings'];
     activeJob: ThreeDGeneratorProps['activeJob'];
+    activeJobs: ThreeDGeneratorProps['activeJobs'];
     onStartBackgroundJob: ThreeDGeneratorProps['onStartBackgroundJob'];
     onRecoverBackgroundJob: ThreeDGeneratorProps['onRecoverBackgroundJob'];
     onAddToCanvas: ThreeDGeneratorProps['onAddToCanvas'];
@@ -133,6 +134,7 @@ export default function EditorCanvasWorkspace({
         currentUser,
         onOpenSettings,
         activeJob,
+        activeJobs,
         onStartBackgroundJob,
         onRecoverBackgroundJob,
         onAddToCanvas,
@@ -203,6 +205,7 @@ export default function EditorCanvasWorkspace({
                         currentUser={currentUser}
                         onOpenSettings={onOpenSettings}
                         activeJob={activeJob}
+                        activeJobs={activeJobs}
                         onStartBackgroundJob={onStartBackgroundJob}
                         onRecoverBackgroundJob={onRecoverBackgroundJob}
                         onAddToCanvas={onAddToCanvas}

@@ -244,6 +244,26 @@ export default function Home() {
     return unsubscribe;
   }, []);
 
+  // ...and by URL, so a shared/bookmarked link actually opens it. The wizard is
+  // a modal on this page rather than its own route, so `/setup`, `/?setup=1`
+  // and `#setup` all land here and are translated into the open request.
+  // Runs after mount (never during render) so the first client render still
+  // matches the server HTML.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const wants = url.searchParams.get('setup');
+    const requested = wants === '1' || wants === 'true' || url.hash === '#setup';
+    if (!requested) return;
+
+    setShowSetupWizard(true);
+
+    // Drop the marker so a later refresh or Back doesn't reopen the wizard.
+    url.searchParams.delete('setup');
+    if (url.hash === '#setup') url.hash = '';
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
   const handleCloseSetupWizard = () => {
     dismissSetupWizardForSession(setupWizardScope);
     setShowSetupWizard(false);

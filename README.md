@@ -242,6 +242,7 @@ Most tools give you one canvas per document. Image Express gives every project a
 - **100% local option**: run **Ollama** for local SVG generation and layer/canvas **AI Critique** — nothing ever leaves your machine. Vision support is detected from Ollama's own per-model capability report (never a hardcoded model list, so brand-new models like `qwen3-vl` and `gemma4` just work), and when your saved model can't read images the critique panel shows every installed vision model plus a curated, size-labeled install list — checked live against the Ollama library — for one-click switch or install with streamed download progress.
 - **AI Edit Notes (Beta)**: annotate a layer with point notes, save a flattened reference layer with embedded edit instructions, and hand it straight to a ComfyUI/Flux workflow for guided AI editing.
 - A **polymorphic AI adapter layer** means every provider returns the same normalized shape to the UI — swap providers mid-project with zero rework.
+- **Nothing ever locks you out while it works.** Every generation is queued, not run inline, so you keep editing while it churns. A hair-thin **pipeline rail** under the toolbar shows exactly where each request is — queued, on your GPU, at an external API, validating, saving — with the external-vs-local distinction called out, because "waiting on Stability" and "waiting on your own GPU" deserve different patience. Hover it for detail, cancel what's still queued, retry what failed (with the real error, not a shrug), and get a toast when it lands. Set it to Hidden, Minimal, or Detailed in Settings → Workspace. Jobs survive an app restart: an interrupted job reports as interrupted instead of spinning forever.
 
 ### 📚 Real asset & project management
 - **Asset Library**: drag-and-drop multi-file ingestion (mixed images/video/audio/3D lands in the right tabs automatically), folders, search, personal-vs-shared scope, public/private visibility, and **live rotating 3D previews on hover** plus real rendered thumbnails for 3D models in the grid — not just an icon.
@@ -332,7 +333,9 @@ graph TD
     B --> J[Multi-Canvas Project Store + Stack/Federation 3D View]
 
     B --> F[Next.js API Gateway / Proxy]
-    F --> G[Polymorphic AI Adapter Layer]
+    B -. SSE job events .-> K
+    F --> K[Job Queue: durable store + lane scheduler]
+    K --> G[Polymorphic AI Adapter Layer]
 
     G --> H[Local AI Providers: ComfyUI / Ollama]
     G --> I[Cloud AI Providers: Stability / OpenAI / Meshy / Tripo / Gemini]
@@ -340,6 +343,7 @@ graph TD
 
 * **Canvas Engine**: Standard Fabric.js core extended with custom subclass renderers (e.g., `WarpedImage` for perspective transformations, custom prototype extensions for styled text layout cards).
 * **AI Abstraction Layer (`AiRuntimeManager`)**: A polymorphic adapter framework separating the front-end from individual generation APIs. It normalizes inputs and outputs, manages async polling states, and simplifies provider selection.
+* **Job Queue (`src/lib/server/jobQueue/`)**: Long-running AI work never executes inside a request handler. Requests are *accepted* (`202` + job id) and handed to a durable, crash-safe queue with **lane-based concurrency** — the local GPU lane serializes to 1, the CPU lane runs 4, and each remote provider gets its own window so a slow provider can't starve the others. Running jobs hold a lease renewed by their own progress updates, so any job persisted as `running` at boot belonged to a dead process and is failed as `interrupted` rather than hanging forever. Clients subscribe to one **Server-Sent Events** stream instead of polling. Full record: [`docs/JOB_QUEUE.md`](docs/JOB_QUEUE.md).
 * **Command Pattern Engine**: Tracks every user canvas interaction (moves, resizing, properties) as discrete, serializable command payloads. This provides a clear audit trail and enables reliable undo/redo capabilities.
 * **Multi-Canvas Project Store**: Each project owns an array of canvases plus a shared-layer registry (`sharedLayerId`); a Three.js overlay (`CanvasStackView`) renders every canvas as a floating textured plane and every project as a navigable "room" in Federation mode, with animated bridge curves tracing live shared-layer links.
 * **Theme/Ambience Pack Engine**: A sandboxed, code-free pack format (manifest JSON + CSS + PNG sprite sheets) drives both the interface theme system and a small built-in sprite/animation runtime (`SpriteTheater`, `DashboardAmbience`) — packs declare *scenes* from a fixed vocabulary (fly-across, chase, build-and-destroy, word-formation, concert, dance party, ...) that the app itself interprets and renders; no pack can execute arbitrary code.
@@ -378,7 +382,7 @@ graph TD
 
 ### Performance & Scalability
 * **Clipping Mask Render Optimization**: Complex nested vector masks degrade layout frames. The engine caches path clip states and limits recalculation to selected or actively edited layers.
-* **Asynchronous Polling & Socket Management**: 3D generation can take minutes. The background scheduler uses async polling with exponential backoff and supports abort controllers to release socket pools immediately when jobs are cancelled.
+* **Queue-Backed Async Work**: 3D and image generation can take minutes. A server-side scheduler owns execution with per-lane concurrency caps and lease-based crash recovery, and pushes every state transition to the UI over a single SSE connection — so the browser holds no timers, and a job survives closing the tab that started it. The client-side provider poller that remains (Meshy/Tripo/Hitem3D/Stability) uses exponential backoff with jitter, caps in-flight requests, and stretches its interval when the tab is hidden; migrating it into the queue is tracked in [`docs/JOB_QUEUE.md`](docs/JOB_QUEUE.md).
 * **Sprite Theater Frequency Throttling**: Animated theme scenes default to a "rare vignette" cadence (minutes between scenes, one scene at a time, pauses in hidden tabs, disabled entirely under `prefers-reduced-motion`) so ambient personality never competes with actual work — with a user-facing slider for those who want more.
 
 ### Lessons Learned
@@ -464,9 +468,10 @@ Settings includes built-in key validation (server-side for Hitem3D, format prefl
 ## 🏗 Project Structure
 
 ```
-src/app/            Next.js App Router pages + all API routes (AI proxies, assets, designs, themes)
-src/components/      Dashboard, DesignCanvas, ThreeDGenerator, PropertiesPanel, Editor/, properties/
+src/app/            Next.js App Router pages + all API routes (AI proxies, assets, designs, themes, queue)
+src/components/      Dashboard, DesignCanvas, ThreeDGenerator, PropertiesPanel, PipelineRail, Editor/, properties/
 src/lib/             AI adapters, multi-canvas store, theme/ambience engines, i18n, storage
+src/lib/server/jobQueue/   Durable job queue: store, lane scheduler, per-kind handlers
 electron/            Desktop shell (child-process server boot, auto-updater, startup logging)
 theme-packs/          Theme-pack authoring workspace (gitignored — packs are downloads, not source)
 ambience-packs/       Dashboard-ambience authoring workspace (gitignored, same reasoning)
@@ -481,6 +486,7 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three
 
 - [docs/INSTALLATION.md](docs/INSTALLATION.md) — full install guide (PC/Mac, ComfyUI, Ollama, Docker, Drive backup)
 - [docs/DESKTOP.md](docs/DESKTOP.md) — desktop packaging, auto-update, and startup-log internals
+- [docs/JOB_QUEUE.md](docs/JOB_QUEUE.md) — the background job queue: pipeline stages, concurrency lanes, crash recovery, SSE, and how to queue a new kind of work
 - [docs/THEME_PACKS_SPEC.md](docs/THEME_PACKS_SPEC.md) — build your own theme/ambience pack (no code required)
 - [docs/html-export-notes.md](docs/html-export-notes.md) — HTML export details and asset coverage
 - [docs/i18n_multilanguage_support.md](docs/i18n_multilanguage_support.md) — translation system and adding a language

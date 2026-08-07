@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { Plus, Image as ImageIcon, Clock, Layout, Trash2, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
+import { Plus, Image as ImageIcon, Layout, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { useI18n } from '@/providers/I18nProvider';
@@ -17,14 +17,18 @@ import {
     deleteProject,
     getProjectsStateSync,
     loadProjectsState,
+    projectsInBookshelf,
     saveProjectsState,
+    setActiveBookshelf,
+    setActiveCanvas,
     setActiveProject,
     PROJECT_CHANGED_EVENT,
     type Project,
     type ProjectsState,
 } from '@/lib/multicanvas/projectStore';
-import { Boxes } from 'lucide-react';
-import MoreItemsDropdown from '@/components/dashboard/MoreItemsDropdown';
+import { Boxes, Library, Files } from 'lucide-react';
+import StackAccordion, { type StackShelf } from '@/components/dashboard/StackAccordion';
+import type { StackItem } from '@/components/dashboard/StackRow';
 
 type IconType = React.ComponentType<{ size?: number; className?: string }>;
 
@@ -185,22 +189,45 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         void saveProjectsState(setActiveProject(current, projectId));
         onNewDesign();
     };
+
+    /** Resume a specific page: bring its album into view, then that page within it. */
+    const openCanvasFromDashboard = (projectId: string, canvasId: string) => {
+        const current = getProjectsStateSync() ?? projectsState;
+        if (!current) return;
+        const scoped = setActiveProject(current, projectId);
+        void saveProjectsState({
+            ...scoped,
+            projects: scoped.projects.map((p) => (p.id === projectId ? setActiveCanvas(p, canvasId) : p)),
+        });
+        onNewDesign();
+    };
+
+    const openBookshelfFromDashboard = (bookshelfId: string) => {
+        const current = getProjectsStateSync() ?? projectsState;
+        if (!current) return;
+        void saveProjectsState(setActiveBookshelf(current, bookshelfId));
+        onNewDesign();
+    };
     const dialog = useDialog();
     const { toast } = useToast();
     const [recentDesigns, setRecentDesigns] = useState<DesignSummary[]>([]);
     const [activeCategory, setActiveCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
-    const [templateUsage, setTemplateUsage] = useState<Record<string, number>>(() => {
-        if (typeof window === 'undefined') return {};
+    // Must start empty to match the server render. Reading localStorage in the
+    // initializer made the FIRST client render sort templates by usage while the
+    // server-rendered HTML had them in default order — an element-order
+    // mismatch that threw React #418 and made React discard and re-render the
+    // whole tree. Usage is loaded after mount instead.
+    const [templateUsage, setTemplateUsage] = useState<Record<string, number>>({});
+    useEffect(() => {
         const saved = localStorage.getItem('dashboard.templateUsage');
-        if (!saved) return {};
+        if (!saved) return;
         try {
-            return JSON.parse(saved) as Record<string, number>;
+            setTemplateUsage(JSON.parse(saved) as Record<string, number>);
         } catch (err) {
             console.error('Failed to parse template usage', err);
-            return {};
         }
-    });
+    }, []);
     const usageCounterRef = useRef(0);
     const [quoteIndex, setQuoteIndex] = useState(0);
 
@@ -433,8 +460,13 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
       if (!projectsState) return [];
       return [...projectsState.projects].sort((a, b) => projectTimestamp(b.id) - projectTimestamp(a.id));
   }, [projectsState]);
-  const visibleProjects = sortedProjects.slice(0, 6);
-  const moreProjects = sortedProjects.slice(6);
+
+  // Canvas ids carry their creation time the same way album ids do, so the
+  // page the user touched last floats to the front of the pages row.
+  const canvasTimestamp = (id: string): number => {
+      const match = id.match(/^cnv-(\d+)-/);
+      return match ? Number.parseInt(match[1], 10) : 0;
+  };
 
   const handleTemplateClick = (template: TemplateDescriptor) => {
       usageCounterRef.current += 1;
@@ -451,8 +483,100 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
 
     const getDesignPreviewUrl = (design: DesignSummary) => design.thumbnail || design.image || '';
 
-  const visibleDesigns = recentDesigns.slice(0, 6);
-  const moreDesigns = recentDesigns.slice(6);
+  // --- The three stack levels, newest-first, as scrolling card rows --------
+  // Pages come from two stores that both mean "a page to the user": the
+  // canvases inside albums, and standalone designs saved on the server.
+  const pageItems: StackItem[] = [
+      ...sortedProjects.flatMap((project) =>
+          [...project.canvases]
+              .sort((a, b) => canvasTimestamp(b.id) - canvasTimestamp(a.id))
+              .map((canvas): StackItem => ({
+                  id: `${project.id}:${canvas.id}`,
+                  title: canvas.name,
+                  subtitle: project.name,
+                  thumbnail: canvas.thumbnail,
+                  active: project.id === projectsState?.activeProjectId && canvas.id === project.activeCanvasId,
+                  accent: 'from-primary to-tool-accent',
+                  icon: ImageIcon,
+                  onOpen: () => openCanvasFromDashboard(project.id, canvas.id),
+                  testId: `dashboard-page-${canvas.id}`,
+              }))
+      ),
+      ...recentDesigns.map((design): StackItem => ({
+          id: `design:${design.id}`,
+          title: design.name,
+          subtitle: new Date(design.lastModified).toLocaleDateString(),
+          thumbnail: getDesignPreviewUrl(design) || null,
+          accent: 'from-sky-500 to-indigo-500',
+          icon: ImageIcon,
+          onOpen: () => onOpenDesign(design),
+          onDelete: (e) => { void handleDelete(design.id, e); },
+          deleteTitle: t('dashboard.deleteDesign'),
+          testId: `dashboard-design-${design.id}`,
+      })),
+  ];
+
+  const albumItems: StackItem[] = sortedProjects.map((project): StackItem => ({
+      id: project.id,
+      title: project.name,
+      subtitle: t('dashboard.canvasCount', { count: project.canvases.length }),
+      thumbnail: project.canvases.find((c) => c.thumbnail)?.thumbnail ?? null,
+      active: project.id === projectsState?.activeProjectId,
+      accent: 'from-amber-400 to-orange-500',
+      icon: Boxes,
+      onOpen: () => openProjectFromDashboard(project.id),
+      onDelete: (e) => { void handleDeleteProject(project, e); },
+      deleteTitle: t('dashboard.deleteProject'),
+      testId: `dashboard-project-${project.id}`,
+  }));
+
+  const bookshelfItems: StackItem[] = (projectsState?.bookshelves ?? []).map((shelf): StackItem => {
+      const albums = projectsInBookshelf(projectsState!, shelf.id);
+      return {
+          id: shelf.id,
+          title: shelf.name,
+          subtitle: t('dashboard.projectCount', { count: albums.length }),
+          thumbnail: albums.flatMap((p) => p.canvases).find((c) => c.thumbnail)?.thumbnail ?? null,
+          active: shelf.id === projectsState?.activeBookshelfId,
+          accent: 'from-emerald-500 to-teal-600',
+          icon: Library,
+          onOpen: () => openBookshelfFromDashboard(shelf.id),
+          testId: `dashboard-bookshelf-${shelf.id}`,
+      };
+  });
+
+  const stackShelves: StackShelf[] = [
+      {
+          id: 'pages',
+          title: t('dashboard.savedDesigns'),
+          count: t('dashboard.savedCount', { count: pageItems.length }),
+          hint: t('stack.pagesHint'),
+          icon: Files,
+          accent: 'from-primary to-tool-accent',
+          items: pageItems,
+          emptyLabel: t('dashboard.noDesigns'),
+      },
+      {
+          id: 'albums',
+          title: t('dashboard.projects'),
+          count: t('dashboard.projectCount', { count: albumItems.length }),
+          hint: t('stack.albumsHint'),
+          icon: Boxes,
+          accent: 'from-amber-400 to-orange-500',
+          items: albumItems,
+          emptyLabel: t('stack.noAlbums'),
+      },
+      {
+          id: 'bookshelves',
+          title: t('stack.bookshelves'),
+          count: t('stack.bookshelfCount', { count: bookshelfItems.length }),
+          hint: t('stack.bookshelvesHint'),
+          icon: Library,
+          accent: 'from-emerald-500 to-teal-600',
+          items: bookshelfItems,
+          emptyLabel: t('stack.noBookshelves'),
+      },
+  ];
 
   return (
     <div className="flex-1 bg-background p-8 overflow-y-auto">
@@ -541,177 +665,9 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
             ))}
         </div>
 
-        {/* Federation Projects Row */}
-        {projectsState && projectsState.projects.length > 0 && (
-        <section className="space-y-4">
-           <div className="flex items-center justify-between px-2">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Boxes size={20} className="text-primary" />
-                    {t('dashboard.projects')}
-                </h2>
-                <div className="text-sm text-muted-foreground">
-                    {t('dashboard.projectCount', { count: projectsState.projects.length })}
-                </div>
-           </div>
-           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {visibleProjects.map((project) => {
-                    const active = project.id === projectsState.activeProjectId;
-                    const thumb = project.canvases.find((c) => c.thumbnail)?.thumbnail;
-                    return (
-                        <div
-                            key={project.id}
-                            onClick={() => openProjectFromDashboard(project.id)}
-                            className={`group text-left rounded-xl border overflow-hidden transition-all hover:shadow-md cursor-pointer ${
-                                active ? 'border-primary/40 ring-1 ring-primary/30' : 'border-border/60 hover:border-primary/30'
-                            }`}
-                            title={t('dashboard.openProject')}
-                            data-testid={`dashboard-project-${project.id}`}
-                        >
-                            <div className="aspect-square bg-secondary/40 flex items-center justify-center overflow-hidden">
-                                {thumb ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={thumb} alt={project.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <Boxes size={28} className="text-muted-foreground/40" />
-                                )}
-                            </div>
-                            <div className="p-2 flex items-center justify-between gap-1">
-                                <div className="min-w-0">
-                                    <h3 className="font-medium text-xs truncate">{project.name}</h3>
-                                    <p className="text-[10px] text-muted-foreground">
-                                        {t('dashboard.canvasCount', { count: project.canvases.length })}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={(e) => handleDeleteProject(project, e)}
-                                    className="shrink-0 text-muted-foreground hover:text-destructive p-1 rounded-full hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
-                                    title={t('dashboard.deleteProject')}
-                                >
-                                    <Trash2 size={12} />
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })}
-           </div>
-           {moreProjects.length > 0 && (
-               <div className="flex justify-center">
-                   <MoreItemsDropdown
-                       label={t('dashboard.moreProjects', { count: moreProjects.length })}
-                       items={moreProjects}
-                       getId={(project) => project.id}
-                       getName={(project) => project.name}
-                       getThumbnail={(project) => project.canvases.find((c) => c.thumbnail)?.thumbnail ?? undefined}
-                       getSubtitle={(project) => t('dashboard.canvasCount', { count: project.canvases.length })}
-                       onOpen={(project) => openProjectFromDashboard(project.id)}
-                       onDelete={(project, e) => handleDeleteProject(project, e)}
-                       deleteTitle={t('dashboard.deleteProject')}
-                   />
-               </div>
-           )}
-        </section>
-        )}
+        {/* Stack: pages, albums and bookshelves as collapsing rows */}
+        <StackAccordion shelves={stackShelves} />
 
-        {/* Recent Designs Row */}
-        <section className="space-y-4">
-           <div className="flex items-center justify-between px-2">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Clock size={20} className="text-primary" />
-                    {t('dashboard.savedDesigns')}
-                </h2>
-                <div className="text-sm text-muted-foreground">{t('dashboard.savedCount', { count: recentDesigns.length })}</div>
-           </div>
-           
-           {recentDesigns.length === 0 ? (
-               <div className="text-center py-20 bg-secondary/20 rounded-2xl border border-dashed border-border text-muted-foreground flex flex-col items-center gap-4">
-                   <div className="p-4 bg-background rounded-full shadow-sm">
-                        <Plus size={32} className="text-primary/50" />
-                   </div>
-                   <div>
-                       <p className="font-medium">{t('dashboard.noDesigns')}</p>
-                       <p className="text-sm mt-1">{t('dashboard.noDesignsHint')}</p>
-                   </div>
-               </div>
-           ) : (
-           <>
-               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-6 gap-3">
-                  {visibleDesigns.map(design => (
-                            (() => {
-                                const previewUrl = getDesignPreviewUrl(design);
-                                return (
-                     <div 
-                        key={design.id} 
-                        onClick={() => onOpenDesign(design)}
-                        className="group bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg transition-all cursor-pointer relative flex flex-col aspect-[3/4]"
-                     >
-                            <div className="flex-1 bg-secondary/50 flex items-center justify-center relative bg-checkerboard overflow-hidden">
-                                     {previewUrl ? (
-                                <Image
-                                                src={previewUrl}
-                                    alt={design.name}
-                                    fill
-                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 12vw"
-                                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                    unoptimized
-                                />
-                            ) : (
-                                <ImageIcon className="text-muted-foreground/30 w-8 h-8" />
-                            )}
-                            
-                            {/* Overlay */}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <span className="bg-white text-black px-3 py-1 rounded-full font-semibold text-xs transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                                    {t('dashboard.editDesign')}
-                                </span>
-                            </div>
-                        </div>
-                        
-                        <div className="p-2.5 flex items-center justify-between bg-card shrink-0">
-                           <div className="min-w-0 w-full">
-                              <h3 className="font-medium text-xs text-foreground truncate" title={design.name}>{design.name}</h3>
-                              <div className="flex items-center justify-between mt-0.5">
-                                  <span className="text-[10px] text-muted-foreground">{new Date(design.lastModified).toLocaleDateString()}</span>
-                                  <button 
-                                        onClick={(e) => handleDelete(design.id, e)}
-                                        className="text-muted-foreground hover:text-destructive p-1 rounded-full hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
-                                        title={t('dashboard.deleteDesign')}
-                                    >
-                                      <Trash2 size={12} />
-                                   </button>
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-                                );
-                            })()
-                  ))}
-               </div>
-
-                {/* Rest of the pages, collapsed behind a dropdown so the grid never grows unbounded */}
-                {moreDesigns.length > 0 && (
-                    <div className="relative py-4 flex items-center justify-center">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-border"></div>
-                        </div>
-                        <div className="relative bg-background">
-                            <MoreItemsDropdown
-                                label={t('dashboard.showAll', { count: moreDesigns.length })}
-                                items={moreDesigns}
-                                getId={(design) => design.id}
-                                getName={(design) => design.name}
-                                getThumbnail={(design) => getDesignPreviewUrl(design) || undefined}
-                                getSubtitle={(design) => new Date(design.lastModified).toLocaleDateString()}
-                                onOpen={(design) => onOpenDesign(design)}
-                                onDelete={(design, e) => handleDelete(design.id, e)}
-                                deleteTitle={t('dashboard.deleteDesign')}
-                            />
-                        </div>
-                    </div>
-                )}
-           </>
-           )}
-        </section>
 
         {/* Popular Templates Row */}
         <section className="space-y-4">

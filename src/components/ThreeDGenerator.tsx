@@ -73,7 +73,9 @@ interface ThreeDGeneratorProps {
     layerImageOptions?: Array<{ id: string; label: string; imageUrl: string }>;
     onStartBackgroundJob?: (job: Partial<BackgroundJob>) => void; // Parent handles logic
     onRecoverBackgroundJob?: (job: Partial<BackgroundJob>) => void;
-    activeJob?: BackgroundJob | null; // Pass active job if it exists
+    activeJob?: BackgroundJob | null; // The job the preview pane follows
+    /** Every queued/running job, so the panel can show them all at once. */
+    activeJobs?: BackgroundJob[];
     currentUser?: string;
 }
 
@@ -188,7 +190,7 @@ const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) 
 };
 
 
-export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, layerImageOptions, onStartBackgroundJob, onRecoverBackgroundJob, activeJob, currentUser }: ThreeDGeneratorProps) {
+export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings, initialImage, layerImageOptions, onStartBackgroundJob, onRecoverBackgroundJob, activeJob, activeJobs = [], currentUser }: ThreeDGeneratorProps) {
     const dialog = useDialog();
     const { toast } = useToast();
     const { t } = useI18n();
@@ -261,17 +263,13 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
     const jobProgress = activeJob?.progress || 0;
     const modelUrl = activeJob?.resultUrl || null;
     const canPreviewModelInApp = Boolean(modelUrl && /\.(glb|gltf)(?:$|[?#])/i.test(modelUrl));
-    const isJobRunning = activeJob?.status === 'IN_PROGRESS' || activeJob?.status === 'PENDING';
 
-    useEffect(() => {
-        if (activeJob) {
-             const loading = activeJob.status === 'IN_PROGRESS' || activeJob.status === 'PENDING';
-             if (isLoading !== loading) setIsLoading(loading);
-        } else {
-             
-            if (isLoading) setIsLoading(false);
-        }
-    }, [activeJob, isLoading]);
+    // `isLoading` tracks SUBMISSION only, never the running job. It used to be
+    // force-synced from activeJob, which disabled the Generate button for the
+    // whole (minutes-long) generation — and for unrelated jobs too, since
+    // activeJob is just the first running job. Queueing several generations is
+    // supported by the job list, so the button re-enables as soon as the
+    // request has been accepted.
     
     // Load API Key
 
@@ -642,6 +640,10 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 }
             } catch (e) {
                 console.error(e);
+            } finally {
+                // Always release the button once the request has been accepted
+                // (or rejected). Progress lives in the job list from here on,
+                // and the user is free to queue another generation.
                 setIsLoading(false);
             }
         });
@@ -1308,21 +1310,21 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                 <button onClick={onClose} className="text-muted-foreground hover:text-foreground">X</button>
             </div>
 
-            {/* Service Selection */}
-            {!isJobRunning && !modelUrl && (
-                <div className="px-4 pt-3">
-                    <label className="text-xs text-muted-foreground font-medium mb-1 block">{t('gen3d.provider')}</label>
-                    <select 
-                        value={selectedProvider} 
-                        onChange={handleProviderChange}
-                        className="w-full rounded border border-border bg-secondary/50 p-2 text-xs text-foreground outline-none focus:border-primary dark:bg-zinc-950"
-                    >
-                        {SUPPORTED_PROVIDERS.map(p => (
-                            <option key={p} value={p} className="bg-zinc-950 text-white">{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                        ))}
-                    </select>
-                </div>
-            )}
+            {/* Service Selection — always visible. Hiding it while a job ran
+                (or after any result) locked users out of queueing further
+                generations or trying a different provider. */}
+            <div className="px-4 pt-3">
+                <label className="text-xs text-muted-foreground font-medium mb-1 block">{t('gen3d.provider')}</label>
+                <select
+                    value={selectedProvider}
+                    onChange={handleProviderChange}
+                    className="w-full rounded border border-border bg-secondary/50 p-2 text-xs text-foreground outline-none focus:border-primary dark:bg-zinc-950"
+                >
+                    {SUPPORTED_PROVIDERS.map(p => (
+                        <option key={p} value={p} className="bg-zinc-950 text-white">{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                    ))}
+                </select>
+            </div>
 
             <div className="p-4 space-y-4">
 
@@ -1825,14 +1827,40 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                     </div>
                 )}
 
-                <button 
+                <button
                     onClick={handleGenerate}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2 rounded-md font-medium text-sm hover:bg-primary/90 disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2 rounded-md font-medium text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isLoading ? <Loader2 className="animate-spin" size={16}/> : <RotateCw size={16}/>}
-                    {isLoading ? t('gen3d.generating') : (initialImage ? t('gen3d.transformTo3d') : t('gen3d.generate3dModel'))}
+                    {isLoading ? t('gen3d.submitting') : (initialImage ? t('gen3d.transformTo3d') : t('gen3d.generate3dModel'))}
                 </button>
+
+                {/* Every queued/running generation, not just the first. */}
+                {activeJobs.length > 0 && (
+                    <div className="space-y-1">
+                        <p className="text-[11px] font-medium text-muted-foreground">
+                            {t('gen3d.jobsRunning', { count: activeJobs.length })}
+                        </p>
+                        <ul className="space-y-1">
+                            {activeJobs.map((job) => (
+                                <li
+                                    key={job.id}
+                                    className="flex items-center gap-2 rounded-md border border-border/50 bg-secondary/40 px-2 py-1.5"
+                                >
+                                    <Loader2 className="animate-spin shrink-0 text-muted-foreground" size={12} />
+                                    <span className="min-w-0 flex-1 truncate text-[11px]" title={job.prompt || job.id}>
+                                        {job.prompt?.trim() || job.id}
+                                    </span>
+                                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                                        {job.progress ?? 0}%
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
                 {jobStatus && <p className="text-xs text-center text-muted-foreground">
                     {jobStatus === 'SUCCEEDED' ? t('gen3d.complete') :
                      jobStatus === 'FAILED' ? (activeJob?.error ? t('gen3d.failedWithReason', { reason: activeJob.error }) : t('gen3d.failed')) :

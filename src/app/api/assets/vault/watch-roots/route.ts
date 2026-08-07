@@ -12,12 +12,6 @@ import {
     readVaultCatalog,
     writeVaultCatalog,
 } from '@/lib/server/vault-store';
-import {
-    buildAssetEmbeddingText,
-    hashTextEmbedding,
-    upsertVector,
-} from '@/features/asset-vault/domain/vectorMath';
-import { readVectorStore, writeVectorStore } from '@/lib/server/vaultWatchStore';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
 import { decideVaultPathAccess } from '@/lib/server/vaultFilesystemPolicy';
 
@@ -112,9 +106,9 @@ export async function PUT(request: Request) {
         };
         await upsertWatchRoot(scanning);
 
-        let files: Awaited<ReturnType<typeof scanDirectoryRecursive>> = [];
+        let scan: Awaited<ReturnType<typeof scanDirectoryRecursive>> = { files: [], truncated: false };
         try {
-            files = await scanDirectoryRecursive(root.rootUri, { maxFiles: 8000 });
+            scan = await scanDirectoryRecursive(root.rootUri);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Scan failed';
             await upsertWatchRoot({
@@ -135,9 +129,18 @@ export async function PUT(request: Request) {
         const kept = catalog.assets.filter(
             (asset) => !(asset.origin.connector === 'local' && asset.origin.watchRootId === root.id),
         );
-        const scannedAssets: VaultAssetRecord[] = files.map((file) => {
+        // Asset ids are stable across rescans; keep prior AI enrichment
+        // (descriptions, tags) instead of wiping it on every scan.
+        const priorById = new Map(
+            catalog.assets
+                .filter((asset) => asset.origin.connector === 'local' && asset.origin.watchRootId === root.id)
+                .map((asset) => [asset.id, asset]),
+        );
+        const scannedAssets: VaultAssetRecord[] = scan.files.map((file) => {
             const type = inferVaultAssetType(file.name);
+            const prior = priorById.get(stableVaultAssetId('vdrv', `${root.id}:${file.relativePath}`));
             return {
+                ...(prior ?? {}),
                 id: stableVaultAssetId('vdrv', `${root.id}:${file.relativePath}`),
                 name: file.name,
                 mimeType: 'application/octet-stream',
@@ -166,34 +169,28 @@ export async function PUT(request: Request) {
         };
         await writeVaultCatalog(nextCatalog);
 
-        if (body.embed) {
-            let vectors = await readVectorStore();
-            const now = new Date().toISOString();
-            for (const asset of scannedAssets) {
-                const text = buildAssetEmbeddingText(asset);
-                vectors = upsertVector(vectors, {
-                    assetId: asset.id,
-                    model: 'hash-text-v1',
-                    dims: 64,
-                    vector: hashTextEmbedding(text, 64),
-                    updatedAt: now,
-                });
-            }
-            await writeVectorStore(vectors);
-        }
+        // Hash vectors are a deterministic function of the asset text, so they
+        // are derived at search time rather than persisted. Writing them here
+        // produced a vector store hundreds of MB large that carried no
+        // information the catalog did not already hold. Only real embedding
+        // vectors (from Ollama) are worth storing, and those are backfilled by
+        // the search/enrichment paths — which must not be clobbered here.
 
         await upsertWatchRoot({
             ...root,
             lastScanAt: new Date().toISOString(),
             lastScanStatus: 'ready',
-            estimatedFileCount: files.length,
-            lastError: undefined,
+            estimatedFileCount: scan.files.length,
+            lastError: scan.truncated
+                ? `Scan stopped at the ${scan.files.length} file limit; this folder has more to index.`
+                : undefined,
             updatedAt: new Date().toISOString(),
         });
 
         return jsonWithRequestId(request, {
             success: true as const,
-            fileCount: files.length,
+            fileCount: scan.files.length,
+            truncated: scan.truncated,
             rootId: root.id,
         });
     } catch (error) {

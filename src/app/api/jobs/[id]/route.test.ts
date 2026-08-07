@@ -56,7 +56,7 @@ describe('generation job API contracts', () => {
         });
     });
 
-    it('returns and cleans up a completed result', async () => {
+    it('returns a completed result without destroying the job record', async () => {
         mockReadGenerateJob.mockResolvedValueOnce({
             state: {
                 id: 'job_12345678-1234-1234-1234-123456789abc',
@@ -76,9 +76,38 @@ describe('generation job API contracts', () => {
             imageUrl: '/api/assets/serve/generated/images/output.png',
             meta: { provider: 'test' },
         });
+        // Retrieval is non-destructive: only the transient uploads are cleaned.
+        // The record and its stable result URL survive so a reload or a repeat
+        // fetch still resolves — deleting on read used to lose the output.
         expect(mockCleanupGenerateJobArtifacts).toHaveBeenCalledWith(
             'job_12345678-1234-1234-1234-123456789abc',
-            { removeJobRecord: true, removeUploads: true },
+            { removeJobRecord: false, removeUploads: true },
         );
+    });
+
+    it('serves the same completed result on a repeat fetch', async () => {
+        const job = {
+            state: {
+                id: 'job_12345678-1234-1234-1234-123456789abc',
+                status: 'succeeded',
+            },
+            output: {
+                imageUrl: '/api/assets/serve/generated/images/output.png',
+                meta: { provider: 'test' },
+            },
+        };
+        mockReadGenerateJob.mockResolvedValue(job);
+
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+            const response = await getJobResult(
+                request(),
+                context('job_12345678-1234-1234-1234-123456789abc'),
+            );
+            expect(response.status).toBe(200);
+            await expect(response.json()).resolves.toEqual({
+                imageUrl: '/api/assets/serve/generated/images/output.png',
+                meta: { provider: 'test' },
+            });
+        }
     });
 });

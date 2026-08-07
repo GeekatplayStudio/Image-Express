@@ -65,7 +65,10 @@ export function searchVectors(
     queryVector: number[],
     limit = 40,
 ): Array<{ assetId: string; score: number }> {
+    // Vectors from different embedding models are not comparable; cosine over
+    // mismatched dimensions would silently score 0 and hide the asset.
     return store
+        .filter((entry) => entry.dims === queryVector.length)
         .map((entry) => ({ assetId: entry.assetId, score: cosineSimilarity(queryVector, entry.vector) }))
         .filter((entry) => entry.score > 0.05)
         .sort((a, b) => b.score - a.score)

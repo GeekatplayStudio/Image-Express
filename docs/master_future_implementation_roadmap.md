@@ -1,7 +1,7 @@
 # Image Express Master Future Implementation Roadmap (Canonical)
 
 Status: Active  
-Last updated: 2026-05-16  
+Last updated: 2026-08-07  
 Repository: `Image-Express`  
 Branch baseline: `main`
 
@@ -41,7 +41,7 @@ Rule:
 | R-03 | AI critique quality program | P1 | In progress | Bible 12.2, Tracker #14 | M1 |
 | R-04 | Ollama local generation quality track | P1 | In progress | Bible 12.3, Tracker #13/#14 queue | M1 |
 | R-05 | Channels advanced workflows | P1 | Partial | Bible 12.4, Tracker #36 | M1 |
-| R-06 | Background jobs control center | P2 | Planned | Bible 12.10 | M2 |
+| R-06 | Background jobs control center | P2 | In progress (unified server queue + pipeline rail + cancel/retry delivered 2026-08-07; global Activity panel and server-side provider polling remain) | Bible 12.10, `docs/JOB_QUEUE.md` | M2 |
 | R-07 | Asset library import/export bundle | P2 | Delivered (v1 shipped; roadmap closure/update needed) | Bible 12.5, Tracker #18, Baseline audit 2026-05-16 | M2 |
 | R-08 | Additional cloud storage providers | P2 | Partial (Drive only) | Bible 12.6, Tracker #19 | M2 |
 | R-09 | Facebook auth integration | P2 | Not started | Bible 12.7, Tracker #38 | M3 |
@@ -283,6 +283,24 @@ Acceptance criteria:
 ### R-06: Background Jobs Control Center (P2)
 Goal:
 - Upgrade passive job footer into an actionable jobs management panel.
+
+Current implementation status (2026-08-07):
+- **Delivered.** A unified server-side job queue now owns execution:
+  `src/lib/server/jobQueue/` (durable store, lane-based concurrency,
+  lease-based crash recovery, retries, event emission), SSE push at
+  `/api/queue/stream`, cancel/retry at `/api/queue/[id]/cancel|retry`,
+  and a global preference-controlled Pipeline Rail
+  (`src/components/PipelineRail.tsx`) that merges both job systems, shows
+  the nine pipeline stages, distinguishes external-API from local work,
+  surfaces failure reasons inline, and toasts on completion.
+  `POST /api/generate` no longer executes inside the request handler, and
+  `GET /api/jobs/[id]/result` is no longer destructive.
+  Full design record: `docs/JOB_QUEUE.md`.
+- **Remaining:** move Meshy/Tripo/Hitems/Stability polling from the browser
+  into queue workers (today a closed tab still abandons those jobs);
+  cancellation of already-running jobs (needs handler abort signals);
+  a full Activity panel with history/reorder; OS-level notifications when
+  the window is unfocused.
 
 Primary current files:
 - `src/components/JobStatusFooter.tsx`
@@ -651,7 +669,7 @@ Dependencies:
 6. R-03 AI Critique Quality (P1)
 7. R-04 Ollama Quality Track (P1)
 8. R-05 Channels Advanced (P1)
-9. R-06 and R-11 together (jobs + provider reliability)
+9. R-06 (core delivered 2026-08-07 — see status above) and R-11 together (jobs + provider reliability)
 10. R-07 and R-08 together (asset portability + cloud expansion)
 11. R-15 and R-16 together (resizable UI shell + interface customization)
 12. R-09 then R-10 (auth before direct posting)

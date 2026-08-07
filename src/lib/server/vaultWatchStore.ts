@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, stat, rename, realpath } from 'node:fs/promises';
 import { getVaultDir } from '@/lib/server/appPaths';
 import {
     WatchRootStoreSchema,
@@ -14,7 +14,11 @@ const VECTORS_PATH = () => path.join(getVaultDir(), 'vectors.json');
 
 async function atomicWriteJson(filePath: string, data: unknown) {
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+    // Write to a temp file and rename so a crash mid-write can never leave a
+    // truncated store (which would silently read back as an empty index).
+    const tmpPath = `${filePath}.${process.pid}.tmp`;
+    await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
+    await rename(tmpPath, filePath);
 }
 
 export async function readWatchRootStore(): Promise<WatchRootStore> {
@@ -49,45 +53,104 @@ export async function removeWatchRoot(rootId: string): Promise<WatchRootStore> {
     return next;
 }
 
+// In-memory cache of the vector index. Parsing a multi-megabyte JSON file on
+// every search request was the dominant cost; keep it hot and invalidate on
+// file mtime so external edits are still picked up.
+let vectorCache: { records: VectorRecord[]; mtimeMs: number } | null = null;
+
 export async function readVectorStore(): Promise<VectorRecord[]> {
+    const filePath = VECTORS_PATH();
     try {
-        const raw = await readFile(VECTORS_PATH(), 'utf8');
+        const fileStat = await stat(filePath);
+        if (vectorCache && vectorCache.mtimeMs === fileStat.mtimeMs) {
+            return vectorCache.records;
+        }
+        const raw = await readFile(filePath, 'utf8');
         const parsed = JSON.parse(raw) as { vectors?: VectorRecord[] };
-        return Array.isArray(parsed.vectors) ? parsed.vectors : [];
+        const records = Array.isArray(parsed.vectors) ? parsed.vectors : [];
+        vectorCache = { records, mtimeMs: fileStat.mtimeMs };
+        return records;
     } catch (error) {
         const maybeErr = error as NodeJS.ErrnoException;
         if (maybeErr.code !== 'ENOENT') console.error('Failed reading vector store:', error);
-        return [];
+        return vectorCache?.records ?? [];
     }
 }
 
 export async function writeVectorStore(vectors: VectorRecord[]): Promise<void> {
-    await atomicWriteJson(VECTORS_PATH(), { version: 1, updatedAt: new Date().toISOString(), vectors });
+    const filePath = VECTORS_PATH();
+    await atomicWriteJson(filePath, { version: 1, updatedAt: new Date().toISOString(), vectors });
+    try {
+        const fileStat = await stat(filePath);
+        vectorCache = { records: vectors, mtimeMs: fileStat.mtimeMs };
+    } catch {
+        vectorCache = null;
+    }
 }
 
 const DEFAULT_EXTENSIONS = new Set(VAULT_INDEX_EXTENSIONS.map((ext) => ext.toLowerCase()));
 
-export async function scanDirectoryRecursive(
-    rootPath: string,
-    options?: { maxFiles?: number },
-): Promise<Array<{
+// Whole-drive scans otherwise spend most of their budget inside OS and
+// toolchain folders that never contain user assets.
+const SKIP_FOLDERS = new Set([
+    'node_modules',
+    '.git',
+    'system volume information',
+    '$recycle.bin',
+    'windows',
+    'program files',
+    'program files (x86)',
+    'programdata',
+    'appdata',
+    'recovery',
+    '__pycache__',
+    'venv',
+    '.venv',
+    'site-packages',
+    'dist-info',
+]);
+
+export type ScannedFile = {
     absolutePath: string;
     relativePath: string;
     name: string;
     sizeBytes: number;
     modifiedAt: string;
-}>> {
-    const maxFiles = options?.maxFiles ?? 5000;
-    const results: Array<{
-        absolutePath: string;
-        relativePath: string;
-        name: string;
-        sizeBytes: number;
-        modifiedAt: string;
-    }> = [];
+};
+
+export type ScanResult = {
+    files: ScannedFile[];
+    /** True when the walk stopped at maxFiles — the root has more to index. */
+    truncated: boolean;
+};
+
+/** Default ceiling for one scan. Override with IMAGE_EXPRESS_VAULT_MAX_SCAN_FILES. */
+export const DEFAULT_MAX_SCAN_FILES = (() => {
+    const configured = Number.parseInt(process.env.IMAGE_EXPRESS_VAULT_MAX_SCAN_FILES ?? '', 10);
+    return Number.isFinite(configured) && configured > 0 ? configured : 200_000;
+})();
+
+export async function scanDirectoryRecursive(
+    rootPath: string,
+    options?: { maxFiles?: number },
+): Promise<ScanResult> {
+    const maxFiles = options?.maxFiles ?? DEFAULT_MAX_SCAN_FILES;
+    const results: ScannedFile[] = [];
+    let truncated = false;
+    // Guard against symlink loops: a directory link pointing at an ancestor
+    // would otherwise recurse until maxFiles, wasting the whole budget.
+    const visitedDirs = new Set<string>();
 
     async function walk(current: string, relative: string) {
-        if (results.length >= maxFiles) return;
+        if (results.length >= maxFiles) { truncated = true; return; }
+        let realCurrent = current;
+        try {
+            realCurrent = await realpath(current);
+        } catch {
+            return;
+        }
+        if (visitedDirs.has(realCurrent)) return;
+        visitedDirs.add(realCurrent);
         let entries;
         try {
             entries = await readdir(current, { withFileTypes: true });
@@ -95,11 +158,11 @@ export async function scanDirectoryRecursive(
             return;
         }
         for (const entry of entries) {
-            if (results.length >= maxFiles) return;
+            if (results.length >= maxFiles) { truncated = true; return; }
             const name = entry.name;
             if (name.startsWith('.')) continue;
             const lower = name.toLowerCase();
-            if (lower === 'node_modules' || lower === '.git' || lower === 'system volume information') continue;
+            if (SKIP_FOLDERS.has(lower)) continue;
             const absolutePath = path.join(current, name);
             const relativePath = relative ? path.join(relative, name) : name;
             if (entry.isDirectory()) {
@@ -126,5 +189,5 @@ export async function scanDirectoryRecursive(
     }
 
     await walk(rootPath, '');
-    return results;
+    return { files: results, truncated };
 }

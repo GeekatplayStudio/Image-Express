@@ -194,11 +194,13 @@ describe('Dashboard Component', () => {
             return Promise.resolve({ json: () => Promise.resolve({ success: true, designs: [] }) });
         });
 
-        await renderDashboard();
+        const { container } = await renderDashboard();
 
+        // The pages shelf still renders — it just carries no server-saved page.
         await waitFor(() => {
-            expect(screen.getByText('No saved pages yet.')).toBeInTheDocument();
+            expect(screen.getByTestId('stack-shelf-pages')).toBeInTheDocument();
         });
+        expect(container.querySelectorAll('[data-testid^="dashboard-design-"]')).toHaveLength(0);
         expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
 });
