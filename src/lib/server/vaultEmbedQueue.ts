@@ -10,8 +10,14 @@ import { getQueue } from '@/lib/server/jobQueue';
  * all competing to embed the same assets.
  */
 
-export const VAULT_EMBED_JOB_KIND = 'vault-embed';
-export const VAULT_THUMBS_JOB_KIND = 'vault-thumbs';
+export {
+    VAULT_EMBED_JOB_KIND,
+    VAULT_THUMBS_JOB_KIND,
+} from '@/features/asset-vault/contracts/vaultIndexJobs';
+import {
+    VAULT_EMBED_JOB_KIND,
+    VAULT_THUMBS_JOB_KIND,
+} from '@/features/asset-vault/contracts/vaultIndexJobs';
 
 /**
  * True while a vault-embed job is queued or running.
@@ -34,7 +40,9 @@ async function isKindInFlight(kind: string): Promise<boolean> {
  * page decoded 96 images before it could draw anything; doing it in advance is
  * the difference between "opens instantly" and "hangs for ten seconds".
  */
-export async function requestVaultThumbnails(): Promise<string | null> {
+export async function requestVaultThumbnails(
+    options?: { continuous?: boolean },
+): Promise<string | null> {
     if (await isKindInFlight(VAULT_THUMBS_JOB_KIND)) return null;
 
     const job = await getQueue().enqueue({
@@ -42,7 +50,11 @@ export async function requestVaultThumbnails(): Promise<string | null> {
         lane: 'local-cpu',
         external: false,
         label: 'Preparing vault thumbnails',
-        payload: {},
+        // `continuous` turns one bounded pass into a service: each pass chains
+        // the next with a cursor until the whole catalog is covered. Used by
+        // the user-facing "Index & precache" action; the passive warm on vault
+        // open stays a single pass.
+        payload: options?.continuous ? { continuous: true } : {},
         // Below embedding, which is below interactive work: a thumbnail is a
         // nicety, a generation the user is waiting on is not.
         priority: -20,
@@ -56,7 +68,10 @@ export async function requestVaultThumbnails(): Promise<string | null> {
  * Returns the job id, or null when indexing was already in flight — the normal
  * case once the first search has started it.
  */
-export async function requestVaultEmbedding(pendingCount: number): Promise<string | null> {
+export async function requestVaultEmbedding(
+    pendingCount: number,
+    options?: { continuous?: boolean },
+): Promise<string | null> {
     if (pendingCount <= 0) return null;
     if (await isKindInFlight(VAULT_EMBED_JOB_KIND)) return null;
 
@@ -67,7 +82,9 @@ export async function requestVaultEmbedding(pendingCount: number): Promise<strin
         lane: 'local-cpu',
         external: false,
         label: `Indexing ${pendingCount.toLocaleString()} assets for search`,
-        payload: { pendingCount },
+        payload: options?.continuous
+            ? { pendingCount, continuous: true }
+            : { pendingCount },
         // Below interactive work: a generation the user is waiting on should
         // never queue behind background indexing.
         priority: -10,

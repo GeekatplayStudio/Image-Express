@@ -19,6 +19,30 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-08 — The indexing service: click once, runs itself, stoppable
+
+**"Index & precache" now exists as a service.** A skinny strip at the bottom of
+the vault starts it, streams what it is doing ("Prepared 1,036 thumbnails —
+40,339 of 220,644 checked…") with a thin progress bar, and stops it. The run
+chains bounded passes with a cursor until the whole catalog is thumbnailed and
+embedded — no pass holds a queue lane for hours, interactive work always
+preempts it, and a crash costs at most one pass because progress lives in the
+cache and the vector store.
+
+**Running jobs can now be stopped.** The queue's cancel endpoint previously
+409'd anything that had started. Cancel now sets a cooperative flag; handlers
+check it between batches and exit cleanly, and a stop that was *acknowledged*
+finishes the job as `cancelled` — while a handler that never checks (a
+generation mid-provider-call) still completes as `succeeded`, so a produced
+result is never hidden behind a cancel. Verified live: Stop flipped the strip
+to idle in under two seconds mid-pass.
+
+**Resource discipline, measured:** four decodes then a 50 ms pause
+(tunable via `IMAGE_EXPRESS_THUMB_PAUSE_MS`); a grid tile served in ~110 ms
+while the service was indexing. Files sharp cannot decode (RAW, `.hdr`) are
+remembered and skipped instead of re-read and re-failed every pass — a folder
+of HDR panoramas previously made the service grind while producing nothing.
+
 ## 2026-08-08 — Preview reliability: the serve route, the reopen bug, tile retries
 
 **Every reopen of the vault showed "No assets found".** Reproduced 100%

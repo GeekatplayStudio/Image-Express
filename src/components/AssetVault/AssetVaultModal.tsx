@@ -13,6 +13,7 @@ import VaultSourceSwitch from '@/components/AssetVault/VaultSourceSwitch';
 import VaultAssetGridPanel from '@/components/AssetVault/VaultAssetGridPanel';
 import VaultAssetDetailsPanel from '@/components/AssetVault/VaultAssetDetailsPanel';
 import VaultModalFooter from '@/components/AssetVault/VaultModalFooter';
+import VaultIndexingBar from '@/components/AssetVault/VaultIndexingBar';
 import VaultModalOverlays from '@/components/AssetVault/VaultModalOverlays';
 import { useVaultCatalog } from '@/components/AssetVault/useVaultCatalog';
 import { useVaultBrowse } from '@/components/AssetVault/useVaultBrowse';
@@ -449,6 +450,7 @@ export default function AssetVaultModal({
                             )}
                         </main>
 
+                        <VaultIndexingBar isOpen={isOpen} />
                         <VaultModalFooter
                             statusMessage={catalog.statusMessage}
                             resultCount={browse.displayedAssets.length}

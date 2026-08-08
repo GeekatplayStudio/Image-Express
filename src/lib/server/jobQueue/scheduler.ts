@@ -49,6 +49,15 @@ export class JobScheduler {
     private handlers = new Map<string, QueueJobHandler>();
     private listeners = new Set<QueueListener>();
     private running = new Set<string>();
+    /**
+     * Running jobs the user has asked to stop.
+     *
+     * A stop is a *request*, not a kill: the handler owns provider calls and
+     * open file handles, so it checks `stopRequested()` at its own safe points
+     * (between batches) and exits cleanly. In-memory only, deliberately — if
+     * the process dies the job dies with it, so there is nothing to stop.
+     */
+    private stopRequests = new Set<string>();
     private ready: Promise<void>;
     private pumping = false;
 
@@ -123,19 +132,37 @@ export class JobScheduler {
     async cancel(id: string): Promise<QueueJobRecord | undefined> {
         await this.ready;
         const job = this.store.get(id);
-        // Only queued jobs can be cancelled cooperatively today; a running
-        // handler owns its own abort semantics.
-        if (!job || job.status !== 'queued') return job;
-        const cancelled: QueueJobRecord = {
-            ...job,
-            status: 'cancelled',
-            message: 'Cancelled',
-            finishedAt: nowIso(),
-            updatedAt: nowIso(),
-        };
-        this.store.upsert(cancelled);
-        this.emit({ type: 'job', job: cancelled });
-        return cancelled;
+        if (!job) return job;
+
+        if (job.status === 'queued') {
+            const cancelled: QueueJobRecord = {
+                ...job,
+                status: 'cancelled',
+                message: 'Cancelled',
+                finishedAt: nowIso(),
+                updatedAt: nowIso(),
+            };
+            this.store.upsert(cancelled);
+            this.emit({ type: 'job', job: cancelled });
+            return cancelled;
+        }
+
+        // A running job is stopped cooperatively: flag it, tell the user, and
+        // let the handler exit at its next safe point. Long background passes
+        // (indexing, thumbnail precache) check the flag between batches.
+        if (job.status === 'running') {
+            this.stopRequests.add(id);
+            const stopping: QueueJobRecord = {
+                ...job,
+                message: 'Stopping…',
+                updatedAt: nowIso(),
+            };
+            this.store.upsert(stopping);
+            this.emit({ type: 'job', job: stopping });
+            return stopping;
+        }
+
+        return job;
     }
 
     /**
@@ -253,8 +280,23 @@ export class JobScheduler {
             this.emit({ type: 'job', job: next });
         };
 
-        void handler({ job: started, update })
+        // 'cancelled' is recorded only when the handler *acknowledged* the
+        // stop — it asked, was told yes, and returned early. A handler that
+        // never checks (a generate job mid-provider-call) completes its work
+        // in full, and reporting that as cancelled would hide a real result.
+        let stopAcknowledged = false;
+        const stopRequested = () => {
+            const requested = this.stopRequests.has(job.id);
+            if (requested) stopAcknowledged = true;
+            return requested;
+        };
+
+        void handler({ job: started, update, stopRequested })
             .then(async (result) => {
+                if (stopAcknowledged) {
+                    await this.finish(job.id, { status: 'cancelled' });
+                    return;
+                }
                 await this.finish(job.id, {
                     status: 'succeeded',
                     stage: 'retrieve',
@@ -282,6 +324,7 @@ export class JobScheduler {
             })
             .finally(() => {
                 this.running.delete(job.id);
+                this.stopRequests.delete(job.id);
                 void this.pump();
             });
     }
@@ -292,7 +335,11 @@ export class JobScheduler {
         const finished: QueueJobRecord = {
             ...current,
             ...patch,
-            message: patch.status === 'succeeded' ? 'Completed' : (patch.error ?? current.message),
+            message: patch.status === 'succeeded'
+                ? 'Completed'
+                : patch.status === 'cancelled'
+                    ? 'Stopped'
+                    : (patch.error ?? current.message),
             finishedAt: nowIso(),
             updatedAt: nowIso(),
             leaseUntil: undefined,

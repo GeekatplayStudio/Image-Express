@@ -6,9 +6,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Cancel a queued job. Jobs that already started are not cancellable —
- * handlers own their provider calls and cannot be interrupted safely, so
- * this reports 409 rather than leaving a half-run job in a lying state.
+ * Cancel a queued job, or ask a running one to stop.
+ *
+ * A queued job is cancelled immediately. A running job gets a cooperative
+ * stop request: the handler owns its provider calls and open handles, so it
+ * exits at its next safe point (indexing and precache passes check between
+ * batches) and the job finishes as 'cancelled'. Only terminal jobs report 409.
  */
 export async function POST(
     request: Request,
@@ -27,7 +30,7 @@ export async function POST(
                 status: 404,
             });
         }
-        if (existing.status !== 'queued') {
+        if (existing.status !== 'queued' && existing.status !== 'running') {
             return apiError(request, {
                 code: 'job_not_cancellable',
                 message: `Job is ${existing.status} and can no longer be cancelled.`,

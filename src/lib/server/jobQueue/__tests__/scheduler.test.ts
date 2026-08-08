@@ -52,6 +52,62 @@ const flushAll = async (scheduler: JobScheduler) => {
 };
 
 describe('JobScheduler', () => {
+    test('a running job can be asked to stop and finishes as cancelled', async () => {
+        // The vault indexing service runs passes that take minutes; without
+        // cooperative stop, the Stop button could only cancel passes that had
+        // not started yet, which reads as a button that does nothing.
+        const scheduler = createScheduler();
+        let sawStopRequest = false;
+        let release: () => void;
+        const started = new Promise<void>((resolve) => { release = resolve; });
+
+        scheduler.registerHandler('long', async ({ update, stopRequested }) => {
+            release();
+            // Simulate batch boundaries: poll the flag until it flips.
+            for (let i = 0; i < 200; i += 1) {
+                if (stopRequested?.()) { sawStopRequest = true; return; }
+                await update({ progress: i / 200 });
+                await new Promise((resolve) => setTimeout(resolve, 5));
+            }
+        });
+
+        const job = await scheduler.enqueue({
+            kind: 'long',
+            lane: 'local-cpu',
+            external: false,
+            label: 'Long pass',
+            payload: {},
+        });
+        await started;
+        const stopping = await scheduler.cancel(job.id);
+        // The record reflects the request immediately, so the UI can say
+        // "Stopping..." rather than appearing to ignore the click.
+        expect(stopping?.status).toBe('running');
+        expect(stopping?.message).toBe('Stopping…');
+
+        await flushAll(scheduler);
+        const final = (await readQueueFile()).jobs.find((entry) => entry.id === job.id);
+        expect(sawStopRequest).toBe(true);
+        expect(final?.status).toBe('cancelled');
+        // A pass cut short must not report success: 'Completed' would claim
+        // coverage the run never achieved.
+        expect(final?.message).toBe('Stopped');
+    });
+
+    test('a stop request on a queued job still cancels it outright', async () => {
+        const scheduler = createScheduler();
+        // No handler registered, so the job can never start.
+        const job = await scheduler.enqueue({
+            kind: 'never-runs',
+            lane: 'local-cpu',
+            external: false,
+            label: 'Queued only',
+            payload: {},
+        });
+        const cancelled = await scheduler.cancel(job.id);
+        expect(cancelled?.status).toBe('cancelled');
+    });
+
     test('runs an enqueued job to success and persists the terminal record', async () => {
         const scheduler = createScheduler();
         scheduler.registerHandler('demo', async ({ update }) => {

@@ -327,6 +327,41 @@ an unchanged file revalidates as a bodyless 304 in ~8 ms while an edited file is
 picked up immediately. `max-age` stays 0 on purpose: names can be reused, so
 correctness lives in the validator and speed in the 304.
 
+### The indexing service
+
+"Index & precache" (the skinny strip at the bottom of the vault) runs both
+background indexers — thumbnail precache and semantic embedding — as a
+**continuous service**: each pass re-enqueues its successor with a cursor until
+the whole catalog is covered. The shape matters more than the code:
+
+- **Passes, not marathons.** A pass is bounded (4,000 thumbnails / 40 embed
+  batches), so no job holds a queue lane for hours; between passes the lane
+  frees and interactive work — which always outranks the indexers' negative
+  priority — goes first. Progress is durable (the on-disk cache, the vector
+  store), so a crash costs at most one pass.
+- **The cursor** means pass N+1 resumes where pass N stopped instead of
+  re-scanning 220k records from zero. A stale cursor (catalog shrank) restarts
+  from the top; re-checking cached entries is a stat, not a decode.
+- **Throttled by construction:** four decodes, then a pause
+  (`IMAGE_EXPRESS_THUMB_PAUSE_MS`, default 50 ms). Measured while indexing:
+  a grid tile still serves in ~110 ms.
+- **Stop is cooperative.** `cancel` on a running job sets a flag the handler
+  checks between batches; an acknowledged stop finishes the job as
+  `cancelled` — never `succeeded`, which would claim coverage the run did not
+  achieve. Crucially, 'cancelled' is only recorded when the handler *saw* the
+  flag: a handler that never checks (a generate job mid-provider-call)
+  completes fully, and hiding its result behind "cancelled" would be the
+  opposite lie. A stopped pass does not chain a successor.
+- **Failures are remembered.** Files sharp cannot decode (RAW, `.hdr`) go into
+  an in-process negative cache, so the service does not re-read a 400 MB
+  panorama just to fail on it every pass.
+- Clicking "Index now" twice never doubles the work: the start route goes
+  through the same one-pass-in-flight guard as the passive warms.
+
+The strip itself (`VaultIndexingBar`) is fed by the queue's SSE stream, so the
+text is the job's own progress message — "Prepared 1,036 thumbnails — 40,339 of
+220,644 checked…" — not a client-side guess.
+
 ### Close/reopen must land in the flat view
 
 The vault's close-time reset used to restore `use3d: true, depth: 'room'` —

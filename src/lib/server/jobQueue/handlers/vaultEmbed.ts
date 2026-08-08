@@ -2,6 +2,7 @@ import { readVaultCatalog } from '@/lib/server/vault-store';
 import { readEmbeddedAssetIds, upsertVectorRecords } from '@/lib/server/vaultWatchStore';
 import { embedTextsWithOllama, resolveEmbedModel } from '@/lib/server/ollamaEmbeddings';
 import { buildAssetEmbeddingText } from '@/features/asset-vault/domain/vectorMath';
+import { getQueue } from '@/lib/server/jobQueue';
 import type { QueueHandlerContext } from '@/lib/server/jobQueue/types';
 
 /**
@@ -57,6 +58,9 @@ export async function runVaultEmbedJob(ctx: QueueHandlerContext): Promise<void> 
     let done = 0;
 
     for (let batch = 0; batch < plannedBatches; batch += 1) {
+        // The user asked the run to stop; what was written so far is kept.
+        if (ctx.stopRequested?.()) break;
+
         const slice = pending.slice(batch * BATCH_SIZE, (batch + 1) * BATCH_SIZE);
         if (slice.length === 0) break;
 
@@ -98,6 +102,38 @@ export async function runVaultEmbedJob(ctx: QueueHandlerContext): Promise<void> 
     }
 
     const remaining = pending.length - done;
+    const stopped = ctx.stopRequested?.() === true;
+
+    if (stopped) {
+        await ctx.update({
+            stage: 'store',
+            message: `Stopped after indexing ${done.toLocaleString()}; ${remaining.toLocaleString()} still to go.`,
+        });
+        return;
+    }
+
+    // A service run ("Index & precache") chains the next pass until the whole
+    // catalog is embedded. Chained directly rather than through the request
+    // guard, which would refuse while this job still counts as running. Only
+    // when this pass made progress — an Ollama outage already returned above,
+    // and re-enqueueing a run that embeds nothing would loop forever.
+    if (ctx.job.payload.continuous === true && remaining > 0 && done > 0) {
+        await getQueue().enqueue({
+            kind: ctx.job.kind,
+            lane: ctx.job.lane,
+            external: false,
+            label: `Indexing ${remaining.toLocaleString()} assets for search`,
+            payload: { continuous: true, pendingCount: remaining },
+            priority: ctx.job.priority,
+        });
+        await ctx.update({
+            stage: 'store',
+            progress: 1,
+            message: `Indexed ${done.toLocaleString()}; continuing with ${remaining.toLocaleString()} to go.`,
+        });
+        return;
+    }
+
     await ctx.update({
         stage: 'store',
         progress: 1,

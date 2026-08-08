@@ -79,6 +79,13 @@ export interface QueueHandlerContext {
     job: QueueJobRecord;
     /** Reflect pipeline position/progress; also renews the lease. */
     update: (update: QueueJobUpdate) => Promise<void>;
+    /**
+     * True once the user has asked this job to stop. Long-running handlers
+     * check it between batches and return cleanly; the scheduler then records
+     * the job as 'cancelled' rather than 'succeeded'. Optional so handler
+     * tests that never stop can pass a minimal context.
+     */
+    stopRequested?: () => boolean;
 }
 
 export type QueueJobHandler = (context: QueueHandlerContext) => Promise<{ resultUrl?: string } | void>;
