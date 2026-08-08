@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertRequestContentLength } from '@/lib/server/apiContract';
+import { OutboundUrlError, assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
 import {
     installThemeFromZip,
     MAX_THEME_ZIP_BYTES,
@@ -27,11 +29,24 @@ export async function POST(request: NextRequest) {
             overwrite = form.get('overwrite') === 'true';
             buffer = Buffer.from(await file.arrayBuffer());
         } else {
+            // `.catch(() => null)` swallows a parse failure, so nothing was
+            // limiting how much got buffered before that.
+            assertRequestContentLength(request, 16 * 1024);
             const body = await request.json().catch(() => null) as { url?: string; overwrite?: boolean } | null;
             const url = body?.url;
             overwrite = body?.overwrite === true;
-            if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+            if (!url || typeof url !== 'string') {
                 return NextResponse.json({ success: false, error: 'Provide a theme zip file or an http(s) URL.' }, { status: 400 });
+            }
+            try {
+                // Was a scheme-only check, which let the server be aimed at the
+                // cloud metadata endpoint or anything else on its network.
+                assertFetchableUrl(url);
+            } catch (error) {
+                if (error instanceof OutboundUrlError) {
+                    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+                }
+                throw error;
             }
             const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
             if (!response.ok) {
