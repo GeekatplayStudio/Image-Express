@@ -6,6 +6,7 @@
 
 import { getJobScheduler, type JobScheduler } from '@/lib/server/jobQueue/scheduler';
 import { runGenerateJob } from '@/lib/server/jobQueue/handlers/generate';
+import { runRemotePollJob } from '@/lib/server/jobQueue/handlers/remotePoll';
 import type { QueueLane } from '@/lib/server/jobQueue/types';
 
 export type { QueueJobRecord, QueueEvent, QueueStage } from '@/lib/server/jobQueue/types';
@@ -30,5 +31,6 @@ export const laneForGenerateProvider = (providerName: string): QueueLane => {
 export const getQueue = (): JobScheduler => {
     const scheduler = getJobScheduler();
     scheduler.registerHandler('generate', runGenerateJob);
+    scheduler.registerHandler('remote-poll', runRemotePollJob);
     return scheduler;
 };

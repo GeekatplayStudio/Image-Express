@@ -113,12 +113,32 @@ preview→refine chain.
 Faithfulness was proven by pointing the existing client hook at the module: its
 suite still passes unchanged, and the hook dropped 545 → 381 lines.
 
-**Remaining:**
-2. A `remote-poll` queue handler that drives the loop server-side, reading keys
-   from the encrypted vault (`loadUserApiKeys`) instead of the browser.
-3. Cut the client over: stop polling, subscribe to SSE, and keep only the
-   completion work (asset persistence, thumbnail render, canvas placement) —
-   which must stay client-side because it manipulates the canvas.
+**Done — the server can now poll a provider to completion.**
+`handlers/remotePoll.ts` drives the loop with the key read from the encrypted
+vault, and calls the provider **directly** rather than looping a request back
+through our own HTTP server (which would have to know its own port and would
+fail during startup). `POST /api/queue/poll` enqueues one onto the
+`remote:<provider>` lane, so the concurrency cap is global rather than per-tab,
+and it never accepts a key from the caller.
+
+Failure handling is deliberate: a **4xx fails immediately** (a bad key or a bad
+request cannot be fixed by retrying), while 5xx, 429 and transport faults ride
+out up to five consecutive errors. A success with no result URL is rejected
+rather than stored. Poll bounds are injectable, which is what makes the handler
+testable at all — 12 tests cover the vault lookup, direct-to-provider URL,
+fail-fast vs ride-out, cancellation, and Hitem3D's `ak:sk` + `Appid` shape.
+
+**Remaining — step 3, the one that actually stops the credit loss:**
+- Cut the client over: stop browser polling, subscribe to SSE, keep only the
+  completion work (asset persistence, thumbnail render, canvas placement),
+  which must stay client-side because it manipulates the canvas.
+- Enqueue the Meshy refine leg as a follow-on job. The handler detects
+  `needsMeshyRefine` but nothing acts on it yet, so a text-to-3d job would
+  currently finish at preview quality.
+- **Guest accounts cannot use this.** Keys are only vaulted for signed-in
+  users, so `/api/queue/poll` rejects a Guest owner. Either keep browser
+  polling as the guest fallback, or prompt guests to sign in before starting a
+  paid job. This needs a product decision.
 
 
 Meshy/Tripo/Hitem3D/Stability jobs are polled **from the browser**, so closing

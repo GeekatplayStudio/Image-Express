@@ -68,6 +68,51 @@ export function providerPollPath(
 }
 
 /**
+ * The provider's own status endpoint.
+ *
+ * `providerPollPath` above returns *our* proxy path, which is what the browser
+ * must use (it has no keys and would hit CORS). Server-side polling calls the
+ * provider directly instead of looping a request back through our own HTTP
+ * server, which would need to know its own port and would fail during startup.
+ */
+export function providerUpstreamUrl(
+    provider: RemoteProvider,
+    taskId: string,
+    jobType?: string,
+): string {
+    const id = encodeURIComponent(taskId);
+    switch (provider) {
+        case 'stability':
+            return `https://api.stability.ai/v2beta/stable-image/upscale/creative/result/${id}`;
+        case 'tripo':
+            return `https://api.tripo3d.ai/v2/openapi/task/${id}`;
+        case 'hitems': {
+            const base = 'https://api.hitem3d.ai/open-api/v1';
+            if (jobType === 'hitems-relief') return `${base}/depth/query-task?task_id=${id}`;
+            if (jobType === 'hitems-split') return `${base}/split/query-task?task_id=${id}`;
+            return `${base}/query-task?task_id=${id}`;
+        }
+        case 'meshy':
+        default: {
+            // image-to-3d lives on v1, text-to-3d on v2.
+            const isImage = jobType === 'image-to-3d';
+            const base = isImage
+                ? 'https://api.meshy.ai/openapi/v1'
+                : 'https://api.meshy.ai/openapi/v2';
+            return `${base}/${isImage ? 'image-to-3d' : 'text-to-3d'}/${id}`;
+        }
+    }
+}
+
+/**
+ * Extra headers the provider's own endpoint needs beyond auth.
+ * Stability returns base64 JSON only when asked for it.
+ */
+export function providerUpstreamExtraHeaders(provider: RemoteProvider): Record<string, string> {
+    return provider === 'stability' ? { Accept: 'application/json' } : {};
+}
+
+/**
  * Auth headers for a provider's status endpoint.
  *
  * Hitem3D is the odd one: an `ak:sk` credential is sent verbatim (the proxy
