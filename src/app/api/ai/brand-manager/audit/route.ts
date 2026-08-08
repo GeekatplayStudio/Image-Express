@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import { BrandProfile } from '@/lib/brand/brandProfile';
 import { getActiveBrandProfileServer } from '@/lib/server/brand-agent-store';
 import {
@@ -13,6 +14,9 @@ import { callExternalLlm, ExternalLlmProvider } from '@/lib/server/externalLlm';
 
 export async function POST(request: NextRequest) {
     try {
+// Carries canvas metadata and possibly a rendered image.
+const badBody = enforceJsonBody(request, 16 * 1024 * 1024);
+if (badBody) return badBody;
         const payload = await request.json() as {
             metadata?: CanvasMetadataSummary;
             brandProfile?: BrandProfile;

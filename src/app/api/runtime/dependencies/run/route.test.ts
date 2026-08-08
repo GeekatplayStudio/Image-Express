@@ -33,6 +33,7 @@ describe('POST /api/runtime/dependencies/run', () => {
 
         const response = await POST(new Request('http://localhost:3000/api/runtime/dependencies/run', {
             method: 'POST',
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ strategy: 'latest', runBuild: true }),
         }));
 
@@ -49,6 +50,7 @@ describe('POST /api/runtime/dependencies/run', () => {
 
         const response = await POST(new Request('http://localhost:3000/api/runtime/dependencies/run', {
             method: 'POST',
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ strategy: 'latest', runBuild: true }),
         }));
 

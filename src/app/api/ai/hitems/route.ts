@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import { isExpiredTokenResponse, resolveHitem3dAuth } from '@/lib/hitem3dAuth';
 import {
   hitemsRequiresMeshUrl,
@@ -188,6 +189,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'mesh_url or a mesh file is required when request_type=2.' }, { status: 400 });
       }
     } else {
+// `.catch(() => null)` never throws, so nothing capped how much was
+      // buffered first.
+const badBody = enforceJsonBody(req, 8 * 1024 * 1024);
+if (badBody) return badBody;
       const body = await req.json().catch(() => null);
       const imageUrl = body?.imageUrl || body?.image_url;
       const multiImageUrlsRaw = Array.isArray(body?.multiImageUrls)

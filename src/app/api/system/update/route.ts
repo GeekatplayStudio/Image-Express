@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { blockCrossSiteRequest } from '@/lib/server/trustedCaller';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { authorizeLocalRuntimeCapability } from '@/lib/server/runtimeProfile';
@@ -80,6 +81,10 @@ export async function GET(request: Request) {
  * prompt the user to restart the app afterwards.
  */
 export async function POST(request: Request) {
+    // The loopback check below does not stop this: a malicious page runs in
+    // the user's own browser, which is on loopback too.
+    const crossSite = blockCrossSiteRequest(request);
+    if (crossSite) return crossSite;
     const unauthorized = authorizeLocalRuntimeCapability(request, 'app:update');
     if (unauthorized) return unauthorized;
     try {

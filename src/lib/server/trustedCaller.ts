@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import { ApiRequestError } from '@/lib/server/apiContract';
 import { requestHasLocalApiToken } from '@/lib/server/localApiToken';
 
@@ -39,6 +40,24 @@ export function classifyCaller(request: Request): CallerKind {
  * Throws `ApiRequestError` so routes already funnelling errors through
  * `parseJsonRequest` need no extra branch.
  */
+/**
+ * Non-throwing form, for routes with their own error shape.
+ *
+ * Needed above all by **bodyless** POSTs. Requiring `application/json` stops a
+ * cross-site attack on routes that read a body, because it forces a preflight —
+ * but a POST with no body at all is already a *simple* request, so that defence
+ * never applies to it. Endpoints like "cancel this job" or "update the app" are
+ * exactly that shape, and a loopback check does not help: a malicious page runs
+ * in the user's own browser, which is on loopback too.
+ */
+export function blockCrossSiteRequest(request: Request): NextResponse | null {
+    if (classifyCaller(request) !== 'cross-site') return null;
+    return NextResponse.json(
+        { success: false, message: 'This action cannot be triggered from another site.' },
+        { status: 403 },
+    );
+}
+
 export function assertTrustedCaller(request: Request): CallerKind {
     const kind = classifyCaller(request);
     if (kind === 'cross-site') {

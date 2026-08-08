@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 
 const BASE_URL_V1 = 'https://api.meshy.ai/openapi/v1';
 const BASE_URL_V2 = 'https://api.meshy.ai/openapi/v2';
@@ -34,6 +35,10 @@ async function handleRequest(req: NextRequest, method: string) {
     };
 
     if (method === 'POST') {
+// A pass-through to Meshy: the body is their schema, not ours, so it is
+        // bounded rather than shaped.
+const badBody = enforceJsonBody(req, 8 * 1024 * 1024);
+if (badBody) return badBody;
         const body = await req.json();
         options.body = JSON.stringify(body);
     }

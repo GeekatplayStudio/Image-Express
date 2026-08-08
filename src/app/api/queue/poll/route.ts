@@ -1,4 +1,5 @@
 import { getQueue } from '@/lib/server/jobQueue';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import { apiError, jsonWithRequestId, toApiErrorResponse } from '@/lib/server/apiContract';
 import { getRuntimeProfile } from '@/lib/server/runtimeProfile';
 
@@ -20,6 +21,9 @@ const PROVIDERS = new Set(['meshy', 'tripo', 'hitems', 'stability']);
  */
 export async function POST(request: Request) {
     try {
+// `.catch(() => null)` never throws, so nothing capped the body.
+const badBody = enforceJsonBody(request, 16 * 1024);
+if (badBody) return badBody;
         const body = await request.json().catch(() => null) as {
             provider?: string;
             taskId?: string;

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
+import { assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
 import {
     buildOllamaCritiquePrompt,
@@ -48,6 +50,9 @@ export async function POST(request: NextRequest) {
     };
 
     try {
+// Carries a base64 image, so the cap is generous - but it is a cap.
+const badBody = enforceJsonBody(request, 16 * 1024 * 1024);
+if (badBody) return badBody;
         payload = await request.json() as typeof payload;
     } catch {
         return NextResponse.json({ success: false, message: 'Invalid critique request payload.' }, { status: 400 });
@@ -68,6 +73,10 @@ export async function POST(request: NextRequest) {
     let imageBase64: string;
     try {
         resolvedBaseUrl = normalizeOllamaBaseUrl(requestedBaseUrl);
+        // normalizeOllamaBaseUrl only checks the scheme. Loopback stays
+        // allowed here — that is where Ollama actually runs — but the
+        // metadata endpoint and, on self-hosted, the private network do not.
+        assertFetchableUrl(resolvedBaseUrl);
         imageBase64 = extractBase64PayloadFromDataUrl(imageDataUrl);
     } catch (error) {
         return NextResponse.json({

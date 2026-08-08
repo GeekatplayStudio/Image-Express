@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { assertTrustedCaller } from '@/lib/server/trustedCaller';
 import path from 'path';
 import fs from 'fs';
 import { normalizeEmail } from '@/lib/server/auth-utils';
@@ -13,10 +16,23 @@ import {
 } from '@/lib/server/asset-metadata';
 import { getAssetsDir } from '@/lib/server/appPaths';
 
+const VisibilitySchema = z.object({
+    type: z.string().min(1).max(50),
+    category: z.string().min(1).max(50),
+    name: z.string().min(1).max(255),
+    // Not optional: this flag decides whether an asset becomes public.
+    isPublic: z.boolean(),
+    owner: z.string().max(320).optional(),
+});
+
+const BODY_LIMIT = 8 * 1024;
+
 export async function POST(request: Request) {
   try {
     const authenticatedUser = await resolveRequestUser(request);
-    const { type, category, name, isPublic, owner } = await request.json();
+    assertTrustedCaller(request);
+    const { type, category, name, isPublic, owner } =
+      await parseJsonRequest(request, VisibilitySchema, BODY_LIMIT);
 
     if (!type || !category || !name || typeof isPublic !== 'boolean') {
       return NextResponse.json({ success: false, message: 'Missing required fields' }, { status: 400 });
@@ -78,6 +94,8 @@ export async function POST(request: Request) {
       }
     });
   } catch (error) {
+    const invalid = legacyValidationResponse(error);
+    if (invalid) return invalid;
     console.error('Asset visibility update error:', error);
     return NextResponse.json({ success: false, message: 'Failed to update visibility' }, { status: 500 });
   }

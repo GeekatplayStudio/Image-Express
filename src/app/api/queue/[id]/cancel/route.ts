@@ -1,4 +1,5 @@
 import { getQueue } from '@/lib/server/jobQueue';
+import { blockCrossSiteRequest } from '@/lib/server/trustedCaller';
 import { apiError, jsonWithRequestId, toApiErrorResponse } from '@/lib/server/apiContract';
 
 export const runtime = 'nodejs';
@@ -13,6 +14,8 @@ export async function POST(
     request: Request,
     context: { params: Promise<{ id: string }> },
 ) {
+    const crossSite = blockCrossSiteRequest(request);
+    if (crossSite) return crossSite;
     try {
         const { id } = await context.params;
         const queue = getQueue();

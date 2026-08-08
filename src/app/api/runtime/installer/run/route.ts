@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import {
     isInstallerRunValidationError,
     runInstallerWorkflow,
@@ -9,6 +10,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     const unauthorized = authorizeLocalRuntimeCapability(request, 'runtime:install');
     if (unauthorized) return unauthorized;
     try {
+// The workflow validates the payload's shape; this bounds its size.
+const badBody = enforceJsonBody(request, 1024 * 1024);
+if (badBody) return badBody;
         const payload = await request.json().catch(() => ({}));
         const result = await runInstallerWorkflow(payload);
         return NextResponse.json(result, {

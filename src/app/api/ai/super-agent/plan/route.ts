@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import {
     buildSuperAgentPlanLlmPrompt,
     DEFAULT_SUPER_AGENT,
@@ -16,6 +17,9 @@ const DEFAULT_PLANNING_MODEL = 'llama3.2';
 
 export async function POST(request: NextRequest) {
     try {
+// A prompt plus the agent and brand profile it plans against.
+const badBody = enforceJsonBody(request, 2 * 1024 * 1024);
+if (badBody) return badBody;
         const payload = await request.json() as {
             prompt?: string;
             agent?: typeof DEFAULT_SUPER_AGENT;

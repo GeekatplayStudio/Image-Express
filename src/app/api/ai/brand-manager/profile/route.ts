@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import { BrandProfile } from '@/lib/brand/brandProfile';
 import {
     deleteBrandProfileServer,
@@ -22,6 +23,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
     try {
+// A brand profile: palette, fonts and layout rules.
+const badBody = enforceJsonBody(request, 2 * 1024 * 1024);
+if (badBody) return badBody;
         const payload = await request.json() as {
             profile?: BrandProfile;
             activeProfileId?: string;

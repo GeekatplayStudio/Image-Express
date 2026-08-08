@@ -1,11 +1,34 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { assertTrustedCaller } from '@/lib/server/trustedCaller';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getDesignsDir } from '@/lib/server/appPaths';
 
+const SaveDesignSchema = z.object({
+    id: z.string().max(300).optional(),
+    name: z.string().min(1).max(300),
+    // The canvas document and thumbnail are opaque here: this route stores
+    // them, and the editor owns their shape.
+    canvasData: z.unknown(),
+    // Bounded by the whole-body limit below, not separately.
+    thumbnailDataUrl: z.string().optional(),
+});
+
+/**
+ * Deliberately generous. A design carries its whole canvas plus a base64
+ * thumbnail, and can legitimately embed images, so a tight cap would break
+ * saving real work. The point here is that the body is bounded at all — it
+ * previously was not.
+ */
+const SAVE_BODY_LIMIT = 128 * 1024 * 1024;
+
 export async function POST(request: Request) {
   try {
-    const { id: existingId, name, canvasData, thumbnailDataUrl } = await request.json();
+    assertTrustedCaller(request);
+    const { id: existingId, name, canvasData, thumbnailDataUrl } =
+      await parseJsonRequest(request, SaveDesignSchema, SAVE_BODY_LIMIT);
 
     if (!name || !canvasData) {
       return NextResponse.json({ success: false, message: 'Missing data' }, { status: 400 });
@@ -65,6 +88,8 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
+    const invalid = legacyValidationResponse(error);
+    if (invalid) return invalid;
     console.error('Save design error:', error);
     return NextResponse.json({ success: false, message: 'Failed to save design' }, { status: 500 });
   }

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
+import { assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
 import { formatOllamaAttemptedBaseUrls, fetchOllamaWithFallback } from '@/lib/ollamaServer';
 import { formatOllamaModelList, normalizeOllamaBaseUrl } from '@/lib/ollama';
@@ -109,6 +111,9 @@ export async function POST(request: NextRequest) {
     let payload: { baseUrl?: string; model?: string };
 
     try {
+// A model name and a base URL; nothing here is large.
+const badBody = enforceJsonBody(request, 16 * 1024);
+if (badBody) return badBody;
         payload = await request.json() as typeof payload;
     } catch {
         return NextResponse.json({ success: false, message: 'Invalid Ollama install request payload.' }, { status: 400 });
@@ -120,6 +125,10 @@ export async function POST(request: NextRequest) {
     let resolvedBaseUrl: string;
     try {
         resolvedBaseUrl = normalizeOllamaBaseUrl(requestedBaseUrl);
+        // normalizeOllamaBaseUrl only checks the scheme. Loopback stays
+        // allowed here — that is where Ollama actually runs — but the
+        // metadata endpoint and, on self-hosted, the private network do not.
+        assertFetchableUrl(resolvedBaseUrl);
     } catch (error) {
         return NextResponse.json({
             success: false,

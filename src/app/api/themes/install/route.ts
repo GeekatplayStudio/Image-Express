@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { assertRequestContentLength } from '@/lib/server/apiContract';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import { OutboundUrlError, assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
 import {
     installThemeFromZip,
@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
         } else {
             // `.catch(() => null)` swallows a parse failure, so nothing was
             // limiting how much got buffered before that.
-            assertRequestContentLength(request, 16 * 1024);
+            const badBody = enforceJsonBody(request, 16 * 1024);
+            if (badBody) return badBody;
             const body = await request.json().catch(() => null) as { url?: string; overwrite?: boolean } | null;
             const url = body?.url;
             overwrite = body?.overwrite === true;

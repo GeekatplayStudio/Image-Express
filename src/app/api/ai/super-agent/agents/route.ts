@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import { CustomAgentDefinition } from '@/lib/agent/superAgentEngine';
 import {
     deleteCustomAgentServer,
@@ -20,6 +21,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
     try {
+// An agent definition is text: name, description, step rules.
+const badBody = enforceJsonBody(request, 512 * 1024);
+if (badBody) return badBody;
         const payload = await request.json() as { agent?: Partial<CustomAgentDefinition> };
         if (!payload.agent?.name) {
             return NextResponse.json({ success: false, message: 'Agent definition required' }, { status: 400 });

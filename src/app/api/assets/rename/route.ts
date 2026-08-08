@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { assertTrustedCaller } from '@/lib/server/trustedCaller';
 import path from 'path';
 import fs from 'fs';
 import { normalizeEmail } from '@/lib/server/auth-utils';
@@ -13,10 +16,22 @@ import {
 } from '@/lib/server/asset-metadata';
 import { getAssetsDir } from '@/lib/server/appPaths';
 
+const RenameAssetSchema = z.object({
+    type: z.string().min(1).max(50),
+    oldName: z.string().min(1).max(255),
+    newName: z.string().min(1).max(255),
+    category: z.string().max(50).optional(),
+    owner: z.string().max(320).optional(),
+});
+
+const BODY_LIMIT = 8 * 1024;
+
 export async function POST(request: Request) {
   try {
         const authenticatedUser = await resolveRequestUser(request);
-    const { type, oldName, newName, category, owner } = await request.json();
+    assertTrustedCaller(request);
+    const { type, oldName, newName, category, owner } =
+        await parseJsonRequest(request, RenameAssetSchema, BODY_LIMIT);
 
     if (!type || !oldName || !newName) {
         return NextResponse.json({ success: false, message: 'Missing parameters' }, { status: 400 });
@@ -95,6 +110,8 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
+    const invalid = legacyValidationResponse(error);
+    if (invalid) return invalid;
     console.error('Rename asset error:', error);
     return NextResponse.json({ success: false, message: 'Failed to rename asset' }, { status: 500 });
   }

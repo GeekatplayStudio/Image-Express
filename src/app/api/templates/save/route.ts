@@ -1,11 +1,31 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { assertTrustedCaller } from '@/lib/server/trustedCaller';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getTemplatesDir } from '@/lib/server/appPaths';
 
+const SaveTemplateSchema = z.object({
+    name: z.string().min(1).max(300),
+    canvasData: z.unknown(),
+    // Bounded by the whole-body limit below, not separately.
+    thumbnailDataUrl: z.string().optional(),
+});
+
+/**
+ * Deliberately generous. A design carries its whole canvas plus a base64
+ * thumbnail, and can legitimately embed images, so a tight cap would break
+ * saving real work. The point here is that the body is bounded at all — it
+ * previously was not.
+ */
+const SAVE_BODY_LIMIT = 128 * 1024 * 1024;
+
 export async function POST(request: Request) {
   try {
-    const { name, canvasData, thumbnailDataUrl } = await request.json();
+    assertTrustedCaller(request);
+    const { name, canvasData, thumbnailDataUrl } =
+      await parseJsonRequest(request, SaveTemplateSchema, SAVE_BODY_LIMIT);
 
     if (!name || !canvasData || !thumbnailDataUrl) {
       return NextResponse.json({ success: false, message: 'Missing data' }, { status: 400 });
@@ -45,6 +65,8 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
+    const invalid = legacyValidationResponse(error);
+    if (invalid) return invalid;
     console.error('Save template error:', error);
     return NextResponse.json({ success: false, message: 'Failed to save template' }, { status: 500 });
   }

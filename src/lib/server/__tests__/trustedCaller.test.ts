@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { ApiRequestError } from '@/lib/server/apiContract';
-import { assertTrustedCaller, classifyCaller } from '@/lib/server/trustedCaller';
+import { assertTrustedCaller, blockCrossSiteRequest, classifyCaller } from '@/lib/server/trustedCaller';
 import {
     ensureLocalApiToken,
     getLocalApiTokenPath,
@@ -119,6 +119,41 @@ describe('classifyCaller', () => {
 
     it.each(['cross-site', 'same-site'])('flags %s as driven by another origin', (site) => {
         expect(classifyCaller(request({ 'sec-fetch-site': site }))).toBe('cross-site');
+    });
+});
+
+describe('blockCrossSiteRequest', () => {
+    it('refuses a cross-site request with 403', async () => {
+        const response = blockCrossSiteRequest(request({ 'sec-fetch-site': 'cross-site' }));
+        expect(response?.status).toBe(403);
+        await expect(response!.json()).resolves.toMatchObject({ success: false });
+    });
+
+    it.each([
+        ['the UI', { 'sec-fetch-site': 'same-origin' }],
+        ['a local script', {}],
+    ])('lets %s through', (_label, headers) => {
+        expect(blockCrossSiteRequest(request(headers))).toBeNull();
+    });
+
+    it('matters most for POSTs that carry no body', () => {
+        // Requiring application/json defends routes that read a body, because
+        // it forces a preflight. A POST with no body is already a *simple*
+        // request, so that defence never applies — "cancel this job" and
+        // "update the app" are exactly that shape.
+        const bodyless = new Request('http://localhost:3457/api/system/update', {
+            method: 'POST',
+            headers: { 'sec-fetch-site': 'cross-site' },
+        });
+        expect(blockCrossSiteRequest(bodyless)?.status).toBe(403);
+    });
+
+    it('still allows an authorised local tool', () => {
+        const token = ensureLocalApiToken();
+        expect(blockCrossSiteRequest(request({
+            authorization: `Bearer ${token}`,
+            'sec-fetch-site': 'cross-site',
+        }))).toBeNull();
     });
 });
 

@@ -1,7 +1,10 @@
 import { jsonWithRequestId, apiError } from '@/lib/server/apiContract';
+import { blockCrossSiteRequest } from '@/lib/server/trustedCaller';
 import { syncServerAssetsToCatalog, readVaultCatalog } from '@/lib/server/vault-store';
 
 export async function POST(request: Request) {
+    const crossSite = blockCrossSiteRequest(request);
+    if (crossSite) return crossSite;
     try {
         const catalog = await syncServerAssetsToCatalog();
         return jsonWithRequestId(request, {

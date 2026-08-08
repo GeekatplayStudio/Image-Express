@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 
 export async function POST(req: NextRequest) {
   try {
+// A pass-through to Tripo: bounded rather than shaped, since the body
+    // belongs to their API.
+const badBody = enforceJsonBody(req, 8 * 1024 * 1024);
+if (badBody) return badBody;
     const body = await req.json();
     const authHeader = req.headers.get('authorization');
 

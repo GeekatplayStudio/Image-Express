@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import {
     isDependencyMaintenanceValidationError,
     runDependencyMaintenance,
@@ -9,6 +10,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     const unauthorized = authorizeLocalRuntimeCapability(request, 'dependencies:manage');
     if (unauthorized) return unauthorized;
     try {
+// The maintenance routine validates the shape; this bounds the size.
+const badBody = enforceJsonBody(request, 1024 * 1024);
+if (badBody) return badBody;
         const payload = await request.json().catch(() => ({}));
         const result = await runDependencyMaintenance(payload);
         return NextResponse.json(result, {

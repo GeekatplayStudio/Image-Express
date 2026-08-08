@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getLogsDir } from '@/lib/server/appPaths';
@@ -26,9 +28,15 @@ function getClientIp(request: Request) {
     return 'unknown';
 }
 
+const LoginLogSchema = z.object({
+    username: z.string().max(320).optional(),
+});
+
+const BODY_LIMIT = 4 * 1024;
+
 export async function POST(request: Request) {
     try {
-        const body = await request.json();
+        const body = await parseJsonRequest(request, LoginLogSchema, BODY_LIMIT);
         const username = (body?.username ?? '').toString().trim() || 'unknown';
         const timestamp = new Date().toISOString();
         const ip = getClientIp(request);
@@ -40,6 +48,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        const invalid = legacyValidationResponse(error);
+        if (invalid) return invalid;
         console.error('Failed to write login log', error);
         return NextResponse.json({ success: false, message: 'Failed to write log' }, { status: 500 });
     }

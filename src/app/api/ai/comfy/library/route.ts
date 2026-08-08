@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { OutboundUrlError, assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
+import { enforceJsonBody } from '@/lib/server/apiContract';
 import {
     buildComfyDiagnosticsSnapshot,
     buildComfyLibrarySnapshot,
@@ -44,6 +46,9 @@ const buildPathInput = (body: ComfyLibraryRequestBody) => ({
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
+        // `.catch(() => ({}))` never throws, so nothing capped the body.
+        const badBody = enforceJsonBody(request, 1024 * 1024);
+        if (badBody) return badBody;
         const body = (await request.json().catch(() => ({}))) as ComfyLibraryRequestBody;
         const action = body.action || 'scan';
 
@@ -53,6 +58,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     { success: false, message: 'repoUrl and repoKind are required.' },
                     { status: 400 }
                 );
+            }
+
+            try {
+                // The server clones from this address; a scheme check alone
+                // would let it be aimed at the metadata endpoint or the LAN.
+                assertFetchableUrl(body.repoUrl);
+            } catch (error) {
+                if (error instanceof OutboundUrlError) {
+                    return NextResponse.json({ success: false, message: error.message }, { status: 400 });
+                }
+                throw error;
             }
 
             const installResult = await installComfyRepository({

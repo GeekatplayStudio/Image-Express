@@ -159,6 +159,30 @@ export function assertJsonContentType(request: Request): void {
     }
 }
 
+/**
+ * Content-type and size checks for routes that read the body themselves.
+ *
+ * Returns a response to send, or null to continue. Non-throwing on purpose:
+ * these routes each have their own error shape and their own `catch`, and a
+ * thrown error would surface as whatever that catch returns — typically a 500,
+ * which is the wrong answer for a 415 or a 413.
+ */
+export function enforceJsonBody(request: Request, maximumBytes: number): NextResponse | null {
+    try {
+        assertJsonContentType(request);
+        assertRequestContentLength(request, maximumBytes);
+        return null;
+    } catch (error) {
+        if (error instanceof ApiRequestError) {
+            return NextResponse.json(
+                { success: false, message: error.message },
+                { status: error.status },
+            );
+        }
+        throw error;
+    }
+}
+
 export async function parseJsonRequest<T>(
     request: Request,
     schema: z.ZodType<T>,
