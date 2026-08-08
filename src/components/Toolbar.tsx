@@ -65,7 +65,10 @@ import {
     buildAutoBezierNodes,
     buildBezierPathData,
     buildSmoothPathData,
-    buildStraightNodes
+    buildStraightNodes,
+    clonePenNodes,
+    distanceBetween,
+    getPenNodeBounds,
 } from '@/lib/pen-utils';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
@@ -254,38 +257,6 @@ const PEN_HANDLE_COLOR = '#ffffff';
 let isPenSpacePressed = false;
 
 const isPenDraftAnchor = (obj?: fabric.Object | null): obj is PenAnchorObject => !!obj && (obj as PenAnchorObject).isPenDraftAnchor === true;
-
-const clonePenNodes = (nodes: PenNode[]) => nodes.map((node) => ({
-    x: node.x,
-    y: node.y,
-    handleIn: { ...node.handleIn },
-    handleOut: { ...node.handleOut }
-}));
-
-const getPenNodeBounds = (nodes: PenNode[]) => {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    nodes.forEach((node) => {
-        const points = [node, node.handleIn, node.handleOut];
-        points.forEach((point) => {
-            if (point.x < minX) minX = point.x;
-            if (point.y < minY) minY = point.y;
-            if (point.x > maxX) maxX = point.x;
-            if (point.y > maxY) maxY = point.y;
-        });
-    });
-
-    if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
-        return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-    }
-
-    return { minX, minY, maxX, maxY };
-};
-
-const distanceBetween = (a: PenPoint, b: PenPoint) => Math.hypot(a.x - b.x, a.y - b.y);
 
 const penPathOperationToComposite: Record<PenPathOperation, GlobalCompositeOperation> = {
     add: 'source-over',

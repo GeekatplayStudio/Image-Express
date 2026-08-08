@@ -340,10 +340,34 @@ exit code**, so 40 files drifted past it with nothing to stop them.
   line 175 and runs to the end, so there is no pure prefix to lift — it needs
   the render tree split by responsibility, which is the harder job and should
   not be attempted in the same pass as a mechanical extraction.
-- **What to look for.** The productive cut in these files is the pure logic
-  sitting above the component — it extracts cleanly, becomes testable
-  immediately, and carries no JSX risk. Splitting the render tree is the harder,
-  later job.
+- **Done — third split.** `Toolbar.tsx` gave its pen geometry
+  (`clonePenNodes`, `getPenNodeBounds`, `distanceBetween`) to the existing
+  `src/lib/pen-utils.ts` rather than a new module — that file already owned the
+  domain and a comment in Toolbar even said so. The line count was the smaller
+  win: **pen-utils had no tests at all**, and it is 288 lines of geometry that
+  decides how the pen tool behaves. Now 25. **2,689 → 2,660.**
+
+- **What to look for.** The productive cut is the pure logic sitting *above* the
+  component: it extracts cleanly, becomes testable immediately, and carries no
+  JSX risk. Splitting a render tree is the harder, later job. Measured prefix
+  sizes, as of 2026-08-08 — the number is the line the component starts on, so
+  it is roughly what can be lifted mechanically:
+
+  | File | Lines | Pure prefix | Note |
+  |---|---|---|---|
+  | `PropertiesPanel.tsx` | 3,822 | 175 | Almost none. Needs the render tree split — the hard job. |
+  | `ImageGeneratorModal.tsx` | 3,759 | 261 | Prefix already harvested once; the rest is JSX + handlers. |
+  | `AssetLibrary.tsx` | 2,906 | 187 | Prefix already harvested once. |
+  | `Toolbar.tsx` | 2,660 | 473 | **Best remaining mechanical target** — ~380 lines of pen/bezier code still above the component. |
+  | `ThreeDGenerator.tsx` | 2,197 | 193 | Prefix mixes two small React components in; extract the credential sanitisers and scene capture separately. |
+  | `EditorView.tsx` | 1,490 | 111 | Little prefix. |
+  | `libraryServer.ts` | 1,243 | — | Not a component; splits by responsibility instead. |
+
+- **8,115 of the 44,600 baselined lines are test files.** They are not the same
+  debt — a long test file is usually many independent cases, not coupling — and
+  splitting them should come last, if at all.
+- **Rule going forward stands:** every PR touching a baselined file should lower
+  its number.
 - **Rule going forward:** every PR that touches a baselined file should lower
   its number. Run `npm run audit:filesize:update` after a split.
 

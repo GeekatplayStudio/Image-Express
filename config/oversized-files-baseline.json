@@ -7,7 +7,7 @@
     "src/components/ImageGeneratorModal.tsx": 3759,
     "src/components/AssetLibrary.tsx": 2906,
     "src/components/Editor/__tests__/EditorView.test.tsx": 2816,
-    "src/components/Toolbar.tsx": 2689,
+    "src/components/Toolbar.tsx": 2660,
     "src/components/ThreeDGenerator.tsx": 2197,
     "src/components/Editor/EditorView.tsx": 1490,
     "src/components/properties/PanelUtilityViews.tsx": 1330,

@@ -9,6 +9,52 @@ export const PEN_DEFAULT_STROKE = '#3b82f6';
 
 export const nearlyEqual = (a: number, b: number, epsilon = 0.001) => Math.abs(a - b) < epsilon;
 
+export const distanceBetween = (a: PenPoint, b: PenPoint) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/**
+ * Deep copy of pen nodes, including their handles.
+ *
+ * Handles must be copied, not shared: an undo snapshot that aliased them would
+ * mutate along with the live path and silently make the history useless.
+ */
+export const clonePenNodes = (nodes: PenNode[]): PenNode[] => nodes.map((node) => ({
+    x: node.x,
+    y: node.y,
+    handleIn: { ...node.handleIn },
+    handleOut: { ...node.handleOut },
+}));
+
+/**
+ * Bounding box of a node set, including bezier handles.
+ *
+ * Handles are included deliberately: a curve can bulge well outside its anchor
+ * points, and a box drawn from anchors alone clips the shape it is meant to
+ * contain.
+ */
+export const getPenNodeBounds = (nodes: PenNode[]) => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    nodes.forEach((node) => {
+        const points = [node, node.handleIn, node.handleOut];
+        points.forEach((point) => {
+            if (point.x < minX) minX = point.x;
+            if (point.y < minY) minY = point.y;
+            if (point.x > maxX) maxX = point.x;
+            if (point.y > maxY) maxY = point.y;
+        });
+    });
+
+    // An empty set leaves the bounds infinite; a zero box is the usable answer.
+    if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+        return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    }
+
+    return { minX, minY, maxX, maxY };
+};
+
 export const toScenePoint = (obj: fabric.Object, point: PenPoint, pathOffset?: fabric.Point): PenPoint => {
     const transformPoint = (fabric.util as unknown as { transformPoint: (p: fabric.Point, m: number[]) => fabric.Point }).transformPoint;
     const offset = pathOffset || new fabric.Point(0, 0);
