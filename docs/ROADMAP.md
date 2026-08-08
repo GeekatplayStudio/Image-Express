@@ -244,10 +244,20 @@ exit code**, so 40 files drifted past it with nothing to stop them.
   from the baseline. The list can only shrink. i18n dictionaries are exempt —
   they are translation data, and a line budget on a key/value table measures
   nothing.
-- **Open:** 40 baselined files. Attack in this order, worst first, splitting by
-  responsibility rather than by line count:
-  `ImageGeneratorModal.tsx` (4,013) · `PropertiesPanel.tsx` (3,822) ·
+- **Done — first split.** `ImageGeneratorModal.tsx` held ~270 lines of pure
+  planning and formatting before its component started. It moved to
+  `src/lib/comfyui/requestPlanning.ts` with 32 tests. The point was coverage,
+  not the line count: `resolveComfyQualityProfile` picks the resolution, steps
+  and CFG a generation runs at, and it could not be tested without mounting a
+  4,000-line modal, so it never had been. **4,013 → 3,759.**
+- **Open:** 39 baselined files. Attack worst first, splitting by responsibility
+  rather than by line count:
+  `PropertiesPanel.tsx` (3,822) · `ImageGeneratorModal.tsx` (3,759) ·
   `AssetLibrary.tsx` (3,042) · `Toolbar.tsx` (2,689) · `ThreeDGenerator.tsx` (2,197).
+- **What to look for.** The productive cut in these files is the pure logic
+  sitting above the component — it extracts cleanly, becomes testable
+  immediately, and carries no JSX risk. Splitting the render tree is the harder,
+  later job.
 - **Rule going forward:** every PR that touches a baselined file should lower
   its number. Run `npm run audit:filesize:update` after a split.
 
