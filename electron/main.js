@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
+const { safeLogText, createDiagnosticRedactor } = require('./logRedaction');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -36,35 +37,12 @@ function configureBrandedUserDataPath() {
 
 configureBrandedUserDataPath();
 
-function redactDiagnosticValue(value, depth = 0) {
-  if (depth > 5) return '[truncated]';
-  if (typeof value === 'string') {
-    let redacted = value;
-    const sensitiveRoots = [
-      app.getPath('home'),
-      app.getPath('userData'),
-      app.getAppPath(),
-    ].filter(Boolean);
-    for (const root of sensitiveRoots) {
-      redacted = redacted.split(root).join(root === app.getPath('home') ? '<home>' : '<app-data>');
-    }
-    return redacted
-      .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [redacted]')
-      .replace(/((?:api.?key|token|password|secret)\s*[=:]\s*)[^\s,;]+/gi, '$1[redacted]')
-      .slice(0, 1200);
-  }
-  if (Array.isArray(value)) {
-    return value.slice(0, 50).map((entry) => redactDiagnosticValue(entry, depth + 1));
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => (
-      [key, /(api.?key|authorization|bearer|password|secret|token|prompt|image)/i.test(key)
-        ? '[redacted]'
-        : redactDiagnosticValue(entry, depth + 1)]
-    )));
-  }
-  return value;
-}
+// Paths are resolved per call, not once: they are only valid after app ready.
+const redactDiagnosticValue = createDiagnosticRedactor(() => [
+  { path: app.getPath('home'), label: '<home>' },
+  { path: app.getPath('userData'), label: '<app-data>' },
+  { path: app.getAppPath(), label: '<app-data>' },
+]);
 
 function getStructuredLogPath() {
   const logsDir = path.join(app.getPath('userData'), 'logs');
@@ -277,7 +255,12 @@ async function startProductionServer() {
       writeStructuredLog('debug', 'server.stdout', { bytes: Buffer.byteLength(chunk) });
     });
     serverProcess.stderr.on('data', (chunk) => {
-      writeStructuredLog('warn', 'server.stderr', { bytes: Buffer.byteLength(chunk) });
+      // The text, not just its size: a byte count alone made a packaged
+      // startup failure undiagnosable. Redacted/truncated in logRedaction.
+      writeStructuredLog('warn', 'server.stderr', {
+        bytes: Buffer.byteLength(chunk),
+        text: safeLogText(chunk.toString('utf8')),
+      });
     });
     serverProcess.on('exit', (code) => writeStructuredLog(
       code === 0 ? 'info' : 'error',
