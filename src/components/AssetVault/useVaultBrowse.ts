@@ -1,5 +1,10 @@
 'use client';
-import { filterVaultAssets } from '@/features/asset-vault/domain/filterVaultAssets';
+import { useVaultAlbumNav } from '@/components/AssetVault/useVaultAlbumNav';
+import {
+    countVaultAssetSources,
+    filterVaultAssets,
+    type VaultAssetSource,
+} from '@/features/asset-vault/domain/filterVaultAssets';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -15,7 +20,6 @@ import {
     findVaultAlbum,
     findVaultPage,
     resolveVaultLabel,
-    type VaultAlbum,
     type VaultOrganizeLens,
 } from '@/features/asset-vault/domain/vaultAlbumTree';
 import {
@@ -60,6 +64,7 @@ export function useVaultBrowse({
     const savedUi = useMemo(() => (typeof window === 'undefined' ? null : loadVaultUiState()), []);
 
     const [use3d, setUse3d] = useState(false);
+    const [assetSource, setAssetSource] = useState<VaultAssetSource>(savedUi?.assetSource ?? 'library');
     const [sourcesOpen, setSourcesOpen] = useState(false);
     const [lens, setLens] = useState<VaultOrganizeLens>(savedUi?.lens ?? 'type');
     const [sortMode, setSortMode] = useState<VaultSortMode>(savedUi?.sortMode ?? 'relevance');
@@ -87,7 +92,10 @@ export function useVaultBrowse({
         typeFilter: naturalQuery.typeFilter,
         text: naturalQuery.text,
         serverAnswered: Boolean(searchHits),
-    }), [workingAssets, naturalQuery.typeFilter, naturalQuery.text, searchHits]);
+        source: assetSource,
+    }), [workingAssets, naturalQuery.typeFilter, naturalQuery.text, searchHits, assetSource]);
+
+    const sourceCounts = useMemo(() => countVaultAssetSources(workingAssets), [workingAssets]);
 
     const folderNav = useVaultFolderNav({
         workingAssets: filteredAssets,
@@ -303,8 +311,9 @@ export function useVaultBrowse({
             pageSize,
             sourcesOpen,
             navMode,
+            assetSource,
         });
-    }, [isOpen, smartSearch, lens, sortMode, query, pageSize, sourcesOpen, navMode]);
+    }, [isOpen, smartSearch, lens, sortMode, query, pageSize, sourcesOpen, navMode, assetSource]);
 
     // Open with something selected rather than an empty grid — but never during
     // a search. Auto-selecting the first album there would show one album's
@@ -325,93 +334,24 @@ export function useVaultBrowse({
     // already clears activeAlbumId/activePageId in the same action, so the
     // effect only ever ran a second render to redo work that was already done.)
 
-    const goRoom = useCallback(() => {
-        setDepth('page');
-        setActiveAlbumId(null);
-        setActivePageId(null);
-        setUse3d(false);
-        onClearContextMenu();
-    }, [onClearContextMenu]);
-
-    const goAlbum = useCallback((albumId: string) => {
-        setActiveAlbumId(albumId);
-        setActivePageId(null);
-        setDepth('page');
-        setUse3d(false);
-        onClearContextMenu();
-    }, [onClearContextMenu]);
-
-    const goPage = useCallback((albumId: string, pageId: string) => {
-        setActiveAlbumId(albumId);
-        setActivePageId(pageId);
-        setDepth('page');
-        setUse3d(false);
-        onClearContextMenu();
-    }, [onClearContextMenu]);
-
-    const applyOrganizeLens = useCallback((value: VaultOrganizeLens) => {
-        if (value === lens) return;
-        setLens(value);
-        onClearContextMenu();
-        setOverflowOpen(false);
-        if (use3d) {
-            setDepth('room');
-            setActiveAlbumId(null);
-            setActivePageId(null);
-            return;
-        }
-        setPendingFlatRematch(true);
-        setActiveAlbumId(null);
-        setActivePageId(null);
-        setDepth('page');
-    }, [lens, use3d, onClearContextMenu]);
-
-    const selectFlatAlbum = useCallback((album: VaultAlbum) => {
-        setUse3d(false);
-        setActiveAlbumId(album.id);
-        setActivePageId(null);
-        setDepth('page');
-        setExpandedAlbumIds((prev) => {
-            const next = new Set(prev);
-            next.add(album.id);
-            return next;
-        });
-        onClearContextMenu();
-    }, [onClearContextMenu]);
-
-    const selectFlatPage = useCallback((albumId: string, pageId: string) => {
-        setUse3d(false);
-        setActiveAlbumId(albumId);
-        setActivePageId(pageId);
-        setDepth('page');
-        setExpandedAlbumIds((prev) => {
-            const next = new Set(prev);
-            next.add(albumId);
-            return next;
-        });
-        onClearContextMenu();
-    }, [onClearContextMenu]);
-
-    const selectFlatAll = useCallback(() => {
-        setUse3d(false);
-        setActiveAlbumId(null);
-        setActivePageId(null);
-        setDepth('page');
-        onClearContextMenu();
-    }, [onClearContextMenu]);
-
-    const toggleAlbumExpanded = useCallback((albumId: string) => {
-        setExpandedAlbumIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(albumId)) next.delete(albumId);
-            else next.add(albumId);
-            return next;
-        });
-    }, []);
-
-    const requestFlatRematch = useCallback(() => {
-        setPendingFlatRematch(!use3d);
-    }, [use3d]);
+    const albumNav = useVaultAlbumNav({
+        lens,
+        use3d,
+        onClearContextMenu,
+        setLens,
+        setDepth,
+        setActiveAlbumId,
+        setActivePageId,
+        setUse3d,
+        setExpandedAlbumIds,
+        setOverflowOpen,
+        setPendingFlatRematch,
+    });
+    const {
+        goRoom, goAlbum, goPage, applyOrganizeLens,
+        selectFlatAlbum, selectFlatPage, selectFlatAll,
+        toggleAlbumExpanded, requestFlatRematch,
+    } = albumNav;
 
     /**
      * Reset to a clean state when the modal closes, so reopening never shows
@@ -480,6 +420,9 @@ export function useVaultBrowse({
         goPage,
         applyOrganizeLens,
         visibleAssetCount: filteredAssets.length,
+        assetSource,
+        setAssetSource,
+        sourceCounts,
         selectFlatAlbum,
         selectFlatPage,
         selectFlatAll,

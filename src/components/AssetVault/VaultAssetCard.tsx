@@ -12,8 +12,9 @@ type VaultAssetCardProps = {
     asset: VaultAssetRecord;
     thumb?: string;
     source?: string;
-    onAddToCanvas: (asset: VaultAssetRecord) => void;
-    /** Single click. Selecting shows the asset in the details panel. */
+    /** Double click. Opens the full preview — the 3D viewer for models. */
+    onOpen: (asset: VaultAssetRecord) => void;
+    /** Single click. Shows the asset in the details panel. */
     onSelect: (asset: VaultAssetRecord) => void;
     isSelected: boolean;
     onContextMenu: (asset: VaultAssetRecord, event: React.MouseEvent) => void;
@@ -25,7 +26,7 @@ export default function VaultAssetCard({
     asset,
     thumb,
     source,
-    onAddToCanvas,
+    onOpen,
     onSelect,
     isSelected,
     onContextMenu,
@@ -56,7 +57,11 @@ export default function VaultAssetCard({
             <button
                 type="button"
                 onClick={() => onSelect(asset)}
-                onDoubleClick={() => onAddToCanvas(asset)}
+                // Double click opens the preview — for a model that is the 3D
+                // viewer, which is the only way to inspect it without dropping
+                // it on a canvas. Adding to the canvas lives on the context
+                // menu and the details panel.
+                onDoubleClick={() => onOpen(asset)}
                 className="w-full text-left"
             >
                 <div className="aspect-square bg-secondary/20 flex items-center justify-center relative overflow-hidden">

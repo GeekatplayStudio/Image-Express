@@ -9,6 +9,7 @@ type Props = {
     match: VaultSearchMatch | null;
     thumbnailUrl?: string;
     onOpenPreview: (asset: VaultAssetRecord) => void;
+    onAddToCanvas: (asset: VaultAssetRecord) => void;
     t: (key: string, vars?: Record<string, string | number>) => string;
     language: string;
 };
@@ -71,6 +72,7 @@ export default function VaultAssetDetailsPanel({
     match,
     thumbnailUrl,
     onOpenPreview,
+    onAddToCanvas,
     t,
     language,
 }: Props) {
@@ -188,13 +190,24 @@ export default function VaultAssetDetailsPanel({
                     </div>
                 )}
 
-                <button
-                    type="button"
-                    onClick={() => onOpenPreview(asset)}
-                    className="h-7 rounded border border-border text-[11px] hover:bg-secondary"
-                >
-                    {t('vault.details.openPreview')}
-                </button>
+                <div className="flex flex-col gap-1.5">
+                    <button
+                        type="button"
+                        onClick={() => onOpenPreview(asset)}
+                        className="h-7 rounded border border-border text-[11px] hover:bg-secondary"
+                    >
+                        {t('vault.details.openPreview')}
+                    </button>
+                    {/* Double click on a card opens the preview, so adding to
+                        the canvas needs its own affordance here. */}
+                    <button
+                        type="button"
+                        onClick={() => onAddToCanvas(asset)}
+                        className="h-7 rounded border border-primary/60 bg-primary/10 text-[11px] hover:bg-primary/20"
+                    >
+                        {t('assets.addToCanvas')}
+                    </button>
+                </div>
             </div>
         </aside>
     );

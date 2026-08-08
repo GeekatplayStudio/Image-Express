@@ -9,6 +9,7 @@ import VaultModalToolbar from '@/components/AssetVault/VaultModalToolbar';
 import VaultFlatSidebar from '@/components/AssetVault/VaultFlatSidebar';
 import VaultFolderTreeSidebar from '@/components/AssetVault/VaultFolderTreeSidebar';
 import VaultNavModeSwitch from '@/components/AssetVault/VaultNavModeSwitch';
+import VaultSourceSwitch from '@/components/AssetVault/VaultSourceSwitch';
 import VaultAssetGridPanel from '@/components/AssetVault/VaultAssetGridPanel';
 import VaultAssetDetailsPanel from '@/components/AssetVault/VaultAssetDetailsPanel';
 import VaultModalFooter from '@/components/AssetVault/VaultModalFooter';
@@ -362,6 +363,13 @@ export default function AssetVaultModal({
                                                 navMode={browse.navMode}
                                                 onChange={browse.setNavMode}
                                             />
+                                            <div className="px-2 pb-2">
+                                                <VaultSourceSwitch
+                                                    source={browse.assetSource}
+                                                    counts={browse.sourceCounts}
+                                                    onChange={browse.setAssetSource}
+                                                />
+                                            </div>
                                             {browse.navMode === 'folders' && browse.folderTree ? (
                                                 <VaultFolderTreeSidebar
                                                     tree={browse.folderTree}
@@ -411,9 +419,9 @@ export default function AssetVaultModal({
                                             onSetPageIndex={browse.setPageIndex}
                                             onSetActivePageId={browse.setActivePageId}
                                             onOpenSources={() => browse.setSourcesOpen(true)}
+                                            onOpenAsset={(asset) => void previews.openDetail(asset)}
                                             onSelectAsset={(asset) => setSelectedAssetId(asset.id)}
                                             selectedAssetId={selectedAssetId}
-                                            onAddToCanvas={(asset) => void previews.handleAddToCanvas(asset)}
                                             onAssetContextMenu={(asset, event) => previews.openContextMenu({ kind: 'asset', asset }, event)}
                                             onHoverStart={previews.handleCardHoverStart}
                                             onHoverEnd={previews.handleCardHoverEnd}
@@ -429,6 +437,7 @@ export default function AssetVaultModal({
                                                 : undefined
                                         }
                                         onOpenPreview={(asset) => void previews.openDetail(asset)}
+                                        onAddToCanvas={(asset) => void previews.handleAddToCanvas(asset)}
                                         t={t}
                                         language={language}
                                     />
