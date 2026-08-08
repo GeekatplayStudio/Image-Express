@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Box, FileWarning, Loader2, MoreVertical, Music } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
@@ -37,12 +37,42 @@ export default function VaultAssetCard({
     const { t } = useI18n();
     const supportsHoverPreview = asset.type === 'models' || asset.type === 'videos' || asset.type === 'audio';
     /**
-     * Set when the artwork itself fails to load — an unreadable file, a codec
-     * the browser will not decode. Without it the tile kept whatever it had
-     * before, which for a still meant a spinner that never stopped and gave the
-     * user no way to tell a slow file from a broken one.
+     * How many times this tile's artwork has failed to load.
+     *
+     * A single failure is not evidence the file is broken: a dev-server
+     * recompile, a momentary stall, or a dropped connection all produce one
+     * failed response for a file that is fine. Marking the tile failed on the
+     * first error made those transient blips permanent — the tile stayed a
+     * warning glyph until the vault was reopened, which read as "previews show
+     * one time and stop other times". So a failed load retries, spaced out,
+     * and only a file that keeps failing is declared broken.
      */
-    const [artworkFailed, setArtworkFailed] = useState(false);
+    const [failCount, setFailCount] = useState(0);
+    const retryTimerRef = useRef<number | null>(null);
+
+    const MAX_ATTEMPTS = 3;
+    const artworkFailed = failCount >= MAX_ATTEMPTS;
+
+    const handleArtworkError = () => {
+        setFailCount((current) => {
+            const next = current + 1;
+            if (next < MAX_ATTEMPTS && retryTimerRef.current === null) {
+                // Remounting the element re-requests the URL; a failed response
+                // is never cached, so this is a genuine retry. Backoff gives a
+                // recompiling server time to come back.
+                retryTimerRef.current = window.setTimeout(() => {
+                    retryTimerRef.current = null;
+                    setRetryNonce((nonce) => nonce + 1);
+                }, 1500 * next);
+            }
+            return next;
+        });
+    };
+    const [retryNonce, setRetryNonce] = useState(0);
+
+    useEffect(() => () => {
+        if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+    }, []);
 
     // Reset the moment the artwork changes. A video tile shows the raw file
     // first and swaps to a poster once one is captured; without this, a failure
@@ -51,10 +81,12 @@ export default function VaultAssetCard({
     const [failedUrl, setFailedUrl] = useState(artworkUrl);
     if (failedUrl !== artworkUrl) {
         setFailedUrl(artworkUrl);
-        setArtworkFailed(false);
+        setFailCount(0);
     }
 
     const showArtwork = Boolean(artworkUrl) && !artworkFailed;
+    /** Key that forces a fresh element (and request) on each retry. */
+    const artworkKey = `${asset.id}:${retryNonce}`;
 
     return (
         <div
@@ -94,20 +126,20 @@ export default function VaultAssetCard({
                     {asset.type === 'videos' && showArtwork && (
                         thumb ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={thumb} alt={asset.name} className="w-full h-full object-cover" onError={() => setArtworkFailed(true)} />
+                            <img key={artworkKey} src={thumb} alt={asset.name} className="w-full h-full object-cover" onError={handleArtworkError} />
                         ) : (
-                            <video src={videoSrcWithPosterSeek(source!)} className="w-full h-full object-cover" muted playsInline preload="metadata" onError={() => setArtworkFailed(true)} />
+                            <video key={artworkKey} src={videoSrcWithPosterSeek(source!)} className="w-full h-full object-cover" muted playsInline preload="metadata" onError={handleArtworkError} />
                         )
                     )}
                     {asset.type === 'models' && (
                         thumb && !artworkFailed ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={thumb} alt={asset.name} className="w-full h-full object-contain bg-secondary/30" onError={() => setArtworkFailed(true)} />
+                            <img key={artworkKey} src={thumb} alt={asset.name} className="w-full h-full object-contain bg-secondary/30" onError={handleArtworkError} />
                         ) : <Box size={24} className="text-muted-foreground" />
                     )}
                     {asset.type === 'images' && showArtwork && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={thumb || source} alt={asset.name} className="w-full h-full object-cover" onError={() => setArtworkFailed(true)} />
+                        <img key={artworkKey} src={thumb || source} alt={asset.name} className="w-full h-full object-cover" onError={handleArtworkError} />
                     )}
                     {asset.type === 'audio' && <Music size={24} className="text-muted-foreground" />}
                     <span className="absolute bottom-1 left-1 text-[9px] px-1 py-0.5 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100">

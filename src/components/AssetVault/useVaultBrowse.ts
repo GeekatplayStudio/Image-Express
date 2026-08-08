@@ -361,15 +361,23 @@ export function useVaultBrowse({
      * the previous session's selection. State is adjusted on the open→closed
      * transition during render; dismissing the context menu stays in an effect
      * because it calls out to the parent rather than setting local state.
+     *
+     * The clean state is the *flat* view. This used to reset to the 3D room
+     * (`use3d: true, depth: 'room'`) from when that was the default — but the
+     * default is flat now, and the room state made every reopen render an
+     * empty grid: the flat list only fills when `!use3d`, and the open-time
+     * auto-select is gated on `!use3d` too, so nothing ever recovered. The
+     * sidebar still counted every asset, which made it read as data loss
+     * rather than a mode mismatch.
      */
     const [wasOpen, setWasOpen] = useState(isOpen);
     if (wasOpen !== isOpen) {
         setWasOpen(isOpen);
         if (!isOpen) {
-            setDepth('room');
+            setDepth('page');
             setActiveAlbumId(null);
             setActivePageId(null);
-            setUse3d(true);
+            setUse3d(false);
         }
     }
 

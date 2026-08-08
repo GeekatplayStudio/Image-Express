@@ -307,6 +307,43 @@ Two client consequences follow from this and are load-bearing:
   memory before a single frame is drawn, and a blob cannot seek at all. IPC
   remains the fallback for a renderer loaded from `file://`.
 
+### The app's own assets: the serve route
+
+`/api/assets/serve/[...path]` is the artwork for every asset made *in* the app
+(uploads, generated images, rendered video), so its behaviour is the perceived
+speed of the user's own library. It had none of the vault route's properties and
+all of the cost:
+
+- `Cache-Control: max-age=0, must-revalidate` with **no validator** — every
+  vault open refetched the entire library in full.
+- `fs.readFileSync` per request — synchronous, so one page of 48 tiles stalled
+  the event loop 48 times and every other request (including `/api/queue/stream`)
+  queued behind it.
+- No `?w=`, so each generated image drew its tile from the ~1 MB original.
+
+It now streams, honours `Range`, answers `?w=` from the same thumbnail cache as
+the vault (measured: 976 KB → 5.2 KB per tile), and carries a size+mtime ETag so
+an unchanged file revalidates as a bodyless 304 in ~8 ms while an edited file is
+picked up immediately. `max-age` stays 0 on purpose: names can be reused, so
+correctness lives in the validator and speed in the 304.
+
+### Close/reopen must land in the flat view
+
+The vault's close-time reset used to restore `use3d: true, depth: 'room'` —
+correct when the 3D room was the default view, but the default is flat now, and
+that state made **every reopen render "No assets found"** while the sidebar
+counted every asset: the flat list only fills when `!use3d`, and the open-time
+auto-select is gated on `!use3d` too, so nothing ever recovered. The reset now
+lands in the flat view, and a regression test pins "reopen shows assets".
+
+### Tiles retry before they give up
+
+A tile's artwork failing once is not evidence the file is broken — a dev-server
+recompile or a dropped connection produces one failed response for a fine file.
+A failed tile retries (remount with backoff, up to 3 attempts) and only then
+shows the warning glyph. Declaring failure on the first error made transient
+blips permanent, which read as "previews show one time and stop other times".
+
 ### Grid loading is staged
 
 `useVaultPreviews` fills tile artwork in three stages rather than one loop,

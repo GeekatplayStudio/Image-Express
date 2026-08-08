@@ -271,15 +271,29 @@ export async function resolveVaultPreviewUrl(asset: VaultAssetRecord): Promise<s
 }
 
 /**
- * A grid-sized rendition, when the asset is a drive-indexed still image.
+ * A grid-sized rendition, for any still image the server can resize.
  *
- * Returns null for anything else — server assets already have a preview URL,
- * and videos and models build their thumbnails on the client from the source.
+ * Drive-indexed images go through the vault file route; the app's own assets
+ * (uploads, generated images) go through their serve route with `?w=` — both
+ * back onto the same thumbnail cache. Before server assets were included here,
+ * every generated image drew its grid tile from the full-size original:
+ * measured ~1 MB per tile, ~50 MB for a page of 48 of the user's own work.
+ *
+ * Returns null for videos and models, whose thumbnails are built on the client
+ * from a captured frame or a 3D render.
  */
 export function resolveVaultThumbnailUrl(asset: VaultAssetRecord, width = 256): string | null {
     if (asset.type !== 'images') return null;
-    if (asset.origin.connector !== 'local' && asset.origin.connector !== 'network') return null;
-    return resolveLocalFileThumbnailUrl(asset.origin.uri, width);
+    if (asset.origin.connector === 'local' || asset.origin.connector === 'network') {
+        return resolveLocalFileThumbnailUrl(asset.origin.uri, width);
+    }
+    if (
+        asset.origin.connector === 'server'
+        && asset.previewUrl?.startsWith('/api/assets/serve/')
+    ) {
+        return `${asset.previewUrl}?w=${width}`;
+    }
+    return null;
 }
 
 export type { VaultSearchRequest, VaultSearchResponse, VaultAssetRecord, Bookcase };

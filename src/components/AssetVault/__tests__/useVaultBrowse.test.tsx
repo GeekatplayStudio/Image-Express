@@ -157,7 +157,27 @@ describe('useVaultBrowse', () => {
         rerender(baseArgs({ isOpen: false }));
         expect(result.current.activeAlbumId).toBeNull();
         expect(result.current.activePageId).toBeNull();
-        expect(result.current.depth).toBe('room');
+        // The clean state must be the FLAT view. This used to assert 'room'
+        // (with use3d), which is the exact state that made every reopen render
+        // "No assets found": the flat list only fills when !use3d, and the
+        // open-time auto-select is gated on !use3d too, so nothing recovered.
+        expect(result.current.depth).toBe('page');
+        expect(result.current.use3d).toBe(false);
+    });
+
+    it('reopening after a close shows assets again, not an empty grid', () => {
+        // The regression this pins: close → reopen deterministically showed
+        // "No assets found" while the sidebar counted every asset, because the
+        // close reset landed in a mode the reopen path could not recover from.
+        const { result, rerender } = renderHook(
+            (props: ReturnType<typeof baseArgs>) => useVaultBrowse(props),
+            { initialProps: baseArgs() },
+        );
+        expect(result.current.displayedAssets.length).toBeGreaterThan(0);
+
+        rerender(baseArgs({ isOpen: false }));
+        rerender(baseArgs());
+        expect(result.current.displayedAssets.length).toBeGreaterThan(0);
     });
 
     it('switches the grid to folder contents in folder mode', () => {

@@ -19,6 +19,39 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-08 — Preview reliability: the serve route, the reopen bug, tile retries
+
+**Every reopen of the vault showed "No assets found".** Reproduced 100%
+deterministically: the close-time reset restored `use3d: true, depth: 'room'` —
+the old 3D-room default — but the flat grid only fills when `!use3d` and the
+open-time auto-select is gated on `!use3d` too, so nothing recovered. The reset
+now lands in the flat view; three consecutive close/reopen cycles verified at 48
+tiles each, and a regression test pins it. (The old test asserted the buggy
+state by name.)
+
+**The app's own assets had no caching, no thumbnails, and blocked the server.**
+`/api/assets/serve` sent `max-age=0, must-revalidate` with no validator — the
+literal "refreshing every single time, no precaching" — read whole files with
+`readFileSync` (one page of tiles = 48 event-loop stalls, everything else
+queued, including `/api/queue/stream`), and had no `?w=`, so each generated
+image cost its ~1 MB original per tile. It now streams with byte ranges,
+answers `?w=` from the shared thumbnail cache (976 KB → 5.2 KB per tile,
+measured), and carries a size+mtime ETag: unchanged files revalidate as a
+bodiless 304 in ~8 ms, edited files are picked up immediately.
+
+**A tile that failed once stayed broken forever.** The failure glyph added in
+the previous pass was permanent, so a transient blip (recompile, dropped
+connection) killed that tile until the vault was reopened. Tiles now retry with
+backoff (3 attempts) before declaring the file broken.
+
+**Stability under load, measured:** 7 passes of 96-way-concurrent thumbnail
+generation over real drive files (~670 requests/pass) — server up throughout,
+RSS plateauing ~2 GB. The earlier "server died during benchmarking" was
+diagnosed: one death was `npm run verify` rewriting `.next` under the running
+dev server (documented), one was a test-harness stdin artifact, and the
+remaining risk was the synchronous serve route, now streaming. Double-click
+still opens the full-size preview — verified in-browser, not assumed.
+
 ## 2026-08-08 — Vault previews: byte ranges, staged loading, a size slider
 
 **Videos could not be previewed at all.** `/api/assets/vault/file` applied a
