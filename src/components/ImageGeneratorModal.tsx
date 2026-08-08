@@ -26,7 +26,7 @@ import {
   type ComfyConnectionMode,
 } from '@/lib/comfyui/connection';
 import { buildComfyModelAvailabilityGuidance, isComfyModelAvailabilityError } from '@/lib/comfyui/modelCheckGuidance';
-import { comfyWorkflowRegistry, type ComfyTask, type ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
+import { comfyWorkflowRegistry, type ComfyTask } from '@/lib/comfyui/registry';
 import {
     registerSerializedComfyWorkflow,
     type ComfyDiagnosticsSnapshot,
@@ -56,6 +56,20 @@ import type { AnnotationDocument, AnnotationRecord, ReferenceRecord } from '@/li
 import { runAgenticEditJob } from '@/features/generation/application/agenticEditJobClient';
 import { buildAnnotatedReferenceLayerDataUrl, buildAnnotationLayerArtifacts, clamp01, readBoxGeometry, renderAnnotationShape } from '@/components/image-generator/annotationCanvasUtils';
 import { buildComfyTaskModelOptions, findComfyTaskModelOption } from '@/lib/comfyui/localModelOptions';
+import {
+    COMFY_AGENTIC_EDIT_WORKFLOW_4B,
+    COMFY_AGENTIC_EDIT_WORKFLOW_9B,
+    buildComfyMissingRequirementSummary,
+    formatComfyDiagnosticsText,
+    formatComfyRequirementDetails,
+    getPreferredComfyAgenticWorkflow,
+    isComfyConnectionFailureMessage,
+    readPreparedComfyText,
+    resolveComfyQualityProfile,
+    resolveFluxModelFromWorkflowId,
+    truncateComfyPromptForStatus,
+    type ComfyMissingRequirementSummary,
+} from '@/lib/comfyui/requestPlanning';
 import { fetchInstallerRuntimeStatus, type InstallerRuntimeStatus } from '@/lib/installerRuntimeStatus';
 
 /**
@@ -159,274 +173,6 @@ const COMFY_TASK_OPTIONS: Array<{ id: ComfyTask; labelKey: string }> = [
     { id: 'upscale', labelKey: 'stab.tab.upscale' },
 ];
 
-const COMFY_AGENTIC_EDIT_WORKFLOW_9B = 'image_flux2_klein_image_edit_9b_base';
-const COMFY_AGENTIC_EDIT_WORKFLOW_4B = 'image_flux2_klein_image_edit_4b_base';
-
-interface ComfyMissingRequirementSummary {
-    updateInstall: boolean;
-    models: ComfyWorkflowInstallableModel[];
-    workflows: string[];
-}
-
-const formatComfyDiagnosticsText = (diagnostics: ComfyDiagnosticsSnapshot): string => {
-    const lines: string[] = [];
-    const pushSection = (title: string, sectionLines: string[]) => {
-        lines.push(title);
-        lines.push(...sectionLines);
-        lines.push('');
-    };
-
-    pushSection('ComfyUI Diagnostics', [
-        `Generated: ${diagnostics.generatedAt}`,
-        `Server URL: ${diagnostics.connection.serverUrl}`,
-        `Transport: ${diagnostics.connection.transportKind}`,
-        `API Base Path: ${diagnostics.connection.apiBasePath || '/'}`,
-        `History Path: ${diagnostics.connection.historyPathBase}`,
-    ]);
-
-    pushSection('Resolved Paths', diagnostics.paths.statuses.map((status) => (
-        `${status.label}: ${status.path || '(not configured)'} | exists=${status.exists ? 'yes' : 'no'} | readable=${status.readable ? 'yes' : 'no'}${status.note ? ` | ${status.note}` : ''}`
-    )));
-
-    pushSection('Asset Inventory', diagnostics.assets.length > 0
-        ? diagnostics.assets.flatMap((group) => [
-            `${group.label} (${group.values.length})${group.expectedSubdirectory ? ` | expected folder: ${group.expectedSubdirectory}` : ''}`,
-            `  Sources: ${group.sourceInputs.join(', ') || '(none)'}`,
-            ...group.values.map((value) => `  - ${value}`),
-        ])
-        : ['No model-style asset lists were returned by ComfyUI object_info.']);
-
-    pushSection('Custom Node Repositories', diagnostics.library.nodeRepos.length > 0
-        ? diagnostics.library.nodeRepos.flatMap((repo) => [
-            `${repo.name} | ${repo.repoKind} | ${repo.gitManaged ? 'git repo' : 'plain folder'} | workflow hints=${repo.workflowHintCount}`,
-            `  Path: ${repo.path}`,
-        ])
-        : ['No custom node/workflow repositories were discovered in configured folders.']);
-
-    pushSection('Workflow Library Files', diagnostics.library.customFolderWorkflows.length > 0
-        ? diagnostics.library.customFolderWorkflows.flatMap((workflow) => [
-            `${workflow.name} | runnable=${workflow.runnable ? 'yes' : 'no'} | task=${workflow.task || 'unknown'}`,
-            `  Location: ${workflow.location || '(unknown)'}`,
-            workflow.warning ? `  Warning: ${workflow.warning}` : '',
-        ].filter(Boolean))
-        : ['No workflow JSON files were discovered in the configured workflow folders.']);
-
-    pushSection('Server Workflow Templates', diagnostics.library.serverTemplates.length > 0
-        ? diagnostics.library.serverTemplates.flatMap((workflow) => [
-            `${workflow.name} | runnable=${workflow.runnable ? 'yes' : 'no'} | task=${workflow.task || 'unknown'}`,
-            `  Location: ${workflow.location || '(unknown)'}`,
-            workflow.warning ? `  Warning: ${workflow.warning}` : '',
-        ].filter(Boolean))
-        : ['No importable server templates were discovered.']);
-
-    pushSection('Available Node Types', diagnostics.runtime.nodeTypes.length > 0
-        ? [
-            `Count: ${diagnostics.runtime.nodeTypes.length}`,
-            ...diagnostics.runtime.nodeTypes.map((nodeType) => `- ${nodeType}`),
-        ]
-        : ['No node types were returned by ComfyUI object_info.']);
-
-    pushSection('Features JSON', [JSON.stringify(diagnostics.runtime.features, null, 2) || 'null']);
-    pushSection('System Stats JSON', [JSON.stringify(diagnostics.runtime.systemStats, null, 2) || 'null']);
-
-    if (diagnostics.library.warnings.length > 0) {
-        pushSection('Warnings', diagnostics.library.warnings.map((warning) => `- ${warning}`));
-    }
-
-    return lines.join('\n').trim();
-};
-
-const buildComfyMissingRequirementSummary = (
-    records: Array<{
-        workflowId: string;
-        missingNodeTypes: string[];
-        missingModels: ComfyWorkflowInstallableModel[];
-        canAutoUpdateInstall: boolean;
-    }>
-): ComfyMissingRequirementSummary | null => {
-    const workflows = new Set<string>();
-    const modelMap = new Map<string, ComfyWorkflowInstallableModel>();
-    let updateInstall = false;
-
-    for (const record of records) {
-        if (record.missingNodeTypes.length === 0 && record.missingModels.length === 0) {
-            continue;
-        }
-
-        workflows.add(record.workflowId);
-        if (record.canAutoUpdateInstall && record.missingNodeTypes.length > 0) {
-            updateInstall = true;
-        }
-
-        for (const model of record.missingModels) {
-            modelMap.set(`${model.directory}/${model.name}`.toLowerCase(), model);
-        }
-    }
-
-    if (!updateInstall && modelMap.size === 0) {
-        return null;
-    }
-
-    return {
-        updateInstall,
-        models: Array.from(modelMap.values()),
-        workflows: Array.from(workflows),
-    };
-};
-
-const formatComfyRequirementDetails = (
-    records: Array<{
-        workflowId: string;
-        compatible: boolean;
-        missingNodeTypes: string[];
-        missingModels: ComfyWorkflowInstallableModel[];
-    }>
-): string => records
-    .map((record) => {
-        if (record.compatible) {
-            return `${record.workflowId}:ok`;
-        }
-
-        const detailParts: string[] = [];
-        if (record.missingNodeTypes.length > 0) {
-            detailParts.push(`nodes ${record.missingNodeTypes.slice(0, 3).join(', ')}`);
-        }
-        if (record.missingModels.length > 0) {
-            detailParts.push(`models ${record.missingModels.slice(0, 3).map((model) => model.name).join(', ')}`);
-        }
-
-        return `${record.workflowId}:missing ${detailParts.join('; ') || 'requirements'}`;
-    })
-    .join(' | ');
-
-const isComfyConnectionFailureMessage = (message: string): boolean => (
-    /Could not reach local ComfyUI|Local ComfyUI responded with HTTP|Local ComfyUI check .* returned a Next\.js 404 page instead of the ComfyUI API/i.test(message)
-);
-
-const readPreparedComfyText = (values: unknown[] | undefined): string => {
-    const textValue = values?.find((value): value is string => (
-        typeof value === 'string' && value.trim().length > 0
-    ));
-
-    return textValue ? textValue.trim() : '';
-};
-
-const truncateComfyPromptForStatus = (value: string, maxLength = 120): string => {
-    const trimmed = value.trim();
-    if (trimmed.length <= maxLength) {
-        return trimmed;
-    }
-
-    return `${trimmed.slice(0, maxLength - 3).trimEnd()}...`;
-};
-
-interface ComfyQualityProfile {
-    width: number;
-    height: number;
-    steps: number;
-    cfg: number;
-    strength: number;
-    seed: number;
-}
-
-const snapToComfyGrid = (value: number): number => Math.max(64, Math.round(value / 64) * 64);
-
-const resolveAdaptiveComfyDimensions = (
-    baseWidth: number,
-    baseHeight: number,
-    maxSide: number,
-    minSide = 512
-): { width: number; height: number } => {
-    const safeBaseWidth = Math.max(64, Math.round(baseWidth || 1024));
-    const safeBaseHeight = Math.max(64, Math.round(baseHeight || 1024));
-    const safeMaxSide = Math.max(minSide, Math.round(maxSide));
-
-    const longest = Math.max(safeBaseWidth, safeBaseHeight);
-    const scaleFromLongest = Math.max(minSide, Math.min(safeMaxSide, longest)) / longest;
-
-    let width = safeBaseWidth * scaleFromLongest;
-    let height = safeBaseHeight * scaleFromLongest;
-
-    const shortest = Math.min(width, height);
-    if (shortest < minSide) {
-        const scaleFromShortest = minSide / shortest;
-        width *= scaleFromShortest;
-        height *= scaleFromShortest;
-    }
-
-    width = snapToComfyGrid(width);
-    height = snapToComfyGrid(height);
-
-    const normalizedLongest = Math.max(width, height);
-    if (normalizedLongest > safeMaxSide) {
-        const downScale = safeMaxSide / normalizedLongest;
-        width = snapToComfyGrid(width * downScale);
-        height = snapToComfyGrid(height * downScale);
-    }
-
-    return {
-        width: Math.max(64, width),
-        height: Math.max(64, height),
-    };
-};
-
-const resolveComfyQualityProfile = (
-    workflowId: string,
-    modelPresetId: string,
-    baseWidth: number,
-    baseHeight: number,
-    task: ComfyTask
-): ComfyQualityProfile => {
-    const lowerWorkflowId = workflowId.toLowerCase();
-    const lowerModelPreset = modelPresetId.toLowerCase();
-
-    let maxSide = 1344;
-    let steps = task === 'generate' ? 36 : 30;
-    let cfg = 6.5;
-    let strength = task === 'img2img' ? 0.68 : 0.75;
-
-    if (lowerWorkflowId.includes('flux2_klein') || lowerWorkflowId.includes('flux2') || lowerModelPreset.includes('flux')) {
-        maxSide = 1024;
-        steps = lowerWorkflowId.includes('9b') ? 42 : 34;
-        cfg = 3.5;
-        strength = task === 'img2img' ? 0.72 : 0.8;
-    }
-
-    if (task === 'upscale') {
-        maxSide = 2048;
-        steps = 16;
-        cfg = 4.5;
-        strength = 0.5;
-    }
-
-    const adaptiveDimensions = resolveAdaptiveComfyDimensions(baseWidth, baseHeight, maxSide, 512);
-
-    return {
-        width: adaptiveDimensions.width,
-        height: adaptiveDimensions.height,
-        steps,
-        cfg,
-        strength,
-        seed: Math.floor(Math.random() * 2147483647),
-    };
-};
-
-const getPreferredComfyAgenticWorkflow = (workflowIds: string[]): string => (
-    workflowIds.find((workflowId) => workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_9B)
-    || workflowIds.find((workflowId) => workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_4B)
-    || workflowIds[0]
-    || ''
-);
-
-const resolveFluxModelFromWorkflowId = (workflowId: string): string => {
-    if (workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_4B) {
-        return 'flux.2-klein-4b';
-    }
-    if (workflowId === COMFY_AGENTIC_EDIT_WORKFLOW_9B) {
-        return 'flux.2-klein-9b';
-    }
-    return 'flux-kontext';
-};
 
 const readImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => (
     new Promise((resolve, reject) => {
