@@ -53,6 +53,32 @@ async function atomicWriteJson(filePath: string, data: unknown) {
 let catalogCache: { catalog: VaultCatalog; mtimeMs: number } | null = null;
 
 /**
+ * The SQLite equivalent of the cache above.
+ *
+ * Building a whole-catalog snapshot means one `JSON.parse` per row, and at 200k
+ * assets that measured **903 ms against 257 ms** for parsing the single JSON
+ * document — SQLite is 3.5x *dearer* on this particular operation, because the
+ * per-row cost dominates. Row storage wins on writes and on scoped queries, not
+ * on "give me everything".
+ *
+ * Search calls `readVaultCatalog` on every query, and the JSON path had an
+ * mtime-keyed cache that made repeat reads free. Without an equivalent here the
+ * migration would have made search markedly worse, not better.
+ *
+ * Safe to hold because this process is the only writer: every mutation goes
+ * through the helpers below, which invalidate it. `inFlight` collapses a
+ * stampede of concurrent searches into one build.
+ */
+let sqliteSnapshotCache: VaultCatalog | null = null;
+let sqliteSnapshotInFlight: Promise<VaultCatalog | null> | null = null;
+
+function invalidateCatalogCaches() {
+    catalogCache = null;
+    sqliteSnapshotCache = null;
+    sqliteSnapshotInFlight = null;
+}
+
+/**
  * Which backing store answers catalog reads and writes.
  *
  * SQLite when the runtime provides `node:sqlite`, because the JSON catalog
@@ -92,11 +118,18 @@ export async function readVaultCatalog(): Promise<VaultCatalog> {
     if (sqliteCatalogEnabled()) {
         try {
             await ensureCatalogMigrated();
-            const snapshot = await readCatalogSnapshot();
-            if (snapshot) return snapshot;
+            if (sqliteSnapshotCache) return sqliteSnapshotCache;
+            sqliteSnapshotInFlight ??= readCatalogSnapshot();
+            const snapshot = await sqliteSnapshotInFlight;
+            sqliteSnapshotInFlight = null;
+            if (snapshot) {
+                sqliteSnapshotCache = snapshot;
+                return snapshot;
+            }
         } catch (error) {
             // A broken DB must not make the vault unusable — fall through to
             // the JSON file, which is still on disk.
+            sqliteSnapshotInFlight = null;
             console.error('Vault catalog SQLite read failed, falling back to JSON:', error);
         }
     }
@@ -131,8 +164,8 @@ export async function writeVaultCatalog(catalog: VaultCatalog): Promise<void> {
             await ensureCatalogMigrated();
             await syncCatalogAssets(catalog.assets);
             await writeCatalogMeta('catalog_updated_at', catalog.updatedAt);
-            // The JSON cache is now stale by definition; reads go to the DB.
-            catalogCache = null;
+            // Both caches are stale by definition; reads go to the DB.
+            invalidateCatalogCaches();
             return;
         } catch (error) {
             console.error('Vault catalog SQLite write failed, falling back to JSON:', error);
@@ -173,7 +206,7 @@ export async function upsertVaultAssets(records: VaultAssetRecord[]): Promise<vo
             await ensureCatalogMigrated();
             await upsertCatalogAssets(records);
             await writeCatalogMeta('catalog_updated_at', updatedAt);
-            catalogCache = null;
+            invalidateCatalogCaches();
             return;
         } catch (error) {
             console.error('Vault catalog SQLite upsert failed, falling back to JSON:', error);
@@ -226,7 +259,7 @@ export async function deleteVaultAssets(ids: string[]): Promise<void> {
             await ensureCatalogMigrated();
             await deleteCatalogAssets(ids);
             await writeCatalogMeta('catalog_updated_at', updatedAt);
-            catalogCache = null;
+            invalidateCatalogCaches();
             return;
         } catch (error) {
             console.error('Vault catalog SQLite delete failed, falling back to JSON:', error);

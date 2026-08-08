@@ -233,6 +233,52 @@ describeDb('vault-store on SQLite', () => {
         expect(await readVaultAssetsByWatchRoot('wr_1')).toEqual([]);
     });
 
+    // The snapshot is cached in memory because rebuilding it costs ~885 ms at
+    // 200k assets and search reads it on every query. A cache that outlived a
+    // write would keep showing deleted assets, so each write path is pinned.
+    it('reflects a targeted upsert on the next read rather than serving a stale cache', async () => {
+        const { readVaultCatalog, writeVaultCatalog, upsertVaultAssets } = await loadStore();
+        await writeVaultCatalog(catalogOf([asset('a1')]));
+        await readVaultCatalog();
+
+        await upsertVaultAssets([asset('a1', { name: 'changed.png' })]);
+
+        expect((await readVaultCatalog()).assets[0].name).toBe('changed.png');
+    });
+
+    it('reflects a targeted delete on the next read', async () => {
+        const { readVaultCatalog, writeVaultCatalog, deleteVaultAssets } = await loadStore();
+        await writeVaultCatalog(catalogOf([asset('a1'), asset('a2')]));
+        await readVaultCatalog();
+
+        await deleteVaultAssets(['a1']);
+
+        expect((await readVaultCatalog()).assets.map((r) => r.id)).toEqual(['a2']);
+    });
+
+    it('reflects a whole-catalog write on the next read', async () => {
+        const { readVaultCatalog, writeVaultCatalog } = await loadStore();
+        await writeVaultCatalog(catalogOf([asset('a1')]));
+        await readVaultCatalog();
+
+        await writeVaultCatalog(catalogOf([asset('a2')]));
+
+        expect((await readVaultCatalog()).assets.map((r) => r.id)).toEqual(['a2']);
+    });
+
+    it('serves concurrent reads one consistent snapshot', async () => {
+        const { readVaultCatalog, writeVaultCatalog } = await loadStore();
+        await writeVaultCatalog(catalogOf([asset('a1'), asset('a2')]));
+
+        const [first, second, third] = await Promise.all([
+            readVaultCatalog(), readVaultCatalog(), readVaultCatalog(),
+        ]);
+
+        expect(first.assets).toHaveLength(2);
+        expect(second.assets.map((r) => r.id)).toEqual(first.assets.map((r) => r.id));
+        expect(third.assets.map((r) => r.id)).toEqual(first.assets.map((r) => r.id));
+    });
+
     it('does not re-import the JSON file after the first migration', async () => {
         await fs.mkdir(path.join(tempDir, 'vault'), { recursive: true });
         await fs.writeFile(catalogJsonPath(), JSON.stringify(catalogOf([asset('legacy')])), 'utf8');
