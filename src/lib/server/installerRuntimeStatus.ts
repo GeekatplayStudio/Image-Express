@@ -26,13 +26,40 @@ async function pathExists(targetPath: string) {
     }
 }
 
-function checkOllamaCliAvailable() {
-    try {
-        const result = spawnSync('ollama', ['--version'], { stdio: 'ignore' });
-        return result.status === 0;
-    } catch {
-        return false;
+/**
+ * Probing the CLI means launching a process, which is the slowest thing this
+ * module does and the only part that can block indefinitely — an installed but
+ * wedged `ollama` would hang the status endpoint with no timeout of its own.
+ * Bounded, and memoised so polling the endpoint does not respawn it each time.
+ */
+const OLLAMA_PROBE_TIMEOUT_MS = 2000;
+const OLLAMA_PROBE_TTL_MS = 30_000;
+let ollamaProbe: { available: boolean; checkedAt: number } | null = null;
+
+function checkOllamaCliAvailable(now = Date.now()) {
+    if (ollamaProbe && now - ollamaProbe.checkedAt < OLLAMA_PROBE_TTL_MS) {
+        return ollamaProbe.available;
     }
+    let available = false;
+    try {
+        const result = spawnSync('ollama', ['--version'], {
+            stdio: 'ignore',
+            timeout: OLLAMA_PROBE_TIMEOUT_MS,
+            windowsHide: true,
+        });
+        // A timeout kills the child and reports a signal, not status 0, so the
+        // strict check below already treats "wedged" as "unavailable".
+        available = result.status === 0;
+    } catch {
+        available = false;
+    }
+    ollamaProbe = { available, checkedAt: now };
+    return available;
+}
+
+/** Drop the memoised probe. Exported for tests and for post-install refresh. */
+export function resetOllamaProbeCache() {
+    ollamaProbe = null;
 }
 
 export async function getInstallerRuntimeStatus(comfyDirOverride = ''): Promise<InstallerRuntimeStatus> {

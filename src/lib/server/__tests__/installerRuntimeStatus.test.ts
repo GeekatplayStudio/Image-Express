@@ -69,6 +69,12 @@ describe('installerRuntimeStatus', () => {
         await fs.rm(tmpDir, { recursive: true, force: true });
     });
 
+    // Needs more than jest's generic 5s: this reloads the module graph after
+    // resetModules and probes the ollama CLI, so it launches a real process.
+    // Both get slow under parallel workers on Windows, and it timed out
+    // intermittently at the default while passing every time with --runInBand.
+    const RUNTIME_PROBE_TIMEOUT_MS = 20_000;
+
     it('returns installer runtime status with missing summaries', async () => {
         const { getInstallerRuntimeStatus } = await import('@/lib/server/installerRuntimeStatus');
         const status = await getInstallerRuntimeStatus();
@@ -110,7 +116,7 @@ describe('installerRuntimeStatus', () => {
         expect(status.comfyModels.some((model) => model.source === 'workflow')).toBe(true);
         expect(status.summary.ready).toBe(false);
         expect(status.summary.missing.some((entry) => entry.includes('missing-model'))).toBe(true);
-    });
+    }, RUNTIME_PROBE_TIMEOUT_MS);
 
     it('detects a standard ComfyUI folder from the current workspace when the configured default is missing', async () => {
         delete process.env.IMAGE_EXPRESS_COMFY_DIR;
@@ -143,5 +149,5 @@ describe('installerRuntimeStatus', () => {
         } finally {
             cwdSpy.mockRestore();
         }
-    });
+    }, RUNTIME_PROBE_TIMEOUT_MS);
 });
