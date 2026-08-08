@@ -79,10 +79,13 @@ export default function AssetVaultModal({
     const [isUploading, setIsUploading] = useState(false);
 
     // Always start with Sources closed — user opens Browse drive/folder explicitly.
+    // Destructured because a member expression cannot be tracked as a
+    // dependency; `setSourcesOpen` is a useState setter and so is stable.
+    const { setSourcesOpen } = browse;
     useEffect(() => {
         if (!isOpen) return;
-        browse.setSourcesOpen(false);
-    }, [isOpen, browse.setSourcesOpen]);
+        setSourcesOpen(false);
+    }, [isOpen, setSourcesOpen]);
 
     useEffect(() => {
         if (!isOpen || !focusSearch) return;

@@ -27,8 +27,8 @@ It now runs `audit:overrides → audit:architecture → audit:filesize → lint 
 typecheck → tests → build → audit:bundle`. Run it before every commit. If a gate
 is red, that is the work.
 
-### F-01 · Zero lint errors — *in progress*
-`npm run lint` must exit 0 and stay there.
+### F-01 · Zero lint errors — ✅ **done**
+`npm run lint` exits 0. Keep it that way — `verify` enforces it.
 
 - **Done:** ESLint was linting build output inside git worktrees and the
   gitignored `theme-packs/` authoring area — **108,985 problems**, minutes of
@@ -39,26 +39,37 @@ is red, that is the work.
   `set-state-in-effect` cases in ColorConstellation — one replaced by a lazy
   initializer, one by React's documented adjust-during-render pattern. Both
   removed a wasted render that flashed stale UI.
-- **Open:** 10 `react-hooks/set-state-in-effect` errors in
-  `src/components/AssetVault/useVaultBrowse.ts`, plus one `exhaustive-deps`
-  warning in `AssetVaultModal.tsx`. These are one interlocking state flow and
-  need a focused refactor with vault regression testing — see F-02.
+- **Done:** the remaining 10 errors and the `exhaustive-deps` warning — see F-02.
 
-### F-02 · Refactor `useVaultBrowse` state flow — P0
-The last blocker to a green lint gate, and the same code behind the
-"vault disappears" reports. Each effect has a known correct replacement:
+### F-02 · Refactor `useVaultBrowse` state flow — ✅ **done**
+Eight effects became render-time derivation. Each was replaced, not suppressed:
 
 | Effect | Replacement |
 |---|---|
-| `setPageIndex(0)` on many deps | Derive from a reset key, or adjust during render |
-| Clamp `pageIndex` to `totalPages` | **Pure derivation** — clamp on read, delete the effect |
+| Clamp `pageIndex` to `totalPages` | **Deleted** — `safePageIndex` derives it, so an out-of-range page never renders |
+| Expand the active album | **Deleted** — derived set, so selecting an album no longer flickers its children |
+| Clear selection when `depth === 'room'` | **Deleted as dead code** — every caller that sets `'room'` already clears the selection |
+| `setPageIndex(0)` on nine deps | One `viewKey` compared during render |
 | Album/page reconciliation | Adjust during render, guarded on previous value |
-| Auto-select first album on open | Move into the open event |
-| Clear selection when `depth === 'room'` | Move into the depth setter |
-| Reset everything on close | Move into the close handler |
+| Lens/sort hints from the query | Adjust during render, guarded on the previous hint |
+| Auto-select first album on open | Render-time condition |
+| Reset on close | Render-time transition; only the parent callback stays in an effect |
 
-**Acceptance:** lint clean, all vault tests green, and manual confirmation that
-browsing position survives a re-index and a catalog reload.
+Every removed effect also removed a wasted render that briefly painted stale
+UI — a stale lens, a collapsed album, an out-of-range page.
+
+`pendingFlatRematchRef` became state: a ref mutated during render is unsafe
+under concurrent rendering.
+
+**Coverage:** the hook had **no direct tests** before this. Added
+`useVaultBrowse.test.tsx` (10 tests) pinning the rules that were previously
+only implied — including that a momentarily-empty catalog must not destroy the
+browsing position. Verified non-vacuous: 2 of the 10 fail against the
+pre-refactor implementation.
+
+**Extraction:** the refactor pushed the file to 532 lines and the new ratchet
+failed on it, so folder navigation moved to `useVaultFolderNav.ts`
+(463 + 109 lines). The gate caught its author, which is the point.
 
 ### F-03 · Catalog storage → SQLite — P0
 The single architectural ceiling. `data/vault/catalog.json` is **153 MB**,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     loadVaultUiState,
     saveVaultUiState,
@@ -23,11 +23,7 @@ import {
     type VaultNaturalQuery,
     type VaultSortMode,
 } from '@/features/asset-vault/domain/vaultNaturalQuery';
-import {
-    assetIdsInVaultFolder,
-    buildVaultFolderTree,
-    vaultFolderPath,
-} from '@/features/asset-vault/domain/vaultFolderTree';
+import { useVaultFolderNav } from '@/components/AssetVault/useVaultFolderNav';
 import type { NavDepth } from '@/components/AssetVault/vaultModalTypes';
 import type { VaultNavMode } from '@/features/asset-vault/application/client/vaultUiState';
 
@@ -73,69 +69,21 @@ export function useVaultBrowse({
     const [activePageId, setActivePageId] = useState<string | null>(null);
     const [overflowOpen, setOverflowOpen] = useState(false);
     const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<string>>(() => new Set());
-    const pendingFlatRematchRef = useRef(false);
-
-    const [navMode, setNavMode] = useState<VaultNavMode>(savedUi?.navMode ?? 'groups');
-    const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
-    const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => new Set());
-    const [includeSubfolders, setIncludeSubfolders] = useState(true);
-
     /**
-     * Building the tree is a full pass over the catalog — ~550 ms for 200k
-     * assets — so it depends on `workingAssets` alone and is skipped entirely
-     * while the folder sidebar is closed. Deliberately NOT keyed on `t` or
-     * `language`: folder names come from the filesystem and never translate,
-     * and those identities change far more often than the catalog does.
+     * "After the album tree next rebuilds, jump to the first album." Held as
+     * state rather than a ref because the reconciliation below reads and clears
+     * it during render, and a ref mutated in render is not safe under
+     * concurrent rendering.
      */
-    const folderTree = useMemo(() => {
-        if (navMode !== 'folders') return null;
-        return buildVaultFolderTree(workingAssets);
-    }, [navMode, workingAssets]);
+    const [pendingFlatRematch, setPendingFlatRematch] = useState(false);
 
-    const activeFolderPath = useMemo(() => (
-        folderTree && activeFolderId ? vaultFolderPath(folderTree, activeFolderId) : []
-    ), [folderTree, activeFolderId]);
-
-    const folderAssetIds = useMemo(() => {
-        if (!folderTree || !activeFolderId) return null;
-        return new Set(assetIdsInVaultFolder(folderTree, activeFolderId, {
-            recursive: includeSubfolders,
-        }));
-    }, [folderTree, activeFolderId, includeSubfolders]);
-
-    const toggleFolderExpanded = useCallback((folderId: string) => {
-        setExpandedFolderIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(folderId)) next.delete(folderId);
-            else next.add(folderId);
-            return next;
-        });
-    }, []);
-
-    /** Select a folder and reveal it by expanding every ancestor. */
-    const selectFolder = useCallback((folderId: string) => {
-        setActiveFolderId(folderId);
-        onClearContextMenu();
-        setExpandedFolderIds((prev) => {
-            const next = new Set(prev);
-            const segments = folderId.split('/');
-            let walked = '';
-            for (const segment of segments) {
-                walked = walked ? `${walked}/${segment}` : segment;
-                next.add(walked);
-            }
-            return next;
-        });
-    }, [onClearContextMenu]);
-
-    const selectAllFolders = useCallback(() => {
-        setActiveFolderId(null);
-        onClearContextMenu();
-    }, [onClearContextMenu]);
-
-    const toggleIncludeSubfolders = useCallback(() => {
-        setIncludeSubfolders((prev) => !prev);
-    }, []);
+    const folderNav = useVaultFolderNav({
+        workingAssets,
+        initialNavMode: savedUi?.navMode ?? 'groups',
+        onClearContextMenu,
+    });
+    const { navMode, folderAssetIds } = folderNav;
+    const { activeFolderId, includeSubfolders } = folderNav;
 
     const effectiveSort = naturalQuery.sort !== 'relevance' ? naturalQuery.sort : sortMode;
     const effectiveLens = naturalQuery.lensHint || lens;
@@ -154,32 +102,43 @@ export function useVaultBrowse({
         return sortVaultAlbums(tree, effectiveSort, (album) => resolveVaultLabel(album, t, language), language);
     }, [workingAssets, effectiveLens, bookcases, effectiveSort, naturalQuery.typeFilter, t, language, albumPageSize]);
 
-    useEffect(() => {
-        if (naturalQuery.lensHint && naturalQuery.lensHint !== lens) {
-            pendingFlatRematchRef.current = !use3d;
+    /**
+     * Adopt lens/sort hints parsed out of the search query.
+     *
+     * Adjusted during render (React's documented pattern for state derived from
+     * changing inputs) rather than in effects. The effect version rendered the
+     * old lens once, then re-rendered with the new one, so typing a query like
+     * "photos by date" visibly rebuilt the sidebar twice. Guarded on the
+     * previous hint, so a user who then picks a lens by hand is not overridden
+     * on every keystroke.
+     */
+    const [lastLensHint, setLastLensHint] = useState<VaultOrganizeLens | null>(null);
+    if (naturalQuery.lensHint && naturalQuery.lensHint !== lastLensHint) {
+        setLastLensHint(naturalQuery.lensHint);
+        if (naturalQuery.lensHint !== lens) {
             setLens(naturalQuery.lensHint);
-            if (use3d) {
-                setDepth('room');
-                setActiveAlbumId(null);
-                setActivePageId(null);
-            } else {
-                setActiveAlbumId(null);
-                setActivePageId(null);
-            }
+            setPendingFlatRematch(!use3d);
+            if (use3d) setDepth('room');
+            setActiveAlbumId(null);
+            setActivePageId(null);
         }
-    }, [naturalQuery.lensHint, lens, use3d]);
+    }
 
-    useEffect(() => {
-        if (naturalQuery.sort !== 'relevance' && naturalQuery.sort !== sortMode) {
-            setSortMode(naturalQuery.sort);
-        }
-    }, [naturalQuery.sort, sortMode]);
+    const [lastSortHint, setLastSortHint] = useState<VaultSortMode | null>(null);
+    if (naturalQuery.sort !== 'relevance' && naturalQuery.sort !== lastSortHint) {
+        setLastSortHint(naturalQuery.sort);
+        if (naturalQuery.sort !== sortMode) setSortMode(naturalQuery.sort);
+    }
 
     const activeAlbum = useMemo(() => findVaultAlbum(albums, activeAlbumId), [albums, activeAlbumId]);
     const activePage = useMemo(() => findVaultPage(activeAlbum, activePageId), [activeAlbum, activePageId]);
 
-    useEffect(() => {
-        if (use3d || !pendingFlatRematchRef.current) return;
+    /**
+     * Honour a pending "jump to the first album" request once the tree has
+     * rebuilt under the new lens.
+     */
+    if (!use3d && pendingFlatRematch) {
+        setPendingFlatRematch(false);
         const first = albums[0];
         if (first) {
             setActiveAlbumId(first.id);
@@ -189,18 +148,22 @@ export function useVaultBrowse({
         } else {
             setExpandedAlbumIds(new Set());
         }
-        pendingFlatRematchRef.current = false;
-    }, [albums, use3d, effectiveLens]);
+    }
 
-    useEffect(() => {
-        if (!activeAlbumId || use3d) return;
-        setExpandedAlbumIds((prev) => {
-            if (prev.has(activeAlbumId)) return prev;
-            const next = new Set(prev);
-            next.add(activeAlbumId);
-            return next;
-        });
-    }, [activeAlbumId, use3d]);
+    /**
+     * The active album is always shown expanded. Derived rather than pushed
+     * into state by an effect: the effect version rendered once with the album
+     * collapsed and then again expanded, so selecting an album visibly
+     * flickered its children.
+     */
+    const visibleExpandedAlbumIds = useMemo(() => {
+        if (!activeAlbumId || use3d || expandedAlbumIds.has(activeAlbumId)) {
+            return expandedAlbumIds;
+        }
+        const next = new Set(expandedAlbumIds);
+        next.add(activeAlbumId);
+        return next;
+    }, [expandedAlbumIds, activeAlbumId, use3d]);
 
     const fileManagerAssets = useMemo(() => {
         let list: VaultAssetRecord[] = [];
@@ -242,52 +205,70 @@ export function useVaultBrowse({
         });
     }, [fileManagerAssets, naturalQuery.text, searchHits]);
 
-    const pagedAssets = useMemo(() => {
-        if (pageSize === 'all') return displayedAssets;
-        const start = pageIndex * pageSize;
-        return displayedAssets.slice(start, start + pageSize);
-    }, [displayedAssets, pageSize, pageIndex]);
-
     const totalPages = pageSize === 'all'
         ? 1
         : Math.max(1, Math.ceil(displayedAssets.length / pageSize));
 
-    useEffect(() => {
-        setPageIndex(0);
-    }, [pageSize, activeAlbumId, activePageId, naturalQuery.text, effectiveLens, effectiveSort,
-        activeFolderId, includeSubfolders, navMode]);
+    /**
+     * Clamped on read instead of corrected by an effect. When the result set
+     * shrank — a narrower filter, a smaller folder — the effect version
+     * rendered one frame of an out-of-range page (an empty grid) before
+     * snapping back. Deriving it means the out-of-range state never renders.
+     */
+    const safePageIndex = Math.min(Math.max(pageIndex, 0), totalPages - 1);
 
-    useEffect(() => {
-        if (!activeAlbumId) return;
-        // An empty album list is a transient state, not a deleted album: it
-        // happens while the catalog reloads or a re-index is in flight. Clearing
-        // the selection here is what made the vault "disappear" — the browsing
-        // position was destroyed by a momentary gap in the data and never came
-        // back once the assets returned.
-        if (albums.length === 0) return;
+    const pagedAssets = useMemo(() => {
+        if (pageSize === 'all') return displayedAssets;
+        const start = safePageIndex * pageSize;
+        return displayedAssets.slice(start, start + pageSize);
+    }, [displayedAssets, pageSize, safePageIndex]);
 
+    /**
+     * Any change of *what is being listed* returns to page 1. Collapsed into a
+     * single key compared during render: as an effect this reset landed a frame
+     * late, so switching folders briefly showed page 3 of the previous folder.
+     */
+    const viewKey = [
+        pageSize, activeAlbumId, activePageId, naturalQuery.text,
+        effectiveLens, effectiveSort, activeFolderId, includeSubfolders, navMode,
+    ].join('|');
+    const [lastViewKey, setLastViewKey] = useState(viewKey);
+    if (viewKey !== lastViewKey) {
+        setLastViewKey(viewKey);
+        if (pageIndex !== 0) setPageIndex(0);
+    }
+
+    /**
+     * Keep the selection valid as the album tree rebuilds.
+     *
+     * Runs during render so an invalid selection is never painted. Two rules
+     * this must preserve, both of them past bugs:
+     *
+     *  - An empty album list is a *transient* state (catalog reloading, or a
+     *    re-index in flight), not a deleted album. Clearing the selection here
+     *    is what made the vault "disappear": the browsing position was
+     *    destroyed by a momentary gap and never came back with the data.
+     *  - Page ids are positional (`<album>::page_N`), so indexing more assets
+     *    renumbers them. Hold the reader's place at the nearest surviving page
+     *    rather than snapping to the first.
+     */
+    if (activeAlbumId && albums.length > 0) {
         const album = findVaultAlbum(albums, activeAlbumId);
         if (!album) {
             setActiveAlbumId(null);
             setActivePageId(null);
-            return;
-        }
-        if (!activePageId || !album.pages.some((page) => page.id === activePageId)) {
-            // Page ids are positional (`<album>::page_N`), so indexing more
-            // assets or changing the page size renumbers them. Hold the reader's
-            // place at the nearest surviving page instead of snapping to the
-            // first one.
+        } else if (!activePageId || !album.pages.some((page) => page.id === activePageId)) {
             const previousIndex = activePageId
                 ? Math.max(0, Number.parseInt(activePageId.split('::page_')[1] ?? '1', 10) - 1)
                 : 0;
             const clampedIndex = Math.min(previousIndex, album.pages.length - 1);
-            setActivePageId(album.pages[clampedIndex]?.id ?? album.pages[0]?.id ?? null);
+            const nextPageId = album.pages[clampedIndex]?.id ?? album.pages[0]?.id ?? null;
+            if (nextPageId !== activePageId) setActivePageId(nextPageId);
         }
-    }, [albums, activeAlbumId, activePageId, pageSize]);
+    }
 
-    useEffect(() => {
-        if (pageIndex > totalPages - 1) setPageIndex(Math.max(0, totalPages - 1));
-    }, [pageIndex, totalPages]);
+    // (Removed: an effect that clamped pageIndex to totalPages. `safePageIndex`
+    // above derives the same value without a correcting render.)
 
     useEffect(() => {
         if (!isOpen) return;
@@ -303,21 +284,20 @@ export function useVaultBrowse({
         });
     }, [isOpen, smartSearch, lens, sortMode, query, pageSize, sourcesOpen, navMode]);
 
-    useEffect(() => {
-        if (!isOpen || use3d || activeAlbumId || albums.length === 0) return;
+    // Open with something selected rather than an empty grid.
+    if (isOpen && !use3d && !activeAlbumId && albums.length > 0) {
         const first = albums[0];
         setActiveAlbumId(first.id);
         setActivePageId(first.pages[0]?.id ?? null);
         setDepth('page');
         setExpandedAlbumIds(new Set([first.id]));
-    }, [isOpen, use3d, activeAlbumId, albums]);
+    }
 
-    useEffect(() => {
-        if (depth === 'room') {
-            setActiveAlbumId(null);
-            setActivePageId(null);
-        }
-    }, [lens, depth]);
+    // (Removed: an effect that cleared the selection whenever depth became
+    // 'room'. Every call site that sets 'room' — applyOrganizeLens, the
+    // lens-hint path, close, and the album-created handler in the modal —
+    // already clears activeAlbumId/activePageId in the same action, so the
+    // effect only ever ran a second render to redo work that was already done.)
 
     const goRoom = useCallback(() => {
         setDepth('page');
@@ -354,7 +334,7 @@ export function useVaultBrowse({
             setActivePageId(null);
             return;
         }
-        pendingFlatRematchRef.current = true;
+        setPendingFlatRematch(true);
         setActiveAlbumId(null);
         setActivePageId(null);
         setDepth('page');
@@ -404,16 +384,29 @@ export function useVaultBrowse({
     }, []);
 
     const requestFlatRematch = useCallback(() => {
-        pendingFlatRematchRef.current = !use3d;
+        setPendingFlatRematch(!use3d);
     }, [use3d]);
+
+    /**
+     * Reset to a clean state when the modal closes, so reopening never shows
+     * the previous session's selection. State is adjusted on the open→closed
+     * transition during render; dismissing the context menu stays in an effect
+     * because it calls out to the parent rather than setting local state.
+     */
+    const [wasOpen, setWasOpen] = useState(isOpen);
+    if (wasOpen !== isOpen) {
+        setWasOpen(isOpen);
+        if (!isOpen) {
+            setDepth('room');
+            setActiveAlbumId(null);
+            setActivePageId(null);
+            setUse3d(true);
+        }
+    }
 
     useEffect(() => {
         if (isOpen) return;
         onClearContextMenu();
-        setDepth('room');
-        setActiveAlbumId(null);
-        setActivePageId(null);
-        setUse3d(true);
     }, [isOpen, onClearContextMenu]);
 
     const labelOf = useCallback(
@@ -444,18 +437,10 @@ export function useVaultBrowse({
         setActivePageId,
         overflowOpen,
         setOverflowOpen,
-        expandedAlbumIds,
-        navMode,
-        setNavMode,
-        folderTree,
-        activeFolderId,
-        activeFolderPath,
-        expandedFolderIds,
-        includeSubfolders,
-        selectFolder,
-        selectAllFolders,
-        toggleFolderExpanded,
-        toggleIncludeSubfolders,
+        // Consumers get the derived set, so the active album always renders
+        // expanded without a second render to make it so.
+        expandedAlbumIds: visibleExpandedAlbumIds,
+        ...folderNav,
         effectiveSort,
         effectiveLens,
         albums,
