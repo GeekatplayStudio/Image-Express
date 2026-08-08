@@ -71,7 +71,7 @@ pre-refactor implementation.
 failed on it, so folder navigation moved to `useVaultFolderNav.ts`
 (463 + 109 lines). The gate caught its author, which is the point.
 
-### F-03 · Catalog storage → SQLite — P0
+### F-03 · Catalog storage → SQLite — P0 *(store landed, not yet wired)*
 The single architectural ceiling. `data/vault/catalog.json` is **153 MB**,
 fully parsed and Zod-validated into heap, and **every mutation rewrites the
 entire file** — adding one asset rewrites 153 MB.
@@ -94,6 +94,17 @@ entire file** — adding one asset rewrites 153 MB.
   backup for one release. `node:sqlite` is still flagged experimental, so keep
   the store behind its current interface and retain the JSON implementation as
   a fallback.
+- **Done — the store itself.** `src/lib/server/vaultCatalogDb.ts` implements
+  the schema above with WAL and `synchronous=NORMAL`, plus an idempotent
+  `migrateCatalogFromJson` that records a marker rather than touching the JSON.
+  13 tests, including the two that matter: a folder-prefix near-miss
+  (`d:/media-private` must not match `d:/media`) and a direct check that adding
+  one asset to a 2,000-row catalog writes a row rather than the whole store.
+  Every DB test skips rather than fails when `node:sqlite` is absent, because
+  falling back is a supported configuration.
+- **Next:** wire it into `vault-store.ts` behind the JSON fallback, then
+  measure. Until that lands nothing uses it, so the 153 MB rewrite is still
+  what ships.
 - **Acceptance:** adding one asset writes O(1), not 153 MB; cold search latency
   measured before and after; catalog load no longer holds the full set in heap.
 
@@ -210,11 +221,22 @@ exit code**, so 40 files drifted past it with nothing to stop them.
 - **Rule going forward:** every PR that touches a baselined file should lower
   its number. Run `npm run audit:filesize:update` after a split.
 
-### F-07 · Diagnosability — P0
-`electron/main.js` logs the packaged server's stderr as a **byte count only**
+### F-07 · Diagnosability — ✅ **done**
+`electron/main.js` logged the packaged server's stderr as a **byte count only**
 (`{"event":"server.stderr","details":{"bytes":1438}}`). When the packaged app
 failed to start, the log recorded that 1,438 bytes of error existed and nothing
-about what they said. Capture the actual text, truncated and redacted.
+about what they said.
+
+- **Done:** the handler now records the text. Redaction moved out of `main.js`
+  into `electron/logRedaction.js`, which is the shell's single redaction path —
+  the inline `redactDiagnosticValue` was already there, so logging the text
+  would otherwise have meant a second, divergent redactor beside it.
+- The extracted version takes the paths to mask as an injected thunk rather
+  than importing Electron's `app`, so it is testable without booting Electron.
+  It had **no tests at all** before this, despite guarding the exact file users
+  are asked to attach to support tickets. Now 19.
+- Coverage gained a case in the move: a bare `sk-…` key with no surrounding
+  label, which the inline version passed through untouched.
 
 > **Correction (2026-08-07):** an earlier note here claimed `desktop:pack`
 > reports exit 0 while failing. That was a measurement error — `$?` after a

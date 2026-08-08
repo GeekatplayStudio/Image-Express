@@ -1,6 +1,6 @@
 # Changelog — Delivery History
 
-Last updated: 2026-08-07  
+Last updated: 2026-08-08  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
@@ -18,6 +18,53 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-08-08 — Operational floor: F-07 done, F-03 store landed
+
+**Meshy 3D generations now finish.** Meshy returns an untextured preview first
+and only produces textures after a *separate* refine task is started. The poll
+loop treated the preview's terminal status as the end of the job, so every
+Meshy generation shipped an untextured model — which read as a quality problem
+rather than a missing pipeline step. The loop now starts the refine task,
+retargets the poll and resets backoff; if refine cannot start, the preview is
+kept and the reason logged.
+
+**F-07 Diagnosability — done.** The desktop shell logged the packaged server's
+stderr as a byte count only, so a failed startup recorded that 1,438 bytes of
+error existed and nothing about what they said. It now logs the text. Redaction
+moved out of `main.js` into `electron/logRedaction.js` as the shell's single
+redaction path — `main.js` already had an inline redactor, so logging the text
+would otherwise have created a second, divergent one. The extracted module
+takes masked paths as an injected thunk instead of importing Electron's `app`,
+making it testable without booting Electron; it had **no tests** before, despite
+guarding the file users attach to support tickets. Now 19, including a bare
+`sk-…` key that the inline version passed through.
+
+**F-03 SQLite catalog store — landed, not yet wired.**
+`src/lib/server/vaultCatalogDb.ts` replaces the 153 MB whole-file rewrite with
+one row per asset and indexed columns for the filters the UI issues. Uses
+`node:sqlite` over `better-sqlite3` so there is no native module to rebuild on
+each Electron major. 13 tests, including a folder-prefix near-miss
+(`d:/media-private` must not match `d:/media`) and a direct check that adding
+one asset to a 2,000-row catalog writes a row, not the store. `vault-store.ts`
+does not call it yet, so the JSON rewrite is still what ships.
+
+**A random test failure, and a real bug behind it.** `npx jest` failed roughly
+one run in two on the two suites reaching `getInstallerRuntimeStatus`, always
+as a timeout, never as a bad assertion — and always passing under
+`--runInBand`, which is what `npm run verify` uses, so the project's own gate
+never saw it. The cause was contention, but chasing it surfaced a production
+bug: the `ollama` CLI probe had **no timeout**, so an installed-but-wedged
+binary would hang `/api/runtime/installer/status` indefinitely. The probe is now
+bounded at 2s and memoised for 30s; the two tests got an explicit 20s budget,
+since 5s was jest's generic default and never a considered one for work that
+reloads a module graph and spawns a process. Verified across five consecutive
+parallel full runs.
+
+Gate at time of writing: **173 suites / 1142 tests passing**, `npm run verify`
+green end to end.
+
+---
 
 ## Latest Delivery (2026-08-07) — Unified Job Queue ("Q") + Pipeline Rail
 

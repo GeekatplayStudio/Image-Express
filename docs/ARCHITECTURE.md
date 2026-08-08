@@ -303,8 +303,33 @@ All paths resolve through `src/lib/server/appPaths.ts`, overridable via
 `IMAGE_EXPRESS_DATA_DIR` / `_ASSETS_DIR` / `_LOGS_DIR` — which is how the
 desktop build keeps user data outside the app bundle.
 
-**No database.** Every store is JSON on disk. This is right for a single-machine
-app and is the main thing to revisit before multi-node deployment.
+**Every store is JSON on disk**, which is right for a single-machine app and is
+the main thing to revisit before multi-node deployment.
+
+### The one exception in progress: the vault catalog
+
+The catalog is the only store where JSON has hit a real ceiling. At whole-drive
+scale it measured **153 MB**, and because a JSON document has to be written
+whole, adding one asset rewrote all 153 MB — while any query parsed and
+validated the entire set into heap.
+
+`src/lib/server/vaultCatalogDb.ts` is the SQLite replacement: one row per asset
+with its full record as JSON, and indexed columns for the filters the UI
+actually issues (`type`, `watch_root`, `folder_path`, `modified_at`). Folder and
+type navigation become queries instead of full-array scans.
+
+It uses **`node:sqlite`**, not `better-sqlite3` — deliberately, because it ships
+with Node and so there is no native module to rebuild on every Electron major.
+That recurring cost is what matters for a desktop app. `node:sqlite` is still
+flagged experimental, so `isSqliteAvailable()` exists and callers fall back to
+the JSON store rather than leaving the vault unusable on a runtime without it.
+
+`migrateCatalogFromJson` imports once and records a marker in a `meta` table; it
+is idempotent and leaves the JSON file untouched, so a release can roll back.
+
+**Status:** the store and its tests are in; `vault-store.ts` does not call it
+yet, so the JSON rewrite is still what ships. See F-03 in
+[ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -360,6 +385,28 @@ Where things live, so changes land in the right place.
 Rules that are enforced, not conventions: server-only code stays under
 `src/lib/server/`; features own their contracts; API routes stay thin and
 delegate to `src/lib` (`npm run audit:architecture`).
+
+### Desktop diagnostics
+
+The shell writes newline-delimited JSON to `logs/desktop.jsonl` (rotated at
+2 MB, 3 files) covering startup phases, update state, and the packaged server's
+stdout/stderr. This is the file users are asked to attach to a support ticket,
+which makes it the one log with a real privacy obligation — the packaged
+server's stderr can echo an environment variable or an `Authorization` header
+verbatim.
+
+`electron/logRedaction.js` is the **single** redaction path for that file:
+
+- `safeLogText` — for raw text fields: truncate to 8 KB, then strip credentials.
+- `createDiagnosticRedactor(getRoots)` — for structured entries: masks home and
+  install paths, blanks values under sensitive keys, redacts credential
+  patterns in the rest, and caps depth, array length, and string length so one
+  runaway value cannot dominate an entry.
+
+Redaction is pattern-based as well as key-based because server output is
+unstructured — a leaked key appears in prose, not just as `KEY=value`. The
+module takes the paths to mask as an injected thunk rather than importing
+Electron's `app`, which is what makes it unit-testable without booting Electron.
 
 ---
 
