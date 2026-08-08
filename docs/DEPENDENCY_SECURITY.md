@@ -150,6 +150,33 @@ deprecated one, the warning can only be retired by the parent package.
 Re-check this table whenever `electron-builder`, `electron-updater`, `jsdom` or
 `jest` move a major.
 
+## Never run `npm install` while the app is running
+
+A running dev/prod server holds `node_modules/next/dist/server/lib` open, and
+`onnxruntime-node` stays locked too. npm's cleanup phase then fails with
+`EPERM`/`EBUSY` **after it has already removed packages**, leaving a tree that
+is neither the old nor the new one.
+
+Observed symptom: `tsc` suddenly "is not recognized", `npx jest` starts
+resolving out of the npm cache instead of `node_modules`, and `typecheck`,
+`lint` and `test` all fail at once — while 758 packages still look fine. The
+debug log is the tell:
+
+```
+warn cleanup [Error: EPERM: operation not permitted, rmdir '…\node_modules\next\dist\server\lib']
+warn cleanup [Error: EBUSY: resource busy or locked, rmdir '…\node_modules\onnxruntime-node']
+```
+
+**Fix:** stop every server on the project's ports first, then reinstall.
+
+```bash
+npm install
+```
+
+This is the same family as the packaging `EBUSY` below — a live handle beating
+a file operation — but it corrupts the dependency tree rather than one build
+artifact, so it looks like a broken toolchain rather than a locking problem.
+
 ## Windows install failures (`ENOTEMPTY`, `EPERM`, `TAR_ENTRY_ERROR`) and slow installs
 
 Real-time file scanning (Windows Defender / Search Indexer — both confirmed
