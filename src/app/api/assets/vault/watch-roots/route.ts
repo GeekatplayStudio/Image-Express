@@ -9,8 +9,9 @@ import {
 import { WatchRootSchema } from '@/features/asset-vault/contracts/watchRoot';
 import { stableVaultAssetId, inferVaultAssetType } from '@/features/asset-vault/domain/inferAssetType';
 import {
-    readVaultCatalog,
-    writeVaultCatalog,
+    deleteVaultAssets,
+    readVaultAssetsByWatchRoot,
+    upsertVaultAssets,
 } from '@/lib/server/vault-store';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
 import { decideVaultPathAccess } from '@/lib/server/vaultFilesystemPolicy';
@@ -125,17 +126,12 @@ export async function PUT(request: Request) {
             });
         }
 
-        const catalog = await readVaultCatalog();
-        const kept = catalog.assets.filter(
-            (asset) => !(asset.origin.connector === 'local' && asset.origin.watchRootId === root.id),
-        );
+        // Only this root's assets, not the whole catalog: a rescan of one folder
+        // has no reason to materialise every other asset on the machine.
+        const priorAssets = await readVaultAssetsByWatchRoot(root.id);
         // Asset ids are stable across rescans; keep prior AI enrichment
         // (descriptions, tags) instead of wiping it on every scan.
-        const priorById = new Map(
-            catalog.assets
-                .filter((asset) => asset.origin.connector === 'local' && asset.origin.watchRootId === root.id)
-                .map((asset) => [asset.id, asset]),
-        );
+        const priorById = new Map(priorAssets.map((asset) => [asset.id, asset]));
         const scannedAssets: VaultAssetRecord[] = scan.files.map((file) => {
             const type = inferVaultAssetType(file.name);
             const prior = priorById.get(stableVaultAssetId('vdrv', `${root.id}:${file.relativePath}`));
@@ -162,12 +158,13 @@ export async function PUT(request: Request) {
             };
         });
 
-        const nextCatalog = {
-            version: 1 as const,
-            updatedAt: new Date().toISOString(),
-            assets: [...kept, ...scannedAssets],
-        };
-        await writeVaultCatalog(nextCatalog);
+        // Replacing this root's contents = write what the scan found, drop what
+        // it no longer finds. Equivalent to rewriting the catalog with
+        // `[everything else, ...scanned]`, without touching everything else.
+        const scannedIds = new Set(scannedAssets.map((asset) => asset.id));
+        const removedIds = [...priorById.keys()].filter((id) => !scannedIds.has(id));
+        await upsertVaultAssets(scannedAssets);
+        await deleteVaultAssets(removedIds);
 
         // Hash vectors are a deterministic function of the asset text, so they
         // are derived at search time rather than persisted. Writing them here

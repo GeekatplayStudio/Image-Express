@@ -10,7 +10,7 @@ import {
     checkOllamaModelVision,
     listOllamaVisionModelsByCapability,
 } from '@/lib/ollamaServer';
-import { readVaultCatalog, writeVaultCatalog } from '@/lib/server/vault-store';
+import { readVaultCatalog, upsertVaultAssets } from '@/lib/server/vault-store';
 import { readVectorStore, writeVectorStore } from '@/lib/server/vaultWatchStore';
 import { embedTextWithOllama } from '@/lib/server/ollamaEmbeddings';
 import {
@@ -175,7 +175,10 @@ export async function enrichVaultCatalog(options: EnrichVaultOptions = {}): Prom
     let embedded = 0;
     let skipped = 0;
     const now = new Date().toISOString();
-    const updatedAssets = new Map(catalog.assets.map((asset) => [asset.id, asset]));
+    // Only what this run actually changed. A run enriches at most MAX_ENRICH_PER_RUN
+    // assets, so handing the whole catalog to the store would make it rediscover
+    // a handful of changes by scanning every row.
+    const changedAssets: VaultAssetRecord[] = [];
 
     for (const asset of candidates) {
         let next: VaultAssetRecord = { ...asset };
@@ -234,14 +237,10 @@ export async function enrichVaultCatalog(options: EnrichVaultOptions = {}): Prom
             }
         }
 
-        if (changed) updatedAssets.set(next.id, next);
+        if (changed) changedAssets.push(next);
     }
 
-    await writeVaultCatalog({
-        version: 1,
-        updatedAt: now,
-        assets: Array.from(updatedAssets.values()),
-    });
+    await upsertVaultAssets(changedAssets);
     await writeVectorStore(vectors);
 
     return {
