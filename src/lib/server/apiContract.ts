@@ -133,11 +133,38 @@ export function assertRequestContentLength(request: Request, maximumBytes: numbe
     }
 }
 
+/**
+ * Require a JSON content type, which is also this app's CSRF defence.
+ *
+ * The server binds to localhost, so any page in the user's browser can reach
+ * it. A cross-origin POST carrying `text/plain` is a *simple* request: no
+ * preflight, so it is delivered and its side effect happens — and since nothing
+ * checked the content type, a JSON body inside it parsed fine. The attacker
+ * cannot read the reply (no CORS headers are set) but does not need to in order
+ * to delete a design or install a pack from a URL they chose.
+ *
+ * Requiring `application/json` forces a preflight, which fails, so the request
+ * never arrives.
+ */
+export function assertJsonContentType(request: Request): void {
+    const header = request.headers.get('content-type') || '';
+    // Compare the media type only: charset and boundary parameters are legal.
+    const mediaType = header.split(';')[0].trim().toLowerCase();
+    if (mediaType !== 'application/json' && !mediaType.endsWith('+json')) {
+        throw new ApiRequestError(
+            'unsupported_media_type',
+            'Requests must be sent as application/json.',
+            415,
+        );
+    }
+}
+
 export async function parseJsonRequest<T>(
     request: Request,
     schema: z.ZodType<T>,
     maximumBytes = 1024 * 1024,
 ): Promise<T> {
+    assertJsonContentType(request);
     assertRequestContentLength(request, maximumBytes);
     const text = await request.text();
     if (Buffer.byteLength(text, 'utf8') > maximumBytes) {

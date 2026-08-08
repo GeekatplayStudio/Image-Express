@@ -14,6 +14,44 @@ the MCP server does not start it.
 | Setting | Default | Notes |
 |---|---|---|
 | `IMAGE_EXPRESS_URL` | `http://localhost:3457` | Base URL of the running app. The desktop app uses port `3927`. |
+| `IMAGE_EXPRESS_API_TOKEN` | *(auto)* | Normally unset — the bridge finds the token the app wrote. Set it only if your data directory is somewhere unusual. |
+| `IMAGE_EXPRESS_MCP_ALLOW_DESTRUCTIVE` | unset | Set to `1` to expose the three delete tools. **They are not registered at all by default.** |
+
+### Authentication
+
+The app writes a random token to `local-api-token` in its data directory on
+startup, and the bridge sends it as `Authorization: Bearer …` on every call.
+
+This is not a password, and it is not protection against local malware — any
+process that can read that file could already read the design files and the
+encrypted key vault sitting next to it. What it buys is the ability for the
+server to tell an **authorised local tool** apart from an unauthenticated
+caller, which is what makes it safe to refuse the latter on routes that delete
+or install.
+
+If the bridge reports that no token was found, start the app once so it can
+create one.
+
+### Destructive tools are opt-in
+
+`delete_design`, `delete_brand_profile` and `delete_super_agent` are **not
+registered** unless `IMAGE_EXPRESS_MCP_ALLOW_DESTRUCTIVE=1`. Eighteen of the
+twenty-one tools are available by default.
+
+Not registering is deliberately stronger than warning in the tool description: a
+capability that is absent cannot be reached by a confused model, by a prompt
+injection in a page the model read, or by a mis-click on an approval dialog.
+
+### Tool annotations
+
+Every tool carries standard MCP annotations, so a client can decide when to ask
+before running one:
+
+| Annotation | Tools |
+|---|---|
+| `readOnlyHint` | The 8 `list_*` / `get_*` / `app_status` tools |
+| `destructiveHint` | The 3 delete tools (opt-in only) |
+| `openWorldHint` | `import_asset_from_url`, `install_theme_from_url`, `install_ambience_from_url` — these fetch an address the caller supplies |
 
 ## Connecting a client
 
@@ -76,6 +114,15 @@ The server speaks standard MCP JSON-RPC (SDK `@modelcontextprotocol/sdk`).
 
 - The server only talks to `IMAGE_EXPRESS_URL` — by default the local app.
   It exposes no network listener of its own (stdio only).
+- Requests carry the local API token (see **Authentication** above), so the app
+  can distinguish this bridge from an unauthenticated caller.
+- Routes that delete or install refuse requests driven by another origin. The
+  server listens on localhost, so any page in a browser can reach it; a
+  cross-site POST cannot read the reply but its side effect would still happen.
+  `Sec-Fetch-Site` is set by the browser and cannot be forged by a page.
+- Requests must be sent as `application/json`. That is a CSRF defence, not a
+  formality: a cross-origin POST carrying `text/plain` is a *simple* request
+  that browsers deliver without a preflight.
 - `install_theme_from_url` / `install_ambience_from_url` install packs that
   contain executable modules (see `docs/THEME_PACKS_SPEC.md` §11) — clients
   should only install packs from sources the user trusts.

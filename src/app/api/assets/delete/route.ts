@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { assertTrustedCaller } from '@/lib/server/trustedCaller';
 import { unlink } from 'fs/promises';
 import path from 'path';
 import { normalizeEmail } from '@/lib/server/auth-utils';
@@ -13,10 +16,18 @@ import {
 } from '@/lib/server/asset-metadata';
 import { getAssetsDir } from '@/lib/server/appPaths';
 
+const DeleteAssetSchema = z.object({ filePath: z.string().min(1).max(1024), owner: z.string().max(320).optional() });
+
+/** Ids and paths only - these bodies are tiny. */
+const BODY_LIMIT = 8 * 1024;
+
 export async function POST(request: Request) {
   try {
     const authenticatedUser = await resolveRequestUser(request);
-    const { filePath, owner } = await request.json();
+    // Refuse a request driven by another origin: it cannot read the
+    // reply, but the change would still happen.
+    assertTrustedCaller(request);
+    const { filePath, owner } = await parseJsonRequest(request, DeleteAssetSchema, BODY_LIMIT);
 
     if (!filePath) {
       return NextResponse.json({ success: false, message: 'File path is required' }, { status: 400 });
@@ -84,6 +95,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const invalid = legacyValidationResponse(error);
+    if (invalid) return invalid;
     console.error('Delete error:', error);
     // If file doesn't exist, technically it's already "deleted", so maybe success?
     // But for now let's return error to debug.

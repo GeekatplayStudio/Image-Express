@@ -19,8 +19,57 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 const BASE_URL = (process.env.IMAGE_EXPRESS_URL || 'http://localhost:3457').replace(/\/$/, '');
+
+/**
+ * Destructive tools are only offered when the user opts in.
+ *
+ * A model that can silently delete designs or install a pack from a URL is a
+ * different risk from one that can list them. MCP clients do prompt for tool
+ * calls, but the safer default is for the capability not to be there at all.
+ */
+const ALLOW_DESTRUCTIVE = /^(1|true|yes)$/i.test(process.env.IMAGE_EXPRESS_MCP_ALLOW_DESTRUCTIVE || '');
+
+/**
+ * Shared secret written by the app into its data directory.
+ *
+ * Without it the bridge called the API as an anonymous stranger, which the
+ * server cannot tell apart from a web page in the user's browser reaching
+ * localhost. Reading it proves this process can already read the app's data
+ * directory, which is the same trust boundary the app itself has.
+ */
+function readLocalApiToken() {
+    const explicit = process.env.IMAGE_EXPRESS_API_TOKEN?.trim();
+    if (explicit) return explicit;
+
+    const candidates = [];
+    if (process.env.IMAGE_EXPRESS_DATA_DIR) {
+        candidates.push(path.join(process.env.IMAGE_EXPRESS_DATA_DIR, 'local-api-token'));
+    }
+    if (process.env.APPDATA) {
+        candidates.push(path.join(process.env.APPDATA, 'Image Express', 'data', 'local-api-token'));
+    }
+    if (process.env.HOME) {
+        candidates.push(path.join(process.env.HOME, 'Library', 'Application Support', 'Image Express', 'data', 'local-api-token'));
+        candidates.push(path.join(process.env.HOME, '.config', 'Image Express', 'data', 'local-api-token'));
+    }
+    candidates.push(path.join(process.cwd(), 'data', 'local-api-token'));
+
+    for (const candidate of candidates) {
+        try {
+            const token = readFileSync(candidate, 'utf8').trim();
+            if (token.length >= 32) return token;
+        } catch {
+            // Try the next location.
+        }
+    }
+    return '';
+}
+
+const API_TOKEN = readLocalApiToken();
 
 /** Call the app's HTTP API; returns parsed JSON or throws with a useful message. */
 const api = async (path, init = {}) => {
@@ -28,7 +77,13 @@ const api = async (path, init = {}) => {
     try {
         response = await fetch(`${BASE_URL}${path}`, {
             ...init,
-            headers: { 'content-type': 'application/json', ...(init.headers || {}) },
+            headers: {
+                'content-type': 'application/json',
+                // Identifies this as an authorised local tool rather than a web
+                // page that happened to reach localhost.
+                ...(API_TOKEN ? { authorization: `Bearer ${API_TOKEN}` } : {}),
+                ...(init.headers || {}),
+            },
             signal: AbortSignal.timeout(init.timeoutMs ?? 30_000),
         });
     } catch (error) {
@@ -41,10 +96,36 @@ const api = async (path, init = {}) => {
     let data;
     try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 500) }; }
     if (!response.ok) {
+        if (response.status === 403 && !API_TOKEN) {
+            throw new Error(
+                'Image Express refused this request because no local API token was found. ' +
+                'Start the app once to create it, or set IMAGE_EXPRESS_API_TOKEN.'
+            );
+        }
         throw new Error(`API ${path} returned ${response.status}: ${data?.error || text.slice(0, 300)}`);
     }
     return data;
 };
+
+/** Last path segment of a URL, so an import without a name still gets one. */
+const deriveFilename = (url) => {
+    try {
+        const last = new URL(url).pathname.split('/').filter(Boolean).pop() || '';
+        return last || 'imported-asset';
+    } catch {
+        return 'imported-asset';
+    }
+};
+
+/**
+ * Standard MCP annotations. Clients use these to decide when to ask the user
+ * before running a tool, so a wrong hint here has real consequences.
+ */
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const WRITES = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
+/** Reaches out to an address the caller supplies. */
+const FETCHES_REMOTE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 
 /** Wrap a tool handler: returns MCP text content, converts errors to isError results. */
 const handler = (fn) => async (args) => {
@@ -58,9 +139,23 @@ const handler = (fn) => async (args) => {
 
 const server = new McpServer({ name: 'image-express', version: '1.0.0' });
 
+/**
+ * Register a tool unless it is destructive and the user has not opted in.
+ *
+ * Not registering is stronger than describing the risk in the tool text: a
+ * capability that is absent cannot be invoked by a confused model, a prompt
+ * injection in a web page the model read, or a mis-click on an approval dialog.
+ */
+const registerTool = (name, spec, run) => {
+    const destructive = spec.annotations?.destructiveHint === true;
+    if (destructive && !ALLOW_DESTRUCTIVE) return;
+    server.registerTool(name, spec, run);
+};
+
 // ---- status ---------------------------------------------------------------
-server.registerTool('app_status', {
+registerTool('app_status', {
     title: 'App status',
+    annotations: READ_ONLY,
     description: 'Check that Image Express is running and reachable, and report the base URL plus library counts (designs, templates, themes, ambience packs).',
     inputSchema: {},
 }, handler(async () => {
@@ -78,14 +173,16 @@ server.registerTool('app_status', {
 }));
 
 // ---- designs --------------------------------------------------------------
-server.registerTool('list_designs', {
+registerTool('list_designs', {
     title: 'List designs',
+    annotations: READ_ONLY,
     description: 'List the user\'s saved designs with id, name, thumbnail URL, and last-modified time.',
     inputSchema: {},
 }, handler(async () => (await api('/api/designs/list')).designs || []));
 
-server.registerTool('rename_design', {
+registerTool('rename_design', {
     title: 'Rename a design',
+    annotations: WRITES,
     description: 'Rename a saved design by id.',
     inputSchema: {
         id: z.string().describe('Design id from list_designs'),
@@ -95,8 +192,9 @@ server.registerTool('rename_design', {
     method: 'POST', body: JSON.stringify({ id, name }),
 })));
 
-server.registerTool('delete_design', {
+registerTool('delete_design', {
     title: 'Delete a design',
+    annotations: DESTRUCTIVE,
     description: 'Permanently delete a saved design by id. Irreversible — confirm with the user before calling.',
     inputSchema: { id: z.string().describe('Design id from list_designs') },
 }, handler(async ({ id }) => api('/api/designs/delete', {
@@ -104,15 +202,17 @@ server.registerTool('delete_design', {
 })));
 
 // ---- templates ------------------------------------------------------------
-server.registerTool('list_templates', {
+registerTool('list_templates', {
     title: 'List templates',
+    annotations: READ_ONLY,
     description: 'List saved design templates with id, name, and thumbnail.',
     inputSchema: {},
 }, handler(async () => (await api('/api/templates/list')).templates || []));
 
 // ---- assets ---------------------------------------------------------------
-server.registerTool('list_assets', {
+registerTool('list_assets', {
     title: 'List assets',
+    annotations: READ_ONLY,
     description: 'List uploaded media assets (images etc.) in the user\'s library.',
     inputSchema: {},
 }, handler(async () => {
@@ -120,20 +220,26 @@ server.registerTool('list_assets', {
     return data.assets || data.files || data;
 }));
 
-server.registerTool('import_asset_from_url', {
+registerTool('import_asset_from_url', {
     title: 'Import an asset from a URL',
+    annotations: FETCHES_REMOTE,
     description: 'Download an image from an http(s) URL into the asset library so it can be used in designs.',
     inputSchema: {
         url: z.string().url().describe('Direct http(s) URL of the image to import'),
         name: z.string().optional().describe('Optional file name to store it under'),
     },
 }, handler(async ({ url, name }) => api('/api/assets/save-url', {
-    method: 'POST', body: JSON.stringify({ url, name }), timeoutMs: 60_000,
+    // The route requires `filename`, not `name` — sending `name` made this tool
+    // fail with "Missing url or filename" every single time it was called.
+    method: 'POST',
+    body: JSON.stringify({ url, filename: name || deriveFilename(url) }),
+    timeoutMs: 60_000,
 })));
 
 // ---- themes & ambience ----------------------------------------------------
-server.registerTool('list_themes', {
+registerTool('list_themes', {
     title: 'List UI themes',
+    annotations: READ_ONLY,
     description: 'List installed interface theme packs (id, name, description, whether animated via spriteTheater).',
     inputSchema: {},
 }, handler(async () => {
@@ -146,8 +252,9 @@ server.registerTool('list_themes', {
     }));
 }));
 
-server.registerTool('install_theme_from_url', {
+registerTool('install_theme_from_url', {
     title: 'Install a theme pack',
+    annotations: FETCHES_REMOTE,
     description: 'Download and install a theme pack zip from an http(s) URL. Note: theme packs contain code (scene modules) that will run in the app — only install packs from sources the user trusts.',
     inputSchema: {
         url: z.string().url().describe('Direct http(s) URL of the theme pack .zip'),
@@ -157,8 +264,9 @@ server.registerTool('install_theme_from_url', {
     method: 'POST', body: JSON.stringify({ url, overwrite }), timeoutMs: 60_000,
 })));
 
-server.registerTool('list_ambience_packs', {
+registerTool('list_ambience_packs', {
     title: 'List ambience packs',
+    annotations: READ_ONLY,
     description: 'List installed dashboard ambience packs (background effects for the hub).',
     inputSchema: {},
 }, handler(async () => {
@@ -169,8 +277,9 @@ server.registerTool('list_ambience_packs', {
     }));
 }));
 
-server.registerTool('install_ambience_from_url', {
+registerTool('install_ambience_from_url', {
     title: 'Install an ambience pack',
+    annotations: FETCHES_REMOTE,
     description: 'Download and install a dashboard ambience pack zip from an http(s) URL. Packs contain an effect module that will run in the app — only install from trusted sources.',
     inputSchema: {
         url: z.string().url().describe('Direct http(s) URL of the ambience pack .zip'),
@@ -181,8 +290,9 @@ server.registerTool('install_ambience_from_url', {
 })));
 
 // ---- AI generation & Brand / Super Agent tools ----------------------------
-server.registerTool('generate_image', {
+registerTool('generate_image', {
     title: 'Generate an image (AI)',
+    annotations: WRITES,
     description: 'Queue an AI image generation job in Image Express using the configured provider (e.g. local ComfyUI). Returns a job/prompt id; generation is asynchronous.',
     inputSchema: {
         prompt: z.string().min(1).describe('Text prompt describing the image'),
@@ -192,14 +302,16 @@ server.registerTool('generate_image', {
     method: 'POST', body: JSON.stringify({ prompt, provider: provider || 'comfy' }), timeoutMs: 60_000,
 })));
 
-server.registerTool('get_brand_profile', {
+registerTool('get_brand_profile', {
     title: 'Get active brand profile',
+    annotations: READ_ONLY,
     description: 'Fetch the active Brand Kit profile guidelines including palette, fonts, and logo layout rules.',
     inputSchema: {},
 }, handler(async () => api('/api/ai/brand-manager/profile')));
 
-server.registerTool('save_brand_profile', {
+registerTool('save_brand_profile', {
     title: 'Save brand profile',
+    annotations: WRITES,
     description: 'Create or update a Brand Kit profile (palette, fonts, logo and layout rules). Pass the full profile object; it becomes the active profile.',
     inputSchema: {
         profile: z.object({
@@ -211,8 +323,9 @@ server.registerTool('save_brand_profile', {
     method: 'POST', body: JSON.stringify({ profile }),
 })));
 
-server.registerTool('set_active_brand_profile', {
+registerTool('set_active_brand_profile', {
     title: 'Set active brand profile',
+    annotations: WRITES,
     description: 'Switch which saved Brand Kit profile is active for audits and Super Agent tasks.',
     inputSchema: {
         profileId: z.string().min(1).describe('Id of the profile to activate'),
@@ -221,8 +334,9 @@ server.registerTool('set_active_brand_profile', {
     method: 'POST', body: JSON.stringify({ activeProfileId: profileId }),
 })));
 
-server.registerTool('delete_brand_profile', {
+registerTool('delete_brand_profile', {
     title: 'Delete brand profile',
+    annotations: DESTRUCTIVE,
     description: 'Delete a saved Brand Kit profile by id. The default kit is restored if the last profile is removed.',
     inputSchema: {
         profileId: z.string().min(1).describe('Id of the profile to delete'),
@@ -231,8 +345,9 @@ server.registerTool('delete_brand_profile', {
     method: 'DELETE',
 })));
 
-server.registerTool('delete_super_agent', {
+registerTool('delete_super_agent', {
     title: 'Delete custom sub-agent',
+    annotations: DESTRUCTIVE,
     description: 'Delete a registered Super Agent / sub-agent definition by id.',
     inputSchema: {
         agentId: z.string().min(1).describe('Id of the agent to delete'),
@@ -241,8 +356,9 @@ server.registerTool('delete_super_agent', {
     method: 'DELETE',
 })));
 
-server.registerTool('audit_brand_compliance', {
+registerTool('audit_brand_compliance', {
     title: 'Audit canvas for brand compliance',
+    annotations: WRITES,
     description: 'Run a VLM or heuristic brand compliance check on the active canvas against current brand guidelines.',
     inputSchema: {
         imageDataUrl: z.string().optional().describe('Base64 image data URL of canvas (optional)'),
@@ -251,14 +367,16 @@ server.registerTool('audit_brand_compliance', {
     method: 'POST', body: JSON.stringify({ imageDataUrl }), timeoutMs: 45_000,
 })));
 
-server.registerTool('list_super_agents', {
+registerTool('list_super_agents', {
     title: 'List Super Agents',
+    annotations: READ_ONLY,
     description: 'List available autonomous Super Agents and custom sub-agent definitions.',
     inputSchema: {},
 }, handler(async () => api('/api/ai/super-agent/agents')));
 
-server.registerTool('create_super_agent', {
+registerTool('create_super_agent', {
     title: 'Create custom sub-agent',
+    annotations: WRITES,
     description: 'Register a new specialized sub-agent with custom dimensions, role, and prompt instructions.',
     inputSchema: {
         name: z.string().min(1).describe('Name of the agent'),
@@ -270,8 +388,9 @@ server.registerTool('create_super_agent', {
     method: 'POST', body: JSON.stringify({ agent }),
 })));
 
-server.registerTool('execute_super_agent_task', {
+registerTool('execute_super_agent_task', {
     title: 'Execute Super Agent task plan',
+    annotations: WRITES,
     description: 'Generates a multi-step design plan and step execution sequence for a natural language prompt.',
     inputSchema: {
         prompt: z.string().min(1).describe('High-level design prompt'),

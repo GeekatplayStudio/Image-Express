@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { assertTrustedCaller } from '@/lib/server/trustedCaller';
 import { access, rename } from 'fs/promises';
 import { constants } from 'fs';
 import path from 'path';
@@ -22,9 +25,17 @@ async function exists(filepath: string) {
     }
 }
 
+const RenameDesignSchema = z.object({ id: z.string().min(1).max(300), name: z.string().min(1).max(300) });
+
+/** Ids and paths only - these bodies are tiny. */
+const BODY_LIMIT = 8 * 1024;
+
 export async function POST(request: Request) {
     try {
-        const { id, name } = await request.json();
+        // Refuse a request driven by another origin: it cannot read the
+        // reply, but the change would still happen.
+        assertTrustedCaller(request);
+        const { id, name } = await parseJsonRequest(request, RenameDesignSchema, BODY_LIMIT);
         const designId = String(id || '').trim();
         const designName = String(name || '').trim();
 
@@ -70,6 +81,8 @@ export async function POST(request: Request) {
             }
         });
     } catch (error) {
+        const invalid = legacyValidationResponse(error);
+        if (invalid) return invalid;
         console.error('Rename design error:', error);
         return NextResponse.json({ success: false, message: 'Failed to rename design.' }, { status: 500 });
     }
