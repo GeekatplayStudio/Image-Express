@@ -38,7 +38,6 @@
     "src/lib/embroidery/embroideryExport.ts": 558,
     "src/components/AI/__tests__/StabilityGenerator.test.tsx": 554,
     "src/lib/agent/superAgentEngine.ts": 546,
-    "src/components/Editor/useBackgroundJobPolling.ts": 545,
     "src/components/AICritiqueModal.tsx": 528,
     "src/lib/agentic-edit/jobs.ts": 520,
     "src/components/Editor/useEditorCanvasOverlayState.ts": 510,

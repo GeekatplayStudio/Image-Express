@@ -97,7 +97,30 @@ entire file** — adding one asset rewrites 153 MB.
 - **Acceptance:** adding one asset writes O(1), not 153 MB; cold search latency
   measured before and after; catalog load no longer holds the full set in heap.
 
-### F-04 · Server-side provider polling — P0
+### F-04 · Server-side provider polling — P0 *(step 1 of 3 done)*
+
+**Done — the provider logic is now shared, pure and tested.**
+`src/lib/server/jobQueue/providerPoll.ts` owns URL construction, auth headers,
+response normalisation and poll backoff for all four providers. It previously
+lived as ~250 lines of inline branching inside `useBackgroundJobPolling`, in the
+browser, with no tests — and it is exactly where a silent mis-read turns a
+finished job into one that polls forever. 29 tests cover the status vocabularies
+that differ per provider (`SUCCEEDED` vs `success` vs `task_status: 4`,
+`CANCELED` vs `CANCELLED`, `EXPIRED`), the 0–1 vs 0–100 progress scales,
+Hitem3D's "a model URL means done even if the status field lags", and the Meshy
+preview→refine chain.
+
+Faithfulness was proven by pointing the existing client hook at the module: its
+suite still passes unchanged, and the hook dropped 545 → 381 lines.
+
+**Remaining:**
+2. A `remote-poll` queue handler that drives the loop server-side, reading keys
+   from the encrypted vault (`loadUserApiKeys`) instead of the browser.
+3. Cut the client over: stop polling, subscribe to SSE, and keep only the
+   completion work (asset persistence, thumbnail render, canvas placement) —
+   which must stay client-side because it manipulates the canvas.
+
+
 Meshy/Tripo/Hitem3D/Stability jobs are polled **from the browser**, so closing
 the tab abandons a running job and the 3-concurrent cap is per-tab. Users lose
 paid API credits with no recovery.
