@@ -167,9 +167,15 @@ export function useVaultBrowse({
 
     const fileManagerAssets = useMemo(() => {
         let list: VaultAssetRecord[] = [];
-        if (searchHits) {
-            list = searchHits;
-        } else if (navMode === 'folders') {
+        // `workingAssets` is already the search hits while a search is active, so
+        // the branches below narrow *within* the results. Search used to
+        // short-circuit to the flat hit list here, which is why choosing a
+        // folder, an album or a different lens did nothing after searching.
+        //
+        // Search also forces the flat path: the 3D room only renders a selected
+        // album, so a search with nothing selected would have shown an empty grid.
+        const flat = !use3d || Boolean(searchHits);
+        if (navMode === 'folders') {
             // Folder mode replaces the album/page path entirely: the grid shows
             // exactly what lives in the chosen folder (optionally recursively),
             // or the whole catalog when nothing is selected.
@@ -178,10 +184,10 @@ export function useVaultBrowse({
                 : workingAssets;
         } else if (activePage) {
             list = assetsForPage(workingAssets, activePage);
-        } else if (!use3d && activeAlbum) {
+        } else if (flat && activeAlbum) {
             const ids = new Set(activeAlbum.pages.flatMap((page) => page.assetIds));
             list = workingAssets.filter((asset) => ids.has(asset.id));
-        } else if (!use3d) {
+        } else if (flat) {
             list = workingAssets;
         }
         if (naturalQuery.typeFilter) {
@@ -239,6 +245,25 @@ export function useVaultBrowse({
     }
 
     /**
+     * Starting a search returns to "all hits".
+     *
+     * Without this, an album selected before searching keeps narrowing the
+     * results afterwards — the user searches, sees a handful of assets while
+     * the footer reports the full count, and reads it as results going
+     * missing. Adjusted during render, like the resets above, so the narrowed
+     * grid is never painted.
+     */
+    const isSearchActive = Boolean(searchHits);
+    const [lastSearchActive, setLastSearchActive] = useState(isSearchActive);
+    if (isSearchActive !== lastSearchActive) {
+        setLastSearchActive(isSearchActive);
+        if (isSearchActive && activeAlbumId) {
+            setActiveAlbumId(null);
+            setActivePageId(null);
+        }
+    }
+
+    /**
      * Keep the selection valid as the album tree rebuilds.
      *
      * Runs during render so an invalid selection is never painted. Two rules
@@ -284,8 +309,12 @@ export function useVaultBrowse({
         });
     }, [isOpen, smartSearch, lens, sortMode, query, pageSize, sourcesOpen, navMode]);
 
-    // Open with something selected rather than an empty grid.
-    if (isOpen && !use3d && !activeAlbumId && albums.length > 0) {
+    // Open with something selected rather than an empty grid — but never during
+    // a search. Auto-selecting the first album there would show one album's
+    // worth of hits while the footer reported the full count, which reads as
+    // results going missing. A search starts on "all hits"; the sidebar is
+    // there to narrow from.
+    if (isOpen && !use3d && !searchHits && !activeAlbumId && albums.length > 0) {
         const first = albums[0];
         setActiveAlbumId(first.id);
         setActivePageId(first.pages[0]?.id ?? null);

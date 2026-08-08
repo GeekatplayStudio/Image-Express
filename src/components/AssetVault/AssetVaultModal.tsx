@@ -265,7 +265,6 @@ export default function AssetVaultModal({
 
     if (!isOpen) return null;
 
-    const showSearchResults = catalog.searchHits !== null;
 
     return (
         <>
@@ -328,8 +327,17 @@ export default function AssetVaultModal({
                                 </div>
                             ) : (
                                 <div className="h-full flex min-h-0 border border-border/60 rounded-md overflow-hidden bg-card/30">
-                                    {!showSearchResults && (
-                                        <div className="flex flex-col min-h-0 shrink-0">
+                                    {/*
+                                      * Shown during search too. The albums and
+                                      * folder tree are derived from the working
+                                      * set, which *is* the search results while
+                                      * a search is active — so the sidebar
+                                      * groups the hits and its lens buttons are
+                                      * meaningful. Hiding it left the toolbar's
+                                      * Type/Date/Location/Subject controls with
+                                      * nothing to act on.
+                                      */}
+                                    <div className="flex flex-col min-h-0 shrink-0">
                                             <VaultNavModeSwitch
                                                 navMode={browse.navMode}
                                                 onChange={browse.setNavMode}
@@ -368,7 +376,6 @@ export default function AssetVaultModal({
                                                 />
                                             )}
                                         </div>
-                                    )}
                                     <div className="flex-1 min-w-0 overflow-y-auto p-2">
                                         <VaultAssetGridPanel
                                             displayedAssets={browse.displayedAssets}

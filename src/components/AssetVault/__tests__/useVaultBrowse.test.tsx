@@ -170,3 +170,102 @@ describe('useVaultBrowse', () => {
         expect(result.current.displayedAssets.length).toBe(3);
     });
 });
+
+/**
+ * Search used to short-circuit the grid to the flat hit list, so the folder
+ * tree, the album list and the lens buttons all became inert the moment a
+ * search ran — which is what "the vault UI breaks after search" meant.
+ */
+describe('navigating within search results', () => {
+    // This block sits outside the suite above, so it needs its own reset:
+    // saved vault UI state (lens, last album) otherwise leaks in and changes
+    // which albums are built.
+    beforeEach(() => window.localStorage.clear());
+
+    const hits = [asset('h1'), asset('h2', 'videos'), asset('h3')];
+    // While a search is active the working set *is* the hits.
+    const searchArgs = (over: Record<string, unknown> = {}) => baseArgs({
+        workingAssets: hits,
+        searchHits: hits,
+        naturalQuery: naturalQuery({ text: 'cowboy' }),
+        query: 'cowboy',
+        ...over,
+    });
+
+    it('still shows every hit when nothing is selected', () => {
+        const { result } = renderHook(() => useVaultBrowse(searchArgs()));
+        expect(result.current.displayedAssets).toHaveLength(3);
+    });
+
+    it('groups the hits into albums, so the sidebar has something to show', () => {
+        const { result } = renderHook(() => useVaultBrowse(searchArgs()));
+        expect(result.current.albums.length).toBeGreaterThan(0);
+    });
+
+    it('narrows the grid to the chosen album instead of ignoring the click', () => {
+        const { result } = renderHook(() => useVaultBrowse(searchArgs()));
+
+        const album = result.current.albums.find((entry) => entry.pages.length > 0);
+        expect(album).toBeTruthy();
+        act(() => result.current.selectFlatAlbum(album!));
+
+        const idsInAlbum = new Set(album!.pages.flatMap((page) => page.assetIds));
+        expect(result.current.displayedAssets.length).toBe(idsInAlbum.size);
+        expect(result.current.displayedAssets.every((entry) => idsInAlbum.has(entry.id))).toBe(true);
+    });
+
+    it('responds to a lens change rather than staying on one grouping', () => {
+        const { result } = renderHook(() => useVaultBrowse(searchArgs()));
+        const byType = result.current.albums.map((entry) => entry.id).join('|');
+
+        act(() => result.current.setLens('date'));
+
+        expect(result.current.albums.map((entry) => entry.id).join('|')).not.toBe(byType);
+    });
+
+    it('narrows to a folder in folder mode', () => {
+        const { result } = renderHook(() => useVaultBrowse(searchArgs()));
+        act(() => result.current.setNavMode('folders'));
+        expect(result.current.folderTree).toBeTruthy();
+        // Every hit lives under d:/pics, so selecting it keeps all three —
+        // the point is that the folder path runs at all during a search.
+        expect(result.current.displayedAssets).toHaveLength(3);
+    });
+
+    it('never renders an empty grid in 3D mode during a search', () => {
+        // The 3D room only draws a selected album; search forces the flat path
+        // so a hit list with nothing selected still shows results.
+        const { result } = renderHook(() => useVaultBrowse(searchArgs()));
+        act(() => result.current.setUse3d(true));
+        expect(result.current.displayedAssets.length).toBeGreaterThan(0);
+    });
+});
+
+describe('starting a search', () => {
+    beforeEach(() => window.localStorage.clear());
+
+    it('drops a previously selected album so every hit is shown', () => {
+        const browsing = [asset('a1'), asset('a2', 'videos')];
+        const { result, rerender } = renderHook(
+            (props: Record<string, unknown>) => useVaultBrowse(props as never),
+            { initialProps: baseArgs({ workingAssets: browsing }) },
+        );
+
+        const album = result.current.albums.find((entry) => entry.pages.length > 0)!;
+        act(() => result.current.selectFlatAlbum(album));
+        expect(result.current.activeAlbumId).toBe(album.id);
+
+        const hits = [asset('h1'), asset('h2', 'videos'), asset('h3')];
+        rerender(baseArgs({
+            workingAssets: hits,
+            searchHits: hits,
+            naturalQuery: naturalQuery({ text: 'cowboy' }),
+            query: 'cowboy',
+        }));
+
+        // Otherwise the old album keeps filtering the results and the grid
+        // disagrees with the "N matches" count in the footer.
+        expect(result.current.activeAlbumId).toBeNull();
+        expect(result.current.displayedAssets).toHaveLength(3);
+    });
+});
