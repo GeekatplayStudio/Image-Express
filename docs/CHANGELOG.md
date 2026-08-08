@@ -19,7 +19,7 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
-## 2026-08-08 — Operational floor: F-07 done, F-03 store landed
+## 2026-08-08 — Operational floor: F-03, F-04, F-07 done; F-06 started
 
 **Meshy 3D generations now finish.** Meshy returns an untextured preview first
 and only produces textures after a *separate* refine task is started. The poll
@@ -48,6 +48,33 @@ each Electron major. 13 tests, including a folder-prefix near-miss
 (`d:/media-private` must not match `d:/media`) and a direct check that adding
 one asset to a 2,000-row catalog writes a row, not the store. `vault-store.ts`
 does not call it yet, so the JSON rewrite is still what ships.
+
+**F-03 finished: the targeted write path, and a regression caught on the way.**
+Wiring SQLite in behind the whole-catalog interface only bought ~1.5×, because
+`writeVaultCatalog` is handed everything and must rediscover the delta by
+scanning every row. `upsertVaultAssets`, `deleteVaultAssets` and
+`readVaultAssetsByWatchRoot` let callers that already know what changed skip
+that scan, and the two write-heavy jobs now use them: vault enrichment
+(**342 ms → 0.5 ms**, it changes at most 24 assets per run and was handing back
+all 200k) and the watch-root rescan (**885 ms → 109 ms**, it loaded every asset
+on the machine to find one folder's records).
+
+The same work exposed a regression I had introduced. Materialising the whole
+catalog from rows costs a `JSON.parse` each — **903 ms against 257 ms** for the
+single JSON document, 3.5× *dearer*. SQLite wins on writes and scoped queries
+and loses on "give me everything". Search reads the whole catalog per query, and
+the JSON path had an mtime-keyed cache making repeat reads free; the SQLite path
+had none, so every search rebuilt 200k records. Fixed with an equivalent
+snapshot cache invalidated by every write helper, pinned by tests that fail if
+the invalidation is removed. It is a stopgap: the real fix is for search, the
+similar-asset lookup and the sync route to stop asking for everything.
+
+**F-06 started: two files split, ~400 lines out, 73 tests added.** Pure logic
+left `ImageGeneratorModal` (4,013 → 3,759) and `AssetLibrary` (3,041 → 2,906).
+The point was coverage, not line count — `resolveComfyQualityProfile` picks the
+resolution and CFG a generation runs at, and asset merging decides whether a
+private copy could be collapsed into a public one. Neither could be tested
+without mounting a 3–4,000-line component, so neither had been.
 
 **A random test failure, and a real bug behind it.** `npx jest` failed roughly
 one run in two on the two suites reaching `getInstallerRuntimeStatus`, always
