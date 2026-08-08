@@ -30,10 +30,23 @@ const eslintConfig = defineConfig([
     "external/**",
     "logs/**",
     "next-env.d.ts",
+    // Build output is not source, wherever it lands. The bare ".next/**"
+    // above only matches the repo root, so a build inside a git worktree
+    // (".claude/worktrees/<name>/.next") was linted as if it were source:
+    // 108,985 problems and minutes of runtime, which made `npm run lint`
+    // unusable the moment anyone created a worktree.
+    "**/.next/**",
+    "**/out/**",
+    "**/coverage/**",
+    ".claude/worktrees/**",
     // External reference repo cloned for analysis only:
     "Imageprocessingui/**",
     // Standalone Expo mobile companion app:
     "mobile-companion/**",
+    // Pack authoring workspaces. Both are gitignored and untracked — packs are
+    // downloadable data, not source, so they are not held to app lint rules.
+    "theme-packs/**",
+    "ambience-packs/**",
   ]),
 ]);
 

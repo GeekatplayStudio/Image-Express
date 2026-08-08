@@ -52,15 +52,26 @@ export function useConstellationState({
 
     const edges = useMemo(() => buildHarmonyEdges(nodes), [nodes]);
 
-    useEffect(() => {
-        if (!selectedColor) return;
+    /**
+     * Re-seed from the external `selectedColor` control.
+     *
+     * Adjusted during render rather than in an effect — React's documented
+     * pattern for derived-from-props state. The effect version rendered once
+     * with the stale palette and then rendered again with the new one, so a
+     * colour picked outside the constellation briefly showed the previous
+     * harmony. Guarded on the previous prop value, so it runs only on change.
+     */
+    const [lastSeed, setLastSeed] = useState<string | null>(null);
+    if (selectedColor && selectedColor !== lastSeed) {
+        setLastSeed(selectedColor);
         const next = normalizeHex(selectedColor);
-        if (next === activeHex) return;
-        setActiveHex(next);
-        const rebuilt = buildHarmonyNodes(next, harmonyKind);
-        setNodes(rebuilt);
-        setActiveNodeId(rebuilt[0]?.id ?? null);
-    }, [selectedColor]); // eslint-disable-line react-hooks/exhaustive-deps -- seed from external control only
+        if (next !== activeHex) {
+            const rebuilt = buildHarmonyNodes(next, harmonyKind);
+            setActiveHex(next);
+            setNodes(rebuilt);
+            setActiveNodeId(rebuilt[0]?.id ?? null);
+        }
+    }
 
     useEffect(() => {
         saveHarmonyPalettes(savedHarmonies);

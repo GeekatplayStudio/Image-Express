@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ColorPalette } from '@/types';
 import { useI18n } from '@/providers/I18nProvider';
 import { cn } from '@/lib/utils';
@@ -33,12 +33,13 @@ export default function ColorPickerModeHost({
     variant = 'panel',
 }: ColorPickerModeHostProps) {
     const { t } = useI18n();
-    const [mode, setMode] = useState<PickerMode>('constellation');
-
-    useEffect(() => {
-        const prefs = loadConstellationUiPrefs();
-        setMode(prefs.preferConstellation ? 'constellation' : 'classic');
-    }, []);
+    // Seeded lazily rather than in a mount effect: the effect version rendered
+    // 'constellation' first and then corrected itself, which flashed the wrong
+    // picker for a frame. `loadConstellationUiPrefs` returns defaults when
+    // `window` is undefined, so this is safe during SSR.
+    const [mode, setMode] = useState<PickerMode>(() => (
+        loadConstellationUiPrefs().preferConstellation ? 'constellation' : 'classic'
+    ));
 
     const selectMode = (next: PickerMode) => {
         setMode(next);

@@ -83,7 +83,7 @@ export function useEditorCanvasSelectionInteractions({
         let lassoHelper: LassoSelectionHelper | null = null;
         let brushHelper: BrushHelper | null = null;
         let lassoPoints: fabric.Point[] = [];
-        let brushLayerPixelsRef = { current: null as ImageData | null };
+        const brushLayerPixelsRef = { current: null as ImageData | null };
 
         const isTypingTarget = (target: EventTarget | null) => {
             if (!(target instanceof HTMLElement)) return false;
@@ -482,6 +482,12 @@ export function useEditorCanvasSelectionInteractions({
     useEffect(() => {
         if (!canvas) return;
         const typed = canvas as fabric.Canvas & { __ieRegionSelectionTool?: boolean };
+        // Tagging the Fabric instance is external-system synchronisation, which
+        // is what an effect is for: `canvas` is created outside React and read
+        // back by non-React canvas handlers. The immutability rule assumes the
+        // mutated value is React-owned state; here it is not, and the cleanup
+        // below keeps the flag's lifetime tied to this effect.
+        // eslint-disable-next-line react-hooks/immutability
         typed.__ieRegionSelectionTool = OBJECT_PICK_SELECTION_TOOLS.has(activeTool);
         return () => {
             typed.__ieRegionSelectionTool = false;

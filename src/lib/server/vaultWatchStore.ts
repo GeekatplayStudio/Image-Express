@@ -17,7 +17,10 @@ async function atomicWriteJson(filePath: string, data: unknown) {
     // Write to a temp file and rename so a crash mid-write can never leave a
     // truncated store (which would silently read back as an empty index).
     const tmpPath = `${filePath}.${process.pid}.tmp`;
-    await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
+    // vectors.json is multi-megabyte and machine-read only; indentation is pure
+    // cost. watch-roots.json is small enough that consistency wins over
+    // readability here.
+    await writeFile(tmpPath, JSON.stringify(data), 'utf8');
     await rename(tmpPath, filePath);
 }
 

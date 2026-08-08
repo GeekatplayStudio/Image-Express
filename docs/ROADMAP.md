@@ -16,6 +16,151 @@ Status: Active · Last updated: 2026-08-07 · Branch baseline: `main`
 
 ---
 
+## 0. P0 — Operational floor
+
+**This outranks every feature below.** The app is broad and ambitious; what it
+lacks is a floor that makes it *trustworthy*. Nothing in §1 should be started
+while anything here is open.
+
+The governing rule: **`npm run verify` must pass, and it must mean something.**
+It now runs `audit:overrides → audit:architecture → audit:filesize → lint →
+typecheck → tests → build → audit:bundle`. Run it before every commit. If a gate
+is red, that is the work.
+
+### F-01 · Zero lint errors — *in progress*
+`npm run lint` must exit 0 and stay there.
+
+- **Done:** ESLint was linting build output inside git worktrees and the
+  gitignored `theme-packs/` authoring area — **108,985 problems**, minutes of
+  runtime, which made the command unusable and let real errors hide. Ignore
+  patterns now cover `**/.next/**`, `.claude/worktrees/**` and the pack
+  workspaces. Also fixed: `prefer-const`, a `react-hooks/immutability` false
+  positive on external-system sync (justified disable), and two
+  `set-state-in-effect` cases in ColorConstellation — one replaced by a lazy
+  initializer, one by React's documented adjust-during-render pattern. Both
+  removed a wasted render that flashed stale UI.
+- **Open:** 10 `react-hooks/set-state-in-effect` errors in
+  `src/components/AssetVault/useVaultBrowse.ts`, plus one `exhaustive-deps`
+  warning in `AssetVaultModal.tsx`. These are one interlocking state flow and
+  need a focused refactor with vault regression testing — see F-02.
+
+### F-02 · Refactor `useVaultBrowse` state flow — P0
+The last blocker to a green lint gate, and the same code behind the
+"vault disappears" reports. Each effect has a known correct replacement:
+
+| Effect | Replacement |
+|---|---|
+| `setPageIndex(0)` on many deps | Derive from a reset key, or adjust during render |
+| Clamp `pageIndex` to `totalPages` | **Pure derivation** — clamp on read, delete the effect |
+| Album/page reconciliation | Adjust during render, guarded on previous value |
+| Auto-select first album on open | Move into the open event |
+| Clear selection when `depth === 'room'` | Move into the depth setter |
+| Reset everything on close | Move into the close handler |
+
+**Acceptance:** lint clean, all vault tests green, and manual confirmation that
+browsing position survives a re-index and a catalog reload.
+
+### F-03 · Catalog storage → SQLite — P0
+The single architectural ceiling. `data/vault/catalog.json` is **153 MB**,
+fully parsed and Zod-validated into heap, and **every mutation rewrites the
+entire file** — adding one asset rewrites 153 MB.
+
+- **Done:** stopped pretty-printing the catalog and vector store. Indentation
+  alone measured **~29 MB of the 153 MB**, paid on every write and every parse.
+  Free win, no format change.
+- **Decision — use `node:sqlite`.** Built into Node 24+, zero dependencies, no
+  native rebuild for Electron ABI bumps, ACID, crash-safe. Rejected:
+  `better-sqlite3` (native module, rebuild on every Electron major),
+  Postgres/Mongo (a server process on a user's laptop is the wrong trade),
+  LMDB/LevelDB (no ad-hoc queries, and we need filtered scans), staying on JSON
+  (this is the problem).
+- **Schema:** one `assets` table keyed by id, with indexed columns for
+  `type`, `watch_root_id`, `modified_at` and a `folder_path` prefix index —
+  the folder tree and type lenses become queries instead of full scans.
+  Embeddings stay in a separate table so a vector rebuild never rewrites asset
+  rows.
+- **Migration:** read the existing JSON once, write the DB, keep the JSON as a
+  backup for one release. `node:sqlite` is still flagged experimental, so keep
+  the store behind its current interface and retain the JSON implementation as
+  a fallback.
+- **Acceptance:** adding one asset writes O(1), not 153 MB; cold search latency
+  measured before and after; catalog load no longer holds the full set in heap.
+
+### F-04 · Server-side provider polling — P0
+Meshy/Tripo/Hitem3D/Stability jobs are polled **from the browser**, so closing
+the tab abandons a running job and the 3-concurrent cap is per-tab. Users lose
+paid API credits with no recovery.
+
+- **Recommendation: no new daemon.** Reuse the queue that already exists —
+  this is a job kind, not new infrastructure. Register a `remote-poll` handler
+  whose body is the existing poll loop, enqueued on the `remote:<provider>`
+  lane so the cap becomes global instead of per-tab. It already has leases,
+  retries, crash recovery and SSE push.
+- **Why not a separate worker process:** it would need its own supervision,
+  logging and IPC, and would break the single-process assumption that makes
+  boot recovery sound (`running` ⇒ dead process). Not worth it until workers
+  must outlive the app.
+- **Sequencing:** move polling first; API keys then stop round-tripping through
+  the browser, which is a security improvement as well as a reliability one.
+- **Acceptance:** start a 3D generation, close the tab, reopen — the job is
+  still running and completes; concurrency is capped globally.
+
+### F-05 · Code signing — P0
+The biggest single lever on adoption. Every user currently meets SmartScreen or
+Gatekeeper warnings, which is fatal for a tool asking to index their whole drive.
+
+- **macOS:** Apple Developer Program ($99/yr) → Developer ID Application
+  certificate → notarize via notarytool. The release workflow already reads
+  `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`,
+  `APPLE_API_ISSUER`; adding the secrets is most of the work.
+- **Windows:** since June 2023 an **OV certificate no longer works** for
+  reputation — it must be **EV**, on hardware or an approved cloud HSM
+  (Azure Trusted Signing, SSL.com, DigiCert KeyLocker). Budget ~$300–600/yr.
+  Cloud HSM is strongly preferred: a USB token cannot sign from CI.
+- **Recommendation:** Azure Trusted Signing if eligible — lowest cost, designed
+  for CI, no physical token. Do macOS first: it is cheaper, fully scripted, and
+  the pipeline is already wired.
+- **Do not** attempt to work around Gatekeeper/SmartScreen in scripts. It is the
+  point of the mechanism, and trying looks like malware.
+
+### F-06 · Shrink oversized files — P0 (ratcheted)
+The 500-line rule existed in `repo-audit.mjs` but that script **never set an
+exit code**, so 40 files drifted past it with nothing to stop them.
+
+- **Done:** `npm run audit:filesize` (`scripts/file-size-ratchet.mjs`) is now
+  binding and part of `verify`. A file not in the baseline may not exceed 500
+  lines; a baselined file may not grow; a file that drops below must be removed
+  from the baseline. The list can only shrink. i18n dictionaries are exempt —
+  they are translation data, and a line budget on a key/value table measures
+  nothing.
+- **Open:** 40 baselined files. Attack in this order, worst first, splitting by
+  responsibility rather than by line count:
+  `ImageGeneratorModal.tsx` (4,013) · `PropertiesPanel.tsx` (3,822) ·
+  `AssetLibrary.tsx` (3,042) · `Toolbar.tsx` (2,689) · `ThreeDGenerator.tsx` (2,197).
+- **Rule going forward:** every PR that touches a baselined file should lower
+  its number. Run `npm run audit:filesize:update` after a split.
+
+### F-07 · Diagnosability — P0
+`electron/main.js` logs the packaged server's stderr as a **byte count only**
+(`{"event":"server.stderr","details":{"bytes":1438}}`). When the packaged app
+failed to start, the log recorded that 1,438 bytes of error existed and nothing
+about what they said. Capture the actual text, truncated and redacted.
+
+> **Correction (2026-08-07):** an earlier note here claimed `desktop:pack`
+> reports exit 0 while failing. That was a measurement error — `$?` after a
+> shell pipe returns the *last* command's status, not the script's.
+> `desktop:pack` is a plain `&&` chain and propagates correctly. No fix needed.
+
+### F-08 · Process — P0
+- **Run `npm run verify` before every commit.** Not `lint` alone, not `test`
+  alone — the whole gate.
+- CI must run the same gate, so local and CI cannot disagree.
+- `audit:terms` and `audit:i18n:parity` currently fail (pre-existing). Either
+  fix them or make the failures explicit; a permanently-red gate teaches people
+  to ignore red gates.
+
+---
+
 ## 1. Backlog
 
 | ID | Initiative | Priority | State | Milestone |

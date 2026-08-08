@@ -29,7 +29,10 @@ async function atomicWriteJson(filePath: string, data: unknown) {
     // and wrote the payload twice and left the real file non-atomic, which on a
     // large catalog meant hundreds of MB of redundant IO per save.
     const tempPath = `${filePath}.${process.pid}.tmp`;
-    await writeFile(tempPath, JSON.stringify(data, null, 2), 'utf8');
+    // Not pretty-printed. Nothing reads the catalog by eye, and at whole-drive
+    // scale the indentation alone measured ~29 MB of a 153 MB file — paid on
+    // every write, and again on every parse.
+    await writeFile(tempPath, JSON.stringify(data), 'utf8');
     await rename(tempPath, filePath);
 }
 
