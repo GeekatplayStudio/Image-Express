@@ -338,12 +338,22 @@ Set `IMAGE_EXPRESS_VAULT_STORE=json` to force the old path without shipping a
 build, and any SQLite failure logs and falls back to JSON rather than leaving
 the vault unusable.
 
-Measured at 200k assets / 158 MB: adding one asset goes from **478 ms** (which
-rewrote all 158 MB) to **1.4 ms**, and "assets in this folder" from a full scan
-to **3.6 ms**. The end-to-end saving is smaller than that — a whole-catalog
-save still pays a 313 ms diff scan, so ~478 ms → ~315 ms — because callers hand
-over everything. Targeted add/remove entry points are what collapse the rest;
-see F-03 in [ROADMAP.md](ROADMAP.md).
+Callers that already know what they changed should not go through that diff at
+all. `upsertVaultAssets`, `deleteVaultAssets` and `readVaultAssetsByWatchRoot`
+are the targeted path, and they are what the write-heavy jobs use:
+
+| Job | Before | After |
+|---|---|---|
+| Enrich 24 assets in a 200k catalog | 342 ms | **0.5 ms** |
+| Rescan one watch root (read) | 885 ms | **109 ms** |
+| Add one asset | 478 ms, rewriting 158 MB | **1.4 ms** |
+| Assets in one folder | full scan of 200k | **3.6 ms** |
+
+`writeVaultCatalog` still exists and still pays its 313 ms diff scan — it is
+the fallback shape for a caller holding a whole catalog, not the normal one.
+`readVaultCatalog` likewise still materialises every asset; search, the
+similar-asset lookup and the sync route are the callers left to move onto
+scoped queries. See F-03 in [ROADMAP.md](ROADMAP.md).
 
 ---
 

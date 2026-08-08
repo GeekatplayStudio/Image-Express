@@ -119,22 +119,32 @@ entire file** — adding one asset rewrites 153 MB.
   | Change detection over the whole set | — | 313 ms |
   | Assets in one folder | full scan of 200k | **3.6 ms** |
 
-- **Read this honestly.** The 334× headline is the *targeted* write. Callers
-  still hand over a whole catalog, so a save costs the 313 ms diff scan plus
-  the delta — about **478 ms → 315 ms, a 1.5× win**, not 334×. What it does buy
-  today regardless of wall-clock: 158 MB is no longer written to a user's SSD
-  on every mutation, and folder/type navigation is a 3.6 ms query instead of a
-  full scan.
-- **The remaining win needs callers to change.** Targeted `addAssets`/
-  `removeAssets` entry points would collapse that 313 ms scan to nothing. That
-  is the next step, and it is where the rest of the factor lives.
+- **Done — the targeted write path.** `upsertVaultAssets`, `deleteVaultAssets`
+  and `readVaultAssetsByWatchRoot` let a caller that already knows what changed
+  skip the diff scan entirely. Both callers that were rewriting the catalog now
+  use them:
+  - **Vault enrichment** captions and embeds at most 24 assets per run and was
+    handing back all 200k, making the store rediscover 24 changes by scanning
+    every row. **342 ms → 0.5 ms.**
+  - **Watch-root rescan** replaced one folder's assets by rewriting the whole
+    catalog, and loaded all 200k into memory first just to find that folder's
+    prior records. Now an indexed query: **885 ms → 109 ms** on a root holding
+    an eighth of the library.
+
+  Each keeps its JSON fallback, where the same call is still a read-modify-write
+  of the whole document — that path cannot do better, and it is the one the
+  numbers above are measured against.
+- **Read the headline honestly.** `writeVaultCatalog` still exists and still
+  costs the 313 ms diff scan, because it is handed a whole catalog and has to
+  find the delta itself. It is now the *fallback* shape, not the normal one.
 - **Cost paid:** the DB is larger on disk than the JSON — 229 MB vs 158 MB —
   from storing each record plus four indexes. Accepted: disk is cheap, the
   158 MB write amplification was not.
 - **Acceptance:** adding one asset writes O(1), not 153 MB ✅; latency measured
-  before and after ✅; catalog load no longer holds the full set in heap ❌ —
-  `readCatalogSnapshot` still materialises everything, and only moving callers
-  to `queryAssets` fixes that.
+  before and after ✅; catalog load no longer holds the full set in heap
+  **partially** — the watch-root rescan no longer does, but `readVaultCatalog`
+  still materialises everything for search, similar-asset lookup and the sync
+  route. Those are the remaining callers to move onto scoped queries.
 
 ### F-04 · Server-side provider polling — ✅ **done**
 
