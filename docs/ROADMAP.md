@@ -231,6 +231,15 @@ Gatekeeper warnings, which is fatal for a tool asking to index their whole drive
 - **Recommendation:** Azure Trusted Signing if eligible — lowest cost, designed
   for CI, no physical token. Do macOS first: it is cheaper, fully scripted, and
   the pipeline is already wired.
+- **Verified 2026-08-08 — the macOS pipeline really is ready.** Checked against
+  the installed electron-builder 26, not assumed: notarization there is
+  *opt-out* (only `mac.notarize: false` disables it), and its option resolver
+  reads `APPLE_API_KEY` / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER` — exactly what
+  `release.yml` already forwards. `hardenedRuntime` is already `true`. So
+  adding the three secrets genuinely is the remaining work; **no config change
+  is needed**, and none should be made speculatively.
+  - One sharp edge: the resolver throws if you set *some* of the three. All
+    three, or none.
 - **Do not** attempt to work around Gatekeeper/SmartScreen in scripts. It is the
   point of the mechanism, and trying looks like malware.
 
