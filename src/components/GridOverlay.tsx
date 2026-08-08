@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
 import * as fabric from 'fabric';
+import {
+    getArtboardScreenRect,
+    paintOutsideArtboard,
+    toWashColor,
+} from '@/components/canvas/artboardScrim';
 
 export type GridType = 'none' | 'rule-of-thirds' | 'golden-ratio' | 'cross' | 'grid-4x4' | 'canvas-border';
 
@@ -10,15 +15,30 @@ type ArtboardInfo = {
   top: number;
 };
 
-type CanvasWithArtboard = fabric.Canvas & { artboard?: ArtboardInfo };
+type CanvasWithArtboard = fabric.Canvas & {
+  artboard?: ArtboardInfo;
+  workspaceBackground?: string;
+  getWorkspaceBackground?: () => string;
+};
 
 interface GridOverlayProps {
   canvas: fabric.Canvas | null;
   gridType: GridType;
   color?: string;
+  /**
+   * How strongly to fade content outside the page when the canvas border is
+   * shown. High enough that off-page content clearly recedes, low enough that
+   * you can still see what is out there and drag it back in.
+   */
+  outsideDim?: number;
 }
 
-export const GridOverlay = ({ canvas, gridType, color = 'rgba(0, 163, 255, 0.4)' }: GridOverlayProps) => {
+export const GridOverlay = ({
+  canvas,
+  gridType,
+  color = 'rgba(0, 163, 255, 0.4)',
+  outsideDim = 0.72,
+}: GridOverlayProps) => {
   useEffect(() => {
     if (!canvas) return;
 
@@ -54,6 +74,28 @@ export const GridOverlay = ({ canvas, gridType, color = 'rgba(0, 163, 255, 0.4)'
        const top = artboard.top || 0;
        
        const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+
+       if (gridType === 'canvas-border') {
+           // Painted first, in screen space, so the border line below is drawn
+           // crisply on top of the fade rather than under it.
+           const extended = canvas as CanvasWithArtboard;
+           const workspace = extended.getWorkspaceBackground?.() ?? extended.workspaceBackground;
+           // Fabric's logical size, falling back to the backing element. Read
+           // defensively: this runs inside after:render, so anything that
+           // throws here takes the whole grid down with it.
+           const viewport = {
+               width: canvas.getWidth?.() ?? ctx.canvas?.width ?? 0,
+               height: canvas.getHeight?.() ?? ctx.canvas?.height ?? 0,
+           };
+           if (viewport.width > 0 && viewport.height > 0) {
+               paintOutsideArtboard(
+                   ctx,
+                   viewport,
+                   getArtboardScreenRect({ left, top, width, height }, vpt),
+                   toWashColor(workspace, outsideDim),
+               );
+           }
+       }
 
        ctx.save();
        // Apply Viewport Transform to draw in World Coordinates
@@ -140,7 +182,7 @@ export const GridOverlay = ({ canvas, gridType, color = 'rgba(0, 163, 255, 0.4)'
         canvas.off('after:render', drawGrid);
         canvas.requestRenderAll();
     };
-  }, [canvas, gridType, color]);
+  }, [canvas, gridType, color, outsideDim]);
 
   return null;
 }
