@@ -233,9 +233,46 @@ Indexes assets **in place** across local drives without moving files.
 - **Watch roots**: `data/vault/watch-roots.json`. A file must sit inside a
   registered root *and* pass the runtime access policy — two independent gates,
   because this endpoint turns a path into bytes.
-- **Vectors**: `data/vault/vectors.json`, mtime-keyed in-memory cache.
 - **Scale**: a whole-drive scan is routinely ~200k assets. `DEFAULT_MAX_SCAN_FILES`
   caps one scan at 200,000.
+
+### Semantic search: the vector store
+
+`data/vault/vectors.db` — `src/lib/server/vaultVectorDb.ts`. It replaced
+`vectors.json`, which did not merely get slow: a 768-dim `nomic-embed-text`
+record serialises to ~15.6 KB, so the file hit V8's 536 MB maximum string length
+at roughly **34,400 embedded assets** and `JSON.stringify` threw. The caller
+caught that and warned, so past that point the index silently stopped
+persisting and semantic search could never converge.
+
+**Storage.** One row per vector, embedding held as a float32 BLOB — 3 KB rather
+than 15.6 KB. Vectors are stored **unit-length**, which is what makes cosine
+similarity a plain dot product. Writing one backfill batch of 32 costs ~3 ms
+against a ~2.2 s rewrite of the whole file.
+
+**Search is two-stage**, and the staging is the whole design:
+
+1. An **int8 quantised** copy of the matrix is held in memory and scanned. At
+   200k × 768 that is 154 MB, against 614 MB for float32.
+2. The top candidates are **rescored against their exact float32 vectors**, so
+   the scores returned are true cosine similarities and the ordering is exact.
+
+The coarse pass is allowed to be lossy because it only shortlists. Measured
+**100% recall@40** on clustered data, and a test pins the result against
+brute-force cosine rather than trusting that.
+
+Two measurements corrected the obvious assumptions, and are worth keeping in
+mind before "optimising" this: **pre-normalising bought nothing** on its own
+(V8 hoists the repeated work), and **int8 is *slower* than float32 to score in
+JS**, which has no SIMD for it — int8 is here for memory, not speed.
+
+**No ANN index (HNSW/IVF), deliberately.** A full scan at 200k is ~100 ms,
+below the point where an approximate index earns its build cost, memory and
+recall risk. Revisit past ~1M vectors.
+
+`src/features/asset-vault/domain/vectorQuantization.ts` holds the pure parts —
+normalisation, quantisation, dot products and a bounded top-K — so the scoring
+maths is testable without a database.
 
 ### Two navigation models
 
@@ -293,7 +330,8 @@ per-launch capability token.
 | Designs, templates, generated assets | `public/assets/*` | Filesystem |
 | Queue jobs | `data/queue/jobs.json` | Filesystem, atomic |
 | Agentic jobs / revisions | `data/ai-jobs/`, `data/ai-revisions/` | Filesystem, atomic |
-| Vault catalog / vectors / watch roots | `data/vault/*` | Filesystem, atomic |
+| Vault catalog, embeddings | `data/vault/catalog.db`, `vectors.db` | SQLite (WAL), JSON fallback |
+| Watch roots, bookcases | `data/vault/*.json` | Filesystem, atomic |
 | Users, encrypted key vault | `data/users.json`, `data/user-key-vault.json` | Filesystem |
 | Local assets | IndexedDB `image-express-local-assets` | Browser |
 | Preferences, API keys, background jobs, vault UI state | localStorage | Browser |

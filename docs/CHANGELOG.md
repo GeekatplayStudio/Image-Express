@@ -69,6 +69,32 @@ snapshot cache invalidated by every write helper, pinned by tests that fail if
 the invalidation is removed. It is a stopgap: the real fix is for search, the
 similar-asset lookup and the sync route to stop asking for everything.
 
+**F-09: the vector store was silently broken above ~34k assets.** Not slow —
+broken. One 768-dim `nomic-embed-text` record serialises to 15.6 KB, so
+`vectors.json` hit V8's 536 MB maximum string length at roughly **34,400
+embedded assets**, where `JSON.stringify` throws `RangeError: Invalid string
+length`. The search route caught that and logged a warning, so past that point
+the index **stopped persisting for good** and semantic search could never
+converge — with nothing in the UI to say so. At 200k assets the file would be
+3.1 GB.
+
+Replaced with `vectors.db`: one row per embedding as a float32 BLOB, stored
+unit-length so cosine is a dot product. Search is two-stage — an int8 quantised
+matrix is scanned coarsely, then the top candidates are rescored against exact
+float32 vectors, so the lossy pass only ever shortlists.
+
+| Operation | JSON | SQLite |
+|---|---|---|
+| Persist one backfill batch of 32 | 2,194 ms | **3.1 ms** |
+| Cold load | 2,401 ms | **258 ms** |
+| Ceiling | **throws at ~34,400** | none |
+
+Two measured results corrected the obvious assumptions: pre-normalising bought
+nothing on its own, and int8 is *slower* than float32 to score in JS (no SIMD)
+— it earns its place on memory, 154 MB against 614 MB at 200k, at 100%
+recall@40. No ANN index, deliberately: a full scan at 200k is ~100 ms, below
+where HNSW earns its build cost and recall risk.
+
 **F-06 started: two files split, ~400 lines out, 73 tests added.** Pure logic
 left `ImageGeneratorModal` (4,013 → 3,759) and `AssetLibrary` (3,041 → 2,906).
 The point was coverage, not line count — `resolveComfyQualityProfile` picks the

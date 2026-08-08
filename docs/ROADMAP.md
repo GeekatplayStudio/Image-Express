@@ -238,9 +238,54 @@ paid API credits with no recovery.
 - **Acceptance:** start a 3D generation, close the tab, reopen — the job is
   still running and completes; concurrency is capped globally.
 
-### F-05 · Code signing — P0
+### F-09 · Vector store → SQLite + quantised search — ✅ **done**
+
+**This was not slowness, it was a hard failure.** One `nomic-embed-text` record
+serialises to **15.6 KB**, so `vectors.json` hits V8's 536 MB maximum string
+length at roughly **34,400 embedded assets**, where `JSON.stringify` throws
+`RangeError: Invalid string length`. The search route caught that and logged a
+warning, so past ~34k the index **silently stopped persisting forever** —
+semantic search could never converge and nothing surfaced it. At the 200k assets
+the vault targets the file would be **3.1 GB**.
+
+- **Storage:** `src/lib/server/vaultVectorDb.ts`, one row per vector with the
+  embedding as a float32 BLOB — 3 KB instead of 15.6 KB, and no string ceiling.
+  Vectors are stored unit-length so cosine similarity is a dot product.
+- **Search is two-stage.** An int8 quantised copy of the matrix is held in
+  memory and scanned coarsely; the top candidates are then rescored against
+  their exact float32 vectors. The lossy pass shortlists, it never decides.
+- **Measured**, at 30k assets (just under the old ceiling) and extrapolated:
+
+  | Operation | JSON | SQLite |
+  |---|---|---|
+  | Persist one backfill batch of 32 | 2,194 ms | **3.1 ms** |
+  | Cold load of the store | 2,401 ms | **258 ms** |
+  | Store size | 468 MB → 3.1 GB at 200k | 125 MB → **832 MB** |
+  | Hard ceiling | **throws at ~34,400** | none |
+
+- **Why int8, measured rather than assumed.** Scoring 100k × 768:
+  `number[]` cosine 79.8 ms · `number[]` pre-normalised 78.8 ms · flat float32
+  40 ms · int8 48.5 ms. Two results corrected assumptions: **normalising alone
+  bought nothing** (V8 hoists the repeated work), and **int8 is slower than
+  float32 in JS**, which has no SIMD for it. int8 wins on *memory* — 154 MB vs
+  614 MB at 200k — and on clustered data the staged search measured
+  **100% recall@40**, so the memory is saved for free.
+- **What is deliberately not here:** an ANN index (HNSW/IVF). At 200k a full
+  scan is ~100 ms, which is under the threshold where approximate indexes earn
+  their build cost, memory and recall risk. Revisit past ~1M vectors.
+- **Callers no longer materialise every embedding.** Search asks the store for
+  neighbours and enrichment asks only which ids already exist; at 200k, loading
+  them as `number[]` would cost 1.2 GB. Both keep the JSON path as a fallback,
+  and `IMAGE_EXPRESS_VAULT_STORE=json` forces it.
+
+### F-05 · Code signing — **parked** (needs certificates, not code)
 The biggest single lever on adoption. Every user currently meets SmartScreen or
 Gatekeeper warnings, which is fatal for a tool asking to index their whole drive.
+
+> **Parked deliberately, 2026-08-08.** There is no engineering left here — the
+> pipeline is verified ready (see below) and the remaining work is buying
+> certificates and adding three secrets. Picked up by whoever owns the release
+> budget; it does not block anything else in this section.
 
 - **macOS:** Apple Developer Program ($99/yr) → Developer ID Application
   certificate → notarize via notarytool. The release workflow already reads
