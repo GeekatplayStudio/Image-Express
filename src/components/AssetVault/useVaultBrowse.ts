@@ -1,4 +1,5 @@
 'use client';
+import { filterVaultAssets } from '@/features/asset-vault/domain/filterVaultAssets';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -77,8 +78,19 @@ export function useVaultBrowse({
      */
     const [pendingFlatRematch, setPendingFlatRematch] = useState(false);
 
+    /**
+     * The assets everything else derives from — sidebar counts, folder tree and
+     * grid alike, so they cannot disagree. See filterVaultAssets for why a
+     * server-answered search is not filtered again.
+     */
+    const filteredAssets = useMemo(() => filterVaultAssets(workingAssets, {
+        typeFilter: naturalQuery.typeFilter,
+        text: naturalQuery.text,
+        serverAnswered: Boolean(searchHits),
+    }), [workingAssets, naturalQuery.typeFilter, naturalQuery.text, searchHits]);
+
     const folderNav = useVaultFolderNav({
-        workingAssets,
+        workingAssets: filteredAssets,
         initialNavMode: savedUi?.navMode ?? 'groups',
         onClearContextMenu,
     });
@@ -92,15 +104,12 @@ export function useVaultBrowse({
         : pageSize;
 
     const albums = useMemo(() => {
-        let assets = workingAssets;
-        if (naturalQuery.typeFilter) {
-            assets = assets.filter((asset) => asset.type === naturalQuery.typeFilter);
-        }
+        const assets = filteredAssets;
         const tree = buildVaultAlbumTree(assets, effectiveLens, bookcases, {
             assetsPerPage: albumPageSize,
         });
         return sortVaultAlbums(tree, effectiveSort, (album) => resolveVaultLabel(album, t, language), language);
-    }, [workingAssets, effectiveLens, bookcases, effectiveSort, naturalQuery.typeFilter, t, language, albumPageSize]);
+    }, [filteredAssets, effectiveLens, bookcases, effectiveSort, t, language, albumPageSize]);
 
     /**
      * Adopt lens/sort hints parsed out of the search query.
@@ -175,41 +184,29 @@ export function useVaultBrowse({
         // Search also forces the flat path: the 3D room only renders a selected
         // album, so a search with nothing selected would have shown an empty grid.
         const flat = !use3d || Boolean(searchHits);
+        // Everything narrows `filteredAssets`, the same set the sidebar counts,
+        // so an album that advertises 35 cannot hand back an empty grid.
         if (navMode === 'folders') {
             // Folder mode replaces the album/page path entirely: the grid shows
             // exactly what lives in the chosen folder (optionally recursively),
-            // or the whole catalog when nothing is selected.
+            // or everything when nothing is selected.
             list = folderAssetIds
-                ? workingAssets.filter((asset) => folderAssetIds.has(asset.id))
-                : workingAssets;
+                ? filteredAssets.filter((asset) => folderAssetIds.has(asset.id))
+                : filteredAssets;
         } else if (activePage) {
-            list = assetsForPage(workingAssets, activePage);
+            list = assetsForPage(filteredAssets, activePage);
         } else if (flat && activeAlbum) {
             const ids = new Set(activeAlbum.pages.flatMap((page) => page.assetIds));
-            list = workingAssets.filter((asset) => ids.has(asset.id));
+            list = filteredAssets.filter((asset) => ids.has(asset.id));
         } else if (flat) {
-            list = workingAssets;
-        }
-        if (naturalQuery.typeFilter) {
-            list = list.filter((asset) => asset.type === naturalQuery.typeFilter);
+            list = filteredAssets;
         }
         return sortVaultAssets(list, effectiveSort, language);
-    }, [activePage, activeAlbum, workingAssets, use3d, naturalQuery.typeFilter, effectiveSort, language, searchHits, navMode, folderAssetIds]);
+    }, [activePage, activeAlbum, filteredAssets, use3d, effectiveSort, language, searchHits, navMode, folderAssetIds]);
 
-    const displayedAssets = useMemo(() => {
-        if (searchHits) return fileManagerAssets;
-        const q = naturalQuery.text.toLowerCase();
-        if (!q) return fileManagerAssets;
-        return fileManagerAssets.filter((asset) => {
-            const hay = [
-                asset.name,
-                asset.description || '',
-                ...(asset.tags || []),
-                asset.origin.displayPath,
-            ].join(' ').toLowerCase();
-            return hay.includes(q);
-        });
-    }, [fileManagerAssets, naturalQuery.text, searchHits]);
+    // The text filter now happens once, in `filteredAssets`. Re-applying it here
+    // was what let the sidebar and the grid disagree.
+    const displayedAssets = fileManagerAssets;
 
     const totalPages = pageSize === 'all'
         ? 1
@@ -482,6 +479,7 @@ export function useVaultBrowse({
         goAlbum,
         goPage,
         applyOrganizeLens,
+        visibleAssetCount: filteredAssets.length,
         selectFlatAlbum,
         selectFlatPage,
         selectFlatAll,

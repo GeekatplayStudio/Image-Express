@@ -365,7 +365,7 @@ export default function AssetVaultModal({
                                             {browse.navMode === 'folders' && browse.folderTree ? (
                                                 <VaultFolderTreeSidebar
                                                     tree={browse.folderTree}
-                                                    totalAssetCount={catalog.workingAssets.length}
+                                                    totalAssetCount={browse.visibleAssetCount}
                                                     activeFolderId={browse.activeFolderId}
                                                     expandedFolderIds={browse.expandedFolderIds}
                                                     includeSubfolders={browse.includeSubfolders}
@@ -378,7 +378,7 @@ export default function AssetVaultModal({
                                                 <VaultFlatSidebar
                                                     albums={browse.albums}
                                                     effectiveLens={browse.effectiveLens}
-                                                    workingAssetsCount={catalog.workingAssets.length}
+                                                    workingAssetsCount={browse.visibleAssetCount}
                                                     activeAlbumId={browse.activeAlbumId}
                                                     activePageId={browse.activePageId}
                                                     expandedAlbumIds={browse.expandedAlbumIds}

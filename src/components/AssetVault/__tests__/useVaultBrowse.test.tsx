@@ -269,3 +269,78 @@ describe('starting a search', () => {
         expect(result.current.displayedAssets).toHaveLength(3);
     });
 });
+
+/**
+ * The screenshot bug: the sidebar advertised "Generated 35" and "All assets
+ * 200" while the grid said "No assets found". The local text filter ran only
+ * in `displayedAssets`, so the counts described a set the grid then refused to
+ * show. Everything now narrows one filtered set.
+ */
+describe('a typed query with no server results yet', () => {
+    beforeEach(() => window.localStorage.clear());
+
+    const mixed = [
+        asset('cowboy-hat'),
+        asset('cowboy-boots'),
+        asset('landscape'),
+        asset('portrait'),
+    ];
+    // searchHits null = the server has not answered; the local filter stands in.
+    const typedArgs = () => baseArgs({
+        workingAssets: mixed,
+        searchHits: null,
+        naturalQuery: naturalQuery({ text: 'cowboy' }),
+        query: 'cowboy',
+    });
+
+    it('counts only what the grid can actually show', () => {
+        const { result } = renderHook(() => useVaultBrowse(typedArgs()));
+        expect(result.current.visibleAssetCount).toBe(2);
+    });
+
+    it('never offers an album the grid then renders empty', () => {
+        const { result } = renderHook(() => useVaultBrowse(typedArgs()));
+
+        for (const album of result.current.albums) {
+            const advertised = new Set(album.pages.flatMap((page) => page.assetIds));
+            act(() => result.current.selectFlatAlbum(album));
+            // The contradiction in the report: a non-empty album, an empty grid.
+            expect(result.current.displayedAssets.length).toBeGreaterThan(0);
+            expect(result.current.displayedAssets.length).toBeLessThanOrEqual(advertised.size);
+        }
+    });
+
+    it('album counts sum to the total the sidebar shows', () => {
+        const { result } = renderHook(() => useVaultBrowse(typedArgs()));
+        const summed = result.current.albums.reduce(
+            (total, album) => total + new Set(album.pages.flatMap((p) => p.assetIds)).size,
+            0,
+        );
+        expect(summed).toBe(result.current.visibleAssetCount);
+    });
+
+    it('shows everything again once the query is cleared', () => {
+        const { result, rerender } = renderHook(
+            (props: Record<string, unknown>) => useVaultBrowse(props as never),
+            { initialProps: typedArgs() },
+        );
+        expect(result.current.visibleAssetCount).toBe(2);
+
+        rerender(baseArgs({ workingAssets: mixed, searchHits: null }));
+        expect(result.current.visibleAssetCount).toBe(4);
+    });
+
+    it('defers to server results rather than filtering them again', () => {
+        // The server already decided; re-applying a substring match here would
+        // throw away semantic hits whose names do not contain the query.
+        const hits = [asset('a-house'), asset('a-barn')];
+        const { result } = renderHook(() => useVaultBrowse(baseArgs({
+            workingAssets: hits,
+            searchHits: hits,
+            naturalQuery: naturalQuery({ text: 'cowboy' }),
+            query: 'cowboy',
+        })));
+        expect(result.current.visibleAssetCount).toBe(2);
+        expect(result.current.displayedAssets).toHaveLength(2);
+    });
+});
