@@ -128,17 +128,33 @@ rather than stored. Poll bounds are injectable, which is what makes the handler
 testable at all — 12 tests cover the vault lookup, direct-to-provider URL,
 fail-fast vs ride-out, cancellation, and Hitem3D's `ak:sk` + `Appid` shape.
 
-**Remaining — step 3, the one that actually stops the credit loss:**
-- Cut the client over: stop browser polling, subscribe to SSE, keep only the
-  completion work (asset persistence, thumbnail render, canvas placement),
-  which must stay client-side because it manipulates the canvas.
-- Enqueue the Meshy refine leg as a follow-on job. The handler detects
-  `needsMeshyRefine` but nothing acts on it yet, so a text-to-3d job would
-  currently finish at preview quality.
-- **Guest accounts cannot use this.** Keys are only vaulted for signed-in
-  users, so `/api/queue/poll` rejects a Guest owner. Either keep browser
-  polling as the guest fallback, or prompt guests to sign in before starting a
-  paid job. This needs a product decision.
+**Done — step 3: the client is cut over.** Starting a 3D generation now hands
+the task to the server (`serverPollHandoff.ts`), the browser stops polling
+anything carrying a `queueJobId`, and `useServerPolledJobCompletion` finishes
+those jobs from the SSE stream. **A generation now survives closing the tab.**
+
+The completion path — library save, offscreen GLB render, canvas placement —
+moved to `backgroundJobCompletion.ts` and is shared, because it now has two
+callers and must behave identically for both. It stays client-side: every step
+needs a Fabric canvas.
+
+Two deliberate safety properties:
+- **The handoff is best-effort.** If `/api/queue/poll` fails, the browser poller
+  carries on exactly as before. A less-resilient job beats a generation lost to
+  a queue outage.
+- **Completion is idempotent.** SSE resends a full snapshot on reconnect, so
+  without a guard a dropped connection would place the same model on the canvas
+  twice.
+
+**Guests keep browser polling.** Keys are only vaulted for signed-in accounts,
+so there is nothing for the server to authenticate with; the handoff detects
+this locally and never makes the call. Behaviour for guests is unchanged.
+
+**Still open:** the Meshy `text-to-3d` refine leg. The handler detects
+`needsMeshyRefine` but nothing enqueues the follow-on task, so a server-polled
+text-to-3d job finishes at *preview* quality. Browser-polled jobs still chain
+correctly. Until this is closed, prefer the browser path for `text-to-3d`, or
+finish the chain by enqueuing the refine id returned by the refine POST.
 
 
 Meshy/Tripo/Hitem3D/Stability jobs are polled **from the browser**, so closing

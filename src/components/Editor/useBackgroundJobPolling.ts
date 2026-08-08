@@ -1,10 +1,9 @@
 import { useEffect, useRef } from 'react';
-import * as fabric from 'fabric';
-import { placeAtViewportCenter } from '@/lib/canvas-placement';
+import type * as fabric from 'fabric';
 
-import type { BackgroundJob, ExtendedFabricObject, ThreeDGroup, ThreeDImage } from '@/types';
-import { persistAssetToLibrary } from '@/lib/assetPersistence';
-import { renderModelThumbnail } from '@/lib/modelThumbnail';
+import type { BackgroundJob } from '@/types';
+import { materializeCompletedJob } from '@/components/Editor/backgroundJobCompletion';
+import { useServerPolledJobCompletion } from '@/components/Editor/useServerPolledJobCompletion';
 import {
     normalizeProviderPoll,
     providerPollHeaders,
@@ -32,6 +31,11 @@ export function useBackgroundJobPolling({
     canvas,
     user,
 }: UseBackgroundJobPollingArgs) {
+    // Jobs the server owns are completed from the SSE stream instead. Called
+    // here rather than from EditorView so background-job tracking stays a
+    // single entry point: one hook to mount, one place to reason about.
+    useServerPolledJobCompletion({ backgroundJobs, setBackgroundJobs, canvas, user });
+
     const backgroundJobsRef = useRef<BackgroundJob[]>([]);
     const pollIntervalsRef = useRef<Map<string, number>>(new Map());
     const nextDueRef = useRef<Map<string, number>>(new Map());
@@ -43,7 +47,13 @@ export function useBackgroundJobPolling({
     }, [backgroundJobs]);
 
     useEffect(() => {
-        const activeJobs = backgroundJobs.filter((job) => job.status === 'PENDING' || job.status === 'IN_PROGRESS');
+        // Jobs the server took over are polled there, so this tab must not
+        // duplicate the work — two pollers would double the provider's rate
+        // limit consumption and race each other on the Meshy refine handoff.
+        // Guests, and any job whose handoff failed, keep polling here.
+        const activeJobs = backgroundJobs.filter((job) => (
+            (job.status === 'PENDING' || job.status === 'IN_PROGRESS') && !job.queueJobId
+        ));
         if (activeJobs.length === 0) return;
 
         const checkJobStatus = async (job: BackgroundJob): Promise<PollOutcome | undefined> => {
@@ -133,93 +143,13 @@ export function useBackgroundJobPolling({
                 }
 
                 if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'CANCELLED') {
-                    const updatedJob: BackgroundJob = {
-                        ...job,
-                        status,
-                        resultUrl,
-                        thumbnailUrl,
-                        progress: status === 'SUCCEEDED' ? 100 : progress,
-                        error: status === 'FAILED'
-                            ? (errorDetail || 'Failed to process.')
-                            : status === 'CANCELLED'
-                                ? (errorDetail || 'Tracking stopped by user.')
-                                : undefined,
-                    };
-                    setBackgroundJobs((prev) => prev.map((p) => (p.id === job.id ? updatedJob : p)));
-                    if (status === 'SUCCEEDED' && resultUrl) {
-                        let filename = (job.prompt || 'generated').slice(0, 15).replace(/[^a-z0-9]/gi, '_');
-                        const urlMatch = resultUrl.match(/\.([a-z0-9]+)(?:$|[?#])/i);
-                        const extension = (urlMatch?.[1] || 'glb').toLowerCase();
-                        if (!filename.toLowerCase().endsWith(`.${extension}`)) filename += `.${extension}`;
-                        try {
-                            await persistAssetToLibrary({
-                                source: resultUrl,
-                                filename,
-                                type: 'models',
-                                category: 'uploads',
-                                owner: user,
-                            });
-                        } catch (error) {
-                            console.error('Failed to auto-save asset', error);
-                        }
-
-                        const addFallbackPlaceholder = () => {
-                            if (!canvas) return;
-                            const group = new fabric.Group([], { left: 150, top: 150, subTargetCheck: true, interactive: true });
-                            const box = new fabric.Rect({ width: 100, height: 100, fill: '#3b82f6', rx: 10, ry: 10 });
-                            const text = new fabric.IText('3D', { fontSize: 30, fill: 'white', left: 30, top: 35, fontFamily: 'sans-serif', fontWeight: 'bold' });
-                            group.add(box);
-                            group.add(text);
-                            const threeDGroup = group as ThreeDGroup;
-                            threeDGroup.is3DModel = true;
-                            threeDGroup.modelUrl = resultUrl;
-                            if (job.prompt) (threeDGroup as ExtendedFabricObject).name = job.prompt.slice(0, 40);
-                            canvas.add(threeDGroup);
-                            canvas.setActiveObject(threeDGroup);
-                            canvas.requestRenderAll();
-                        };
-
-                        const placeImage = (dataUrl: string, crossOrigin?: 'anonymous') => (
-                            fabric.FabricImage.fromURL(dataUrl, crossOrigin ? { crossOrigin } : undefined)
-                                .then((img) => {
-                                    if (!img) throw new Error('Image loaded but null');
-                                    if (!canvas) return;
-                                    img.scaleToWidth(280);
-                                    placeAtViewportCenter(canvas, img);
-                                    const threeDImg = img as ThreeDImage;
-                                    threeDImg.is3DModel = true;
-                                    threeDImg.modelUrl = resultUrl;
-                                    if (job.prompt) {
-                                        (threeDImg as ExtendedFabricObject).name = job.prompt.slice(0, 40);
-                                    }
-                                    canvas.add(threeDImg);
-                                    canvas.setActiveObject(threeDImg);
-                                    canvas.requestRenderAll();
-                                })
-                        );
-
-                        if (canvas) {
-                            // Show the model that actually came back. Render the
-                            // returned GLB offscreen so the canvas gets a real
-                            // still of the generated geometry; the provider
-                            // thumbnail and the "3D" box are only fallbacks for
-                            // when the model cannot be rendered here.
-                            const canRenderModel = /\.(glb|gltf)(?:$|[?#])/i.test(resultUrl);
-                            const renderPromise = canRenderModel
-                                ? renderModelThumbnail(resultUrl, resultUrl, 512).then((dataUrl) => placeImage(dataUrl))
-                                : Promise.reject(new Error('Not a renderable model URL'));
-
-                            renderPromise.catch(() => {
-                                if (!thumbnailUrl) {
-                                    addFallbackPlaceholder();
-                                    return;
-                                }
-                                return placeImage(thumbnailUrl, 'anonymous').catch(() => {
-                                    addFallbackPlaceholder();
-                                });
-                            });
-                        }
-                    }
+                    await materializeCompletedJob({
+                        job,
+                        outcome: { status, progress, resultUrl, thumbnailUrl, error: errorDetail },
+                        canvas,
+                        user,
+                        setBackgroundJobs,
+                    });
                 } else if (progress !== job.progress || status !== job.status) {
                     setBackgroundJobs((prev) =>
                         prev.map((p) => (p.id === job.id ? { ...p, progress, status, error: status === 'IN_PROGRESS' ? undefined : p.error } : p))

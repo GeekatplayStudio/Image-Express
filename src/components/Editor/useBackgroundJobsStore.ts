@@ -57,6 +57,7 @@ export function useBackgroundJobsStore() {
                 stage: jobData.stage,
                 prompt: jobData.prompt,
                 request: jobData.request,
+                queueJobId: jobData.queueJobId,
             };
 
             const existing = prev.find((job) => job.id === id);
@@ -72,6 +73,7 @@ export function useBackgroundJobsStore() {
                 stage: normalized.stage ?? existing.stage,
                 prompt: normalized.prompt ?? existing.prompt,
                 request: normalized.request ?? existing.request,
+                queueJobId: normalized.queueJobId ?? existing.queueJobId,
                 error: normalized.status === 'IN_PROGRESS' || normalized.status === 'PENDING' ? undefined : (normalized.error || existing.error),
             };
             return prev.map((job) => (job.id === id ? merged : job));
@@ -125,6 +127,7 @@ export function useBackgroundJobsStore() {
                         stage: source.stage,
                         prompt: source.prompt,
                         request: source.request,
+                        queueJobId: source.queueJobId,
                     } as BackgroundJob;
                 })
                 .filter((entry): entry is BackgroundJob => Boolean(entry))
@@ -159,6 +162,7 @@ export function useBackgroundJobsStore() {
                     stage: job.stage,
                     prompt: job.prompt,
                     request: getPersistableRequest(job.request),
+                    queueJobId: job.queueJobId,
                 }));
             localStorage.setItem(BACKGROUND_JOBS_STORAGE_KEY, JSON.stringify(compact));
             window.dispatchEvent(new Event(BACKGROUND_JOBS_CHANGED_EVENT));

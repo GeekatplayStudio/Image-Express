@@ -4,6 +4,7 @@ import * as fabric from 'fabric';
 import { ExtendedFabricObject, type BackgroundJob, type ThreeDImage } from '@/types';
 import type { CanvasWithArtboard } from '@/components/Editor/editorView.types';
 import type { ToastOptions } from '@/providers/ToastProvider';
+import { handOffPollingToServer } from '@/features/generation/application/client/serverPollHandoff';
 
 type ThreeDLayerImageOption = {
     id: string;
@@ -188,6 +189,16 @@ export function useEditorThreeDWorkspace({
             canvas.requestRenderAll();
         }
 
+        // Hand the task to the server so it finishes even if this tab closes.
+        // Best-effort: on failure the browser poller carries on exactly as
+        // before, because a less-resilient job beats a generation that never
+        // starts. Guests have no vaulted key, so they keep browser polling.
+        void handOffPollingToServer(jobData, user).then((result) => {
+            if (result.handedOff && jobData.id) {
+                upsertBackgroundJob({ id: jobData.id, queueJobId: result.queueJobId });
+            }
+        });
+
         toast({
             title: 'Generation Started',
             description: 'Queued — you can start another while this one runs.',
@@ -196,7 +207,7 @@ export function useEditorThreeDWorkspace({
         // Deliberately keep the panel open: closing it discarded the in-flight
         // guard and made queueing a second generation awkward. Jobs are
         // tracked in the panel's own list and in the status area.
-    }, [canvas, sourceObjectFor3D, toast, upsertBackgroundJob]);
+    }, [canvas, sourceObjectFor3D, toast, upsertBackgroundJob, user]);
 
     const handleThreeDGeneratorRecoverBackgroundJob = useCallback((jobData: Partial<BackgroundJob>) => {
         upsertBackgroundJob(jobData);

@@ -368,6 +368,12 @@ export interface BackgroundJob {
    stage?: string;
    prompt?: string;
     request?: BackgroundJobRequest;
+    /**
+     * Queue job driving this task server-side. When set, the browser must not
+     * poll: the server owns the loop, so the job survives this tab closing.
+     * Absent for guests, whose keys never reach the server.
+     */
+    queueJobId?: string;
 }
 
 export type AssetType = 'images' | 'videos' | 'audio' | 'models';
