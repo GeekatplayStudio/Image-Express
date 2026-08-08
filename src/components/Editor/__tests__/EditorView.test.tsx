@@ -2221,7 +2221,7 @@ describe('EditorView', () => {
         });
         expect(props.onUpdateDesignInfo).toHaveBeenCalledWith('design-1', 'My Saved Design');
         expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
-            title: 'Design saved',
+            title: 'Page saved',
             variant: 'success',
         }));
         expect(mockUploadBackup).toHaveBeenCalledWith(
@@ -2290,7 +2290,7 @@ describe('EditorView', () => {
             expect(hasFetchCall(fetchMock, '/api/designs/save', 'POST')).toBe(true);
         });
         expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
-            title: 'Design saved',
+            title: 'Page saved',
             variant: 'success',
         }));
     });

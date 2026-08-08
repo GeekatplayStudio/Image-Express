@@ -66,7 +66,7 @@
     "test:e2e:critical": "playwright test e2e/export-verification.spec.ts e2e/media-overlay-verification.spec.ts",
     "lint": "eslint --max-warnings=0 .",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
-    "verify": "npm run audit:overrides && npm run audit:architecture && npm run audit:filesize && npm run lint && npm run typecheck && npm test -- --runInBand && npm run build && npm run audit:bundle",
+    "verify": "npm run audit:overrides && npm run audit:architecture && npm run audit:filesize && npm run audit:terms && npm run audit:i18n:ratchet && npm run lint && npm run typecheck && npm test -- --runInBand && npm run build && npm run audit:bundle",
     "validate": "npm run lint && npm run test && npm run build",
     "test": "jest",
     "test:e2e": "playwright test",
@@ -94,7 +94,9 @@
     "desktop:smoke-package": "node scripts/smoke-package.mjs",
     "mcp": "node scripts/mcp-server.mjs",
     "audit:filesize": "node scripts/file-size-ratchet.mjs",
-    "audit:filesize:update": "node scripts/file-size-ratchet.mjs --update"
+    "audit:filesize:update": "node scripts/file-size-ratchet.mjs --update",
+    "audit:i18n:ratchet": "node scripts/i18n-parity-ratchet.mjs",
+    "audit:i18n:update": "node scripts/i18n-parity-ratchet.mjs --update"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

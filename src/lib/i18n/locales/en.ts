@@ -998,20 +998,20 @@ const en: LocaleDictionary = {
     'menuAct.noSelectableLayers': 'No selectable layers found.',
     'menuAct.shortcutsTitle': 'Keyboard shortcuts',
     'menuAct.aboutTitle': 'About Image Express',
-    'menuAct.aboutBody': 'Image Express editor. Build and edit designs with layered tools, retouch workflows, and panel-based controls.',
+    'menuAct.aboutBody': 'Image Express editor. Build and edit pages with layered tools, retouch workflows, and panel-based controls.',
 
     // Editor save/load flows (useEditorPersistence). "Save failed"/"Load
     // failed" reuse toolbar.*; these are the dialogs and descriptions.
-    'persist.couldNotLoad': 'Could not load design data.',
+    'persist.couldNotLoad': 'Could not load page data.',
     'persist.discardConfirm': 'Discard unsaved changes and leave?',
     'persist.unsavedChanges': 'Unsaved changes',
-    'persist.enterDesignName': 'Enter design name:',
-    'persist.designName': 'Design name',
-    'persist.designNamePlaceholder': 'My Design',
-    'persist.failedToSave': 'Failed to save design.',
-    'persist.designSaved': 'Design saved',
+    'persist.enterDesignName': 'Enter page name:',
+    'persist.designName': 'Page name',
+    'persist.designNamePlaceholder': 'My Page',
+    'persist.failedToSave': 'Failed to save page.',
+    'persist.designSaved': 'Page saved',
     'persist.changesSaved': 'Your changes are saved.',
-    'persist.errorSaving': 'Error saving design to server.',
+    'persist.errorSaving': 'Error saving page to server.',
     'persist.errorLoadingTemplate': 'Error loading template file.',
 
     // Export quality modal (EditorExportQualityModal). {quality}/{size} are
@@ -2847,7 +2847,7 @@ const en: LocaleDictionary = {
     // nouns and stay as they are; only the surrounding prose is translated.
     'dashboard.hubTitle': 'Image Express Hub',
     'dashboard.hubByline': 'Open source creative workspace by {author}.',
-    'dashboard.hubDescription': 'Use the hub for templates, saved projects, release tracking, and support links. The editor canvas stays focused on creation, while project-level information lives here.',
+    'dashboard.hubDescription': 'Use the hub for templates, saved albums, release tracking, and support links. The editor canvas stays focused on creation, while album-level information lives here.',
     'dashboard.contactUs': 'Contact Us',
     'dashboard.community': 'Community',
     'dashboard.supportMyWork': 'Support My Work',
@@ -3015,14 +3015,14 @@ const en: LocaleDictionary = {
     'overlay.safe.title10': 'Title Safe (10%)',
     'overlay.safe.action20': 'Action Safe (20%)',
     'overlay.naming.framePreset': 'Frame + Preset',
-    'overlay.naming.designFramePreset': 'Design + Frame + Preset',
-    'overlay.naming.designPresetDateFrame': 'Design + Preset + Date + Frame',
+    'overlay.naming.designFramePreset': 'Page + Frame + Preset',
+    'overlay.naming.designPresetDateFrame': 'Page + Preset + Date + Frame',
     'overlay.mode.fill': 'Fill',
     'overlay.mode.fit': 'Fit',
     'overlay.mode.safeArea': 'Safe Area',
     // Variant-draft toast. {preset} and {mode} are the translated labels.
     'overlay.variantCreated': 'Variant draft created',
-    'overlay.variantConverted': 'Active frame converted to {preset} using {mode}. Save to keep it as a separate design.',
+    'overlay.variantConverted': 'Active frame converted to {preset} using {mode}. Save to keep it as a separate page.',
     'overlay.variantConvertedRemoved': 'Active frame converted to {preset} using {mode}. Removed {removed}.',
     'overlay.offFrameObjects': '{count} off-frame objects',
     'overlay.offFrameObjects.one': '{count} off-frame object',
@@ -3134,7 +3134,7 @@ const en: LocaleDictionary = {
     // Interface theme packs (Settings > Workspace > Interface Themes).
     // "Vlad" is the maintainer's name and stays as-is in every locale.
     'themes.title': 'Interface Themes',
-    'themes.description': 'Theme packs restyle the whole interface — colors, window shapes, fonts, and icons. Download packs separately and install them from a .zip file. Your designs are never affected.',
+    'themes.description': 'Theme packs restyle the whole interface — colors, window shapes, fonts, and icons. Download packs separately and install them from a .zip file. Your pages are never affected.',
     'themes.refreshAria': 'Refresh theme list',
     'themes.loading': 'Loading themes…',
     'themes.activateAria': 'Activate theme {name}',
@@ -3315,7 +3315,7 @@ const en: LocaleDictionary = {
     'admin.preset.admin': 'Admin',
     'admin.preset.admin.desc': 'Full access to user management and role administration.',
     'admin.preset.creator': 'Creator',
-    'admin.preset.creator.desc': 'Default creative account with personal project permissions.',
+    'admin.preset.creator.desc': 'Default creative account with personal workspace permissions.',
     'admin.preset.reviewer': 'Reviewer',
     'admin.preset.reviewer.desc': 'Can review content without admin-level account controls.',
     // Errors shown in the panel when the API call itself carries no message.

@@ -162,13 +162,33 @@ about what they said. Capture the actual text, truncated and redacted.
 > shell pipe returns the *last* command's status, not the script's.
 > `desktop:pack` is a plain `&&` chain and propagates correctly. No fix needed.
 
-### F-08 · Process — P0
-- **Run `npm run verify` before every commit.** Not `lint` alone, not `test`
-  alone — the whole gate.
-- CI must run the same gate, so local and CI cannot disagree.
-- `audit:terms` and `audit:i18n:parity` currently fail (pre-existing). Either
-  fix them or make the failures explicit; a permanently-red gate teaches people
-  to ignore red gates.
+### F-08 · Process — ✅ **done**
+**`npm run verify` now passes end to end**, and every stage of it is meaningful:
+
+```
+overrides → architecture → filesize → terms → i18n → lint → typecheck → tests → build → bundle
+```
+
+- **Run it before every commit.** Not `lint` alone, not `test` alone.
+- CI must run the same chain, so local and CI cannot disagree.
+- **`audit:terms` fixed** — 17 violations. 13 were real (a saved document is a
+  **Page**, not a "design"; saved user content is an **Album**, not a
+  "project"), so the strings changed. 3 were the banned word in a genuinely
+  different sense and became documented exceptions alongside the existing ones:
+  "**Design** connected OKLCH palettes" (a verb), "**design** feedback" (the
+  aesthetics), "text-to-image **stack**" (a software stack). One was reworded to
+  sidestep the ambiguity entirely.
+- **`audit:i18n:parity` replaced by a ratchet.** It failed if *any* locale
+  missed *any* key, which with eight partial languages was red by construction —
+  it could only go green after a full translation pass, so it was permanently
+  red and therefore ignored. `audit:i18n:ratchet` records the missing-key count
+  per locale and fails only on a **regression**: adding an English string
+  without translating it into a locale that was already at that level. Counts
+  may only decrease. The full per-key report is still `audit:i18n:parity`.
+
+> Both new gates follow the same shape as the file-size ratchet: encode current
+> reality, make it one-way, and let the number only improve. A gate nobody can
+> pass is worse than no gate.
 
 ---
 

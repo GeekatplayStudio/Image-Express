@@ -46,6 +46,12 @@ const ALLOWED_KEYS = new Set([
     'panel.history.hint',
     // "layered 2D design" is the discipline, not a saveable document.
     'docs.intro.p1',
+    // "Design connected OKLCH palettes" — the verb, not a document.
+    'constellation.subtitle',
+    // "design feedback" is critique of the aesthetics, not of a saved page.
+    'critique.outputPlaceholder',
+    // "text-to-image stack" is a software stack, not the 3D album view.
+    'comfyModel.fluxDev',
 ]);
 
 const source = fs.readFileSync(EN, 'utf8');
