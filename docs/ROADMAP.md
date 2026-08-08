@@ -6,7 +6,7 @@
 - How it works: [ARCHITECTURE.md](ARCHITECTURE.md)
 - What already shipped: [CHANGELOG.md](CHANGELOG.md)
 
-Status: Active · Last updated: 2026-08-07 · Branch baseline: `main`
+Status: Active · Last updated: 2026-08-08 · Branch baseline: `main`
 
 > **Change control.** Scope, priority, dependency and sequencing changes are
 > made *here first*. When an item ships, move its notes into
@@ -71,7 +71,7 @@ pre-refactor implementation.
 failed on it, so folder navigation moved to `useVaultFolderNav.ts`
 (463 + 109 lines). The gate caught its author, which is the point.
 
-### F-03 · Catalog storage → SQLite — P0 *(store landed, not yet wired)*
+### F-03 · Catalog storage → SQLite — ✅ **done** *(targeted-write follow-up open)*
 The single architectural ceiling. `data/vault/catalog.json` is **153 MB**,
 fully parsed and Zod-validated into heap, and **every mutation rewrites the
 entire file** — adding one asset rewrites 153 MB.
@@ -136,7 +136,7 @@ entire file** — adding one asset rewrites 153 MB.
   `readCatalogSnapshot` still materialises everything, and only moving callers
   to `queryAssets` fixes that.
 
-### F-04 · Server-side provider polling — P0 *(step 1 of 3 done)*
+### F-04 · Server-side provider polling — ✅ **done**
 
 **Done — the provider logic is now shared, pure and tested.**
 `src/lib/server/jobQueue/providerPoll.ts` owns URL construction, auth headers,
@@ -189,11 +189,13 @@ Two deliberate safety properties:
 so there is nothing for the server to authenticate with; the handoff detects
 this locally and never makes the call. Behaviour for guests is unchanged.
 
-**Still open:** the Meshy `text-to-3d` refine leg. The handler detects
-`needsMeshyRefine` but nothing enqueues the follow-on task, so a server-polled
-text-to-3d job finishes at *preview* quality. Browser-polled jobs still chain
-correctly. Until this is closed, prefer the browser path for `text-to-3d`, or
-finish the chain by enqueuing the refine id returned by the refine POST.
+**Done — the Meshy `text-to-3d` refine leg.** The handler detected
+`needsMeshyRefine` but nothing acted on it, so a server-polled text-to-3d job
+finished at *preview* quality — an untextured model, which reads as a quality
+regression rather than a missing pipeline step. The loop now starts the refine
+task, retargets the poll at the returned id and resets its backoff, so one job
+spans both legs. If refine cannot be started the preview is kept and the reason
+logged: a worse model still beats a failed job.
 
 
 Meshy/Tripo/Hitem3D/Stability jobs are polled **from the browser**, so closing
