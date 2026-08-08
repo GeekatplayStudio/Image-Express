@@ -137,6 +137,18 @@ entire file** — adding one asset rewrites 153 MB.
 - **Read the headline honestly.** `writeVaultCatalog` still exists and still
   costs the 313 ms diff scan, because it is handed a whole catalog and has to
   find the delta itself. It is now the *fallback* shape, not the normal one.
+- **One operation got worse, and it is the hot one.** Materialising the whole
+  catalog from rows costs a `JSON.parse` each: **903 ms vs 257 ms** for the
+  single JSON document, measured in one run. SQLite wins on writes and scoped
+  queries and loses on "give me everything". Search reads the whole catalog per
+  query, and the JSON path had an mtime-keyed cache making repeat reads free —
+  so the SQLite path now keeps an equivalent snapshot cache, invalidated by
+  every write helper and pinned by tests that fail if the invalidation is
+  removed. **This was a regression I introduced and then caught; without the
+  cache the migration would have made search 3.5× slower.**
+- **Next, and the honest fix:** search, similar-asset lookup and the sync route
+  should stop asking for the whole catalog. A cache holds the line; it does not
+  remove the ceiling, and it costs a full copy of the catalog in memory.
 - **Cost paid:** the DB is larger on disk than the JSON — 229 MB vs 158 MB —
   from storing each record plus four indexes. Accepted: disk is cheap, the
   158 MB write amplification was not.

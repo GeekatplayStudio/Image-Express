@@ -351,9 +351,19 @@ are the targeted path, and they are what the write-heavy jobs use:
 
 `writeVaultCatalog` still exists and still pays its 313 ms diff scan — it is
 the fallback shape for a caller holding a whole catalog, not the normal one.
-`readVaultCatalog` likewise still materialises every asset; search, the
-similar-asset lookup and the sync route are the callers left to move onto
-scoped queries. See F-03 in [ROADMAP.md](ROADMAP.md).
+
+**SQLite is not faster at everything, and one case is worse.** Materialising the
+whole catalog costs one `JSON.parse` per row: **903 ms against 257 ms** for
+parsing the single JSON document, 3.5× dearer. Row storage wins on writes and
+scoped queries; it loses on "give me everything". Search calls
+`readVaultCatalog` on every query, and the JSON path had an mtime-keyed cache
+that made repeat reads free — so `vault-store` keeps an equivalent in-memory
+snapshot cache for the SQLite path, invalidated by every write helper. Without
+it the migration would have made search markedly worse rather than better.
+
+The real fix is for search, the similar-asset lookup and the sync route to stop
+asking for everything. Until they move onto scoped queries the cache is what
+holds the line. See F-03 in [ROADMAP.md](ROADMAP.md).
 
 ---
 
