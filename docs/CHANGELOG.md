@@ -1,23 +1,23 @@
-# Unified Progress Status (Canonical)
+# Changelog — Delivery History
 
 Last updated: 2026-08-07  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
 
-## Purpose
-This is the single source of truth for implementation progress across:
-- upgrade checklist planning,
-- implementation tracking,
-- continuation handoff notes.
+**What has shipped, newest first.** This file is history — it is not where you
+look for current behaviour or future plans.
 
-Use this file first for: what is done, what is pending, and what to do next.
+| Question | Doc |
+|---|---|
+| How does the system work? | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| What does the app do today? | [FUNCTIONALITY.md](FUNCTIONALITY.md) |
+| What is planned? | [ROADMAP.md](ROADMAP.md) |
+| What do we call things? | [TERMINOLOGY.md](TERMINOLOGY.md) |
 
-Future roadmap canonical source:
-- `docs/master_future_implementation_roadmap.md` (planned scope, sequencing, file-level future implementation map)
-
-Current-state baseline audit:
-- `docs/current_application_baseline_audit_2026-05-16.md` (verified feature inventory, workflow map, status reconciliation, priority buckets, and UI simplification plan)
+> Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
+> consolidated to 18. Entries below predate that split and may reference docs
+> that no longer exist; their content now lives in the four files above.
 
 ## Latest Delivery (2026-08-07) — Unified Job Queue ("Q") + Pipeline Rail
 
@@ -972,7 +972,7 @@ Completed in this pass (Editor canvas overlay hook extraction slice):
 ---
 
 ## Other Product Tracker Snapshot (Non-upgrade items)
-From `feature_implementation_tracker.md`:
+From the feature tracker (now merged into ROADMAP.md):
 - [x] Upgrade program is **In Progress** (item 29)
 - [x] Gradient masks per layer
 - [x] Local AI support (Ollama): runtime preferences, status probe, critique route, and first-pass image-generation provider wiring are complete
@@ -1008,7 +1008,7 @@ Provider follow-through is now implementation-complete:
 
 ## Files This Consolidates
 - `docs/imageprocessingui_upgrade_execution_checklist.md` (archived pointer)
-- `docs/feature_implementation_tracker.md`
+- the feature tracker (now merged into `docs/ROADMAP.md`)
 - `docs/chat_continuation_handoff_2026-02-23.md`
 
 These files remain useful for detail/history, but all progress tracking must happen in this file.

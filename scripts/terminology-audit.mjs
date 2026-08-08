@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Terminology enforcement — see docs/terminology.md.
+ * Terminology enforcement — see docs/TERMINOLOGY.md.
  *
  * The object hierarchy is Workspace > Canvas > Layers > Page > Album.
  * "Canvas" names ONLY the white artboard in the centre of the workspace; a
@@ -31,7 +31,7 @@ const CANVAS_AS_DOCUMENT = /\b(new|open|save|rename|duplicate|delete|switch betw
 
 /**
  * Strings that are about the software project rather than user content.
- * Documented as permitted exceptions in docs/terminology.md.
+ * Documented as permitted exceptions in docs/TERMINOLOGY.md.
  */
 const ALLOWED_KEYS = new Set([
     // npm dependencies of the app, not user content.

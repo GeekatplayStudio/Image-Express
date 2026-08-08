@@ -192,7 +192,7 @@ process, so nothing in the repo runs before it. Use `npm run setup` instead, or
 point your version manager at the pinned release — `nvm install 24.14.1 && nvm
 use 24.14.1` (see [`.nvmrc`](.nvmrc)).
 
-Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key configuration: **[docs/INSTALLATION.md](docs/INSTALLATION.md)** · desktop packaging internals: **[docs/DESKTOP.md](docs/DESKTOP.md)** · driving the app from AI agents (Claude Desktop/Code) via Model Context Protocol: **[docs/MCP.md](docs/MCP.md)** · canonical terminology (workspace / canvas / page / album / library): **[docs/GLOSSARY.md](docs/GLOSSARY.md)**.
+Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key configuration: **[docs/INSTALLATION.md](docs/INSTALLATION.md)** · desktop packaging internals: **[docs/DESKTOP.md](docs/DESKTOP.md)** · driving the app from AI agents (Claude Desktop/Code) via Model Context Protocol: **[docs/MCP.md](docs/MCP.md)** · canonical terminology (workspace / canvas / page / album / library): **[docs/TERMINOLOGY.md](docs/TERMINOLOGY.md)**.
 
 > **Privacy by design**: no telemetry, no bundled models, no bundled art assets — a fresh clone is source code only. Every AI feature is opt-in and uses whichever provider *you* configure, including 100%-local ComfyUI + Ollama with zero cloud calls.
 
@@ -476,7 +476,7 @@ src/lib/server/jobQueue/   Durable job queue: store, lane scheduler, per-kind ha
 electron/            Desktop shell (child-process server boot, auto-updater, startup logging)
 theme-packs/          Theme-pack authoring workspace (gitignored — packs are downloads, not source)
 ambience-packs/       Dashboard-ambience authoring workspace (gitignored, same reasoning)
-docs/                Full documentation set — installation, desktop packaging, theme spec, and more
+docs/                ARCHITECTURE (how it works) · FUNCTIONALITY (what it does) · ROADMAP (what's next) · TERMINOLOGY · CHANGELOG, plus operational guides
 ```
 
 ## 🛠 Tech Stack
@@ -485,12 +485,29 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three
 
 ## 📚 Documentation
 
+**Start here — these four cover the whole system:**
+
+| Doc | Answers |
+|---|---|
+| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | How it works. Runtime profiles, the **"Q" job queue** in full, editor runtime, Asset Vault, provider adapters, the API surface, persistence, quality gates, module ownership. |
+| **[FUNCTIONALITY.md](docs/FUNCTIONALITY.md)** | What it does, feature by feature, with honest status and a known-gaps table. |
+| **[ROADMAP.md](docs/ROADMAP.md)** | What's next — the only forward-looking doc. Backlog, milestones, per-initiative acceptance criteria, cross-cutting debt. |
+| **[TERMINOLOGY.md](docs/TERMINOLOGY.md)** | What things are called, what's banned, and how canonical names map onto older code names. Enforced by `npm run audit:terms`. |
+
+**Reference:**
+
+- [docs/CHANGELOG.md](docs/CHANGELOG.md) — delivery history, newest first
 - [docs/INSTALLATION.md](docs/INSTALLATION.md) — full install guide (PC/Mac, ComfyUI, Ollama, Docker, Drive backup)
 - [docs/DESKTOP.md](docs/DESKTOP.md) — desktop packaging, auto-update, and startup-log internals
-- [docs/JOB_QUEUE.md](docs/JOB_QUEUE.md) — the background job queue: pipeline stages, concurrency lanes, crash recovery, SSE, and how to queue a new kind of work
+- [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) — tag-to-artifact release pipeline
+- [docs/JOB_QUEUE.md](docs/JOB_QUEUE.md) — the job queue's design rationale and extension guide
+- [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived (current state: `npm audit` clean)
 - [docs/THEME_PACKS_SPEC.md](docs/THEME_PACKS_SPEC.md) — build your own theme/ambience pack (no code required)
-- [docs/html-export-notes.md](docs/html-export-notes.md) — HTML export details and asset coverage
 - [docs/i18n_multilanguage_support.md](docs/i18n_multilanguage_support.md) — translation system and adding a language
+- [docs/MCP.md](docs/MCP.md) — driving the app from AI agents via Model Context Protocol
+- [docs/html-export-notes.md](docs/html-export-notes.md) — HTML export details and asset coverage
+- [docs/prd_3d_layer_vfx_2026-07-23.md](docs/prd_3d_layer_vfx_2026-07-23.md) — 3D/VFX PRD, including the GPL-3.0 prior-art licensing position
+- [docs/Hy3D_Documentation.md](docs/Hy3D_Documentation.md) — Hitem3D provider API notes
 - [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived (current state: `npm audit` clean)
 
 ---
