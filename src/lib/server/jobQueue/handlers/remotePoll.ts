@@ -69,6 +69,37 @@ async function resolveApiKey(owner: string, provider: RemoteProvider): Promise<s
     return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+
+/**
+ * Submit a Meshy preview for texture refinement.
+ *
+ * Returns the new task id, or null when refinement cannot be started — the
+ * caller then keeps the preview, because a usable lower-quality model beats
+ * failing a job the user already paid for.
+ */
+async function startMeshyRefine(previewTaskId: string, apiKey: string): Promise<string | null> {
+    try {
+        const response = await fetch('https://api.meshy.ai/openapi/v2/text-to-3d', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                mode: 'refine',
+                preview_task_id: previewTaskId,
+                enable_pbr: true,
+                ai_model: 'meshy-4',
+            }),
+        });
+        if (!response.ok) return null;
+        const payload = await response.json() as { result?: string };
+        return typeof payload?.result === 'string' && payload.result ? payload.result : null;
+    } catch {
+        return null;
+    }
+}
+
 export const runRemotePollJob = async (
     { job, update }: QueueHandlerContext,
 ): Promise<{ resultUrl?: string }> => {
@@ -89,7 +120,9 @@ export const runRemotePollJob = async (
         );
     }
 
-    const url = providerUpstreamUrl(provider, taskId, jobType);
+    let currentTaskId = taskId;
+    let currentStage = stage;
+    let url = providerUpstreamUrl(provider, currentTaskId, jobType);
     const headers = {
         ...providerPollHeaders(provider, apiKey, { hitemsAppId }),
         ...providerUpstreamExtraHeaders(provider),
@@ -108,7 +141,7 @@ export const runRemotePollJob = async (
 
     for (;;) {
         if (Date.now() - startedAt > MAX_POLL_DURATION_MS) {
-            throw new Error(`${provider} task ${taskId} did not finish within 2 hours.`);
+            throw new Error(`${provider} task ${currentTaskId} did not finish within 2 hours.`);
         }
 
         await sleep(delay);
@@ -136,7 +169,7 @@ export const runRemotePollJob = async (
             outcome = normalizeProviderPoll(provider, await response.json(), {
                 previousProgress,
                 jobType,
-                stage,
+                stage: currentStage,
             });
             consecutiveErrors = 0;
         } catch (error) {
@@ -168,15 +201,29 @@ export const runRemotePollJob = async (
             throw new Error(outcome.error || `${provider} task ${outcome.status.toLowerCase()}.`);
         }
 
-        // Meshy text-to-3d finishes a preview first; the refine pass returns a
-        // NEW task id, so this job is not done. Handled by the caller, which
-        // enqueues the refine leg — see F-04 step 3.
+        // Meshy text-to-3d finishes a cheap *preview* first. Refinement is a
+        // separate submission that returns a NEW task id, so the job is not
+        // done — it continues here against that id. Handling it in-job keeps
+        // one queue entry per user-visible generation.
         if (outcome.needsMeshyRefine) {
             await update({
                 stage: 'ai',
                 progress: 0.5,
                 message: 'Preview ready — refining textures...',
             });
+
+            const refineId = await startMeshyRefine(currentTaskId, apiKey);
+            if (refineId) {
+                currentTaskId = refineId;
+                currentStage = 'refining';
+                url = providerUpstreamUrl(provider, currentTaskId, jobType);
+                previousProgress = 0;
+                delay = minDelayMs;
+                continue;
+            }
+            // Refinement could not be started. Keep the preview rather than
+            // failing a job whose model is already usable.
+            console.error(`Meshy refine could not be started for ${currentTaskId}; keeping preview.`);
         }
 
         await update({ stage: 'validate', progress: 0.98, message: 'Checking result...' });

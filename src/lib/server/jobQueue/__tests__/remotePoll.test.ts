@@ -156,6 +156,54 @@ describe('runRemotePollJob', () => {
             .rejects.toThrow(/success without a result URL/);
     });
 
+    describe('meshy preview -> refine chain', () => {
+        const textToThree = {
+            provider: 'meshy', taskId: 'preview-1', jobType: 'text-to-3d',
+            owner: 'alice', minDelayMs: 1, maxDelayMs: 2,
+        };
+
+        it('submits the preview for refinement and keeps polling the new task id', async () => {
+            (global.fetch as jest.Mock)
+                // preview finishes
+                .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'SUCCEEDED', model_urls: { glb: 'preview.glb' } }) })
+                // refine submission returns a NEW id
+                .mockResolvedValueOnce({ ok: true, json: async () => ({ result: 'refine-2' }) })
+                // refined task finishes
+                .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'SUCCEEDED', model_urls: { glb: 'refined.glb' } }) });
+
+            const result = await runRemotePollJob(ctx(textToThree).context);
+
+            // The refined model wins — that is the whole point of the chain.
+            expect(result.resultUrl).toBe('refined.glb');
+
+            const calls = (global.fetch as jest.Mock).mock.calls;
+            expect(calls[1][1].method).toBe('POST');
+            expect(JSON.parse(calls[1][1].body)).toMatchObject({
+                mode: 'refine', preview_task_id: 'preview-1',
+            });
+            // The third poll targets the refine id, not the preview id.
+            expect(calls[2][0]).toContain('refine-2');
+        });
+
+        it('keeps the preview when refinement cannot be started', async () => {
+            (global.fetch as jest.Mock)
+                .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'SUCCEEDED', model_urls: { glb: 'preview.glb' } }) })
+                .mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'nope' });
+
+            // A usable lower-quality model beats failing a job already paid for.
+            const result = await runRemotePollJob(ctx(textToThree).context);
+            expect(result.resultUrl).toBe('preview.glb');
+        });
+
+        it('does not refine an image-to-3d job', async () => {
+            (global.fetch as jest.Mock).mockResolvedValue({
+                ok: true, json: async () => ({ status: 'SUCCEEDED', model_urls: { glb: 'a.glb' } }),
+            });
+            await runRemotePollJob(ctx(basePayload).context);
+            expect((global.fetch as jest.Mock).mock.calls).toHaveLength(1);
+        });
+    });
+
     it('sends the Appid alongside an ak:sk credential for hitem3d', async () => {
         mockLoadUserApiKeys.mockResolvedValue({ hitems: 'AK123:SK456' });
         (global.fetch as jest.Mock).mockResolvedValue({
