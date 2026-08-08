@@ -23,6 +23,16 @@ export function runVaultSearch(
      * hash vectors and real embeddings never cross-compare.
      */
     semanticQueryVectors: number[][] = [],
+    /**
+     * Neighbour lists already computed by the caller, used instead of scanning
+     * `vectors` here.
+     *
+     * The server searches an indexed SQLite store, which never materialises
+     * every embedding — at 200k assets holding them as `number[]` costs 1.2 GB.
+     * The browser has no such store and keeps passing raw vectors, so both
+     * callers share this ranking code rather than forking it.
+     */
+    precomputedVectorHits?: Array<Array<{ assetId: string; score: number }>>,
 ): VaultSearchResult[] {
     const keywordHits = searchAssetsKeyword(assets, request.query, request.filter, request.limit);
 
@@ -30,16 +40,21 @@ export function runVaultSearch(
         return keywordHits;
     }
 
-    // Always ensure hash embeddings so contextual search works even before Ollama/CLIP.
-    const ensured = vectors.length >= assets.length
-        ? vectors
-        : ensureAssetVectors(assets, vectors);
-
     const vectorLimit = Math.max(request.limit, 40);
-    const queryVectors = [...semanticQueryVectors, hashTextEmbedding(request.query, 64)];
-    const vectorHitLists = queryVectors
-        .map((queryVector) => searchVectors(ensured, queryVector, vectorLimit))
-        .filter((hits) => hits.length > 0);
+    let vectorHitLists: Array<Array<{ assetId: string; score: number }>>;
+
+    if (precomputedVectorHits) {
+        vectorHitLists = precomputedVectorHits.filter((hits) => hits.length > 0);
+    } else {
+        // Always ensure hash embeddings so contextual search works even before Ollama/CLIP.
+        const ensured = vectors.length >= assets.length
+            ? vectors
+            : ensureAssetVectors(assets, vectors);
+        const queryVectors = [...semanticQueryVectors, hashTextEmbedding(request.query, 64)];
+        vectorHitLists = queryVectors
+            .map((queryVector) => searchVectors(ensured, queryVector, vectorLimit))
+            .filter((hits) => hits.length > 0);
+    }
     const vectorHits = vectorHitLists.flat();
     const byId = new Map(assets.map((asset) => [asset.id, asset]));
 

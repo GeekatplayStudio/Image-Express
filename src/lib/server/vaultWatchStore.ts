@@ -8,6 +8,14 @@ import {
     VAULT_INDEX_EXTENSIONS,
 } from '@/features/asset-vault/contracts/watchRoot';
 import type { VectorRecord } from '@/features/asset-vault/domain/vectorMath';
+import {
+    isVectorDbAvailable,
+    migrateVectorsFromJson,
+    readVectorAssetIds,
+    readVectorMeta,
+    searchVectorsInDb,
+    upsertVectors,
+} from '@/lib/server/vaultVectorDb';
 
 const ROOTS_PATH = () => path.join(getVaultDir(), 'watch-roots.json');
 const VECTORS_PATH = () => path.join(getVaultDir(), 'vectors.json');
@@ -61,7 +69,102 @@ export async function removeWatchRoot(rootId: string): Promise<WatchRootStore> {
 // file mtime so external edits are still picked up.
 let vectorCache: { records: VectorRecord[]; mtimeMs: number } | null = null;
 
+/**
+ * Which store backs embeddings.
+ *
+ * `vectors.json` does not just get slow — it stops working. One 768-dim record
+ * serialises to ~15.6 KB, so `JSON.stringify` hits V8's 536 MB string limit at
+ * roughly **34,400 embedded assets** and throws. The caller catches and warns,
+ * so past that point the index silently stopped persisting for good.
+ *
+ * `IMAGE_EXPRESS_VAULT_STORE=json` forces the old path, matching the catalog's
+ * escape hatch.
+ */
+function sqliteVectorsEnabled(): boolean {
+    if (process.env.IMAGE_EXPRESS_VAULT_STORE === 'json') return false;
+    return isVectorDbAvailable();
+}
+
+let vectorMigrationPromise: Promise<void> | null = null;
+
+async function ensureVectorsMigrated(): Promise<void> {
+    vectorMigrationPromise ??= (async () => {
+        if (await readVectorMeta('migrated_from_json')) return;
+        // A vault already past the ceiling has a stale or truncated JSON file.
+        // Importing whatever survived still beats starting empty: the backfill
+        // tops up the rest.
+        const legacy = await readVectorStoreFromJson();
+        const result = await migrateVectorsFromJson(legacy);
+        if (result.migrated && result.count > 0) {
+            console.info(`Vault vectors migrated to SQLite: ${result.count} embeddings.`);
+        }
+    })();
+    await vectorMigrationPromise;
+}
+
+/**
+ * Write only the embeddings that changed.
+ *
+ * The whole-store `writeVectorStore` rewrote a multi-hundred-megabyte file for
+ * a batch of 32 — measured at 1.5 s against 2 ms for 32 row writes, and that is
+ * the path that eventually threw outright.
+ */
+export async function upsertVectorRecords(records: VectorRecord[]): Promise<void> {
+    if (records.length === 0) return;
+    if (sqliteVectorsEnabled()) {
+        try {
+            await ensureVectorsMigrated();
+            await upsertVectors(records);
+            return;
+        } catch (error) {
+            console.error('Vector SQLite upsert failed, falling back to JSON:', error);
+        }
+    }
+
+    const existing = await readVectorStoreFromJson();
+    const byId = new Map(existing.map((entry) => [entry.assetId, entry]));
+    for (const record of records) byId.set(record.assetId, record);
+    await writeVectorStoreToJson([...byId.values()]);
+}
+
+/** Asset ids that already have an embedding for this model. */
+export async function readEmbeddedAssetIds(model: string): Promise<Set<string>> {
+    if (sqliteVectorsEnabled()) {
+        try {
+            await ensureVectorsMigrated();
+            return await readVectorAssetIds(model);
+        } catch (error) {
+            console.error('Vector SQLite read failed, falling back to JSON:', error);
+        }
+    }
+    const existing = await readVectorStoreFromJson();
+    return new Set(existing.filter((entry) => entry.model === model).map((entry) => entry.assetId));
+}
+
+/**
+ * Nearest neighbours for a query, without materialising every embedding.
+ * Returns null when the SQLite store is unavailable, so the caller can fall
+ * back to the in-memory path rather than silently returning no matches.
+ */
+export async function searchEmbeddings(
+    queryVector: number[],
+    options: { model: string; limit?: number },
+): Promise<Array<{ assetId: string; score: number }> | null> {
+    if (!sqliteVectorsEnabled()) return null;
+    try {
+        await ensureVectorsMigrated();
+        return await searchVectorsInDb(queryVector, options);
+    } catch (error) {
+        console.error('Vector SQLite search failed, falling back to JSON:', error);
+        return null;
+    }
+}
+
 export async function readVectorStore(): Promise<VectorRecord[]> {
+    return readVectorStoreFromJson();
+}
+
+async function readVectorStoreFromJson(): Promise<VectorRecord[]> {
     const filePath = VECTORS_PATH();
     try {
         const fileStat = await stat(filePath);
@@ -81,6 +184,19 @@ export async function readVectorStore(): Promise<VectorRecord[]> {
 }
 
 export async function writeVectorStore(vectors: VectorRecord[]): Promise<void> {
+    if (sqliteVectorsEnabled()) {
+        try {
+            await ensureVectorsMigrated();
+            await upsertVectors(vectors);
+            return;
+        } catch (error) {
+            console.error('Vector SQLite write failed, falling back to JSON:', error);
+        }
+    }
+    await writeVectorStoreToJson(vectors);
+}
+
+async function writeVectorStoreToJson(vectors: VectorRecord[]): Promise<void> {
     const filePath = VECTORS_PATH();
     await atomicWriteJson(filePath, { version: 1, updatedAt: new Date().toISOString(), vectors });
     try {

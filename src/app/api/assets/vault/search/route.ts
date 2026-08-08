@@ -1,6 +1,11 @@
 import { parseJsonRequest, jsonWithRequestId, apiError } from '@/lib/server/apiContract';
 import { readVaultCatalog } from '@/lib/server/vault-store';
-import { readVectorStore, writeVectorStore } from '@/lib/server/vaultWatchStore';
+import {
+    readEmbeddedAssetIds,
+    readVectorStore,
+    searchEmbeddings,
+    upsertVectorRecords,
+} from '@/lib/server/vaultWatchStore';
 import { VaultSearchRequestSchema } from '@/features/asset-vault/contracts/search';
 import { ensureAssetVectors, runVaultSearch } from '@/features/asset-vault/application/vaultSearchService';
 import {
@@ -12,7 +17,8 @@ import {
 import { ensureOllamaEmbedModelReady } from '@/lib/server/ollamaLifecycle';
 import {
     buildAssetEmbeddingText,
-    upsertVector,
+    hashTextEmbedding,
+    searchVectors,
     type VectorRecord,
 } from '@/features/asset-vault/domain/vectorMath';
 import type { VaultCatalog } from '@/features/asset-vault/contracts/assetRecord';
@@ -45,13 +51,21 @@ export async function POST(request: Request) {
     try {
         const payload = await parseJsonRequest(request, VaultSearchRequestSchema, 32_768);
         const catalog = await readVaultCatalog();
-        let vectors = await readVectorStore();
+        // Loaded only if the indexed path is unavailable: materialising every
+        // embedding costs 1.2 GB at 200k assets, which is the whole reason the
+        // SQLite store exists.
+        let vectors: VectorRecord[] = [];
 
         let expandedQuery = payload.query;
         let expandedTerms: string[] = [];
         const semanticQueryVectors: number[][] = [];
         let ollamaRunning = false;
         const embedModel = resolveEmbedModel();
+        let embeddedIds = new Set<string>();
+        // Non-null while the indexed path is viable; set to null the moment the
+        // SQLite store is unavailable, so ranking falls back rather than
+        // silently searching nothing.
+        let indexedHits: Array<Array<{ assetId: string; score: number }>> | null = [];
 
         if (payload.mode === 'smart' && payload.query.trim()) {
             // Make sure Ollama is up (auto-start on local machines) and the
@@ -59,11 +73,6 @@ export async function POST(request: Request) {
             // call below hits a warm model instead of thrashing.
             const runtime = await ensureOllamaEmbedModelReady();
             ollamaRunning = runtime.running;
-
-            // Hash embeddings are derived, never persisted — see
-            // getDerivedHashVectors. Only real embeddings are written back.
-            vectors = getDerivedHashVectors(catalog, vectors);
-            let vectorsDirty = false;
 
             if (ollamaRunning) {
                 // Embed the query with the SAME model as the stored asset
@@ -84,11 +93,11 @@ export async function POST(request: Request) {
                 // vectors — one batched round-trip, skipping anything already
                 // upgraded, so the index converges instead of re-embedding
                 // the same sample forever.
-                const upgraded = new Set(
-                    vectors.filter((entry) => entry.model === embedModel).map((entry) => entry.assetId),
-                );
+                // Ask the store which assets it already has, rather than
+                // scanning an in-memory copy of every embedding.
+                embeddedIds = await readEmbeddedAssetIds(embedModel);
                 const pending = catalog.assets
-                    .filter((asset) => !upgraded.has(asset.id))
+                    .filter((asset) => !embeddedIds.has(asset.id))
                     .slice(0, EMBED_BACKFILL_BATCH);
                 if (pending.length > 0) {
                     const batch = await embedTextsWithOllama({
@@ -96,28 +105,54 @@ export async function POST(request: Request) {
                     });
                     if (batch) {
                         const now = new Date().toISOString();
-                        pending.forEach((asset, index) => {
-                            vectors = upsertVector(vectors, {
-                                assetId: asset.id,
-                                model: batch.model,
-                                dims: batch.vectors[index].length,
-                                vector: batch.vectors[index],
-                                updatedAt: now,
-                            });
-                        });
-                        vectorsDirty = true;
+                        const fresh = pending.map((asset, index) => ({
+                            assetId: asset.id,
+                            model: batch.model,
+                            dims: batch.vectors[index].length,
+                            vector: batch.vectors[index],
+                            updatedAt: now,
+                        }));
+                        try {
+                            // Write only the batch. The old path rewrote the
+                            // whole store, which threw outright past ~34k
+                            // assets and silently stopped persisting from then on.
+                            await upsertVectorRecords(fresh);
+                            fresh.forEach((entry) => embeddedIds.add(entry.assetId));
+                        } catch (error) {
+                            console.warn('Could not persist vector store', error);
+                        }
                     }
                 }
             }
 
-            if (vectorsDirty) {
-                try {
-                    // Persist ONLY real embeddings — derived hash vectors are
-                    // recomputed on read and must never reach disk.
-                    await writeVectorStore(vectors.filter((entry) => entry.model !== 'hash-text-v1'));
-                } catch (error) {
-                    console.warn('Could not persist vector store', error);
+            // Neighbours from the indexed store, which never loads every
+            // embedding. Null means no SQLite, so the in-memory path below runs.
+            for (const queryVector of semanticQueryVectors) {
+                const hits = await searchEmbeddings(queryVector, {
+                    model: embedModel,
+                    limit: Math.max(payload.limit, 40),
+                });
+                if (hits === null) {
+                    indexedHits = null;
+                    break;
                 }
+                if (hits.length > 0) indexedHits?.push(hits);
+            }
+
+            if (indexedHits) {
+                // Hash vectors stay in memory: they are 64-dim, derived rather
+                // than stored, and exist so contextual search works before any
+                // real embedding model is available.
+                const hashHits = searchVectors(
+                    getDerivedHashVectors(catalog, []),
+                    hashTextEmbedding(payload.query, 64),
+                    Math.max(payload.limit, 40),
+                );
+                if (hashHits.length > 0) indexedHits.push(hashHits);
+            } else {
+                // No SQLite: fall back to the old in-memory path, which is what
+                // shipped before and still works below the ~34k ceiling.
+                vectors = getDerivedHashVectors(catalog, await readVectorStore());
             }
         }
 
@@ -126,10 +161,11 @@ export async function POST(request: Request) {
             { ...payload, query: expandedQuery || payload.query },
             vectors,
             semanticQueryVectors,
+            indexedHits ?? undefined,
         );
 
         const pendingSemantic = payload.mode === 'smart'
-            ? catalog.assets.length - vectors.filter((entry) => entry.model === embedModel).length
+            ? catalog.assets.length - embeddedIds.size
             : 0;
 
         return jsonWithRequestId(request, {

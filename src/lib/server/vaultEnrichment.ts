@@ -11,11 +11,10 @@ import {
     listOllamaVisionModelsByCapability,
 } from '@/lib/ollamaServer';
 import { readVaultCatalog, upsertVaultAssets } from '@/lib/server/vault-store';
-import { readVectorStore, writeVectorStore } from '@/lib/server/vaultWatchStore';
-import { embedTextWithOllama } from '@/lib/server/ollamaEmbeddings';
+import { readEmbeddedAssetIds, upsertVectorRecords } from '@/lib/server/vaultWatchStore';
+import { embedTextWithOllama, resolveEmbedModel } from '@/lib/server/ollamaEmbeddings';
 import {
     buildAssetEmbeddingText,
-    upsertVector,
     type VectorRecord,
 } from '@/features/asset-vault/domain/vectorMath';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
@@ -158,14 +157,17 @@ export async function enrichVaultCatalog(options: EnrichVaultOptions = {}): Prom
     const baseUrl = normalizeOllamaBaseUrl(options.ollamaBaseUrl || DEFAULT_OLLAMA_BASE_URL);
 
     const catalog = await readVaultCatalog();
-    let vectors = await readVectorStore();
-    const vectorById = new Map(vectors.map((entry) => [entry.assetId, entry]));
+    // Only which assets already have an embedding, not the embeddings
+    // themselves: loading those costs 1.2 GB at 200k assets and this job needs
+    // none of them.
+    const embeddedIds = await readEmbeddedAssetIds(resolveEmbedModel());
+    const freshVectors: VectorRecord[] = [];
 
     const candidates = catalog.assets.filter((asset) => {
         if (options.assetIds?.length) return options.assetIds.includes(asset.id);
         if (options.onlyUncaptioned !== false) {
             const needsCaption = caption && asset.type === 'images' && !asset.aiIndexed;
-            const needsEmbed = embed && !vectorById.has(asset.id);
+            const needsEmbed = embed && !embeddedIds.has(asset.id);
             return needsCaption || needsEmbed;
         }
         return true;
@@ -222,8 +224,8 @@ export async function enrichVaultCatalog(options: EnrichVaultOptions = {}): Prom
                     vector: result.vector,
                     updatedAt: now,
                 };
-                vectors = upsertVector(vectors, record);
-                vectorById.set(next.id, record);
+                freshVectors.push(record);
+                embeddedIds.add(next.id);
                 next = {
                     ...next,
                     embeddingModel: result.model,
@@ -241,7 +243,10 @@ export async function enrichVaultCatalog(options: EnrichVaultOptions = {}): Prom
     }
 
     await upsertVaultAssets(changedAssets);
-    await writeVectorStore(vectors);
+    // Write only this run's embeddings. Rewriting the whole store threw
+    // outright past ~34k assets, and the failure was caught and warned, so the
+    // index silently stopped converging from that point on.
+    await upsertVectorRecords(freshVectors);
 
     return {
         processed: candidates.length,
