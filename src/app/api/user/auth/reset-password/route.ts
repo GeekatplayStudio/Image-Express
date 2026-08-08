@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { isValidEmail, normalizeEmail } from '@/lib/server/auth-utils';
 import { loadUsers, changePassword, verifyResetToken } from '@/lib/server/user-auth-store';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { AUTH_BODY_LIMIT_BYTES, credentialField, identifierField, tokenField } from '../authValidation';
 
-type ResetPasswordPayload = {
-    email?: string;
-    token?: string;
-    password?: string;
-};
+const ResetPasswordSchema = z.object({
+    email: identifierField.optional(),
+    token: tokenField.optional(),
+    password: credentialField.optional(),
+});
 
 export async function POST(request: Request) {
     try {
-        const body = (await request.json()) as ResetPasswordPayload;
+        const body = await parseJsonRequest(request, ResetPasswordSchema, AUTH_BODY_LIMIT_BYTES);
         const email = normalizeEmail(body.email || '');
         const token = (body.token || '').trim();
         const password = body.password || '';
@@ -38,6 +41,8 @@ export async function POST(request: Request) {
         await changePassword(email, password);
         return NextResponse.json({ success: true, message: 'Password updated successfully.' });
     } catch (error) {
+        const invalid = legacyValidationResponse(error);
+        if (invalid) return invalid;
         console.error('Reset password failed', error);
         return NextResponse.json({ success: false, message: 'Password reset failed.' }, { status: 500 });
     }

@@ -1,16 +1,22 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { loadUsers, findUserByIdentifier, toPublicUser } from '@/lib/server/user-auth-store';
 import { verifyPassword } from '@/lib/server/auth-utils';
 import { createUserSessionToken } from '@/lib/server/user-session';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { AUTH_BODY_LIMIT_BYTES, credentialField, identifierField } from '../authValidation';
 
-type LoginPayload = {
-    identifier?: string;
-    password?: string;
-};
+// Fields stay optional so the route keeps answering with its own "required"
+// message; the schema is here to reject wrong types and absurd lengths, which
+// previously reached the password hasher unchecked.
+const LoginSchema = z.object({
+    identifier: identifierField.optional(),
+    password: credentialField.optional(),
+});
 
 export async function POST(request: Request) {
     try {
-        const body = (await request.json()) as LoginPayload;
+        const body = await parseJsonRequest(request, LoginSchema, AUTH_BODY_LIMIT_BYTES);
         const identifier = (body.identifier || '').trim();
         const password = body.password || '';
 
@@ -56,6 +62,8 @@ export async function POST(request: Request) {
             }
         });
     } catch (error) {
+        const invalid = legacyValidationResponse(error);
+        if (invalid) return invalid;
         console.error('User login failed', error);
         return NextResponse.json({ success: false, message: 'Login failed.' }, { status: 500 });
     }

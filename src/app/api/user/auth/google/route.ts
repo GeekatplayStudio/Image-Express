@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createOneTimeToken, isValidEmail, normalizeEmail } from '@/lib/server/auth-utils';
 import { createUserSessionToken } from '@/lib/server/user-session';
 import {
@@ -8,14 +9,16 @@ import {
     toPublicUser
 } from '@/lib/server/user-auth-store';
 import { notifyRegistrationApprovalRequest } from '@/lib/server/user-notifications';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { AUTH_BODY_LIMIT_BYTES, identifierField, tokenField } from '../authValidation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type GoogleLoginPayload = {
-    credential?: string;
-    clientId?: string;
-};
+const GoogleLoginSchema = z.object({
+    credential: tokenField.optional(),
+    clientId: identifierField.optional(),
+});
 
 type GoogleTokenInfo = {
     email?: string;
@@ -38,7 +41,7 @@ async function fetchGoogleTokenInfo(credential: string) {
 
 export async function POST(request: Request) {
     try {
-        const body = (await request.json()) as GoogleLoginPayload;
+        const body = await parseJsonRequest(request, GoogleLoginSchema, AUTH_BODY_LIMIT_BYTES);
         const credential = (body.credential || '').trim();
         const requestedClientId = (body.clientId || '').trim();
         if (!credential) {
@@ -132,6 +135,8 @@ export async function POST(request: Request) {
             message: 'Access request submitted. Awaiting administrator approval.'
         }, { status: 403 });
     } catch (error) {
+        const invalid = legacyValidationResponse(error);
+        if (invalid) return invalid;
         console.error('Google auth failed', error);
         return NextResponse.json({ success: false, message: 'Google authentication failed.' }, { status: 500 });
     }

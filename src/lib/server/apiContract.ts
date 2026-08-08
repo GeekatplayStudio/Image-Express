@@ -72,6 +72,23 @@ export function apiError(
     return response;
 }
 
+/**
+ * Map a validation/size failure onto the `{ success, message }` shape the older
+ * routes answer with, keeping their status code.
+ *
+ * Those routes wrap everything in one `catch` that returns 500, so a thrown
+ * `ApiRequestError` would otherwise surface as "login failed" instead of the
+ * 400 or 413 it actually is. Returns null when the error is not ours, so the
+ * caller keeps its own handling for genuine faults.
+ */
+export function legacyValidationResponse(error: unknown): NextResponse | null {
+    if (!(error instanceof ApiRequestError)) return null;
+    return NextResponse.json(
+        { success: false, message: error.message },
+        { status: error.status },
+    );
+}
+
 export function toApiErrorResponse(
     request: Request,
     error: unknown,

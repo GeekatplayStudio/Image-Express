@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
 import {
     isAdminUser,
     loadUsers,
@@ -7,14 +9,21 @@ import {
 } from '@/lib/server/user-auth-store';
 import { normalizeEmail } from '@/lib/server/auth-utils';
 
-type AdminUpdatePayload = {
-    requesterEmail?: string;
-    targetEmail?: string;
-    action?: 'approve' | 'reject' | 'disable' | 'enable' | 'set-roles' | 'set-rights' | 'set-display-name';
-    roles?: string[];
-    rights?: string[];
-    displayName?: string;
-};
+const AdminUpdateSchema = z.object({
+    requesterEmail: z.string().max(320).optional(),
+    targetEmail: z.string().max(320).optional(),
+    // The action decides what the route does to another user's account, so it
+    // is the one field worth constraining to a closed set rather than a string.
+    action: z.enum([
+        'approve', 'reject', 'disable', 'enable',
+        'set-roles', 'set-rights', 'set-display-name',
+    ]).optional(),
+    roles: z.array(z.string().max(100)).max(50).optional(),
+    rights: z.array(z.string().max(100)).max(200).optional(),
+    displayName: z.string().max(200).optional(),
+});
+
+const ADMIN_BODY_LIMIT_BYTES = 32 * 1024;
 
 function normalizeStringList(values: unknown): string[] {
     if (!Array.isArray(values)) return [];
@@ -47,7 +56,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const body = (await request.json()) as AdminUpdatePayload;
+        const body = await parseJsonRequest(request, AdminUpdateSchema, ADMIN_BODY_LIMIT_BYTES);
         const requesterEmail = normalizeEmail(body.requesterEmail || '');
         const targetEmail = normalizeEmail(body.targetEmail || '');
         const action = body.action;
@@ -100,6 +109,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, user: toPublicUser(updated) });
     } catch (error) {
+        const invalid = legacyValidationResponse(error);
+        if (invalid) return invalid;
         console.error('Admin update user failed', error);
         return NextResponse.json({ success: false, message: 'Failed to update user.' }, { status: 500 });
     }

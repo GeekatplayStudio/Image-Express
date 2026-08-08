@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { verifyPassword } from '@/lib/server/auth-utils';
 import { changePassword, findUserByIdentifier, loadUsers } from '@/lib/server/user-auth-store';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { AUTH_BODY_LIMIT_BYTES, credentialField, identifierField } from '../authValidation';
 
-type ChangePasswordPayload = {
-    identifier?: string;
-    currentPassword?: string;
-    newPassword?: string;
-};
+const ChangePasswordSchema = z.object({
+    identifier: identifierField.optional(),
+    currentPassword: credentialField.optional(),
+    newPassword: credentialField.optional(),
+});
 
 export async function POST(request: Request) {
     try {
-        const body = (await request.json()) as ChangePasswordPayload;
+        const body = await parseJsonRequest(request, ChangePasswordSchema, AUTH_BODY_LIMIT_BYTES);
         const identifier = (body.identifier || '').trim();
         const currentPassword = body.currentPassword || '';
         const newPassword = body.newPassword || '';
@@ -49,6 +52,8 @@ export async function POST(request: Request) {
         await changePassword(user.email, newPassword);
         return NextResponse.json({ success: true, message: 'Password changed successfully.' });
     } catch (error) {
+        const invalid = legacyValidationResponse(error);
+        if (invalid) return invalid;
         console.error('Change password failed', error);
         return NextResponse.json({ success: false, message: 'Password change failed.' }, { status: 500 });
     }

@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { isValidEmail, normalizeEmail } from '@/lib/server/auth-utils';
 import { createPendingUser } from '@/lib/server/user-auth-store';
 import { notifyRegistrationApprovalRequest } from '@/lib/server/user-notifications';
+import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { AUTH_BODY_LIMIT_BYTES, credentialField, displayNameField, identifierField } from '../authValidation';
 
-type RegisterPayload = {
-    email?: string;
-    password?: string;
-    displayName?: string;
-};
+const RegisterSchema = z.object({
+    email: identifierField.optional(),
+    password: credentialField.optional(),
+    displayName: displayNameField.optional(),
+});
 
 export async function POST(request: Request) {
     try {
-        const body = (await request.json()) as RegisterPayload;
+        const body = await parseJsonRequest(request, RegisterSchema, AUTH_BODY_LIMIT_BYTES);
         const email = (body.email || '').trim();
         const password = body.password || '';
         const displayName = (body.displayName || '').trim();
@@ -56,6 +59,8 @@ export async function POST(request: Request) {
             message: 'Registration submitted. Approval email sent to admin.'
         });
     } catch (error) {
+        const invalid = legacyValidationResponse(error);
+        if (invalid) return invalid;
         console.error('User registration failed', error);
         return NextResponse.json({ success: false, message: 'Registration failed.' }, { status: 500 });
     }
