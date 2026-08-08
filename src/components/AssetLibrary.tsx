@@ -37,7 +37,22 @@ import {
 } from '@/lib/assetStorageSettings';
 import { ASSET_LIBRARY_CHANGED_EVENT, dispatchAssetLibraryChanged } from '@/lib/assetLibraryEvents';
 import { ensureDisplayableImage } from '@/lib/imageFormats/universalImageDecoder';
-import { ALL_IMAGE_EXTENSIONS, buildImageAcceptAttribute, getExtension } from '@/lib/imageFormats/supportedFormats';
+import { buildImageAcceptAttribute, getExtension } from '@/lib/imageFormats/supportedFormats';
+import {
+    getAssetGroupKey,
+    getAssetMergeKey,
+    getSourceAssets,
+    inferAssetType,
+    isDrivePassiveAuthError,
+    loadAssetGroups,
+    mergeDuplicateAssets,
+    pickRepresentativeAsset,
+    saveAssetGroups,
+    type AssetGroupMap,
+    type AssetScopeTab,
+    type LibraryAsset,
+    type VisibilityFilter,
+} from '@/lib/assetLibrary/assetMerging';
 import {
     ASSET_LIBRARY_BUNDLE_KIND,
     ASSET_LIBRARY_BUNDLE_MANIFEST_PATH,
@@ -119,40 +134,6 @@ const typeToTabKey: Record<AssetType, LibraryTab> = {
     models: 'models'
 };
 
-const IMAGE_EXTENSIONS = ALL_IMAGE_EXTENSIONS;
-const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v', '.ogv']);
-const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.oga']);
-const MODEL_EXTENSIONS = new Set(['.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply']);
-
-const isDrivePassiveAuthError = (error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error ?? '');
-    const normalized = message.toLowerCase();
-    return normalized.includes('requires user interaction')
-        || normalized.includes('failed to open popup window')
-        || normalized.includes('popup_failed_to_open')
-        || normalized.includes('cross-origin-opener-policy');
-};
-
-const inferAssetType = (filename: string, mimeType?: string): AssetType => {
-    const lowerName = filename.toLowerCase();
-    const dotIndex = lowerName.lastIndexOf('.');
-    const extension = dotIndex >= 0 ? lowerName.slice(dotIndex) : '';
-
-    if (mimeType) {
-        if (mimeType.startsWith('video/')) return 'videos';
-        if (mimeType.startsWith('audio/')) return 'audio';
-        if (mimeType === 'model/gltf-binary' || mimeType === 'model/gltf+json') return 'models';
-        if (mimeType.startsWith('image/')) return 'images';
-    }
-
-    if (VIDEO_EXTENSIONS.has(extension)) return 'videos';
-    if (AUDIO_EXTENSIONS.has(extension)) return 'audio';
-    if (MODEL_EXTENSIONS.has(extension)) return 'models';
-    if (IMAGE_EXTENSIONS.has(extension)) return 'images';
-
-    return 'images';
-};
-
 interface AssetLibraryProps {
     /** Callback when user selects an asset to add to canvas */
     onSelect: (path: string, type: AssetType, name?: string) => void;
@@ -161,20 +142,6 @@ interface AssetLibraryProps {
     /** Current signed in user for personal/shared filtering */
     currentUser?: string;
 }
-
-type AssetScopeTab = 'personal' | 'shared';
-type VisibilityFilter = 'all' | 'public' | 'private';
-type AssetStorageProvider = 'server' | 'local' | 'google-drive' | 'merged';
-
-type LibraryAsset = AssetDescriptor & {
-    storageProvider: AssetStorageProvider;
-    storageId?: string;
-    previewPath?: string;
-    sourceAssets?: LibraryAsset[];
-    /** Search-index metadata (AI caption/tags, embedded prompt) when available. */
-    description?: string;
-    tags?: string[];
-};
 
 type ModelPreviewPopupState = {
     key: string;
@@ -196,109 +163,6 @@ type AssetLibraryImportSummary = {
     skippedNames: string[];
     failureMessages: string[];
     warnings: string[];
-};
-
-const SOURCE_PRIORITY: Record<Exclude<AssetStorageProvider, 'merged'>, number> = {
-    local: 0,
-    'google-drive': 1,
-    server: 2,
-};
-
-const getAssetMergeKey = (asset: LibraryAsset) => [
-    asset.type,
-    asset.category,
-    (asset.owner || '').toLowerCase(),
-    asset.isPublic ? 'public' : 'private',
-    asset.name.trim().toLowerCase(),
-].join('|');
-
-const getSourceAssets = (asset: LibraryAsset): LibraryAsset[] => (
-    Array.isArray(asset.sourceAssets) && asset.sourceAssets.length > 0
-        ? asset.sourceAssets
-        : [asset]
-);
-
-const pickRepresentativeAsset = (asset: LibraryAsset): LibraryAsset => {
-    const sourceAssets = getSourceAssets(asset).filter((entry) => entry.storageProvider !== 'merged');
-    if (sourceAssets.length === 0) return asset;
-    return [...sourceAssets].sort((a, b) => {
-        const aPriority = SOURCE_PRIORITY[a.storageProvider as Exclude<AssetStorageProvider, 'merged'>] ?? 99;
-        const bPriority = SOURCE_PRIORITY[b.storageProvider as Exclude<AssetStorageProvider, 'merged'>] ?? 99;
-        return aPriority - bPriority;
-    })[0];
-};
-
-const mergeDuplicateAssets = (items: LibraryAsset[]): LibraryAsset[] => {
-    const groups = new Map<string, LibraryAsset[]>();
-
-    items.forEach((item) => {
-        const key = getAssetMergeKey(item);
-        const bucket = groups.get(key);
-        if (bucket) {
-            bucket.push(item);
-        } else {
-            groups.set(key, [item]);
-        }
-    });
-
-    const merged = Array.from(groups.entries()).map(([key, grouped]) => {
-        if (grouped.length === 1) {
-            return grouped[0];
-        }
-        const representative = pickRepresentativeAsset({
-            ...grouped[0],
-            storageProvider: 'merged',
-            sourceAssets: grouped,
-        } as LibraryAsset);
-        return {
-            ...representative,
-            path: `merged://${encodeURIComponent(key)}`,
-            storageProvider: 'merged',
-            sourceAssets: grouped,
-        } as LibraryAsset;
-    });
-
-    return merged.sort((a, b) => Date.parse(b.updatedAt || '') - Date.parse(a.updatedAt || ''));
-};
-
-const GROUPS_STORAGE_PREFIX = 'imageExpressAssetGroups:';
-
-/** Stable identity for group membership that survives re-listing and storage merges. */
-const getAssetGroupKey = (asset: LibraryAsset) => [
-    asset.type,
-    asset.category,
-    (asset.owner || '').toLowerCase(),
-    asset.name.trim().toLowerCase(),
-].join('|');
-
-type AssetGroupMap = Record<string, string[]>;
-
-const loadAssetGroups = (user: string): AssetGroupMap => {
-    if (typeof window === 'undefined') return {};
-    try {
-        const raw = window.localStorage.getItem(`${GROUPS_STORAGE_PREFIX}${user.toLowerCase()}`);
-        if (!raw) return {};
-        const parsed = JSON.parse(raw) as unknown;
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-        const result: AssetGroupMap = {};
-        Object.entries(parsed as Record<string, unknown>).forEach(([name, keys]) => {
-            if (Array.isArray(keys)) {
-                result[name] = keys.filter((key): key is string => typeof key === 'string');
-            }
-        });
-        return result;
-    } catch {
-        return {};
-    }
-};
-
-const saveAssetGroups = (user: string, groups: AssetGroupMap) => {
-    if (typeof window === 'undefined') return;
-    try {
-        window.localStorage.setItem(`${GROUPS_STORAGE_PREFIX}${user.toLowerCase()}`, JSON.stringify(groups));
-    } catch {
-        // Best-effort persistence; groups are a convenience layer.
-    }
 };
 
 type AssetContextMenuState = {

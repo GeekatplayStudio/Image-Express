@@ -5,7 +5,7 @@
   "files": {
     "src/components/PropertiesPanel.tsx": 3822,
     "src/components/ImageGeneratorModal.tsx": 3759,
-    "src/components/AssetLibrary.tsx": 3042,
+    "src/components/AssetLibrary.tsx": 2906,
     "src/components/Editor/__tests__/EditorView.test.tsx": 2816,
     "src/components/Toolbar.tsx": 2689,
     "src/components/ThreeDGenerator.tsx": 2197,
