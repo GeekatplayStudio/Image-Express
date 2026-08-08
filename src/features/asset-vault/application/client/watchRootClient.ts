@@ -103,10 +103,28 @@ export function resolveLocalFileThumbnailUrl(fileUri: string, width = 256): stri
     return `/api/assets/vault/file?uri=${encodeURIComponent(fileUri)}&w=${width}`;
 }
 
+/**
+ * A URL the browser can render or stream for an indexed file.
+ *
+ * HTTP is preferred even on desktop. The IPC path reads the entire file and
+ * base64-encodes it into a blob, which for a 4 GB render costs several times
+ * that in memory before a single frame is shown — and a blob has no seek
+ * support, so scrubbing a video means holding the whole thing in RAM. The HTTP
+ * route serves byte ranges, so a player fetches only what it plays. The route
+ * re-checks the access policy and that the file is inside a registered watch
+ * root, so this is not a filesystem escape hatch.
+ *
+ * IPC remains the fallback for a renderer loaded from `file://`, where a
+ * relative URL has no server to resolve against.
+ */
 export async function resolveLocalFilePreviewUrl(fileUri: string): Promise<string | null> {
     if (typeof window === 'undefined') return null;
 
-    // Desktop: read through Electron IPC, which needs no HTTP round trip.
+    const servedOverHttp = window.location.protocol === 'http:' || window.location.protocol === 'https:';
+    if (servedOverHttp) {
+        return `/api/assets/vault/file?uri=${encodeURIComponent(fileUri)}`;
+    }
+
     if (window.desktop?.readLocalVaultFile) {
         const absolute = fileUriToAbsolutePath(fileUri);
         const result = await window.desktop.readLocalVaultFile(absolute);
@@ -118,11 +136,7 @@ export async function resolveLocalFilePreviewUrl(fileUri: string): Promise<strin
         return null;
     }
 
-    // Browser: stream it from the server instead. Without this, drive-indexed
-    // assets were searchable but rendered with no preview in the web app. The
-    // route re-checks the access policy and that the file is inside a
-    // registered watch root, so this is not a filesystem escape hatch.
-    return `/api/assets/vault/file?uri=${encodeURIComponent(fileUri)}`;
+    return null;
 }
 
 export type VaultDrive = { path: string; label: string };

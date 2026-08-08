@@ -3,6 +3,11 @@ import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import mime from 'mime';
 import { apiError } from '@/lib/server/apiContract';
+import {
+    contentRangeHeader,
+    parseRangeHeader,
+    unsatisfiedRangeHeader,
+} from '@/lib/server/httpRange';
 import { getVaultThumbnail } from '@/lib/server/vaultThumbnails';
 import { readWatchRootStore } from '@/lib/server/vaultWatchStore';
 import {
@@ -11,8 +16,16 @@ import {
     isPathInside,
 } from '@/lib/server/vaultFilesystemPolicy';
 
-/** Cap inline previews; a vault entry can legitimately be a multi-GB video. */
-const MAX_PREVIEW_BYTES = 64 * 1024 * 1024;
+/**
+ * Cap for whole-file responses only.
+ *
+ * A ranged request is never subject to this: the client has said exactly how
+ * many bytes it wants, so a 4 GB video costs whatever slice was asked for. This
+ * cap used to apply to everything, which meant that on a real drive of render
+ * output — 11,620 of 16,136 videos over this size — every one of those tiles
+ * answered 413 and showed a spinner that never resolved.
+ */
+const MAX_WHOLE_FILE_BYTES = 64 * 1024 * 1024;
 
 /**
  * Streams an indexed file so previews work in the browser.
@@ -99,23 +112,55 @@ export async function GET(request: Request) {
         }
     }
 
-    if (info.size > MAX_PREVIEW_BYTES) {
+    const contentType = mime.getType(decision.resolvedPath) || 'application/octet-stream';
+    const baseHeaders = {
+        'content-type': contentType,
+        // Advertised unconditionally so a media element knows it may seek. Media
+        // elements will not attempt a range request without this.
+        'accept-ranges': 'bytes',
+        // Local disk contents must never be cached by a shared proxy.
+        'cache-control': 'private, max-age=300',
+        'content-disposition': 'inline',
+        'x-content-type-options': 'nosniff',
+    };
+
+    const range = parseRangeHeader(request.headers.get('range'), info.size);
+
+    if (range === 'unsatisfiable') {
+        // 416 names the real size so the client can correct itself; answering
+        // with the whole file instead would look like success and desynchronise
+        // a player that is seeking.
+        return new Response(null, {
+            status: 416,
+            headers: { ...baseHeaders, 'content-range': unsatisfiedRangeHeader(info.size) },
+        });
+    }
+
+    if (range) {
+        const length = range.end - range.start + 1;
+        const partial = Readable.toWeb(
+            createReadStream(decision.resolvedPath, { start: range.start, end: range.end }),
+        ) as ReadableStream;
+        return new Response(partial, {
+            status: 206,
+            headers: {
+                ...baseHeaders,
+                'content-length': String(length),
+                'content-range': contentRangeHeader(range, info.size),
+            },
+        });
+    }
+
+    if (info.size > MAX_WHOLE_FILE_BYTES) {
         return apiError(request, {
             code: 'vault_file_too_large',
-            message: 'That file is too large to preview.',
+            message: 'That file is too large to send in one piece; request a byte range.',
             status: 413,
         });
     }
 
     const stream = Readable.toWeb(createReadStream(decision.resolvedPath)) as ReadableStream;
     return new Response(stream, {
-        headers: {
-            'content-type': mime.getType(decision.resolvedPath) || 'application/octet-stream',
-            'content-length': String(info.size),
-            // Local disk contents must never be cached by a shared proxy.
-            'cache-control': 'private, max-age=300',
-            'content-disposition': 'inline',
-            'x-content-type-options': 'nosniff',
-        },
+        headers: { ...baseHeaders, 'content-length': String(info.size) },
     });
 }

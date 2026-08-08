@@ -69,6 +69,7 @@ export default function AssetVaultModal({
         depth: browse.depth,
         use3d: browse.use3d,
         pagedAssets: browse.pagedAssets,
+        thumbSize: browse.thumbSize,
         onClose,
         onSelect,
         setStatusMessage: catalog.setStatusMessage,
@@ -307,6 +308,8 @@ export default function AssetVaultModal({
                             onSmartSearchChange={catalog.setSmartSearch}
                             sortMode={browse.sortMode}
                             onSortModeChange={browse.setSortMode}
+                            thumbSize={browse.thumbSize}
+                            onThumbSizeChange={browse.setThumbSize}
                             effectiveLens={browse.effectiveLens}
                             onApplyLens={browse.applyOrganizeLens}
                             sourcesOpen={browse.sourcesOpen}
@@ -413,6 +416,7 @@ export default function AssetVaultModal({
                                             activeAlbum={browse.activeAlbum}
                                             activePageId={browse.activePageId}
                                             pageSize={browse.pageSize}
+                                            thumbSize={browse.thumbSize}
                                             pageIndex={browse.pageIndex}
                                             totalPages={browse.totalPages}
                                             isUploading={isUploading}

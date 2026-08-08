@@ -32,7 +32,11 @@ function captureFrameToDataUrl(url: string, size: number): Promise<string> {
         const video = document.createElement('video');
         video.muted = true;
         video.playsInline = true;
-        video.preload = 'auto';
+        // 'metadata', never 'auto'. 'auto' downloads the entire file, so a grid
+        // of render output pulled gigabytes per tile to produce one 256px
+        // frame. With byte-range support on the file route, 'metadata' fetches
+        // the header and the seek target and nothing else.
+        video.preload = 'metadata';
         // Same-origin / blob URLs work; cross-origin may taint the canvas.
         if (!url.startsWith('blob:')) {
             video.crossOrigin = 'anonymous';
@@ -58,7 +62,10 @@ function captureFrameToDataUrl(url: string, size: number): Promise<string> {
 
         const timer = window.setTimeout(() => fail(new Error('Video poster timed out')), 12_000);
 
-        video.onloadeddata = () => {
+        // 'loadedmetadata' fires as soon as duration and dimensions are known;
+        // waiting for 'loadeddata' means waiting for a decoded frame, which
+        // with preload='metadata' may never arrive until we seek.
+        video.onloadedmetadata = () => {
             try {
                 const duration = Number.isFinite(video.duration) ? video.duration : 1;
                 video.currentTime = Math.min(0.25, Math.max(0.05, duration * 0.05));

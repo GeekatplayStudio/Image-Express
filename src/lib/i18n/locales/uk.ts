@@ -215,6 +215,7 @@ const uk: LocaleDictionary = {
     'vault.brandName': 'Image Express',
     'vault.brandBeta': 'Бета',
     'vault.sortLabel': 'Сортування',
+    'vault.thumbSize': 'Розмір мініатюр',
     'vault.sortRelevance': 'Релевантність',
     'vault.sortNameAsc': 'Назва А–Я',
     'vault.sortNameDesc': 'Назва Я–А',

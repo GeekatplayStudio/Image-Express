@@ -95,11 +95,20 @@ export async function embedTextsWithOllama(options: {
     }
 }
 
-/** Prefer a small local embedding model; fall back to hash when Ollama is down. */
+/**
+ * Prefer a small local embedding model; fall back to hash when Ollama is down.
+ *
+ * `timeoutMs` exists for interactive callers. The default budget is generous
+ * because a cold model load genuinely takes that long during a backfill — but
+ * when Ollama is not running at all, a request pays the whole budget before
+ * failing. "Find similar" did exactly that: 45 s of nothing on every click,
+ * measured, before falling back to an answer it could have given immediately.
+ */
 export async function embedTextWithOllama(options: {
     text: string;
     baseUrl?: string;
     model?: string;
+    timeoutMs?: number;
 }): Promise<EmbedResult> {
     const text = options.text.trim();
     if (!text) {
@@ -114,7 +123,7 @@ export async function embedTextWithOllama(options: {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model, prompt: text.slice(0, 4000), keep_alive: EMBED_KEEP_ALIVE }),
-            timeoutMs: EMBED_TIMEOUT_MS,
+            timeoutMs: options.timeoutMs ?? EMBED_TIMEOUT_MS,
         });
         if (!result.ok || !result.response) {
             throw new Error(

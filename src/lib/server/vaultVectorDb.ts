@@ -200,6 +200,33 @@ export async function readVectorAssetIds(model: string): Promise<Set<string>> {
     return new Set(rows.map((row) => String(row.asset_id)));
 }
 
+/**
+ * One stored vector by asset id.
+ *
+ * "Find similar" needs the seed's own embedding, and reading it from here is
+ * what keeps that feature on the same index search uses. Reading it from the
+ * legacy JSON file instead meant the two disagreed about what had been indexed.
+ */
+export async function readVectorForAsset(assetId: string): Promise<VectorRecord | null> {
+    const database = await openDb();
+    if (!database) return null;
+    const row = database.prepare(
+        'SELECT asset_id, model, dims, updated_at, vec FROM vectors WHERE asset_id = ?',
+    ).get(assetId);
+    if (!row) return null;
+
+    const dims = Number(row.dims);
+    const vector = fromBlob(row.vec, dims);
+    if (!vector) return null;
+    return {
+        assetId: String(row.asset_id),
+        model: String(row.model),
+        dims,
+        vector: Array.from(vector),
+        updatedAt: row.updated_at ? String(row.updated_at) : new Date(0).toISOString(),
+    };
+}
+
 async function buildIndex(model: string, dims: number): Promise<VectorIndex | null> {
     const database = await openDb();
     if (!database) return null;

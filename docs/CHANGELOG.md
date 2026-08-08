@@ -19,6 +19,48 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-08 — Vault previews: byte ranges, staged loading, a size slider
+
+**Videos could not be previewed at all.** `/api/assets/vault/file` applied a
+64 MB cap to every response, and on the indexed drives **11,620 of 16,136
+videos exceed it** — each one answered 413 and showed a spinner that never
+resolved. The route now serves byte ranges and advertises `Accept-Ranges`, so a
+player fetches only what it plays and can seek. Measured on 24 drive videos:
+whole-file 29.6 s / 43.3 MB with 3 refusals, head range 1.7 s / 256 KB with
+none. An unsatisfiable range returns 416 with the real size rather than a
+silent clamp.
+
+**Two client paths were downloading whole files to draw one frame.** Video
+poster capture used `preload="auto"`, which fetches the entire clip for a 256 px
+still; it now uses `"metadata"`. On desktop, preview resolution went through
+Electron IPC, which reads the file and base64-encodes it into a blob — several
+times the file's size in memory, and a blob cannot seek. HTTP is now preferred
+wherever the renderer is served over it.
+
+**Grid loading is staged.** Tile artwork resolved in one sequential loop, so a
+single slow clip held up every image behind it. It now runs in three stages —
+known-instantly, source URLs, then decodes — each publishing as it completes. A
+tile whose artwork genuinely fails shows a warning glyph instead of a permanent
+spinner.
+
+**Thumbnail size slider.** Six steps, persisted. Five of them map onto the same
+256 px rendition the precache pass already generates, so resizing is instant
+rather than regenerating every visible thumbnail.
+
+**"Find similar" returned nothing, slowly.** It read the legacy `vectors.json`
+while every embedding since the SQLite switch went to `vectors.db` — searching a
+store that search itself had stopped filling. It now uses the same index, with
+metadata affinity (folder, type, filename, date) as a fallback that works with
+no indexing at all. Hash-text vectors were tried for that tier and rejected on
+measurement: they ranked `River Stereo.wav` as the nearest match for
+`underwater.mov`. The seed embedding now runs on a 2.5 s budget instead of the
+45 s backfill default, which is what every click was paying with Ollama down:
+**45 s → 3.2 s**.
+
+*Note for anyone benchmarking: running `npm run verify` while a dev server is up
+rewrites `.next` underneath it and every route starts returning 500. It is not a
+code failure; restart the dev server.*
+
 ## 2026-08-08 — Operational floor: F-03, F-04, F-07 done; F-06 started
 
 **Meshy 3D generations now finish.** Meshy returns an untextured preview first

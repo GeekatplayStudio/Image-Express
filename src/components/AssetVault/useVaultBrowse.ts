@@ -11,6 +11,7 @@ import {
     loadVaultUiState,
     saveVaultUiState,
     type VaultPageSize,
+    type VaultThumbSize,
 } from '@/features/asset-vault/application/client/vaultUiState';
 import type { Bookcase } from '@/features/asset-vault/contracts/bookcase';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
@@ -69,6 +70,7 @@ export function useVaultBrowse({
     const [lens, setLens] = useState<VaultOrganizeLens>(savedUi?.lens ?? 'type');
     const [sortMode, setSortMode] = useState<VaultSortMode>(savedUi?.sortMode ?? 'relevance');
     const [pageSize, setPageSize] = useState<VaultPageSize>(savedUi?.pageSize ?? 48);
+    const [thumbSize, setThumbSize] = useState<VaultThumbSize>(savedUi?.thumbSize ?? 128);
     const [pageIndex, setPageIndex] = useState(0);
     const [depth, setDepth] = useState<NavDepth>('page');
     const [activeAlbumId, setActiveAlbumId] = useState<string | null>(null);
@@ -312,8 +314,9 @@ export function useVaultBrowse({
             sourcesOpen,
             navMode,
             assetSource,
+            thumbSize,
         });
-    }, [isOpen, smartSearch, lens, sortMode, query, pageSize, sourcesOpen, navMode, assetSource]);
+    }, [isOpen, smartSearch, lens, sortMode, query, pageSize, sourcesOpen, navMode, assetSource, thumbSize]);
 
     // Open with something selected rather than an empty grid — but never during
     // a search. Auto-selecting the first album there would show one album's
@@ -393,6 +396,8 @@ export function useVaultBrowse({
         setSortMode,
         pageSize,
         setPageSize,
+        thumbSize,
+        setThumbSize,
         pageIndex,
         setPageIndex,
         depth,

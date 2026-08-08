@@ -1,6 +1,7 @@
 'use client';
 
-import { Box, Loader2, MoreVertical, Music } from 'lucide-react';
+import { useState } from 'react';
+import { Box, FileWarning, Loader2, MoreVertical, Music } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
 import {
@@ -35,6 +36,25 @@ export default function VaultAssetCard({
 }: VaultAssetCardProps) {
     const { t } = useI18n();
     const supportsHoverPreview = asset.type === 'models' || asset.type === 'videos' || asset.type === 'audio';
+    /**
+     * Set when the artwork itself fails to load — an unreadable file, a codec
+     * the browser will not decode. Without it the tile kept whatever it had
+     * before, which for a still meant a spinner that never stopped and gave the
+     * user no way to tell a slow file from a broken one.
+     */
+    const [artworkFailed, setArtworkFailed] = useState(false);
+
+    // Reset the moment the artwork changes. A video tile shows the raw file
+    // first and swaps to a poster once one is captured; without this, a failure
+    // on the first would keep the warning glyph even after the poster arrived.
+    const artworkUrl = thumb || source;
+    const [failedUrl, setFailedUrl] = useState(artworkUrl);
+    if (failedUrl !== artworkUrl) {
+        setFailedUrl(artworkUrl);
+        setArtworkFailed(false);
+    }
+
+    const showArtwork = Boolean(artworkUrl) && !artworkFailed;
 
     return (
         <div
@@ -65,26 +85,29 @@ export default function VaultAssetCard({
                 className="w-full text-left"
             >
                 <div className="aspect-square bg-secondary/20 flex items-center justify-center relative overflow-hidden">
-                    {!thumb && !source && asset.type !== 'audio' && (
+                    {artworkFailed && asset.type !== 'audio' && (
+                        <FileWarning size={20} className="text-muted-foreground/60" />
+                    )}
+                    {!thumb && !source && !artworkFailed && asset.type !== 'audio' && (
                         <Loader2 size={14} className="animate-spin text-muted-foreground" />
                     )}
-                    {asset.type === 'videos' && (thumb || source) && (
+                    {asset.type === 'videos' && showArtwork && (
                         thumb ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={thumb} alt={asset.name} className="w-full h-full object-cover" />
+                            <img src={thumb} alt={asset.name} className="w-full h-full object-cover" onError={() => setArtworkFailed(true)} />
                         ) : (
-                            <video src={videoSrcWithPosterSeek(source!)} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                            <video src={videoSrcWithPosterSeek(source!)} className="w-full h-full object-cover" muted playsInline preload="metadata" onError={() => setArtworkFailed(true)} />
                         )
                     )}
                     {asset.type === 'models' && (
-                        thumb ? (
+                        thumb && !artworkFailed ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={thumb} alt={asset.name} className="w-full h-full object-contain bg-secondary/30" />
+                            <img src={thumb} alt={asset.name} className="w-full h-full object-contain bg-secondary/30" onError={() => setArtworkFailed(true)} />
                         ) : <Box size={24} className="text-muted-foreground" />
                     )}
-                    {asset.type === 'images' && (thumb || source) && (
+                    {asset.type === 'images' && showArtwork && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={thumb || source} alt={asset.name} className="w-full h-full object-cover" />
+                        <img src={thumb || source} alt={asset.name} className="w-full h-full object-cover" onError={() => setArtworkFailed(true)} />
                     )}
                     {asset.type === 'audio' && <Music size={24} className="text-muted-foreground" />}
                     <span className="absolute bottom-1 left-1 text-[9px] px-1 py-0.5 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100">

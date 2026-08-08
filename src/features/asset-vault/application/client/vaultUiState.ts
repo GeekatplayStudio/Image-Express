@@ -9,6 +9,30 @@ export const VAULT_UI_STATE_STORAGE_KEY = 'image-express-vault-ui-state';
 
 export type VaultPageSize = 24 | 48 | 96 | 'all';
 
+/**
+ * Grid tile size, as the minimum column width in pixels.
+ *
+ * A fixed set rather than a free slider value: each step maps onto a thumbnail
+ * width the server already caches, so dragging the control cannot fill the
+ * cache with a hundred near-identical renditions.
+ */
+export const VAULT_THUMB_SIZES = [96, 128, 160, 200, 260, 340] as const;
+
+export type VaultThumbSize = (typeof VAULT_THUMB_SIZES)[number];
+
+/**
+ * The rendition width to request for a tile of this size.
+ *
+ * Deliberately coarse. Every distinct width is a separate cached rendition, and
+ * the background precache pass generates 256 — so mapping five of the six steps
+ * onto 256 means resizing the grid is instant for almost the whole range, at
+ * the cost of some over-fetching at the smallest step. Only the largest tile
+ * asks for something the precache has not already produced.
+ */
+export function thumbnailWidthForSize(size: VaultThumbSize): 256 | 512 {
+    return size >= 340 ? 512 : 256;
+}
+
 export type VaultUiState = {
     use3d: boolean;
     smartSearch: boolean;
@@ -24,6 +48,8 @@ export type VaultUiState = {
      * what a drive scan found.
      */
     assetSource: VaultAssetSource;
+    /** Grid tile size, as the minimum column width in pixels. */
+    thumbSize: VaultThumbSize;
 };
 
 export const DEFAULT_VAULT_UI_STATE: VaultUiState = {
@@ -39,6 +65,7 @@ export const DEFAULT_VAULT_UI_STATE: VaultUiState = {
     // thousands of files, and defaulting to everything buries the handful the
     // user actually works with.
     assetSource: 'library',
+    thumbSize: 128,
 };
 
 const LENSES: VaultOrganizeLens[] = ['type', 'date', 'location', 'subject'];
@@ -59,6 +86,18 @@ function coerceAssetSource(value: unknown): VaultAssetSource {
     return typeof value === 'string' && (ASSET_SOURCES as string[]).includes(value)
         ? (value as VaultAssetSource)
         : DEFAULT_VAULT_UI_STATE.assetSource;
+}
+
+function coerceThumbSize(value: unknown): VaultThumbSize {
+    // Snap an unknown value to the nearest step rather than discarding it: a
+    // stored size from an older build should land on the closest tile size the
+    // user last chose, not silently reset to the default.
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return DEFAULT_VAULT_UI_STATE.thumbSize;
+    }
+    return VAULT_THUMB_SIZES.reduce((best, size) => (
+        Math.abs(size - value) < Math.abs(best - value) ? size : best
+    ), VAULT_THUMB_SIZES[0]);
 }
 
 function coerceLens(value: unknown): VaultOrganizeLens {
@@ -96,6 +135,7 @@ export function loadVaultUiState(): VaultUiState {
             sourcesOpen: typeof parsed.sourcesOpen === 'boolean' ? parsed.sourcesOpen : DEFAULT_VAULT_UI_STATE.sourcesOpen,
             navMode: coerceNavMode(parsed.navMode),
             assetSource: coerceAssetSource(parsed.assetSource),
+            thumbSize: coerceThumbSize(parsed.thumbSize),
         };
     } catch {
         return { ...DEFAULT_VAULT_UI_STATE };

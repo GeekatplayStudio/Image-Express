@@ -5,7 +5,7 @@ import { HardDrive, ImagePlus, Loader2 } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
 import type { VaultAlbum } from '@/features/asset-vault/domain/vaultAlbumTree';
-import type { VaultPageSize } from '@/features/asset-vault/application/client/vaultUiState';
+import type { VaultPageSize, VaultThumbSize } from '@/features/asset-vault/application/client/vaultUiState';
 import VaultAssetCard from '@/components/AssetVault/VaultAssetCard';
 
 type VaultAssetGridPanelProps = {
@@ -16,6 +16,8 @@ type VaultAssetGridPanelProps = {
     activeAlbum: VaultAlbum | null | undefined;
     activePageId: string | null;
     pageSize: VaultPageSize;
+    /** Minimum grid column width, driven by the toolbar's size slider. */
+    thumbSize: VaultThumbSize;
     pageIndex: number;
     totalPages: number;
     isUploading?: boolean;
@@ -39,6 +41,7 @@ export default function VaultAssetGridPanel({
     activeAlbum,
     activePageId,
     pageSize,
+    thumbSize,
     pageIndex,
     totalPages,
     isUploading = false,
@@ -111,7 +114,13 @@ export default function VaultAssetGridPanel({
                 </div>
             ) : (
                 <div className="min-h-0">
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-2 pb-2">
+                    <div
+                        className="grid gap-2 pb-2"
+                        // Inline rather than a Tailwind class: the column width
+                        // is a continuous user setting, and a class per step
+                        // would not survive Tailwind's static extraction.
+                        style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${thumbSize}px, 1fr))` }}
+                    >
                         {pagedAssets.map((asset) => (
                             <VaultAssetCard
                                 key={asset.id}

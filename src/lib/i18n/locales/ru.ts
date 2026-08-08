@@ -215,6 +215,7 @@ const ru: LocaleDictionary = {
     'vault.brandName': 'Image Express',
     'vault.brandBeta': 'Бета',
     'vault.sortLabel': 'Сортировка',
+    'vault.thumbSize': 'Размер миниатюр',
     'vault.sortRelevance': 'Релевантность',
     'vault.sortNameAsc': 'Имя А–Я',
     'vault.sortNameDesc': 'Имя Я–А',

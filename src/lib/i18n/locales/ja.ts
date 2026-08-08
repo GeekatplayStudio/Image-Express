@@ -143,6 +143,7 @@ const ja: LocaleDictionary = {
     'vault.brandName': 'Image Express',
     'vault.brandBeta': 'ベータ',
     'vault.sortLabel': '並べ替え',
+    'vault.thumbSize': 'サムネイルのサイズ',
     'vault.sortRelevance': '関連度',
     'vault.sortNameAsc': '名前 A–Z',
     'vault.sortNameDesc': '名前 Z–A',

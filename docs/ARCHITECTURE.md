@@ -274,6 +274,75 @@ recall risk. Revisit past ~1M vectors.
 normalisation, quantisation, dot products and a bounded top-K — so the scoring
 maths is testable without a database.
 
+### Serving file bytes: byte ranges
+
+`/api/assets/vault/file` streams indexed files. It answers `Range` requests and
+advertises `Accept-Ranges: bytes` on every response, which is what makes a
+`<video>` able to seek — without it the browser must download from byte zero to
+reach any other point.
+
+This is not a nicety. A 64 MB cap used to apply to *every* response, and on a
+real indexed drive **11,620 of 16,136 videos exceed it**, so each of those tiles
+answered 413 and showed a spinner that never resolved. The cap now applies only
+to whole-file responses; a ranged request costs whatever slice was asked for.
+Measured on 24 drive videos (0.8 GB of source):
+
+| Request | Time | Transferred | Outcome |
+|---|---|---|---|
+| Whole file (the old path) | 29.6 s | 43.3 MB | 3 of 24 refused with 413 |
+| Head range, 128 KB each | 1.7 s | 256 KB | all served |
+| Tail range (the moov atom) | 0.5 s | 384 KB | all served |
+
+`src/lib/server/httpRange.ts` holds the parsing — single ranges only; a
+multi-range request is answered with the whole file, which RFC 9110 permits. An
+unsatisfiable range returns **416 with the real size**, never a silent clamp: a
+client seeking past the end must not be handed bytes it did not ask for.
+
+Two client consequences follow from this and are load-bearing:
+
+- **Video posters use `preload="metadata"`, never `"auto"`.** `auto` downloads
+  the entire file to produce one 256 px frame.
+- **Desktop prefers HTTP over Electron IPC** for previews. The IPC path reads the
+  whole file and base64-encodes it into a blob — several times the file's size in
+  memory before a single frame is drawn, and a blob cannot seek at all. IPC
+  remains the fallback for a renderer loaded from `file://`.
+
+### Grid loading is staged
+
+`useVaultPreviews` fills tile artwork in three stages rather than one loop,
+because the costs differ by orders of magnitude: a still image needs only a URL
+string, a video poster needs a decode. One sequential pass meant a single slow
+clip held up every image behind it. Each stage publishes as soon as it has
+something, so tiles appear progressively.
+
+Tile size is a user setting (`thumbSize`, persisted in vault UI state). The
+slider moves over *step indices*, and five of its six steps map onto the same
+256 px rendition — the width the background precache pass generates — so
+resizing the grid is instant across almost the whole range instead of
+regenerating every visible thumbnail.
+
+### "Find similar": two tiers
+
+1. **The indexed store**, the same one search uses. Needs the seed to have a real
+   embedding; if it does not, one is generated and kept.
+2. **Metadata affinity** — folder, type, filename tokens, date
+   (`domain/assetAffinity.ts`). Works with no indexing at all.
+
+Two things were removed from this path after measurement, both worth not
+reintroducing:
+
+- It read the legacy `vectors.json` while every embedding written since the
+  SQLite switch went to `vectors.db`, so it searched a store search itself had
+  stopped filling — and returned nothing for almost every asset.
+- Hash-text vectors were tried as tier 2 and are **worse than nothing**: they
+  ranked `River Stereo.wav` as the nearest match for `underwater.mov`, because a
+  64-dimension character hash of a filename carries no meaning.
+
+The embedding attempt runs on a **2.5 s** budget, not the default 45 s. That
+default is sized for a cold model load during backfill; on the interactive path,
+with Ollama not running, every click paid the full 45 s before falling back to an
+answer the metadata tier already had.
+
 ### Two navigation models
 
 | Mode | Source | Ids |

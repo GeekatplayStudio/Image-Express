@@ -143,6 +143,7 @@ const zh: LocaleDictionary = {
     'vault.brandName': 'Image Express',
     'vault.brandBeta': '测试版',
     'vault.sortLabel': '排序',
+    'vault.thumbSize': '缩略图大小',
     'vault.sortRelevance': '相关度',
     'vault.sortNameAsc': '名称 A–Z',
     'vault.sortNameDesc': '名称 Z–A',

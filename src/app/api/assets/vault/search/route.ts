@@ -6,7 +6,7 @@ import {
     searchEmbeddings,
 } from '@/lib/server/vaultWatchStore';
 import { VaultSearchRequestSchema } from '@/features/asset-vault/contracts/search';
-import { ensureAssetVectors, runVaultSearch } from '@/features/asset-vault/application/vaultSearchService';
+import { runVaultSearch } from '@/features/asset-vault/application/vaultSearchService';
 import {
     expandSearchQueryFast,
     embedQueryWithOllama,
@@ -14,6 +14,7 @@ import {
 } from '@/lib/server/ollamaEmbeddings';
 import { ensureOllamaEmbedModelReady } from '@/lib/server/ollamaLifecycle';
 import { requestVaultEmbedding, requestVaultThumbnails } from '@/lib/server/vaultEmbedQueue';
+import { getDerivedHashVectors } from '@/lib/server/vaultDerivedVectors';
 import {
     hashTextEmbedding,
     searchVectors,
@@ -22,24 +23,15 @@ import {
 import type { VaultCatalog } from '@/features/asset-vault/contracts/assetRecord';
 
 /**
- * Hash vectors are a pure function of the catalog, so they are derived rather
- * than stored. Deriving 200k of them costs real time, so memoise on the
- * catalog alone — crucially NOT on the persisted vectors, which change on
- * every backfill and would invalidate the cache each search.
- *
- * Real vectors are concatenated rather than merged: searchVectors matches on
- * dimension, so a hash record and a real record for the same asset never
- * compete, and each query vector only ever sees its own model's records.
+ * Real vectors are concatenated with the derived hash ones rather than merged:
+ * searchVectors matches on dimension, so a hash record and a real record for
+ * the same asset never compete, and each query vector only ever sees its own
+ * model's records.
  */
-let derivedCache: { key: string; vectors: VectorRecord[] } | null = null;
-
-function getDerivedHashVectors(catalog: VaultCatalog, persisted: VectorRecord[]): VectorRecord[] {
-    const key = `${catalog.updatedAt}::${catalog.assets.length}`;
-    if (!derivedCache || derivedCache.key !== key) {
-        derivedCache = { key, vectors: ensureAssetVectors(catalog.assets, []) };
-    }
+function withPersistedVectors(catalog: VaultCatalog, persisted: VectorRecord[]): VectorRecord[] {
+    const derived = getDerivedHashVectors(catalog);
     const real = persisted.filter((entry) => entry.model !== 'hash-text-v1');
-    return real.length > 0 ? [...derivedCache.vectors, ...real] : derivedCache.vectors;
+    return real.length > 0 ? [...derived, ...real] : derived;
 }
 
 export async function POST(request: Request) {
@@ -116,7 +108,7 @@ export async function POST(request: Request) {
                 // than stored, and exist so contextual search works before any
                 // real embedding model is available.
                 const hashHits = searchVectors(
-                    getDerivedHashVectors(catalog, []),
+                    getDerivedHashVectors(catalog),
                     hashTextEmbedding(payload.query, 64),
                     Math.max(payload.limit, 40),
                 );
@@ -124,7 +116,7 @@ export async function POST(request: Request) {
             } else {
                 // No SQLite: fall back to the old in-memory path, which is what
                 // shipped before and still works below the ~34k ceiling.
-                vectors = getDerivedHashVectors(catalog, await readVectorStore());
+                vectors = withPersistedVectors(catalog, await readVectorStore());
             }
         }
 

@@ -10,6 +10,8 @@ import { VAULT_ORGANIZE_LENSES, type VaultOrganizeLens } from '@/features/asset-
 import type { VaultSortMode } from '@/features/asset-vault/domain/vaultNaturalQuery';
 import type { VaultAlbum, VaultPage } from '@/features/asset-vault/domain/vaultAlbumTree';
 import { vaultLensLabelKey } from '@/components/AssetVault/vaultModalTypes';
+import VaultThumbSizeSlider from '@/components/AssetVault/VaultThumbSizeSlider';
+import type { VaultThumbSize } from '@/features/asset-vault/application/client/vaultUiState';
 
 type VaultModalToolbarProps = {
     searchRef: React.RefObject<HTMLInputElement | null>;
@@ -20,6 +22,8 @@ type VaultModalToolbarProps = {
     onSmartSearchChange: (value: boolean) => void;
     sortMode: VaultSortMode;
     onSortModeChange: (value: VaultSortMode) => void;
+    thumbSize: VaultThumbSize;
+    onThumbSizeChange: (value: VaultThumbSize) => void;
     effectiveLens: VaultOrganizeLens;
     onApplyLens: (value: VaultOrganizeLens) => void;
     sourcesOpen: boolean;
@@ -52,6 +56,8 @@ export default function VaultModalToolbar({
     onSmartSearchChange,
     sortMode,
     onSortModeChange,
+    thumbSize,
+    onThumbSizeChange,
     effectiveLens,
     onApplyLens,
     sourcesOpen,
@@ -166,6 +172,8 @@ export default function VaultModalToolbar({
                     <option value="smallest">{t('vault.sortSmallest')}</option>
                     <option value="type">{t('vault.sortType')}</option>
                 </select>
+
+                <VaultThumbSizeSlider value={thumbSize} onChange={onThumbSizeChange} />
 
                 <div className="flex items-center rounded-md border border-border overflow-hidden">
                     {VAULT_ORGANIZE_LENSES.map((value) => (

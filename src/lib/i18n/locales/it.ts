@@ -143,6 +143,7 @@ const it: LocaleDictionary = {
     'vault.brandName': 'Image Express',
     'vault.brandBeta': 'Beta',
     'vault.sortLabel': 'Ordina',
+    'vault.thumbSize': 'Dimensione anteprime',
     'vault.sortRelevance': 'Rilevanza',
     'vault.sortNameAsc': 'Nome A–Z',
     'vault.sortNameDesc': 'Nome Z–A',

@@ -12,6 +12,7 @@ import {
     isVectorDbAvailable,
     migrateVectorsFromJson,
     readVectorAssetIds,
+    readVectorForAsset,
     readVectorMeta,
     searchVectorsInDb,
     upsertVectors,
@@ -158,6 +159,25 @@ export async function searchEmbeddings(
         console.error('Vector SQLite search failed, falling back to JSON:', error);
         return null;
     }
+}
+
+/**
+ * One asset's stored embedding, from whichever store is active.
+ *
+ * Returns null when the asset has never been embedded — the caller decides
+ * whether to embed it now or fall back to a derived vector.
+ */
+export async function readEmbeddingForAsset(assetId: string): Promise<VectorRecord | null> {
+    if (sqliteVectorsEnabled()) {
+        try {
+            await ensureVectorsMigrated();
+            return await readVectorForAsset(assetId);
+        } catch (error) {
+            console.error('Vector SQLite read failed, falling back to JSON:', error);
+        }
+    }
+    const existing = await readVectorStoreFromJson();
+    return existing.find((entry) => entry.assetId === assetId) ?? null;
 }
 
 export async function readVectorStore(): Promise<VectorRecord[]> {
