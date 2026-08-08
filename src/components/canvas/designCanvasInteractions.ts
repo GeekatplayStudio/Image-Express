@@ -127,10 +127,45 @@ export function installPanZoomNavigation(
         canvas.setCursor(canvas.defaultCursor);
     };
 
+    /**
+     * Holding Space turns the canvas into the hand tool, exactly like the
+     * hand-mode lock does.
+     *
+     * `skipTargetFind` is the part that matters. Without it Fabric still picks
+     * whatever is under the cursor on mouse down and begins dragging that
+     * object, so Space-drag over a layer moved the layer instead of the
+     * viewport. Space is an explicit "I want to pan" gesture and must win over
+     * whatever happens to be beneath the pointer.
+     */
+    const applySpacePanMode = (enabled: boolean) => {
+        const typed = canvas as fabric.Canvas & { skipTargetFind?: boolean };
+        if (enabled) {
+            canvas.selection = false;
+            typed.skipTargetFind = true;
+            canvas.defaultCursor = 'grab';
+            canvas.hoverCursor = 'grab';
+            if (!isDragging) canvas.setCursor('grab');
+            return;
+        }
+        // The hand tool may still be latched on; leave its state alone.
+        if (handModeLocked) return;
+        // Cleared before restoring: restoreEditorCanvasToolConfig is a no-op for
+        // a tool it does not recognise, and leaving skipTargetFind on would make
+        // the canvas permanently unselectable after one Space press.
+        typed.skipTargetFind = false;
+        restoreEditorCanvasToolConfig(canvas);
+        if (!isDragging) canvas.setCursor(canvas.defaultCursor);
+    };
+
     const handlePanKeyDown = (event: KeyboardEvent) => {
         if (event.code !== 'Space') return;
         if (isTypingTarget(event.target)) return;
-        isSpacePressed = true;
+        // Repeat events fire continuously while held; the mode is already set.
+        if (!isSpacePressed) {
+            isSpacePressed = true;
+            applySpacePanMode(true);
+        }
+        // Stop the page scrolling under the canvas.
         event.preventDefault();
     };
 
@@ -138,11 +173,16 @@ export function installPanZoomNavigation(
         if (event.code !== 'Space') return;
         isSpacePressed = false;
         stopPanning();
+        applySpacePanMode(false);
     };
 
     const handlePanWindowBlur = () => {
+        // Alt-tabbing away never sends the keyup, which would otherwise leave
+        // the canvas stuck in pan mode with no way back.
+        if (!isSpacePressed) return;
         isSpacePressed = false;
         stopPanning();
+        applySpacePanMode(false);
     };
 
     const handModeBridge = canvas as unknown as {
@@ -225,13 +265,10 @@ export function installPanZoomNavigation(
         const evt = opt.e as MouseEvent;
         if (!(isSpacePressed || handModeLocked) || evt.button !== 0) return;
 
-        // Move tool: Space-pan only on empty canvas so object clicks stay usable.
-        // Region tools set skipTargetFind (opt.target always empty) — Space always pans.
-        // Hand tool: pan anywhere.
-        const regionTool = Boolean(
-            (canvas as fabric.Canvas & { __ieRegionSelectionTool?: boolean }).__ieRegionSelectionTool,
-        );
-        if (!handModeLocked && !regionTool && opt.target) return;
+        // Space and the hand tool both pan from anywhere, including on top of a
+        // layer. This used to bail when something was under the cursor, which
+        // left Fabric to drag that object instead — so Space-drag moved the
+        // layer rather than the canvas.
 
         onUserNavigate();
         isDragging = true;
