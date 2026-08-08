@@ -19,6 +19,14 @@ import {
     type BookcaseStore,
 } from '@/features/asset-vault/contracts/bookcase';
 import { stableVaultAssetId, inferVaultAssetType } from '@/features/asset-vault/domain/inferAssetType';
+import {
+    isSqliteAvailable,
+    migrateCatalogFromJson,
+    readCatalogSnapshot,
+    readMeta as readCatalogMeta,
+    syncCatalogAssets,
+    writeMeta as writeCatalogMeta,
+} from '@/lib/server/vaultCatalogDb';
 
 const CATALOG_PATH = () => path.join(getVaultDir(), 'catalog.json');
 const BOOKCASES_PATH = () => path.join(getVaultDir(), 'bookcases.json');
@@ -41,7 +49,58 @@ async function atomicWriteJson(filePath: string, data: unknown) {
 // file's mtime so an external write is still picked up.
 let catalogCache: { catalog: VaultCatalog; mtimeMs: number } | null = null;
 
+/**
+ * Which backing store answers catalog reads and writes.
+ *
+ * SQLite when the runtime provides `node:sqlite`, because the JSON catalog
+ * rewrites the entire file — measured at 153 MB — on every mutation. Set
+ * `IMAGE_EXPRESS_VAULT_STORE=json` to force the old path: `node:sqlite` is
+ * still flagged experimental, so this needs an escape hatch that does not
+ * require shipping a new build.
+ */
+function sqliteCatalogEnabled(): boolean {
+    if (process.env.IMAGE_EXPRESS_VAULT_STORE === 'json') return false;
+    return isSqliteAvailable();
+}
+
+/**
+ * Import the JSON catalog on first use, once.
+ *
+ * The JSON file is deliberately left in place: it is the rollback path for one
+ * release. Note that it stops being updated after this point, so rolling back
+ * loses changes made since the migration — the tradeoff the migration exists
+ * to make, since keeping both current would keep paying the 153 MB write.
+ */
+let migrationPromise: Promise<void> | null = null;
+
+async function ensureCatalogMigrated(): Promise<void> {
+    migrationPromise ??= (async () => {
+        if (await readCatalogMeta('migrated_from_json')) return;
+        const fromJson = await readVaultCatalogFromJson();
+        const result = await migrateCatalogFromJson(fromJson);
+        if (result.migrated && result.assetCount > 0) {
+            console.info(`Vault catalog migrated to SQLite: ${result.assetCount} assets.`);
+        }
+    })();
+    await migrationPromise;
+}
+
 export async function readVaultCatalog(): Promise<VaultCatalog> {
+    if (sqliteCatalogEnabled()) {
+        try {
+            await ensureCatalogMigrated();
+            const snapshot = await readCatalogSnapshot();
+            if (snapshot) return snapshot;
+        } catch (error) {
+            // A broken DB must not make the vault unusable — fall through to
+            // the JSON file, which is still on disk.
+            console.error('Vault catalog SQLite read failed, falling back to JSON:', error);
+        }
+    }
+    return readVaultCatalogFromJson();
+}
+
+async function readVaultCatalogFromJson(): Promise<VaultCatalog> {
     const filePath = CATALOG_PATH();
     try {
         const fileStat = await stat(filePath);
@@ -64,6 +123,18 @@ export async function readVaultCatalog(): Promise<VaultCatalog> {
 }
 
 export async function writeVaultCatalog(catalog: VaultCatalog): Promise<void> {
+    if (sqliteCatalogEnabled()) {
+        try {
+            await ensureCatalogMigrated();
+            await syncCatalogAssets(catalog.assets);
+            await writeCatalogMeta('catalog_updated_at', catalog.updatedAt);
+            // The JSON cache is now stale by definition; reads go to the DB.
+            catalogCache = null;
+            return;
+        } catch (error) {
+            console.error('Vault catalog SQLite write failed, falling back to JSON:', error);
+        }
+    }
     const filePath = CATALOG_PATH();
     await atomicWriteJson(filePath, catalog);
     try {

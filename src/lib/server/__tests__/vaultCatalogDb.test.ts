@@ -15,7 +15,9 @@ import {
     migrateCatalogFromJson,
     queryAssets,
     readAllAssets,
+    readCatalogSnapshot,
     readMeta,
+    syncCatalogAssets,
     upsertAssets,
 } from '@/lib/server/vaultCatalogDb';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
@@ -147,6 +149,65 @@ describeDb('vaultCatalogDb', () => {
         const second = await migrateCatalogFromJson(catalog);
         expect(second.migrated).toBe(false);
         expect(await countAssets()).toBe(2);
+    });
+
+    describe('syncCatalogAssets', () => {
+        it('classifies a snapshot into inserted, updated, deleted and unchanged', async () => {
+            await upsertAssets([asset('keep'), asset('touch'), asset('drop')]);
+
+            const result = await syncCatalogAssets([
+                asset('keep'),
+                asset('touch', { modifiedAt: '2026-02-02T00:00:00.000Z' }),
+                asset('new'),
+            ]);
+
+            expect(result).toEqual({ inserted: 1, updated: 1, deleted: 1, unchanged: 1 });
+            expect((await readAllAssets()).map((r) => r.id).sort()).toEqual(['keep', 'new', 'touch']);
+        });
+
+        it('detects a same-mtime change through size, not just timestamp', async () => {
+            // A file rewritten within the same second keeps its mtime on some
+            // filesystems; size is what catches it.
+            await upsertAssets([asset('a1', { sizeBytes: 10 })]);
+            const result = await syncCatalogAssets([asset('a1', { sizeBytes: 99 })]);
+
+            expect(result.updated).toBe(1);
+            expect((await readAllAssets())[0].sizeBytes).toBe(99);
+        });
+
+        it('does no writes at all when the snapshot is identical', async () => {
+            const records = [asset('a1'), asset('a2')];
+            await syncCatalogAssets(records);
+            const result = await syncCatalogAssets(records);
+
+            // The whole point: a re-index that found nothing new must not
+            // rewrite rows it already has.
+            expect(result).toEqual({ inserted: 0, updated: 0, deleted: 0, unchanged: 2 });
+        });
+
+        it('empties the catalog when handed an empty snapshot', async () => {
+            await upsertAssets([asset('a1'), asset('a2')]);
+            expect((await syncCatalogAssets([])).deleted).toBe(2);
+            expect(await countAssets()).toBe(0);
+        });
+    });
+
+    describe('readCatalogSnapshot', () => {
+        it('returns the JSON store shape, carrying updatedAt through', async () => {
+            await migrateCatalogFromJson({
+                version: 1 as const,
+                updatedAt: '2026-08-01T00:00:00.000Z',
+                assets: [asset('a1')],
+            });
+
+            const snapshot = await readCatalogSnapshot();
+            expect(snapshot).toMatchObject({ version: 1, updatedAt: '2026-08-01T00:00:00.000Z' });
+            expect(snapshot?.assets.map((r) => r.id)).toEqual(['a1']);
+        });
+
+        it('reports the epoch rather than a wrong date when nothing has been written', async () => {
+            expect((await readCatalogSnapshot())?.updatedAt).toBe(new Date(0).toISOString());
+        });
     });
 
     it('writes one row per asset rather than rewriting everything', async () => {
