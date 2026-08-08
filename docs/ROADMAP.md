@@ -250,10 +250,20 @@ exit code**, so 40 files drifted past it with nothing to stop them.
   not the line count: `resolveComfyQualityProfile` picks the resolution, steps
   and CFG a generation runs at, and it could not be tested without mounting a
   4,000-line modal, so it never had been. **4,013 → 3,759.**
+- **Done — second split.** `AssetLibrary.tsx` gave up asset identity and
+  duplicate merging to `src/lib/assetLibrary/assetMerging.ts`, with 41 tests.
+  Same reasoning: the same file exists on the server, locally and in Drive at
+  once, and deciding they are one asset — and which copy to hand back — was
+  untested logic where merging too much could collapse a private copy into a
+  public one. **3,041 → 2,906.**
 - **Open:** 39 baselined files. Attack worst first, splitting by responsibility
   rather than by line count:
   `PropertiesPanel.tsx` (3,822) · `ImageGeneratorModal.tsx` (3,759) ·
-  `AssetLibrary.tsx` (3,042) · `Toolbar.tsx` (2,689) · `ThreeDGenerator.tsx` (2,197).
+  `AssetLibrary.tsx` (2,906) · `Toolbar.tsx` (2,689) · `ThreeDGenerator.tsx` (2,197).
+- **`PropertiesPanel.tsx` needs a different approach.** Its component begins at
+  line 175 and runs to the end, so there is no pure prefix to lift — it needs
+  the render tree split by responsibility, which is the harder job and should
+  not be attempted in the same pass as a mechanical extraction.
 - **What to look for.** The productive cut in these files is the pure logic
   sitting above the component — it extracts cleanly, becomes testable
   immediately, and carries no JSX risk. Splitting the render tree is the harder,
