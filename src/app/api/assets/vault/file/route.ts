@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import mime from 'mime';
 import { apiError } from '@/lib/server/apiContract';
+import { getVaultThumbnail } from '@/lib/server/vaultThumbnails';
 import { readWatchRootStore } from '@/lib/server/vaultWatchStore';
 import {
     decideVaultPathAccess,
@@ -78,6 +79,26 @@ export async function GET(request: Request) {
             status: 400,
         });
     }
+    // A grid tile asks for a width; serving the original there meant sending
+    // 1.3-2.0 MB per thumbnail. Falls through to the original when no codec is
+    // available or the file is not a still image sharp can read.
+    const requestedWidth = Number(new URL(request.url).searchParams.get('w') || '');
+    if (requestedWidth > 0) {
+        const thumbnail = await getVaultThumbnail(decision.resolvedPath, requestedWidth);
+        if (thumbnail) {
+            return new Response(new Uint8Array(thumbnail.body), {
+                headers: {
+                    'content-type': thumbnail.contentType,
+                    'content-length': String(thumbnail.body.byteLength),
+                    // Keyed on size and mtime, so a longer cache is safe: an
+                    // edited file produces a different URL.
+                    'cache-control': 'private, max-age=86400',
+                    'x-content-type-options': 'nosniff',
+                },
+            });
+        }
+    }
+
     if (info.size > MAX_PREVIEW_BYTES) {
         return apiError(request, {
             code: 'vault_file_too_large',

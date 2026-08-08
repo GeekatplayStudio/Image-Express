@@ -92,6 +92,17 @@ export function fileUriToAbsolutePath(fileUri: string): string {
     return decodeURIComponent(pathPart.replace(/\//g, '\\'));
 }
 
+/**
+ * A small, server-resized rendition for grid tiles.
+ *
+ * Always goes over HTTP, including on desktop: the IPC path reads the *whole*
+ * file and base64-encodes it, which for a 2 MB photo shown at 200 pixels is
+ * the exact cost this exists to avoid. The local server is in-process anyway.
+ */
+export function resolveLocalFileThumbnailUrl(fileUri: string, width = 256): string {
+    return `/api/assets/vault/file?uri=${encodeURIComponent(fileUri)}&w=${width}`;
+}
+
 export async function resolveLocalFilePreviewUrl(fileUri: string): Promise<string | null> {
     if (typeof window === 'undefined') return null;
 

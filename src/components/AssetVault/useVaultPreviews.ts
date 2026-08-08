@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import type { AssetType } from '@/types';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
-import { resolveVaultPreviewUrl } from '@/features/asset-vault/application/client/vaultApiClient';
+import { resolveVaultPreviewUrl, resolveVaultThumbnailUrl } from '@/features/asset-vault/application/client/vaultApiClient';
 import {
     canRenderModelThumbnail,
     getCachedModelThumbnail,
@@ -70,12 +70,28 @@ export function useVaultPreviews({
             const resolvedThumbs: Record<string, string> = {};
             for (const asset of assets) {
                 if (cancelled) return;
+
+                const existingThumb = thumbnailUrlsRef.current[asset.id];
+
+                // A drive-indexed still image needs nothing but a URL: the
+                // server resizes it. Fetching the original here is what made a
+                // page of 96 tiles pull ~170 MB, and on desktop it read and
+                // base64-encoded every file through IPC as well.
+                if (!existingThumb) {
+                    const directThumb = resolveVaultThumbnailUrl(asset, 256);
+                    if (directThumb) {
+                        resolvedThumbs[asset.id] = directThumb;
+                        // The full-size source is resolved only when something
+                        // actually opens the asset.
+                        continue;
+                    }
+                }
+
                 let source = sourceUrlsRef.current[asset.id];
                 if (!source) source = (await resolveVaultPreviewUrl(asset)) || '';
                 if (!source) continue;
                 resolvedSources[asset.id] = source;
 
-                const existingThumb = thumbnailUrlsRef.current[asset.id];
                 if (existingThumb) {
                     resolvedThumbs[asset.id] = existingThumb;
                     continue;

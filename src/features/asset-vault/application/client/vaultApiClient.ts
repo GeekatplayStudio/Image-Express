@@ -19,7 +19,7 @@ import { mergeCatalogAssets, runVaultSearch } from '@/features/asset-vault/appli
 import { reciprocalRankFusion } from '@/features/asset-vault/domain/vectorMath';
 import { loadAllLocalVaultRecords, resolveLocalPreviewUrl } from './localVaultCatalog';
 import { loadAllDriveVaultRecords, resolveDrivePreviewUrl } from './driveVaultCatalog';
-import { resolveLocalFilePreviewUrl } from './watchRootClient';
+import { resolveLocalFilePreviewUrl, resolveLocalFileThumbnailUrl } from './watchRootClient';
 
 async function vaultFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const authorization = buildSessionAuthorizationHeader();
@@ -268,6 +268,18 @@ export async function resolveVaultPreviewUrl(asset: VaultAssetRecord): Promise<s
         return asset.previewUrl;
     }
     return null;
+}
+
+/**
+ * A grid-sized rendition, when the asset is a drive-indexed still image.
+ *
+ * Returns null for anything else — server assets already have a preview URL,
+ * and videos and models build their thumbnails on the client from the source.
+ */
+export function resolveVaultThumbnailUrl(asset: VaultAssetRecord, width = 256): string | null {
+    if (asset.type !== 'images') return null;
+    if (asset.origin.connector !== 'local' && asset.origin.connector !== 'network') return null;
+    return resolveLocalFileThumbnailUrl(asset.origin.uri, width);
 }
 
 export type { VaultSearchRequest, VaultSearchResponse, VaultAssetRecord, Bookcase };

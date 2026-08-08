@@ -4,27 +4,22 @@ import {
     readEmbeddedAssetIds,
     readVectorStore,
     searchEmbeddings,
-    upsertVectorRecords,
 } from '@/lib/server/vaultWatchStore';
 import { VaultSearchRequestSchema } from '@/features/asset-vault/contracts/search';
 import { ensureAssetVectors, runVaultSearch } from '@/features/asset-vault/application/vaultSearchService';
 import {
     expandSearchQueryFast,
     embedQueryWithOllama,
-    embedTextsWithOllama,
     resolveEmbedModel,
 } from '@/lib/server/ollamaEmbeddings';
 import { ensureOllamaEmbedModelReady } from '@/lib/server/ollamaLifecycle';
+import { requestVaultEmbedding } from '@/lib/server/vaultEmbedQueue';
 import {
-    buildAssetEmbeddingText,
     hashTextEmbedding,
     searchVectors,
     type VectorRecord,
 } from '@/features/asset-vault/domain/vectorMath';
 import type { VaultCatalog } from '@/features/asset-vault/contracts/assetRecord';
-
-/** How many assets we upgrade from hash → real embeddings per search request. */
-const EMBED_BACKFILL_BATCH = 32;
 
 /**
  * Hash vectors are a pure function of the catalog, so they are derived rather
@@ -89,39 +84,16 @@ export async function POST(request: Request) {
                     semanticQueryVectors.push(queryEmbed.vector);
                 }
 
-                // Backfill real embeddings for assets that only have hash
-                // vectors — one batched round-trip, skipping anything already
-                // upgraded, so the index converges instead of re-embedding
-                // the same sample forever.
-                // Ask the store which assets it already has, rather than
-                // scanning an in-memory copy of every embedding.
+                // Indexing is a background job, never part of answering a
+                // search. Embedding 32 assets inline made smart search take
+                // 5.4s cold and 0.7s warm against 0.005s for keyword — and with
+                // hundreds of thousands of assets pending it would have taken
+                // thousands of searches to finish, each one paying that cost.
                 embeddedIds = await readEmbeddedAssetIds(embedModel);
-                const pending = catalog.assets
-                    .filter((asset) => !embeddedIds.has(asset.id))
-                    .slice(0, EMBED_BACKFILL_BATCH);
-                if (pending.length > 0) {
-                    const batch = await embedTextsWithOllama({
-                        texts: pending.map((asset) => buildAssetEmbeddingText(asset)),
-                    });
-                    if (batch) {
-                        const now = new Date().toISOString();
-                        const fresh = pending.map((asset, index) => ({
-                            assetId: asset.id,
-                            model: batch.model,
-                            dims: batch.vectors[index].length,
-                            vector: batch.vectors[index],
-                            updatedAt: now,
-                        }));
-                        try {
-                            // Write only the batch. The old path rewrote the
-                            // whole store, which threw outright past ~34k
-                            // assets and silently stopped persisting from then on.
-                            await upsertVectorRecords(fresh);
-                            fresh.forEach((entry) => embeddedIds.add(entry.assetId));
-                        } catch (error) {
-                            console.warn('Could not persist vector store', error);
-                        }
-                    }
+                if (catalog.assets.length > embeddedIds.size) {
+                    // Fire and forget: a queue outage must not fail a search.
+                    void requestVaultEmbedding(catalog.assets.length - embeddedIds.size)
+                        .catch(() => {});
                 }
             }
 
