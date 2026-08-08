@@ -22,7 +22,8 @@ type VaultAssetGridPanelProps = {
     onSetPageIndex: (updater: (prev: number) => number) => void;
     onSetActivePageId: (pageId: string) => void;
     onOpenSources: () => void;
-    onOpenAsset: (asset: VaultAssetRecord) => void;
+    onSelectAsset: (asset: VaultAssetRecord) => void;
+    selectedAssetId: string | null;
     onAddToCanvas: (asset: VaultAssetRecord) => void;
     onAssetContextMenu: (asset: VaultAssetRecord, event: React.MouseEvent) => void;
     onHoverStart: (asset: VaultAssetRecord, rect: DOMRect) => void;
@@ -44,7 +45,8 @@ export default function VaultAssetGridPanel({
     onSetPageIndex,
     onSetActivePageId,
     onOpenSources,
-    onOpenAsset,
+    onSelectAsset,
+    selectedAssetId,
     onAddToCanvas,
     onAssetContextMenu,
     onHoverStart,
@@ -116,7 +118,8 @@ export default function VaultAssetGridPanel({
                                 asset={asset}
                                 thumb={thumbnailUrls[asset.id]}
                                 source={sourceUrls[asset.id]}
-                                onOpen={onOpenAsset}
+                                onSelect={onSelectAsset}
+                                isSelected={asset.id === selectedAssetId}
                                 onAddToCanvas={onAddToCanvas}
                                 onContextMenu={onAssetContextMenu}
                                 onHoverStart={onHoverStart}

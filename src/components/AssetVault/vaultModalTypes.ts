@@ -66,3 +66,9 @@ export function vaultLensLabelKey(value: VaultOrganizeLens): string {
         default: return 'vault.lensType';
     }
 }
+
+/** Why a search returned a given asset, kept per hit for the details panel. */
+export type VaultSearchMatch = {
+    score: number;
+    matchReasons: string[];
+};

@@ -1,4 +1,5 @@
 'use client';
+import type { VaultSearchMatch } from '@/components/AssetVault/vaultModalTypes';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Bookcase, BookcaseFilter } from '@/features/asset-vault/contracts/bookcase';
@@ -32,6 +33,15 @@ export function useVaultCatalog({
     const [bookcases, setBookcases] = useState<Bookcase[]>([]);
     const [allAssets, setAllAssets] = useState<VaultAssetRecord[]>([]);
     const [searchHits, setSearchHits] = useState<VaultAssetRecord[] | null>(null);
+    /**
+     * Why each hit matched, keyed by asset id.
+     *
+     * The search response carries a score and match reasons per result; those
+     * used to be dropped on the floor here, so the UI could show *that* an
+     * asset matched but never *why*. Kept alongside rather than inside
+     * `searchHits` so every existing consumer of that list is untouched.
+     */
+    const [searchMatchById, setSearchMatchById] = useState<Map<string, VaultSearchMatch> | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isEnriching, setIsEnriching] = useState(false);
@@ -72,6 +82,7 @@ export function useVaultCatalog({
         const q = naturalQuery.text.trim();
         if (!q) {
             setSearchHits(null);
+            setSearchMatchById(null);
             setIsSearching(false);
             return;
         }
@@ -88,6 +99,10 @@ export function useVaultCatalog({
                     }, owner);
                     if (!cancelled) {
                         setSearchHits(response.results.map((entry) => entry.asset));
+                        setSearchMatchById(new Map(response.results.map((entry) => [
+                            entry.asset.id,
+                            { score: entry.score, matchReasons: entry.matchReasons ?? [] },
+                        ])));
                         if (response.expandedTerms?.length) {
                             setStatusMessage(t('vault.smartExpanded', {
                                 terms: response.expandedTerms.slice(0, 4).join(', '),
@@ -152,6 +167,7 @@ export function useVaultCatalog({
         allAssets,
         setAllAssets,
         searchHits,
+        searchMatchById,
         isLoading,
         isSyncing,
         isEnriching,

@@ -10,6 +10,7 @@ import VaultFlatSidebar from '@/components/AssetVault/VaultFlatSidebar';
 import VaultFolderTreeSidebar from '@/components/AssetVault/VaultFolderTreeSidebar';
 import VaultNavModeSwitch from '@/components/AssetVault/VaultNavModeSwitch';
 import VaultAssetGridPanel from '@/components/AssetVault/VaultAssetGridPanel';
+import VaultAssetDetailsPanel from '@/components/AssetVault/VaultAssetDetailsPanel';
 import VaultModalFooter from '@/components/AssetVault/VaultModalFooter';
 import VaultModalOverlays from '@/components/AssetVault/VaultModalOverlays';
 import { useVaultCatalog } from '@/components/AssetVault/useVaultCatalog';
@@ -74,6 +75,25 @@ export default function AssetVaultModal({
     });
 
     clearContextMenuRef.current = () => previews.setContextMenu(null);
+
+    /**
+     * The asset shown in the details panel. Held here rather than in the grid
+     * so it survives paging and lens changes — the panel should not blank
+     * because the user moved to page 2.
+     */
+    const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+
+    /**
+     * Resolved from the working set rather than stored, so the panel follows
+     * the asset if the catalog reloads. Falls back to null when the selection
+     * is no longer in the current results.
+     */
+    const selectedAsset = selectedAssetId
+        ? catalog.workingAssets.find((entry) => entry.id === selectedAssetId) ?? null
+        : null;
+    const selectedMatch = selectedAssetId
+        ? catalog.searchMatchById?.get(selectedAssetId) ?? null
+        : null;
 
     const [isFindingSimilar, setIsFindingSimilar] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -391,17 +411,8 @@ export default function AssetVaultModal({
                                             onSetPageIndex={browse.setPageIndex}
                                             onSetActivePageId={browse.setActivePageId}
                                             onOpenSources={() => browse.setSourcesOpen(true)}
-                                            onOpenAsset={(asset) => {
-                                                if (asset.type === 'models') {
-                                                    void previews.openClassic3dViewer(asset);
-                                                    return;
-                                                }
-                                                if (asset.type === 'videos' || asset.type === 'audio') {
-                                                    void previews.openClassicMediaPreview(asset);
-                                                    return;
-                                                }
-                                                void previews.openDetail(asset);
-                                            }}
+                                            onSelectAsset={(asset) => setSelectedAssetId(asset.id)}
+                                            selectedAssetId={selectedAssetId}
                                             onAddToCanvas={(asset) => void previews.handleAddToCanvas(asset)}
                                             onAssetContextMenu={(asset, event) => previews.openContextMenu({ kind: 'asset', asset }, event)}
                                             onHoverStart={previews.handleCardHoverStart}
@@ -409,6 +420,18 @@ export default function AssetVaultModal({
                                             onDropFiles={(files) => void handleDropFiles(files)}
                                         />
                                     </div>
+                                    <VaultAssetDetailsPanel
+                                        asset={selectedAsset}
+                                        match={selectedMatch}
+                                        thumbnailUrl={
+                                            selectedAsset
+                                                ? previews.thumbnailUrls[selectedAsset.id]
+                                                : undefined
+                                        }
+                                        onOpenPreview={(asset) => void previews.openDetail(asset)}
+                                        t={t}
+                                        language={language}
+                                    />
                                 </div>
                             )}
                         </main>

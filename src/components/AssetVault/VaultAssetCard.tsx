@@ -12,8 +12,10 @@ type VaultAssetCardProps = {
     asset: VaultAssetRecord;
     thumb?: string;
     source?: string;
-    onOpen: (asset: VaultAssetRecord) => void;
     onAddToCanvas: (asset: VaultAssetRecord) => void;
+    /** Single click. Selecting shows the asset in the details panel. */
+    onSelect: (asset: VaultAssetRecord) => void;
+    isSelected: boolean;
     onContextMenu: (asset: VaultAssetRecord, event: React.MouseEvent) => void;
     onHoverStart: (asset: VaultAssetRecord, rect: DOMRect) => void;
     onHoverEnd: (assetId: string) => void;
@@ -23,8 +25,9 @@ export default function VaultAssetCard({
     asset,
     thumb,
     source,
-    onOpen,
     onAddToCanvas,
+    onSelect,
+    isSelected,
     onContextMenu,
     onHoverStart,
     onHoverEnd,
@@ -34,7 +37,12 @@ export default function VaultAssetCard({
 
     return (
         <div
-            className="group relative rounded-md border border-border bg-card overflow-hidden hover:border-primary/40 transition-all text-left"
+            className={`group relative rounded-md border bg-card overflow-hidden transition-all text-left ${
+                isSelected
+                    ? 'border-primary ring-1 ring-primary/50'
+                    : 'border-border hover:border-primary/40'
+            }`}
+            aria-selected={isSelected}
             onContextMenu={(event) => onContextMenu(asset, event)}
             onMouseEnter={(event) => {
                 if (!supportsHoverPreview) return;
@@ -47,7 +55,7 @@ export default function VaultAssetCard({
         >
             <button
                 type="button"
-                onClick={() => onOpen(asset)}
+                onClick={() => onSelect(asset)}
                 onDoubleClick={() => onAddToCanvas(asset)}
                 className="w-full text-left"
             >
