@@ -327,9 +327,23 @@ the JSON store rather than leaving the vault unusable on a runtime without it.
 `migrateCatalogFromJson` imports once and records a marker in a `meta` table; it
 is idempotent and leaves the JSON file untouched, so a release can roll back.
 
-**Status:** the store and its tests are in; `vault-store.ts` does not call it
-yet, so the JSON rewrite is still what ships. See F-03 in
-[ROADMAP.md](ROADMAP.md).
+`readVaultCatalog`/`writeVaultCatalog` keep their signatures, so callers are
+unchanged. Because that interface hands over a *whole* catalog, the write path
+diffs before it writes: `syncCatalogAssets` reads a projection of id, mtime and
+size — never the record bodies, which would reintroduce the exact cost being
+removed — and touches only rows that differ. A dedicated covering index makes
+that scan index-only.
+
+Set `IMAGE_EXPRESS_VAULT_STORE=json` to force the old path without shipping a
+build, and any SQLite failure logs and falls back to JSON rather than leaving
+the vault unusable.
+
+Measured at 200k assets / 158 MB: adding one asset goes from **478 ms** (which
+rewrote all 158 MB) to **1.4 ms**, and "assets in this folder" from a full scan
+to **3.6 ms**. The end-to-end saving is smaller than that — a whole-catalog
+save still pays a 313 ms diff scan, so ~478 ms → ~315 ms — because callers hand
+over everything. Targeted add/remove entry points are what collapse the rest;
+see F-03 in [ROADMAP.md](ROADMAP.md).
 
 ---
 

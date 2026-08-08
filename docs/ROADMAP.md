@@ -102,11 +102,39 @@ entire file** — adding one asset rewrites 153 MB.
   one asset to a 2,000-row catalog writes a row rather than the whole store.
   Every DB test skips rather than fails when `node:sqlite` is absent, because
   falling back is a supported configuration.
-- **Next:** wire it into `vault-store.ts` behind the JSON fallback, then
-  measure. Until that lands nothing uses it, so the 153 MB rewrite is still
-  what ships.
-- **Acceptance:** adding one asset writes O(1), not 153 MB; cold search latency
-  measured before and after; catalog load no longer holds the full set in heap.
+- **Done — wired in.** `readVaultCatalog`/`writeVaultCatalog` use SQLite when
+  `node:sqlite` is present, migrating the JSON catalog once on first read.
+  `IMAGE_EXPRESS_VAULT_STORE=json` forces the old path without a new build, and
+  any SQLite error falls back to JSON rather than making the vault unusable.
+  Because the public interface is whole-catalog, `syncCatalogAssets` diffs a
+  cheap projection — id, mtime, size, never the record body — and writes only
+  what changed.
+
+- **Measured** at 200k assets / 158 MB, the real catalog's scale:
+
+  | Operation | JSON | SQLite |
+  |---|---|---|
+  | Add one asset | 478 ms (rewrites 158 MB) | **1.4 ms** |
+  | Load for a query | 355 ms parse, before Zod | — |
+  | Change detection over the whole set | — | 313 ms |
+  | Assets in one folder | full scan of 200k | **3.6 ms** |
+
+- **Read this honestly.** The 334× headline is the *targeted* write. Callers
+  still hand over a whole catalog, so a save costs the 313 ms diff scan plus
+  the delta — about **478 ms → 315 ms, a 1.5× win**, not 334×. What it does buy
+  today regardless of wall-clock: 158 MB is no longer written to a user's SSD
+  on every mutation, and folder/type navigation is a 3.6 ms query instead of a
+  full scan.
+- **The remaining win needs callers to change.** Targeted `addAssets`/
+  `removeAssets` entry points would collapse that 313 ms scan to nothing. That
+  is the next step, and it is where the rest of the factor lives.
+- **Cost paid:** the DB is larger on disk than the JSON — 229 MB vs 158 MB —
+  from storing each record plus four indexes. Accepted: disk is cheap, the
+  158 MB write amplification was not.
+- **Acceptance:** adding one asset writes O(1), not 153 MB ✅; latency measured
+  before and after ✅; catalog load no longer holds the full set in heap ❌ —
+  `readCatalogSnapshot` still materialises everything, and only moving callers
+  to `queryAssets` fixes that.
 
 ### F-04 · Server-side provider polling — P0 *(step 1 of 3 done)*
 
