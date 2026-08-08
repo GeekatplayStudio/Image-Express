@@ -393,6 +393,38 @@ about what they said.
 > shell pipe returns the *last* command's status, not the script's.
 > `desktop:pack` is a plain `&&` chain and propagates correctly. No fix needed.
 
+### F-10 · Request validation and rate limiting — P0
+
+Found while writing the system explainer on 2026-08-08, by counting rather than
+assuming. The mechanism is good and the adoption is not:
+
+| How a route reads its body | Routes | Protection |
+|---|---|---|
+| `parseJsonRequest` | 5 | Size cap + strict Zod schema |
+| Raw `request.json()` + ad-hoc schema | 1 | Partial |
+| **Raw `request.json()`, no schema** | **35** | **None, and no size limit** |
+| No JSON body (GET etc.) | 46 | n/a |
+
+- **35 routes accept a body of any shape and any size.** `parseJsonRequest`
+  already enforces both; they simply do not call it. This is adoption work, not
+  design work, which is what makes it the cheapest high-value fix available.
+- **No rate limiting exists anywhere in the app.** Not on auth, not on
+  generation, not on the pack installers.
+- **Only 7 routes check a session at all.**
+- **The MCP bridge has no authentication of its own.** It validates tool
+  arguments with Zod — genuinely good — but then calls the same local HTTP API,
+  inheriting whatever that allows. Anything able to run
+  `scripts/mcp-server.mjs` can delete designs and install packs from a URL.
+
+**Severity today is local hardening, not a remote hole.** Both local launchers
+bind `127.0.0.1`, so an attacker must already be on the machine. That is why
+this sits below the finished items rather than above them.
+
+**But it is the hard gate on two futures**: exposing the app on a network, and
+multi-user. Neither is safe until this closes. Order: adopt `parseJsonRequest`
+across the 35 routes (mechanical, one schema each), then rate-limit auth and
+the URL-fetching installers, then decide the MCP auth story.
+
 ### F-08 · Process — ✅ **done**
 **`npm run verify` now passes end to end**, and every stage of it is meaningful:
 
