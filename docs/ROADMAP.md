@@ -393,7 +393,7 @@ about what they said.
 > shell pipe returns the *last* command's status, not the script's.
 > `desktop:pack` is a plain `&&` chain and propagates correctly. No fix needed.
 
-### F-10 · Request validation and rate limiting — P0
+### F-10 · Request validation and rate limiting — P0 *(validation done; rate limiting open)*
 
 Found while writing the system explainer on 2026-08-08, by counting rather than
 assuming. The mechanism is good and the adoption is not:
@@ -440,10 +440,40 @@ this sits below the finished items rather than above them.
   private ranges **only on `self-hosted`** — on a local install `127.0.0.1` is
   the user's own ComfyUI and blocking it would break saving generated images.
   Messages name the category, never the host, so they cannot be used to scan.
-- **Next, batch 3:** the destructive and execution routes — `assets/delete`,
-  `designs/delete`, `templates/delete`, `runtime/installer/run`,
-  `runtime/dependencies/run`.
-- **Then, batch 4:** the remaining AI provider and content routes.
+- **Done, batch 3 — the destructive routes**, plus an auth boundary. See the
+  MCP work: `assets/delete`, `designs/delete`, `designs/rename` and
+  `templates/delete` are validated and refuse cross-site callers.
+- **Done, batch 4 — everything else.** **No route now reads a JSON body without
+  a schema or a bound**, down from 35. Two shapes, chosen per route:
+  `parseJsonRequest` where the body has a shape worth pinning, and
+  `enforceJsonBody` (content type + size, no schema) where it is not ours to
+  shape — the Meshy and Tripo proxies forward the provider's own schema, and the
+  brand/agent/ollama routes carry nested types the downstream code owns.
+  Inventing schemas there would have rejected valid payloads.
+  - `enforceJsonBody` returns a response rather than throwing: these routes each
+    have their own catch, and a thrown error surfaced as their generic 500 —
+    the wrong answer for a 415. The first attempt did throw and a test caught it.
+  - Design and template save limits are deliberately generous (128 MB): those
+    bodies carry a whole canvas plus a base64 thumbnail.
+- **Also found in batch 4 — two more holes:**
+  - **More SSRF.** `normalizeOllamaBaseUrl` only checks the scheme, so a
+    caller-supplied `baseUrl` aimed the server anywhere. The three ollama routes
+    and `comfy/library`'s `repoUrl` now go through `assertFetchableUrl`.
+  - **Bodyless POSTs were never covered.** Requiring `application/json` forces a
+    preflight, but only for routes that *read* a body — a POST with none is
+    already a simple request. `/api/system/update`, queue cancel/retry and
+    `vault/sync` are that shape, and `system/update` was guarded only by a
+    loopback check, which does not help because a malicious page runs in the
+    user's own browser. It could have triggered a git pull and rebuild. All four
+    now refuse cross-site callers.
+
+#### Still open
+
+- **Rate limiting — nothing anywhere.** Not on auth, not on generation, not on
+  the URL-fetching installers. This is the remaining half of F-10.
+- **Session coverage.** Only 7 routes check a session. Deciding which *should*
+  is a product question (the app is single-user by default), so it is scoped
+  separately rather than assumed.
 
 **But it is the hard gate on two futures**: exposing the app on a network, and
 multi-user. Neither is safe until this closes. Order: adopt `parseJsonRequest`
