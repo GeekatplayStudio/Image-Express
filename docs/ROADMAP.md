@@ -420,6 +420,31 @@ assuming. The mechanism is good and the adoption is not:
 bind `127.0.0.1`, so an attacker must already be on the machine. That is why
 this sits below the finished items rather than above them.
 
+#### Progress — 15 of 40 routes validated
+
+- **Done, batch 1 — every credential-handling route.** login, register,
+  change-password, request-reset, reset-password, google, `user/keys`,
+  `admin/users`. They cast the body with `as LoginPayload` — no runtime check —
+  so any shape and any size reached the password hasher and the key vault.
+  Fields stay *optional* so each route keeps its own "required" message, which
+  the UI keys on; the schema rejects wrong types and absurd lengths.
+  `legacyValidationResponse` bridges the thrown error onto the
+  `{ success, message }` shape, without which a 400 surfaced as a 500.
+  Also fixed: `user/keys` echoed the raw internal error back to the caller.
+- **Done, batch 2 — an SSRF, found while validating.** Four routes fetch a
+  caller-supplied URL server-side, checked only with `/^https?:\/\//` — a
+  scheme test, not a destination test. It allowed `169.254.169.254`, the cloud
+  metadata endpoint, and the whole host network. `save-url` had no check at all.
+  `src/lib/server/outboundUrlPolicy.ts` now refuses link-local everywhere,
+  refuses non-http schemes and embedded credentials, and refuses loopback and
+  private ranges **only on `self-hosted`** — on a local install `127.0.0.1` is
+  the user's own ComfyUI and blocking it would break saving generated images.
+  Messages name the category, never the host, so they cannot be used to scan.
+- **Next, batch 3:** the destructive and execution routes — `assets/delete`,
+  `designs/delete`, `templates/delete`, `runtime/installer/run`,
+  `runtime/dependencies/run`.
+- **Then, batch 4:** the remaining AI provider and content routes.
+
 **But it is the hard gate on two futures**: exposing the app on a network, and
 multi-user. Neither is safe until this closes. Order: adopt `parseJsonRequest`
 across the 35 routes (mechanical, one schema each), then rate-limit auth and
