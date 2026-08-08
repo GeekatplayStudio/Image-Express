@@ -14,6 +14,14 @@ export const WatchRootSchema = z.object({
     lastScanStatus: z.enum(['idle', 'scanning', 'error', 'ready']).optional(),
     estimatedFileCount: z.number().int().nonnegative().optional(),
     lastError: z.string().optional(),
+    /**
+     * The scan hit its per-root file ceiling and there is more on disk.
+     *
+     * Separate from `lastError` because it is not a failure: the root indexed
+     * successfully, just not exhaustively. Reporting it as an error made a
+     * healthy 200,000-file scan look broken.
+     */
+    lastScanTruncated: z.boolean().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
 });

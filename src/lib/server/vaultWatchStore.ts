@@ -243,10 +243,26 @@ export type ScanResult = {
     truncated: boolean;
 };
 
-/** Default ceiling for one scan. Override with IMAGE_EXPRESS_VAULT_MAX_SCAN_FILES. */
+/**
+ * Ceiling for one root's scan. Override with `IMAGE_EXPRESS_VAULT_MAX_SCAN_FILES`.
+ *
+ * This is **per watch root**, not per catalog: adding a second drive gets its
+ * own budget. The old 200,000 default existed because the catalog was a single
+ * JSON document that had to be rewritten whole, and it broke outright at scale.
+ * Storage is SQLite now, so that reason is gone.
+ *
+ * What still bounds it is the read path: `readVaultCatalog` materialises every
+ * asset, measured at ~900 ms for 200k. That result is cached per process, so
+ * the cost is paid once — but heap is not cached away, so a multi-million-asset
+ * catalog would still hurt. 500,000 per root keeps a single large drive whole
+ * while staying inside what the current read path carries comfortably.
+ *
+ * Raise it if you have the RAM; the honest ceiling moves once search and the
+ * remaining whole-catalog callers use scoped queries (F-03 in ROADMAP.md).
+ */
 export const DEFAULT_MAX_SCAN_FILES = (() => {
     const configured = Number.parseInt(process.env.IMAGE_EXPRESS_VAULT_MAX_SCAN_FILES ?? '', 10);
-    return Number.isFinite(configured) && configured > 0 ? configured : 200_000;
+    return Number.isFinite(configured) && configured > 0 ? configured : 500_000;
 })();
 
 export async function scanDirectoryRecursive(

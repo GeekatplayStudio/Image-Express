@@ -198,7 +198,28 @@
     "extraResources": [
       {
         "from": ".next/standalone",
-        "to": "next-standalone"
+        "to": "next-standalone",
+        "filter": [
+          "**/*",
+          "!data/**",
+          "!logs/**",
+          "!public/assets/**",
+          "!src/**",
+          "!coverage/**",
+          "!dist/**",
+          "!dist-*/**",
+          "!e2e/**",
+          "!docs/**",
+          "!scripts/**",
+          "!test-results/**",
+          "!playwright-report/**",
+          "!.git/**",
+          "!.claude/**",
+          "!**/*.secret",
+          "!**/users.json",
+          "!**/user-key-vault.json",
+          "!**/local-api-token"
+        ]
       },
       {
         "from": ".next/standalone/node_modules",

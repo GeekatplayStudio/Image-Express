@@ -178,9 +178,10 @@ export async function PUT(request: Request) {
             lastScanAt: new Date().toISOString(),
             lastScanStatus: 'ready',
             estimatedFileCount: scan.files.length,
-            lastError: scan.truncated
-                ? `Scan stopped at the ${scan.files.length} file limit; this folder has more to index.`
-                : undefined,
+            // A truncated scan is a partial success, not a failure — see
+            // lastScanTruncated on the contract.
+            lastScanTruncated: scan.truncated || undefined,
+            lastError: undefined,
             updatedAt: new Date().toISOString(),
         });
 
