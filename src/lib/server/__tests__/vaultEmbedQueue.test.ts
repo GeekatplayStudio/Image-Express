@@ -2,7 +2,12 @@
  * @jest-environment node
  */
 
-import { requestVaultEmbedding, VAULT_EMBED_JOB_KIND } from '@/lib/server/vaultEmbedQueue';
+import {
+    requestVaultEmbedding,
+    requestVaultThumbnails,
+    VAULT_EMBED_JOB_KIND,
+    VAULT_THUMBS_JOB_KIND,
+} from '@/lib/server/vaultEmbedQueue';
 import { getQueue } from '@/lib/server/jobQueue';
 
 jest.mock('@/lib/server/jobQueue', () => ({ getQueue: jest.fn() }));
@@ -85,5 +90,37 @@ describe('requestVaultEmbedding', () => {
         const enqueue = mockQueue([]);
         await requestVaultEmbedding(239321);
         expect(enqueue.mock.calls[0][0].label).toContain('239,321');
+    });
+});
+
+describe('requestVaultThumbnails', () => {
+    it('enqueues a precache pass when none is running', async () => {
+        const enqueue = mockQueue([]);
+        await expect(requestVaultThumbnails()).resolves.toBe('job_new');
+        expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+            kind: VAULT_THUMBS_JOB_KIND,
+            lane: 'local-cpu',
+        }));
+    });
+
+    it.each(['queued', 'running'])('does nothing while a pass is %s', async (status) => {
+        // The vault load calls this on every open; without the guard, opening
+        // the vault twice would queue two passes over the same images.
+        const enqueue = mockQueue([{ id: 'j', kind: VAULT_THUMBS_JOB_KIND, status }]);
+        await expect(requestVaultThumbnails()).resolves.toBeNull();
+        expect(enqueue).not.toHaveBeenCalled();
+    });
+
+    it('is not blocked by an embedding job', async () => {
+        // Different work, different kind — they run independently.
+        const enqueue = mockQueue([{ id: 'j', kind: VAULT_EMBED_JOB_KIND, status: 'running' }]);
+        await expect(requestVaultThumbnails()).resolves.toBe('job_new');
+        expect(enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs below embedding, which is below interactive work', async () => {
+        const enqueue = mockQueue([]);
+        await requestVaultThumbnails();
+        expect(enqueue.mock.calls[0][0].priority).toBeLessThan(-10);
     });
 });

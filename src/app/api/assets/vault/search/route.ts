@@ -13,7 +13,7 @@ import {
     resolveEmbedModel,
 } from '@/lib/server/ollamaEmbeddings';
 import { ensureOllamaEmbedModelReady } from '@/lib/server/ollamaLifecycle';
-import { requestVaultEmbedding } from '@/lib/server/vaultEmbedQueue';
+import { requestVaultEmbedding, requestVaultThumbnails } from '@/lib/server/vaultEmbedQueue';
 import {
     hashTextEmbedding,
     searchVectors,
@@ -127,6 +127,10 @@ export async function POST(request: Request) {
                 vectors = getDerivedHashVectors(catalog, await readVectorStore());
             }
         }
+
+        // Warm the thumbnail cache in the background. Deduped against the
+        // queue, so this is a no-op once a pass is already running.
+        void requestVaultThumbnails().catch(() => {});
 
         const results = runVaultSearch(
             catalog.assets,

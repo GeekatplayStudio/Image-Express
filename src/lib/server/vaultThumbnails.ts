@@ -81,6 +81,28 @@ export function thumbnailCacheKey(
 
 const thumbnailDir = () => path.join(getVaultDir(), 'thumbs');
 
+/** Where a rendition lives on disk. Exported so a precache pass can test for it. */
+export function thumbnailCachePath(absolutePath: string, width: number, stats: { size: number; mtimeMs: number }): string {
+    return path.join(thumbnailDir(), thumbnailCacheKey(absolutePath, normalizeThumbnailWidth(width), stats));
+}
+
+/**
+ * True when this rendition is already on disk.
+ *
+ * Used by the precache job to skip work it has already done. A `stat` per asset
+ * is far cheaper than decoding an image, so this stays worthwhile even across
+ * hundreds of thousands of files.
+ */
+export async function hasCachedThumbnail(absolutePath: string, width: number): Promise<boolean> {
+    try {
+        const stats = await stat(absolutePath);
+        await stat(thumbnailCachePath(absolutePath, width, stats));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export type Thumbnail = { body: Buffer; contentType: string; cached: boolean };
 
 /**

@@ -8,6 +8,7 @@ import { getJobScheduler, type JobScheduler } from '@/lib/server/jobQueue/schedu
 import { runGenerateJob } from '@/lib/server/jobQueue/handlers/generate';
 import { runRemotePollJob } from '@/lib/server/jobQueue/handlers/remotePoll';
 import { runVaultEmbedJob } from '@/lib/server/jobQueue/handlers/vaultEmbed';
+import { runVaultThumbsJob } from '@/lib/server/jobQueue/handlers/vaultThumbs';
 import type { QueueLane } from '@/lib/server/jobQueue/types';
 
 export type { QueueJobRecord, QueueEvent, QueueStage } from '@/lib/server/jobQueue/types';
@@ -34,5 +35,6 @@ export const getQueue = (): JobScheduler => {
     scheduler.registerHandler('generate', runGenerateJob);
     scheduler.registerHandler('remote-poll', runRemotePollJob);
     scheduler.registerHandler('vault-embed', runVaultEmbedJob);
+    scheduler.registerHandler('vault-thumbs', runVaultThumbsJob);
     return scheduler;
 };
