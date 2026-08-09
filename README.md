@@ -245,6 +245,7 @@ Most tools give you one canvas per document. Image Express gives every project a
 - **Nothing ever locks you out while it works.** Every generation is queued, not run inline, so you keep editing while it churns. A hair-thin **pipeline rail** under the toolbar shows exactly where each request is — queued, on your GPU, at an external API, validating, saving — with the external-vs-local distinction called out, because "waiting on Stability" and "waiting on your own GPU" deserve different patience. Hover it for detail, cancel what's still queued, retry what failed (with the real error, not a shrug), and get a toast when it lands. Set it to Hidden, Minimal, or Detailed in Settings → Workspace. Jobs survive an app restart: an interrupted job reports as interrupted instead of spinning forever.
 
 ### 📚 Real asset & project management
+- **A dashboard shaped like your work**: pages, albums and bookshelves are three collapsing bars, in that order, because you almost always come back to continue the page you left — not to reorganise shelves. Each bar opens into a horizontal row of cards you scroll by dragging with the left mouse button, by the bar underneath, or by the arrows on either side. Which bars you leave open is remembered between sessions.
 - **Asset Library**: drag-and-drop multi-file ingestion (mixed images/video/audio/3D lands in the right tabs automatically), folders, search, personal-vs-shared scope, public/private visibility, and **live rotating 3D previews on hover** plus real rendered thumbnails for 3D models in the grid — not just an icon.
 - **Single click opens a large preview** for any asset with an Add-to-Canvas button; **double-click or the hover “+” button** adds it straight to the canvas. Video previews support real scrubbing and a **Capture Frame** button that grabs the current frame as a new image layer.
 - **AI-assisted asset search (optional, local)**: new uploads are indexed automatically — dimensions and any embedded generation prompt always, plus an AI caption + tags from a local Ollama vision model when you opt in — so you can find an asset by what's *in* it, not just its filename.
@@ -479,7 +480,7 @@ Settings includes built-in key validation (server-side for Hitem3D, format prefl
 
 ```
 src/app/            Next.js App Router pages + all API routes (AI proxies, assets, designs, themes, queue)
-src/components/      Dashboard, DesignCanvas, ThreeDGenerator, PropertiesPanel, PipelineRail, Editor/, properties/
+src/components/      Dashboard, DesignCanvas, ThreeDGenerator, PropertiesPanel, PipelineRail, Editor/, properties/, dashboard/
 src/lib/             AI adapters, multi-canvas store, theme/ambience engines, i18n, storage
 src/lib/server/jobQueue/   Durable job queue: store, lane scheduler, per-kind handlers
 electron/            Desktop shell (child-process server boot, auto-updater, startup logging)

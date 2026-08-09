@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useSyncExternalStore } from 'react';
 import { ChevronDown } from 'lucide-react';
 import StackRow, { type StackItem } from '@/components/dashboard/StackRow';
 
@@ -16,6 +16,43 @@ export type StackShelf = {
 };
 
 const STORAGE_KEY = 'dashboard.stackAccordion';
+/** localStorage writes don't fire `storage` in the tab that made them. */
+const OPEN_CHANGED_EVENT = 'dashboard:stack-accordion-changed';
+
+/** Pages open, the rest collapsed — the shape the server always renders. */
+const DEFAULT_OPEN: Record<string, boolean> = { pages: true };
+
+// Read through useSyncExternalStore rather than a useState initializer: the
+// initializer runs during the client's first render, so a stored preference
+// that disagrees with the server markup fails hydration, and React then
+// regenerates the whole tree on the client — which also re-creates the inline
+// <head> scripts in the root layout and logs "Encountered a script tag while
+// rendering React component". getServerSnapshot keeps hydration on the default
+// and the stored value is applied in the render right after.
+const subscribeToStoredOpen = (onChange: () => void) => {
+    window.addEventListener('storage', onChange);
+    window.addEventListener(OPEN_CHANGED_EVENT, onChange);
+    return () => {
+        window.removeEventListener('storage', onChange);
+        window.removeEventListener(OPEN_CHANGED_EVENT, onChange);
+    };
+};
+
+// The snapshot is the raw string, so it stays referentially stable between
+// reads; parsing happens downstream in a memo.
+const getStoredOpen = () => window.localStorage.getItem(STORAGE_KEY) ?? '';
+const getServerStoredOpen = () => '';
+
+const parseStoredOpen = (raw: string): Record<string, boolean> => {
+    if (!raw) return DEFAULT_OPEN;
+    try {
+        const parsed = JSON.parse(raw) as Record<string, boolean>;
+        return parsed && typeof parsed === 'object' ? parsed : DEFAULT_OPEN;
+    } catch {
+        // A corrupt preference is not worth surfacing; the default stands.
+        return DEFAULT_OPEN;
+    }
+};
 
 /**
  * The three levels of the stack — pages, albums, bookshelves — as bars that
@@ -23,26 +60,13 @@ const STORAGE_KEY = 'dashboard.stackAccordion';
  * almost always continuing the page they left, not reorganising shelves.
  */
 export default function StackAccordion({ shelves }: { shelves: StackShelf[] }) {
-    const [open, setOpen] = useState<Record<string, boolean>>(() => {
-        const fallback = { [shelves[0]?.id ?? 'pages']: true };
-        if (typeof window === 'undefined') return fallback;
-        const saved = window.localStorage.getItem(STORAGE_KEY);
-        if (!saved) return fallback;
-        try {
-            const parsed = JSON.parse(saved) as Record<string, boolean>;
-            return parsed && typeof parsed === 'object' ? parsed : fallback;
-        } catch {
-            // A corrupt preference is not worth surfacing; the default stands.
-            return fallback;
-        }
-    });
+    const storedOpen = useSyncExternalStore(subscribeToStoredOpen, getStoredOpen, getServerStoredOpen);
+    const open = useMemo(() => parseStoredOpen(storedOpen), [storedOpen]);
 
     const toggle = (id: string) => {
-        setOpen((prev) => {
-            const next = { ...prev, [id]: !prev[id] };
-            if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-            return next;
-        });
+        const next = { ...open, [id]: !open[id] };
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        window.dispatchEvent(new Event(OPEN_CHANGED_EVENT));
     };
 
     return (

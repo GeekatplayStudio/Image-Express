@@ -19,6 +19,34 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-09 — Dashboard: three collapsing rows, and the hydration bug they exposed
+
+**The dashboard now matches the hierarchy it describes.** Two flat grids
+(Albums, Saved Pages) became three collapsing bars — Pages, Albums,
+Bookshelves, in that order, Pages open by default. Each opens into a
+horizontal row of cards with left-drag panning, a scrub bar and side arrows.
+`MoreItemsDropdown` went with them: it existed only to hide items past a
+six-item cap the scrolling rows no longer need.
+
+**The first version was built as a 3D rolodex, and it was removed.** Every
+scroll frame ran a layout pass writing `transform`, `opacity` and `z-index`
+onto every card, plus a React state update for the scrub position — visibly
+choppy. Native scrolling replaced it; the only remaining scroll work is one
+`transform` write to the scrollbar thumb, held in a ref, so scrolling triggers
+zero renders.
+
+**A `useState` initializer reading `localStorage` broke hydration.** The
+accordion read its open/closed preference during the client's first render, so
+any stored state other than the default disagreed with the server HTML. React's
+recovery is to discard the tree and regenerate it client-side — which
+re-created the root layout's inline `<head>` scripts and surfaced as
+*"Encountered a script tag while rendering React component"* pointing at
+`layout.tsx`, two levels away from the actual defect. Reproduced in a real
+browser (1 script warning, 1 hydration failure), fixed with
+`useSyncExternalStore` whose `getServerSnapshot` keeps hydration on the
+default, verified back to 0/0. `layout.tsx` was correct throughout and was not
+touched.
+
 ## 2026-08-09 — Thumbnails and previews: one cache-validator bug
 
 **A thumbnail and the full-size original shared a cache validator.** They are

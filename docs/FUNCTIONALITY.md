@@ -44,7 +44,20 @@ Facebook sign-in is **not implemented** — the UI presents it as coming soon.
 
 ### Dashboard — Shipped
 Start actions: new custom-size page, upload media, generate 3D, generate image,
-open template, open/delete a recent page. The Stack view shows every page as a
+open template, open/delete a recent page.
+
+The three levels of the hierarchy are three collapsing bars, ordered **Pages,
+Albums, Bookshelves**, with Pages open by default — returning users are
+continuing the page they left far more often than they are reorganising
+shelves. Each bar expands into a horizontal row of cards: left-drag to pan, a
+scrub bar underneath, arrows on both sides. Pages merges the two stores that
+both mean "a page" to the user — canvases inside albums and standalone designs
+saved on the server — newest first. Opening a page makes both its album and
+that page active before entering the editor. Which bars are open persists in
+`localStorage`, read through `useSyncExternalStore` so a stored preference can
+never disagree with the server-rendered markup and break hydration.
+
+The Stack view shows every page as a
 floating plane in 3D, with three zoom levels — pages in an album, albums as a
 lattice, and **Bookshelves** (a shelf is a hard resource boundary; linked layers
 never cross it). Drag to orbit, Space/Shift-drag to pan, scroll to change level,
