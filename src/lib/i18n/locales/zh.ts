@@ -144,6 +144,8 @@ const zh: LocaleDictionary = {
     'vault.brandBeta': '测试版',
     'vault.sortLabel': '排序',
     'vault.thumbSize': '缩略图大小',
+    'view3d.loadFailed': '无法加载此模型',
+    'view3d.loadFailedHint': '文件可能丢失、仍在上传，或格式无法读取。',
     'vault.indexing': '索引',
     'vault.indexingIdle': '为即时浏览和搜索建立资源索引与预缓存',
     'vault.indexingStart': '立即索引',

@@ -19,6 +19,40 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-09 — Tripo/Hitem3D results no longer crash the editor
+
+**A finished 3D generation took the whole app down.** The job handed the
+browser Tripo's signed CDN URL; the CDN sends no `Access-Control-Allow-Origin`,
+so the GLTF loader was blocked, threw, and — with no error boundary above
+`useGLTF` — the error reached the React root and the browser replaced the editor
+with its own crash page. Reloading did not help, because the failed job was
+restored from localStorage still holding the same URL.
+
+Results are now **stored server-side the moment the job completes**, before the
+client is told anything. The server has no CORS problem and copies the bytes
+while the signature is still valid, so the generation also survives the link
+expiring. The job's `resultUrl` is an app-local path; the provider URL never
+reaches the browser. A store failure fails the job rather than falling back to
+the provider URL.
+
+**"Saved to server & added" was not true.** Nothing called the save endpoint —
+the label was shown for any succeeded job, which is why a generation reported as
+saved could not be found afterwards. Persisting registers the asset metadata,
+which is what actually puts it in the collection.
+
+**Old jobs are repaired on open** rather than left broken: a result URL that is
+not same-origin is saved through the server on first click, and the job record
+is updated so the next click and the next reload are free.
+
+**A model that cannot load now says so.** `ModelErrorBoundary` wraps the 3D
+canvas with a message and a Close button. Verified in-browser both ways: a
+deliberately missing model shows the failure with the app fully alive, and a
+real GLB still renders.
+
+ThreeDLayerEditor grew past the file-size ratchet during this work; presets and
+the failure panel were extracted rather than the baseline being raised (842 →
+807 lines).
+
 ## 2026-08-08 — The indexing service: click once, runs itself, stoppable
 
 **"Index & precache" now exists as a service.** A skinny strip at the bottom of

@@ -144,6 +144,8 @@ const ja: LocaleDictionary = {
     'vault.brandBeta': 'ベータ',
     'vault.sortLabel': '並べ替え',
     'vault.thumbSize': 'サムネイルのサイズ',
+    'view3d.loadFailed': 'このモデルを読み込めませんでした',
+    'view3d.loadFailedHint': 'ファイルが見つからないか、アップロード中か、ビューアが読めない形式の可能性があります。',
     'vault.indexing': 'インデックス作成',
     'vault.indexingIdle': '高速な表示と検索のためにアセットをインデックス化',
     'vault.indexingStart': '今すぐ実行',

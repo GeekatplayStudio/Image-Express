@@ -327,6 +327,42 @@ an unchanged file revalidates as a bodyless 304 in ~8 ms while an edited file is
 picked up immediately. `max-age` stays 0 on purpose: names can be reused, so
 correctness lives in the validator and speed in the 304.
 
+### Provider results are stored before the client sees them
+
+Generation providers (Tripo, Meshy, Hitem3D) return a **signed, expiring,
+cross-origin** URL. Handing one to the browser fails twice:
+
+1. **CORS.** The provider CDN sends no `Access-Control-Allow-Origin`, so
+   `GLTFLoader` is blocked. `useGLTF` then *throws*, and with no boundary above
+   it that reached the React root — the editor was replaced by the browser's own
+   crash page, taking unsaved work with it.
+2. **Expiry.** The link dies. A generation the user paid for must not evaporate
+   because they reopened it the next day.
+
+`remotePoll` now calls `persistRemoteAsset` at completion: the server fetches
+the bytes (no CORS server-to-server, and the signature is still valid), writes
+them under `generated/models|images`, registers the metadata — which is what
+puts it in the user's collection — and the job's `resultUrl` becomes an
+app-local path. The raw provider URL never reaches the browser. A store failure
+**fails the job** rather than falling back to the provider URL; a retryable
+failure is honest, a poisoned URL is not.
+
+Two details that bit during implementation and are pinned by tests:
+
+- The stored filename comes from the URL **path only**. A signed URL's
+  `Signature` is hundreds of base64 characters and is not a filename.
+- The name must carry an **extension**. Asset type and thumbnail support are
+  decided from the name, so an extension-less file becomes a model nothing
+  recognises.
+
+Jobs that finished *before* this existed still hold provider URLs in
+localStorage, so `localizeResultUrl` saves them on first open — which also
+explains why reloading never helped: it restored the same poisoned URLs.
+
+`ModelErrorBoundary` wraps the 3D canvas regardless. A model that will not load
+is a normal outcome (expired link, unparseable mesh, truncated download); it
+deserves a message and a Close button, not a crash.
+
 ### The indexing service
 
 "Index & precache" (the skinny strip at the bottom of the vault) runs both

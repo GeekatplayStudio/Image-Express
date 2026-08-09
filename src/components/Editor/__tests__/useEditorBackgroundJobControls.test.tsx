@@ -78,26 +78,76 @@ describe('useEditorBackgroundJobControls', () => {
         window.localStorage.clear();
     });
 
-    it('opens 3D results in the 3D editor flow', () => {
-        render(
-            <Harness
-                initialJobs={[
-                    {
-                        id: 'job-3d',
-                        type: 'text-to-3d',
-                        status: 'SUCCEEDED',
-                        resultUrl: 'https://cdn.example.com/model.glb',
-                        createdAt: Date.now(),
-                        provider: 'meshy',
-                    },
-                ]}
-            />
-        );
+    const jobWithRemoteResult = (overrides: Partial<BackgroundJob> = {}): BackgroundJob => ({
+        id: 'job-3d',
+        type: 'text-to-3d',
+        status: 'SUCCEEDED',
+        resultUrl: 'https://cdn.example.com/model.glb',
+        createdAt: Date.now(),
+        provider: 'meshy',
+        ...overrides,
+    } as BackgroundJob);
 
+    it('saves a provider URL to the server before opening it in the 3D editor', async () => {
+        // Opening the provider URL directly is the bug: the CDN sends no
+        // Access-Control-Allow-Origin, so the GLTF loader is blocked, throws,
+        // and takes the editor down with it.
+        (global.fetch as jest.Mock).mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ success: true, path: '/api/assets/serve/generated/models/model.glb' }),
+        });
+
+        render(<Harness initialJobs={[jobWithRemoteResult()]} />);
         fireEvent.click(screen.getByRole('button', { name: 'Open First' }));
 
-        expect(mockHandleOpenThreeDEditor).toHaveBeenCalledWith('https://cdn.example.com/model.glb');
+        await waitFor(() => {
+            expect(mockHandleOpenThreeDEditor)
+                .toHaveBeenCalledWith('/api/assets/serve/generated/models/model.glb');
+        });
+        expect(mockHandleOpenThreeDEditor).not.toHaveBeenCalledWith('https://cdn.example.com/model.glb');
         expect(mockHandleAssetSelect).not.toHaveBeenCalled();
+
+        const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+        expect(url).toBe('/api/assets/save-url');
+        expect(JSON.parse(init.body)).toMatchObject({
+            url: 'https://cdn.example.com/model.glb',
+            type: 'models',
+            category: 'generated',
+        });
+    });
+
+    it('opens an already-local result without touching the network', async () => {
+        // New jobs are stored server-side at completion, so this is the normal
+        // path and must not pay a round trip.
+        render(<Harness initialJobs={[jobWithRemoteResult({
+            resultUrl: '/api/assets/serve/generated/models/model.glb',
+        })]} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Open First' }));
+
+        await waitFor(() => {
+            expect(mockHandleOpenThreeDEditor)
+                .toHaveBeenCalledWith('/api/assets/serve/generated/models/model.glb');
+        });
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('reports a failure instead of opening a URL that cannot be saved', async () => {
+        // An expired signed link. Falling back to it would crash the editor;
+        // the user gets a message and keeps their session.
+        (global.fetch as jest.Mock).mockResolvedValue({
+            ok: false,
+            status: 500,
+            json: async () => ({ success: false, message: 'Failed to fetch from provider' }),
+        });
+
+        render(<Harness initialJobs={[jobWithRemoteResult()]} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Open First' }));
+
+        await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+            variant: 'destructive',
+        })));
+        expect(mockHandleOpenThreeDEditor).not.toHaveBeenCalled();
     });
 
     it('cancels Meshy jobs remotely when supported', async () => {

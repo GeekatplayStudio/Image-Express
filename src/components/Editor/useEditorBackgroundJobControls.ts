@@ -8,6 +8,7 @@ import {
     supportsRemoteBackgroundJobCancel,
 } from '@/components/Editor/backgroundJobRequests';
 import { getJobResultUrl, getProviderLabel, isThreeDResultJob } from '@/components/background-jobs/backgroundJobUtils';
+import { localizeResultUrl } from '@/features/generation/application/client/localizeResultUrl';
 import type { ToastOptions } from '@/providers/ToastProvider';
 
 type Toast = (options: ToastOptions) => void;
@@ -33,19 +34,45 @@ export function useEditorBackgroundJobControls({
         setBackgroundJobs((prev) => prev.filter((job) => job.id !== jobId));
     }, [setBackgroundJobs]);
 
-    const handleOpenResult = useCallback((job: BackgroundJob) => {
+    const handleOpenResult = useCallback(async (job: BackgroundJob) => {
         const resultUrl = getJobResultUrl(job);
         if (!resultUrl) {
             return;
         }
 
-        if (isThreeDResultJob(job)) {
-            handleOpenThreeDEditor(resultUrl);
+        const isModel = isThreeDResultJob(job);
+
+        // Jobs that finished before results were stored server-side still hold
+        // the provider's signed CDN URL. Opening one is blocked by CORS, the
+        // loader throws, and the editor goes down — so save it first. New jobs
+        // are already local and this is a no-op.
+        const localized = await localizeResultUrl(resultUrl, {
+            type: isModel ? 'models' : 'images',
+            provider: job.provider,
+        });
+
+        if (!localized.ok) {
+            toast({
+                title: 'Could not open this result',
+                description: `${localized.reason}. The provider link may have expired.`,
+                variant: 'destructive',
+            });
             return;
         }
 
-        handleAssetSelect(resultUrl, 'images', job.prompt?.trim() || undefined);
-    }, [handleAssetSelect, handleOpenThreeDEditor]);
+        if (localized.wasRemote) {
+            // Keep the local URL, so the next click (and the next reload) does
+            // not re-download a link that is one day closer to expiring.
+            upsertBackgroundJob({ id: job.id, resultUrl: localized.url });
+        }
+
+        if (isModel) {
+            handleOpenThreeDEditor(localized.url);
+            return;
+        }
+
+        handleAssetSelect(localized.url, 'images', job.prompt?.trim() || undefined);
+    }, [handleAssetSelect, handleOpenThreeDEditor, toast, upsertBackgroundJob]);
 
     const handleCancel = useCallback(async (job: BackgroundJob) => {
         const supportsRemoteCancel = supportsRemoteBackgroundJobCancel(job);

@@ -3118,6 +3118,8 @@ const en: LocaleDictionary = {
 
     'view3d.title': '3D View Editor',
     'view3d.hint': 'Drag sun to light • Drag to rotate • Scroll to zoom',
+    'view3d.loadFailed': 'This model could not be loaded',
+    'view3d.loadFailedHint': 'The file may be missing, still uploading, or in a format the viewer cannot read.',
     'view3d.lightPresets': 'Light Presets',
     'view3d.light': 'Light',
     'view3d.showSunWidget': 'Show Sun Widget',

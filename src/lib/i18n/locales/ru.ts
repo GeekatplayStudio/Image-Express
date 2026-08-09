@@ -2314,6 +2314,8 @@ const ru: LocaleDictionary = {
     // Ð ÐµÐ´Ð°ÐºÑ‚Ð¾Ñ€ 3D-Ð²Ð¸Ð´Ð° (ThreeDLayerEditor)
     'view3d.title': 'Редактор 3D-вида',
     'view3d.hint': 'Тяните солнце для света • Тяните для вращения • Прокрутка для масштаба',
+    'view3d.loadFailed': 'Не удалось загрузить эту модель',
+    'view3d.loadFailedHint': 'Файл может отсутствовать, ещё загружаться или иметь неподдерживаемый формат.',
     'view3d.lightPresets': 'Пресеты света',
     'view3d.light': 'Свет',
     'view3d.showSunWidget': 'Показать виджет солнца',

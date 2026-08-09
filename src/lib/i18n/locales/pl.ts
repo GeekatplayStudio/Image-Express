@@ -144,6 +144,8 @@ const pl: LocaleDictionary = {
     'vault.brandBeta': 'Beta',
     'vault.sortLabel': 'Sortuj',
     'vault.thumbSize': 'Rozmiar miniatur',
+    'view3d.loadFailed': 'Nie udało się wczytać tego modelu',
+    'view3d.loadFailedHint': 'Plik może nie istnieć, wciąż się przesyłać lub mieć nieobsługiwany format.',
     'vault.indexing': 'Indeksowanie',
     'vault.indexingIdle': 'Indeksuj i przygotuj zasoby do błyskawicznego przeglądania',
     'vault.indexingStart': 'Indeksuj teraz',

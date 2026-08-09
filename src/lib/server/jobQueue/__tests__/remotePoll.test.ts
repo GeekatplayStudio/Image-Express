@@ -10,6 +10,29 @@ jest.mock('@/lib/server/user-key-vault', () => ({
     loadUserApiKeys: (...args: unknown[]) => mockLoadUserApiKeys(...args),
 }));
 
+/**
+ * The result is stored server-side before the client ever sees it, so the
+ * handler returns an app-local path rather than the provider's signed URL.
+ * Mocked here because the storage itself is tested in persistRemoteAsset.
+ */
+const mockPersistRemoteAsset = jest.fn(async ({ url }: { url: string }) => {
+    // The stored name is derived from the URL *path* only, never the query
+    // string — a signed URL's Signature is hundreds of base64 characters.
+    const name = `stored-${url.split('?')[0].split('/').pop() || 'result'}`;
+    return {
+        path: `/api/assets/serve/generated/models/${name}`,
+        type: 'models' as const,
+        category: 'generated' as const,
+        name,
+        bytes: 1,
+    };
+});
+jest.mock('@/lib/server/persistRemoteAsset', () => ({
+    persistRemoteAsset: (...args: unknown[]) => mockPersistRemoteAsset(
+        ...args as [{ url: string }],
+    ),
+}));
+
 const job = (payload: Record<string, unknown>): QueueJobRecord => ({
     id: 'qjob_1',
     kind: 'remote-poll',
@@ -65,7 +88,7 @@ describe('runRemotePollJob', () => {
         const { context } = ctx(basePayload);
         const result = await runRemotePollJob(context);
 
-        expect(result).toEqual({ resultUrl: 'out.glb' });
+        expect(result).toEqual({ resultUrl: '/api/assets/serve/generated/models/stored-out.glb' });
         expect(mockLoadUserApiKeys).toHaveBeenCalledWith('alice');
         const [, init] = (global.fetch as jest.Mock).mock.calls[0];
         expect(init.headers.Authorization).toBe('Bearer secret-key');
@@ -103,7 +126,7 @@ describe('runRemotePollJob', () => {
         const { context, updates } = ctx(basePayload);
         const result = await runRemotePollJob(context);
 
-        expect(result.resultUrl).toBe('a.glb');
+        expect(result.resultUrl).toBe('/api/assets/serve/generated/models/stored-a.glb');
         expect((global.fetch as jest.Mock).mock.calls).toHaveLength(3);
         // Progress is reported as it advances, never as a completed fraction
         // before the result has actually been checked.
@@ -119,6 +142,65 @@ describe('runRemotePollJob', () => {
         expect((global.fetch as jest.Mock).mock.calls).toHaveLength(1);
     });
 
+
+    it('never hands the provider URL to the client', async () => {
+        // The bug this prevents: a Tripo GLB URL reached the browser, where it
+        // was blocked by CORS (no Access-Control-Allow-Origin on the CDN). The
+        // GLTF loader threw, took the WebGL context, and killed the page — and
+        // the signed URL expired anyway, so the generation was lost on reload.
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                status: 'SUCCEEDED',
+                progress: 100,
+                model_urls: { glb: 'https://tripo-data.example.com/x.glb?Signature=abc' },
+            }),
+        });
+
+        const result = await runRemotePollJob(ctx(basePayload).context);
+        expect(result.resultUrl).not.toContain('tripo-data');
+        expect(result.resultUrl).toMatch(/^\/api\/assets\/serve\//);
+        expect(mockPersistRemoteAsset).toHaveBeenCalledWith(expect.objectContaining({
+            url: 'https://tripo-data.example.com/x.glb?Signature=abc',
+            category: 'generated',
+            owner: 'alice',
+        }));
+    });
+
+    it('stores a 3D job under models and an image job under images', async () => {
+        // Decided from the job type, not the URL: a signed provider URL often
+        // carries no usable extension.
+        (global.fetch as jest.Mock).mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'SUCCEEDED', progress: 100, model_urls: { glb: 'r.glb' } }),
+        });
+
+        await runRemotePollJob(ctx({ ...basePayload, jobType: 'image-to-3d' }).context);
+        expect(mockPersistRemoteAsset).toHaveBeenLastCalledWith(
+            expect.objectContaining({ type: 'models' }),
+        );
+
+        await runRemotePollJob(ctx({ ...basePayload, jobType: 'hitems-relief' }).context);
+        expect(mockPersistRemoteAsset).toHaveBeenLastCalledWith(
+            expect.objectContaining({ type: 'images' }),
+        );
+    });
+
+    it('fails the job when the result cannot be stored', async () => {
+        // Falling back to the provider URL here would reproduce the exact bug;
+        // a failed job is retryable and honest, a poisoned URL is neither.
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'SUCCEEDED', progress: 100, model_urls: { glb: 'r.glb' } }),
+        });
+        mockPersistRemoteAsset.mockRejectedValueOnce(new Error('disk full'));
+
+        await expect(runRemotePollJob(ctx(basePayload).context)).rejects.toThrow(/disk full/);
+    });
+
     it('rides out transient 5xx responses instead of failing the job', async () => {
         (global.fetch as jest.Mock)
             .mockResolvedValueOnce({ ok: false, status: 503, text: async () => '' })
@@ -126,7 +208,7 @@ describe('runRemotePollJob', () => {
             .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'SUCCEEDED', model_urls: { glb: 'a.glb' } }) });
 
         const result = await runRemotePollJob(ctx(basePayload).context);
-        expect(result.resultUrl).toBe('a.glb');
+        expect(result.resultUrl).toBe('/api/assets/serve/generated/models/stored-a.glb');
     });
 
     it('gives up after repeated transport failures', async () => {
@@ -174,7 +256,7 @@ describe('runRemotePollJob', () => {
             const result = await runRemotePollJob(ctx(textToThree).context);
 
             // The refined model wins — that is the whole point of the chain.
-            expect(result.resultUrl).toBe('refined.glb');
+            expect(result.resultUrl).toBe('/api/assets/serve/generated/models/stored-refined.glb');
 
             const calls = (global.fetch as jest.Mock).mock.calls;
             expect(calls[1][1].method).toBe('POST');
@@ -192,7 +274,7 @@ describe('runRemotePollJob', () => {
 
             // A usable lower-quality model beats failing a job already paid for.
             const result = await runRemotePollJob(ctx(textToThree).context);
-            expect(result.resultUrl).toBe('preview.glb');
+            expect(result.resultUrl).toBe('/api/assets/serve/generated/models/stored-preview.glb');
         });
 
         it('does not refine an image-to-3d job', async () => {

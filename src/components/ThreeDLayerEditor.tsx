@@ -2,6 +2,31 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Canvas, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls as DreiOrbitControls, Stage, useGLTF, ContactShadows, Line } from '@react-three/drei';
+import ModelErrorBoundary from '@/components/three/ModelErrorBoundary';
+import ModelLoadFailure from '@/components/three/ModelLoadFailure';
+import {
+    CAMERA_VIEWS,
+    ENVIRONMENTS,
+    GIZMO_GROUP_NAME,
+    GIZMO_ORBIT_RADIUS,
+    LIGHT_PRESETS,
+    vecLength,
+    vecScaleTo,
+    type LightPreset,
+    type ModelBounds,
+    type Vec3,
+} from '@/components/three/threeDLayerPresets';
+
+// Re-exported: ThreeDModelLayerPanel imports these from here.
+export {
+    CAMERA_VIEWS,
+    ENVIRONMENTS,
+    GIZMO_GROUP_NAME,
+    GIZMO_ORBIT_RADIUS,
+    LIGHT_PRESETS,
+    vecScaleTo,
+};
+export type { LightPreset, ModelBounds, Vec3 };
 import { Check, X, RotateCw, Sun, Camera, Box, Palette, Wand2, Monitor } from 'lucide-react';
 import * as THREE from 'three';
 import * as fabric from 'fabric';
@@ -25,33 +50,6 @@ type CaptureGL = {
     camera: THREE.Camera;
     glInstance: THREE.WebGLRenderer;
 };
-
-type Vec3 = { x: number; y: number; z: number };
-
-export const GIZMO_ORBIT_RADIUS = 2.2;
-export const GIZMO_GROUP_NAME = 'light-gizmo-group';
-
-export type LightPreset = {
-    name: string;
-    labelKey: string;
-    swatch: string;
-    direction: Vec3;
-    intensity: number;
-    color: string;
-    ambient: number;
-};
-
-export const LIGHT_PRESETS: LightPreset[] = [
-    { name: 'Studio', labelKey: 'view3d.preset.studio', swatch: '#f5f5f5', direction: { x: 4, y: 6, z: 4 }, intensity: 1.3, color: '#ffffff', ambient: 0.4 },
-    { name: 'Golden Hour', labelKey: 'view3d.preset.goldenHour', swatch: '#ffb36b', direction: { x: 6, y: 1.6, z: 3 }, intensity: 1.6, color: '#ffb36b', ambient: 0.3 },
-    { name: 'Noon', labelKey: 'view3d.preset.noon', swatch: '#fff3c4', direction: { x: 0.5, y: 8, z: 2 }, intensity: 1.8, color: '#fff7e0', ambient: 0.5 },
-    { name: 'Dramatic', labelKey: 'view3d.preset.dramatic', swatch: '#c9c9c9', direction: { x: -6, y: 4, z: -1.5 }, intensity: 2.2, color: '#ffffff', ambient: 0.12 },
-    { name: 'Rim', labelKey: 'view3d.preset.rim', swatch: '#cfe4ff', direction: { x: 0, y: 3, z: -7 }, intensity: 2.4, color: '#cfe4ff', ambient: 0.2 },
-    { name: 'Soft', labelKey: 'view3d.preset.soft', swatch: '#efeae2', direction: { x: 3, y: 5, z: 5 }, intensity: 0.9, color: '#fff6ec', ambient: 0.7 },
-    { name: 'Moonlight', labelKey: 'view3d.preset.moonlight', swatch: '#7ea0ff', direction: { x: -4, y: 3.5, z: 4 }, intensity: 1.1, color: '#8fa8ff', ambient: 0.15 },
-];
-
-const ENVIRONMENTS = ['studio', 'city', 'apartment', 'dawn', 'sunset', 'forest', 'park', 'night', 'lobby', 'warehouse'] as const;
 
 /**
  * Lighting defaults remembered across sessions. Applied only when opening a NEW
@@ -97,21 +95,6 @@ const saveLightingDefaults = (defaults: LightingDefaults) => {
     }
 };
 
-const CAMERA_VIEWS: { name: string; labelKey: string; direction: Vec3 }[] = [
-    { name: 'Front', labelKey: 'view3d.view.front', direction: { x: 0, y: 0.25, z: 1 } },
-    { name: '¾ Left', labelKey: 'view3d.view.threeQuarterLeft', direction: { x: -1, y: 0.45, z: 1 } },
-    { name: '¾ Right', labelKey: 'view3d.view.threeQuarterRight', direction: { x: 1, y: 0.45, z: 1 } },
-    { name: 'Side', labelKey: 'view3d.view.side', direction: { x: 1, y: 0.15, z: 0 } },
-    { name: 'Top', labelKey: 'view3d.view.top', direction: { x: 0.01, y: 1, z: 0.15 } },
-];
-
-const vecLength = (v: Vec3) => Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
-export const vecScaleTo = (v: Vec3, length: number): Vec3 => {
-    const l = vecLength(v);
-    return { x: (v.x / l) * length, y: (v.y / l) * length, z: (v.z / l) * length };
-};
-
-export type ModelBounds = { groundY: number; radius: number };
 
 export const ModelViewer = ({ url, onBounds }: { url: string; onBounds?: (bounds: ModelBounds) => void }) => {
     const { scene } = useGLTF(url);
@@ -286,6 +269,8 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
     }
     const remembered = rememberedRef.current;
     const [lightPosition, setLightPosition] = useState<Vec3>(remembered.lightPosition ?? { x: 5, y: 5, z: 5 });
+    /** True once the model failed to load; hides controls that act on a scene that is not there. */
+    const [loadFailed, setLoadFailed] = useState(false);
     const [lightIntensity, setLightIntensity] = useState(remembered.lightIntensity ?? 1.2);
     const [lightColor, setLightColor] = useState(remembered.lightColor ?? '#ffffff');
     const [ambientIntensity, setAmbientIntensity] = useState(remembered.ambientIntensity ?? 0.35);
@@ -561,6 +546,14 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                             style={{ backgroundImage: 'radial-gradient(#888 1px, transparent 1px)', backgroundSize: '20px 20px' }}
                         ></div>
 
+                        {/* A model that will not load must not unmount the app.
+                            useGLTF throws on a failed fetch, and with no
+                            boundary that reached the React root — the editor
+                            vanished into the browser's own crash page. */}
+                        <ModelErrorBoundary
+                            onError={() => setLoadFailed(true)}
+                            fallback={<ModelLoadFailure onClose={onClose} />}
+                        >
                         <Canvas
                             shadows
                             gl={{ preserveDrawingBuffer: true, alpha: true }}
@@ -638,10 +631,13 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                                 enableDamping={false}
                             />
                         </Canvas>
+                        </ModelErrorBoundary>
 
-                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted-foreground bg-background/80 px-3 py-1 rounded-full backdrop-blur pointer-events-none whitespace-nowrap">
-                            {t('view3d.hint')}
-                        </div>
+                        {!loadFailed && (
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted-foreground bg-background/80 px-3 py-1 rounded-full backdrop-blur pointer-events-none whitespace-nowrap">
+                                {t('view3d.hint')}
+                            </div>
+                        )}
                     </div>
 
                     <div className="w-60 border-l border-border bg-card/60 overflow-y-auto p-3 text-xs shrink-0">

@@ -8,13 +8,18 @@
  * be replayed on every request. Here the key is read from the encrypted vault
  * and never leaves the server.
  *
- * Completion work stays on the client: persisting the asset, rendering a
- * thumbnail and placing the model on the canvas all need a canvas. This handler
- * establishes *that the job finished and where the result is*, and the SSE
- * stream tells the client to go and collect it.
+ * The finished result is **stored server-side before the client is told about
+ * it**. Provider URLs are signed, expiring and cross-origin: handing one to the
+ * browser meant the GLTF loader was blocked by CORS, threw, and took the WebGL
+ * context (and the page) with it — and the link expired regardless, so the
+ * generation was lost on the next reload. See persistRemoteAsset.
+ *
+ * The rest of completion stays on the client: rendering a thumbnail and placing
+ * the model on the canvas both need a canvas.
  */
 
 import { loadUserApiKeys } from '@/lib/server/user-key-vault';
+import { persistRemoteAsset } from '@/lib/server/persistRemoteAsset';
 import {
     isTerminalPollStatus,
     nextPollDelayMs,
@@ -98,6 +103,24 @@ async function startMeshyRefine(previewTaskId: string, apiKey: string): Promise<
     } catch {
         return null;
     }
+}
+
+/**
+ * Whether this job's result is a 3D mesh rather than an image.
+ *
+ * Decided from the job type, not the URL: a signed provider URL often has no
+ * usable extension, and `hitems-relief` returns an image while its sibling
+ * `hitems-split` returns a model.
+ */
+const MODEL_JOB_TYPES = new Set([
+    'generate-3d',
+    'image-to-3d',
+    'text-to-3d',
+    'hitems-split',
+]);
+
+function isModelJobType(jobType?: string): boolean {
+    return Boolean(jobType && MODEL_JOB_TYPES.has(jobType));
 }
 
 export const runRemotePollJob = async (
@@ -231,6 +254,15 @@ export const runRemotePollJob = async (
             throw new Error(`${provider} reported success without a result URL.`);
         }
 
-        return { resultUrl: outcome.resultUrl };
+        await update({ stage: 'store', progress: 0.99, message: 'Saving result...' });
+        const stored = await persistRemoteAsset({
+            url: outcome.resultUrl,
+            nameHint: `${provider}-${jobType || 'result'}`,
+            type: isModelJobType(jobType) ? 'models' : 'images',
+            category: 'generated',
+            owner,
+        });
+
+        return { resultUrl: stored.path };
     }
 };
