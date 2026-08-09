@@ -142,7 +142,7 @@ reconnects natively. `GET /api/queue` remains as a snapshot fallback.
 
 | Endpoint | Rule |
 |---|---|
-| `POST /api/queue/[id]/cancel` | Queued jobs only. Running → `409 job_not_cancellable`; handlers own their provider calls and cannot be interrupted safely. |
+| `POST /api/queue/[id]/cancel` | Queued → cancelled outright. Running → **cooperative stop**: the handler owns its provider calls, so it checks `ctx.stopRequested()` at its own safe points and exits cleanly. Terminal → `409 job_not_cancellable`. A job is recorded `cancelled` only when the handler *acknowledged* the stop; one that never checks completes and is `succeeded`. |
 | `POST /api/queue/[id]/retry` | Failed or cancelled only; resets `attempts` to zero. Otherwise `409 job_not_retryable`. |
 
 Two things make retry actually work: failed jobs **keep their uploads** (they
@@ -155,7 +155,9 @@ what redaction prevents.
 
 1. Write a handler `(ctx: QueueHandlerContext) => Promise<{resultUrl?} | void>`
    in `src/lib/server/jobQueue/handlers/`; call `ctx.update({stage, progress, message})`
-   as it advances.
+   as it advances. A handler that runs long should also check
+   `ctx.stopRequested()` at its safe points — between batches, never mid-write —
+   and return early; the scheduler then records the job as `cancelled`.
 2. Register it in `src/lib/server/jobQueue/index.ts`.
 3. Enqueue with `getQueue().enqueue({ kind, lane, external, label, payload })`.
 
@@ -321,11 +323,27 @@ all of the cost:
   queued behind it.
 - No `?w=`, so each generated image drew its tile from the ~1 MB original.
 
-It now streams, honours `Range`, answers `?w=` from the same thumbnail cache as
-the vault (measured: 976 KB → 5.2 KB per tile), and carries a size+mtime ETag so
-an unchanged file revalidates as a bodyless 304 in ~8 ms while an edited file is
-picked up immediately. `max-age` stays 0 on purpose: names can be reused, so
-correctness lives in the validator and speed in the 304.
+It now streams, honours `Range`, and answers `?w=` from the same thumbnail cache
+as the vault (measured: 976 KB → 5.2 KB per tile).
+
+**The validator must include the width.** A thumbnail and the full-size original
+are two *representations of the same URL*. Building the ETag from size+mtime
+alone gave both the same tag, so once a browser had cached a tile, revalidating
+the original matched the thumbnail's tag and the server answered **304 with no
+body** — the browser then rendered a 7 KB WebP where a 1.8 MB PNG was expected,
+or nothing at all. It surfaced as broken tiles, a broken image in the details
+panel and a preview window opening empty, and only ever *after* enough browsing
+to cache a thumbnail first, which is what made it look intermittent.
+
+**Caching differs by representation, deliberately:**
+
+| Response | `Cache-Control` | Why |
+|---|---|---|
+| Grid tile (`?w=`) | `private, max-age=300, must-revalidate` | Viewed over and over. `no-cache` cost a round trip *per tile, per open* — 841 ms of pure revalidation for 54 tiles, queued six-at-a-time. Reopening the vault now makes **0** tile requests where it made 48. |
+| Original | `private, no-cache` | Requested rarely and individually; correctness is worth the round trip. |
+
+Five minutes rather than a day: the URL does not change when the file does, so
+the max-age is exactly the window in which an edited image can look stale.
 
 ### Help → Technology
 

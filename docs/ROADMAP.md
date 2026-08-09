@@ -586,14 +586,23 @@ global pipeline rail. `POST /api/generate` no longer executes inline;
 [JOB_QUEUE.md](JOB_QUEUE.md), contract in [ARCHITECTURE.md](ARCHITECTURE.md) §2.
 
 **Open — in priority order:**
-1. **Move provider polling server-side.** Meshy/Tripo/Hitem3D/Stability are
-   still polled from the browser, so closing the tab abandons the job and the
-   3-concurrent cap is per-tab rather than global. This is the largest
-   remaining correctness gap in the queue.
-2. Running-job cancellation — needs abort signals threaded into provider calls.
-3. A full Activity panel with history and reorder. `BackgroundJobsPanel` today
+1. **Retire the browser poller.** Server-side polling shipped (F-04): the
+   browser hands Meshy/Tripo/Hitem3D/Stability tasks to the `remote-poll`
+   handler, so a closed tab no longer abandons a paid-for job. But the handoff
+   is best-effort and only applies to **signed-in** accounts — keys are vaulted
+   per account and Guest has none — so the browser poller is still the fallback
+   path and still carries a per-tab cap.
+2. A full Activity panel with history and reorder. `BackgroundJobsPanel` today
    serves only the legacy localStorage jobs, and only inside the Editor.
-4. OS-level notifications when the window is unfocused (Electron `Notification`).
+3. OS-level notifications when the window is unfocused (Electron `Notification`).
+
+**Closed since this section was written:** running-job cancellation. It did not
+need abort signals threaded into providers — a *cooperative* stop was both
+simpler and more honest. `cancel` flags the job, the handler checks
+`ctx.stopRequested()` between batches and returns, and a job is recorded
+`cancelled` only when the handler acknowledged the flag. One that never checks
+(a generation mid-provider-call) completes and reports `succeeded`, because
+labelling finished work "cancelled" would hide a real result.
 
 ### R-02 · Campaign Workspace (media overlay B2) — P1
 Promote the frame-to-variant bridge into a real campaign workspace: right-side

@@ -207,6 +207,27 @@ The left sidebar switches between:
 Search supports natural-language queries with type filters and sort hints, plus
 semantic similarity via local embeddings.
 
+**Find similar** works in two tiers: the same semantic index search uses, and —
+when an asset has no embedding yet — folder, type, filename and date affinity,
+which needs no indexing at all and reports *why* each match was chosen.
+
+**Grid tiles are resizable** with a six-step size slider, remembered between
+sessions, and are served as small cached renditions rather than full-size
+originals.
+
+### Indexing service — Shipped
+A skinny strip at the bottom of the vault runs indexing on demand. **Index now**
+precaches thumbnails and builds the semantic index across everything indexed,
+as a background service that chains bounded passes until the whole catalog is
+covered.
+
+It reports what it is doing in its own words — "Prepared 1,036 thumbnails —
+40,339 of 220,644 checked…" — with a progress bar and a **Stop** button. It runs
+below interactive work and pauses between batches, so browsing and generation
+stay responsive; a grid tile still served in ~110 ms while it was running.
+Progress is durable, so a restart costs at most one pass, and pressing Index now
+twice never doubles the work.
+
 ### Portable library bundles — Shipped
 Export the whole library (with owner/visibility metadata) as one file and
 re-import it elsewhere. Import dedupes deterministically by
@@ -260,6 +281,14 @@ frequency slider from *Occasionally* to *Annoying*. A zero-animation default is
 always available, and everything disables under `prefers-reduced-motion`.
 Bundled: the classic look, **Rococo**, and **Clarity — High Contrast**
 (AAA-contrast surfaces, 3px borders, bold-yellow focus rings).
+
+### Help → Technology — Shipped
+Help → Technology opens a searchable reference to everything the app is built
+on: 45 technologies across nine areas, each with what it does here and why it
+was chosen over the alternatives. The filter searches the reasoning too, so
+looking up a rejected option finds the entry explaining the decision. Stated
+versions are checked against the real dependency list on every build, so the
+page cannot quietly go out of date.
 
 ### Preferences — Shipped
 Settings → Workspace: theme mode and accent palette, tool-rail hover labels,

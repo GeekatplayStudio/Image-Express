@@ -87,17 +87,25 @@ The rail, SSE, persistence, recovery, retries, and notifications come for free.
 
 ## Tests
 
-- `src/lib/server/jobQueue/__tests__/scheduler.test.ts` — 13 tests: success path + persistence, GPU-lane serialization, remote-lane cap without cross-lane starvation, failure capture, in-run retry via `maxAttempts`, **zombie recovery**, event emission, cancellation, priority/FIFO ordering, explicit retry of failed and cancelled jobs, refusal to retry a succeeded job, refusal to cancel a running job.
+- `src/lib/server/jobQueue/__tests__/scheduler.test.ts` — 13 tests: success path + persistence, GPU-lane serialization, remote-lane cap without cross-lane starvation, failure capture, in-run retry via `maxAttempts`, **zombie recovery**, event emission, cancellation, priority/FIFO ordering, explicit retry of failed and cancelled jobs, refusal to retry a succeeded job, **cooperative stop of a running job** (and that a handler which never checks the flag still succeeds).
 - `src/components/__tests__/PipelineRail.test.tsx` — 8 tests: hidden when idle, preference off, stage segments render, toast on observed completion, silence for already-terminal jobs, cancel button POSTs the cancel endpoint, retry button POSTs retry and the failure reason renders, rejected actions raise a destructive toast.
 
 Note the test suite sets `IMAGE_EXPRESS_DATA_DIR` to a temp dir per test and flushes every scheduler before teardown — without both, an async queue write can land in the project's real `data/` directory after the env var is restored.
 
 ## Job control (cancel / retry)
 
-- `POST /api/queue/[id]/cancel` — queued jobs only. A running job returns
-  `409 job_not_cancellable`: handlers own their provider calls and cannot be
-  interrupted safely, so the API refuses rather than leaving a half-run job in
-  a lying state.
+- `POST /api/queue/[id]/cancel` — a **queued** job is cancelled outright; a
+  **running** job is asked to stop *cooperatively*. The handler owns its
+  provider calls and open handles, so it checks `ctx.stopRequested()` at its own
+  safe points (long passes check between batches), reports `Stopping…`
+  immediately so the UI does not look ignored, and exits cleanly. Only terminal
+  jobs return `409 job_not_cancellable`.
+
+  A job finishes as `cancelled` **only when the handler acknowledged the stop** —
+  it asked, was told yes, and returned early. A handler that never checks (a
+  generation mid-provider-call) completes in full and is recorded as
+  `succeeded`: reporting finished work as cancelled would hide a real result,
+  which is the opposite lie to the one this prevents.
 - `POST /api/queue/[id]/retry` — failed or cancelled jobs only; resets
   `attempts` to zero for a full fresh budget. `409 job_not_retryable` otherwise.
 - The rail exposes both inline: a **Cancel** button on queued jobs and a
@@ -123,7 +131,10 @@ newly-added methods will fail against the stale singleton.
 
 ## Known follow-ups
 
-- Move Meshy/Tripo/Hitems/Stability polling server-side (today the browser still polls; the rail shows those jobs but tab-close still abandons them).
-- Running-job cancellation (handler abort signals threaded into providers).
+- Retire the browser poller entirely. Meshy/Tripo/Hitems/Stability polling is
+  handed to the server (`serverPollHandoff.ts` → the `remote-poll` handler), so a
+  closed tab no longer abandons a paid-for generation — but the handoff is
+  best-effort and only applies to signed-in accounts, because keys are vaulted
+  per account and Guest has none. The browser poller remains the fallback.
 - OS-level notifications when the window is unfocused (Electron `Notification`).
 - An Activity panel (full queue history with reorder, Media Encoder-style). The existing `BackgroundJobsPanel` covers the legacy localStorage jobs inside the Editor and should be promoted to a global panel backed by the queue.
