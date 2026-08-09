@@ -62,14 +62,40 @@ export async function GET(
             return new NextResponse('Not a file', { status: 400 });
         }
 
-        // Weak validator from size+mtime: exactly the freshness the thumbnail
-        // cache key already relies on, and cheap to compute per request.
-        const etag = `W/"${stats.size.toString(16)}-${Math.round(stats.mtimeMs).toString(16)}"`;
+        const requestedWidth = Number(request.nextUrl.searchParams.get('w') || '');
+        const isThumbnailRequest = requestedWidth > 0;
+
+        /**
+         * Weak validator from size+mtime — plus the width, because `?w=256`
+         * and the full-size request are *different representations of the same
+         * URL*. Sharing one validator between them lets a revalidation of the
+         * original match the thumbnail's tag and receive a 304, at which point
+         * the browser renders cached WebP bytes as if they were the original.
+         */
+        const etag = `W/"${stats.size.toString(16)}-${Math.round(stats.mtimeMs).toString(16)}`
+            + `${isThumbnailRequest ? `-w${requestedWidth}` : ''}"`;
+
+        /**
+         * Thumbnails are cacheable for a short window; originals revalidate
+         * every time.
+         *
+         * `no-cache` on tiles was measured as a network round trip *per tile,
+         * per fresh open* — 54 tiles cost 841 ms of pure revalidation here, and
+         * a library of 200 pays that queued six-at-a-time behind whatever else
+         * the browser is fetching. A grid tile is the one thing viewed over and
+         * over, so it is the one thing that must not pay that.
+         *
+         * Five minutes rather than a day: the URL does not change when the file
+         * does, so the max-age is the window in which an edited image can look
+         * stale. Long enough to make browsing free, short enough that a re-save
+         * shows up while you are still looking at it.
+         */
         const baseHeaders: Record<string, string> = {
             etag,
             'accept-ranges': 'bytes',
-            // The validator carries correctness; the 304 carries the speed.
-            'cache-control': 'private, no-cache',
+            'cache-control': isThumbnailRequest
+                ? 'private, max-age=300, must-revalidate'
+                : 'private, no-cache',
             'x-content-type-options': 'nosniff',
         };
 
@@ -79,8 +105,7 @@ export async function GET(
 
         // A grid tile asks for a width. Same cache as the drive-indexed vault,
         // so the precache pass and this route never generate twice.
-        const requestedWidth = Number(request.nextUrl.searchParams.get('w') || '');
-        if (requestedWidth > 0) {
+        if (isThumbnailRequest) {
             const thumbnail = await getVaultThumbnail(filePath, requestedWidth);
             if (thumbnail) {
                 return new NextResponse(new Uint8Array(thumbnail.body), {

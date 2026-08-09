@@ -94,6 +94,47 @@ describe('asset serve route', () => {
         expect(response.headers.get('content-range')).toBe(`bytes */${BODY.length}`);
     });
 
+
+    it('gives the thumbnail and the original different validators', async () => {
+        // These are two representations of one URL. Sharing a validator meant a
+        // revalidation of the original matched the thumbnail's tag and got a
+        // bodiless 304 — so the browser rendered a cached WebP thumbnail as the
+        // full-size image, or nothing at all. That is what a user saw as a
+        // preview window opening empty, and only after enough browsing to have
+        // cached a thumbnail first.
+        const original = await call(['pic.png']);
+        const thumbnail = await call(['pic.png'], undefined, '?w=256');
+        expect(original.headers.get('etag')).toBeTruthy();
+        expect(thumbnail.headers.get('etag')).not.toBe(original.headers.get('etag'));
+    });
+
+    it('does not answer 304 when the validator came from the other variant', async () => {
+        const thumbnail = await call(['pic.png'], undefined, '?w=256');
+        const thumbEtag = thumbnail.headers.get('etag')!;
+
+        const response = await call(['pic.png'], { 'if-none-match': thumbEtag });
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe(BODY);
+    });
+
+    it('lets the browser cache a tile but keeps the original revalidating', async () => {
+        // A grid tile is viewed over and over, so it must not cost a network
+        // round trip per open — measured at 841 ms of pure revalidation for 54
+        // tiles. The original is requested rarely and stays strict.
+        const thumbnail = await call(['pic.png'], undefined, '?w=256');
+        expect(thumbnail.headers.get('cache-control')).toContain('max-age=300');
+
+        const original = await call(['pic.png']);
+        expect(original.headers.get('cache-control')).toBe('private, no-cache');
+    });
+
+    it('still revalidates a tile against its own validator', async () => {
+        const thumbnail = await call(['pic.png'], undefined, '?w=256');
+        const etag = thumbnail.headers.get('etag')!;
+        const again = await call(['pic.png'], { 'if-none-match': etag }, '?w=256');
+        expect(again.status).toBe(304);
+    });
+
     it('rejects path traversal', async () => {
         const response = await call(['..', 'secrets.txt']);
         expect(response.status).toBe(403);

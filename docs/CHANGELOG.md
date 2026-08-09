@@ -19,6 +19,30 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-09 — Thumbnails and previews: one cache-validator bug
+
+**A thumbnail and the full-size original shared a cache validator.** They are
+two representations of the same URL, and the ETag was built from size+mtime
+only. Once a browser had cached a tile, revalidating the *original* matched the
+*thumbnail's* tag and the server answered **304 with no body** — so the browser
+rendered a 7 KB WebP where a 1.8 MB PNG was expected, or nothing at all.
+
+That is why it took "a few clicks or navigations" to appear: it cannot happen
+until enough browsing has cached a thumbnail. It explains the broken tiles, the
+broken image in the details panel, and a preview window opening empty.
+Reproduced against the running server (`304, 0 bytes`), fixed by including the
+width in the validator, and pinned by tests.
+
+**Tiles are now cacheable.** `no-cache` cost a network round trip per tile per
+fresh open — measured at 841 ms of pure revalidation for 54 tiles, and a
+library of 200 pays that queued six-at-a-time behind everything else. Grid
+tiles get `max-age=300`; originals keep revalidating. Measured after: reopening
+the vault made **0 tile requests** where it previously made 48.
+
+Five minutes rather than a day, deliberately: the URL does not change when the
+file does, so the max-age is exactly the window in which an edited image can
+look stale.
+
 ## 2026-08-09 — Help → Technology: the stack, explained in the app
 
 **A presentable technology reference, in the app.** Help → Technology opens a
