@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import TechnologyModal from '@/components/about/TechnologyModal';
 import { ChevronDown } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -21,6 +22,9 @@ export default function EditorHeaderHelpMenu({
 }: EditorHeaderHelpMenuProps) {
     const { t } = useI18n();
     const [supportStatus, setSupportStatus] = useState('');
+    // Owned here rather than threaded down from EditorView: the Help menu is
+    // the only thing that opens it, and the modal positions itself.
+    const [showTechnology, setShowTechnology] = useState(false);
     const desktop = typeof window !== 'undefined' ? window.desktop : undefined;
     const runDesktopSupportAction = async (
         action: (() => Promise<{ success: boolean; message?: string }>) | undefined,
@@ -108,6 +112,16 @@ export default function EditorHeaderHelpMenu({
                         role="menuitem"
                         onClick={() => {
                             setShowHelpMenu(false);
+                            setShowTechnology(true);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                    >
+                        Technology
+                    </button>
+                    <button
+                        role="menuitem"
+                        onClick={() => {
+                            setShowHelpMenu(false);
                             void handleShowAboutFromMenu();
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
@@ -116,6 +130,7 @@ export default function EditorHeaderHelpMenu({
                     </button>
                 </div>
             )}
+            <TechnologyModal isOpen={showTechnology} onClose={() => setShowTechnology(false)} />
             <span className="sr-only" role="status" aria-live="polite">{supportStatus}</span>
         </div>
     );

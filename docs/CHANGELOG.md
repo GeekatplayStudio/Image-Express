@@ -19,6 +19,28 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-09 — Help → Technology: the stack, explained in the app
+
+**A presentable technology reference, in the app.** Help → Technology opens a
+searchable page covering 45 technologies across nine areas — foundation, canvas
+and document model, 3D, AI and generation, the vault and its vector search, the
+job queue, the API and security layer, MCP, and quality gates. Every entry says
+what the thing does *here* and why it was chosen, naming the alternatives that
+were rejected; the filter searches the reasoning too, so typing "better-sqlite3"
+finds the entry explaining why it is not used.
+
+**The content cannot go stale silently.** A test cross-checks every stated
+version against package.json, so upgrading, replacing or removing a dependency
+fails the build rather than leaving the app describing a stack it no longer has.
+
+Two rendering bugs found and fixed while verifying it in the browser: the dialog
+inherited the header's `backdrop-blur` as a containing block and anchored to the
+header instead of the viewport (now portalled to `<body>`), and at `z-70` the
+floating properties panel and tool flyouts painted straight through it (now
+`z-2500`). The file-size ratchet also caught the prop-threading through
+`EditorView` and `EditorHeaderMenus`; the Help menu owns the dialog instead, so
+neither large file changed at all.
+
 ## 2026-08-09 — Tripo/Hitem3D results no longer crash the editor
 
 **A finished 3D generation took the whole app down.** The job handed the

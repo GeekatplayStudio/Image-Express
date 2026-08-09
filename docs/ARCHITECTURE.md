@@ -327,6 +327,28 @@ an unchanged file revalidates as a bodyless 304 in ~8 ms while an edited file is
 picked up immediately. `max-age` stays 0 on purpose: names can be reused, so
 correctness lives in the validator and speed in the 304.
 
+### Help → Technology
+
+The in-app technology reference (`features/about/technologyStack.ts`, rendered
+by `components/about/TechnologyModal.tsx`). Content lives as structured data
+rather than JSX so it can be filtered, counted and — importantly — tested.
+
+Two decisions worth keeping:
+
+- **Versions are cross-checked against package.json by a test.** A dependency
+  that is upgraded, replaced or removed makes the suite fail rather than leaving
+  the app describing a stack it no longer has. `sharp` is looked up in
+  `node_modules` instead, because it is a transitive dependency of Next — which
+  is exactly the reason it was chosen.
+- **English only, deliberately.** The other technical docs are not translated
+  either, and pushing ~120 prose strings through eleven locale files would
+  produce eleven stale copies rather than eleven translations.
+
+The dialog is portalled to `<body>` and sits at `z-2500`. Both were bugs first:
+rendered in place it inherited the header's `backdrop-blur` as a containing
+block and anchored to the header instead of the viewport, and at `z-70` the
+floating properties panel (80) and tool flyouts (2000) painted through it.
+
 ### Provider results are stored before the client sees them
 
 Generation providers (Tripo, Meshy, Hitem3D) return a **signed, expiring,
