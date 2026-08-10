@@ -124,6 +124,26 @@ describe('projectStore', () => {
         expect(next.canvases[0].json!.objects![0].opacity).toBe(1);
     });
 
+    it('propagates the layer name of shared layers to other canvases', () => {
+        let project = makeProjectWithTwoCanvases();
+        project = updateCanvasSnapshot(project, project.canvases[0].id, {
+            objects: [{ id: 'a', sharedLayerId: 's', name: 'Hero shot', left: 10 }],
+        });
+        project = updateCanvasSnapshot(project, project.canvases[1].id, {
+            objects: [{ id: 'b', sharedLayerId: 's', name: 'image', left: 400 }],
+        });
+
+        const next = syncSharedLayerAcrossCanvases(project, project.canvases[0].id, {
+            sharedLayerId: 's',
+            name: 'Hero shot',
+            left: 10,
+        });
+
+        const other = next.canvases[1].json!.objects![0];
+        expect(other.name).toBe('Hero shot');
+        expect(other.left).toBe(400); // geometry stays per-canvas
+    });
+
     it('round-trips through localStorage persistence', () => {
         const project = makeProjectWithTwoCanvases();
         saveProject(project);
@@ -205,6 +225,24 @@ describe('projectStore federation level', () => {
         expect(synced.projects[1].canvases[0].json.objects[0].opacity).toBe(0.4);
         // source canvas untouched
         expect(synced.projects[0].canvases[0].json.objects[0].opacity).toBe(1);
+    });
+
+    it('syncs a shared layer rename across albums', () => {
+        let state = createProjectsState('P1', 100, 100);
+        state = addProject(state, 'P2', 100, 100);
+        const [p1, p2] = state.projects;
+        state = {
+            ...state,
+            projects: [
+                { ...p1, canvases: [{ ...p1.canvases[0], json: { objects: [{ id: 'a', sharedLayerId: 's', name: 'old', left: 5 }] } }] },
+                { ...p2, canvases: [{ ...p2.canvases[0], json: { objects: [{ id: 'b', sharedLayerId: 's', name: 'old', left: 90 }] } }] },
+            ],
+        };
+
+        const synced = syncSharedLayerAcrossProjects(state, p1.id, p1.canvases[0].id, { sharedLayerId: 's', name: 'renamed', left: 5 });
+        expect(synced.projects[1].canvases[0].json.objects[0].name).toBe('renamed');
+        // geometry stays per-canvas
+        expect(synced.projects[1].canvases[0].json.objects[0].left).toBe(90);
     });
 
     it('round-trips through storage and migrates the legacy single project', async () => {

@@ -142,8 +142,10 @@ still-editable 2D PNG layer.
 ### Multi-canvas and linked layers — Shipped
 Every album is a deck of pages you switch between instantly. Any layer marked
 **Linked** broadcasts into every other page, even across albums, and edits
-propagate live. The Stack view draws these links as glowing bridge curves.
-Bookshelves are a hard boundary — links never cross them.
+propagate live: renames, adjustments, filters, opacity, visibility, and fill
+sync to every linked copy, while position and size stay per-page. The Stack
+view draws these links as glowing bridge curves. Bookshelves are a hard
+boundary — links never cross them.
 
 ### Autosave — Shipped
 Off by default; enable in Settings → Workspace.

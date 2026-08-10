@@ -3,8 +3,8 @@ import { idbDelete, idbGet, idbPut, isIndexedDbAvailable, PROJECTS_RECORD_KEY } 
 // Project store for the multi-canvas workflow.
 // Hierarchy: a Bookshelf contains Projects (albums), a Project contains
 // Canvases (pages), a Canvas contains Layers (fabric objects). Layers marked
-// shared (sharedLayerId) are linked across canvases; adjustment settings
-// propagate through syncSharedLayerAcrossCanvases.
+// shared (sharedLayerId) are linked across canvases; identity and adjustment
+// settings (SHARED_SYNC_PROPS) propagate through syncSharedLayerAcrossCanvases.
 //
 // A Bookshelf is a hard resource boundary: shared layers never link or sync
 // across shelves. Two albums on different shelves that happen to carry the
@@ -158,9 +158,10 @@ export const listSharedLayerBridges = (project: Project): SharedLayerBridge[] =>
 };
 
 // Properties that propagate between linked layers. Geometry stays per-canvas;
-// adjustments and appearance are global, matching "linked layer adjustments
-// are global through all layers".
+// identity (name), adjustments and appearance are global, matching "linked
+// layer adjustments are global through all layers".
 const SHARED_SYNC_PROPS = [
+    'name',
     'adjustmentSettings',
     'adjustmentType',
     'isAdjustmentLayer',

@@ -224,6 +224,14 @@ page — including across albums. Mutations fan out to every linked instance
 without circular update loops. Bookshelves are a **hard resource boundary**:
 linked layers never sync across shelves.
 
+What fans out is the `SHARED_SYNC_PROPS` whitelist in `projectStore.ts`:
+identity (`name`) plus appearance and adjustments (filters, opacity,
+visibility, fill, adjustment settings). Geometry (position, scale, rotation)
+stays per-canvas by design. The fan-out rides `object:modified`, so any UI
+that mutates a synced prop in place must fire that event — the layer-panel
+rename and color swatches commit through it (debounced for color pickers,
+which stream a change per drag tick).
+
 ---
 
 ## 4. Asset Vault

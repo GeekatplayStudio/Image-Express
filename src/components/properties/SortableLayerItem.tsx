@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as fabric from 'fabric';
 import { useI18n } from '@/providers/I18nProvider';
 import { useSortable } from '@dnd-kit/sortable';
@@ -84,9 +84,31 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
     const isLocked = (obj as ExtendedFabricObject).locked === true; 
 
 
+    // Color pickers stream a change per drag tick; commit once the user
+    // settles so history and shared-layer sync see one edit, not dozens.
+    const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const commitObjectModified = (debounceMs = 0) => {
+        if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+        if (debounceMs <= 0) {
+            obj.canvas?.fire('object:modified', { target: obj });
+            return;
+        }
+        commitTimerRef.current = setTimeout(() => {
+            commitTimerRef.current = null;
+            obj.canvas?.fire('object:modified', { target: obj });
+        }, debounceMs);
+    };
+    useEffect(() => () => {
+        if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    }, []);
+
     const handleNameSave = () => {
         setIsEditing(false);
+        // Enter triggers this and then the input blurs, calling it again —
+        // only commit when the name actually changed.
+        if ((extendedObj.name ?? '') === name) return;
         obj.set('name', name);
+        commitObjectModified();
     };
 
     const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,13 +116,14 @@ export function SortableLayerItem({ id, obj, index, selectedIds, selectLayer, to
         setLayerColor(newColor);
         obj.set('fill', newColor);
         obj.canvas?.requestRenderAll();
+        commitObjectModified(300);
     };
 
     const handleTagColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newColor = e.target.value;
         setTagColor(newColor);
         extendedObj.set('layerTagColor', newColor);
-        // We don't need re-render canvas for this usually, but to be safe if we serialize later
+        commitObjectModified(300);
     };
 
     return (
