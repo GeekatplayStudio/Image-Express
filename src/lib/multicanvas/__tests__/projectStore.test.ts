@@ -113,12 +113,14 @@ describe('projectStore', () => {
             sharedLayerId: 's',
             opacity: 0.5,
             adjustmentSettings: { brightness: 0.2 },
+            channelSettings: { r: 1.1 },
             left: 10,
         });
 
         const other = next.canvases[1].json!.objects![0];
         expect(other.opacity).toBe(0.5);
         expect(other.adjustmentSettings).toEqual({ brightness: 0.2 });
+        expect(other.channelSettings).toEqual({ r: 1.1 });
         expect(other.left).toBe(400); // geometry stays per-canvas
         // Source canvas untouched by the sync
         expect(next.canvases[0].json!.objects![0].opacity).toBe(1);
@@ -161,7 +163,8 @@ describe('projectStore federation level', () => {
     const {
         createProjectsState, addProject, renameProject, deleteProject, duplicateProject,
         getActiveProject, updateActiveProject, listProjectLinks,
-        syncSharedLayerAcrossProjects, loadProjectsState, saveProjectsState,
+        syncSharedLayerAcrossProjects, replaceSharedLayerSourceAcrossProjects,
+        loadProjectsState, saveProjectsState,
         resetProjectsStateCache,
         // eslint-disable-next-line @typescript-eslint/no-require-imports
     } = require('@/lib/multicanvas/projectStore');
@@ -243,6 +246,45 @@ describe('projectStore federation level', () => {
         expect(synced.projects[1].canvases[0].json.objects[0].name).toBe('renamed');
         // geometry stays per-canvas
         expect(synced.projects[1].canvases[0].json.objects[0].left).toBe(90);
+    });
+
+    it('replaces a linked image source across albums, preserving each copy’s footprint', () => {
+        let state = createProjectsState('P1', 100, 100);
+        state = addProject(state, 'P2', 100, 100);
+        const [p1, p2] = state.projects;
+        state = {
+            ...state,
+            projects: [
+                { ...p1, canvases: [{ ...p1.canvases[0], json: { objects: [
+                    { id: 'a', type: 'Image', sharedLayerId: 's', src: 'old.png', width: 100, height: 50, scaleX: 2, scaleY: 2, cropX: 5, cropY: 5, left: 10 },
+                ] } }] },
+                { ...p2, canvases: [{ ...p2.canvases[0], json: { objects: [
+                    { id: 'b', type: 'image', sharedLayerId: 's', src: 'old.png', width: 100, height: 50, scaleX: 1, scaleY: 4, left: 70 },
+                    { id: 'c', type: 'image', sharedLayerId: 'other', src: 'old.png', width: 100, height: 50 },
+                ] } }] },
+            ],
+        };
+
+        const next = replaceSharedLayerSourceAcrossProjects(state, p1.id, 's', { src: 'new.png', width: 200, height: 100, name: 'New asset' });
+
+        const a = next.projects[0].canvases[0].json.objects[0];
+        expect(a.src).toBe('new.png');
+        expect(a.width).toBe(200);
+        expect(a.height).toBe(100);
+        expect(a.scaleX).toBe(1); // 2 * (100/200): same rendered width
+        expect(a.scaleY).toBe(1); // 2 * (50/100): same rendered height
+        expect(a.cropX).toBe(0); // crop cleared, it belonged to the old pixels
+        expect(a.left).toBe(10); // position untouched
+
+        const b = next.projects[1].canvases[0].json.objects[0];
+        expect(b.src).toBe('new.png');
+        expect(b.scaleX).toBe(0.5); // 1 * (100/200)
+        expect(b.scaleY).toBe(2); // 4 * (50/100)
+        expect(b.left).toBe(70);
+        expect(b.name).toBe('New asset');
+
+        // A different linked group is untouched
+        expect(next.projects[1].canvases[0].json.objects[1].src).toBe('old.png');
     });
 
     it('round-trips through storage and migrates the legacy single project', async () => {

@@ -226,11 +226,29 @@ linked layers never sync across shelves.
 
 What fans out is the `SHARED_SYNC_PROPS` whitelist in `projectStore.ts`:
 identity (`name`) plus appearance and adjustments (filters, opacity,
-visibility, fill, adjustment settings). Geometry (position, scale, rotation)
-stays per-canvas by design. The fan-out rides `object:modified`, so any UI
-that mutates a synced prop in place must fire that event — the layer-panel
-rename and color swatches commit through it (debounced for color pickers,
-which stream a change per drag tick).
+visibility, fill, adjustment settings, channel settings). Geometry (position,
+scale, rotation) stays per-canvas by design. The fan-out rides
+`object:modified`, so any UI that mutates a synced prop in place must fire
+that event — the layer-panel rename and color swatches commit through it
+(debounced for color pickers, which stream a change per drag tick).
+
+Three timing rules keep the fan-out honest:
+
+- **Debounced commits flush on switch.** Adjustment sliders trail their
+  `object:modified` by 600 ms. `snapshotLoadedCanvas` dispatches
+  `FLUSH_PENDING_EDITS_EVENT` on window before serializing; panels holding a
+  pending commit fire it synchronously, while the loaded-canvas refs still
+  point at the right page. Fired late, the sync would skip the newly opened
+  page and the edit would be re-snapshotted away.
+- **`loadFromJSON`'s second argument is a reviver, not a callback** (fabric
+  v7). Post-load work (artboard restore, history rebase) chains on the
+  returned promise instead.
+- **Replace Asset is a dedicated fan-out.** Swapping an image's pixels
+  (`replaceSharedLayerSourceAcrossProjects`) rewrites `src` on every linked
+  copy on the shelf, compensating each copy's scale for the new natural size
+  so its rendered footprint is unchanged, and clearing crops (they belonged
+  to the old pixels). `src` is deliberately NOT in `SHARED_SYNC_PROPS` — it
+  can be a multi-megabyte data URL, too heavy to copy on every modify.
 
 ---
 

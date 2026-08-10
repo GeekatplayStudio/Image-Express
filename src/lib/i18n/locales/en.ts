@@ -1172,6 +1172,9 @@ const en: LocaleDictionary = {
     'panel.addAdjustment': 'Add Adjustment Layer',
     'panel.aiFeatures': 'AI Features',
     'panel.convertTo3D': 'Convert to 3D',
+    'panel.asset': 'Asset',
+    'panel.replaceAsset': 'Replace Asset',
+    'panel.replaceAssetImageOnly': 'Pick an image asset to replace an image layer.',
 
     // Adjustment type labels
     'adjust.curves': 'Curves',

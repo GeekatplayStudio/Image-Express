@@ -93,6 +93,7 @@ import ComfyMaskEditor from '@/components/comfy/ComfyMaskEditor';
 import { captureComfyLayersSource, type ComfyCapturedSource } from '@/components/comfy/comfyCanvasSources';
 import { applyRasterMaskToObject } from '@/lib/layerMasks';
 import { cn } from '@/lib/utils';
+import { FLUSH_PENDING_EDITS_EVENT } from '@/lib/multicanvas/projectStore';
 import { saveUiPreferences } from '@/lib/ui-preferences';
 
 interface CustomObjectState {
@@ -135,6 +136,8 @@ interface PropertiesPanelProps {
     onMake3D?: (imageUrl: string) => void;
     onDuplicate?: () => void;
     onAssetSelect?: (url: string, type: string, name?: string) => void;
+    /** Replace the selected image layer's pixels with a picked asset (opens the asset browser). */
+    onReplaceAsset?: (target: fabric.Object) => void;
     historyState?: { undo: number; redo: number };
     onUndo?: () => void;
     onRedo?: () => void;
@@ -182,6 +185,7 @@ export default function PropertiesPanel({
     onFocusProperties,
     onMake3D,
     onDuplicate,
+    onReplaceAsset,
     historyState,
     onUndo,
     onRedo,
@@ -1584,20 +1588,38 @@ export default function PropertiesPanel({
     // Sliders emit per-tick, so the commit trails the edit burst: one history
     // entry and one cross-canvas sync per gesture, not per pixel of drag.
     const adjustmentCommitTimerRef = useRef<number | null>(null);
+    const pendingAdjustmentTargetRef = useRef<ExtendedFabricObject | null>(null);
     const commitAdjustmentEdit = useCallback((target: ExtendedFabricObject) => {
         if (adjustmentCommitTimerRef.current !== null) {
             window.clearTimeout(adjustmentCommitTimerRef.current);
         }
+        pendingAdjustmentTargetRef.current = target;
         adjustmentCommitTimerRef.current = window.setTimeout(() => {
             adjustmentCommitTimerRef.current = null;
+            pendingAdjustmentTargetRef.current = null;
             canvas?.fire('object:modified', { target });
         }, 600);
     }, [canvas]);
-    useEffect(() => () => {
-        if (adjustmentCommitTimerRef.current !== null) {
+    // A page/album switch snapshots the canvas mid-debounce: fire the pending
+    // commit synchronously first, or the sync runs after the switch against
+    // the wrong page and the edit never reaches the linked copies.
+    useEffect(() => {
+        const flush = () => {
+            if (adjustmentCommitTimerRef.current === null) return;
             window.clearTimeout(adjustmentCommitTimerRef.current);
-        }
-    }, []);
+            adjustmentCommitTimerRef.current = null;
+            const target = pendingAdjustmentTargetRef.current;
+            pendingAdjustmentTargetRef.current = null;
+            if (target) canvas?.fire('object:modified', { target });
+        };
+        window.addEventListener(FLUSH_PENDING_EDITS_EVENT, flush);
+        return () => {
+            window.removeEventListener(FLUSH_PENDING_EDITS_EVENT, flush);
+            if (adjustmentCommitTimerRef.current !== null) {
+                window.clearTimeout(adjustmentCommitTimerRef.current);
+            }
+        };
+    }, [canvas]);
 
     const updateAdjustment = (updates: Partial<AdjustmentLayerSettings>) => {
         if (!selectedObject || !selectedObject.isAdjustmentLayer) return;
@@ -3816,6 +3838,7 @@ export default function PropertiesPanel({
                 shadowEnabled, shadowColor, shadowBlur, shadowOpacity, shadowOffsetX, shadowOffsetY, shadowBlend
              }}
              onMake3D={onMake3D}
+             onReplaceAsset={onReplaceAsset}
         />
     );
 }

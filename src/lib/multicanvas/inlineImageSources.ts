@@ -98,6 +98,26 @@ const walkSerialized = (entries: SerializedLayer[] | undefined, liveById: Map<st
     }
 };
 
+/**
+ * Rasterize a live element to a durable data URL plus its resulting pixel
+ * size (downscaled to the inline ceiling). Used when a volatile blob: source
+ * must be handed to snapshots of OTHER pages, which cannot re-rasterize from
+ * a live object the way `inlineVolatileImageSources` does.
+ */
+export function rasterizeElementToDataUrl(
+    element: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement,
+): { dataUrl: string; width: number; height: number } | null {
+    const result = rasterizeElement(element, MAX_INLINED_DIM);
+    if (!result) return null;
+    const width = 'naturalWidth' in element ? element.naturalWidth || element.width : element.width;
+    const height = 'naturalHeight' in element ? element.naturalHeight || element.height : element.height;
+    return {
+        dataUrl: result.dataUrl,
+        width: Math.max(1, Math.round(width * result.scale)),
+        height: Math.max(1, Math.round(height * result.scale)),
+    };
+}
+
 /** Rewrite blob: image sources in `json` to data URLs. Mutates and returns `json`. */
 export function inlineVolatileImageSources(canvas: fabric.Canvas, json: SerializedCanvasJson): SerializedCanvasJson {
     if (typeof document === 'undefined') return json;

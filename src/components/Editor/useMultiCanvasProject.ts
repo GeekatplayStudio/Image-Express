@@ -6,8 +6,9 @@ import { captureCanvasThumbnail } from '@/lib/multicanvas/canvasThumbnail';
 import { inlineVolatileImageSources } from '@/lib/multicanvas/inlineImageSources';
 import type { ExtendedFabricObject } from '@/types';
 import { useI18n } from '@/providers/I18nProvider';
-import type { Project, ProjectsState, SerializedCanvasJson, SerializedLayer } from '@/lib/multicanvas/projectStore';
+import type { Project, ProjectsState, ReplacedAssetSource, SerializedCanvasJson, SerializedLayer } from '@/lib/multicanvas/projectStore';
 import {
+    FLUSH_PENDING_EDITS_EVENT,
     addBookshelf as addBookshelfToState,
     addCanvas as addCanvasToProject,
     addProject as addProjectToState,
@@ -25,6 +26,7 @@ import {
     renameBookshelf as renameBookshelfInState,
     renameCanvas as renameCanvasInProject,
     renameProject as renameProjectInState,
+    replaceSharedLayerSourceAcrossProjects,
     saveProjectsState,
     setActiveBookshelf,
     setActiveCanvas,
@@ -128,6 +130,13 @@ export function useMultiCanvasProject({
     // Snapshot the canvas that is actually loaded in the editor, into the
     // project it belongs to (which may not be the selected project).
     const snapshotLoadedCanvas = useCallback((base?: ProjectsState): ProjectsState | null => {
+        // Panels may hold a debounced object:modified commit (adjustment
+        // sliders). Flush it now, while the loaded-canvas refs still point at
+        // the page being snapshotted — fired after the switch, the sync would
+        // attribute the edit to the wrong page and the edit would be lost.
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event(FLUSH_PENDING_EDITS_EVENT));
+        }
         const current = base ?? getFreshState();
         if (!current) return null;
         const json = serializeEditorCanvas();
@@ -184,7 +193,10 @@ export function useMultiCanvasProject({
         loadedProjectIdRef.current = project.id;
         loadedCanvasIdRef.current = canvasId;
         if (target.json) {
-            void canvas.loadFromJSON(target.json, restoreArtboard);
+            // The second loadFromJSON argument is a per-object REVIVER in
+            // fabric v7, invoked before the canvas is cleared and refilled —
+            // post-load work passed there runs against the outgoing page.
+            void canvas.loadFromJSON(target.json).then(restoreArtboard);
         } else {
             // A brand-new page: remove the previous page's objects AND its
             // canvas-level state. Background/overlay images live on the canvas
@@ -534,11 +546,26 @@ export function useMultiCanvasProject({
         };
     }, [canvas, commit, customHistoryProps, getFreshState]);
 
+    // Fan a replaced image source out to every linked copy on the shelf.
+    // Updating the live fabric object is the caller's job; this rewrites the
+    // stored page snapshots (footprint preserved per copy by the store).
+    const replaceSharedLayerSource = useCallback((sharedLayerId: string, source: ReplacedAssetSource) => {
+        const current = getFreshState();
+        if (!current) return;
+        commit(replaceSharedLayerSourceAcrossProjects(
+            current,
+            loadedProjectIdRef.current ?? current.activeProjectId,
+            sharedLayerId,
+            source,
+        ));
+    }, [commit, getFreshState]);
+
     const project = projectsState ? getActiveProject(projectsState) : null;
 
     return {
         projectsState,
         project,
+        replaceSharedLayerSource,
         isStackViewOpen,
         openStackView,
         closeStackView: () => setIsStackViewOpen(false),

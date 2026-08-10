@@ -14,7 +14,7 @@ import { SkewTaperProperties } from './SkewTaperProperties';
 import { AdjustmentControls } from './AdjustmentControls';
 import { ThreeDLayerProperties } from './ThreeDLayerProperties';
 import { readMaskGradientSettings } from './maskGradientUtils';
-import { Folder, Layers, Blend, ChevronDown, ChevronRight, Lock, Unlock, Box, Type, CornerLeftDown, Pencil, Check } from 'lucide-react';
+import { Folder, Layers, Blend, ChevronDown, ChevronRight, Lock, Unlock, Box, Type, CornerLeftDown, Pencil, Check, ImageUp } from 'lucide-react';
 import { ColorPicker } from './ColorPicker';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -72,7 +72,9 @@ interface SelectionPropertiesProps {
     onAdjustmentTypeChange?: (type: AdjustmentLayerType) => void;
     onCreateAdjustmentLayer?: (type: AdjustmentLayerType) => void;
     onMake3D?: (imageUrl: string) => void;
-    
+    /** Open the asset browser and replace this image layer's pixels in place. */
+    onReplaceAsset?: (target: fabric.Object) => void;
+
     // Specific state overrides that might not be on object directly or need React state
     textState?: { text: string; font: string; weight: string; curve: number; center: number; span: number; spellcheck: boolean; bgEnabled: boolean; bgColor: string; bgPadding: number; bgCorners: number; bgStyle: 'rect' | 'pill' | 'speech' };
     activeTextEffects?: string[];
@@ -116,6 +118,7 @@ export function SelectionProperties({
     onAdjustmentTypeChange,
     onCreateAdjustmentLayer,
     onMake3D,
+    onReplaceAsset,
     textState,
     activeTextEffects,
     textEffectConfigs,
@@ -757,6 +760,23 @@ export function SelectionProperties({
                         ))}
                     </div>
                 </div>
+            )}
+
+            {/* Replace the image's pixels with a different asset, keeping
+                position/scale/filters — and every linked copy follows. */}
+            {isImage && onReplaceAsset && !isAdjustment && (
+                 <div className="p-4 border-b border-border/50">
+                     <h3 className="font-medium text-xs text-muted-foreground uppercase mb-3 flex items-center gap-2">
+                         {t('panel.asset')}
+                     </h3>
+                     <button
+                        onClick={() => { if (selectedObject) onReplaceAsset(selectedObject); }}
+                        className="w-full flex items-center justify-center gap-2 bg-secondary/30 hover:bg-secondary/50 border border-border/60 text-foreground text-xs py-2 rounded shadow-sm transition-all"
+                     >
+                        <ImageUp size={14} />
+                        {t('panel.replaceAsset')}
+                     </button>
+                 </div>
             )}
 
             {/* AI Action for Text/Image */}

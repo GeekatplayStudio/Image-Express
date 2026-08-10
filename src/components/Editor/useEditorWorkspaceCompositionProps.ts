@@ -74,6 +74,7 @@ type UseEditorWorkspaceCompositionPropsArgs = {
     toggleFloat: () => void;
     handleDuplicate: () => void;
     handleAssetSelect: (url: string, type: string, name?: string) => void;
+    handleReplaceAsset?: (target: fabric.Object) => void;
     historyState: { undo: number; redo: number };
     handleUndo: () => void;
     handleRedo: () => void;
@@ -151,6 +152,7 @@ export function useEditorWorkspaceCompositionProps(args: UseEditorWorkspaceCompo
         toggleFloat,
         handleDuplicate,
         handleAssetSelect,
+        handleReplaceAsset,
         historyState,
         handleUndo,
         handleRedo,
@@ -184,6 +186,7 @@ export function useEditorWorkspaceCompositionProps(args: UseEditorWorkspaceCompo
     const propertiesPanelContentControls = {
         handleDuplicate,
         handleAssetSelect,
+        handleReplaceAsset,
         historyState,
         handleUndo,
         handleRedo,

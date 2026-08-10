@@ -29,6 +29,7 @@ type PanelChromeControls = {
 type PanelContentControls = {
     handleDuplicate: NonNullable<PropertiesPanelProps['onDuplicate']>;
     handleAssetSelect: NonNullable<PropertiesPanelProps['onAssetSelect']>;
+    handleReplaceAsset?: PropertiesPanelProps['onReplaceAsset'];
     historyState: PropertiesPanelProps['historyState'];
     handleUndo: NonNullable<PropertiesPanelProps['onUndo']>;
     handleRedo: NonNullable<PropertiesPanelProps['onRedo']>;
@@ -79,6 +80,7 @@ export default function EditorPropertiesPanels({
     const {
         handleDuplicate,
         handleAssetSelect,
+        handleReplaceAsset,
         historyState,
         handleUndo,
         handleRedo,
@@ -125,6 +127,7 @@ export default function EditorPropertiesPanels({
             onMake3D={onOpenThreeDFromSelection}
             onDuplicate={handleDuplicate}
             onAssetSelect={handleAssetSelect}
+            onReplaceAsset={handleReplaceAsset}
             historyState={historyState}
             onUndo={handleUndo}
             onRedo={handleRedo}

@@ -51,6 +51,14 @@ export type Project = {
 export const PROJECT_STORAGE_KEY = 'image-express-project';
 export const PROJECT_CHANGED_EVENT = 'image-express:project-changed';
 
+/**
+ * Dispatched on window right before the loaded canvas is snapshotted (page or
+ * album switch). Panels holding a debounced `object:modified` commit must fire
+ * it synchronously on this event, or the pending edit is attributed to the
+ * wrong page — or lost — once the switch completes.
+ */
+export const FLUSH_PENDING_EDITS_EVENT = 'image-express:flush-pending-edits';
+
 /** The shelf every pre-bookshelf workspace is migrated onto. */
 export const DEFAULT_BOOKSHELF_ID = 'shf-default';
 
@@ -170,6 +178,7 @@ const SHARED_SYNC_PROPS = [
     'visible',
     'fill',
     'baseFilters',
+    'channelSettings',
 ] as const;
 
 export const syncSharedLayerAcrossCanvases = (
@@ -542,6 +551,63 @@ export const syncSharedLayerAcrossProjects = (
                 ? project
                 : syncSharedLayerAcrossCanvases(project, project.id === sourceProjectId ? sourceCanvasId : '', sourceLayer)
         )),
+    };
+};
+
+/** New image source for a replaced asset: url plus its natural dimensions. */
+export type ReplacedAssetSource = {
+    src: string;
+    width: number;
+    height: number;
+    name?: string;
+};
+
+/**
+ * Swap the image source of every linked copy of a layer across the source
+ * album's shelf. Each copy keeps its own rendered footprint: scale is
+ * compensated for the new image's natural size, and any crop is cleared.
+ * The live fabric object on the loaded canvas is the caller's to update.
+ */
+export const replaceSharedLayerSourceAcrossProjects = (
+    state: ProjectsState,
+    sourceProjectId: string,
+    sharedLayerId: string,
+    source: ReplacedAssetSource,
+): ProjectsState => {
+    if (!sharedLayerId || !source.src || source.width <= 0 || source.height <= 0) return state;
+    const scope = bookshelfIdOfProject(state, sourceProjectId);
+    return {
+        ...state,
+        projects: state.projects.map((project) => {
+            if (project.bookshelfId !== scope) return project;
+            return {
+                ...project,
+                canvases: project.canvases.map((canvas) => {
+                    if (!canvas.json?.objects) return canvas;
+                    let touched = false;
+                    const objects = canvas.json.objects.map((layer) => {
+                        if (layer.sharedLayerId !== sharedLayerId || layer.type?.toLowerCase() !== 'image') return layer;
+                        touched = true;
+                        const oldW = typeof layer.width === 'number' && layer.width > 0 ? layer.width : source.width;
+                        const oldH = typeof layer.height === 'number' && layer.height > 0 ? layer.height : source.height;
+                        const scaleX = typeof layer.scaleX === 'number' ? layer.scaleX : 1;
+                        const scaleY = typeof layer.scaleY === 'number' ? layer.scaleY : 1;
+                        return {
+                            ...layer,
+                            src: source.src,
+                            width: source.width,
+                            height: source.height,
+                            cropX: 0,
+                            cropY: 0,
+                            scaleX: scaleX * (oldW / source.width),
+                            scaleY: scaleY * (oldH / source.height),
+                            ...(source.name ? { name: source.name } : {}),
+                        };
+                    });
+                    return touched ? { ...canvas, json: { ...canvas.json, objects } } : canvas;
+                }),
+            };
+        }),
     };
 };
 

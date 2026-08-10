@@ -15,7 +15,7 @@ import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
 import { loadUiPreferences } from '@/lib/ui-preferences';
 import * as fabric from 'fabric';
 import type { GridType } from '@/components/GridOverlay';
-import { ColorPalette } from '@/types';
+import { ColorPalette, type ExtendedFabricObject } from '@/types';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import useAppTheme from '@/hooks/useAppTheme';
@@ -38,6 +38,8 @@ import { useEditorTextControls } from '@/components/Editor/useEditorTextControls
 import { useEditorHistory } from '@/components/Editor/useEditorHistory';
 import { useEditorPanelState } from '@/components/Editor/useEditorPanelState';
 import { useEditorCanvasAssetActions } from '@/components/Editor/useEditorCanvasAssetActions';
+import { setLayerElementPreservingSize } from '@/lib/threeDLayer/bake';
+import { rasterizeElementToDataUrl } from '@/lib/multicanvas/inlineImageSources';
 import { useEditorBackgroundJobControls } from '@/components/Editor/useEditorBackgroundJobControls';
 import { useEditorTopCanvasControls } from '@/components/Editor/useEditorTopCanvasControls';
 import { useEditorCanvasInteractionEffects } from '@/components/Editor/useEditorCanvasInteractionEffects';
@@ -761,6 +763,7 @@ export default function EditorView({
         toggleShareActiveLayer,
         shareActiveLayerWithProjects,
         saveActiveCanvasSnapshot,
+        replaceSharedLayerSource,
     } = useMultiCanvasProject({
         canvas,
         designName: propDesignName,
@@ -771,6 +774,64 @@ export default function EditorView({
         onStorageFull: handleProjectStorageFull,
         onCanvasSwapped: resetHistory,
     });
+
+    // "Replace asset" one-shot picker: the properties panel stores a callback
+    // here and opens the vault; the next vault selection is consumed by the
+    // callback instead of adding a new layer. Cleared when the vault closes.
+    const pendingAssetPickRef = useRef<((url: string, type: string, name?: string) => void) | null>(null);
+    useEffect(() => {
+        if (!showAssetVault) pendingAssetPickRef.current = null;
+    }, [showAssetVault]);
+
+    const handleVaultSelect = useCallback((url: string, type: string, name?: string) => {
+        const pending = pendingAssetPickRef.current;
+        if (pending) {
+            pendingAssetPickRef.current = null;
+            pending(url, type, name);
+            return;
+        }
+        handleAssetSelect(url, type, name);
+    }, [handleAssetSelect]);
+
+    const handleReplaceAsset = useCallback((target: fabric.Object) => {
+        pendingAssetPickRef.current = (url, type, name) => {
+            if (type !== 'image') {
+                toast({ title: t('panel.replaceAsset'), description: t('panel.replaceAssetImageOnly'), variant: 'destructive' });
+                return;
+            }
+            void (async () => {
+                try {
+                    const el = await fabric.util.loadImage(url, { crossOrigin: 'anonymous' });
+                    if (!el?.naturalWidth || !el.naturalHeight) return;
+                    const image = target as fabric.Image & ExtendedFabricObject;
+                    // Swap pixels in place, keeping the rendered footprint:
+                    // scale is recomputed for the new natural size, crop cleared.
+                    setLayerElementPreservingSize(image, el);
+                    image.set({ cropX: 0, cropY: 0 });
+                    if (name) image.set('name', name);
+                    image.setCoords();
+                    if (typeof image.applyFilters === 'function') image.applyFilters();
+                    canvas?.requestRenderAll();
+                    if (image.sharedLayerId) {
+                        // blob: URLs die with the session — hand the linked
+                        // copies on other pages a durable source instead.
+                        const durable = url.startsWith('blob:') ? rasterizeElementToDataUrl(el) : null;
+                        replaceSharedLayerSource(image.sharedLayerId, durable
+                            ? { src: durable.dataUrl, width: durable.width, height: durable.height, name }
+                            : { src: url, width: el.naturalWidth, height: el.naturalHeight, name });
+                    }
+                    // History entry + linked-prop sync (name, filters, ...).
+                    canvas?.fire('object:modified', { target: image });
+                } catch (error) {
+                    console.warn('Replace asset failed:', error);
+                }
+            })();
+        };
+        setVaultInitialFilter(undefined);
+        setVaultInitialBookcaseId('bc_images');
+        setVaultFocusSearch(false);
+        setShowAssetVault(true);
+    }, [canvas, replaceSharedLayerSource, t, toast]);
 
     // Saving asks whether this page should be saved standalone (server-side
     // "Saved Pages") or as part of its multi-page album (local project store,
@@ -1039,6 +1100,7 @@ export default function EditorView({
         toggleFloat,
         handleDuplicate,
         handleAssetSelect,
+        handleReplaceAsset,
         historyState,
         handleUndo,
         handleRedo,
@@ -1374,7 +1436,7 @@ export default function EditorView({
                 vaultInitialFilter={vaultInitialFilter}
                 vaultInitialBookcaseId={vaultInitialBookcaseId}
                 vaultFocusSearch={vaultFocusSearch}
-                onAssetVaultSelect={handleAssetSelect}
+                onAssetVaultSelect={handleVaultSelect}
                 onOpenClassicLibrary={() => setActiveTool('assets')}
             />
 
