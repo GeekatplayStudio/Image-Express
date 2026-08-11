@@ -143,6 +143,9 @@ function prepareUserDataLayout(standaloneDir) {
   const dataDir = path.join(userDataRoot, 'data');
   const assetsDir = path.join(userDataRoot, 'assets');
   const logsDir = path.join(userDataRoot, 'logs');
+  // Lives outside the resources dir (which electron-builder replaces wholesale on every
+  // update) so a multi-GB ComfyUI checkout survives app updates instead of being wiped.
+  const comfyDir = path.join(userDataRoot, 'ComfyUI');
   const migrationMarker = path.join(userDataRoot, '.storage-v2-migrated.json');
 
   for (const directory of [userDataRoot, dataDir, assetsDir, logsDir]) {
@@ -168,7 +171,7 @@ function prepareUserDataLayout(standaloneDir) {
     }, null, 2));
   }
 
-  return { dataDir, assetsDir, logsDir };
+  return { dataDir, assetsDir, logsDir, comfyDir };
 }
 
 function resolveResource(...segments) {
@@ -247,6 +250,7 @@ async function startProductionServer() {
         IMAGE_EXPRESS_ASSETS_DIR: userPaths.assetsDir,
         IMAGE_EXPRESS_LOGS_DIR: userPaths.logsDir,
         IMAGE_EXPRESS_BUNDLED_PUBLIC_DIR: path.join(standaloneDir, 'public'),
+        IMAGE_EXPRESS_COMFY_DIR: userPaths.comfyDir,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

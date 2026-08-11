@@ -1,10 +1,10 @@
 import path from 'path';
 import {
-    REPO_ROOT,
     formatTaskLabel,
     parseInstallerFlags,
     pathExists,
     readInstallerConfig,
+    resolveComfyDirectory,
     runCommand,
     runNodeScript,
 } from './installers/common.mjs';
@@ -18,7 +18,7 @@ async function ensureComfyInstall({ comfyDir, autoFix, dryRun }) {
     console.log('Auto-fix enabled: running install-comfy.');
     await runNodeScript(
         'scripts/installers/comfy/install-comfy.mjs',
-        [`--comfy-dir=${path.relative(REPO_ROOT, comfyDir)}`, ...(dryRun ? ['--dry-run'] : [])],
+        [`--comfy-dir=${comfyDir}`, ...(dryRun ? ['--dry-run'] : [])],
         { dryRun: false },
     );
     if (dryRun) return true;
@@ -43,7 +43,7 @@ async function ensureCustomBundles({ comfyDir, bundles, autoFix, dryRun }) {
     console.log('Auto-fix enabled: running install-custom-bundles.');
     await runNodeScript(
         'scripts/installers/comfy/install-custom-bundles.mjs',
-        [`--comfy-dir=${path.relative(REPO_ROOT, comfyDir)}`, ...(dryRun ? ['--dry-run'] : [])],
+        [`--comfy-dir=${comfyDir}`, ...(dryRun ? ['--dry-run'] : [])],
         { dryRun: false },
     );
     if (dryRun) return true;
@@ -60,8 +60,7 @@ async function ensureCustomBundles({ comfyDir, bundles, autoFix, dryRun }) {
 async function main() {
     const { flags } = parseInstallerFlags(process.argv.slice(2));
     const config = await readInstallerConfig();
-    const comfyTargetDir = flags.comfyDir || config?.comfyUi?.targetDir || 'external/ComfyUI';
-    const comfyDir = path.resolve(REPO_ROOT, comfyTargetDir);
+    const comfyDir = resolveComfyDirectory(config, flags.comfyDir);
     const bundles = Array.isArray(config.customBundles) ? config.customBundles : [];
 
     console.log(formatTaskLabel('Installation QA'));
@@ -81,13 +80,18 @@ async function main() {
         throw new Error('Installation QA failed: required Comfy runtime/components are still missing.');
     }
 
-    if (!flags.skipTests) {
+    // The packaged desktop app ships only the compiled Next standalone output, not the
+    // source tree/devDependencies these commands need — running them there always fails.
+    const isDesktopPackage = process.env.IMAGE_EXPRESS_RUNTIME === 'desktop-local';
+    if (!flags.skipTests && !isDesktopPackage) {
         await runCommand('npm', ['run', 'build'], { dryRun: flags.dryRun });
         await runCommand(
             'npm',
             ['test', '--', '--runInBand', 'src/lib/server/__tests__/user-key-vault.test.ts'],
             { dryRun: flags.dryRun },
         );
+    } else if (isDesktopPackage) {
+        console.log('Desktop package runtime detected: skipping source-tree build/test verification.');
     }
 
     console.log('Installation QA completed successfully.');

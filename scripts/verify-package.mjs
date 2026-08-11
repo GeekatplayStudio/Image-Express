@@ -45,10 +45,14 @@ const FORBIDDEN_STANDALONE_ENTRIES = [
     /^coverage$/i,
     /^test-results$/i,
     /^src$/i,
-    /^scripts$/i,
     /^\.git$/i,
     /\.(glb|gltf|fbx|obj)$/i,
 ];
+
+// `scripts/` is deliberately (and only) shipped with these two entries — the
+// runtime installer (Settings → Runtime Check) spawns them post-install to set
+// up ComfyUI/Ollama. Anything else here means the dev scripts folder leaked in.
+const ALLOWED_SCRIPTS_ENTRIES = new Set(['installers', 'qa-installation.mjs']);
 
 // Generous ceiling: the standalone server plus its node_modules and static
 // output. Well above a healthy build, far below anything that leaked assets.
@@ -81,6 +85,8 @@ for (const asarFile of asarFiles) {
         path.join(standaloneDir, 'server.js'),
         path.join(standaloneDir, '.next', 'static'),
         path.join(standaloneDir, 'public'),
+        path.join(standaloneDir, 'scripts', 'qa-installation.mjs'),
+        path.join(standaloneDir, 'scripts', 'installers', 'common.mjs'),
         path.join(resourcesDir, 'electron-runtime', 'node_modules', 'electron-updater', 'package.json'),
     ];
     for (const required of requiredResources) {
@@ -96,6 +102,17 @@ for (const asarFile of asarFiles) {
             `${path.relative(root, standaloneDir)} contains entries that must never ship: ${leaked.join(', ')}.\n`
             + '  Next.js traced them into the standalone output. Add them to '
             + '`outputFileTracingExcludes` in next.config.ts and rebuild.',
+        );
+    }
+
+    const scriptsDir = path.join(standaloneDir, 'scripts');
+    const unexpectedScriptsEntries = fs.readdirSync(scriptsDir)
+        .filter((name) => !ALLOWED_SCRIPTS_ENTRIES.has(name));
+    if (unexpectedScriptsEntries.length > 0) {
+        throw new Error(
+            `${path.relative(root, scriptsDir)} contains unexpected entries: ${unexpectedScriptsEntries.join(', ')}.\n`
+            + '  Only the runtime installer scripts should ship here — check the `scripts` extraResources '
+            + 'entry in package.json `build`.',
         );
     }
 

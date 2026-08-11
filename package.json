@@ -246,6 +246,14 @@
         "to": "next-standalone/node_modules/next/dist/compiled/next-server"
       },
       {
+        "from": "scripts",
+        "to": "next-standalone/scripts",
+        "filter": [
+          "qa-installation.mjs",
+          "installers/**/*"
+        ]
+      },
+      {
         "from": "node_modules",
         "to": "electron-runtime/node_modules",
         "filter": [
