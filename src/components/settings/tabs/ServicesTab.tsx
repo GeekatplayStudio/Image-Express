@@ -5,6 +5,7 @@ import { useI18n } from '@/providers/I18nProvider';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
 import type { ApiKeysSettings } from '../hooks/useApiKeysSettings';
 import { modalSectionClass, fieldCardClass } from '../settingsTypes';
+import UpscaleServicesSection from './UpscaleServicesSection';
 
 interface ServicesTabProps {
     apiKeys: ApiKeysSettings;
@@ -326,6 +327,8 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                     </div>
                 </div>
             </section>
+
+            <UpscaleServicesSection apiKeys={apiKeys} />
         </>
     );
 }

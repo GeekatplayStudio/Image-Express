@@ -59,7 +59,8 @@ export function getEditorCanvasToolConfig(
         normalizedTool === 'ai-zone' ||
         normalizedTool === 'ai-critique' ||
         normalizedTool === 'ai-brand-manager' ||
-        normalizedTool === 'super-agent'
+        normalizedTool === 'super-agent' ||
+        normalizedTool === 'ai-upscale'
     ) {
         return {
             defaultCursor: 'default',

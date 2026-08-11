@@ -1,6 +1,6 @@
 # Changelog — Delivery History
 
-Last updated: 2026-08-09  
+Last updated: 2026-08-11  
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
@@ -18,6 +18,35 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-08-11 — AI Upscale: one tool, seven services, result as a layer
+
+**A dedicated Upscale tool** (toolbar + Tools menu, id `ai-upscale`) that
+routes one job through whichever service fits: local ComfyUI (default — the
+existing `upscale-image` catalog workflow, free and private), Stability
+conservative 4x, Fal.ai Clarity, Replicate Real-ESRGAN, Magnific/Freepik,
+Topaz Labs, or Claid.ai. Source is the selected layer or the whole canvas; the
+result is added as a **new layer** over the source's footprint (full resolution
+retained, `aiProvider` tagged), never a destructive replace.
+
+- One provider catalog (`src/lib/upscale/upscaleProviders.ts`) drives the
+  Settings section, the modal, and key sync — adding a provider is one entry.
+- Settings → Services grew an **Upscale Services** section: per-provider keys
+  (account-synced through the open-shaped `/api/user/keys` record, no server
+  change needed), one-line best-for guidance, and default service/scale/
+  creativity preferences.
+- External providers run through `/api/ai/upscale` (+ `/poll` for the async
+  Replicate/Freepik flows), a provider-agnostic proxy following the Stability
+  route conventions: caller's key in the Authorization header, never stored.
+  Provider-returned result URLs are validated against the outbound URL policy
+  before the server fetches them — a spoofed provider response must not become
+  a read of the local network.
+- i18n: all 33 new strings shipped in **all 11 locales**, plus the three
+  `panel.*` keys 960b68d left English-only — the parity ratchet is green
+  again.
+- Tests: provider catalog/preferences, proxy adapters (fal sync flow, freepik
+  task+poll flow, error mapping, SSRF-refusal), and the modal
+  (source/key-gating/run/add-as-layer paths).
 
 ## 2026-08-09 — Dashboard: three collapsing rows, and the hydration bug they exposed
 

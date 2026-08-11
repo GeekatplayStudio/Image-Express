@@ -183,6 +183,23 @@ Annotate a layer with point notes, save a flattened reference layer with
 embedded instructions, and hand it to a ComfyUI/Flux workflow for guided
 editing. Annotated requests require both a notes overlay and a combined mask.
 
+### AI Upscale — Shipped
+One Upscale tool (toolbar and Tools menu), seven routes: local **ComfyUI** (the
+default — free, private, uses the bundled Lanczos workflow or any installed
+upscale model), **Stability** conservative 4x, **Fal.ai Clarity** (generative
+detail with a creativity dial and optional prompt), **Replicate Real-ESRGAN**
+(fast, faithful pixel upscale), **Magnific via Freepik** (extreme generative
+detail to 16x), **Topaz Labs** (archival fidelity), and **Claid.ai**
+(logo/text-preserving, e-commerce). Source is the selected layer or the whole
+canvas; the result lands as a **new layer** positioned over the source at full
+resolution, named and tagged with its provider — the original stays underneath.
+Settings → Services → Upscale Services holds per-provider keys (synced to the
+account like every other key), one-line best-for guidance per service, and the
+default service/scale/creativity the tool preselects. External providers run
+through a server proxy (`/api/ai/upscale` + `/poll`) with the user's own key
+forwarded per-request and never stored; provider-returned result URLs are
+re-validated against the outbound URL policy before the server fetches them.
+
 ### AI-assisted asset search — Shipped (opt-in)
 New uploads are indexed automatically: dimensions and any embedded generation
 prompt always; an AI caption plus tags from a local Ollama vision model when

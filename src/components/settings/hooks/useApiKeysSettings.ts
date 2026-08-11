@@ -8,7 +8,18 @@ import {
     saveLocalAiPreferences,
 } from '@/lib/localAiPreferences';
 import { requestOllamaModelInstall } from '@/lib/ollamaModelInstall';
+import {
+    UPSCALE_PROVIDERS,
+    loadUpscalePreferences,
+    saveUpscalePreferences,
+    type UpscalePreferences,
+} from '@/lib/upscale/upscaleProviders';
 import { STORAGE_KEYS, sanitizeHeaderValue, type ValidationProvider, type ValidationState } from '../settingsTypes';
+
+/** Upscale providers that carry their own key (Stability reuses its existing field). */
+const UPSCALE_KEY_PROVIDERS = UPSCALE_PROVIDERS.filter(
+    (provider) => provider.apiKeyStorageKey && provider.apiKeyStorageKey !== STORAGE_KEYS.STABILITY_API_KEY,
+);
 
 /**
  * API key state for every generative provider (3D + image + local Ollama),
@@ -33,6 +44,9 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
     const [bananaKey, setBananaKey] = useState('');
     const [ollamaBaseUrl, setOllamaBaseUrl] = useState(DEFAULT_OLLAMA_BASE_URL);
     const [ollamaModel, setOllamaModel] = useState(DEFAULT_OLLAMA_MODEL);
+
+    const [upscaleKeys, setUpscaleKeys] = useState<Record<string, string>>({});
+    const [upscalePreferences, setUpscalePreferences] = useState<UpscalePreferences>(() => loadUpscalePreferences());
 
     const [syncStatus, setSyncStatus] = useState<'local' | 'synced' | 'syncing'>('local');
     const [ollamaCheck, setOllamaCheck] = useState<{
@@ -74,6 +88,11 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
         setGoogleKey(localStorage.getItem(STORAGE_KEYS.GOOGLE_API_KEY) || '');
         setBananaKey(localStorage.getItem(STORAGE_KEYS.BANANA_API_KEY) || '');
 
+        setUpscaleKeys(Object.fromEntries(UPSCALE_KEY_PROVIDERS.map(
+            (provider) => [provider.id, localStorage.getItem(provider.apiKeyStorageKey) || ''],
+        )));
+        setUpscalePreferences(loadUpscalePreferences());
+
         const localAiPreferences = loadLocalAiPreferences();
         setOllamaBaseUrl(localAiPreferences.ollamaBaseUrl);
         setOllamaModel(localAiPreferences.ollamaModel);
@@ -114,6 +133,14 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
                         if (data.keys.openai) setOpenaiKey(data.keys.openai);
                         if (data.keys.google) setGoogleKey(data.keys.google);
                         if (data.keys.banana) setBananaKey(data.keys.banana);
+                        setUpscaleKeys((current) => {
+                            const next = { ...current };
+                            for (const provider of UPSCALE_KEY_PROVIDERS) {
+                                const value = data.keys[provider.accountKeyName];
+                                if (typeof value === 'string' && value) next[provider.id] = value;
+                            }
+                            return next;
+                        });
                         setSyncStatus('synced');
                     } else {
                         setSyncStatus('local');
@@ -251,6 +278,22 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
         banana: bananaKey,
     }), [bananaKey, getEffectiveHitemsKey, hitemsAppId, googleKey, meshyKey, openaiKey, stabilityKey, tripoKey]);
 
+    const setUpscaleKey = useCallback((providerId: string, value: string) => {
+        setUpscaleKeys((current) => ({ ...current, [providerId]: value }));
+    }, []);
+
+    /** Keyed by accountKeyName, ready to spread into the /api/user/keys payload. */
+    const getUpscaleKeysForSave = useCallback(() => Object.fromEntries(
+        UPSCALE_KEY_PROVIDERS.map((provider) => [provider.accountKeyName, upscaleKeys[provider.id] || '']),
+    ), [upscaleKeys]);
+
+    const saveUpscaleSettings = useCallback(() => {
+        for (const provider of UPSCALE_KEY_PROVIDERS) {
+            localStorage.setItem(provider.apiKeyStorageKey, (upscaleKeys[provider.id] || '').trim());
+        }
+        saveUpscalePreferences(upscalePreferences);
+    }, [upscaleKeys, upscalePreferences]);
+
     const saveOllamaPreferences = useCallback(() => {
         saveLocalAiPreferences({ ollamaBaseUrl, ollamaModel });
     }, [ollamaBaseUrl, ollamaModel]);
@@ -269,6 +312,9 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
         bananaKey, setBananaKey,
         ollamaBaseUrl, setOllamaBaseUrl,
         ollamaModel, setOllamaModel,
+        upscaleKeys, setUpscaleKey,
+        upscalePreferences, setUpscalePreferences,
+        getUpscaleKeysForSave, saveUpscaleSettings,
         syncStatus, setSyncStatus,
         ollamaCheck, setOllamaCheck,
         isInstallingOllamaModel,

@@ -34,6 +34,7 @@ import {
     LayoutTemplate,
     Box,
     Bot,
+    ArrowUpWideNarrow,
 } from 'lucide-react';
 
 interface ToolsDropdownMenuProps {
@@ -170,6 +171,9 @@ export default function ToolsDropdownMenu({ onTriggerTool }: ToolsDropdownMenuPr
             </button>
             <button onClick={() => onTriggerTool('super-agent')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                 <Bot size={16} className="text-primary group-hover:text-primary/90 transition-colors" /> <span>{t('toolbar.superAgent')}</span>
+            </button>
+            <button onClick={() => onTriggerTool('ai-upscale')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
+                <ArrowUpWideNarrow size={16} className="text-primary group-hover:text-primary/90 transition-colors" /> <span>{t('toolbar.aiUpscale')}</span>
             </button>
             <button onClick={() => onTriggerTool('3d-gen')} className="w-full text-left px-4 py-2 text-sm hover:bg-secondary/50 flex items-center gap-3 group">
                 <Box size={16} className="text-primary group-hover:text-primary/90 transition-colors" /> <span>{t('toolbar.ai3d')}</span>

@@ -143,14 +143,9 @@ function prepareUserDataLayout(standaloneDir) {
   const dataDir = path.join(userDataRoot, 'data');
   const assetsDir = path.join(userDataRoot, 'assets');
   const logsDir = path.join(userDataRoot, 'logs');
-  // Lives outside the resources dir (which electron-builder replaces wholesale on every
-  // update) so a multi-GB ComfyUI checkout survives app updates instead of being wiped.
-  const comfyDir = path.join(userDataRoot, 'ComfyUI');
   const migrationMarker = path.join(userDataRoot, '.storage-v2-migrated.json');
 
-  for (const directory of [userDataRoot, dataDir, assetsDir, logsDir]) {
-    fs.mkdirSync(directory, { recursive: true });
-  }
+  [userDataRoot, dataDir, assetsDir, logsDir].forEach((directory) => fs.mkdirSync(directory, { recursive: true }));
 
   if (!fs.existsSync(migrationMarker)) {
     const migrations = [
@@ -171,7 +166,7 @@ function prepareUserDataLayout(standaloneDir) {
     }, null, 2));
   }
 
-  return { dataDir, assetsDir, logsDir, comfyDir };
+  return { dataDir, assetsDir, logsDir, comfyDir: path.join(userDataRoot, 'ComfyUI') };
 }
 
 function resolveResource(...segments) {

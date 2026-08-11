@@ -34,6 +34,7 @@ import {
     PenTool,
     ShieldCheck,
     Bot,
+    ArrowUpWideNarrow,
     Copy,
     History,
     Blend,
@@ -77,6 +78,7 @@ import ImageGeneratorModal from './ImageGeneratorModal';
 import ComfyWorkflowsModal from './comfy/ComfyWorkflowsModal';
 import AICritiqueModal from './AICritiqueModal';
 import BrandManagerModal from './BrandManagerModal';
+import UpscaleModal from './UpscaleModal';
 import SuperAgentModal from './SuperAgentModal';
 import ColorPickerModeHost from './ColorConstellation/ColorPickerModeHost';
 import BodyPortal from '@/components/ui/BodyPortal';
@@ -240,6 +242,7 @@ const CREATION_LIBRARY_TOOLS: ToolbarToolDefinition[] = [
     { name: 'ai-critique', icon: MessageSquare, labelKey: 'toolbar.aiCritique', shortLabelKey: 'toolbar.short.critique' },
     { name: 'ai-brand-manager', icon: ShieldCheck, labelKey: 'toolbar.aiBrandManager', shortLabelKey: 'toolbar.short.brand' },
     { name: 'super-agent', icon: Bot, labelKey: 'toolbar.superAgent', shortLabelKey: 'toolbar.short.agent' },
+    { name: 'ai-upscale', icon: ArrowUpWideNarrow, labelKey: 'toolbar.aiUpscale', shortLabelKey: 'toolbar.short.upscale' },
     { name: '3d-gen', icon: Box, labelKey: 'toolbar.ai3d' },
 ];
 
@@ -2442,21 +2445,12 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 </BodyPortal>
             )}
 
-            {activeTool === 'ai-brand-manager' && canvas && (
+            {/* AI tool modals sharing the same mount shape: canvas in, reset tool on close. */}
+            {canvas && ['ai-brand-manager', 'super-agent', 'ai-upscale'].includes(activeTool) && (
                 <BodyPortal>
-                    <BrandManagerModal
-                        canvas={canvas}
-                        onClose={() => setActiveTool('select')}
-                    />
-                </BodyPortal>
-            )}
-
-            {activeTool === 'super-agent' && canvas && (
-                <BodyPortal>
-                    <SuperAgentModal
-                        canvas={canvas}
-                        onClose={() => setActiveTool('select')}
-                    />
+                    {activeTool === 'ai-brand-manager' && <BrandManagerModal canvas={canvas} onClose={() => setActiveTool('select')} />}
+                    {activeTool === 'super-agent' && <SuperAgentModal canvas={canvas} onClose={() => setActiveTool('select')} />}
+                    {activeTool === 'ai-upscale' && <UpscaleModal canvas={canvas} onClose={() => setActiveTool('select')} />}
                 </BodyPortal>
             )}
 

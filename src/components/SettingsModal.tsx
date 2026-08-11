@@ -134,6 +134,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
         localStorage.setItem(STORAGE_KEYS.IMG_GEN_PROVIDER, comfy.defaultGenerativeProvider);
         localStorage.setItem(STORAGE_KEYS.COMFY_UI_URL, comfy.comfyServerUrl.trim());
 
+        apiKeys.saveUpscaleSettings();
         apiKeys.saveOllamaPreferences();
         comfy.saveComfySettings();
         storage.saveStorageSettings();
@@ -154,6 +155,7 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
                             openai: effectiveKeys.openai,
                             google: effectiveKeys.google,
                             banana: effectiveKeys.banana,
+                            ...apiKeys.getUpscaleKeysForSave(),
                         },
                     }),
                 });
