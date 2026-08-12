@@ -18,7 +18,7 @@ import {
     type VectorRecord,
 } from '@/features/asset-vault/domain/vectorMath';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
-import { getAssetsDir } from '@/lib/server/appPaths';
+import { getAssetsDir, joinRuntimePath } from '@/lib/server/appPaths';
 
 const DESCRIBE_TIMEOUT_MS = 60_000;
 const MAX_ENRICH_PER_RUN = 24;
@@ -60,7 +60,7 @@ function resolveAbsoluteAssetPath(asset: VaultAssetRecord): string | null {
     }
     if (asset.origin.connector === 'server') {
         const relative = asset.origin.uri.replace(/^server:\/\//, '');
-        return path.join(getAssetsDir(), ...relative.split('/'));
+        return joinRuntimePath(getAssetsDir(), ...relative.split('/'));
     }
     return null;
 }
@@ -70,7 +70,7 @@ async function loadImageDataUrl(asset: VaultAssetRecord): Promise<string | null>
     const absolute = resolveAbsoluteAssetPath(asset);
     if (!absolute) return null;
     try {
-        const bytes = await readFile(absolute);
+        const bytes = await readFile(/*turbopackIgnore: true*/ absolute);
         if (bytes.length === 0 || bytes.length > AI_IMAGE_MAX_BYTES) return null;
         const ext = path.extname(asset.name).toLowerCase();
         const mime = ext === '.png' ? 'image/png'

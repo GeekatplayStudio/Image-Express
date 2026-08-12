@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
-import path from 'node:path';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 
-import { getVaultDir } from '@/lib/server/appPaths';
+import { getVaultDir, joinRuntimePath } from '@/lib/server/appPaths';
 
 /**
  * Small, cached thumbnails for the vault grid.
@@ -79,11 +78,11 @@ export function thumbnailCacheKey(
     return `${digest}.webp`;
 }
 
-const thumbnailDir = () => path.join(getVaultDir(), 'thumbs');
+const thumbnailDir = () => joinRuntimePath(getVaultDir(), 'thumbs');
 
 /** Where a rendition lives on disk. Exported so a precache pass can test for it. */
 export function thumbnailCachePath(absolutePath: string, width: number, stats: { size: number; mtimeMs: number }): string {
-    return path.join(thumbnailDir(), thumbnailCacheKey(absolutePath, normalizeThumbnailWidth(width), stats));
+    return joinRuntimePath(thumbnailDir(), thumbnailCacheKey(absolutePath, normalizeThumbnailWidth(width), stats));
 }
 
 /**
@@ -96,7 +95,7 @@ export function thumbnailCachePath(absolutePath: string, width: number, stats: {
 export async function hasCachedThumbnail(absolutePath: string, width: number): Promise<boolean> {
     try {
         const stats = await stat(absolutePath);
-        await stat(thumbnailCachePath(absolutePath, width, stats));
+        await stat(/*turbopackIgnore: true*/ thumbnailCachePath(absolutePath, width, stats));
         return true;
     } catch {
         return false;
@@ -127,9 +126,9 @@ export async function getVaultThumbnail(
         return null;
     }
 
-    const cachePath = path.join(thumbnailDir(), thumbnailCacheKey(absolutePath, width, stats));
+    const cachePath = joinRuntimePath(thumbnailDir(), thumbnailCacheKey(absolutePath, width, stats));
     try {
-        const cached = await readFile(cachePath);
+        const cached = await readFile(/*turbopackIgnore: true*/ cachePath);
         return { body: cached, contentType: 'image/webp', cached: true };
     } catch {
         // Not generated yet — fall through and build it.

@@ -11,6 +11,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 import { getDataDir } from '@/lib/server/appPaths';
+import { renameWithRetry } from '@/lib/server/atomicRename';
 import type { QueueJobRecord } from '@/lib/server/jobQueue/types';
 import { isTerminalQueueStatus } from '@/lib/server/jobQueue/types';
 
@@ -122,6 +123,6 @@ export class QueueStore {
         const target = this.filePath;
         const temp = `${target}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
         await fs.writeFile(temp, JSON.stringify(document, null, 2), 'utf-8');
-        await fs.rename(temp, target);
+        await renameWithRetry(temp, target);
     }
 }

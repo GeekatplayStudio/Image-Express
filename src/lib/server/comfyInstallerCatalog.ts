@@ -422,7 +422,7 @@ export async function countInstallerWorkspaceWorkflowFiles(workspacePath: string
 export async function listInstallerWorkspaceSyncDirectories(workspacePath: string): Promise<string[]> {
     const syncedDirectories: string[] = [];
     for (const directoryName of WORKFLOW_SYNC_DIRECTORIES) {
-        const targetPath = path.join(workspacePath, directoryName);
+        const targetPath = path.join(/*turbopackIgnore: true*/ workspacePath, directoryName);
         if (await pathExists(targetPath)) {
             syncedDirectories.push(directoryName);
         }

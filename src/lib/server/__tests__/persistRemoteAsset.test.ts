@@ -10,6 +10,8 @@ let assetsDir: string;
 jest.mock('@/lib/server/appPaths', () => ({
     getAssetsDir: () => assetsDir,
     getDataDir: () => assetsDir,
+    // Real implementation: modules under test join runtime paths through this.
+    joinRuntimePath: (...segments: string[]) => path.join(...segments),
 }));
 
 const upsertAssetMetadata = jest.fn(async () => {});

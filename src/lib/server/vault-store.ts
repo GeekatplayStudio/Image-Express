@@ -1,6 +1,7 @@
 import path from 'node:path';
-import { mkdir, readFile, writeFile, readdir, stat, rename } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { getAssetsDir, getVaultDir } from '@/lib/server/appPaths';
+import { renameWithRetry } from '@/lib/server/atomicRename';
 import {
     VALID_ASSET_TYPES,
     VALID_ASSET_CATEGORIES,
@@ -44,7 +45,7 @@ async function atomicWriteJson(filePath: string, data: unknown) {
     // scale the indentation alone measured ~29 MB of a 153 MB file — paid on
     // every write, and again on every parse.
     await writeFile(tempPath, JSON.stringify(data), 'utf8');
-    await rename(tempPath, filePath);
+    await renameWithRetry(tempPath, filePath);
 }
 
 // Parsing (and Zod-validating) a large catalog on every request dominates

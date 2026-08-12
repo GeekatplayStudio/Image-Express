@@ -584,6 +584,15 @@ All paths resolve through `src/lib/server/appPaths.ts`, overridable via
 `IMAGE_EXPRESS_DATA_DIR` / `_ASSETS_DIR` / `_LOGS_DIR` — which is how the
 desktop build keeps user data outside the app bundle.
 
+Because those roots come from `process.cwd()` or an env var, they are invisible
+to the bundler. Compose them with **`joinRuntimePath`** (exported from
+`appPaths.ts`), never a bare `path.join`: it carries the `turbopackIgnore`
+comment that stops Turbopack from treating the dynamic base as a glob. Left
+unmarked, a vault pointed at a whole drive pulled ~269k files into the build's
+NFT trace and warned that the entire project had been traced. Filesystem calls
+that take one of these paths directly (`readFile`, `stat`) need the same
+`/*turbopackIgnore: true*/` marker on the argument.
+
 **Every store is JSON on disk**, which is right for a single-machine app and is
 the main thing to revisit before multi-node deployment.
 

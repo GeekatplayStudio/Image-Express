@@ -366,7 +366,7 @@ export const resolveComfyLibraryPaths = async (
 const listLocalWorkspaceSyncDirectories = async (workspacePath: string): Promise<string[]> => {
     const syncedDirectories: string[] = [];
     for (const directoryName of LOCAL_COMFY_SYNC_DIRECTORIES) {
-        const targetPath = path.join(workspacePath, directoryName);
+        const targetPath = path.join(/*turbopackIgnore: true*/ workspacePath, directoryName);
         if (await fileExists(targetPath)) {
             syncedDirectories.push(directoryName);
         }

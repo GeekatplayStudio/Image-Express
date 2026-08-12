@@ -35,7 +35,7 @@ Request → API → Queue → Worker → AI → Validate → Store → Notify �
 ### Server (`src/lib/server/jobQueue/`)
 
 - **`types.ts`** — `QueueJobRecord`, the 9 pipeline stages (`QUEUE_STAGES`), status enum, lanes.
-- **`store.ts`** — durable persistence: one JSON document at `data/queue/jobs.json`, written atomically (temp file + rename, same idiom as `vault-store.ts`), writes serialized on a promise chain. Terminal jobs are pruned after 24 h.
+- **`store.ts`** — durable persistence: one JSON document at `data/queue/jobs.json`, written atomically (temp file + rename, same idiom as `vault-store.ts`), writes serialized on a promise chain. Terminal jobs are pruned after 24 h. The rename goes through `renameWithRetry` (`src/lib/server/atomicRename.ts`), which backs off through the transient `EPERM`/`EACCES`/`EBUSY` a Windows virus scanner or search indexer causes by holding the target open for a few milliseconds after the write — without it, a scanner touching `jobs.json` silently dropped a queue mutation. `vault-store.ts`'s catalog/bookcase writes go through the same helper.
 - **`scheduler.ts`** — the queue itself:
   - **Singleton on `globalThis`** so Next.js dev HMR cannot orphan in-flight jobs (the exact bug that plagued `runtimeProviderParams`).
   - **Lane concurrency**: `local-gpu` = 1 (one GPU, serialize or die), `local-cpu` = 4, each `remote:<provider>` = 3. A slow provider cannot starve another lane.
@@ -88,6 +88,7 @@ The rail, SSE, persistence, recovery, retries, and notifications come for free.
 ## Tests
 
 - `src/lib/server/jobQueue/__tests__/scheduler.test.ts` — 13 tests: success path + persistence, GPU-lane serialization, remote-lane cap without cross-lane starvation, failure capture, in-run retry via `maxAttempts`, **zombie recovery**, event emission, cancellation, priority/FIFO ordering, explicit retry of failed and cancelled jobs, refusal to retry a succeeded job, **cooperative stop of a running job** (and that a handler which never checks the flag still succeeds).
+- `src/lib/server/__tests__/atomicRename.test.ts` — 4 tests covering the shared rename retry: the ordinary rename, recovery from a transient `EPERM`/`EBUSY` hold, immediate rethrow of a non-transient `ENOENT`, and temp-file cleanup once the backoff is exhausted.
 - `src/components/__tests__/PipelineRail.test.tsx` — 8 tests: hidden when idle, preference off, stage segments render, toast on observed completion, silence for already-terminal jobs, cancel button POSTs the cancel endpoint, retry button POSTs retry and the failure reason renders, rejected actions raise a destructive toast.
 
 Note the test suite sets `IMAGE_EXPRESS_DATA_DIR` to a temp dir per test and flushes every scheduler before teardown — without both, an async queue write can land in the project's real `data/` directory after the env var is restored.
