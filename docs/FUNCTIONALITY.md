@@ -200,6 +200,22 @@ through a server proxy (`/api/ai/upscale` + `/poll`) with the user's own key
 forwarded per-request and never stored; provider-returned result URLs are
 re-validated against the outbound URL policy before the server fetches them.
 
+### AI Campaign Manager — Shipped
+A campaign layer alongside the Brand Kit (Tools menu, or right-click the Super
+Agent toolbar button for the Super Agent / Campaign Manager picker). Each
+stored campaign holds allowed fonts, palette colors, campaign assets,
+reference images, and free-form **plain-language requirements**; multiple
+campaigns persist to `data/campaign/` on the server (localStorage as offline
+cache) and are reselectable later. **Verify** checks the canvas against the
+selected campaign in report-only or **auto-fix** mode: deterministic
+font/color checks run through the brand audit engine via a campaign adapter
+(rules a campaign doesn't define are zeroed out, not enforced), the
+plain-language requirements travel to the AI reviewer (local Ollama VLM or
+the configured OpenAI/Gemini provider) as extra prompt instructions, and
+violations are highlighted on the canvas with severity colors. Auto-fix
+reuses the brand machinery: font swap to the campaign's first font, color
+snap to the nearest palette color; unfixable findings stay in the report.
+
 ### AI-assisted asset search — Shipped (opt-in)
 New uploads are indexed automatically: dimensions and any embedded generation
 prompt always; an AI caption plus tags from a local Ollama vision model when

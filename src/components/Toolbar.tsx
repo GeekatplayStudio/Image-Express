@@ -79,6 +79,8 @@ import ComfyWorkflowsModal from './comfy/ComfyWorkflowsModal';
 import AICritiqueModal from './AICritiqueModal';
 import BrandManagerModal from './BrandManagerModal';
 import UpscaleModal from './UpscaleModal';
+import CampaignManagerModal from './CampaignManagerModal';
+import AgentToolContextMenu from './AgentToolContextMenu';
 import SuperAgentModal from './SuperAgentModal';
 import ColorPickerModeHost from './ColorConstellation/ColorPickerModeHost';
 import BodyPortal from '@/components/ui/BodyPortal';
@@ -502,6 +504,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const adjustmentsButtonRef = useRef<HTMLButtonElement>(null);
     const extraButtonRef = useRef<HTMLButtonElement>(null);
     const [shapesMenuPos, setShapesMenuPos] = useState<{ left: number; top: number } | null>(null);
+    const [agentMenuPos, setAgentMenuPos] = useState<{ x: number; y: number } | null>(null);
     const [adjustmentMenuPos, setAdjustmentMenuPos] = useState<{ left: number; top: number } | null>(null);
     const [extraMenuPos, setExtraMenuPos] = useState<{ left: number; top: number } | null>(null);
     const [draggingMenu, setDraggingMenu] = useState<'shapes' | 'adjustments' | 'extra' | null>(null);
@@ -2267,6 +2270,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         <button
                             key={tool.name}
                             onClick={() => handleToolClick(tool.name)}
+                            onContextMenu={tool.name === 'super-agent' ? (event) => { event.preventDefault(); setAgentMenuPos({ x: event.clientX, y: event.clientY }); } : undefined}
                             className={cn(
                                 'rounded-sm flex transition-colors z-20',
                                 railButtonLayoutClass,
@@ -2436,21 +2440,20 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 />
             )}
 
-            {activeTool === 'ai-critique' && canvas && (
-                <BodyPortal>
-                    <AICritiqueModal
-                        canvas={canvas}
-                        onClose={() => setActiveTool('select')}
-                    />
-                </BodyPortal>
-            )}
-
             {/* AI tool modals sharing the same mount shape: canvas in, reset tool on close. */}
-            {canvas && ['ai-brand-manager', 'super-agent', 'ai-upscale'].includes(activeTool) && (
+            {canvas && ['ai-critique', 'ai-brand-manager', 'super-agent', 'ai-upscale', 'campaign-manager'].includes(activeTool) && (
                 <BodyPortal>
+                    {activeTool === 'ai-critique' && <AICritiqueModal canvas={canvas} onClose={() => setActiveTool('select')} />}
                     {activeTool === 'ai-brand-manager' && <BrandManagerModal canvas={canvas} onClose={() => setActiveTool('select')} />}
                     {activeTool === 'super-agent' && <SuperAgentModal canvas={canvas} onClose={() => setActiveTool('select')} />}
                     {activeTool === 'ai-upscale' && <UpscaleModal canvas={canvas} onClose={() => setActiveTool('select')} />}
+                    {activeTool === 'campaign-manager' && <CampaignManagerModal canvas={canvas} onClose={() => setActiveTool('select')} />}
+                </BodyPortal>
+            )}
+
+            {agentMenuPos && (
+                <BodyPortal>
+                    <AgentToolContextMenu position={agentMenuPos} onSelect={(tool) => { setAgentMenuPos(null); handleToolClick(tool); }} onClose={() => setAgentMenuPos(null)} />
                 </BodyPortal>
             )}
 

@@ -25,6 +25,8 @@ if (badBody) return badBody;
             imageDataUrl?: string;
             provider?: 'ollama' | ExternalLlmProvider;
             apiKey?: string;
+            /** Extra requirements appended to the AI prompt — the Campaign Manager sends its plain-language rules here. */
+            extraInstructions?: string;
         };
 
         const profile = payload.brandProfile || await getActiveBrandProfileServer();
@@ -61,7 +63,9 @@ if (badBody) return badBody;
         };
 
         if (payload.imageDataUrl) {
-            const prompt = buildBrandAuditVlmPrompt(metadata, profile);
+            const extra = typeof payload.extraInstructions === 'string' ? payload.extraInstructions.trim() : '';
+            const prompt = buildBrandAuditVlmPrompt(metadata, profile)
+                + (extra ? `\n\nADDITIONAL REQUIREMENTS:\n${extra.slice(0, 8000)}` : '');
             const imageBase64 = payload.imageDataUrl.replace(/^data:image\/\w+;base64,/, '');
 
             // External VLM provider (OpenAI / Gemini) when configured

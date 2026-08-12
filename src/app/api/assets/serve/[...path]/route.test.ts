@@ -26,6 +26,8 @@ jest.mock('@/lib/server/appPaths', () => ({
     getAssetsDir: () => assetsDir,
     // vaultThumbnails caches under the vault dir; point it at the temp dir too.
     getVaultDir: () => assetsDir,
+    // Real implementation: modules under test join runtime paths through this.
+    joinRuntimePath: (...segments: string[]) => path.join(...segments),
 }));
 
 import { GET } from '@/app/api/assets/serve/[...path]/route';

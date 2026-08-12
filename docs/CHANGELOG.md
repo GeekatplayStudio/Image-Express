@@ -19,6 +19,37 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-11 — AI Campaign Manager: stored campaigns, plain-language rules, verify with auto-fix
+
+**Backlog #3, in the shape the user actually specified**: campaigns holding
+allowed fonts, palette colors, uploaded assets, reference images, and
+requirements written in plain language. Multiple campaigns are stored
+(`data/campaign/` server store as source of truth + localStorage cache,
+mirroring the Brand Kit pattern) and reselectable. **Verify** audits the
+canvas against the selected campaign — report-only or auto-fix — with
+violations highlighted on canvas in severity colors.
+
+- Maximum reuse over reinvention: `campaignToBrandProfile()` expresses a
+  campaign as a synthetic BrandProfile, so the deterministic checks, the
+  VLM/external/heuristic fallback chain, and the auto-fix machinery are all
+  the brand engine's. Rules a campaign doesn't define are zeroed so the
+  engine skips them; an empty font list means "no font constraint", not
+  "every font violates" (filtered + score recomputed).
+- Plain-language requirements reach the AI as `extraInstructions`, a new
+  optional field on the existing `/api/ai/brand-manager/audit` route —
+  backward compatible.
+- Right-clicking the Super Agent toolbar button opens a compact picker:
+  Super Agent or Campaign Manager (`AgentToolContextMenu`). The Campaign
+  Manager is also in Tools → AI & 3D. The five same-shape AI modal mounts in
+  Toolbar now share one portal (which is how the file stayed under its size
+  ratchet despite the new tool).
+- New: `src/lib/campaign/{campaignProfile,campaignAuditEngine}.ts`,
+  `src/lib/server/campaign-store.ts`, `/api/ai/campaign-manager/profile`,
+  `CampaignManagerModal`, `AgentToolContextMenu`; 36 strings × 11 locales.
+- Tests: persistence (multi-campaign, active tracking, delete), adapter
+  zeroing, empty-font/empty-color semantics, instruction builder, and modal
+  flows (create/select/delete, report-only verify offline, auto-fix label).
+
 ## 2026-08-11 — AI Upscale: one tool, seven services, result as a layer
 
 **A dedicated Upscale tool** (toolbar + Tools menu, id `ai-upscale`) that
