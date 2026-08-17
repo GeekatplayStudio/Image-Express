@@ -21,6 +21,7 @@ describe('ToolsDropdownMenu', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Spot Healing' }));
         fireEvent.click(screen.getByRole('button', { name: 'Remove Tool' }));
         fireEvent.click(screen.getByRole('button', { name: 'AI Zone' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Fabrication Studio' }));
 
         expect(onTriggerTool).toHaveBeenNthCalledWith(1, 'select');
         expect(onTriggerTool).toHaveBeenNthCalledWith(2, 'quick-select');
@@ -36,5 +37,6 @@ describe('ToolsDropdownMenu', () => {
         expect(onTriggerTool).toHaveBeenNthCalledWith(12, 'spot-healing');
         expect(onTriggerTool).toHaveBeenNthCalledWith(13, 'remove');
         expect(onTriggerTool).toHaveBeenNthCalledWith(14, 'ai-zone');
+        expect(onTriggerTool).toHaveBeenNthCalledWith(15, 'fabrication-library');
     });
 });

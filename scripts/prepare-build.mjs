@@ -7,6 +7,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertBuildOutputAvailable } from './server-lock.mjs';
+
+assertBuildOutputAvailable();
 
 const projectRoot = path.resolve(process.cwd());
 const nextOutput = path.resolve(projectRoot, '.next');

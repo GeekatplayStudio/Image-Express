@@ -5,6 +5,7 @@ import { ExtendedFabricObject, type BackgroundJob, type ThreeDImage } from '@/ty
 import type { CanvasWithArtboard } from '@/components/Editor/editorView.types';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import { handOffPollingToServer } from '@/features/generation/application/client/serverPollHandoff';
+import { recoverVolatileModelSource } from '@/lib/assetLibrary/durableModelSource';
 
 type ThreeDLayerImageOption = {
     id: string;
@@ -24,6 +25,7 @@ interface UseEditorThreeDWorkspaceParams {
     toast: ToastHandler;
     upsertBackgroundJob: (jobData: Partial<BackgroundJob>) => void;
     getDisplayName: (url: string) => string;
+    t: (key: string) => string;
 }
 
 export function useEditorThreeDWorkspace({
@@ -36,6 +38,7 @@ export function useEditorThreeDWorkspace({
     toast,
     upsertBackgroundJob,
     getDisplayName,
+    t,
 }: UseEditorThreeDWorkspaceParams) {
     const [initialImageFor3D, setInitialImageFor3D] = useState<string | undefined>(undefined);
     const [sourceObjectFor3D, setSourceObjectFor3D] = useState<fabric.Object | null>(null);
@@ -108,9 +111,50 @@ export function useEditorThreeDWorkspace({
         setActiveTool('3d-gen');
     }, [canvas, setActiveTool]);
 
+    const openThreeDModelObject = useCallback(async (target: ExtendedFabricObject) => {
+        const source = target.modelUrl;
+        if (!source) return;
+        setEditingModelObject(target);
+        try {
+            const rawName = target.name?.trim() || getDisplayName(source) || 'model.glb';
+            const filename = /\.(?:glb|gltf)(?:$|[?#])/i.test(rawName) ? rawName : `${rawName}.glb`;
+            const durable = await recoverVolatileModelSource(source, filename, user);
+            if (durable !== source) target.modelUrl = durable;
+            setEditingModelUrl(durable);
+        } catch (error) {
+            console.error('3D model source recovery failed', error);
+            setEditingModelObject(null);
+            setEditingModelUrl(null);
+            toast({
+                title: t('modelSource.expired'),
+                description: t('modelSource.expiredBody'),
+                variant: 'destructive',
+            });
+        }
+    }, [getDisplayName, t, toast, user]);
+
     const handleOpenThreeDEditor = useCallback((url: string) => {
+        const matchingObject = (canvas?.getObjects() as ExtendedFabricObject[] | undefined)
+            ?.find((object) => object.modelUrl === url);
+        if (matchingObject) {
+            void openThreeDModelObject(matchingObject);
+            return;
+        }
+        if (url.startsWith('blob:')) {
+            void recoverVolatileModelSource(url, 'model.glb', user)
+                .then(setEditingModelUrl)
+                .catch((error) => {
+                    console.error('3D model source recovery failed', error);
+                    toast({
+                        title: t('modelSource.expired'),
+                        description: t('modelSource.expiredBody'),
+                        variant: 'destructive',
+                    });
+                });
+            return;
+        }
         setEditingModelUrl(url);
-    }, []);
+    }, [canvas, openThreeDModelObject, t, toast, user]);
 
     // The in-panel 3D lighting workspace requests the full editor via a
     // window event (avoids drilling props through four component layers).
@@ -121,13 +165,16 @@ export function useEditorThreeDWorkspace({
             if (detail.objectId && canvas) {
                 const target = (canvas.getObjects() as ExtendedFabricObject[])
                     .find((o) => o.id === detail.objectId);
-                if (target) setEditingModelObject(target);
+                if (target) {
+                    void openThreeDModelObject(target);
+                    return;
+                }
             }
-            setEditingModelUrl(detail.url);
+            handleOpenThreeDEditor(detail.url);
         };
         window.addEventListener('iex:open-3d-editor', onOpen);
         return () => window.removeEventListener('iex:open-3d-editor', onOpen);
-    }, [canvas]);
+    }, [canvas, handleOpenThreeDEditor, openThreeDModelObject]);
 
     const handleCloseThreeDLayerEditor = useCallback(() => {
         setEditingModelUrl(null);
@@ -281,6 +328,7 @@ export function useEditorThreeDWorkspace({
         handleToolbarToolChange,
         handleOpenThreeDFromPanel,
         handleOpenThreeDEditor,
+        openThreeDModelObject,
         threeDControls: {
             editingModelUrl,
             editingModelObject,

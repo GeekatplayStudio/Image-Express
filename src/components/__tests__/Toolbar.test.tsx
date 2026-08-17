@@ -601,12 +601,12 @@ describe('Toolbar', () => {
         renderToolbar({ enableHoverLabels: true });
         const railHost = screen.getByTestId('toolbar-rail-host');
 
-        expect(screen.queryByText('AI 3D')).not.toBeInTheDocument();
+        expect(screen.queryByText('Fabrication Library')).not.toBeInTheDocument();
         fireEvent.mouseEnter(railHost);
-        expect(screen.getByText('AI 3D')).toBeInTheDocument();
+        expect(screen.getByText('Fabrication Library')).toBeInTheDocument();
 
         fireEvent.mouseLeave(railHost);
-        expect(screen.queryByText('AI 3D')).not.toBeInTheDocument();
+        expect(screen.queryByText('Fabrication Library')).not.toBeInTheDocument();
     });
 
     it('stays icon-only when hover labels are disabled', () => {
@@ -614,7 +614,7 @@ describe('Toolbar', () => {
         const railHost = screen.getByTestId('toolbar-rail-host');
 
         fireEvent.mouseEnter(railHost);
-        expect(screen.queryByText('AI 3D')).not.toBeInTheDocument();
+        expect(screen.queryByText('Fabrication Library')).not.toBeInTheDocument();
     });
 
     it('loads selected image assets onto the canvas', async () => {

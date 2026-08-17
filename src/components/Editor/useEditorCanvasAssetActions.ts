@@ -76,12 +76,31 @@ export function useEditorCanvasAssetActions({
             onVaultContextMenu(e.clientX, e.clientY);
             return;
         }
+        if (canvas && typeof canvas.findTarget === 'function') {
+            let target = canvas.findTarget(e).target;
+            let ancestor = target;
+            while (ancestor) {
+                const candidate = ancestor as ExtendedFabricObject;
+                if (candidate.is3DModel && candidate.modelUrl) {
+                    target = ancestor;
+                    break;
+                }
+                ancestor = ancestor.group;
+            }
+            if (target && target !== (canvas as CanvasWithArtboard).artboardRect) {
+                canvas.setActiveObject(target);
+                canvas.requestRenderAll();
+            } else {
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+            }
+        }
         setContextMenu({
             x: e.clientX,
             y: e.clientY,
             isOpen: true,
         });
-    }, [setContextMenu, onVaultContextMenu]);
+    }, [canvas, setContextMenu, onVaultContextMenu]);
 
     const handleFileDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();

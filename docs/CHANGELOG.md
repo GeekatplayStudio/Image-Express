@@ -1,6 +1,6 @@
 # Changelog — Delivery History
 
-Last updated: 2026-08-11  
+Last updated: 2026-08-17
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
@@ -18,6 +18,56 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-08-17 - One-click 3D origami unfold
+
+- Added a context-sensitive **Unfold** action when right-clicking a 3D model on
+  the canvas; empty-workspace right-click continues to open the circular tool
+  selector.
+- Added a client-side GLB/GLTF papercraft engine with automatic mesh
+  simplification, adjacency-aware triangular unfolding, overlap rejection,
+  island splitting, glue tabs, face labels, A4 packing, and millimetre SVG.
+- Kept the fast path to two actions--right-click and Unfold--with fabrication
+  controls remaining optional in Cricut Studio.
+- Added all 11 locale strings and regression coverage for model targeting,
+  context-menu routing, fold topology, tabs, and physical SVG dimensions.
+- Fixed dense-model stack overflow by streaming mesh bounds instead of passing
+  unbounded coordinate arrays to variadic `Math.min`/`Math.max`.
+- Fixed triangulated primitives such as cubes unfolding into loose triangles:
+  coplanar triangles are now placed as atomic panels, internal mesh diagonals
+  are suppressed, and the cube regression requires six squares, five 90-degree
+  folds, and seven glue seams on one sheet.
+- Added an eight-candidate local unfold planner and 3D fold-back predictor with
+  surface/topology fidelity scoring plus target mountain/valley fold angles.
+- Fixed local and Google Drive models being stored on the canvas as short-lived
+  browser `blob:` URLs. Model selections now materialize once into the existing
+  authenticated asset store, and 3D edit/unfold attempts recover legacy blob
+  layers by filename or report a localized, non-crashing expired-source error.
+- Production builds now refuse to clean `.next` while a live Image Express
+  server owns it, preventing missing-manifest/ENOENT failures in an open dev
+  session. The production launcher can still perform its own guarded auto-build.
+
+## 2026-08-17 — Unified Fabrication Studio and CNC planning
+
+- Combined 3D generation, the 3D model library, Cricut Studio, and the CNC
+  planner into one Fabrication tool family with click and right-click behavior.
+- Added the same Fabrication entry to the workspace circular selector and the
+  compact Tools menu, all routed through the existing shared tool controller.
+- Added workflow/material libraries and a searchable 5-axis CNC foam-cutter BOM
+  with saved acquisition progress, category/axis filters, safety flags, and CSV.
+- Added registry, inventory, modal, toolbar, and circular-navigation tests;
+  localized all new navigation and planner UI across all 11 dictionaries.
+
+## 2026-08-17 — Cricut fabrication export
+
+- Added a local raster-to-vector pipeline with monochrome thresholding, connected
+  component extraction, closed contour tracing, hole preservation, and physical-unit
+  node simplification.
+- Added deterministic multi-strategy MaxRects nesting with optional part rotation,
+  custom sheet dimensions, margins, spacing, and one SVG per material sheet.
+- Added extruded-silhouette layer planning from target depth and stock thickness,
+  per-layer registration score marks, and a JSON assembly manifest for multi-sheet ZIPs.
+- Added a dedicated live export workspace plus focused geometry, nesting, SVG, and UI tests.
 
 ## 2026-08-11 — AI Campaign Manager: stored campaigns, plain-language rules, verify with auto-fix
 
@@ -282,9 +332,9 @@ measurement: they ranked `River Stereo.wav` as the nearest match for
 45 s backfill default, which is what every click was paying with Ollama down:
 **45 s → 3.2 s**.
 
-*Note for anyone benchmarking: running `npm run verify` while a dev server is up
-rewrites `.next` underneath it and every route starts returning 500. It is not a
-code failure; restart the dev server.*
+*Historical note: running `npm run verify` while a dev server was up could
+rewrite `.next` underneath it and make every route return 500. Builds now stop
+before cleanup when a live server owns that directory.*
 
 ## 2026-08-08 — Operational floor: F-03, F-04, F-07 done; F-06 started
 

@@ -205,6 +205,48 @@ Composition shells: `EditorWorkspaceShell` (tool rail, panels, job footer),
 `EditorCanvasWorkspace` (canvas stage, overlays, utility cluster),
 `EditorViewOverlays` (modals, including the Asset Vault).
 
+### Fabrication exports
+
+`EditorFabricationExportModals` owns the specialist machine-output surfaces so
+the editor orchestrator carries one modal state regardless of fabrication type.
+Embroidery continues through `src/lib/embroidery`; Cricut export is split under
+`src/lib/cricut` into tracing, physical part creation, MaxRects nesting, and SVG
+serialization. The Cricut engine runs client-side because its source is the
+already-local artboard capture and its output is synchronous, reproducible geometry,
+not a long-running provider job. See [CRICUT_EXPORT.md](CRICUT_EXPORT.md).
+
+`src/lib/papercraft` is the separate one-click mesh-to-net path. It loads the
+selected GLB/GLTF with Three.js, normalizes and simplifies geometry, builds triangle
+adjacency, unfolds across shared edges while rejecting overlap, creates seams
+and glue tabs, and packs millimetre SVG sheets. `usePapercraftUnfold` converts
+those sheets back into editable Fabric vector groups on the active artboard.
+Coplanar triangle components are placed atomically as rigid panels before the
+planner considers angled hinges. Mesh triangulation diagonals therefore remain
+welded construction detail and never become cut or score operations; a
+triangulated cube exports as six square panels with five folds.
+`papercraftIntelligence` runs eight deterministic candidate orders, selects the
+lowest seam/island/waste cost, derives signed dihedral fold instructions, and
+scores whether the 2D topology can reconstruct the source 3D surface. Large-mesh
+bounds are accumulated iteratively; coordinate arrays are never spread into
+variadic `Math.min`/`Math.max`, avoiding browser call-stack limits.
+
+3D canvas layers never intentionally persist browser-owned `blob:` URLs.
+`assetLibrary/durableModelSource.ts` materializes local and Drive model blobs
+through the existing authenticated upload API before placement, caches the
+resulting `/api/assets/serve/...` source, and can recover older volatile layers
+by exact filename. Both full 3D editing and papercraft unfolding pass through
+that recovery boundary; an unrecoverable expired blob is rejected before
+Three.js receives it.
+
+`components/toolbar/toolRegistry.ts` is the single navigation registry for the
+unified Fabrication tool group. Toolbar click/right-click, the compact Tools
+menu, and the workspace circular selector all route through the editor's shared
+tool controller. `features/fabrication/domain` owns workflow/material/BOM data;
+`features/fabrication/application/inventoryState.ts` owns local quantity state
+and CSV serialization. The library UI reuses the existing 3D generator, Asset
+Vault model filter, and Cricut modal. See
+[FABRICATION_STUDIO.md](FABRICATION_STUDIO.md).
+
 ### Canvas model
 
 `DesignCanvas` owns a full-size Fabric canvas plus an explicit **artboard**
@@ -680,6 +722,12 @@ script stripping. Spec: [THEME_PACKS_SPEC.md](THEME_PACKS_SPEC.md).
 | `npm run desktop:verify-package` | Package contents + 400 MB standalone budget |
 | `npm run desktop:smoke-package` | Packaged app actually launches |
 
+Build cleanup is mutually exclusive with a running Image Express server.
+`server-lock.mjs` keeps its ownership record outside `.next`, and both the
+prebuild cleanup and compiler entry point check it before touching generated
+manifests. The production launcher passes an owner token only for the auto-build
+it initiates itself.
+
 > **Install under Node ≥24.** Older npm does not honour the major-scoped
 > `overrides` keys and silently downgrades pinned packages. See
 > [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
@@ -703,6 +751,7 @@ Where things live, so changes land in the right place.
 | ComfyUI client | `src/lib/comfyui/` |
 | Server-only helpers | `src/lib/server/` |
 | i18n dictionaries | `src/lib/i18n/locales/` |
+| Fabrication workflows and CNC inventory | `src/features/fabrication/`, `src/lib/cricut/` |
 | Launchers, audits, installers | `scripts/` |
 | Desktop shell | `electron/` |
 

@@ -18,6 +18,7 @@ import {
     Facebook,
     Instagram,
     Scissors,
+    ScanLine,
 } from 'lucide-react';
 
 import { Switch } from '@/components/ui/switch';
@@ -39,7 +40,7 @@ import type { UserProfileSettings } from '@/lib/profile-utils';
 import type { ColorPalette } from '@/types';
 import { useI18n } from '@/providers/I18nProvider';
 
-type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html' | 'embroidery';
+type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html' | 'embroidery' | 'cricut';
 type SharePlatform = 'facebook' | 'instagram';
 
 type EditorHeaderActionsProps = {
@@ -332,6 +333,7 @@ export default function EditorHeaderActions({
                         <button onClick={() => handleExport('html')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-sky-400" /> <span className="font-medium">{t('hdr.htmlBundle')}</span></button>
                         <div className="my-1 border-t border-border/50" />
                         <button onClick={() => handleExport('embroidery')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Scissors size={16} className="text-pink-500" /> <span className="font-medium">{t('hdr.embroidery')}</span></button>
+                        <button onClick={() => handleExport('cricut')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><ScanLine size={16} className="text-emerald-500" /> <span className="font-medium">{t('hdr.cricut')}</span></button>
                     </div>
                 )}
             </div>

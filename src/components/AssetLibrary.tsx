@@ -68,6 +68,7 @@ import { useI18n } from '@/providers/I18nProvider';
 import { canRenderModelThumbnail, getCachedModelThumbnail, renderModelThumbnail } from '@/lib/modelThumbnail';
 import { backfillLocalAssetIndex, indexLocalAsset } from '@/lib/assetIndexer';
 import { loadAssetIndexSettings, saveAssetIndexSettings } from '@/lib/assetIndexSettings';
+import { materializeDurableModelSource } from '@/lib/assetLibrary/durableModelSource';
 
 const ACCEPTED_FILE_TYPES = `${buildImageAcceptAttribute()},video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply`;
 
@@ -1045,6 +1046,16 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 throw new Error('Missing local asset id.');
             }
             const blob = await getLocalAssetBlob(asset.storageId);
+            if (asset.type === 'models') {
+                return materializeDurableModelSource({
+                    cacheKey: `local:${asset.storageId}`,
+                    blob,
+                    filename: asset.name,
+                    category: asset.category,
+                    owner: normalizedUser,
+                    isPublic: asset.isPublic,
+                });
+            }
             return URL.createObjectURL(blob);
         }
 
@@ -1058,10 +1069,20 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
                 throw new Error('Google Drive is not connected.');
             }
             const blob = await downloadDriveAssetBlob(resolvedDriveClientId, asset.storageId);
+            if (asset.type === 'models') {
+                return materializeDurableModelSource({
+                    cacheKey: `google-drive:${asset.storageId}`,
+                    blob,
+                    filename: asset.name,
+                    category: asset.category,
+                    owner: normalizedUser,
+                    isPublic: asset.isPublic,
+                });
+            }
             return URL.createObjectURL(blob);
         }
         return asset.path;
-    }, [driveClientId]);
+    }, [driveClientId, normalizedUser]);
 
     const resolveModelPreviewUrl = useCallback(async (asset: LibraryAsset) => {
         const representative = pickRepresentativeAsset(asset);

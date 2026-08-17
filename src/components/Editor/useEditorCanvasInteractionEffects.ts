@@ -17,6 +17,7 @@ type UseEditorCanvasInteractionEffectsArgs = {
     setMediaPreview: React.Dispatch<React.SetStateAction<MediaPreview>>;
     setEditingModelUrl: React.Dispatch<React.SetStateAction<string | null>>;
     setEditingModelObject: React.Dispatch<React.SetStateAction<fabric.Object | null>>;
+    onOpenThreeDModel?: (target: ThreeDImage & ExtendedFabricObject) => void;
     setActiveTool: (tool: string) => void;
 };
 
@@ -32,6 +33,7 @@ export function useEditorCanvasInteractionEffects({
     setMediaPreview,
     setEditingModelUrl,
     setEditingModelObject,
+    onOpenThreeDModel,
     setActiveTool,
 }: UseEditorCanvasInteractionEffectsArgs) {
     useEffect(() => {
@@ -47,6 +49,10 @@ export function useEditorCanvasInteractionEffects({
             }
 
             if (target.is3DModel || target.modelUrl) {
+                if (onOpenThreeDModel) {
+                    onOpenThreeDModel(target);
+                    return;
+                }
                 setEditingModelUrl(target.modelUrl || null);
                 setEditingModelObject(target);
             } else {
@@ -160,6 +166,7 @@ export function useEditorCanvasInteractionEffects({
         setMediaPreview,
         setEditingModelUrl,
         setEditingModelObject,
+        onOpenThreeDModel,
         setActiveTool,
     ]);
 }

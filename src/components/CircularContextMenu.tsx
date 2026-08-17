@@ -5,7 +5,7 @@ import {
     ArrowDown,
     ArrowUp,
     Blend,
-    Box,
+    Boxes,
     Brush,
     ChevronsDown,
     ChevronsUp,
@@ -14,6 +14,8 @@ import {
     LassoSelect,
     LayoutTemplate,
     Move,
+    Loader2,
+    Origami,
     PaintBucket,
     PenTool,
     Shapes,
@@ -27,6 +29,7 @@ import {
 } from 'lucide-react';
 import useAppTheme from '@/hooks/useAppTheme';
 import { useI18n } from '@/providers/I18nProvider';
+import { FABRICATION_TOOL_GROUP } from '@/components/toolbar/toolRegistry';
 
 interface CircularContextMenuProps {
     x: number;
@@ -38,6 +41,11 @@ interface CircularContextMenuProps {
     onSelectTool: (tool: string) => void;
     onLayerOrderAction?: (action: LayerOrderAction) => void;
     layerOrderState?: LayerOrderState;
+    modelContext?: {
+        name: string;
+        isUnfolding: boolean;
+        onUnfold: () => void;
+    };
 }
 
 export type LayerOrderAction = 'move-up' | 'move-down' | 'to-front' | 'to-back';
@@ -81,7 +89,8 @@ export default function CircularContextMenu({
     onClose,
     onSelectTool,
     onLayerOrderAction,
-    layerOrderState
+    layerOrderState,
+    modelContext,
 }: CircularContextMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
     const appTheme = useAppTheme();
@@ -107,7 +116,7 @@ export default function CircularContextMenu({
         { id: 'assets', icon: ImageIcon, labelKey: 'toolbar.gallery', color: appTheme.circularMenuColors.assets, group: 'library' },
         { id: 'templates', icon: LayoutTemplate, labelKey: 'toolbar.library', color: appTheme.circularMenuColors.templates, group: 'library' },
         { id: 'ai-zone', icon: Sparkles, labelKey: 'toolbar.aiZone', color: appTheme.circularMenuColors.aiZone, group: 'library' },
-        { id: '3d-gen', icon: Box, labelKey: 'toolbar.ai3d', color: appTheme.circularMenuColors.threeD, group: 'library' },
+        { id: 'fabrication-library', icon: Boxes, labelKey: 'toolbar.fabrication', color: appTheme.circularMenuColors.threeD, group: 'library' },
     ];
 
     useEffect(() => {
@@ -134,6 +143,39 @@ export default function CircularContextMenu({
     }, [isOpen, onClose]);
 
     if (!isOpen) return null;
+
+    if (modelContext) {
+        const menuX = typeof window === 'undefined' ? x : Math.min(x, window.innerWidth - 240);
+        const menuY = typeof window === 'undefined' ? y : Math.min(y, window.innerHeight - 132);
+        return (
+            <div
+                ref={menuRef}
+                role="menu"
+                aria-label={t('papercraft.modelActions')}
+                className="fixed z-[100] w-56 rounded-xl border border-zinc-200 bg-white p-2 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                style={{ left: Math.max(8, menuX), top: Math.max(8, menuY) }}
+            >
+                <div className="truncate px-2 pb-2 pt-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    {modelContext.name}
+                </div>
+                <button
+                    type="button"
+                    role="menuitem"
+                    disabled={modelContext.isUnfolding}
+                    onClick={modelContext.onUnfold}
+                    className="flex w-full items-center gap-3 rounded-lg bg-primary px-3 py-2.5 text-left text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
+                >
+                    {modelContext.isUnfolding
+                        ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
+                        : <Origami aria-hidden="true" className="h-5 w-5" />}
+                    <span>{t(modelContext.isUnfolding ? 'papercraft.unfolding' : 'papercraft.unfold')}</span>
+                </button>
+                <p className="px-2 pt-2 text-[11px] leading-4 text-zinc-500 dark:text-zinc-400">
+                    {t('papercraft.oneClickHint')}
+                </p>
+            </div>
+        );
+    }
 
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
@@ -230,7 +272,9 @@ export default function CircularContextMenu({
                     const radian = (angle * Math.PI) / 180;
                     const bx = Math.cos(radian) * radius;
                     const by = Math.sin(radian) * radius;
-                    const isActive = activeTool === item.id || (item.id === 'channels' && activePanelMode === 'channels');
+                    const isActive = activeTool === item.id
+                        || (item.id === 'fabrication-library' && FABRICATION_TOOL_GROUP.tools.some((tool) => tool.name === activeTool))
+                        || (item.id === 'channels' && activePanelMode === 'channels');
 
                     return (
                         <button

@@ -50,6 +50,10 @@ const ALLOWED_KEYS = new Set([
     'constellation.subtitle',
     // "design feedback" is critique of the aesthetics, not of a saved page.
     'critique.outputPlaceholder',
+    // A campaign rule applies to the visual design, not a saved Page entity.
+    'campaign.parametersPlaceholder',
+    // Cricut Design Space is the external product's proper name.
+    'cricut.importHint',
     // "text-to-image stack" is a software stack, not the 3D album view.
     'comfyModel.fluxDev',
 ]);

@@ -74,6 +74,23 @@ export function assertNoConflictingServer(intent) {
     process.exit(1);
 }
 
+/** Prevent a clean production build from deleting files beneath a live server. */
+export function assertBuildOutputAvailable() {
+    const lock = readServerLock();
+    if (!lock) return;
+    const permittedOwner = Number.parseInt(process.env.IMAGE_EXPRESS_BUILD_LOCK_OWNER || '', 10);
+    if (Number.isInteger(permittedOwner) && permittedOwner === lock.pid) return;
+
+    console.error('');
+    console.error('[ERROR] Cannot clean .next while an Image Express server is running.');
+    console.error(`        Running: ${lock.mode} mode (process ${lock.pid}, started ${lock.startedAt})`);
+    console.error('');
+    console.error('  Stop that server before running a production build. Cleaning .next now');
+    console.error('  would remove its manifests and break the open browser session.');
+    console.error('');
+    process.exit(1);
+}
+
 /**
  * True when .next holds a real, complete production build. Checking BUILD_ID
  * alone is not enough: a half-cleared or dev-clobbered .next can leave the

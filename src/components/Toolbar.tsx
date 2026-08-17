@@ -7,23 +7,12 @@ import { getArtboardSize, applyArtboardSize } from '@/lib/fabric-utils';
 import { useI18n } from '@/providers/I18nProvider';
 import { applyEditorCanvasToolConfig } from '@/components/Editor/editorCanvasToolMode';
 import {
-    Type,
-    Square,
-    LassoSelect,
-    Image as ImageIcon,
-    LayoutTemplate,
-    Shapes,
     Circle,
+    Square,
     Triangle,
     Star,
-    Move,
     Box,
     Wand2,
-    SquareMousePointer,
-    PaintbrushVertical,
-    Pointer,
-    PaintBucket,
-    Brush,
     ArrowRight,
     CornerDownRight,
     MessageSquare,
@@ -31,29 +20,7 @@ import {
     Cloud,
     Hexagon,
     Diamond,
-    PenTool,
-    ShieldCheck,
-    Bot,
-    ArrowUpWideNarrow,
-    Copy,
-    History,
-    Blend,
-    Sun,
-    Sparkles,
-    Scan,
-    Crop,
-    Pipette,
-    Search,
-    Hand,
     ArrowUpDown,
-    SlidersHorizontal,
-    Bandage,
-    Eraser,
-    Flame,
-    Droplets,
-    Workflow,
-    Layers,
-    type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
@@ -90,6 +57,16 @@ import { CUSTOM_SERIALIZED_PROPS } from '@/components/Editor/editorViewConfig';
 import { TOP_TEXT_FONT_FAMILIES } from '@/lib/typography';
 import { ensureDisplayableImage } from '@/lib/imageFormats/universalImageDecoder';
 import { buildImageAcceptAttribute, getImageFormatEntry } from '@/lib/imageFormats/supportedFormats';
+import FabricationLibraryModal from '@/components/fabrication/FabricationLibraryModal';
+import {
+    CREATION_LIBRARY_TOOLS,
+    CREATION_PRIMARY_TOOLS,
+    TOOL_ALIAS_MAP,
+    TOOL_GROUP_BY_ID,
+    TOOL_GROUPS,
+    WORKSPACE_UTILITY_TOOLS,
+    type ToolbarToolGroupId,
+} from '@/components/toolbar/toolRegistry';
 
 /**
  * Toolbar
@@ -153,107 +130,6 @@ type ShapeConfigPayload = {
     cornerRadius: number;
     fixedSize: boolean;
 };
-
-const TOOL_ALIAS_MAP: Record<string, string> = {
-    move: 'select',
-    'path-select': 'select',
-};
-
-type ToolbarToolDefinition = {
-    name: string;
-    icon: LucideIcon;
-    /** i18n key for the full Title Case name shown on the expanded rail. */
-    labelKey: string;
-    /** i18n key for the abbreviated name shown when the rail is collapsed. */
-    shortLabelKey?: string;
-};
-
-type ToolbarToolGroupId = 'selection' | 'retouch' | 'fill';
-
-type ToolbarToolGroupDefinition = {
-    id: ToolbarToolGroupId;
-    labelKey: string;
-    tools: ToolbarToolDefinition[];
-    defaultTool: string;
-};
-
-const SELECTION_TOOL_GROUP: ToolbarToolGroupDefinition = {
-    id: 'selection',
-    labelKey: 'toolbar.group.selection',
-    defaultTool: 'select',
-    tools: [
-        { name: 'select', icon: Move, labelKey: 'toolbar.move' },
-        { name: 'marquee', icon: Square, labelKey: 'toolbar.marquee' },
-        { name: 'lasso', icon: LassoSelect, labelKey: 'toolbar.lasso' },
-        { name: 'wand', icon: Wand2, labelKey: 'toolbar.wand', shortLabelKey: 'toolbar.short.wand' },
-        { name: 'quick-select', icon: SquareMousePointer, labelKey: 'toolbar.quickSelect', shortLabelKey: 'toolbar.short.quick' },
-        { name: 'selection-brush', icon: PaintbrushVertical, labelKey: 'toolbar.selectionBrush', shortLabelKey: 'toolbar.short.selBrush' },
-        { name: 'path-select', icon: Pointer, labelKey: 'toolbar.pathSelect', shortLabelKey: 'toolbar.short.path' },
-    ],
-};
-
-const RETOUCH_TOOL_GROUP: ToolbarToolGroupDefinition = {
-    id: 'retouch',
-    labelKey: 'toolbar.group.retouch',
-    defaultTool: 'healing',
-    tools: [
-        { name: 'spot-healing', icon: Bandage, labelKey: 'toolbar.spotHealing', shortLabelKey: 'toolbar.short.spot' },
-        { name: 'remove', icon: Eraser, labelKey: 'toolbar.removeTool', shortLabelKey: 'toolbar.short.remove' },
-        { name: 'healing', icon: ShieldCheck, labelKey: 'toolbar.healingBrush', shortLabelKey: 'toolbar.short.healing' },
-        { name: 'clone-stamp', icon: Copy, labelKey: 'toolbar.cloneStamp', shortLabelKey: 'toolbar.short.clone' },
-        { name: 'history-brush', icon: History, labelKey: 'toolbar.historyBrush', shortLabelKey: 'toolbar.short.history' },
-        { name: 'blur', icon: Blend, labelKey: 'toolbar.blurTool', shortLabelKey: 'toolbar.short.blur' },
-        { name: 'sharpen', icon: Scan, labelKey: 'toolbar.sharpenTool', shortLabelKey: 'toolbar.short.sharpen' },
-        { name: 'dodge', icon: Sun, labelKey: 'toolbar.dodgeTool', shortLabelKey: 'toolbar.short.dodge' },
-        { name: 'burn', icon: Flame, labelKey: 'toolbar.burnTool', shortLabelKey: 'toolbar.short.burn' },
-        { name: 'sponge', icon: Droplets, labelKey: 'toolbar.spongeTool', shortLabelKey: 'toolbar.short.sponge' },
-    ],
-};
-
-const FILL_TOOL_GROUP: ToolbarToolGroupDefinition = {
-    id: 'fill',
-    labelKey: 'toolbar.group.fill',
-    defaultTool: 'gradient',
-    tools: [
-        { name: 'gradient', icon: PaintBucket, labelKey: 'toolbar.fillGradient', shortLabelKey: 'toolbar.short.fill' },
-        { name: 'fill-layer', icon: Layers, labelKey: 'toolbar.fillLayer', shortLabelKey: 'toolbar.short.fillLayer' },
-    ],
-};
-
-const TOOL_GROUPS: ToolbarToolGroupDefinition[] = [SELECTION_TOOL_GROUP, RETOUCH_TOOL_GROUP, FILL_TOOL_GROUP];
-
-const TOOL_GROUP_BY_ID: Record<ToolbarToolGroupId, ToolbarToolGroupDefinition> = {
-    selection: SELECTION_TOOL_GROUP,
-    retouch: RETOUCH_TOOL_GROUP,
-    fill: FILL_TOOL_GROUP,
-};
-
-const CREATION_PRIMARY_TOOLS: ToolbarToolDefinition[] = [
-    { name: 'text', icon: Type, labelKey: 'toolbar.text' },
-    { name: 'shapes', icon: Shapes, labelKey: 'toolbar.shapes' },
-    { name: 'adjustments', icon: SlidersHorizontal, labelKey: 'toolbar.adjustmentLayers', shortLabelKey: 'toolbar.short.adjust' },
-    { name: 'pen', icon: PenTool, labelKey: 'toolbar.pen' },
-    { name: 'paint', icon: Brush, labelKey: 'toolbar.brushes', shortLabelKey: 'toolbar.short.brush' },
-];
-
-const CREATION_LIBRARY_TOOLS: ToolbarToolDefinition[] = [
-    { name: 'assets', icon: ImageIcon, labelKey: 'toolbar.gallery' },
-    { name: 'templates', icon: LayoutTemplate, labelKey: 'toolbar.library', shortLabelKey: 'toolbar.short.templates' },
-    { name: 'ai-zone', icon: Sparkles, labelKey: 'toolbar.aiZone' },
-    { name: 'comfy-flows', icon: Workflow, labelKey: 'toolbar.comfyWorkflows', shortLabelKey: 'toolbar.short.comfy' },
-    { name: 'ai-critique', icon: MessageSquare, labelKey: 'toolbar.aiCritique', shortLabelKey: 'toolbar.short.critique' },
-    { name: 'ai-brand-manager', icon: ShieldCheck, labelKey: 'toolbar.aiBrandManager', shortLabelKey: 'toolbar.short.brand' },
-    { name: 'super-agent', icon: Bot, labelKey: 'toolbar.superAgent', shortLabelKey: 'toolbar.short.agent' },
-    { name: 'ai-upscale', icon: ArrowUpWideNarrow, labelKey: 'toolbar.aiUpscale', shortLabelKey: 'toolbar.short.upscale' },
-    { name: '3d-gen', icon: Box, labelKey: 'toolbar.ai3d' },
-];
-
-const WORKSPACE_UTILITY_TOOLS: ToolbarToolDefinition[] = [
-    { name: 'crop', icon: Crop, labelKey: 'toolbar.crop' },
-    { name: 'eyedropper', icon: Pipette, labelKey: 'toolbar.eyedropper', shortLabelKey: 'toolbar.short.picker' },
-    { name: 'zoom', icon: Search, labelKey: 'toolbar.zoom' },
-    { name: 'hand', icon: Hand, labelKey: 'toolbar.hand' },
-];
 
 const PEN_STROKE = PEN_DEFAULT_STROKE;
 const PEN_FILL = PEN_DEFAULT_FILL;
@@ -543,12 +419,14 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const selectionGroupButtonRef = useRef<HTMLButtonElement>(null);
     const retouchGroupButtonRef = useRef<HTMLButtonElement>(null);
     const fillGroupButtonRef = useRef<HTMLButtonElement>(null);
+    const fabricationGroupButtonRef = useRef<HTMLButtonElement>(null);
     const [openToolGroup, setOpenToolGroup] = useState<ToolbarToolGroupId | null>(null);
     const [toolGroupMenuPos, setToolGroupMenuPos] = useState<{ left: number; top: number } | null>(null);
     const [toolGroupPrimaryTool, setToolGroupPrimaryTool] = useState<Record<ToolbarToolGroupId, string>>({
-        selection: SELECTION_TOOL_GROUP.defaultTool,
-        retouch: RETOUCH_TOOL_GROUP.defaultTool,
-        fill: FILL_TOOL_GROUP.defaultTool,
+        selection: TOOL_GROUP_BY_ID.selection.defaultTool,
+        retouch: TOOL_GROUP_BY_ID.retouch.defaultTool,
+        fill: TOOL_GROUP_BY_ID.fill.defaultTool,
+        fabrication: TOOL_GROUP_BY_ID.fabrication.defaultTool,
     });
     const [isRailHovered, setIsRailHovered] = useState(false);
     const normalizedActiveTool = TOOL_ALIAS_MAP[activeTool] || activeTool;
@@ -1087,6 +965,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             const clickedGroupButton = (
                 selectionGroupButtonRef.current?.contains(targetNode)
                 || retouchGroupButtonRef.current?.contains(targetNode)
+                || fillGroupButtonRef.current?.contains(targetNode)
+                || fabricationGroupButtonRef.current?.contains(targetNode)
             );
             if (toolGroupMenuRef.current && !toolGroupMenuRef.current.contains(targetNode) && !clickedGroupButton) {
                 setOpenToolGroup(null);
@@ -1521,7 +1401,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             ? selectionGroupButtonRef
             : groupId === 'retouch'
                 ? retouchGroupButtonRef
-                : fillGroupButtonRef
+                : groupId === 'fill'
+                    ? fillGroupButtonRef
+                    : fabricationGroupButtonRef
     );
 
     const openToolGroupMenuFor = (groupId: ToolbarToolGroupId) => {
@@ -2412,6 +2294,14 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 />
             )}
 
+            {(activeTool === 'fabrication-library' || activeTool === 'cnc-planner') && (
+                <FabricationLibraryModal
+                    initialTab={activeTool === 'cnc-planner' ? 'hardware' : 'workflows'}
+                    onLaunch={handleToolClick}
+                    onClose={() => setActiveTool('select')}
+                />
+            )}
+
             {(activeTool === 'color-wheel' || activeTool === 'eyedropper') && (
                 <BodyPortal>
                     <ColorPickerModeHost
@@ -2640,9 +2530,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                         <Wand2 size={16} />
                         {t('toolbar.aiZone')}
                     </button>
-                    <button onClick={() => { setActiveTool('3d-gen'); setShowExtraMenu(false); }} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
+                    <button onClick={() => { setActiveTool('fabrication-library'); setShowExtraMenu(false); }} className="flex items-center gap-2 p-2 hover:bg-secondary rounded transition-colors text-muted-foreground hover:text-foreground text-[11px]">
                         <Box size={16} />
-                        {t('toolbar.ai3d')}
+                        {t('toolbar.fabrication')}
                     </button>
                 </div>,
                 document.body

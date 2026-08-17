@@ -261,10 +261,18 @@ Most tools give you one canvas per document. Image Express gives every project a
 - **Resizable thumbnails**: a six-step size slider over the grid, remembered between sessions. Five of the six steps reuse the same cached rendition the background precache already generates, so dragging it resizes instantly instead of regenerating every visible tile.
 - **"Find similar" that answers without an index**: it searches the same semantic index as smart search, and falls back to what the file itself says — folder, type, filename, date — so it still returns real neighbours (and tells you *why* each one matched) while the semantic index is still building.
 - **Portable Library Bundles**: export your entire asset library (with owner/visibility metadata) as one file and re-import it on another machine or project.
-- **Server-side design storage** (no browser-storage limits), optional **Google Drive backup** mirroring every save automatically, and full **export** to PNG/JPG/SVG/PDF/JSON/self-contained offline HTML — plus **machine embroidery (.DST)**, see below.
+- **Server-side design storage** (no browser-storage limits), optional **Google Drive backup** mirroring every save automatically, and full **export** to PNG/JPG/SVG/PDF/JSON/self-contained offline HTML — plus **machine embroidery (.DST)** and dimensionally accurate **Cricut SVG cutting sheets**, see below.
 
 ### 🧵 Machine Embroidery Export — design it, sew it
 Export any page straight to **Tajima .DST**, the format nearly every embroidery machine on the planet reads. Pick how many thread colors to reduce your design to, set physical width, fill density, and max stitch length, and optionally skip the background (transparent areas and the color dominating the page border are auto-detected and never stitched). The engine generates real running-stitch fills with tie-in/tie-off locks and proper jump-vs-travel logic — not a naive pixel-to-stitch dump — and the preview window includes **zoom/pan** plus a **stitch-out simulator**: drag a slider (or hit play) to watch the exact needle path draw itself in sewing order, thread by thread, before you commit it to a machine.
+
+### Cricut Fabrication Export — trace it, nest it, build it
+Turn the active page into monochrome, closed-path **SVG cut files** with exact millimetre dimensions. Tune threshold, output scale, node tolerance, minimum feature size, stock dimensions, margins and spacing, then let the local smart nesting engine rotate and distribute independent parts across as few sheets as it can. Stacked-profile mode repeats the traced contours from target depth and material thickness, adds registration score marks, and packages multi-sheet jobs with an assembly manifest. [Read the Cricut export guide](docs/CRICUT_EXPORT.md).
+
+### Fabrication Studio — one home for 3D, Cricut, materials, and CNC
+The left rail now combines physical-making tools under one **Fabrication** family. Click it for the workflow and material library, right-click it for direct 3D generation, 3D model library, Cricut Studio, and five-axis CNC planner subtools, or open the same family from the workspace circular selector. The CNC planner includes a searchable, persistent 5-axis foam-cutter hardware inventory with axis/category filters, completion tracking, safety-critical flags, and CSV export. [Read the Fabrication Studio guide](docs/FABRICATION_STUDIO.md).
+
+Already have a 3D model on the canvas? **Right-click it and choose Unfold.** With no setup dialog, Image Express creates an origami-style vector net with cut lines, fold lines, numbered faces, glue tabs, and automatically packed millimetre sheets. Dense GLB/GLTF meshes are reduced to a practical paper-model topology automatically; exact material and scale controls remain available in Cricut Studio.
 
 ### 🌍 11 languages, growing
 English, German, Spanish, French, Italian, Japanese, Polish, Portuguese, Russian, Ukrainian, and Chinese are all selectable from the top-bar globe menu, with automatic locale persistence. **English, Russian, and Ukrainian are at 100% UI coverage** today — every panel, from the dashboard to the deepest properties tab. The rest are being brought up to the same bar one functional area at a time (Spanish is next); until then they fall back to English string-by-string, so nothing ever renders blank.
@@ -355,6 +363,7 @@ graph TD
 * **Canvas Engine**: Standard Fabric.js core extended with custom subclass renderers (e.g., `WarpedImage` for perspective transformations, custom prototype extensions for styled text layout cards).
 * **AI Abstraction Layer (`AiRuntimeManager`)**: A polymorphic adapter framework separating the front-end from individual generation APIs. It normalizes inputs and outputs, manages async polling states, and simplifies provider selection.
 * **Job Queue (`src/lib/server/jobQueue/`)**: Long-running AI work never executes inside a request handler. Requests are *accepted* (`202` + job id) and handed to a durable, crash-safe queue with **lane-based concurrency** — the local GPU lane serializes to 1, the CPU lane runs 4, and each remote provider gets its own window so a slow provider can't starve the others. Running jobs hold a lease renewed by their own progress updates, so any job persisted as `running` at boot belonged to a dead process and is failed as `interrupted` rather than hanging forever. Clients subscribe to one **Server-Sent Events** stream instead of polling. Full record: [`docs/JOB_QUEUE.md`](docs/JOB_QUEUE.md).
+* **Fabrication Pipeline (`src/lib/cricut/`, `src/lib/papercraft/`)**: The path from pixels to physical parts, entirely local and deterministic — no API key, no model download. Raster art is thresholded, traced into closed contours, simplified, and nested across stock sheets with rotation; 3D meshes are simplified, unfolded into non-overlapping nets with glue tabs, and packed onto millimetre-dimensioned sheets. The unfold planner scores eight candidate seam orders and predicts fold-back fidelity against the source mesh, storing its confidence in the SVG as machine-readable attributes. Full record: [`docs/FABRICATION_STUDIO.md`](docs/FABRICATION_STUDIO.md).
 * **Command Pattern Engine**: Tracks every user canvas interaction (moves, resizing, properties) as discrete, serializable command payloads. This provides a clear audit trail and enables reliable undo/redo capabilities.
 * **Multi-Canvas Project Store**: Each project owns an array of canvases plus a shared-layer registry (`sharedLayerId`); a Three.js overlay (`CanvasStackView`) renders every canvas as a floating textured plane and every project as a navigable "room" in Federation mode, with animated bridge curves tracing live shared-layer links.
 * **Theme/Ambience Pack Engine**: A sandboxed, code-free pack format (manifest JSON + CSS + PNG sprite sheets) drives both the interface theme system and a small built-in sprite/animation runtime (`SpriteTheater`, `DashboardAmbience`) — packs declare *scenes* from a fixed vocabulary (fly-across, chase, build-and-destroy, word-formation, concert, dance party, ...) that the app itself interprets and renders; no pack can execute arbitrary code.
@@ -485,6 +494,9 @@ src/app/            Next.js App Router pages + all API routes (AI proxies, asset
 src/components/      Dashboard, DesignCanvas, ThreeDGenerator, PropertiesPanel, PipelineRail, Editor/, properties/, dashboard/
 src/lib/             AI adapters, multi-canvas store, theme/ambience engines, i18n, storage
 src/lib/server/jobQueue/   Durable job queue: store, lane scheduler, per-kind handlers
+src/lib/cricut/      Cricut export: thresholding, contour tracing, node simplification, sheet nesting, SVG output
+src/lib/papercraft/  Origami unfold: mesh simplification, overlap-safe unfolding, glue tabs, sheet packing
+src/features/fabrication/  Fabrication workflows, material presets, and the CNC bill-of-materials inventory
 electron/            Desktop shell (child-process server boot, auto-updater, startup logging)
 theme-packs/          Theme-pack authoring workspace (gitignored — packs are downloads, not source)
 ambience-packs/       Dashboard-ambience authoring workspace (gitignored, same reasoning)
@@ -513,6 +525,8 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three
 - [docs/DESKTOP.md](docs/DESKTOP.md) — desktop packaging, auto-update, and startup-log internals
 - [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) — tag-to-artifact release pipeline
 - [docs/JOB_QUEUE.md](docs/JOB_QUEUE.md) — the job queue's design rationale and extension guide
+- [docs/FABRICATION_STUDIO.md](docs/FABRICATION_STUDIO.md) — the Fabrication tool family, one-click origami unfold, material presets, and the 5-axis CNC inventory
+- [docs/CRICUT_EXPORT.md](docs/CRICUT_EXPORT.md) — Cricut SVG cut files: tracing, nesting, stacked profiles, and current geometry limits
 - [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived (current state: `npm audit` clean)
 - [docs/THEME_PACKS_SPEC.md](docs/THEME_PACKS_SPEC.md) — build your own theme/ambience pack (no code required)
 - [docs/i18n_multilanguage_support.md](docs/i18n_multilanguage_support.md) — translation system and adding a language
@@ -520,7 +534,6 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three
 - [docs/html-export-notes.md](docs/html-export-notes.md) — HTML export details and asset coverage
 - [docs/prd_3d_layer_vfx_2026-07-23.md](docs/prd_3d_layer_vfx_2026-07-23.md) — 3D/VFX PRD, including the GPL-3.0 prior-art licensing position
 - [docs/Hy3D_Documentation.md](docs/Hy3D_Documentation.md) — Hitem3D provider API notes
-- [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived (current state: `npm audit` clean)
 
 ---
 

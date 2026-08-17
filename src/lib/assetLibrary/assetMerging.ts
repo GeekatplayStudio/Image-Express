@@ -78,6 +78,12 @@ const SOURCE_PRIORITY: Record<Exclude<AssetStorageProvider, 'merged'>, number> =
     server: 2,
 };
 
+const MODEL_SOURCE_PRIORITY: Record<Exclude<AssetStorageProvider, 'merged'>, number> = {
+    server: 0,
+    local: 1,
+    'google-drive': 2,
+};
+
 /**
  * What makes two entries "the same asset".
  *
@@ -102,8 +108,9 @@ export const pickRepresentativeAsset = (asset: LibraryAsset): LibraryAsset => {
     const sourceAssets = getSourceAssets(asset).filter((entry) => entry.storageProvider !== 'merged');
     if (sourceAssets.length === 0) return asset;
     return [...sourceAssets].sort((a, b) => {
-        const aPriority = SOURCE_PRIORITY[a.storageProvider as Exclude<AssetStorageProvider, 'merged'>] ?? 99;
-        const bPriority = SOURCE_PRIORITY[b.storageProvider as Exclude<AssetStorageProvider, 'merged'>] ?? 99;
+        const priorities = asset.type === 'models' ? MODEL_SOURCE_PRIORITY : SOURCE_PRIORITY;
+        const aPriority = priorities[a.storageProvider as Exclude<AssetStorageProvider, 'merged'>] ?? 99;
+        const bPriority = priorities[b.storageProvider as Exclude<AssetStorageProvider, 'merged'>] ?? 99;
         return aPriority - bPriority;
     })[0];
 };

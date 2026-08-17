@@ -71,7 +71,11 @@ async function main() {
         const buildCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
         const buildResult = spawnSync(buildCmd, ['run', 'build'], {
             stdio: 'inherit',
-            shell: process.platform === 'win32'
+            shell: process.platform === 'win32',
+            env: {
+                ...process.env,
+                IMAGE_EXPRESS_BUILD_LOCK_OWNER: String(process.pid),
+            },
         });
         if (buildResult.status !== 0) {
             console.error('[ERROR] Build failed. Cannot start production server.');

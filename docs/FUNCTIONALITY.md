@@ -243,6 +243,12 @@ visibility, live rotating 3D previews on hover, and real rendered thumbnails for
 or the hover **+** adds it directly. Video previews scrub and offer **Capture
 Frame** to grab the current frame as a new image layer.
 
+Local and Google Drive 3D selections are copied once into the durable local
+asset store before canvas placement, so saved layers survive reloads instead of
+depending on a browser-session `blob:` URL. Older volatile model layers are
+recovered by filename when possible; otherwise editing and Unfold stop with a
+clear localized prompt to re-add the source rather than crashing the 3D view.
+
 ### Asset Vault — Shipped
 Indexes assets **in place** across local drives — nothing is moved. On a local
 install, "Browse drive / folder" opens a server-backed folder picker (the
@@ -305,6 +311,35 @@ areas and the border-dominant colour are auto-detected and never stitched). The
 engine produces real running-stitch fills with tie-in/tie-off locks and proper
 jump-vs-travel logic. The preview offers zoom/pan and a **stitch-out simulator**
 that draws the needle path in sewing order.
+
+### Cricut fabrication export (.SVG) — Shipped
+Convert the active artboard to a high-contrast monochrome mask, trace it into
+closed and physically scaled vector paths, remove small islands, simplify nodes,
+and automatically nest independent elements across custom material sheets with
+optional 90-degree rotation. Stacked-profile mode computes layers from target
+depth and stock thickness, adds per-layer registration score marks, and exports
+one SVG or a multi-sheet ZIP with a fabrication manifest. Processing stays local.
+See [CRICUT_EXPORT.md](CRICUT_EXPORT.md) for the dimensional contract and current
+extruded-silhouette scope.
+
+### Unified Fabrication Studio — Shipped
+
+One left-rail family now groups 3D generation/editing, the 3D Asset Vault,
+Cricut Studio, and a five-axis CNC foam-cutter planner. Right-click the family
+for subtools or choose Fabrication Studio from the workspace circular selector.
+The library includes process-filtered material guidance and a complete,
+searchable hardware inventory with subsystem/axis filters, locally persisted
+acquired counts, progress, safety-critical markers, and CSV export. See
+[FABRICATION_STUDIO.md](FABRICATION_STUDIO.md).
+
+Selected 3D models also have a context-sensitive **Unfold** command: right-click
+the model and choose Unfold to create an origami-style triangular net directly
+on the canvas. The client-side pipeline simplifies dense GLB/GLTF meshes, avoids
+overlapping faces, creates cut/fold lines and glue tabs, splits difficult models
+into islands, and packs dimensioned vector sheets with no required setup. A
+local eight-candidate planner selects the strongest net and predicts 3D
+fold-back confidence from topology, edge/area fidelity, watertightness, and
+signed mountain/valley fold angles.
 
 ### Media export overlay — Partial
 Single-canvas crop workflow (A1–A3) plus a frame-to-variant bridge (B1).

@@ -4,7 +4,9 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 const chunksDirectory = path.resolve('.next/static/chunks');
-const maximumTotalBytes = 12_500_000;
+// Includes the local mesh-to-papercraft engine added in the fabrication slice;
+// keep less than 0.5% headroom so future growth still trips the guardrail.
+const maximumTotalBytes = 12_550_000;
 const maximumChunkBytes = 3_250_000;
 
 async function collectJavaScriptFiles(directory) {

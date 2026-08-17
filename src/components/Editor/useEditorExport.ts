@@ -7,6 +7,7 @@ import { runWithExportOverlays } from '@/components/Editor/editorExportOverlays'
 import { resolveEditorExportCropBounds } from '@/components/Editor/editorExportCrop';
 import { exportHtmlBundle as exportHtmlBundleHelper } from '@/components/Editor/editorHtmlExport';
 import { type MediaOverlayNamingTemplate } from '@/components/Editor/editorViewConfig';
+import type { FabricationExportState } from '@/components/Editor/EditorFabricationExportModals';
 import type { MediaOverlayBatchTarget } from '@/components/Editor/useMediaOverlay';
 import {
     buildFrameZipEntryName,
@@ -23,7 +24,7 @@ import type {
     DesignJson,
 } from '@/components/Editor/editorView.types';
 
-type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html' | 'embroidery';
+type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json' | 'html' | 'embroidery' | 'cricut';
 type SharePlatform = 'facebook' | 'instagram';
 
 type Toast = (options: ToastOptions) => void;
@@ -80,8 +81,7 @@ export function useEditorExport({
     const [exportQualitySize, setExportQualitySize] = useState<string>('');
     const [pendingExportFormat, setPendingExportFormat] = useState<'png' | 'jpg' | null>(null);
     const [includeCanvasBackground, setIncludeCanvasBackground] = useState(true);
-    // Non-null while the embroidery export modal is open; holds the PNG capture it works from.
-    const [embroiderySourceDataUrl, setEmbroiderySourceDataUrl] = useState<string | null>(null);
+    const [fabricationExport, setFabricationExport] = useState<FabricationExportState>(null);
 
     const pendingExportFilenameRef = useRef('');
     const pendingExportCropRef = useRef<RectBounds | undefined>(undefined);
@@ -262,6 +262,21 @@ export function useEditorExport({
         });
     }, [canvas, customHistoryProps, downloadBlob, getDisplayName, toast]);
 
+    const openFabricationExport = useCallback(async (kind: 'embroidery' | 'cricut') => {
+        if (!canvas) return;
+        const cropOptions = resolveCropOptions();
+        await withViewportReset(() => {
+            const sourceDataUrl = safeCanvasToDataURL({
+                format: 'png',
+                quality: 1,
+                multiplier: 1,
+                enableRetinaScaling: true,
+                ...cropOptions,
+            });
+            setFabricationExport({ kind, sourceDataUrl });
+        });
+    }, [canvas, resolveCropOptions, safeCanvasToDataURL, withViewportReset]);
+
     const handleExport = useCallback(async (format: ExportFormat) => {
         if (!canvas) return;
 
@@ -328,16 +343,11 @@ export function useEditorExport({
                 case 'embroidery': {
                     // Plain capture (no export overlays/watermarks) — the modal
                     // handles color reduction and background removal from here.
-                    await withViewportReset(() => {
-                        const dataUrl = safeCanvasToDataURL({
-                            format: 'png',
-                            quality: 1,
-                            multiplier: 1,
-                            enableRetinaScaling: true,
-                            ...cropOptions,
-                        });
-                        setEmbroiderySourceDataUrl(dataUrl);
-                    });
+                    await openFabricationExport('embroidery');
+                    break;
+                }
+                case 'cricut': {
+                    await openFabricationExport('cricut');
                     break;
                 }
                 default:
@@ -354,15 +364,15 @@ export function useEditorExport({
         customHistoryProps,
         downloadFile,
         exportHtmlBundle,
+        openFabricationExport,
         openExportQualityModal,
         resolveCropOptions,
         safeCanvasToDataURL,
         withExportOverlays,
-        withViewportReset,
     ]);
 
-    const closeEmbroideryModal = useCallback(() => {
-        setEmbroiderySourceDataUrl(null);
+    const closeFabricationExport = useCallback(() => {
+        setFabricationExport(null);
     }, []);
 
     const handleShare = useCallback(async (platform: SharePlatform) => {
@@ -467,7 +477,8 @@ export function useEditorExport({
         handleExport,
         handleShare,
         exportMediaOverlayFramesZip,
-        embroiderySourceDataUrl,
-        closeEmbroideryModal,
+        fabricationExport,
+        closeFabricationExport,
+        openFabricationExport,
     };
 }

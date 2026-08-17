@@ -129,6 +129,20 @@ describe('pickRepresentativeAsset', () => {
         expect(pickRepresentativeAsset(merged).path).toBe('g');
     });
 
+    it('prefers a durable server URL for 3D models', () => {
+        const merged = libraryAsset({
+            name: 'fox.glb',
+            type: 'models',
+            storageProvider: 'merged',
+            sourceAssets: [
+                libraryAsset({ name: 'fox.glb', type: 'models', storageProvider: 'local', path: 'blob:local' }),
+                libraryAsset({ name: 'fox.glb', type: 'models', storageProvider: 'server', path: '/api/assets/fox.glb' }),
+            ],
+        });
+
+        expect(pickRepresentativeAsset(merged).path).toBe('/api/assets/fox.glb');
+    });
+
     it('returns the asset itself when it has no sources', () => {
         const plain = libraryAsset({ path: 'only' });
         expect(pickRepresentativeAsset(plain).path).toBe('only');

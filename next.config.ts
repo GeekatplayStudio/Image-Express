@@ -54,6 +54,11 @@ const appVersionMeta = resolveAppVersionMeta();
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Keep production diagnostics that users can act on, while dropping verbose
+  // development logging from every client chunk.
+  compiler: {
+    removeConsole: { exclude: ["error", "warn"] },
+  },
   // Keep the standalone trace lean: runtime data, local user assets, authoring
   // workspaces, and tooling must never ship inside the desktop build.
   //

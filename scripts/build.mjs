@@ -16,6 +16,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { enforceSupportedNode, envWithSupportedNode, requiredNodeMajor } from './node-guard.mjs';
+import { assertBuildOutputAvailable } from './server-lock.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -23,6 +24,7 @@ const rootDir = path.resolve(__dirname, '..');
 // Re-execs this script under a supported Node when PATH hands us an old one, and
 // only stops if no usable Node exists anywhere on the machine.
 enforceSupportedNode({ reexec: true, exitOnFailure: true, label: 'BUILD' });
+assertBuildOutputAvailable();
 
 console.log(`[BUILD] node ${process.version} (requires >=${requiredNodeMajor()})`);
 

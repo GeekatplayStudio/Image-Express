@@ -51,7 +51,7 @@ describe('CircularContextMenu', () => {
         // Primaries present
         expect(screen.getByRole('button', { name: 'Healing Brush' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Dodge Tool' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'AI 3D' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Fabrication Studio' })).toBeInTheDocument();
 
         // Variants and panel modes trimmed out of the ring
         expect(screen.queryByRole('button', { name: 'Channels' })).not.toBeInTheDocument();
@@ -112,5 +112,43 @@ describe('CircularContextMenu', () => {
 
         expect(lassoIcon).not.toBeNull();
         expect(lassoIcon).toHaveStyle({ color: '#15803d' });
+    });
+
+    it('highlights the fabrication family while a fabrication subtool is active', () => {
+        render(
+            <CircularContextMenu
+                x={160}
+                y={140}
+                isOpen={true}
+                activeTool="3d-gen"
+                onClose={jest.fn()}
+                onSelectTool={jest.fn()}
+            />
+        );
+
+        expect(screen.getByRole('button', { name: 'Fabrication Studio' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('replaces the full ring with a one-click unfold action for a 3D model', () => {
+        const onUnfold = jest.fn();
+
+        render(
+            <CircularContextMenu
+                x={160}
+                y={140}
+                isOpen={true}
+                activeTool="select"
+                onClose={jest.fn()}
+                onSelectTool={jest.fn()}
+                modelContext={{ name: 'Fox.glb', isUnfolding: false, onUnfold }}
+            />
+        );
+
+        expect(screen.getByRole('menu', { name: '3D model actions' })).toBeInTheDocument();
+        expect(screen.getByText('Fox.glb')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Move' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Unfold' }));
+        expect(onUnfold).toHaveBeenCalledTimes(1);
     });
 });

@@ -8,7 +8,7 @@ import EditorHeaderActions from '@/components/Editor/EditorHeaderActions';
 import EditorPropertiesPanels from '@/components/Editor/EditorPropertiesPanels';
 import EditorTopToolOptionsBridge from '@/components/Editor/EditorTopToolOptionsBridge';
 import EditorViewOverlays from '@/components/Editor/EditorViewOverlays';
-import EmbroideryExportModal from '@/components/Editor/EmbroideryExportModal';
+import EditorFabricationExportModals from '@/components/Editor/EditorFabricationExportModals';
 import EditorWorkspaceShell from '@/components/Editor/EditorWorkspaceShell';
 import { type ToolbarHandle } from '@/components/Toolbar';
 import { loadProfileSettings, UserProfileSettings } from '@/lib/profile-utils';
@@ -59,6 +59,7 @@ import { useEditorUtilityOverlayLayout } from '@/components/Editor/useEditorUtil
 import { useEditorPaintPenEffects } from '@/components/Editor/useEditorPaintPenEffects';
 import { useEditorPanelModePersistence } from '@/components/Editor/useEditorPanelModePersistence';
 import { useEditorWorkspaceCompositionProps } from '@/components/Editor/useEditorWorkspaceCompositionProps';
+import { usePapercraftUnfold } from '@/components/Editor/usePapercraftUnfold';
 import type { BookcaseFilter } from '@/features/asset-vault/contracts/bookcase';
 import type { VaultCircularAction } from '@/components/VaultCircularMenu';
 import { useEditorTopToolOptionsBridgeProps } from '@/components/Editor/useEditorTopToolOptionsBridgeProps';
@@ -552,6 +553,7 @@ export default function EditorView({
         handleToolbarToolChange,
         handleOpenThreeDFromPanel,
         handleOpenThreeDEditor,
+        openThreeDModelObject,
         threeDControls: canvasWorkspaceThreeDControls,
     } = useEditorThreeDWorkspace({
         canvas,
@@ -563,6 +565,7 @@ export default function EditorView({
         toast,
         upsertBackgroundJob,
         getDisplayName,
+        t,
     });
 
     /** Gallery toolbar / menus open the vault; classic library stays via setActiveTool('assets'). */
@@ -574,8 +577,13 @@ export default function EditorView({
             setShowAssetVault((open) => !open);
             return;
         }
+        if (tool === '3d-library') {
+            handleVaultCircularAction('vault-3d', { type: 'models' });
+            setActiveTool('select');
+            return;
+        }
         handleToolbarToolChange(tool);
-    }, [handleToolbarToolChange]);
+    }, [handleToolbarToolChange, handleVaultCircularAction, setActiveTool]);
 
     const exportRef = useRef<HTMLDivElement>(null);
     const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
@@ -680,8 +688,9 @@ export default function EditorView({
         handleExport,
         handleShare,
         exportMediaOverlayFramesZip,
-        embroiderySourceDataUrl,
-        closeEmbroideryModal,
+        fabricationExport,
+        closeFabricationExport,
+        openFabricationExport,
     } = useEditorExport({
         canvas,
         customHistoryProps,
@@ -700,6 +709,11 @@ export default function EditorView({
         closeExportMenu,
         closeShareMenu,
     });
+
+    useEffect(() => {
+        if (activeTool !== 'cricut-studio') return;
+        void openFabricationExport('cricut').finally(() => setActiveTool('select'));
+    }, [activeTool, openFabricationExport]);
 
     const {
         handleBack,
@@ -989,6 +1003,7 @@ export default function EditorView({
         setMediaPreview,
         setEditingModelUrl,
         setEditingModelObject,
+        onOpenThreeDModel: (target) => void openThreeDModelObject(target),
         setActiveTool,
     });
 
@@ -1024,6 +1039,16 @@ export default function EditorView({
 
     const activeLayerOrderState = getActiveLayerOrderState();
     const menuLayerTarget = getMenuLayerTarget();
+    const { modelContext } = usePapercraftUnfold({
+        canvas,
+        target: menuLayerTarget as ExtendedFabricObject | null,
+        pushHistory,
+        setIsDirty,
+        closeMenu: handleCloseContextMenu,
+        toast,
+        t,
+        user,
+    });
     const handleToggleTopNavMenus = useCallback(() => {
         setShowTopNavMenus((prev) => {
             const next = !prev;
@@ -1062,6 +1087,7 @@ export default function EditorView({
         triggerToolbarTool,
         handleLayerOrderAction,
         activeLayerOrderState,
+        modelContext,
         bottomRightUtilityStyle,
         zoom,
         utilityCanvasSize,
@@ -1440,13 +1466,11 @@ export default function EditorView({
                 onOpenClassicLibrary={() => setActiveTool('assets')}
             />
 
-            {embroiderySourceDataUrl && (
-                <EmbroideryExportModal
-                    sourceDataUrl={embroiderySourceDataUrl}
-                    designName={propDesignName || 'design'}
-                    onClose={closeEmbroideryModal}
-                />
-            )}
+            <EditorFabricationExportModals
+                exportState={fabricationExport}
+                designName={propDesignName || 'design'}
+                onClose={closeFabricationExport}
+            />
 
             {/* Main Editor Layout */}
             <EditorWorkspaceShell

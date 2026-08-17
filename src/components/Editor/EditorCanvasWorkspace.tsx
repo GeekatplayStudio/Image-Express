@@ -185,6 +185,7 @@ export default function EditorCanvasWorkspace({
             <div
                 className="absolute inset-0 z-0 overflow-hidden"
                 onContextMenu={(event) => {
+                    if ((event.target as HTMLElement).closest('.canvas-container')) return;
                     event.preventDefault();
                     onOpenWorkspaceContextMenu(event.clientX, event.clientY);
                 }}
