@@ -133,7 +133,7 @@ export function useEditorThreeDWorkspace({
         }
     }, [getDisplayName, t, toast, user]);
 
-    const handleOpenThreeDEditor = useCallback((url: string) => {
+    const handleOpenThreeDEditor = useCallback((url: string, name?: string) => {
         const matchingObject = (canvas?.getObjects() as ExtendedFabricObject[] | undefined)
             ?.find((object) => object.modelUrl === url);
         if (matchingObject) {
@@ -141,7 +141,9 @@ export function useEditorThreeDWorkspace({
             return;
         }
         if (url.startsWith('blob:')) {
-            void recoverVolatileModelSource(url, 'model.glb', user)
+            const rawName = name?.trim() || getDisplayName(url) || 'model.glb';
+            const filename = /\.(?:glb|gltf)(?:$|[?#])/i.test(rawName) ? rawName : `${rawName}.glb`;
+            void recoverVolatileModelSource(url, filename, user)
                 .then(setEditingModelUrl)
                 .catch((error) => {
                     console.error('3D model source recovery failed', error);
@@ -154,13 +156,13 @@ export function useEditorThreeDWorkspace({
             return;
         }
         setEditingModelUrl(url);
-    }, [canvas, openThreeDModelObject, t, toast, user]);
+    }, [canvas, getDisplayName, openThreeDModelObject, t, toast, user]);
 
     // The in-panel 3D lighting workspace requests the full editor via a
     // window event (avoids drilling props through four component layers).
     useEffect(() => {
         const onOpen = (e: Event) => {
-            const detail = (e as CustomEvent<{ url?: string; objectId?: string }>).detail;
+            const detail = (e as CustomEvent<{ url?: string; objectId?: string; name?: string }>).detail;
             if (!detail?.url) return;
             if (detail.objectId && canvas) {
                 const target = (canvas.getObjects() as ExtendedFabricObject[])
@@ -170,7 +172,7 @@ export function useEditorThreeDWorkspace({
                     return;
                 }
             }
-            handleOpenThreeDEditor(detail.url);
+            handleOpenThreeDEditor(detail.url, detail.name);
         };
         window.addEventListener('iex:open-3d-editor', onOpen);
         return () => window.removeEventListener('iex:open-3d-editor', onOpen);

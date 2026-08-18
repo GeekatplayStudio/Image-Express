@@ -115,14 +115,57 @@ export async function findDurableServerModelSource(filename: string, owner: stri
     return null;
 }
 
+/**
+ * Cache key for a volatile model, derived from its *content*.
+ *
+ * Keying on the filename made two different models with the same name the same
+ * model. That was not hypothetical: the Asset Vault opened every blob-backed
+ * model as "model.glb", so the first one ever opened was cached under
+ * `volatile:model.glb` in localStorage and every model opened afterwards
+ * resolved to it — the 3D editor loaded the wrong model, and because the caller
+ * writes the resolved URL back to the layer, the layer was permanently
+ * repointed at someone else's file.
+ *
+ * A digest cannot collide that way, and it makes the cache better: re-importing
+ * a file the server already holds now reuses it instead of uploading a copy.
+ */
+/** Blob bytes, without assuming `Blob.arrayBuffer` exists. */
+async function blobBytes(blob: Blob): Promise<ArrayBuffer> {
+    if (typeof blob.arrayBuffer === 'function') return blob.arrayBuffer();
+    if (typeof Response !== 'undefined') return new Response(blob).arrayBuffer();
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(reader.error ?? new Error('BLOB_READ_FAILED'));
+        reader.readAsArrayBuffer(blob);
+    });
+}
+
+async function volatileCacheKey(blob: Blob, filename: string): Promise<string> {
+    try {
+        const subtle = globalThis.crypto?.subtle;
+        if (subtle) {
+            const digest = await subtle.digest('SHA-256', await blobBytes(blob));
+            const hex = Array.from(new Uint8Array(digest))
+                .map((byte) => byte.toString(16).padStart(2, '0'))
+                .join('');
+            return `volatile:sha256-${hex}`;
+        }
+    } catch {
+        // Fall through: a weaker key still beats colliding on the name alone.
+    }
+    return `volatile:${blob.size}:${filename.toLowerCase()}`;
+}
+
 export async function recoverVolatileModelSource(url: string, filename: string, owner: string): Promise<string> {
     if (!url.startsWith('blob:')) return url;
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error('VOLATILE_MODEL_FETCH_FAILED');
+        const blob = await response.blob();
         return await materializeDurableModelSource({
-            cacheKey: `volatile:${filename.toLowerCase()}`,
-            blob: await response.blob(),
+            cacheKey: await volatileCacheKey(blob, filename),
+            blob,
             filename,
             category: 'uploads',
             owner,

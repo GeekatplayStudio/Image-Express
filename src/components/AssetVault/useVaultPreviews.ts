@@ -230,7 +230,11 @@ export function useVaultPreviews({
             setStatusMessage(t('vault.previewUnavailable'));
             return;
         }
-        window.dispatchEvent(new CustomEvent('iex:open-3d-editor', { detail: { url } }));
+        // Pass the asset's own name: it becomes the stored file's name, and the
+        // recovery path for an expired blob has nothing else to search by.
+        window.dispatchEvent(new CustomEvent('iex:open-3d-editor', {
+            detail: { url, name: asset.name },
+        }));
         onClose();
     }, [onClose, resolveSourceUrl, setStatusMessage, t]);
 
