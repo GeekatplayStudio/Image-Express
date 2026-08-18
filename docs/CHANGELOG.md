@@ -1,6 +1,6 @@
 # Changelog — Delivery History
 
-Last updated: 2026-08-17
+Last updated: 2026-08-18
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.0
@@ -18,6 +18,28 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-08-18 - Foldcraft: standalone unfold-and-cut library + machine design
+
+- New `packages/foldcraft` — a zero-dependency, dual-licensed (PolyForm
+  Noncommercial free / commercial paid) TypeScript library that unfolds 3D
+  models into flat foam panels with machine-ready fold grooves. Built for reuse
+  outside Image Express.
+- Pipeline: GLB/STL/OBJ loading (own parsers, no three.js), vertex welding +
+  outward orientation, low-poly panelization with guaranteed-flat panels,
+  sharp-edge-first segmentation (cube → 1 panel vs 11 islands before),
+  mirror-safe flattening with provably correct mountain/valley directions,
+  per-fold V-groove geometry from material thickness, sheet packing, layered
+  SVG with camera fiducials, five-axis grblHAL G-code (tilt A, swivel C), a
+  toolpath simulator that rejects physical violations (it caught a real
+  buried-blade rotation bug in the planner during development), overhead-camera
+  homography registration, and hard validation that fails on flipped fold
+  signs. 83 package tests; historic fold-sign and mirroring bugs pinned by
+  mutation testing.
+- Designed the reference machine in `docs/FOLDCRAFT_MACHINE.md`: a 600×600
+  laser-frame conversion carrying an ultrasonic knife on programmable tilt and
+  tangential-swivel axes, grblHAL on Teensy 4.1, overhead camera. The old
+  `src/lib/papercraft` stays as a reference implementation.
 
 ## 2026-08-17 - One-click 3D origami unfold
 

@@ -33,6 +33,9 @@ const config: Config = {
       "<rootDir>/src/**/*.{spec,test}.{js,jsx,ts,tsx}",
       "<rootDir>/__tests__/**/*.{spec,test}.{js,jsx,ts,tsx}"
   ],
+  // packages/* run under their own jest configs (see the root `test` script):
+  // next/jest's SWC transform only covers app files, so package tests parse
+  // TypeScript through next/babel instead.
 }
 
 /**

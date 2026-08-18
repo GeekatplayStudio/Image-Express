@@ -1,0 +1,44 @@
+{
+  "name": "foldcraft",
+  "version": "0.1.0",
+  "description": "Unfold 3D models into flat panels with machine-ready fold grooves — low-poly conversion, correct mountain/valley flattening, V-groove planning, sheet packing, SVG and G-code output, and a machine simulator.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "Geekatplay Studio <geekatplay@gmail.com>",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE.md",
+    "LICENSE-NONCOMMERCIAL.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "unfold",
+    "papercraft",
+    "pepakura",
+    "mesh",
+    "low-poly",
+    "foam",
+    "cosplay",
+    "cnc",
+    "gcode",
+    "v-groove",
+    "cricut",
+    "fabrication"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
