@@ -35,6 +35,12 @@ import type {
 
 /** Clearing an unreachable wedge one kerf at a time can run away; cap it. */
 const MAX_CLEARING_PASSES = 64;
+/**
+ * Beyond this half-angle a groove stops being a fold and becomes a cut: the
+ * opening `2·d·tan(α/2)` grows without bound as α/2 approaches 90°, so at 80°
+ * the wedge is already 11× the material thickness.
+ */
+const MAX_GROOVE_HALF_ANGLE_DEG = 80;
 /** A score line is a shallow nick, not a groove. */
 const SCORE_DEPTH_FRACTION = 0.25;
 
@@ -162,8 +168,23 @@ export function planGrooves(
             return;
         }
 
-        if (dihedral < material.throughCutBelowDeg) {
-            // Too sharp to hinge: cut apart and rejoin at assembly.
+        const halfAngle = grooveAngle / 2;
+        /**
+         * Too sharp to hinge, from either direction.
+         *
+         * The test has to be symmetric about 360: a 2° fold and a 358° fold are
+         * both panels folded back onto each other, and both need cutting apart.
+         * Checking only the low side let a 357.9° fold reach the width formula,
+         * where tan(88.9°) produced a 595 mm groove — wider than the sheet it
+         * was drawn on.
+         *
+         * The half-angle limit is the same statement in the form the geometry
+         * actually cares about, and it also catches anything a future material
+         * preset might let through.
+         */
+        const sharpFromEitherSide = dihedral < material.throughCutBelowDeg
+            || dihedral > 360 - material.throughCutBelowDeg;
+        if (sharpFromEitherSide || halfAngle >= MAX_GROOVE_HALF_ANGLE_DEG) {
             grooves.push({
                 ...base,
                 depthMm: material.thicknessMm,
@@ -172,11 +193,10 @@ export function planGrooves(
                 passes: [{ face: side, offsetMm: 0, bladeTiltDeg: 0, depthMm: material.thicknessMm }],
                 outline: [],
             });
-            warnings.push(`Fold at ${dihedral.toFixed(1)}° is sharper than ${material.throughCutBelowDeg}° and is cut apart rather than grooved.`);
+            warnings.push(`Fold at ${dihedral.toFixed(1)}° is too sharp to groove and is cut apart rather than folded.`);
             return;
         }
 
-        const halfAngle = grooveAngle / 2;
         // Rounded once, then used everywhere: a caller that reads widthMm and
         // draws its own outline must get the geometry this spec describes.
         const width = Number((2 * depth * Math.tan(degToRad(halfAngle))).toFixed(4));

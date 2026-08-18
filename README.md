@@ -530,6 +530,7 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three
 - [docs/FABRICATION_STUDIO.md](docs/FABRICATION_STUDIO.md) — the Fabrication tool family, one-click origami unfold, material presets, and the 5-axis CNC inventory
 - [docs/FOLDCRAFT.md](docs/FOLDCRAFT.md) — the Foldcraft unfolding library: design, groove maths, and roadmap
 - [docs/FOLDCRAFT_MACHINE.md](docs/FOLDCRAFT_MACHINE.md) — the open-source ultrasonic tilting-knife cutter the library targets
+- [docs/FOLDCRAFT_MACHINE_BUILD.md](docs/FOLDCRAFT_MACHINE_BUILD.md) — build requirements: controller choice, axis specs, grblHAL config, G-code contract, commissioning, BOM
 - [docs/CRICUT_EXPORT.md](docs/CRICUT_EXPORT.md) — Cricut SVG cut files: tracing, nesting, stacked profiles, and current geometry limits
 - [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived (current state: `npm audit` clean)
 - [docs/THEME_PACKS_SPEC.md](docs/THEME_PACKS_SPEC.md) — build your own theme/ambience pack (no code required)

@@ -10,6 +10,14 @@ The companion software contract is `packages/foldcraft` — in particular
 `MachineProfile` (what the software believes about the machine) and
 `machine/gcode.ts` (the words it sends).
 
+> **Build specification: [FOLDCRAFT_MACHINE_BUILD.md](FOLDCRAFT_MACHINE_BUILD.md)**
+> — controller selection (the stock TwoTrees board **cannot** be reused; it has
+> four motor channels against the six this needs), axis tolerances derived from
+> real cut data, grblHAL settings, the verified G-code contract, commissioning
+> order, and BOM. Read that before buying parts. It also records a substantive
+> challenge to the ultrasonic head: for EVA foam a mechanical oscillating knife
+> is lighter, cheaper, and arguably more appropriate.
+
 ## Base platform
 
 Donor: a **TwoTrees TT-5.2 Pro-class diode laser frame** with 600 mm extension

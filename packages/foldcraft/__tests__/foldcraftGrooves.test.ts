@@ -100,7 +100,31 @@ describe('groove angle', () => {
         const plan = planGrooves(panelWithDihedral(30), DEFAULT_MATERIAL, wideTilt);
         expect(plan.grooves[0].method).toBe('through-cut');
         expect(plan.grooves[0].depthMm).toBe(DEFAULT_MATERIAL.thicknessMm);
-        expect(plan.warnings.join(' ')).toMatch(/sharper than/);
+        expect(plan.warnings.join(' ')).toMatch(/too sharp/);
+    });
+
+    /**
+     * A 2° fold and a 358° fold are the same physical thing — panels folded
+     * back onto each other — so both must be cut apart. Testing only the low
+     * side let 357.9° reach the width formula, where tan(88.9°) produced a
+     * 595 mm groove, wider than the sheet it was drawn on.
+     */
+    it('cuts apart a fold that is folded back on itself, from either direction', () => {
+        [2, 30, 330, 357.9].forEach((dihedral) => {
+            const plan = planGrooves(panelWithDihedral(dihedral), DEFAULT_MATERIAL, wideTilt);
+            expect(plan.grooves[0].method).toBe('through-cut');
+            expect(plan.grooves[0].widthMm).toBe(0);
+        });
+    });
+
+    it('never emits a groove wider than the material can justify', () => {
+        // Every angle across the whole circle, including the pathological ones.
+        for (let dihedral = 1; dihedral < 360; dihedral += 1) {
+            const groove = planGrooves(panelWithDihedral(dihedral), DEFAULT_MATERIAL, wideTilt).grooves[0];
+            // 30.2 mm is the widest physical groove at the 40° through-cut limit.
+            expect(groove.widthMm).toBeLessThan(31);
+            expect(Number.isFinite(groove.widthMm)).toBe(true);
+        }
     });
 });
 

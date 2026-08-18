@@ -19,6 +19,23 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-18 - Machine build requirements + groove width fix
+
+- Added `docs/FOLDCRAFT_MACHINE_BUILD.md`: the full build specification for the
+  cutter — controller decision with evidence, axis specs derived from real cut
+  data, grblHAL configuration, the complete verified G-code contract, camera
+  registration, commissioning order, safety, and BOM.
+- **The donor TwoTrees mainboard cannot be reused.** It carries at most four
+  motor channels (X, Y1, Y2, unpopulated Z) with soldered drivers and no
+  external step/dir breakout, against the six outputs an XYZAC machine with a
+  ganged Y needs. Recommended replacement: Teensy 4.1 + T41U5XBB running
+  grblHAL.
+- **Fixed a groove-width bug**: the through-cut test checked only the low side
+  of the dihedral range, so a fold near 360° — panels folded back on themselves
+  — reached the width formula and produced a 595 mm groove, wider than the
+  sheet. The test is now symmetric about 360°, with a half-angle cap as a
+  backstop. Widest groove across the full circle is now 30.2 mm.
+
 ## 2026-08-18 - One-click "Cut from foam" in the editor
 
 - Right-clicking a 3D model on the canvas now offers **Cut from foam** next to
