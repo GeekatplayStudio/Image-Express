@@ -4,7 +4,7 @@ import type * as fabric from 'fabric';
 import type { ExtendedFabricObject } from '@/types';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import { recoverVolatileModelSource } from '@/lib/assetLibrary/durableModelSource';
-import { downloadFoamCutFiles, planFoamCut } from '@/lib/foamcut/foamCut';
+import { downloadFoamCutFiles, runFoamCut } from '@/lib/foamcut/foamCut';
 import { placePlanOnCanvas } from '@/components/Editor/usePapercraftUnfold';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -59,7 +59,7 @@ export function useFoamCut({
             if (!response.ok) throw new Error(`MODEL_FETCH_${response.status}`);
             const bytes = await response.arrayBuffer();
 
-            const result = planFoamCut(bytes, modelName);
+            const result = await runFoamCut(bytes, modelName);
             await placePlanOnCanvas(
                 canvas,
                 modelName,

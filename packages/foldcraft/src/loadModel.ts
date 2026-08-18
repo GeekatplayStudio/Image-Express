@@ -103,7 +103,13 @@ function parseGlb(buffer: ArrayBuffer): { triangles: Array<[Vec3, Vec3, Vec3]>; 
     }
     if (!json) throw new Error('GLB_MISSING_JSON');
 
-    const readAccessor = (accessorIndex: number): number[][] => {
+    /**
+     * Accessor values as one flat typed-friendly array. Generated sculpts
+     * carry hundreds of thousands of positions; reading them as per-element
+     * arrays allocated millions of short-lived objects and dominated load
+     * time. A flat Float64Array read in one loop is allocation-free.
+     */
+    const readAccessorFlat = (accessorIndex: number): { values: Float64Array; components: number; count: number } => {
         const accessor = json.accessors[accessorIndex];
         const bufferView = json.bufferViews[accessor.bufferView];
         if (!bin) throw new Error('GLB_MISSING_BIN');
@@ -112,22 +118,22 @@ function parseGlb(buffer: ArrayBuffer): { triangles: Array<[Vec3, Vec3, Vec3]>; 
         const componentBytes = COMPONENT_BYTES[accessor.componentType];
         const stride = bufferView.byteStride ?? components * componentBytes;
         const base = (bufferView.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
-        const output: number[][] = [];
+        const values = new Float64Array(accessor.count * components);
+        let write = 0;
         for (let index = 0; index < accessor.count; index += 1) {
-            const element: number[] = [];
+            const row = base + index * stride;
             for (let component = 0; component < components; component += 1) {
-                const at = base + index * stride + component * componentBytes;
+                const at = row + component * componentBytes;
                 switch (accessor.componentType) {
-                    case 5126: element.push(bin.getFloat32(at, true)); break;
-                    case 5125: element.push(bin.getUint32(at, true)); break;
-                    case 5123: element.push(bin.getUint16(at, true)); break;
-                    case 5121: element.push(bin.getUint8(at)); break;
+                    case 5126: values[write++] = bin.getFloat32(at, true); break;
+                    case 5125: values[write++] = bin.getUint32(at, true); break;
+                    case 5123: values[write++] = bin.getUint16(at, true); break;
+                    case 5121: values[write++] = bin.getUint8(at); break;
                     default: throw new Error(`GLB_UNSUPPORTED_COMPONENT_${accessor.componentType}`);
                 }
             }
-            output.push(element);
         }
-        return output;
+        return { values, components, count: accessor.count };
     };
 
     const triangles: Array<[Vec3, Vec3, Vec3]> = [];
@@ -146,13 +152,24 @@ function parseGlb(buffer: ArrayBuffer): { triangles: Array<[Vec3, Vec3, Vec3]>; 
                 if (primitive.mode !== undefined && primitive.mode !== 4) continue;
                 if (primitive.attributes?.POSITION === undefined) continue;
                 objectCount += 1;
-                const positions = readAccessor(primitive.attributes.POSITION)
-                    .map(([x, y, z]) => applyMat4(world, { x, y, z }));
-                const indices = primitive.indices !== undefined
-                    ? readAccessor(primitive.indices).map(([value]) => value)
-                    : positions.map((_, index) => index);
-                for (let i = 0; i + 2 < indices.length; i += 3) {
-                    triangles.push([positions[indices[i]], positions[indices[i + 1]], positions[indices[i + 2]]]);
+                const position = readAccessorFlat(primitive.attributes.POSITION);
+                const positions: Vec3[] = new Array(position.count);
+                for (let index = 0; index < position.count; index += 1) {
+                    positions[index] = applyMat4(world, {
+                        x: position.values[index * 3],
+                        y: position.values[index * 3 + 1],
+                        z: position.values[index * 3 + 2],
+                    });
+                }
+                if (primitive.indices !== undefined) {
+                    const indices = readAccessorFlat(primitive.indices).values;
+                    for (let i = 0; i + 2 < indices.length; i += 3) {
+                        triangles.push([positions[indices[i]], positions[indices[i + 1]], positions[indices[i + 2]]]);
+                    }
+                } else {
+                    for (let i = 0; i + 2 < positions.length; i += 3) {
+                        triangles.push([positions[i], positions[i + 1], positions[i + 2]]);
+                    }
                 }
             }
         }

@@ -250,6 +250,35 @@ export function ingestMesh(source: FoldcraftMesh, options: IngestOptions = {}): 
         if (oriented.components.length > 1) {
             warnings.push(`Mesh has ${oriented.components.length} disconnected shells; each is oriented on its own.`);
         }
+
+        // Debris filtering. Generated sculpts carry hundreds of tiny
+        // disconnected shells; every one becomes at least one cut panel, so
+        // they turn a hat into a thousand-piece jigsaw. Area, not face count,
+        // decides: a finely-tessellated real part keeps its place, a chunky
+        // fragment goes.
+        const minimumFraction = options.dropShellsBelowAreaFraction ?? 0;
+        if (minimumFraction > 0 && oriented.components.length > 1) {
+            const areas = oriented.components.map((component) => (
+                component.reduce((sum, faceIndex) => sum + faceArea(mesh, faceIndex), 0)
+            ));
+            const totalArea = areas.reduce((sum, area) => sum + area, 0);
+            const keep = new Set<number>();
+            oriented.components.forEach((component, index) => {
+                if (areas[index] >= totalArea * minimumFraction) {
+                    component.forEach((faceIndex) => keep.add(faceIndex));
+                }
+            });
+            // Never drop everything: with no shell above the bar, keep the largest.
+            if (keep.size === 0) {
+                const biggest = areas.indexOf(Math.max(...areas));
+                oriented.components[biggest].forEach((faceIndex) => keep.add(faceIndex));
+            }
+            if (keep.size < mesh.faces.length) {
+                const droppedShells = oriented.components.filter((component) => !keep.has(component[0])).length;
+                mesh = { ...mesh, faces: mesh.faces.filter((_, faceIndex) => keep.has(faceIndex)) };
+                warnings.push(`Dropped ${droppedShells} debris shells below ${(minimumFraction * 100).toFixed(1)}% of the surface.`);
+            }
+        }
     }
 
     if (options.midSurfaceThicknessMm && options.midSurfaceThicknessMm > 0) {

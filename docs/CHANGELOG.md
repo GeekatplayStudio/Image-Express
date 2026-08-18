@@ -19,6 +19,29 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-18 - Foam cut no longer freezes on dense models
+
+- Traced with a real 56 MB generated top hat: **3.1 million triangles** across
+  1,091 disconnected shells. The pipeline previously froze inside model
+  loading before segmentation ever ran.
+- **GLB loading**: accessor reads switched from per-element arrays to flat
+  typed reads — 3.1M triangles now parse in 0.8 s.
+- **Face budgets**: raw meshes decimate to 60k faces before any geometry stage
+  runs (grid clustering, linear time), and panelling escalates tolerance and
+  decimation until the panel count is workable. A coarser model that cuts
+  beats a faithful one that never finishes; the report says what was done.
+- **Debris filtering**: shells below 1% of the surface area are dropped —
+  1,090 of the top hat's 1,091 shells were floating fragments that would each
+  have become cut pieces.
+- **Segmentation hot loops**: candidate frontier moved to a binary heap and
+  overlap testing onto a spatial grid, removing two quadratic passes.
+- **Off the main thread**: the whole plan now runs in a Web Worker (with a
+  synchronous fallback where workers are unavailable), so even a
+  many-second plan leaves the window responsive.
+- tophat.glb end to end: never finished → **15 s, 99 panels, 4 sheets**, all
+  correctness checks passing (verdict "warn" for decimation-induced refold
+  drift, honestly reported).
+
 ## 2026-08-18 - Self-healing purge of the poisoned model cache
 
 - The wrong-model fix now cleans up after the old bug on its own: cache

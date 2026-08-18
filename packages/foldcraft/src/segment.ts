@@ -78,6 +78,123 @@ const signedArea2 = (points: Vec2[]): number => {
     return total / 2;
 };
 
+/**
+ * Binary min-heap over (cost, sequence).
+ *
+ * The candidate frontier was a plain array with a linear scan per pop —
+ * O(E²) over a panel's edges. Fine at the tens of faces the first meshes
+ * had; a dense generated model panelizes to tens of thousands of faces and
+ * the scan alone froze the app for minutes.
+ */
+class CandidateHeap {
+    private items: Candidate[] = [];
+
+    get size(): number { return this.items.length; }
+
+    private less(a: Candidate, b: Candidate): boolean {
+        if (a.cost < b.cost - EPSILON) return true;
+        if (b.cost < a.cost - EPSILON) return false;
+        return a.sequence < b.sequence;
+    }
+
+    push(item: Candidate): void {
+        const items = this.items;
+        items.push(item);
+        let index = items.length - 1;
+        while (index > 0) {
+            const parent = (index - 1) >> 1;
+            if (!this.less(items[index], items[parent])) break;
+            [items[index], items[parent]] = [items[parent], items[index]];
+            index = parent;
+        }
+    }
+
+    pop(): Candidate | undefined {
+        const items = this.items;
+        if (items.length === 0) return undefined;
+        const top = items[0];
+        const tail = items.pop()!;
+        if (items.length > 0) {
+            items[0] = tail;
+            let index = 0;
+            for (;;) {
+                const left = index * 2 + 1;
+                const right = left + 1;
+                let smallest = index;
+                if (left < items.length && this.less(items[left], items[smallest])) smallest = left;
+                if (right < items.length && this.less(items[right], items[smallest])) smallest = right;
+                if (smallest === index) break;
+                [items[index], items[smallest]] = [items[smallest], items[index]];
+                index = smallest;
+            }
+        }
+        return top;
+    }
+}
+
+type PlacedEntry = {
+    faceIndex: number;
+    polygon: Vec2[];
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+};
+
+/**
+ * Uniform grid over placed faces, so a new face is overlap-tested only
+ * against neighbours instead of against everything placed so far — the
+ * other half of the same freeze. Cell size tracks the typical face so a
+ * face usually touches a handful of cells.
+ */
+class PlacementGrid {
+    private cells = new Map<string, PlacedEntry[]>();
+
+    constructor(private cellSize: number) {}
+
+    private *cellKeys(entry: { minX: number; minY: number; maxX: number; maxY: number }): Iterable<string> {
+        const x0 = Math.floor(entry.minX / this.cellSize);
+        const x1 = Math.floor(entry.maxX / this.cellSize);
+        const y0 = Math.floor(entry.minY / this.cellSize);
+        const y1 = Math.floor(entry.maxY / this.cellSize);
+        for (let x = x0; x <= x1; x += 1) {
+            for (let y = y0; y <= y1; y += 1) yield `${x}:${y}`;
+        }
+    }
+
+    insert(entry: PlacedEntry): void {
+        for (const key of this.cellKeys(entry)) {
+            const bucket = this.cells.get(key);
+            if (bucket) bucket.push(entry); else this.cells.set(key, [entry]);
+        }
+    }
+
+    /** Placed faces whose bounding boxes intersect the given box. */
+    *near(box: { minX: number; minY: number; maxX: number; maxY: number }): Iterable<PlacedEntry> {
+        const seen = new Set<number>();
+        for (const key of this.cellKeys(box)) {
+            for (const entry of this.cells.get(key) ?? []) {
+                if (seen.has(entry.faceIndex)) continue;
+                seen.add(entry.faceIndex);
+                if (entry.minX > box.maxX || entry.maxX < box.minX
+                    || entry.minY > box.maxY || entry.maxY < box.minY) continue;
+                yield entry;
+            }
+        }
+    }
+}
+
+const polygonBox = (polygon: Vec2[]) => {
+    let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
+    for (const point of polygon) {
+        if (point.x < minX) minX = point.x;
+        if (point.x > maxX) maxX = point.x;
+        if (point.y < minY) minY = point.y;
+        if (point.y > maxY) maxY = point.y;
+    }
+    return { minX, minY, maxX, maxY };
+};
+
 export function segmentIntoPanels(mesh: FoldcraftMesh, options: SegmentOptions): SegmentResult {
     const edges = buildEdgeMap(mesh);
     const areas = mesh.faces.map((_, index) => faceArea(mesh, index));
@@ -112,12 +229,16 @@ export function segmentIntoPanels(mesh: FoldcraftMesh, options: SegmentOptions):
             });
         };
 
-        place(seed, localFrameCoordinates(mesh, seed));
+        const seedCoordinates = localFrameCoordinates(mesh, seed);
+        place(seed, seedCoordinates);
+        // Cell size from the seed face's own extent: faces in one mesh are
+        // broadly similar in scale, so most faces span a handful of cells.
+        const seedBox = polygonBox(mesh.faces[seed].map((vertexIndex) => seedCoordinates.get(vertexIndex)!));
+        const cellSize = Math.max(1e-6, Math.max(seedBox.maxX - seedBox.minX, seedBox.maxY - seedBox.minY)) * 2;
+        const grid = new PlacementGrid(cellSize);
+        grid.insert({ faceIndex: seed, polygon: mesh.faces[seed].map((v) => seedCoordinates.get(v)!), ...seedBox });
 
-        // Candidates ordered by dihedral flatness. Meshes here are small enough
-        // (hundreds of faces after panelize) that a sorted-insert array is
-        // simpler than a heap and never the bottleneck.
-        const candidates: Candidate[] = [];
+        const candidates = new CandidateHeap();
         let sequence = 0;
         const pushCandidates = (faceIndex: number) => {
             const face = mesh.faces[faceIndex];
@@ -144,17 +265,8 @@ export function segmentIntoPanels(mesh: FoldcraftMesh, options: SegmentOptions):
         };
         pushCandidates(seed);
 
-        while (candidates.length > 0) {
-            let best = 0;
-            for (let index = 1; index < candidates.length; index += 1) {
-                const challenger = candidates[index];
-                const champion = candidates[best];
-                if (challenger.cost < champion.cost - EPSILON
-                    || (Math.abs(challenger.cost - champion.cost) <= EPSILON && challenger.sequence < champion.sequence)) {
-                    best = index;
-                }
-            }
-            const candidate = candidates.splice(best, 1)[0];
+        while (candidates.size > 0) {
+            const candidate = candidates.pop()!;
             if (assigned[candidate.childFace] >= 0) continue;
             const parentCoordinates = placed.get(candidate.parentFace);
             if (!parentCoordinates) continue;
@@ -172,10 +284,11 @@ export function segmentIntoPanels(mesh: FoldcraftMesh, options: SegmentOptions):
             });
             const childPolygon = mesh.faces[candidate.childFace].map((vertexIndex) => childCoordinates.get(vertexIndex)!);
 
+            const childBox = polygonBox(childPolygon);
             let collides = false;
-            for (const [faceIndex, polygon] of polygons) {
-                if (faceIndex === candidate.parentFace) continue;
-                if (polygonsOverlap(polygon, childPolygon)) { collides = true; break; }
+            for (const entry of grid.near(childBox)) {
+                if (entry.faceIndex === candidate.parentFace) continue;
+                if (polygonsOverlap(entry.polygon, childPolygon)) { collides = true; break; }
             }
             if (collides) continue;
 
@@ -193,6 +306,7 @@ export function segmentIntoPanels(mesh: FoldcraftMesh, options: SegmentOptions):
             if (!fits) continue;
 
             place(candidate.childFace, childCoordinates);
+            grid.insert({ faceIndex: candidate.childFace, polygon: childPolygon, ...childBox });
             const parentUse = edges.get(candidate.edgeKey)!.find((use) => use.faceIndex === candidate.parentFace)!;
             const dihedral = dihedralDegrees(mesh, parentUse, candidate.childFace);
             interiorEdges.push({

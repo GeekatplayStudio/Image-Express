@@ -71,6 +71,83 @@ export function panelizeMesh(mesh: FoldcraftMesh, toleranceDeg: number): Paneliz
     };
 }
 
+/**
+ * Coarse grid decimation: snap vertices to the centroids of a uniform grid,
+ * drop faces that collapse, and deduplicate the rest.
+ *
+ * This is a safety net, not the quality path — panelize owns the look of the
+ * output. Its job is to take a generated 500k-triangle sculpt down to a size
+ * the rest of the pipeline can traverse without freezing the app, in linear
+ * time, before any of the quadratic-leaning geometry runs. The tolerance
+ * dial the user sees still applies afterwards, on the decimated mesh.
+ */
+export function decimateMesh(mesh: FoldcraftMesh, targetFaces: number): FoldcraftMesh {
+    if (mesh.faces.length <= targetFaces) return mesh;
+    const min = { x: Infinity, y: Infinity, z: Infinity };
+    const max = { x: -Infinity, y: -Infinity, z: -Infinity };
+    mesh.vertices.forEach((point) => {
+        if (point.x < min.x) min.x = point.x;
+        if (point.x > max.x) max.x = point.x;
+        if (point.y < min.y) min.y = point.y;
+        if (point.y > max.y) max.y = point.y;
+        if (point.z < min.z) min.z = point.z;
+        if (point.z > max.z) max.z = point.z;
+    });
+    const span = {
+        x: Math.max(1e-9, max.x - min.x),
+        y: Math.max(1e-9, max.y - min.y),
+        z: Math.max(1e-9, max.z - min.z),
+    };
+
+    const attempt = (divisions: number): FoldcraftMesh => {
+        const clusterOf = new Map<string, number>();
+        const sums: Array<{ x: number; y: number; z: number; n: number }> = [];
+        const clusterIndex = (point: { x: number; y: number; z: number }): number => {
+            const gx = Math.min(divisions - 1, Math.floor(((point.x - min.x) / span.x) * divisions));
+            const gy = Math.min(divisions - 1, Math.floor(((point.y - min.y) / span.y) * divisions));
+            const gz = Math.min(divisions - 1, Math.floor(((point.z - min.z) / span.z) * divisions));
+            const key = `${gx}:${gy}:${gz}`;
+            let index = clusterOf.get(key);
+            if (index === undefined) {
+                index = sums.length;
+                clusterOf.set(key, index);
+                sums.push({ x: 0, y: 0, z: 0, n: 0 });
+            }
+            return index;
+        };
+        const vertexCluster = mesh.vertices.map((point) => {
+            const index = clusterIndex(point);
+            const sum = sums[index];
+            sum.x += point.x; sum.y += point.y; sum.z += point.z; sum.n += 1;
+            return index;
+        });
+        const seenFaces = new Set<string>();
+        const faces: number[][] = [];
+        for (const face of mesh.faces) {
+            const mapped = face.map((vertexIndex) => vertexCluster[vertexIndex]);
+            const unique: number[] = [];
+            mapped.forEach((cluster) => { if (!unique.includes(cluster)) unique.push(cluster); });
+            if (unique.length < 3) continue;
+            const key = [...unique].sort((a, b) => a - b).join(',');
+            if (seenFaces.has(key)) continue;
+            seenFaces.add(key);
+            faces.push(unique);
+        }
+        return {
+            vertices: sums.map((sum) => ({ x: sum.x / sum.n, y: sum.y / sum.n, z: sum.z / sum.n })),
+            faces,
+            unitsPerMm: mesh.unitsPerMm,
+        };
+    };
+
+    // Finer grids keep more shape; walk down until the budget is met.
+    for (const divisions of [192, 128, 96, 64, 48, 32, 24, 16, 12, 8, 6]) {
+        const candidate = attempt(divisions);
+        if (candidate.faces.length <= targetFaces) return candidate;
+    }
+    return attempt(4);
+}
+
 export function simplifyMesh(mesh: FoldcraftMesh, options: SimplifyOptions): SimplifyReport {
     if (options.mode === 'panelize') {
         return panelizeMesh(mesh, options.planarToleranceDeg ?? DEFAULT_PLANAR_TOLERANCE_DEG);

@@ -135,6 +135,50 @@ describe('panelize', () => {
         expect(report.resultFaces).toBe(segments);
     });
 
+    it('decimates a dense mesh under budget while keeping its shape', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { decimateMesh } = require('../src/simplify');
+        const dense = hemisphereMesh(40, 80); // 6,280 faces
+        const coarse = decimateMesh(dense, 800);
+        expect(coarse.faces.length).toBeLessThanOrEqual(800);
+        expect(coarse.faces.length).toBeGreaterThan(50);
+        // Vertices stay near the unit sphere: shape survives clustering.
+        coarse.vertices.forEach((point: { x: number; y: number; z: number }) => {
+            const radius = Math.hypot(point.x, point.y, point.z);
+            expect(radius).toBeGreaterThan(0.8);
+            expect(radius).toBeLessThan(1.1);
+        });
+        // And the result still ingests and folds coherently.
+        const report = ingestMesh(coarse);
+        expect(report.mesh.faces.length).toBeGreaterThan(0);
+    });
+
+    it('leaves a mesh already under budget untouched', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { decimateMesh } = require('../src/simplify');
+        const small = hemisphereMesh(4, 10);
+        expect(decimateMesh(small, 10_000)).toBe(small);
+    });
+
+    it('drops debris shells by area but keeps the real part', () => {
+        const main = hemisphereMesh(8, 20);
+        // A tiny far-away fragment: three vertices, one triangle.
+        const offset = main.vertices.length;
+        const withDebris = {
+            ...main,
+            vertices: [
+                ...main.vertices,
+                { x: 50, y: 50, z: 50 },
+                { x: 50.01, y: 50, z: 50 },
+                { x: 50, y: 50.01, z: 50 },
+            ],
+            faces: [...main.faces, [offset, offset + 1, offset + 2]],
+        };
+        const report = ingestMesh(withDebris, { dropShellsBelowAreaFraction: 0.01 });
+        expect(report.mesh.faces.length).toBe(main.faces.length);
+        expect(report.warnings.join(' ')).toMatch(/debris/);
+    });
+
     it('measures planarity as zero for a mesh that is already flat', () => {
         const { mesh } = ingestMesh(cubeTrianglesMesh());
         expect(measurePlanarity(mesh)).toBeLessThan(1e-9);

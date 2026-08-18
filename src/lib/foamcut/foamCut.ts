@@ -114,6 +114,60 @@ export function planFoamCut(
     };
 }
 
+/**
+ * Run the pipeline off the main thread when the environment allows.
+ *
+ * The plan for a dense generated model takes seconds even with the face
+ * budgets; on the main thread that is a frozen window. Where module workers
+ * are unavailable (older WebViews, jsdom) the synchronous path still runs,
+ * so the feature degrades to slow rather than broken.
+ */
+export function runFoamCut(
+    bytes: ArrayBuffer,
+    modelName: string,
+    options: FoamCutOptions = {},
+): Promise<FoamCutResult> {
+    if (typeof Worker === 'undefined') {
+        return Promise.resolve(planFoamCut(bytes, modelName, options));
+    }
+    return new Promise<FoamCutResult>((resolve, reject) => {
+        let worker: Worker;
+        try {
+            worker = new Worker(new URL('./foamCut.worker.ts', import.meta.url));
+        } catch {
+            // Bundler or CSP said no — degrade to the blocking path.
+            try {
+                resolve(planFoamCut(bytes, modelName, options));
+            } catch (error) {
+                reject(error as Error);
+            }
+            return;
+        }
+        worker.onmessage = (event: MessageEvent<{ ok: boolean; result?: FoamCutResult; message?: string; details?: string[] }>) => {
+            worker.terminate();
+            if (event.data.ok && event.data.result) {
+                resolve(event.data.result);
+                return;
+            }
+            const error = new Error(event.data.message ?? 'FOAMCUT_FAILED');
+            (error as Error & { details?: string[] }).details = event.data.details ?? [];
+            reject(error);
+        };
+        worker.onerror = (event) => {
+            worker.terminate();
+            // A worker that cannot even start falls back to the sync path.
+            try {
+                resolve(planFoamCut(bytes, modelName, options));
+            } catch (error) {
+                reject(error as Error);
+            }
+            event.preventDefault?.();
+        };
+        // The buffer transfers rather than copies: 50+ MB models are routine.
+        worker.postMessage({ bytes, modelName, options }, [bytes]);
+    });
+}
+
 /** Hand the files to the user through the browser (works in Electron too). */
 export function downloadFoamCutFiles(files: FoamCutFile[]): void {
     files.forEach((file) => {

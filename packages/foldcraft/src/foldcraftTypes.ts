@@ -44,6 +44,13 @@ export type IngestOptions = {
      * offset outward by half this, so the assembled outer size matches.
      */
     midSurfaceThicknessMm?: number;
+    /**
+     * Drop connected shells whose surface area is below this fraction of the
+     * total. Generated sculpts arrive with hundreds of disconnected debris
+     * shells (interior bits, floating fragments); each would otherwise become
+     * its own cut panel. 0 or absent keeps everything.
+     */
+    dropShellsBelowAreaFraction?: number;
 };
 
 export type IngestReport = {

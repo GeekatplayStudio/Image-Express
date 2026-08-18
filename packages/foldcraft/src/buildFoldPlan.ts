@@ -26,7 +26,7 @@ import { DEFAULT_MACHINE, DEFAULT_MATERIAL, sheetForMachine } from './foldcraftT
 import { ingestMesh } from './ingest';
 import { loadModel, type LoadModelOptions } from './loadModel';
 import { modelExtent } from './planarize';
-import { panelizeMesh } from './simplify';
+import { decimateMesh, panelizeMesh } from './simplify';
 import { segmentIntoPanels } from './segment';
 import { planGrooves } from './grooves';
 import { packSheets } from './packSheets';
@@ -74,6 +74,20 @@ export type FoldPipelineResult = {
 
 const DEFAULT_FINISHED_SIZE_MM = 180;
 const DEFAULT_PLANAR_TOLERANCE_DEG = 14;
+/**
+ * Face budgets, both safety nets rather than quality dials.
+ *
+ * PRE: generated sculpts arrive at hundreds of thousands of triangles; the
+ * linear stages handle that, but nothing downstream benefits from it — a
+ * foam build is dozens of panels. Decimating early bounds every later stage.
+ *
+ * PANEL: what segmentation and packing are expected to chew through. When
+ * panelize leaves more (a noisy organic surface at a fine tolerance), the
+ * tolerance escalates, and as a last resort the mesh is decimated harder —
+ * a coarser model that cuts beats a faithful one that never finishes.
+ */
+const PRE_DECIMATE_BUDGET = 60_000;
+const PANEL_FACE_BUDGET = 2_500;
 
 export function buildFoldPlan(
     source: ArrayBuffer | Uint8Array | string | ReturnType<typeof loadModel>['mesh'],
@@ -89,13 +103,44 @@ export function buildFoldPlan(
         ? source
         : loadModel(source as ArrayBuffer | Uint8Array | string, options.load).mesh;
 
-    const ingested = ingestMesh(raw);
-    warnings.push(...ingested.warnings);
-    const sourceFaces = ingested.mesh.faces.length;
+    // Bound the work before ANY geometry stage sees it: decimation is the
+    // only stage that tolerates raw triangle soup (clustering is itself a
+    // weld), and everything else — including ingest's welding and
+    // orientation walk — costs per-face. A 56 MB generated sculpt froze the
+    // app inside ingest before segmentation ever ran.
+    const sourceFaces = raw.faces.length;
+    const bounded = sourceFaces > PRE_DECIMATE_BUDGET ? decimateMesh(raw, PRE_DECIMATE_BUDGET) : raw;
+    if (bounded !== raw) {
+        warnings.push(`Model decimated from ${sourceFaces} to ${bounded.faces.length} faces before panelling.`);
+    }
 
-    const lowPoly = options.skipPanelize
-        ? ingested.mesh
-        : panelizeMesh(ingested.mesh, options.planarToleranceDeg ?? DEFAULT_PLANAR_TOLERANCE_DEG).mesh;
+    const ingested = ingestMesh(bounded, { dropShellsBelowAreaFraction: 0.01 });
+    warnings.push(...ingested.warnings);
+    const working = ingested.mesh;
+
+    let lowPoly = working;
+    if (!options.skipPanelize) {
+        let tolerance = options.planarToleranceDeg ?? DEFAULT_PLANAR_TOLERANCE_DEG;
+        lowPoly = panelizeMesh(working, tolerance).mesh;
+        while (lowPoly.faces.length > PANEL_FACE_BUDGET && tolerance < 40) {
+            tolerance += 8;
+            lowPoly = panelizeMesh(working, tolerance).mesh;
+        }
+        if (lowPoly.faces.length > PANEL_FACE_BUDGET) {
+            // Surface too noisy for tolerance alone: coarsen the mesh itself
+            // until the panel count lands. Faceting error grows with each
+            // step, but a plan that cuts always beats one that cannot.
+            let clusterTarget = PANEL_FACE_BUDGET * 2;
+            while (lowPoly.faces.length > PANEL_FACE_BUDGET && clusterTarget >= 250) {
+                const coarser = ingestMesh(decimateMesh(working, clusterTarget), {
+                    dropShellsBelowAreaFraction: 0.01,
+                }).mesh;
+                lowPoly = panelizeMesh(coarser, tolerance).mesh;
+                clusterTarget = Math.floor(clusterTarget / 2);
+            }
+            warnings.push(`Surface panelled at ${tolerance}° after extra decimation; result has ${lowPoly.faces.length} panels.`);
+        }
+    }
 
     // Segmentation runs in model units; give it the sheet in those units.
     const extent = modelExtent(lowPoly);
