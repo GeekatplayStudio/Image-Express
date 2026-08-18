@@ -23,13 +23,40 @@ function authorizationHeaders(): HeadersInit | undefined {
     return authorization ? { Authorization: authorization } : undefined;
 }
 
+/**
+ * A cache entry written by the filename-keyed era: `volatile:<filename>`,
+ * where today's keys are `volatile:sha256-…` (or `volatile:<size>:<name>`
+ * where hashing is unavailable). Those legacy entries are exactly the
+ * poisoned ones — every blob model a session opened resolved to whichever
+ * file was first stored under that name, most of them literally
+ * "volatile:model.glb" — and because they live in localStorage they keep
+ * serving the wrong model long after the code that wrote them is gone.
+ * They cannot be trusted and cannot be repaired, only dropped; dropping one
+ * merely costs a re-upload on next open.
+ */
+const isLegacyFilenameKey = (key: string) => (
+    key.startsWith('volatile:')
+    && !key.startsWith('volatile:sha256-')
+    && !/^volatile:\d+:/.test(key)
+);
+
 function readStoredSources(): Record<string, string> {
     if (typeof window === 'undefined') return {};
     try {
         const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}') as unknown;
-        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-            ? parsed as Record<string, string>
-            : {};
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        const stored = parsed as Record<string, string>;
+        const entries = Object.entries(stored).filter(([key]) => !isLegacyFilenameKey(key));
+        if (entries.length !== Object.keys(stored).length) {
+            const purged = Object.fromEntries(entries);
+            try {
+                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(purged));
+            } catch {
+                // Filtering on read still protects this session.
+            }
+            return purged;
+        }
+        return stored;
     } catch {
         return {};
     }

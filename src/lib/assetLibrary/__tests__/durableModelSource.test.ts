@@ -100,6 +100,37 @@ describe('durable model sources', () => {
         expect(uploadCount).toBe(1);
     });
 
+    /**
+     * Sessions that ran the filename-keyed code left poisoned entries behind
+     * in localStorage — "volatile:model.glb" pointing at whichever model was
+     * stored first under that name. The fix must not depend on the user
+     * clearing site data: those entries are dropped on first read, and a model
+     * that would have hit one resolves by content instead.
+     */
+    it('purges poisoned filename-keyed cache entries and ignores them', async () => {
+        window.localStorage.setItem('image-express-durable-model-sources-v1', JSON.stringify({
+            'volatile:model.glb': '/api/assets/serve/uploads/models/goblin.glb',
+            'volatile:sha256-abc123': '/api/assets/serve/uploads/models/kept.glb',
+            'local:asset-7': '/api/assets/serve/uploads/models/also-kept.glb',
+        }));
+        (global.fetch as jest.Mock).mockImplementation(async (input: unknown, init?: RequestInit) => {
+            if (String(input).startsWith('blob:')) {
+                return { ok: true, blob: async () => new Blob(['TOP-HAT-BYTES']) };
+            }
+            if (init?.method === 'HEAD') return { ok: true };
+            return { ok: true, json: async () => ({ success: true, path: '/api/assets/serve/uploads/models/top-hat-99.glb' }) };
+        });
+
+        // The poisoned name must not win: content resolves to a fresh upload.
+        const resolved = await recoverVolatileModelSource('blob:http://localhost/hat', 'model.glb', 'Guest');
+        expect(resolved).toBe('/api/assets/serve/uploads/models/top-hat-99.glb');
+
+        const remaining = JSON.parse(window.localStorage.getItem('image-express-durable-model-sources-v1')!) as Record<string, string>;
+        expect(remaining['volatile:model.glb']).toBeUndefined();
+        expect(remaining['volatile:sha256-abc123']).toBe('/api/assets/serve/uploads/models/kept.glb');
+        expect(remaining['local:asset-7']).toBe('/api/assets/serve/uploads/models/also-kept.glb');
+    });
+
     it('recovers an expired blob reference from a matching server asset', async () => {
         (global.fetch as jest.Mock)
             .mockRejectedValueOnce(new TypeError('Failed to fetch'))

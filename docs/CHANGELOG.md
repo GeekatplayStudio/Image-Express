@@ -19,6 +19,14 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-18 - Self-healing purge of the poisoned model cache
+
+- The wrong-model fix now cleans up after the old bug on its own: cache
+  entries written by the filename-keyed era ( pointing at
+  whichever model was stored first) are dropped from localStorage on first
+  read, so stale sessions stop opening the wrong model without anyone having
+  to clear site data. Content-hash and per-asset entries are kept.
+
 ## 2026-08-18 - Album graveyard fix, shelf details, 3D-view delete key
 
 - **Fixed unwanted album accumulation**: every dashboard start action (Custom
