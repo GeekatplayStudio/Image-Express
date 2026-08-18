@@ -12,8 +12,8 @@ import { listUiThemes, loadStoredUiTheme } from '@/lib/ui-themes';
 import { APP_VERSION_INFO, formatHubVersionLabel } from '@/lib/appVersion';
 import { loadUiPreferences } from '@/lib/ui-preferences';
 import {
-    addProject,
     createProjectsState,
+    startProject,
     deleteProject,
     getProjectsStateSync,
     loadProjectsState,
@@ -170,15 +170,18 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         };
     }, []);
 
-    // Creating is always a genuinely fresh album — never a recycled empty
-    // one, whose stale name/size would leak into the "new" album.
+    // Starting a design reclaims an empty album on the active shelf (renamed
+    // and resized, so nothing stale leaks through) and only creates a new one
+    // when none is free. Creating unconditionally here minted one more empty
+    // "Album N" on every visit to the editor — the workspace filled with
+    // albums the user never asked for.
     const startNewProject = (tool?: string, size?: { width: number; height: number }) => {
         const lastUsed = loadUiPreferences();
         const width = size?.width ?? lastUsed.lastCanvasWidth;
         const height = size?.height ?? lastUsed.lastCanvasHeight;
         const current = getProjectsStateSync() ?? projectsState;
         const name = t('stack.albumName', { n: (current?.projects.length ?? 0) + 1 });
-        const next = current ? addProject(current, name, width, height) : createProjectsState(name, width, height);
+        const next = current ? startProject(current, name, width, height) : createProjectsState(name, width, height);
         void saveProjectsState(next);
         onNewDesign(tool, size);
     };

@@ -339,6 +339,86 @@ describe('projectStore empty-project reuse and storage safety', () => {
         expect(empty?.name).toBe('P2');
     });
 
+    describe('startProject — the dashboard start action', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { startProject } = require('@/lib/multicanvas/projectStore');
+
+        /**
+         * The album graveyard: every visit to the editor minted one more empty
+         * "Album N". Starting a design must reclaim an existing empty album,
+         * so repeated starts leave exactly one album, not one per visit.
+         */
+        it('does not accumulate albums across repeated starts', () => {
+            let state = createProjectsState('Album 1', 100, 100);
+            for (let visit = 2; visit <= 20; visit += 1) {
+                state = startProject(state, `Album ${visit}`, 100, 100);
+            }
+            expect(state.projects).toHaveLength(1);
+        });
+
+        it('renames and resizes the reclaimed album so nothing stale leaks', () => {
+            const state = startProject(createProjectsState('Old Name', 800, 600), 'Fresh Album', 1920, 1080);
+            expect(state.projects).toHaveLength(1);
+            const project = state.projects[0];
+            expect(project.name).toBe('Fresh Album');
+            expect(project.canvases).toHaveLength(1);
+            expect(project.canvases[0].width).toBe(1920);
+            expect(project.canvases[0].height).toBe(1080);
+            expect(project.canvases[0].json).toBeNull();
+            expect(state.activeProjectId).toBe(project.id);
+        });
+
+        it('creates a new album only when no empty one exists', () => {
+            let state = createProjectsState('P1', 100, 100);
+            const p1 = updateSnap(state.projects[0], state.projects[0].activeCanvasId, { objects: [{ id: 'x' }] });
+            state = { ...state, projects: [p1] };
+            const next = startProject(state, 'P2', 100, 100);
+            expect(next.projects).toHaveLength(2);
+            expect(next.projects[1].name).toBe('P2');
+        });
+
+        it('never reclaims an album that holds work', () => {
+            let state = createProjectsState('Real work', 100, 100);
+            const withArt = updateSnap(state.projects[0], state.projects[0].activeCanvasId, { objects: [{ id: 'art' }] });
+            state = { ...state, projects: [withArt] };
+            const next = startProject(state, 'New', 100, 100);
+            expect(next.projects.find((p: { name: string }) => p.name === 'Real work')).toBeTruthy();
+            expect(next.projects).toHaveLength(2);
+        });
+    });
+
+    describe('bookshelf details', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { updateBookshelfDetails, normalizeProjectsState } = require('@/lib/multicanvas/projectStore');
+
+        it('stores description and location on the shelf', () => {
+            const state = updateBookshelfDetails(createProjectsState('P1', 100, 100), 'shf-default', {
+                description: 'Client campaign work',
+                location: 'Agency — Germany',
+            });
+            expect(state.bookshelves[0].description).toBe('Client campaign work');
+            expect(state.bookshelves[0].location).toBe('Agency — Germany');
+        });
+
+        it('updates one field without erasing the other', () => {
+            let state = updateBookshelfDetails(createProjectsState('P1', 100, 100), 'shf-default', {
+                description: 'Campaigns', location: 'Germany',
+            });
+            state = updateBookshelfDetails(state, 'shf-default', { location: 'Berlin office' });
+            expect(state.bookshelves[0].description).toBe('Campaigns');
+            expect(state.bookshelves[0].location).toBe('Berlin office');
+        });
+
+        it('survives normalization', () => {
+            const state = updateBookshelfDetails(createProjectsState('P1', 100, 100), 'shf-default', {
+                description: 'Kept', location: 'Kept too',
+            });
+            const normalized = normalizeProjectsState(state);
+            expect(normalized.bookshelves[0].description).toBe('Kept');
+            expect(normalized.bookshelves[0].location).toBe('Kept too');
+        });
+    });
+
     it('saves successfully under normal conditions', async () => {
         const state = createProjectsState('P1', 100, 100);
         expect(await saveProjectsState(state)).toBe(true);

@@ -19,6 +19,31 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-18 - Album graveyard fix, shelf details, 3D-view delete key
+
+- **Fixed unwanted album accumulation**: every dashboard start action (Custom
+  Size, Upload Media, Create 3D, Generate Image, template click) created one
+  more empty "Album N" — browse to the editor and back a dozen times and the
+  workspace held a dozen empty albums nobody asked for. Starting a design now
+  reclaims an empty album on the active shelf (renamed and resized, so nothing
+  stale leaks through) and only creates one when none is free. Pinned by a
+  20-visit accumulation test.
+- **Bookshelf description and location**: shelves now carry free-text details
+  (e.g. "Client campaigns — Agency, Germany"), edited from an info button in
+  the 3D view's shelf header and shown beside the shelf name. Persisted with
+  the workspace; localized in 11 languages.
+- **Delete key in the 3D stack view**: Delete/Backspace removes the selected
+  page, album, or shelf at the current zoom level. Items holding content ask
+  for confirmation first, and the confirm dialog now opens focused on its
+  confirm button — so Delete → Enter completes the deletion, while empty items
+  go straight away.
+- **Dialogs are now truly modal**: keys no longer leak past an open dialog to
+  the 3D view behind it (Enter used to answer the dialog AND dive into an
+  item), and typing in a rename field no longer moves the 3D selection or
+  triggers deletes.
+- Sharing paths (linked layers within a shelf, shelf boundaries, duplicated
+  shelves staying independent) re-verified against the existing store suites.
+
 ## 2026-08-18 - Machine build requirements + groove width fix
 
 - Added `docs/FOLDCRAFT_MACHINE_BUILD.md`: the full build specification for the

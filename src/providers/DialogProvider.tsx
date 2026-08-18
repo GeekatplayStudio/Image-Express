@@ -156,6 +156,15 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         const dialog = dialogRef.current;
         if (dialog) {
             requestAnimationFrame(() => {
+                // Confirm dialogs focus their confirm button, so plain Enter
+                // accepts — "are you sure?" → Enter deletes. Focusing the
+                // first control put Enter on Cancel, which inverted that.
+                // Prompts still focus first, which is their text input.
+                const preferred = dialog.querySelector<HTMLElement>('[data-dialog-confirm]');
+                if (preferred) {
+                    preferred.focus();
+                    return;
+                }
                 const focusable = Array.from(
                     dialog.querySelectorAll<HTMLElement>(
                         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -169,9 +178,14 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
         const onKeyDown = (event: KeyboardEvent) => {
             if (!dialogRef.current) return;
 
+            // A dialog is modal: no key reaches the handlers behind it. The
+            // 3D stack view (and anything else on window-level keydown) kept
+            // reacting while a dialog was up — Enter answered the dialog AND
+            // dove into an item behind it.
+            event.stopPropagation();
+
             if (event.key === 'Escape') {
                 event.preventDefault();
-                event.stopPropagation();
                 handleCancel();
                 return;
             }
@@ -329,6 +343,9 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                             {config.type !== 'choice' && (
                                 <button
                                     onClick={handleConfirm}
+                                    // Confirm/alert dialogs take initial focus here so
+                                    // Enter accepts; prompt keeps focus on its input.
+                                    {...(config.type !== 'prompt' ? { 'data-dialog-confirm': true } : {})}
                                     className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all text-white ${
                                         config.options.variant === 'destructive'
                                         ? 'bg-destructive hover:bg-destructive/90'

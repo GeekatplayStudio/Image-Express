@@ -33,6 +33,7 @@ import {
     setActiveProject,
     syncSharedLayerAcrossProjects,
     updateActiveProject,
+    updateBookshelfDetails as updateBookshelfDetailsInState,
     updateCanvasSnapshot,
 } from '@/lib/multicanvas/projectStore';
 
@@ -409,6 +410,15 @@ export function useMultiCanvasProject({
         commit(renameBookshelfInState(current, bookshelfId, name));
     }, [commit, getFreshState]);
 
+    const handleUpdateBookshelfDetails = useCallback((
+        bookshelfId: string,
+        details: { description?: string; location?: string },
+    ) => {
+        const current = getFreshState();
+        if (!current) return;
+        commit(updateBookshelfDetailsInState(current, bookshelfId, details));
+    }, [commit, getFreshState]);
+
     const openStackView = useCallback(() => {
         const current = snapshotLoadedCanvas();
         if (current) commit(current);
@@ -587,6 +597,7 @@ export function useMultiCanvasProject({
         handleDuplicateBookshelf,
         handleDeleteBookshelf,
         handleRenameBookshelf,
+        handleUpdateBookshelfDetails,
         toggleShareActiveLayer,
         shareActiveLayerWithProjects,
         saveActiveCanvasSnapshot,

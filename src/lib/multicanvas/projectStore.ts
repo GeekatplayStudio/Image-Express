@@ -248,6 +248,10 @@ export const clearProject = (): void => {
 export type Bookshelf = {
     id: string;
     name: string;
+    /** What this shelf is for — free text shown wherever the shelf is named. */
+    description?: string;
+    /** Where the work belongs: a client, an office, a country ("Agency — Germany"). */
+    location?: string;
 };
 
 export type ProjectsState = {
@@ -353,6 +357,24 @@ export const renameBookshelf = (state: ProjectsState, bookshelfId: string, name:
     bookshelves: state.bookshelves.map((shelf) => (shelf.id === bookshelfId ? { ...shelf, name } : shelf)),
 });
 
+/** Set a shelf's description and/or location; absent fields stay untouched. */
+export const updateBookshelfDetails = (
+    state: ProjectsState,
+    bookshelfId: string,
+    details: { description?: string; location?: string },
+): ProjectsState => ({
+    ...state,
+    bookshelves: state.bookshelves.map((shelf) => (
+        shelf.id === bookshelfId
+            ? {
+                ...shelf,
+                ...(details.description !== undefined ? { description: details.description } : {}),
+                ...(details.location !== undefined ? { location: details.location } : {}),
+            }
+            : shelf
+    )),
+});
+
 /** Deleting a shelf deletes the albums on it. The last shelf cannot be deleted. */
 export const deleteBookshelf = (state: ProjectsState, bookshelfId: string): ProjectsState => {
     if (state.bookshelves.length <= 1) return state;
@@ -439,6 +461,33 @@ export const isProjectEmpty = (project: Project): boolean => (
 export const findEmptyProject = (state: ProjectsState): Project | null => (
     projectsInBookshelf(state, state.activeBookshelfId).find((p) => isProjectEmpty(p)) ?? null
 );
+
+/**
+ * Start a "new" album by reclaiming an empty one on the active shelf, or by
+ * creating one only when no empty album exists.
+ *
+ * Every start action used to create an album unconditionally, on the theory
+ * that reuse would leak the empty album's stale name and page size into the
+ * new one. The result was an album graveyard: browse to the editor, come
+ * back, browse again — one more empty "Album N" each time, forever. Reuse
+ * with an explicit rename and resize keeps both properties: the album is
+ * fresh in every way the user can observe, and the workspace stops
+ * accumulating albums nobody asked for.
+ */
+export const startProject = (state: ProjectsState, name: string, width: number, height: number): ProjectsState => {
+    const empty = findEmptyProject(state);
+    if (!empty) return addProject(state, name, width, height);
+    const canvas = createCanvasEntry('Canvas 1', width, height);
+    return {
+        ...state,
+        projects: state.projects.map((project) => (
+            project.id === empty.id
+                ? { ...project, name, canvases: [canvas], activeCanvasId: canvas.id }
+                : project
+        )),
+        activeProjectId: empty.id,
+    };
+};
 
 /** A shelf always keeps at least one album, so its last album cannot be deleted. */
 export const deleteProject = (state: ProjectsState, projectId: string): ProjectsState => {

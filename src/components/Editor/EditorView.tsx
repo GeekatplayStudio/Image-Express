@@ -775,6 +775,7 @@ export default function EditorView({
         handleDuplicateBookshelf,
         handleDeleteBookshelf,
         handleRenameBookshelf,
+        handleUpdateBookshelfDetails,
         toggleShareActiveLayer,
         shareActiveLayerWithProjects,
         saveActiveCanvasSnapshot,
@@ -1544,6 +1545,7 @@ export default function EditorView({
                                     onDuplicateBookshelf={handleDuplicateBookshelf}
                                     onDeleteBookshelf={handleDeleteBookshelf}
                                     onRenameBookshelf={handleRenameBookshelf}
+                                    onUpdateBookshelfDetails={handleUpdateBookshelfDetails}
                                     onClose={closeStackView}
                                 />
                             )}

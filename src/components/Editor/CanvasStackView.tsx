@@ -4,7 +4,7 @@
 // x-ray; shared (linked) layers are drawn as flowing bridge paths between
 // planes, node-editor style. Adapted from GeekatplayStudio/LogiTensor.
 import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
-import { Copy, Trash2, Plus, X, Layers, Boxes, Library, Link2 } from 'lucide-react';
+import { Copy, Info, Trash2, Plus, X, Layers, Boxes, Library, Link2 } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import { useDialog } from '@/providers/DialogProvider';
 import {
@@ -64,6 +64,7 @@ type CanvasStackViewProps = {
     onDuplicateBookshelf: (bookshelfId: string) => void;
     onDeleteBookshelf: (bookshelfId: string) => void;
     onRenameBookshelf: (bookshelfId: string, name: string) => void;
+    onUpdateBookshelfDetails: (bookshelfId: string, details: { description?: string; location?: string }) => void;
     onClose: () => void;
 };
 
@@ -80,7 +81,7 @@ export default function CanvasStackView({
     onDuplicateCanvas, onDeleteCanvas, onRenameCanvas,
     onSelectProject, onOpenProject, onAddProject, onDuplicateProject, onDeleteProject, onRenameProject,
     onSelectBookshelf, onOpenBookshelf, onAddBookshelf, onDuplicateBookshelf, onDeleteBookshelf,
-    onRenameBookshelf,
+    onRenameBookshelf, onUpdateBookshelfDetails,
     onClose,
 }: CanvasStackViewProps) {
     const { t } = useI18n();
@@ -329,56 +330,6 @@ export default function CanvasStackView({
         }
     };
 
-    // Keyboard, uniform across the three levels: arrows cycle the selection,
-    // Enter dives into it, Esc steps back down toward the pages and closes
-    // from there — the existing two-level Esc rule, extended. Rising a level
-    // stays on the wheel and the toolbar. Album cycling stays inside the
-    // current shelf.
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            const level = mode === 'stack'
-                ? { items: canvases, activeId: activeCanvasId, select: onSelectCanvas }
-                : mode === 'federation'
-                    ? { items: shelfAlbums, activeId: projectsState.activeProjectId, select: onSelectProject }
-                    : {
-                        items: projectsState.bookshelves,
-                        activeId: projectsState.activeBookshelfId,
-                        select: onSelectBookshelf,
-                    };
-            const { items, activeId, select } = level;
-            const idx = items.findIndex((item) => item.id === activeId);
-            if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-                e.preventDefault();
-                const next = items[Math.max(0, idx - 1)];
-                if (next) select(next.id);
-            } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-                e.preventDefault();
-                const next = items[Math.min(items.length - 1, idx + 1)];
-                if (next) select(next.id);
-            } else if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter') {
-                e.preventDefault();
-                if (mode === 'stack') {
-                    onOpenCanvas(activeCanvasId);
-                } else if (mode === 'federation') {
-                    onOpenProject(projectsState.activeProjectId);
-                    enterMode('stack');
-                } else {
-                    onOpenBookshelf(projectsState.activeBookshelfId);
-                    enterMode('federation');
-                }
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                if (mode === 'bookshelf') enterMode('federation');
-                else if (mode === 'federation') enterMode('stack');
-                else onClose();
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [
-        activeCanvasId, canvases, enterMode, mode, onClose, onOpenBookshelf, onOpenCanvas, onOpenProject,
-        onSelectBookshelf, onSelectCanvas, onSelectProject, projectsState, shelfAlbums,
-    ]);
 
     const layerCount = activeCanvas?.json?.objects?.length ?? 0;
 
@@ -478,6 +429,77 @@ export default function CanvasStackView({
         playDestroy(bookshelfId, at, () => onDeleteBookshelf(bookshelfId));
     }, [boxScreenPoint, dialog, onDeleteBookshelf, playDestroy, projectsState, t]);
 
+    // Keyboard, uniform across the three levels: arrows cycle the selection,
+    // Enter dives into it, Esc steps back down toward the pages and closes
+    // from there — the existing two-level Esc rule, extended. Rising a level
+    // stays on the wheel and the toolbar. Album cycling stays inside the
+    // current shelf.
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // The rename fields live inside this view; while one has focus the
+            // keys belong to it — arrows must move the caret, not the
+            // selection, and Delete must edit text, not destroy the shelf.
+            const el = e.target as HTMLElement | null;
+            if (el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable === true) return;
+            const level = mode === 'stack'
+                ? { items: canvases, activeId: activeCanvasId, select: onSelectCanvas }
+                : mode === 'federation'
+                    ? { items: shelfAlbums, activeId: projectsState.activeProjectId, select: onSelectProject }
+                    : {
+                        items: projectsState.bookshelves,
+                        activeId: projectsState.activeBookshelfId,
+                        select: onSelectBookshelf,
+                    };
+            const { items, activeId, select } = level;
+            const idx = items.findIndex((item) => item.id === activeId);
+            if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const next = items[Math.max(0, idx - 1)];
+                if (next) select(next.id);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                const next = items[Math.min(items.length - 1, idx + 1)];
+                if (next) select(next.id);
+            } else if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter') {
+                e.preventDefault();
+                if (mode === 'stack') {
+                    onOpenCanvas(activeCanvasId);
+                } else if (mode === 'federation') {
+                    onOpenProject(projectsState.activeProjectId);
+                    enterMode('stack');
+                } else {
+                    onOpenBookshelf(projectsState.activeBookshelfId);
+                    enterMode('federation');
+                }
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                // Delete removes the selected item at the current level. The
+                // Fx handlers already ask for confirmation when the item holds
+                // content — and the confirm dialog opens focused on its
+                // confirm button, so a second Enter (or Delete → Enter)
+                // completes the deletion, while empty items just go.
+                e.preventDefault();
+                if (mode === 'stack') {
+                    void handleDeleteCanvasFx(activeCanvasId);
+                } else if (mode === 'federation') {
+                    void handleDeleteProjectFx(projectsState.activeProjectId);
+                } else {
+                    void handleDeleteBookshelfFx(projectsState.activeBookshelfId);
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                if (mode === 'bookshelf') enterMode('federation');
+                else if (mode === 'federation') enterMode('stack');
+                else onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [
+        activeCanvasId, canvases, enterMode, handleDeleteBookshelfFx, handleDeleteCanvasFx, handleDeleteProjectFx,
+        mode, onClose, onOpenBookshelf, onOpenCanvas, onOpenProject,
+        onSelectBookshelf, onSelectCanvas, onSelectProject, projectsState, shelfAlbums,
+    ]);
+
     const projectNameOf = useCallback((projectId: string) => (
         projectsState.projects.find((entry) => entry.id === projectId)?.name ?? projectId
     ), [projectsState.projects]);
@@ -570,7 +592,43 @@ export default function CanvasStackView({
                         <span className="text-[10px] text-muted-foreground">
                             {t('stack.bookshelfCount', { count: projectsState.bookshelves.length })}
                         </span>
+                        {(activeBookshelf.location || activeBookshelf.description) && (
+                            <span
+                                className="max-w-52 truncate text-[10px] text-muted-foreground/80 italic"
+                                title={[activeBookshelf.description, activeBookshelf.location].filter(Boolean).join(' — ')}
+                                data-testid="bookshelf-details-text"
+                            >
+                                {[activeBookshelf.location, activeBookshelf.description].filter(Boolean).join(' · ')}
+                            </span>
+                        )}
                         <div className="w-px h-4 bg-border" />
+                        <button
+                            onClick={() => { void (async () => {
+                                // Two short prompts beat a bespoke form here:
+                                // the dialog stack is modal, translated, and
+                                // Enter/Escape behave consistently with the
+                                // rest of the view.
+                                const description = await dialog.prompt(t('stack.bookshelfDescriptionPrompt'), {
+                                    title: t('stack.editBookshelfDetails'),
+                                    defaultValue: activeBookshelf.description ?? '',
+                                });
+                                if (description === null) return;
+                                const location = await dialog.prompt(t('stack.bookshelfLocationPrompt'), {
+                                    title: t('stack.editBookshelfDetails'),
+                                    defaultValue: activeBookshelf.location ?? '',
+                                });
+                                if (location === null) return;
+                                onUpdateBookshelfDetails(activeBookshelf.id, {
+                                    description: description.trim(),
+                                    location: location.trim(),
+                                });
+                            })(); }}
+                            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+                            title={t('stack.editBookshelfDetails')}
+                            data-testid="bookshelf-details"
+                        >
+                            <Info size={13} />
+                        </button>
                         <button onClick={() => handleDuplicateBookshelfFx(activeBookshelf.id)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition" title={t('stack.duplicateBookshelf')} data-testid="bookshelf-duplicate">
                             <Copy size={13} />
                         </button>
