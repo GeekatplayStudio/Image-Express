@@ -19,6 +19,20 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-18 - One-click "Cut from foam" in the editor
+
+- Right-clicking a 3D model on the canvas now offers **Cut from foam** next to
+  Unfold: one press runs the full Foldcraft pipeline (low-poly, segment,
+  grooves for 6 mm EVA, pack, simulate, validate) and downloads cutter-ready
+  files — layered SVG plus five-axis G-code per sheet — while a sheet preview
+  lands on the canvas. Defaults are chosen for a maker with no computer
+  experience: costume scale (280 mm), the reference ultrasonic cutter, no
+  settings to understand.
+- Files are only produced when the plan passes its own validation and the
+  machine simulation; a failed plan reports why instead of exporting.
+- Strings localised in all 11 UI languages; jsdom TextEncoder polyfill added
+  for the model parsers under test.
+
 ## 2026-08-18 - Foldcraft: standalone unfold-and-cut library + machine design
 
 - New `packages/foldcraft` — a zero-dependency, dual-licensed (PolyForm

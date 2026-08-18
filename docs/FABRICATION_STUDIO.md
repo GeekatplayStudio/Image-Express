@@ -18,12 +18,21 @@ The preferred subtool is remembered for the current toolbar session. Existing
 3D generation and editing behavior is unchanged; only its navigation is now
 grouped with related fabrication workflows.
 
-## One-click origami unfold
+## One-click origami unfold and one-click foam cut
 
 For a model that is already on the canvas, the complete fast path is:
 
 1. Right-click the 3D model.
-2. Choose **Unfold**.
+2. Choose **Unfold** (paper) or **Cut from foam**.
+
+**Cut from foam** runs the Foldcraft pipeline ([FOLDCRAFT.md](FOLDCRAFT.md)):
+the model is faceted into genuinely flat panels, segmented with cuts on sharp
+edges, given per-fold V-grooves sized for 6 mm EVA foam at costume scale
+(280 mm), packed onto 600 × 600 mm sheets, simulated against the reference
+ultrasonic cutter, and validated. The press downloads one SVG and one G-code
+file per sheet and places a preview on the canvas. Files are only produced when
+validation and simulation pass — a failing plan explains itself instead of
+exporting. **Unfold** remains the paper workflow described below.
 
 No export dialog or material setup is required. Image Express automatically
 simplifies dense meshes to a practical paper-model face count, unfolds adjacent

@@ -27,14 +27,14 @@ function getObjectName(target: ExtendedFabricObject): string {
     return source ? decodeURIComponent(source) : '3D model';
 }
 
-async function createSheetGroup(svg: string, left: number, top: number): Promise<fabric.Group> {
+export async function createSheetGroup(svg: string, left: number, top: number): Promise<fabric.Group> {
     const parsed = await fabric.loadSVGFromString(svg);
     const objects = parsed.objects.filter((object): object is fabric.FabricObject => object !== null);
     if (objects.length === 0) throw new Error('EMPTY_UNFOLD_SHEET');
     return new fabric.Group(objects, { left, top, originX: 'left', originY: 'top' });
 }
 
-async function placePlanOnCanvas(
+export async function placePlanOnCanvas(
     canvas: fabric.Canvas,
     modelName: string,
     sheets: Array<{ svg: string; widthMm: number; heightMm: number }>,

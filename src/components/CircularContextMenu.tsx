@@ -18,6 +18,7 @@ import {
     Origami,
     PaintBucket,
     PenTool,
+    Scissors,
     Shapes,
     ShieldCheck,
     Sparkles,
@@ -45,6 +46,11 @@ interface CircularContextMenuProps {
         name: string;
         isUnfolding: boolean;
         onUnfold: () => void;
+        /** One-click Foldcraft workflow: cutter-ready foam files. */
+        foam?: {
+            isCutting: boolean;
+            onFoamCut: () => void;
+        };
     };
 }
 
@@ -170,8 +176,22 @@ export default function CircularContextMenu({
                         : <Origami aria-hidden="true" className="h-5 w-5" />}
                     <span>{t(modelContext.isUnfolding ? 'papercraft.unfolding' : 'papercraft.unfold')}</span>
                 </button>
+                {modelContext.foam && (
+                    <button
+                        type="button"
+                        role="menuitem"
+                        disabled={modelContext.foam.isCutting}
+                        onClick={modelContext.foam.onFoamCut}
+                        className="mt-1.5 flex w-full items-center gap-3 rounded-lg bg-amber-500 px-3 py-2.5 text-left text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
+                    >
+                        {modelContext.foam.isCutting
+                            ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
+                            : <Scissors aria-hidden="true" className="h-5 w-5" />}
+                        <span>{t(modelContext.foam.isCutting ? 'foamcut.cutting' : 'foamcut.button')}</span>
+                    </button>
+                )}
                 <p className="px-2 pt-2 text-[11px] leading-4 text-zinc-500 dark:text-zinc-400">
-                    {t('papercraft.oneClickHint')}
+                    {t(modelContext.foam ? 'foamcut.hint' : 'papercraft.oneClickHint')}
                 </p>
             </div>
         );

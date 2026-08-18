@@ -24,7 +24,12 @@ type UseEditorWorkspaceCompositionPropsArgs = {
     triggerToolbarTool: (toolName: string) => void;
     handleLayerOrderAction: (action: 'move-up' | 'move-down' | 'to-front' | 'to-back') => void;
     activeLayerOrderState: { canMoveUp: boolean; canMoveDown: boolean; canBringToFront: boolean; canSendToBack: boolean };
-    modelContext?: { name: string; isUnfolding: boolean; onUnfold: () => void };
+    modelContext?: {
+        name: string;
+        isUnfolding: boolean;
+        onUnfold: () => void;
+        foam?: { isCutting: boolean; onFoamCut: () => void };
+    };
     bottomRightUtilityStyle: { right: string; bottom: string };
     zoom: number;
     utilityCanvasSize: { width: number; height: number };

@@ -732,7 +732,7 @@ own. Each phase is a separate change with its own tests.
 | 10 | **S3 analytic unroll** | A cylinder gives 1 panel of width 2πr to 0.1%; a can gives exactly 3 panels | faceted fallback for developables |
 | 11 | **S2 voxelize + decimate** | Orthogonal-polyhedron mode; edge-collapse for very dense input | — |
 | 12 | **HTTP routes + MCP tools** | Tools callable end to end over stdio | — |
-| 13 | **UI + migration** | Right-click Unfold uses Foldcraft; papercraft retired | `usePapercraftUnfold` |
+| 13 | ◐ **UI integration** | ✅ One-click **Cut from foam** on the model context menu (`src/lib/foamcut`, `useFoamCut`): downloads SVG + G-code, only when validation and simulation pass, in 11 languages. Remaining: switch the paper Unfold path over and retire nothing — papercraft stays as reference by decision. | adds to `usePapercraftUnfold` |
 
 **The library now lives at [`packages/foldcraft`](../packages/foldcraft/README.md)**
 as a standalone, dependency-free package (dual-licensed: PolyForm Noncommercial
