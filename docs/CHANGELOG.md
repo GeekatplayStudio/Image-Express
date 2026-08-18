@@ -22,10 +22,11 @@ look for current behaviour or future plans.
 ## 2026-08-18 - Self-healing purge of the poisoned model cache
 
 - The wrong-model fix now cleans up after the old bug on its own: cache
-  entries written by the filename-keyed era ( pointing at
-  whichever model was stored first) are dropped from localStorage on first
-  read, so stale sessions stop opening the wrong model without anyone having
-  to clear site data. Content-hash and per-asset entries are kept.
+  entries written by the filename-keyed era (`volatile:model.glb`, pointing at
+  whichever model was stored first under that name) are dropped from
+  localStorage on first read, so stale sessions stop opening the wrong model
+  without anyone having to clear site data. Content-hash and per-asset
+  entries are kept.
 
 ## 2026-08-18 - Album graveyard fix, shelf details, 3D-view delete key
 
