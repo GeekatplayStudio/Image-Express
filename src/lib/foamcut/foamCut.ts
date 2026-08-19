@@ -22,7 +22,11 @@ import {
     estimateMinutes,
     ULTRASONIC_TILT_MACHINE,
     type FoldPipelineResult,
+    type FoldProgressEvent,
 } from '../../../packages/foldcraft/src/index';
+
+export type { FoldProgressEvent, FoldProgressStage } from '../../../packages/foldcraft/src/index';
+export { FOLD_PROGRESS_STAGES } from '../../../packages/foldcraft/src/index';
 
 export type FoamCutFile = {
     filename: string;
@@ -46,6 +50,12 @@ export type FoamCutOptions = {
     /** Longest dimension of the finished piece. Default suits wearables. */
     finishedSizeMm?: number;
     planarToleranceDeg?: number;
+    /**
+     * Stage-by-stage pipeline progress with stats and preview thumbnails.
+     * Not serialisable — runFoamCut strips it before handing the rest of the
+     * options to the worker and relays events itself.
+     */
+    onProgress?: (event: FoldProgressEvent) => void;
 };
 
 const DEFAULT_FINISHED_SIZE_MM = 280;
@@ -76,6 +86,7 @@ export function planFoamCut(
         machine: ULTRASONIC_TILT_MACHINE,
         finishedSizeMm: options.finishedSizeMm ?? DEFAULT_FINISHED_SIZE_MM,
         planarToleranceDeg: options.planarToleranceDeg ?? DEFAULT_PLANAR_TOLERANCE_DEG,
+        onProgress: options.onProgress,
     });
 
     const failures: string[] = [];
@@ -127,6 +138,7 @@ export function runFoamCut(
     modelName: string,
     options: FoamCutOptions = {},
 ): Promise<FoamCutResult> {
+    const { onProgress, ...cloneable } = options;
     if (typeof Worker === 'undefined') {
         return Promise.resolve(planFoamCut(bytes, modelName, options));
     }
@@ -143,14 +155,22 @@ export function runFoamCut(
             }
             return;
         }
-        worker.onmessage = (event: MessageEvent<{ ok: boolean; result?: FoamCutResult; message?: string; details?: string[] }>) => {
-            worker.terminate();
-            if (event.data.ok && event.data.result) {
-                resolve(event.data.result);
+        worker.onmessage = (event: MessageEvent<
+            | { type: 'progress'; event: FoldProgressEvent }
+            | { type?: 'result'; ok: boolean; result?: FoamCutResult; message?: string; details?: string[] }
+        >) => {
+            if ('type' in event.data && event.data.type === 'progress') {
+                onProgress?.(event.data.event);
                 return;
             }
-            const error = new Error(event.data.message ?? 'FOAMCUT_FAILED');
-            (error as Error & { details?: string[] }).details = event.data.details ?? [];
+            const data = event.data as { ok: boolean; result?: FoamCutResult; message?: string; details?: string[] };
+            worker.terminate();
+            if (data.ok && data.result) {
+                resolve(data.result);
+                return;
+            }
+            const error = new Error(data.message ?? 'FOAMCUT_FAILED');
+            (error as Error & { details?: string[] }).details = data.details ?? [];
             reject(error);
         };
         worker.onerror = (event) => {
@@ -164,7 +184,8 @@ export function runFoamCut(
             event.preventDefault?.();
         };
         // The buffer transfers rather than copies: 50+ MB models are routine.
-        worker.postMessage({ bytes, modelName, options }, [bytes]);
+        // The progress listener stays here; the worker posts events instead.
+        worker.postMessage({ bytes, modelName, options: cloneable }, [bytes]);
     });
 }
 

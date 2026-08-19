@@ -337,6 +337,35 @@ export type FoldPlan = {
 };
 
 // ---------------------------------------------------------------------------
+// Pipeline progress
+// ---------------------------------------------------------------------------
+
+/**
+ * The user-facing stages of the composed pipeline, in the order they run.
+ * Internal stages (welding, debris filtering, decimation escalation) fold
+ * into the stage the user would name: "read the model", "make it low-poly",
+ * "unfold it", and so on.
+ */
+export const FOLD_PROGRESS_STAGES = ['load', 'lowpoly', 'unfold', 'grooves', 'layout', 'verify'] as const;
+
+export type FoldProgressStage = (typeof FOLD_PROGRESS_STAGES)[number];
+
+export type FoldProgressEvent = {
+    stage: FoldProgressStage;
+    status: 'start' | 'done';
+    /** Headline numbers for the stage, keyed for the host to format. */
+    stats?: Record<string, number | string>;
+    /** Self-contained SVG thumbnail of this stage's output, when visual. */
+    previewSvg?: string;
+};
+
+/**
+ * Serialisable except for being a function — hosts running the pipeline in a
+ * worker forward events over postMessage instead of passing the listener in.
+ */
+export type FoldProgressListener = (event: FoldProgressEvent) => void;
+
+// ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
 

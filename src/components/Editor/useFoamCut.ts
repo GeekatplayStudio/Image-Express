@@ -4,8 +4,14 @@ import type * as fabric from 'fabric';
 import type { ExtendedFabricObject } from '@/types';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import { recoverVolatileModelSource } from '@/lib/assetLibrary/durableModelSource';
-import { downloadFoamCutFiles, runFoamCut } from '@/lib/foamcut/foamCut';
-import { placePlanOnCanvas } from '@/components/Editor/usePapercraftUnfold';
+import {
+    FOLD_PROGRESS_STAGES,
+    downloadFoamCutFiles,
+    runFoamCut,
+    type FoldProgressEvent,
+    type FoldProgressStage,
+} from '@/lib/foamcut/foamCut';
+import { placePlanOnCanvas } from '@/components/Editor/placePlanOnCanvas';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 type Toast = (options: ToastOptions) => void;
@@ -22,15 +28,33 @@ type UseFoamCutArgs = {
 };
 
 export type FoamCutContext = {
+    name: string;
     isCutting: boolean;
     onFoamCut: () => void;
 };
 
+export type FoamCutStep = {
+    stage: FoldProgressStage;
+    status: 'pending' | 'running' | 'done' | 'error';
+    stats?: Record<string, number | string>;
+    previewSvg?: string;
+};
+
+export type FoamCutProgress = {
+    modelName: string;
+    steps: FoamCutStep[];
+    finished: boolean;
+    failed: boolean;
+};
+
+const freshSteps = (): FoamCutStep[] => FOLD_PROGRESS_STAGES.map((stage) => ({ stage, status: 'pending' }));
+
 /**
- * The one-click foam workflow: right-click a 3D model, press "Cut from foam",
+ * The one-click low-poly unfold: right-click a 3D model, press the button,
  * and the cutter files download while a preview of the sheets lands on the
- * canvas. Mirrors usePapercraftUnfold's shape so EditorView wires both the
- * same way; the pipeline behind it is the Foldcraft library.
+ * canvas. While the Foldcraft pipeline runs, every stage reports into the
+ * step monitor at the bottom of the editor — the low-poly conversion and the
+ * unfold are shown, not just spun through.
  */
 export function useFoamCut({
     canvas,
@@ -41,16 +65,45 @@ export function useFoamCut({
     toast,
     t,
     user,
-}: UseFoamCutArgs): { foamContext?: FoamCutContext } {
+}: UseFoamCutArgs): {
+    foamContext?: FoamCutContext;
+    foamProgress: FoamCutProgress | null;
+    dismissFoamProgress: () => void;
+} {
     const [isCutting, setIsCutting] = useState(false);
+    const [foamProgress, setFoamProgress] = useState<FoamCutProgress | null>(null);
     const modelUrl = target?.is3DModel ? target.modelUrl : undefined;
     const modelName = target?.name?.trim()
         || modelUrl?.split('?')[0].split('/').pop()
         || t('foamcut.defaultModelName');
 
+    const dismissFoamProgress = useCallback(() => setFoamProgress(null), []);
+
+    const applyProgressEvent = useCallback((event: FoldProgressEvent) => {
+        setFoamProgress((current) => {
+            if (!current) return current;
+            return {
+                ...current,
+                steps: current.steps.map((step) => {
+                    if (step.stage !== event.stage) return step;
+                    return event.status === 'start'
+                        ? { ...step, status: 'running' }
+                        : {
+                            ...step,
+                            status: 'done',
+                            stats: event.stats ?? step.stats,
+                            previewSvg: event.previewSvg ?? step.previewSvg,
+                        };
+                }),
+            };
+        });
+    }, []);
+
     const onFoamCut = useCallback(async () => {
         if (!canvas || !target || !modelUrl || isCutting) return;
         setIsCutting(true);
+        setFoamProgress({ modelName, steps: freshSteps(), finished: false, failed: false });
+        closeMenu();
         try {
             const filename = /\.(?:glb|gltf|stl|obj)$/i.test(modelName) ? modelName : `${modelName}.glb`;
             const durableUrl = await recoverVolatileModelSource(modelUrl, filename, user);
@@ -59,7 +112,7 @@ export function useFoamCut({
             if (!response.ok) throw new Error(`MODEL_FETCH_${response.status}`);
             const bytes = await response.arrayBuffer();
 
-            const result = await runFoamCut(bytes, modelName);
+            const result = await runFoamCut(bytes, modelName, { onProgress: applyProgressEvent });
             await placePlanOnCanvas(
                 canvas,
                 modelName,
@@ -68,7 +121,7 @@ export function useFoamCut({
             downloadFoamCutFiles(result.files);
             setIsDirty(true);
             pushHistory();
-            closeMenu();
+            setFoamProgress((current) => (current ? { ...current, finished: true } : current));
             toast({
                 title: t('foamcut.success'),
                 description: t('foamcut.successDesc', {
@@ -81,6 +134,16 @@ export function useFoamCut({
             });
         } catch (error) {
             console.error('Foam cut failed', error);
+            setFoamProgress((current) => {
+                if (!current) return current;
+                return {
+                    ...current,
+                    failed: true,
+                    steps: current.steps.map((step) => (
+                        step.status === 'running' ? { ...step, status: 'error' } : step
+                    )),
+                };
+            });
             const expiredSource = error instanceof Error && error.message === 'VOLATILE_MODEL_SOURCE_EXPIRED';
             const invalidPlan = error instanceof Error && error.message === 'FOAMCUT_PLAN_INVALID';
             toast(expiredSource ? {
@@ -95,9 +158,11 @@ export function useFoamCut({
         } finally {
             setIsCutting(false);
         }
-    }, [canvas, closeMenu, isCutting, modelName, modelUrl, pushHistory, setIsDirty, t, target, toast, user]);
+    }, [applyProgressEvent, canvas, closeMenu, isCutting, modelName, modelUrl, pushHistory, setIsDirty, t, target, toast, user]);
 
     return {
-        foamContext: modelUrl ? { isCutting, onFoamCut } : undefined,
+        foamContext: modelUrl ? { name: modelName, isCutting, onFoamCut } : undefined,
+        foamProgress,
+        dismissFoamProgress,
     };
 }

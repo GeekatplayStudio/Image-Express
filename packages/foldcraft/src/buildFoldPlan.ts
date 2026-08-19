@@ -16,6 +16,7 @@
 import type {
     FlatPanel,
     FoldBackReport,
+    FoldProgressListener,
     GrooveSpec,
     MachineProfile,
     MaterialSpec,
@@ -23,6 +24,7 @@ import type {
     SheetSpec,
 } from './foldcraftTypes';
 import { DEFAULT_MACHINE, DEFAULT_MATERIAL, sheetForMachine } from './foldcraftTypes';
+import { meshPreviewSvg, panelsPreviewSvg } from './exportPreview';
 import { ingestMesh } from './ingest';
 import { loadModel, type LoadModelOptions } from './loadModel';
 import { modelExtent } from './planarize';
@@ -47,6 +49,11 @@ export type FoldPipelineOptions = {
     skipPanelize?: boolean;
     sheet?: SheetSpec;
     load?: LoadModelOptions;
+    /**
+     * Stage-by-stage progress, with headline stats and preview thumbnails.
+     * Previews are only rendered when a listener is attached.
+     */
+    onProgress?: FoldProgressListener;
 };
 
 export type FoldPipelineResult = {
@@ -98,7 +105,9 @@ export function buildFoldPlan(
     const sheet = options.sheet ?? sheetForMachine(machine);
     const finishedSizeMm = options.finishedSizeMm ?? DEFAULT_FINISHED_SIZE_MM;
     const warnings: string[] = [];
+    const emit = options.onProgress;
 
+    emit?.({ stage: 'load', status: 'start' });
     const raw = typeof source === 'object' && 'vertices' in source
         ? source
         : loadModel(source as ArrayBuffer | Uint8Array | string, options.load).mesh;
@@ -117,7 +126,16 @@ export function buildFoldPlan(
     const ingested = ingestMesh(bounded, { dropShellsBelowAreaFraction: 0.01 });
     warnings.push(...ingested.warnings);
     const working = ingested.mesh;
+    emit?.({
+        stage: 'load',
+        status: 'done',
+        stats: { faces: sourceFaces, usedFaces: working.faces.length },
+        // Only evaluated when a listener exists — ?. skips the argument too.
+        // The thumbnail wants ~1k faces; the working mesh may hold 60k.
+        previewSvg: meshPreviewSvg(decimateMesh(working, 1_500)),
+    });
 
+    emit?.({ stage: 'lowpoly', status: 'start' });
     let lowPoly = working;
     if (!options.skipPanelize) {
         let tolerance = options.planarToleranceDeg ?? DEFAULT_PLANAR_TOLERANCE_DEG;
@@ -141,7 +159,14 @@ export function buildFoldPlan(
             warnings.push(`Surface panelled at ${tolerance}° after extra decimation; result has ${lowPoly.faces.length} panels.`);
         }
     }
+    emit?.({
+        stage: 'lowpoly',
+        status: 'done',
+        stats: { faces: working.faces.length, flatFaces: lowPoly.faces.length },
+        previewSvg: meshPreviewSvg(lowPoly),
+    });
 
+    emit?.({ stage: 'unfold', status: 'start' });
     // Segmentation runs in model units; give it the sheet in those units.
     const extent = modelExtent(lowPoly);
     const scaleMmPerUnit = finishedSizeMm / extent;
@@ -175,7 +200,18 @@ export function buildFoldPlan(
             maxY: panel.boundsMm.maxY * scaleMmPerUnit,
         },
     }));
+    emit?.({
+        stage: 'unfold',
+        status: 'done',
+        stats: {
+            panels: panels.length,
+            folds: segmented.foldCount,
+            seams: segmented.seamCount,
+        },
+        previewSvg: panelsPreviewSvg(panels),
+    });
 
+    emit?.({ stage: 'grooves', status: 'start' });
     let trueVeeCount = 0;
     const grooves = panels.map((panel) => {
         const plan = planGrooves(panel, material, machine);
@@ -183,9 +219,26 @@ export function buildFoldPlan(
         trueVeeCount += plan.trueVeeCount;
         return plan.grooves;
     });
+    emit?.({
+        stage: 'grooves',
+        status: 'done',
+        stats: {
+            grooves: grooves.reduce((sum, list) => sum + list.length, 0),
+            trueVee: trueVeeCount,
+        },
+    });
 
+    emit?.({ stage: 'layout', status: 'start' });
     const layouts = packSheets(panels, sheet);
     const svgs = layouts.map((layout) => exportSheetSvg(panels, grooves, layout, {}));
+    emit?.({
+        stage: 'layout',
+        status: 'done',
+        stats: { sheets: layouts.length },
+        previewSvg: svgs[0],
+    });
+
+    emit?.({ stage: 'verify', status: 'start' });
     const toolpaths = layouts.map((layout) => buildSheetToolpath(panels, grooves, layout, machine, {
         thicknessMm: material.thicknessMm,
     }));
@@ -202,6 +255,15 @@ export function buildFoldPlan(
     });
 
     const validation = validateFoldPlan(lowPoly, panels, scaleMmPerUnit);
+    emit?.({
+        stage: 'verify',
+        status: 'done',
+        stats: {
+            verdict: validation.verdict,
+            refoldMaxErrorMm: Number(validation.refoldMaxErrorMm.toFixed(1)),
+            signConsistency: Number(validation.foldSignConsistency.toFixed(2)),
+        },
+    });
 
     return {
         panels,

@@ -246,8 +246,9 @@ Frame** to grab the current frame as a new image layer.
 Local and Google Drive 3D selections are copied once into the durable local
 asset store before canvas placement, so saved layers survive reloads instead of
 depending on a browser-session `blob:` URL. Older volatile model layers are
-recovered by filename when possible; otherwise editing and Unfold stop with a
-clear localized prompt to re-add the source rather than crashing the 3D view.
+recovered by filename when possible; otherwise editing and Low-poly unfold stop
+with a clear localized prompt to re-add the source rather than crashing the 3D
+view.
 
 ### Asset Vault — Shipped
 Indexes assets **in place** across local drives — nothing is moved. On a local
@@ -332,14 +333,16 @@ searchable hardware inventory with subsystem/axis filters, locally persisted
 acquired counts, progress, safety-critical markers, and CSV export. See
 [FABRICATION_STUDIO.md](FABRICATION_STUDIO.md).
 
-Selected 3D models also have a context-sensitive **Unfold** command: right-click
-the model and choose Unfold to create an origami-style triangular net directly
-on the canvas. The client-side pipeline simplifies dense GLB/GLTF meshes, avoids
-overlapping faces, creates cut/fold lines and glue tabs, splits difficult models
-into islands, and packs dimensioned vector sheets with no required setup. A
-local eight-candidate planner selects the strongest net and predicts 3D
-fold-back confidence from topology, edge/area fidelity, watertightness, and
-signed mountain/valley fold angles.
+Selected 3D models have a context-sensitive **Low-poly unfold** command:
+right-click the model and press the one button. The Foldcraft pipeline converts
+the model to flat low-poly panels, unfolds it with correct mountain/valley
+directions, plans fold grooves for 6 mm foam, packs cutter sheets, and
+downloads SVG + G-code — only when its own validation and machine simulation
+pass. While it runs, a step monitor at the bottom of the editor shows all six
+stages with live counts and preview thumbnails of the low-poly conversion and
+the unfolded pieces, so the result is watchable and diagnosable rather than a
+spinner. (The earlier paper Unfold was removed 2026-08-18; Foldcraft replaces
+it.)
 
 ### Media export overlay — Partial
 Single-canvas crop workflow (A1–A3) plus a frame-to-variant bridge (B1).

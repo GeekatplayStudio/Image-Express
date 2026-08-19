@@ -26,9 +26,8 @@ type UseEditorWorkspaceCompositionPropsArgs = {
     activeLayerOrderState: { canMoveUp: boolean; canMoveDown: boolean; canBringToFront: boolean; canSendToBack: boolean };
     modelContext?: {
         name: string;
-        isUnfolding: boolean;
-        onUnfold: () => void;
-        foam?: { isCutting: boolean; onFoamCut: () => void };
+        isCutting: boolean;
+        onFoamCut: () => void;
     };
     bottomRightUtilityStyle: { right: string; bottom: string };
     zoom: number;

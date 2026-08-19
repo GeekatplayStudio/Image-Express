@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import * as fabric from 'fabric';
 import { placeAtViewportCenter } from '@/lib/canvas-placement';
 
-import type { ThreeDGroup, ThreeDImage, ExtendedFabricObject } from '@/types';
+import type { ThreeDGroup, ExtendedFabricObject } from '@/types';
 import type { CanvasWithArtboard } from '@/components/Editor/editorView.types';
 import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import type { ToastOptions } from '@/providers/ToastProvider';
@@ -32,18 +32,23 @@ export function useEditorCanvasAssetActions({
         if (!canvas) return;
 
         if (type === 'models' || type === 'model' || url.endsWith('.glb') || url.endsWith('.gltf')) {
-            fabric.FabricImage.fromURL(url).then((img) => {
-                img.scaleToWidth(300);
-                placeAtViewportCenter(canvas, img);
-                const threeDImg = img as ThreeDImage;
-                threeDImg.is3DModel = true;
-                threeDImg.modelUrl = url;
-                if (name) (threeDImg as ExtendedFabricObject).name = name;
-                canvas.add(img);
-                canvas.setActiveObject(img);
-                canvas.requestRenderAll();
-                pushHistory();
-            });
+            // A .glb is not an image; place the same tagged placeholder the
+            // drop path uses. The 3D viewer and Low-poly unfold read modelUrl.
+            const group = new fabric.Group([], { subTargetCheck: true, interactive: true });
+            const box = new fabric.Rect({ width: 100, height: 100, fill: '#3b82f6', rx: 10, ry: 10 });
+            const text = new fabric.IText('3D', { fontSize: 30, fill: 'white', left: 30, top: 35, fontFamily: 'sans-serif', fontWeight: 'bold' });
+            group.add(box);
+            group.add(text);
+            const threeDGroup = group as ThreeDGroup;
+            threeDGroup.is3DModel = true;
+            threeDGroup.modelUrl = url;
+            threeDGroup.id = crypto.randomUUID();
+            if (name) threeDGroup.name = name;
+            placeAtViewportCenter(canvas, threeDGroup);
+            canvas.add(threeDGroup);
+            canvas.setActiveObject(threeDGroup);
+            canvas.requestRenderAll();
+            pushHistory();
         } else if (type === 'videos' || type === 'video') {
             toast({ title: 'Video support', description: 'Video placement is experimental.' });
         } else {

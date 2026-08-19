@@ -50,6 +50,8 @@ export type { GroovePlan } from './grooves';
 export { packSheets, placePoint } from './packSheets';
 export { exportSheetSvg, seamLabels } from './exportSvg';
 export type { SvgExportOptions } from './exportSvg';
+export { meshPreviewSvg, panelsPreviewSvg } from './exportPreview';
+export type { MeshPreviewOptions } from './exportPreview';
 
 // S9: validation
 export { validateFoldPlan } from './validate';

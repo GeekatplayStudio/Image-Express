@@ -18,7 +18,6 @@ import {
     Origami,
     PaintBucket,
     PenTool,
-    Scissors,
     Shapes,
     ShieldCheck,
     Sparkles,
@@ -42,15 +41,11 @@ interface CircularContextMenuProps {
     onSelectTool: (tool: string) => void;
     onLayerOrderAction?: (action: LayerOrderAction) => void;
     layerOrderState?: LayerOrderState;
+    /** One-click Foldcraft workflow: low-poly unfold to cutter-ready files. */
     modelContext?: {
         name: string;
-        isUnfolding: boolean;
-        onUnfold: () => void;
-        /** One-click Foldcraft workflow: cutter-ready foam files. */
-        foam?: {
-            isCutting: boolean;
-            onFoamCut: () => void;
-        };
+        isCutting: boolean;
+        onFoamCut: () => void;
     };
 }
 
@@ -157,7 +152,7 @@ export default function CircularContextMenu({
             <div
                 ref={menuRef}
                 role="menu"
-                aria-label={t('papercraft.modelActions')}
+                aria-label={t('foamcut.modelActions')}
                 className="fixed z-[100] w-56 rounded-xl border border-zinc-200 bg-white p-2 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
                 style={{ left: Math.max(8, menuX), top: Math.max(8, menuY) }}
             >
@@ -167,31 +162,17 @@ export default function CircularContextMenu({
                 <button
                     type="button"
                     role="menuitem"
-                    disabled={modelContext.isUnfolding}
-                    onClick={modelContext.onUnfold}
+                    disabled={modelContext.isCutting}
+                    onClick={modelContext.onFoamCut}
                     className="flex w-full items-center gap-3 rounded-lg bg-primary px-3 py-2.5 text-left text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
                 >
-                    {modelContext.isUnfolding
+                    {modelContext.isCutting
                         ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
                         : <Origami aria-hidden="true" className="h-5 w-5" />}
-                    <span>{t(modelContext.isUnfolding ? 'papercraft.unfolding' : 'papercraft.unfold')}</span>
+                    <span>{t(modelContext.isCutting ? 'foamcut.cutting' : 'foamcut.button')}</span>
                 </button>
-                {modelContext.foam && (
-                    <button
-                        type="button"
-                        role="menuitem"
-                        disabled={modelContext.foam.isCutting}
-                        onClick={modelContext.foam.onFoamCut}
-                        className="mt-1.5 flex w-full items-center gap-3 rounded-lg bg-amber-500 px-3 py-2.5 text-left text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
-                    >
-                        {modelContext.foam.isCutting
-                            ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
-                            : <Scissors aria-hidden="true" className="h-5 w-5" />}
-                        <span>{t(modelContext.foam.isCutting ? 'foamcut.cutting' : 'foamcut.button')}</span>
-                    </button>
-                )}
                 <p className="px-2 pt-2 text-[11px] leading-4 text-zinc-500 dark:text-zinc-400">
-                    {t(modelContext.foam ? 'foamcut.hint' : 'papercraft.oneClickHint')}
+                    {t('foamcut.hint')}
                 </p>
             </div>
         );

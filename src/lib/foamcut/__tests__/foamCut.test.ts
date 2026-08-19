@@ -90,4 +90,21 @@ describe('planFoamCut', () => {
     it('refuses to emit files for garbage geometry', () => {
         expect(() => planFoamCut(encode('v 0 0 0\n'), 'broken')).toThrow();
     });
+
+    it('streams every pipeline step to the progress listener, with visuals', () => {
+        const stages: string[] = [];
+        const previews: string[] = [];
+        planFoamCut(encode(hemisphereObj(8, 20)), 'wizard-hat.obj', {
+            onProgress: (event) => {
+                if (event.status === 'done') {
+                    stages.push(event.stage);
+                    if (event.previewSvg) previews.push(event.stage);
+                }
+            },
+        });
+        // The steps the monitor at the bottom of the editor walks through.
+        expect(stages).toEqual(['load', 'lowpoly', 'unfold', 'grooves', 'layout', 'verify']);
+        // The low-poly conversion and the unfold are shown, not just counted.
+        expect(previews).toEqual(expect.arrayContaining(['load', 'lowpoly', 'unfold']));
+    });
 });

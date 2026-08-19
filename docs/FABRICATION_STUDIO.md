@@ -18,50 +18,30 @@ The preferred subtool is remembered for the current toolbar session. Existing
 3D generation and editing behavior is unchanged; only its navigation is now
 grouped with related fabrication workflows.
 
-## One-click origami unfold and one-click foam cut
+## One-click low-poly unfold
 
 For a model that is already on the canvas, the complete fast path is:
 
 1. Right-click the 3D model.
-2. Choose **Unfold** (paper) or **Cut from foam**.
+2. Choose **Low-poly unfold**.
 
-**Cut from foam** runs the Foldcraft pipeline ([FOLDCRAFT.md](FOLDCRAFT.md)):
-the model is faceted into genuinely flat panels, segmented with cuts on sharp
-edges, given per-fold V-grooves sized for 6 mm EVA foam at costume scale
-(280 mm), packed onto 600 × 600 mm sheets, simulated against the reference
-ultrasonic cutter, and validated. The press downloads one SVG and one G-code
-file per sheet and places a preview on the canvas. Files are only produced when
-validation and simulation pass — a failing plan explains itself instead of
-exporting. **Unfold** remains the paper workflow described below.
+It runs the Foldcraft pipeline ([FOLDCRAFT.md](FOLDCRAFT.md)): the model is
+faceted into genuinely flat panels, segmented with cuts on sharp edges, given
+per-fold V-grooves sized for 6 mm EVA foam at costume scale (280 mm), packed
+onto 600 × 600 mm sheets, simulated against the reference ultrasonic cutter,
+and validated. The press downloads one SVG and one G-code file per sheet and
+places a preview on the canvas. Files are only produced when validation and
+simulation pass — a failing plan explains itself instead of exporting.
 
-No export dialog or material setup is required. Image Express automatically
-simplifies dense meshes to a practical paper-model face count, unfolds adjacent
-triangles without face overlap, splits the result into islands when necessary,
-packs those islands onto A4 sheets, and places the editable vector result on the
-current canvas. Solid black lines are cuts, dashed blue lines are folds, dotted
-violet lines mark glue-tab folds, and face numbers help assembly. The generated
-SVG geometry uses millimetre dimensions.
+While the pipeline runs, a step monitor docked at the bottom of the editor
+shows all six stages — read model, convert to low poly, unfold flat, plan
+fold grooves, lay out sheets, check the plan — with live numbers per stage
+and thumbnails of the model as read, the faceted low-poly conversion, and
+the unfolded flat pieces. Dense generated meshes are decimated and panelled
+automatically; the monitor reports what was done.
 
-Before packing, a local classical-AI planner evaluates eight candidate unfold
-orders. It prefers fewer islands and seams, then lower bounding-box waste. A
-fold-back predictor compares the selected net with the source 3D mesh using
-surface coverage, edge-length preservation, face-area preservation, topology,
-watertightness, and generated mountain/valley fold angles. The completion notice
-reports the resulting fold-back confidence, and the SVG stores the confidence,
-strategy, fold direction, and target angle as machine-readable attributes.
-This is deterministic local search—not a hidden cloud model—so it needs no API
-key, account, prompt, or additional model download.
-
-The zero-setup defaults are an 80-face working mesh, 180 mm finished model size,
-210 × 297 mm sheets, 10 mm margins, and 5 mm glue tabs. These defaults are
-automatic; Cricut Studio remains available when exact stock, scale, slicing,
-registration, or nesting controls are needed.
-
-Unfold works best with closed, manifold GLB/GLTF models. Curved or very dense
-surfaces become a low-poly triangular paper model, so this is an origami-style
-approximation rather than stretchable-surface flattening. Open, degenerate, or
-disconnected meshes may create extra islands, and invalid triangle geometry
-reports a concise error instead of producing an unsafe cut sheet.
+The earlier paper **Unfold** action was removed on 2026-08-18: it produced
+incorrect nets and Foldcraft supersedes it.
 
 ## Libraries
 
@@ -111,12 +91,12 @@ format details and current geometry limitations.
 - `src/features/fabrication/domain/` — workflow, material, and BOM data.
 - `src/features/fabrication/application/inventoryState.ts` — persistence and CSV.
 - `src/lib/cricut/` — tracing, slicing, nesting, and SVG serialization.
-- `src/lib/papercraft/` — mesh simplification, overlap-safe unfolding, sheet
-  packing, multi-candidate planning, 3D fold-back prediction, glue tabs, and
-  dimensioned SVG serialization.
+- `src/lib/foamcut/` + `packages/foldcraft/` — the low-poly unfold pipeline:
+  faceting, segmentation, groove planning, sheet packing, G-code, simulation,
+  validation, and stage-progress previews.
 
 All new production modules are kept below 500 lines. Focused tests cover the
 registry, right-click and circular navigation, inventory persistence/CSV, modal
-behavior, tracing, layered planning, nesting, and SVG output.
-Papercraft coverage additionally verifies fold topology, tabs, physical SVG
-dimensions, pointer-targeted context menus, and the dedicated one-click action.
+behavior, tracing, layered planning, nesting, and SVG output. Foldcraft carries
+its own 93-test suite covering fold correctness, grooves, machine simulation,
+and the progress previews.

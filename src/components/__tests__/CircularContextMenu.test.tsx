@@ -129,8 +129,8 @@ describe('CircularContextMenu', () => {
         expect(screen.getByRole('button', { name: 'Fabrication Studio' })).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('replaces the full ring with a one-click unfold action for a 3D model', () => {
-        const onUnfold = jest.fn();
+    it('replaces the full ring with a one-click low-poly unfold for a 3D model', () => {
+        const onFoamCut = jest.fn();
 
         render(
             <CircularContextMenu
@@ -140,7 +140,7 @@ describe('CircularContextMenu', () => {
                 activeTool="select"
                 onClose={jest.fn()}
                 onSelectTool={jest.fn()}
-                modelContext={{ name: 'Fox.glb', isUnfolding: false, onUnfold }}
+                modelContext={{ name: 'Fox.glb', isCutting: false, onFoamCut }}
             />
         );
 
@@ -148,7 +148,7 @@ describe('CircularContextMenu', () => {
         expect(screen.getByText('Fox.glb')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Move' })).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Unfold' }));
-        expect(onUnfold).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Low-poly unfold' }));
+        expect(onFoamCut).toHaveBeenCalledTimes(1);
     });
 });

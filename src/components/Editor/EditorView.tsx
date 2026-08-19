@@ -59,8 +59,8 @@ import { useEditorUtilityOverlayLayout } from '@/components/Editor/useEditorUtil
 import { useEditorPaintPenEffects } from '@/components/Editor/useEditorPaintPenEffects';
 import { useEditorPanelModePersistence } from '@/components/Editor/useEditorPanelModePersistence';
 import { useEditorWorkspaceCompositionProps } from '@/components/Editor/useEditorWorkspaceCompositionProps';
-import { usePapercraftUnfold } from '@/components/Editor/usePapercraftUnfold';
 import { useFoamCut } from '@/components/Editor/useFoamCut';
+import FoamCutStepsPanel from '@/components/Editor/FoamCutStepsPanel';
 import type { BookcaseFilter } from '@/features/asset-vault/contracts/bookcase';
 import type { VaultCircularAction } from '@/components/VaultCircularMenu';
 import { useEditorTopToolOptionsBridgeProps } from '@/components/Editor/useEditorTopToolOptionsBridgeProps';
@@ -1041,7 +1041,7 @@ export default function EditorView({
 
     const activeLayerOrderState = getActiveLayerOrderState();
     const menuLayerTarget = getMenuLayerTarget();
-    const { modelContext: unfoldContext } = usePapercraftUnfold({
+    const { foamContext: modelContext, foamProgress, dismissFoamProgress } = useFoamCut({
         canvas,
         target: menuLayerTarget as ExtendedFabricObject | null,
         pushHistory,
@@ -1051,17 +1051,6 @@ export default function EditorView({
         t,
         user,
     });
-    const { foamContext } = useFoamCut({
-        canvas,
-        target: menuLayerTarget as ExtendedFabricObject | null,
-        pushHistory,
-        setIsDirty,
-        closeMenu: handleCloseContextMenu,
-        toast,
-        t,
-        user,
-    });
-    const modelContext = unfoldContext ? { ...unfoldContext, foam: foamContext } : undefined;
     const handleToggleTopNavMenus = useCallback(() => {
         setShowTopNavMenus((prev) => {
             const next = !prev;
@@ -1573,6 +1562,7 @@ export default function EditorView({
                     onAction: handleVaultCircularAction,
                 }}
             />
+            <FoamCutStepsPanel progress={foamProgress} onDismiss={dismissFoamProgress} />
             <OpenDesignModal
                 isOpen={showOpenDesignModal}
                 onClose={() => setShowOpenDesignModal(false)}

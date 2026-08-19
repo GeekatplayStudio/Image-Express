@@ -215,26 +215,24 @@ serialization. The Cricut engine runs client-side because its source is the
 already-local artboard capture and its output is synchronous, reproducible geometry,
 not a long-running provider job. See [CRICUT_EXPORT.md](CRICUT_EXPORT.md).
 
-`src/lib/papercraft` is the separate one-click mesh-to-net path. It loads the
-selected GLB/GLTF with Three.js, normalizes and simplifies geometry, builds triangle
-adjacency, unfolds across shared edges while rejecting overlap, creates seams
-and glue tabs, and packs millimetre SVG sheets. `usePapercraftUnfold` converts
-those sheets back into editable Fabric vector groups on the active artboard.
-Coplanar triangle components are placed atomically as rigid panels before the
-planner considers angled hinges. Mesh triangulation diagonals therefore remain
-welded construction detail and never become cut or score operations; a
-triangulated cube exports as six square panels with five folds.
-`papercraftIntelligence` runs eight deterministic candidate orders, selects the
-lowest seam/island/waste cost, derives signed dihedral fold instructions, and
-scores whether the 2D topology can reconstruct the source 3D surface. Large-mesh
-bounds are accumulated iteratively; coordinate arrays are never spread into
-variadic `Math.min`/`Math.max`, avoiding browser call-stack limits.
+`src/lib/foamcut` is the one-click mesh-to-cut-files path ("Low-poly unfold"
+on the 3D model context menu). It bridges the editor to the standalone
+Foldcraft library (`packages/foldcraft`, see [FOLDCRAFT.md](FOLDCRAFT.md)):
+facet to flat panels, segment, plan fold grooves for 6 mm foam, pack sheets,
+generate G-code, simulate, validate. The plan runs in a Web Worker (sync
+fallback where workers are unavailable) and streams stage progress events
+that `FoamCutStepsPanel` renders as a live step monitor docked at the bottom
+of the editor — numbers plus SVG thumbnails of the low-poly conversion and
+the unfold. `useFoamCut` places the finished sheets on the artboard via
+`placePlanOnCanvas` and downloads the files only when validation and
+simulation pass. The earlier `src/lib/papercraft` paper-net path was removed
+on 2026-08-18 after Foldcraft superseded it.
 
 3D canvas layers never intentionally persist browser-owned `blob:` URLs.
 `assetLibrary/durableModelSource.ts` materializes local and Drive model blobs
 through the existing authenticated upload API before placement, caches the
 resulting `/api/assets/serve/...` source, and can recover older volatile layers
-by exact filename. Both full 3D editing and papercraft unfolding pass through
+by exact filename. Both full 3D editing and the low-poly unfold pass through
 that recovery boundary; an unrecoverable expired blob is rejected before
 Three.js receives it.
 

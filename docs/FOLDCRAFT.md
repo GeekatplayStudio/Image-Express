@@ -16,8 +16,11 @@ implementation so the API can be reviewed, and so each stage ships and is
 verified on its own. Status of each stage is tracked in
 [Implementation roadmap](#implementation-roadmap).
 
-> Foldcraft replaces `src/lib/papercraft/`. That module stays in place and keeps
-> working until Foldcraft reaches parity — see [Migration](#migration).
+> Foldcraft replaced `src/lib/papercraft/`, and on 2026-08-18 the papercraft
+> module and its Unfold menu entry were removed at the user's request — its
+> output was incorrect and Foldcraft supersedes it. Sections below that quote
+> papercraft code describe the removed module as it was; see git history for
+> the sources.
 
 ---
 
@@ -732,7 +735,7 @@ own. Each phase is a separate change with its own tests.
 | 10 | **S3 analytic unroll** | A cylinder gives 1 panel of width 2πr to 0.1%; a can gives exactly 3 panels | faceted fallback for developables |
 | 11 | **S2 voxelize + decimate** | Orthogonal-polyhedron mode; edge-collapse for very dense input | — |
 | 12 | **HTTP routes + MCP tools** | Tools callable end to end over stdio | — |
-| 13 | ◐ **UI integration** | ✅ One-click **Cut from foam** on the model context menu (`src/lib/foamcut`, `useFoamCut`): downloads SVG + G-code, only when validation and simulation pass, in 11 languages. Remaining: switch the paper Unfold path over and retire nothing — papercraft stays as reference by decision. | adds to `usePapercraftUnfold` |
+| 13 | ✅ **UI integration** | One-click **Low-poly unfold** on the model context menu (`src/lib/foamcut`, `useFoamCut`): downloads SVG + G-code only when validation and simulation pass, in 11 languages, with a live six-step monitor (stats + previews via `onProgress`) at the bottom of the editor. Paper Unfold and `src/lib/papercraft` removed 2026-08-18. | replaced `usePapercraftUnfold` |
 
 **The library now lives at [`packages/foldcraft`](../packages/foldcraft/README.md)**
 as a standalone, dependency-free package (dual-licensed: PolyForm Noncommercial
@@ -780,15 +783,11 @@ tolerances from 3° to 45°, and the report says how many panels had to be split
 
 ## 9. Migration
 
-`src/lib/papercraft/` stays until phase 10. It is still the code path behind
-right-click → Unfold, and removing it before Foldcraft reaches parity would
-regress a shipped feature.
-
-At phase 10, `usePapercraftUnfold` switches to `buildFoldPlan`. Whether
-papercraft is deleted or kept as a paper-specific preset is an open question
-below — a paper workflow wants score lines and glue tabs, which Foldcraft
-expresses as a material with `thicknessMm: 0.25` and `scoreOnlyAboveDeg: 0`, so
-one library plausibly covers both.
+**Completed 2026-08-18.** `src/lib/papercraft/` and the right-click → Unfold
+entry were removed; the 3D model context menu carries the single Foldcraft
+action, named **Low-poly unfold**. A future paper workflow is still expressible
+in Foldcraft as a material with `thicknessMm: 0.25` and `scoreOnlyAboveDeg: 0`
+plus glue tabs on seams, so one library covers both if paper returns.
 
 ---
 
@@ -826,8 +825,9 @@ and cuts the true V.
 **Tabs only on cut seams**, never on grooved folds — a grooved fold stays
 attached and self-aligns.
 
-**`src/lib/papercraft/` is kept**, not deleted, as a reference implementation to
-check new output against.
+**`src/lib/papercraft/` was kept as a reference during development** and
+removed on 2026-08-18 once Foldcraft superseded it (it survives in git
+history).
 
 ### The target machine
 

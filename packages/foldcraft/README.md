@@ -148,9 +148,34 @@ camera is never perfectly perpendicular.
 | `simulateToolpath(toolpath, machine, opts)` | → violations + stats | machine |
 | `validateFoldPlan(mesh, panels)` | → verdict + issues | S9 |
 | `buildFoldPlan(bytes, opts)` | everything above, composed | pipeline |
+| `meshPreviewSvg(mesh)` | mesh → shaded isometric SVG thumbnail | preview |
+| `panelsPreviewSvg(panels)` | panels → flat-piece SVG thumbnail | preview |
 
 All inputs and outputs are plain JSON-serialisable data. To expose a stage as
 an MCP tool, wrap it in a zod schema and a handler; nothing needs adapting.
+
+### Watching the pipeline run
+
+`buildFoldPlan` accepts `onProgress`, called with a `FoldProgressEvent` as
+each user-facing stage starts and finishes: `load`, `lowpoly`, `unfold`,
+`grooves`, `layout`, `verify` (the ordered list is exported as
+`FOLD_PROGRESS_STAGES`). A `done` event carries headline `stats` for the
+stage, and the visual stages also carry `previewSvg` — a self-contained SVG
+thumbnail (the model as read, the faceted low-poly result, the unfolded flat
+pieces, the first packed sheet). Previews are only rendered when a listener
+is attached, so the pipeline costs nothing extra without one.
+
+The listener is a function, so it cannot cross a worker boundary; hosts that
+run the pipeline in a worker forward the events over `postMessage` instead
+(that is exactly what Image Express's foam-cut worker does).
+
+```ts
+buildFoldPlan(bytes, {
+    onProgress: (e) => {
+        if (e.status === 'done') console.log(e.stage, e.stats);
+    },
+});
+```
 
 ### Conventions that everything relies on
 
@@ -164,7 +189,7 @@ an MCP tool, wrap it in a zod schema and a handler; nothing needs adapting.
 
 ## Testing
 
-83 tests, run with `npx jest --config packages/foldcraft/jest.config.cjs` from
+93 tests, run with `npx jest --config packages/foldcraft/jest.config.cjs` from
 the repo root. The correctness-critical properties are tested as *properties*
 (every fold on a convex solid has the same direction; every face lands on
 exactly one panel; groove angle + dihedral = 180°) and the two historic bugs

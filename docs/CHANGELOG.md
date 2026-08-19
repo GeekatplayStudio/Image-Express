@@ -19,6 +19,33 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-18 - Low-poly unfold: visible steps, paper Unfold removed
+
+- **Paper Unfold removed.** The old papercraft path (`src/lib/papercraft`,
+  the Unfold menu entry, its hook, and its nine locale strings) produced
+  incorrect nets and duplicated what Foldcraft now does correctly. The 3D
+  model context menu carries a single action.
+- **"Cut from foam" renamed to "Low-poly unfold"** across all 11 locales.
+- **Live step monitor.** The pipeline reports six stages — read model,
+  convert to low poly, unfold flat, plan fold grooves, lay out sheets, check
+  the plan — into a panel docked at the bottom of the editor. Each stage
+  shows its numbers (triangles read, flat faces, pieces/folds/seams, grooves,
+  sheets, validation verdict), and the visual stages render thumbnails: a
+  shaded isometric view of the model as read, the faceted low-poly version,
+  and the unfolded flat pieces. Verified live on a 59 MB scanned can: the
+  monitor walked all six steps while the window stayed responsive, and the
+  verify step surfaced the validation failure instead of a silent error.
+- **Library**: `buildFoldPlan` gains an `onProgress` listener
+  (`FoldProgressEvent`: stage, status, stats, previewSvg) and a new
+  `exportPreview` module (`meshPreviewSvg`, `panelsPreviewSvg`) — preview
+  rendering is skipped entirely when no listener is attached. Events stream
+  from the worker over postMessage; the sync fallback reports identically.
+- **Vault fix**: "Add to Canvas" for a GLB tried to load the model file as an
+  image and silently placed nothing. It now places the same tagged 3D
+  placeholder the drag-drop path uses, so the one-click workflow works from
+  the Asset Vault.
+- Tests: 93 package (5 new), 1,678 app (2 new). Lint and typecheck clean.
+
 ## 2026-08-18 - Foam cut no longer freezes on dense models
 
 - Traced with a real 56 MB generated top hat: **3.1 million triangles** across
