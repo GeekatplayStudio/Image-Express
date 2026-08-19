@@ -3088,6 +3088,7 @@ const ru: LocaleDictionary = {
     'foamcut.stepDetail.grooves': 'Канавок: {grooves} (V-образных: {trueVee})',
     'foamcut.stepDetail.layout': 'Листов: {sheets}',
     'foamcut.stepDetail.verify': '{verdict} · макс. ошибка {refoldMaxErrorMm} мм · направления сгибов {signConsistency}',
+    'foamcut.moreIssues': 'ещё {count}',
     'foamcut.defaultModelName': '3D-модель',
     'foamcut.success': 'Файлы резки пенки готовы',
     'foamcut.successDesc': 'Загружено файлов: {files}; листов: {sheets}, деталей: {panels}, резка ≈ {minutes} мин.',

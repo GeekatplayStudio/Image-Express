@@ -663,6 +663,7 @@ const pl: LocaleDictionary = {
     'foamcut.stepDetail.grooves': '{grooves} rowków ({trueVee} typu V)',
     'foamcut.stepDetail.layout': 'Arkusze: {sheets}',
     'foamcut.stepDetail.verify': '{verdict} · maks. błąd {refoldMaxErrorMm} mm · kierunki zagięć {signConsistency}',
+    'foamcut.moreIssues': '+{count} więcej',
     'foamcut.defaultModelName': 'Model 3D',
     'foamcut.success': 'Pliki cięcia pianki gotowe',
     'foamcut.successDesc': 'Pobrano {files} plik(ów): {sheets} arkuszy, {panels} elementów, ok. {minutes} min cięcia.',

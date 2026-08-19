@@ -3088,6 +3088,7 @@ const uk: LocaleDictionary = {
     'foamcut.stepDetail.grooves': 'Канавок: {grooves} (V-подібних: {trueVee})',
     'foamcut.stepDetail.layout': 'Аркушів: {sheets}',
     'foamcut.stepDetail.verify': '{verdict} · макс. похибка {refoldMaxErrorMm} мм · напрямки згинів {signConsistency}',
+    'foamcut.moreIssues': 'ще {count}',
     'foamcut.defaultModelName': '3D-модель',
     'foamcut.success': 'Файли різання піни готові',
     'foamcut.successDesc': 'Завантажено файлів: {files}; аркушів: {sheets}, деталей: {panels}, різання ≈ {minutes} хв.',

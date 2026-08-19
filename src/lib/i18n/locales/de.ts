@@ -653,6 +653,7 @@ const de: LocaleDictionary = {
     'foamcut.stepDetail.grooves': '{grooves} Nuten ({trueVee} echte V-Nuten)',
     'foamcut.stepDetail.layout': '{sheets} Bogen/Bögen',
     'foamcut.stepDetail.verify': '{verdict} · max. Fehler {refoldMaxErrorMm} mm · Faltrichtungen {signConsistency}',
+    'foamcut.moreIssues': '+{count} weitere',
     'foamcut.defaultModelName': '3D-Modell',
     'foamcut.success': 'Schaumstoff-Schnittdateien bereit',
     'foamcut.successDesc': '{files} Datei(en) heruntergeladen: {sheets} Bogen, {panels} Teile, ca. {minutes} Min. Schneidzeit.',

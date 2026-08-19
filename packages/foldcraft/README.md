@@ -189,12 +189,20 @@ buildFoldPlan(bytes, {
 
 ## Testing
 
-93 tests, run with `npx jest --config packages/foldcraft/jest.config.cjs` from
+111 tests, run with `npx jest --config packages/foldcraft/jest.config.cjs` from
 the repo root. The correctness-critical properties are tested as *properties*
 (every fold on a convex solid has the same direction; every face lands on
-exactly one panel; groove angle + dihedral = 180°) and the two historic bugs
-are pinned by mutation: reintroducing either makes double-digit test counts
-fail.
+exactly one panel; groove angle + dihedral = 180°; **the overlap test gives
+the same verdict at every scale**) and the historic bugs are pinned by
+mutation: reintroducing any of them makes multiple tests fail.
+
+One property is worth calling out because it is not obvious. Overlap is
+judged twice — by segmentation in model units, and by validation after the
+panels are scaled to finished millimetres. A tolerance that is absolute
+rather than relative makes those two answers differ, and the stages then
+contradict each other: segmentation grows a panel that validation condemns.
+A real 280 mm model hit exactly this, over an interpenetration of 1.7e-7 mm
+at a shared corner.
 
 ## Status and roadmap
 

@@ -79,4 +79,33 @@ describe('buildFoldPlan progress', () => {
         const result = buildFoldPlan(hemisphereMesh(6, 14), {});
         expect(result.panels.length).toBeGreaterThan(0);
     });
+
+    /**
+     * A refused plan has to say why. The host shows this list instead of a
+     * bare failure, so the reasons must ride on the verify event — which is
+     * emitted before the caller's export gate ever sees the result.
+     */
+    it('reports validation and simulation reasons on the verify event', () => {
+        const events: FoldProgressEvent[] = [];
+        const result = buildFoldPlan(hemisphereMesh(8, 20), { onProgress: (event) => events.push(event) });
+        const verify = events.find((event) => event.stage === 'verify' && event.status === 'done')!;
+        expect(verify.issues).toBeDefined();
+        // A clean plan carries an empty list, never a missing one.
+        expect(verify.issues).toEqual([
+            ...result.validation.issues,
+            ...result.simulations.flatMap((simulation, index) => simulation.violations.map(
+                (violation) => `Sheet ${index + 1}: ${violation.rule} — ${violation.detail}`,
+            )),
+        ]);
+    });
+
+    it('reports fold-sign consistency precisely enough to see a near-miss', () => {
+        // Rounded to 2 decimals, 0.9985 of folds agreeing displays as "1" —
+        // hiding the only number that explains a sign failure.
+        const events: FoldProgressEvent[] = [];
+        buildFoldPlan(hemisphereMesh(6, 14), { onProgress: (event) => events.push(event) });
+        const verify = events.find((event) => event.stage === 'verify' && event.status === 'done')!;
+        const shown = String(verify.stats!.signConsistency);
+        expect(shown === '1' || shown.split('.')[1].length >= 3).toBe(true);
+    });
 });

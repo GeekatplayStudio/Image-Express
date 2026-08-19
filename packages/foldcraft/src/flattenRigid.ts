@@ -94,13 +94,57 @@ export function rigidTransform(localA: Vec2, localB: Vec2, targetA: Vec2, target
     };
 }
 
-/** Separating-axis overlap test for two convex polygons. */
+/** Longest diagonal of a polygon's bounding box — its characteristic size. */
+const characteristicSize = (points: Vec2[]): number => {
+    let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
+    for (const point of points) {
+        if (point.x < minX) minX = point.x;
+        if (point.x > maxX) maxX = point.x;
+        if (point.y < minY) minY = point.y;
+        if (point.y > maxY) maxY = point.y;
+    }
+    if (!Number.isFinite(minX)) return 0;
+    return Math.hypot(maxX - minX, maxY - minY);
+};
+
+/**
+ * How deeply two faces must interpenetrate before it counts, as a fraction of
+ * the smaller face. Faces that share a corner or a seam land within rounding
+ * of each other and must read as separate; a real fold-over penetrates by a
+ * visible fraction of a face, orders of magnitude more than this.
+ */
+const TOUCH_TOLERANCE_FRACTION = 1e-4;
+
+/**
+ * Separating-axis overlap test for two convex polygons.
+ *
+ * **Scale-invariant by construction**, which is a correctness requirement
+ * rather than a nicety: segmentation tests overlap in model units and
+ * validation re-tests the same panels after scaling to finished millimetres,
+ * so a test that answers differently at the two scales makes the two stages
+ * contradict each other. The previous version compared against
+ * `max(1, |projection|) * 1e-9` — an absolute floor applied to projections
+ * onto *un-normalised* axes, values that grow with the square of the
+ * coordinates. On a 280 mm can (161 mm per model unit) two triangles meeting
+ * at a shared corner passed segmentation and then "overlapped" by 1.7e-7 mm
+ * in validation, failing an otherwise perfect 33-panel plan.
+ *
+ * The axis is now normalised, so the separation is a true distance, and the
+ * tolerance is a fraction of the polygons' own size.
+ */
 export function polygonsOverlap(a: Vec2[], b: Vec2[]): boolean {
+    const tolerance = Math.min(characteristicSize(a), characteristicSize(b)) * TOUCH_TOLERANCE_FRACTION;
     for (const polygon of [a, b]) {
+        const degenerate = characteristicSize(polygon) * 1e-12;
         for (let i = 0; i < polygon.length; i += 1) {
             const current = polygon[i];
             const next = polygon[(i + 1) % polygon.length];
-            const axis = { x: -(next.y - current.y), y: next.x - current.x };
+            const dx = next.x - current.x;
+            const dy = next.y - current.y;
+            const length = Math.hypot(dx, dy);
+            // A zero-length edge has no normal; it contributes no axis.
+            if (length <= degenerate) continue;
+            const axis = { x: -dy / length, y: dx / length };
             let minA = Infinity; let maxA = -Infinity;
             let minB = Infinity; let maxB = -Infinity;
             a.forEach((point) => {
@@ -111,9 +155,8 @@ export function polygonsOverlap(a: Vec2[], b: Vec2[]): boolean {
                 const value = point.x * axis.x + point.y * axis.y;
                 minB = Math.min(minB, value); maxB = Math.max(maxB, value);
             });
-            const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
-            const scaleGuard = Math.max(1, Math.abs(maxA), Math.abs(maxB)) * 1e-9;
-            if (overlap <= scaleGuard) return false;
+            const separation = Math.min(maxA, maxB) - Math.max(minA, minB);
+            if (separation <= tolerance) return false;
         }
     }
     return true;

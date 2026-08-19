@@ -357,6 +357,12 @@ export type FoldProgressEvent = {
     stats?: Record<string, number | string>;
     /** Self-contained SVG thumbnail of this stage's output, when visual. */
     previewSvg?: string;
+    /**
+     * Why this stage is unhappy, in the maker's terms. Present on `verify`
+     * whenever validation or machine simulation found something, so a host
+     * can show the reason a plan was refused instead of a bare failure.
+     */
+    issues?: string[];
 };
 
 /**

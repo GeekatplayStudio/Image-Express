@@ -653,6 +653,7 @@ const it: LocaleDictionary = {
     'foamcut.stepDetail.grooves': '{grooves} scanalature ({trueVee} a V)',
     'foamcut.stepDetail.layout': '{sheets} foglio/i',
     'foamcut.stepDetail.verify': '{verdict} · errore max {refoldMaxErrorMm} mm · versi di piega {signConsistency}',
+    'foamcut.moreIssues': '+{count} altri',
     'foamcut.defaultModelName': 'Modello 3D',
     'foamcut.success': 'File di taglio gommapiuma pronti',
     'foamcut.successDesc': '{files} file scaricati: {sheets} fogli, {panels} pezzi, circa {minutes} min di taglio.',

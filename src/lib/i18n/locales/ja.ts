@@ -643,6 +643,7 @@ const ja: LocaleDictionary = {
     'foamcut.stepDetail.grooves': '溝 {grooves}（V溝 {trueVee}）',
     'foamcut.stepDetail.layout': 'シート {sheets} 枚',
     'foamcut.stepDetail.verify': '{verdict} · 最大誤差 {refoldMaxErrorMm} mm · 折り方向 {signConsistency}',
+    'foamcut.moreIssues': '他 {count} 件',
     'foamcut.defaultModelName': '3Dモデル',
     'foamcut.success': 'フォームカットファイルの準備完了',
     'foamcut.successDesc': '{files}個のファイルをダウンロード：{sheets}枚のシート、{panels}個のパーツ、切断時間約{minutes}分。',

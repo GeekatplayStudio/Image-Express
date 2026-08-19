@@ -654,6 +654,7 @@ const fr: LocaleDictionary = {
     'foamcut.stepDetail.grooves': '{grooves} rainures ({trueVee} en V)',
     'foamcut.stepDetail.layout': '{sheets} feuille(s)',
     'foamcut.stepDetail.verify': '{verdict} · erreur max {refoldMaxErrorMm} mm · sens des plis {signConsistency}',
+    'foamcut.moreIssues': '+{count} autres',
     'foamcut.defaultModelName': 'Modèle 3D',
     'foamcut.success': 'Fichiers de découpe mousse prêts',
     'foamcut.successDesc': '{files} fichier(s) téléchargés : {sheets} feuille(s), {panels} pièces, environ {minutes} min de découpe.',

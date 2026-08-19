@@ -19,6 +19,40 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-08-18 - Low-poly unfold refused valid plans over a 0.17 nm overlap
+
+A real 59 MB scanned soda can failed with `FOAMCUT_PLAN_INVALID` despite a
+plan whose folds were all correctly signed, with nothing mirrored and every
+face placed. One panel out of 33 was reported as self-overlapping, and that
+discarded all 2,024 faces.
+
+- **Root cause: the overlap test was not scale-invariant.** `polygonsOverlap`
+  compared against `max(1, |projection|) * 1e-9` — an absolute floor applied
+  to projections onto *un-normalised* axes, values that grow with the square
+  of the coordinates. Segmentation tests overlap in model units; validation
+  re-tests the same panels after scaling to finished millimetres (161x on this
+  model). The two stages therefore disagreed about identical geometry:
+  segmentation accepted the pair, validation rejected it.
+- **What was actually touching:** two triangles sharing a corner, whose two
+  copies of that corner had drifted 7e-7 mm apart through different chains of
+  rigid transforms, leaving them interpenetrating by **1.7e-7 mm** — about
+  1/2000th of the cutter's kerf.
+- **Fix:** the separating axis is normalised, so the separation is a true
+  distance, and the tolerance is a fraction of the polygons' own size. The
+  same geometry now gets the same verdict at every scale.
+- Pinned by a fixture taken from the failure itself (the real coordinates of
+  faces 1214 and 1252) plus a scale-invariance property; reverting the epsilon
+  fails 5 tests, and notably still *passes* in model units while failing in
+  millimetres — the contradiction reproduced.
+- The can now plans to verdict `warn` with zero issues and zero simulation
+  violations, emitting 2 SVG + 2 G-code files.
+- **Failures now explain themselves.** The verify stage carries its reasons
+  (validation issues + simulation violations) on the progress event, the step
+  monitor renders them in red on the step that judged the plan, and a refused
+  plan logs as a warning rather than a raw console error. Fold-sign
+  consistency is reported to 4 decimals — rounded to 2, a genuine 0.9985
+  failure displayed as "1".
+
 ## 2026-08-18 - Low-poly unfold: visible steps, paper Unfold removed
 
 - **Paper Unfold removed.** The old papercraft path (`src/lib/papercraft`,

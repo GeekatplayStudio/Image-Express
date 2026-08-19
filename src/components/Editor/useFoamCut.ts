@@ -38,6 +38,8 @@ export type FoamCutStep = {
     status: 'pending' | 'running' | 'done' | 'error';
     stats?: Record<string, number | string>;
     previewSvg?: string;
+    /** Why this step is unhappy — shown so a refused plan explains itself. */
+    issues?: string[];
 };
 
 export type FoamCutProgress = {
@@ -86,14 +88,17 @@ export function useFoamCut({
                 ...current,
                 steps: current.steps.map((step) => {
                     if (step.stage !== event.stage) return step;
-                    return event.status === 'start'
-                        ? { ...step, status: 'running' }
-                        : {
-                            ...step,
-                            status: 'done',
-                            stats: event.stats ?? step.stats,
-                            previewSvg: event.previewSvg ?? step.previewSvg,
-                        };
+                    if (event.status === 'start') return { ...step, status: 'running' };
+                    const issues = event.issues?.length ? event.issues : undefined;
+                    return {
+                        ...step,
+                        // A stage that finished with reasons against it did not
+                        // succeed, however far the pipeline got afterwards.
+                        status: issues ? 'error' : 'done',
+                        stats: event.stats ?? step.stats,
+                        previewSvg: event.previewSvg ?? step.previewSvg,
+                        issues: issues ?? step.issues,
+                    };
                 }),
             };
         });
@@ -133,19 +138,29 @@ export function useFoamCut({
                 variant: 'success',
             });
         } catch (error) {
-            console.error('Foam cut failed', error);
-            setFoamProgress((current) => {
-                if (!current) return current;
-                return {
-                    ...current,
-                    failed: true,
-                    steps: current.steps.map((step) => (
-                        step.status === 'running' ? { ...step, status: 'error' } : step
-                    )),
-                };
-            });
             const expiredSource = error instanceof Error && error.message === 'VOLATILE_MODEL_SOURCE_EXPIRED';
             const invalidPlan = error instanceof Error && error.message === 'FOAMCUT_PLAN_INVALID';
+            const details = (error as { details?: string[] }).details ?? [];
+            // A refused plan is a reported outcome, not a crash: the reasons
+            // are already on screen in the step monitor.
+            if (invalidPlan) console.warn('Low-poly unfold refused the plan', details);
+            else console.error('Low-poly unfold failed', error);
+            setFoamProgress((current) => {
+                if (!current) return current;
+                let attached = false;
+                const steps = current.steps.map((step) => {
+                    if (step.status !== 'running') return step;
+                    attached = true;
+                    return { ...step, status: 'error' as const, issues: step.issues ?? (details.length ? details : undefined) };
+                });
+                // Nothing was mid-flight (the pipeline finished, then the gate
+                // refused): pin the reasons to the step that judges the plan.
+                if (!attached && details.length > 0) {
+                    const verify = steps.findIndex((step) => step.stage === 'verify');
+                    if (verify >= 0) steps[verify] = { ...steps[verify], status: 'error', issues: steps[verify].issues ?? details };
+                }
+                return { ...current, failed: true, steps };
+            });
             toast(expiredSource ? {
                 title: t('modelSource.expired'),
                 description: t('modelSource.expiredBody'),

@@ -261,8 +261,17 @@ export function buildFoldPlan(
         stats: {
             verdict: validation.verdict,
             refoldMaxErrorMm: Number(validation.refoldMaxErrorMm.toFixed(1)),
-            signConsistency: Number(validation.foldSignConsistency.toFixed(2)),
+            // 4 decimals: 0.9985 of the folds agreeing is a failure, and
+            // rounding it to "1" hides exactly the case worth reading.
+            signConsistency: Number(validation.foldSignConsistency.toFixed(4)),
         },
+        // Everything that would stop this plan being cut, in one list.
+        issues: [
+            ...validation.issues,
+            ...simulations.flatMap((simulation, index) => simulation.violations.map(
+                (violation) => `Sheet ${index + 1}: ${violation.rule} — ${violation.detail}`,
+            )),
+        ],
     });
 
     return {

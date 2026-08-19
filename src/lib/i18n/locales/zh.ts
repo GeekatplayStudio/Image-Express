@@ -643,6 +643,7 @@ const zh: LocaleDictionary = {
     'foamcut.stepDetail.grooves': '{grooves} 条槽（{trueVee} 条 V 槽）',
     'foamcut.stepDetail.layout': '{sheets} 张切割板',
     'foamcut.stepDetail.verify': '{verdict} · 最大误差 {refoldMaxErrorMm} 毫米 · 折向一致性 {signConsistency}',
+    'foamcut.moreIssues': '还有 {count} 项',
     'foamcut.defaultModelName': '3D 模型',
     'foamcut.success': '泡棉切割文件已就绪',
     'foamcut.successDesc': '已下载 {files} 个文件：{sheets} 张板材、{panels} 个部件，切割约需 {minutes} 分钟。',

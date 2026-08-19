@@ -1003,6 +1003,7 @@ const es: LocaleDictionary = {
     'foamcut.stepDetail.grooves': '{grooves} ranuras ({trueVee} en V)',
     'foamcut.stepDetail.layout': '{sheets} hoja(s)',
     'foamcut.stepDetail.verify': '{verdict} · error máx. {refoldMaxErrorMm} mm · signos de pliegue {signConsistency}',
+    'foamcut.moreIssues': '+{count} más',
     'foamcut.defaultModelName': 'Modelo 3D',
     'foamcut.success': 'Archivos de corte de espuma listos',
     'foamcut.successDesc': '{files} archivo(s) descargados: {sheets} hoja(s), {panels} piezas, unos {minutes} min de corte.',

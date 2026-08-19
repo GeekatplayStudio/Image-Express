@@ -3529,6 +3529,7 @@ const en: LocaleDictionary = {
     'foamcut.stepDetail.grooves': '{grooves} grooves ({trueVee} true-V)',
     'foamcut.stepDetail.layout': '{sheets} sheet(s)',
     'foamcut.stepDetail.verify': '{verdict} · max error {refoldMaxErrorMm} mm · fold signs {signConsistency}',
+    'foamcut.moreIssues': '+{count} more',
     'foamcut.defaultModelName': '3D model',
     'foamcut.success': 'Foam cut files ready',
     'foamcut.successDesc': '{files} file(s) downloaded: {sheets} sheet(s), {panels} panels, about {minutes} min of cutting.',

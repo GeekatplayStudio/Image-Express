@@ -11,6 +11,9 @@ type FoamCutStepsPanelProps = {
     onDismiss: () => void;
 };
 
+/** Enough to diagnose; the rest are counted rather than listed. */
+const MAX_SHOWN_ISSUES = 4;
+
 const formatStats = (stats: Record<string, number | string>): Record<string, string | number> => (
     Object.fromEntries(Object.entries(stats).map(([key, value]) => [
         key,
@@ -60,7 +63,9 @@ export default function FoamCutStepsPanel({ progress, onDismiss }: FoamCutStepsP
                         key={step.stage}
                         className={`flex min-w-36 flex-1 flex-col gap-1.5 rounded-lg border p-2 ${step.status === 'running'
                             ? 'border-amber-400/70 bg-amber-50 dark:border-amber-500/50 dark:bg-amber-500/10'
-                            : 'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/60'}`}
+                            : step.status === 'error'
+                                ? 'border-red-400/70 bg-red-50 dark:border-red-500/50 dark:bg-red-500/10'
+                                : 'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/60'}`}
                     >
                         <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500">{index + 1}</span>
@@ -73,6 +78,18 @@ export default function FoamCutStepsPanel({ progress, onDismiss }: FoamCutStepsP
                             <div className="text-[10px] leading-4 text-zinc-500 dark:text-zinc-400">
                                 {t(`foamcut.stepDetail.${step.stage}`, formatStats(step.stats))}
                             </div>
+                        )}
+                        {step.issues && step.issues.length > 0 && (
+                            <ul className="max-h-20 space-y-0.5 overflow-y-auto text-[10px] leading-4 text-red-600 dark:text-red-400">
+                                {step.issues.slice(0, MAX_SHOWN_ISSUES).map((issue) => (
+                                    <li key={issue}>{issue}</li>
+                                ))}
+                                {step.issues.length > MAX_SHOWN_ISSUES && (
+                                    <li className="text-zinc-500 dark:text-zinc-400">
+                                        {t('foamcut.moreIssues', { count: step.issues.length - MAX_SHOWN_ISSUES })}
+                                    </li>
+                                )}
+                            </ul>
                         )}
                         {step.previewSvg && (
                             // eslint-disable-next-line @next/next/no-img-element -- inline data-URI SVG; next/image cannot optimise it
