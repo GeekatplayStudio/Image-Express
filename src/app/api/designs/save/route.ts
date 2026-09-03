@@ -7,7 +7,7 @@ import path from 'path';
 import { getDesignsDir } from '@/lib/server/appPaths';
 
 const SaveDesignSchema = z.object({
-    id: z.string().max(300).optional(),
+    id: z.string().max(300).nullish(),
     name: z.string().min(1).max(300),
     // The canvas document and thumbnail are opaque here: this route stores
     // them, and the editor owns their shape.

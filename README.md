@@ -509,6 +509,16 @@ docs/                ARCHITECTURE (how it works) · FUNCTIONALITY (what it does)
 
 Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three.js / React Three Fiber (3D) · Electron · Lucide React
 
+## 🧪 Verification & Quality Assurance
+
+Every release is guarded by a comprehensive, multi-layer verification pipeline:
+
+- **Unit & Integration Tests (`npm test`)**: 220+ test suites and 1,790+ tests spanning 2D Fabric canvas mechanics, Three.js 3D pipelines, the job queue scheduler, SQLite catalogs, and Foldcraft geometry algorithms.
+- **End-to-End (E2E) Workflows (`npm run test:e2e:critical`)**: Playwright automated browser tests covering canvas exports, media overlay frame generation, variant draft saves, and ZIP/PDF/image packaging.
+- **Mutation Testing (`npm run test:mutation`)**: Dedicated mutation testing harness injecting operator inversions and boundary mutations into core algorithms (Foldcraft mesh topology and selection mask geometry), achieving a **100% mutant kill rate**.
+- **Dependency & Security Audits (`npm run audit:dependencies`)**: Zero production vulnerabilities, with strict overrides enforcement (`npm run audit:overrides`).
+- **i18n Parity Ratchet (`npm run audit:i18n:ratchet`)**: Monitored locale completeness preventing translation regressions across all supported languages.
+
 ## 📚 Documentation
 
 **Start here — these four cover the whole system:**

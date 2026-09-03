@@ -17,6 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { enforceSupportedNode, envWithSupportedNode, requiredNodeMajor } from './node-guard.mjs';
 import { assertBuildOutputAvailable } from './server-lock.mjs';
+import { assertNoConcurrentBuild, claimBuildLock, clearBuildLock } from './build-lock.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -25,6 +26,10 @@ const rootDir = path.resolve(__dirname, '..');
 // only stops if no usable Node exists anywhere on the machine.
 enforceSupportedNode({ reexec: true, exitOnFailure: true, label: 'BUILD' });
 assertBuildOutputAvailable();
+// Only a genuinely live pid counts here: our own prebuild has already exited
+// and left a lock behind, and that one is ours to take over.
+assertNoConcurrentBuild('a build', { ignoreHandoff: true });
+claimBuildLock('compile');
 
 console.log(`[BUILD] node ${process.version} (requires >=${requiredNodeMajor()})`);
 
@@ -37,10 +42,15 @@ if (!fs.existsSync(nextBin)) {
     process.exit(1);
 }
 
-const result = spawnSync(process.execPath, [nextBin, 'build', ...process.argv.slice(2)], {
-    stdio: 'inherit',
-    cwd: rootDir,
-    env: envWithSupportedNode(),
-});
+let result;
+try {
+    result = spawnSync(process.execPath, [nextBin, 'build', ...process.argv.slice(2)], {
+        stdio: 'inherit',
+        cwd: rootDir,
+        env: envWithSupportedNode(),
+    });
+} finally {
+    clearBuildLock();
+}
 
 process.exit(result.status === null ? 1 : result.status);

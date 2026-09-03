@@ -162,7 +162,7 @@ export const TECHNOLOGY_GROUPS: TechGroup[] = [
             {
                 name: 'three.js',
                 package: 'three',
-                version: '0.182',
+                version: '0.185',
                 role: 'The 3D renderer: model loading, lighting, shadows, materials.',
                 why: 'The de-facto WebGL engine. Everything below builds on it rather than replacing it.',
             },

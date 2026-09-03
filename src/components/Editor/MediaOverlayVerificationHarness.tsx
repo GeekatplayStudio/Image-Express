@@ -325,7 +325,7 @@ export default function MediaOverlayVerificationHarness() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    id: designId,
+                    id: designId || undefined,
                     name: designName,
                     canvasData: serializeCanvas(canvas, CUSTOM_HISTORY_PROPS),
                     thumbnailDataUrl,

@@ -6,6 +6,7 @@ import {
     getDocumentSelectionTightBounds,
     isDocumentSelectionEmpty,
     morphDocumentSelectionMask,
+    sceneToMaskIndex,
 } from '@/lib/selection/documentSelectionMask';
 import { unionPolygonIntoMask, unionRectIntoMask } from '@/lib/selection/selectionMaskRasterize';
 import {
@@ -16,6 +17,20 @@ import {
 } from '@/lib/selection/selectionWandFloodFill';
 
 describe('documentSelectionMask', () => {
+    it('converts scene points to mask indices and handles out-of-bounds boundaries', () => {
+        const mask = createDocumentSelectionMask({ left: 10, top: 20, width: 40, height: 30 });
+        // Valid point inside mask: x = 15 - 10 = 5, y = 25 - 20 = 5 -> index = (5 * 40) + 5 = 205
+        expect(sceneToMaskIndex(mask, 15, 25)).toBe(205);
+        // Top-left boundary: x = 0, y = 0 -> index = 0
+        expect(sceneToMaskIndex(mask, 10, 20)).toBe(0);
+        // Out of bounds - negative x or y relative to mask
+        expect(sceneToMaskIndex(mask, 9, 25)).toBeNull();
+        expect(sceneToMaskIndex(mask, 15, 19)).toBeNull();
+        // Out of bounds - beyond right/bottom
+        expect(sceneToMaskIndex(mask, 50, 25)).toBeNull();
+        expect(sceneToMaskIndex(mask, 15, 50)).toBeNull();
+    });
+
     it('creates an empty artboard-sized mask and unions a rect', () => {
         const mask = createDocumentSelectionMask({ left: 10, top: 20, width: 40, height: 30 });
         expect(mask.data.length).toBe(40 * 30);

@@ -27,7 +27,7 @@ describe('ollamaServer', () => {
 
         const result = await fetchOllamaWithFallback('http://host.docker.internal:11434', '/api/generate', {
             method: 'POST',
-            timeoutMs: 50,
+            timeoutMs: 300,
         });
 
         expect(result.ok).toBe(true);

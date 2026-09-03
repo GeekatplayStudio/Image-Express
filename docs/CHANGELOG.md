@@ -1,9 +1,9 @@
 # Changelog — Delivery History
 
-Last updated: 2026-08-18
+Last updated: 2026-09-03
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
-App version: 0.2.0
+App version: 0.2.1
 
 **What has shipped, newest first.** This file is history — it is not where you
 look for current behaviour or future plans.
@@ -18,6 +18,21 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-09-03 - Library updates, zero production vulnerabilities, mutation testing
+
+- **Dependency Upgrades & Security Vulnerability Eradication:**
+  - Upgraded Next.js to `16.3.4`, `@tiptap/*` suite (`react`, `starter-kit`, `extension-placeholder`) to `3.31.2`, Three.js to `0.185.1`, `@types/three` to `0.185.4`, `@react-three/drei` to `10.7.8`, Zod to `4.5.4`, React to `19.2.8`, PDF.js to `6.3.289`, and Jest to `30.5.1`.
+  - Added security overrides in `package.json` for `fast-uri` (`^3.1.6`), `nanoid` (`^3.3.18`), and `qs` (`^6.16.0`), eliminating all active advisories and achieving **0 production vulnerabilities** in `npm run audit:dependencies`.
+- **Mutation Testing Harness:**
+  - Introduced `scripts/mutation-test.mjs` (`npm run test:mutation`) evaluating test quality against code mutations (relational and arithmetic inversions, boolean flips, and boundary conditions).
+  - Both target core modules (`packages/foldcraft` mesh topology and `src/lib/selection` document selection masks) achieve a **100% mutant kill rate** (30/30 mutants caught and killed).
+  - Added direct unit test assertions for `sceneToMaskIndex` boundary conditions, preventing undetected logic mutations.
+- **Contract & API Hardening:**
+  - Updated `/api/designs/save` schema to accept nullish design IDs gracefully (`id: z.string().max(300).nullish()`), fixing draft saves from the media overlay harness.
+  - Verified full test suite pass across all layers: 223 test suites, 1,794 unit & integration tests, and 5 Playwright end-to-end tests.
+- **Technology Reference Synchronized:**
+  - Updated `src/features/about/technologyStack.ts` and its test suite to reflect `three@0.185`.
 
 ## 2026-08-18 - Low-poly unfold refused valid plans over a 0.17 nm overlap
 

@@ -8,8 +8,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { assertBuildOutputAvailable } from './server-lock.mjs';
+import { assertNoConcurrentBuild, claimBuildLock } from './build-lock.mjs';
 
 assertBuildOutputAvailable();
+// Claim the build lock before removing anything: this wipe is exactly what
+// destroys a concurrent build, so the check has to happen ahead of it.
+assertNoConcurrentBuild('a clean build');
+claimBuildLock('clean');
 
 const projectRoot = path.resolve(process.cwd());
 const nextOutput = path.resolve(projectRoot, '.next');

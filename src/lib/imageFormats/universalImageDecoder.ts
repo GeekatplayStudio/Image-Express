@@ -138,6 +138,7 @@ async function decodeExr(file: File): Promise<Blob> {
     loader.setDataType(FloatType);
     const buffer = await file.arrayBuffer();
     const parsed = loader.parse(buffer);
+    if (!parsed.width || !parsed.height) throw new Error('Failed to parse EXR image dimensions.');
     return toneMapFloatRgbaToPng(parsed.width, parsed.height, parsed.data as Float32Array);
 }
 
@@ -148,6 +149,7 @@ async function decodeHdr(file: File): Promise<Blob> {
     loader.setDataType(FloatType);
     const buffer = await file.arrayBuffer();
     const parsed = loader.parse(buffer);
+    if (!parsed.width || !parsed.height) throw new Error('Failed to parse HDR image dimensions.');
     return toneMapFloatRgbaToPng(parsed.width, parsed.height, parsed.data as Float32Array);
 }
 
