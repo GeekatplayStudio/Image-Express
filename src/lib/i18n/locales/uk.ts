@@ -3097,6 +3097,20 @@ const uk: LocaleDictionary = {
     'foamcut.invalidDesc': 'План не пройшов перевірки безпеки і не був експортований. Спробуйте менший розмір або простішу модель.',
     'modelSource.expired': 'Джерело 3D-моделі застаріло',
     'modelSource.expiredBody': 'Додайте модель знову з бібліотеки, щоб створити постійне джерело.',
+
+    // Imported via i18n-import-translated.mjs from temp-uk.json on 2026-09-11
+    'toolbar.3dStamp': '3D-штамп',
+    'toolbar.short.stamp': 'Штамп',
+    'fabrication.workflow.stamp3d': 'Інструмент 3D-штампа',
+    'fabrication.workflow.stamp3dDesc': 'Створюйте 3D-штампи та сургучні печатки з автентичними ручками та рельєфним кліше.',
+    'stamp.preset.approved.title': 'Штамп «Схвалено»',
+    'stamp.preset.approved.desc': 'Класичний офісний ручний штамп із рамкою.',
+    'stamp.preset.confidential.title': 'Конфіденційно',
+    'stamp.preset.confidential.desc': 'Офіційний штамп грифа таємності.',
+    'stamp.preset.waxMonogram.title': 'Сургучна печатка Ex Libris',
+    'stamp.preset.waxMonogram.desc': 'Кругла латунна печатка з точеною ручкою для гарячого воску.',
+    'stamp.preset.notary.title': 'Нотаріальна печатка',
+    'stamp.preset.notary.desc': 'Офіційна дводіагональна нотаріальна печатка.',
 };
 
 export default uk;

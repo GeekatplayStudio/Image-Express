@@ -3097,6 +3097,20 @@ const ru: LocaleDictionary = {
     'foamcut.invalidDesc': 'План не прошёл проверки безопасности и не был экспортирован. Попробуйте меньший размер или более простую модель.',
     'modelSource.expired': 'Источник 3D-модели истёк',
     'modelSource.expiredBody': 'Добавьте модель заново из библиотеки, чтобы создать постоянный источник.',
+
+    // Imported via i18n-import-translated.mjs from temp-ru.json on 2026-09-11
+    'toolbar.3dStamp': '3D-штамп',
+    'toolbar.short.stamp': 'Штамп',
+    'fabrication.workflow.stamp3d': 'Инструмент 3D-штампа',
+    'fabrication.workflow.stamp3dDesc': 'Создавайте 3D-штампы и сургучные печати с аутентичными ручками и рельефным клише.',
+    'stamp.preset.approved.title': 'Штамп «Одобрено»',
+    'stamp.preset.approved.desc': 'Классический офисный ручной штамп с рамкой.',
+    'stamp.preset.confidential.title': 'Конфиденциально',
+    'stamp.preset.confidential.desc': 'Официальный штамп грифа секретности.',
+    'stamp.preset.waxMonogram.title': 'Сургучная печать Ex Libris',
+    'stamp.preset.waxMonogram.desc': 'Круглая латунная печать с точёной ручкой для горячего воска.',
+    'stamp.preset.notary.title': 'Нотариальная печать',
+    'stamp.preset.notary.desc': 'Официальная двухдуговая нотариальная печать.',
 };
 
 export default ru;

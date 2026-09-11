@@ -10,6 +10,7 @@ describe('fabrication tool registry', () => {
         expect(FABRICATION_TOOL_GROUP.tools.map((tool) => tool.name)).toEqual([
             'fabrication-library',
             '3d-gen',
+            '3d-stamp',
             '3d-library',
             'cricut-studio',
             'cnc-planner',

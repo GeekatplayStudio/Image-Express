@@ -14,6 +14,7 @@ import {
     RotateCcw,
     Scissors,
     Search,
+    Stamp,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -40,6 +41,7 @@ type FabricationLibraryModalProps = {
 
 const WORKFLOW_ICONS: Record<FabricationWorkflowId, LucideIcon> = {
     '3d-gen': Box,
+    '3d-stamp': Stamp,
     '3d-library': Library,
     'cricut-studio': Scissors,
     'cnc-planner': Cog,

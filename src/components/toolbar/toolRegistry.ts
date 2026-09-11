@@ -35,6 +35,7 @@ import {
     Sparkles,
     Square,
     SquareMousePointer,
+    Stamp,
     Sun,
     Type,
     Wand2,
@@ -102,6 +103,7 @@ export const FABRICATION_TOOL_GROUP: ToolbarToolGroupDefinition = {
     tools: [
         { name: 'fabrication-library', icon: Boxes, labelKey: 'toolbar.fabricationLibrary' },
         { name: '3d-gen', icon: Box, labelKey: 'fabrication.workflow.generate3d' },
+        { name: '3d-stamp', icon: Stamp, labelKey: 'toolbar.3dStamp', shortLabelKey: 'toolbar.short.stamp' },
         { name: '3d-library', icon: Library, labelKey: 'toolbar.modelLibrary' },
         { name: 'cricut-studio', icon: Scissors, labelKey: 'toolbar.cricutStudio' },
         { name: 'cnc-planner', icon: Cog, labelKey: 'toolbar.cncPlanner' },

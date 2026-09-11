@@ -662,6 +662,20 @@ const de: LocaleDictionary = {
     'foamcut.invalidDesc': 'Der Plan hat die Sicherheitsprüfungen nicht bestanden und wurde nicht exportiert. Versuche eine kleinere Größe oder ein einfacheres Modell.',
     'modelSource.expired': '3D-Modellquelle ist abgelaufen',
     'modelSource.expiredBody': 'Füge das Modell erneut aus der Asset-Bibliothek hinzu, um eine dauerhafte Quelle zu erstellen.',
+
+    // Imported via i18n-import-translated.mjs from temp-en.json on 2026-09-11
+    'toolbar.3dStamp': '3D Stamp Tool',
+    'toolbar.short.stamp': 'Stamp',
+    'fabrication.workflow.stamp3d': '3D Stamp Tool',
+    'fabrication.workflow.stamp3dDesc': 'Generate 3D-printable rubber hand stamps and wax seals with authentic handles and extruded dies.',
+    'stamp.preset.approved.title': 'Approved Stamp',
+    'stamp.preset.approved.desc': 'Classic office rubber hand stamp with border and subtext.',
+    'stamp.preset.confidential.title': 'Confidential',
+    'stamp.preset.confidential.desc': 'Official classification desk stamp.',
+    'stamp.preset.waxMonogram.title': 'Ex Libris Wax Seal',
+    'stamp.preset.waxMonogram.desc': 'Circular brass seal with turned handle for hot wax pressing.',
+    'stamp.preset.notary.title': 'Official Notary Seal',
+    'stamp.preset.notary.desc': 'Official dual-arc notary public wax seal.',
 };
 
 export default de;

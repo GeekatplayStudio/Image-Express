@@ -652,6 +652,20 @@ const zh: LocaleDictionary = {
     'foamcut.invalidDesc': '方案未通过安全检查，未导出。请尝试更小的尺寸或更简单的模型。',
     'modelSource.expired': '3D 模型来源已失效',
     'modelSource.expiredBody': '请从资产库重新添加模型，以创建持久来源。',
+
+    // Imported via i18n-import-translated.mjs from temp-en.json on 2026-09-11
+    'toolbar.3dStamp': '3D Stamp Tool',
+    'toolbar.short.stamp': 'Stamp',
+    'fabrication.workflow.stamp3d': '3D Stamp Tool',
+    'fabrication.workflow.stamp3dDesc': 'Generate 3D-printable rubber hand stamps and wax seals with authentic handles and extruded dies.',
+    'stamp.preset.approved.title': 'Approved Stamp',
+    'stamp.preset.approved.desc': 'Classic office rubber hand stamp with border and subtext.',
+    'stamp.preset.confidential.title': 'Confidential',
+    'stamp.preset.confidential.desc': 'Official classification desk stamp.',
+    'stamp.preset.waxMonogram.title': 'Ex Libris Wax Seal',
+    'stamp.preset.waxMonogram.desc': 'Circular brass seal with turned handle for hot wax pressing.',
+    'stamp.preset.notary.title': 'Official Notary Seal',
+    'stamp.preset.notary.desc': 'Official dual-arc notary public wax seal.',
 };
 
 export default zh;

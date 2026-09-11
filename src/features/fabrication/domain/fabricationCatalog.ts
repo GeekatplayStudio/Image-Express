@@ -1,4 +1,4 @@
-export type FabricationWorkflowId = '3d-gen' | '3d-library' | 'cricut-studio' | 'cnc-planner';
+export type FabricationWorkflowId = '3d-gen' | '3d-stamp' | '3d-library' | 'cricut-studio' | 'cnc-planner';
 
 export type FabricationWorkflow = {
     id: FabricationWorkflowId;
@@ -9,6 +9,7 @@ export type FabricationWorkflow = {
 
 export const FABRICATION_WORKFLOWS: FabricationWorkflow[] = [
     { id: '3d-gen', titleKey: 'fabrication.workflow.generate3d', descriptionKey: 'fabrication.workflow.generate3dDesc', stage: 'design' },
+    { id: '3d-stamp', titleKey: 'fabrication.workflow.stamp3d', descriptionKey: 'fabrication.workflow.stamp3dDesc', stage: 'prepare' },
     { id: '3d-library', titleKey: 'fabrication.workflow.models', descriptionKey: 'fabrication.workflow.modelsDesc', stage: 'design' },
     { id: 'cricut-studio', titleKey: 'fabrication.workflow.cricut', descriptionKey: 'fabrication.workflow.cricutDesc', stage: 'prepare' },
     { id: 'cnc-planner', titleKey: 'fabrication.workflow.cnc', descriptionKey: 'fabrication.workflow.cncDesc', stage: 'fabricate' },

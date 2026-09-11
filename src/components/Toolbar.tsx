@@ -58,6 +58,7 @@ import { TOP_TEXT_FONT_FAMILIES } from '@/lib/typography';
 import { ensureDisplayableImage } from '@/lib/imageFormats/universalImageDecoder';
 import { buildImageAcceptAttribute, getImageFormatEntry } from '@/lib/imageFormats/supportedFormats';
 import FabricationLibraryModal from '@/components/fabrication/FabricationLibraryModal';
+import ThreeDStampModal from '@/features/fabrication/stamp/ui/ThreeDStampModal';
 import {
     CREATION_LIBRARY_TOOLS,
     CREATION_PRIMARY_TOOLS,
@@ -2299,6 +2300,24 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     initialTab={activeTool === 'cnc-planner' ? 'hardware' : 'workflows'}
                     onLaunch={handleToolClick}
                     onClose={() => setActiveTool('select')}
+                />
+            )}
+
+            {activeTool === '3d-stamp' && (
+                <ThreeDStampModal
+                    canvas={canvas}
+                    onClose={() => setActiveTool('select')}
+                    onAddToCanvas={(dataUrl) => {
+                        if (canvas) {
+                            fabric.Image.fromURL(dataUrl).then((img) => {
+                                img.scaleToWidth(Math.min(canvas.getWidth() * 0.4, 300));
+                                canvas.centerObject(img);
+                                canvas.add(img);
+                                canvas.setActiveObject(img);
+                                canvas.renderAll();
+                            });
+                        }
+                    }}
                 />
             )}
 
