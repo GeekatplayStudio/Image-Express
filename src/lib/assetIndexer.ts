@@ -3,6 +3,7 @@
 import { loadAssetIndexSettings } from '@/lib/assetIndexSettings';
 import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
 import {
+    getLocalAssetBlob,
     listUnindexedLocalAssets,
     updateLocalAssetMetadata,
     type LocalAssetRecord,
@@ -158,15 +159,19 @@ export async function indexLocalAsset(record: LocalAssetRecord): Promise<LocalAs
     };
 
     if (record.type === 'images') {
-        const dimensions = await readImageDimensions(record.data);
+        // Listings no longer carry the bytes; fetch them once for this pass.
+        const blob = record.data ?? await getLocalAssetBlob(record.id).catch(() => null);
+        if (!blob) return metadata;
+
+        const dimensions = await readImageDimensions(blob);
         if (dimensions) {
             metadata.width = dimensions.width;
             metadata.height = dimensions.height;
         }
 
-        if ((record.mimeType === 'image/png' || record.name.toLowerCase().endsWith('.png')) && record.data.size < 64 * 1024 * 1024) {
+        if ((record.mimeType === 'image/png' || record.name.toLowerCase().endsWith('.png')) && blob.size < 64 * 1024 * 1024) {
             try {
-                const bytes = new Uint8Array(await record.data.arrayBuffer());
+                const bytes = new Uint8Array(await blob.arrayBuffer());
                 const prompt = pickEmbeddedPrompt(extractPngTextChunks(bytes));
                 if (prompt) metadata.prompt = prompt;
             } catch {
@@ -176,7 +181,7 @@ export async function indexLocalAsset(record: LocalAssetRecord): Promise<LocalAs
 
         if (loadAssetIndexSettings().aiIndexingEnabled) {
             try {
-                const ai = await requestAiDescription(record.data);
+                const ai = await requestAiDescription(blob);
                 if (ai) {
                     if (ai.description) metadata.description = ai.description;
                     if (ai.tags.length > 0) metadata.tags = ai.tags;

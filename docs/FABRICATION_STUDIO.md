@@ -84,6 +84,105 @@ nesting, stacked-profile planning from target depth and stock thickness, and
 registration-mark generation. See [CRICUT_EXPORT.md](CRICUT_EXPORT.md) for file
 format details and current geometry limitations.
 
+## 3D Stamp Studio
+
+3D Stamp Studio turns artwork into a printable press stamp or wax seal: an
+extruded relief die, a backing podium, and a turned handle, exported as a
+single solid for slicing.
+
+Open it from the **Fabrication** tool group (the **3D Stamp** entry in the
+workflow library, or `3d-stamp` on the tool rail). If the canvas has visible
+layers they are captured and loaded as the artwork automatically; otherwise the
+studio starts in text mode.
+
+### Artwork to relief
+
+Artwork arrives as text, an uploaded image, a preset, or a capture of the
+current canvas, and is rasterised to a heightmap that drives the extrusion:
+
+1. Text is typeset straight or along a circular arc. Arc text advances each
+   glyph by its own measured width, so letter spacing stays even regardless of
+   the string.
+2. Photoshop-style **Levels** (black point, white point, gamma), optional
+   bit-depth quantisation, and thresholding map luminance to relief height.
+3. A signed-distance-field pass de-speckles the mask and reconstructs smooth
+   vector contours, removing the staircase artefacts a raw threshold leaves on
+   diagonals and curves.
+4. Borders are composited on top, and the heightmap is mirrored so the physical
+   impression reads the right way round.
+
+### Structure
+
+| Part | Occupies | Notes |
+| --- | --- | --- |
+| Die | `y = 0` down to `-(baseplate + relief)` | Backplate at `y = 0`, artwork extruded downwards |
+| Podium | `y = 0` to `y = podiumThickness` | Chamfered top and bottom; rectangular podiums carry a tactile orientation notch |
+| Handle | `y = podiumThickness` upwards | Eight styles, five of them lathe-turned profiles |
+
+Rectangular dies are built on a Cartesian grid; circular and oval dies are built
+on a polar grid so the die outline is a true ellipse matching the podium rather
+than a slab whose corners jut out from underneath it. Both keep the flat
+backplate as a centre fan — it is a plane, so tessellating it at die-face
+density would double the triangle count for no detail.
+
+### Why the letterforms come out clean
+
+Edge quality is set by *where the distance to the artwork edge is measured*, not
+by how much the mask is smoothed afterwards:
+
+- **The distance field is computed on the artwork raster, then sampled onto the
+  extrusion grid.** Thresholding onto the coarse grid first discards the
+  sub-pixel edge position, and nothing downstream can recover it — that is what
+  produced stair-stepped outlines. A distance field is smooth and band-limited,
+  so it is the thing that downsamples cleanly.
+- **The transform is exact, not a chamfer approximation.** A two-pass 3-4
+  chamfer sweep is anisotropic: its level sets are octagons, so every curve and
+  diagonal picked up faint faceting. The builder uses the linear-time
+  Felzenszwalb–Huttenlocher squared-distance transform, run down the columns and
+  then across the rows, which is exactly Euclidean.
+- **Anti-aliased coverage refines the edge.** Where a sample sits inside the
+  transition band, its coverage locates the crossing to a fraction of a pixel —
+  far better than the half-pixel guess a binary threshold allows.
+- **The tapered wall spans several grid cells.** Cell size is derived from the
+  draft run (`reliefDepth × tan(draft)`), because a wall resolved by a single row
+  of vertices renders as a staircase no matter how accurate the field is: there
+  is nothing between "floor" and "plateau" for the surface to interpolate
+  through. A triangle ceiling bounds this so a large die stays sliceable and
+  still rebuilds while a slider is being dragged.
+- **Vertex colours are interpolated, not bucketed.** Three flat tones quantised
+  the letter edges to the grid in the preview: the geometry could be perfectly
+  smooth and the artwork would still read as blocky, because the colour boundary
+  jumped a whole cell.
+
+### Draft angle
+
+The **Draft Angle** control tapers the relief sidewalls so the stamp releases
+cleanly from ink, rubber, and hot wax. It is applied through the distance field:
+a point whose signed distance to the artwork edge is `s` mm stays solid down to
+
+```
+h = clamp(1 + s / (reliefDepth * tan(draft)), 0, 1)
+```
+
+which is exactly the surface swept by a wall leaning back at `draft` degrees
+from the contact plateau. At 0° the ramp falls back to a sub-cell width so edges
+stay anti-aliased instead of stepped.
+
+### Printable-solid guarantees
+
+Every part is generated as a closed shell wound counter-clockwise as seen from
+outside. Orientation is checked as well as closure: a consistently inside-out
+shell passes every edge-count test, yet renders hollow in the viewport and is
+rejected by slicers. The viewport status bar reports the measured result —
+**Watertight** or **Check Mesh** — alongside the modelled height (taken from the
+assembled mesh, not summed from the sliders, since some handle styles clamp
+their own height) and the solid volume as a material estimate.
+
+### Export
+
+STL (binary or ASCII), OBJ, and GLB, for the complete assembly, the die plate
+without the handle, or the handle alone. Binary STL is the slicer default.
+
 ## Code ownership
 
 - `src/components/toolbar/toolRegistry.ts` — shared tool and group definitions.
@@ -94,9 +193,15 @@ format details and current geometry limitations.
 - `src/lib/foamcut/` + `packages/foldcraft/` — the low-poly unfold pipeline:
   faceting, segmentation, groove planning, sheet packing, G-code, simulation,
   validation, and stage-progress previews.
+- `src/features/fabrication/stamp/domain/` — stamp relief extrusion, podium and
+  handle geometry, mesh-integrity checks, assembly, and exporters.
+- `src/features/fabrication/stamp/ui/` — the studio modal, artwork rasteriser,
+  3D viewport, and press/impression previews.
 
 All new production modules are kept below 500 lines. Focused tests cover the
 registry, right-click and circular navigation, inventory persistence/CSV, modal
 behavior, tracing, layered planning, nesting, and SVG output. Foldcraft carries
 its own 93-test suite covering fold correctness, grooves, machine simulation,
-and the progress previews.
+and the progress previews. 3D Stamp Studio is covered by 73 tests spanning
+draft-angle geometry, contact-plateau flatness, heightmap sampling, mesh
+watertightness and outward orientation, and STL/OBJ export validity.

@@ -4,17 +4,22 @@ This guide is the recommended **easy path** to run Image Express locally, with o
 
 ## 1) Core App (Required)
 
-### The installer (recommended — this is the current, working way to install)
+### 🌟 1-Click Standalone Desktop App (Recommended)
 
-No native `.exe`/`.dmg` installer is published yet, so use
-[`install.bat`](../install.bat) (Windows) or [`install.command`](../install.command) (macOS) —
-these are the real installer, not a fallback. They install Git and Node.js
-24+ if you don't have them (or use one a version manager has hidden on
-`PATH`), download the app, install its dependencies, verify the build, and
-can offer optional ComfyUI/Ollama setup. No terminal knowledge, no
-understanding of Git/Node/npm required.
+Image Express is distributed as a self-contained desktop application with its own bundled runtime — no external Node.js, Git, or terminal commands required:
 
-Every step — and any error — is written to a log file you can hand to support if something goes wrong:
+- **Windows**: Download **`ImageExpress-Setup-0.2.1.exe`** from [GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases). Double-click to install. It installs in seconds with zero prompts, places desktop shortcuts, and launches automatically in a dedicated window.
+- **macOS**: Download **`ImageExpress-0.2.1-arm64.dmg`** (Apple Silicon) or **`ImageExpress-0.2.1-x64.dmg`** (Intel) from [GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases). Open the `.dmg`, drag `Image Express.app` to Applications, and launch.
+
+---
+
+### 💻 Source-based Automated Installers (Developers / Git Users)
+
+If you prefer installing directly from the Git repository:
+Use [`install.bat`](../install.bat) (Windows) or [`install.command`](../install.command) (macOS).
+They install Git and Node.js 24+ if needed, download the app, install its dependencies, verify the build, and can configure optional local AI runtimes (ComfyUI / Ollama).
+
+Every step is logged to:
 - Windows: `%USERPROFILE%\ImageExpress-setup.log`
 - macOS: `~/ImageExpress-setup.log`
 

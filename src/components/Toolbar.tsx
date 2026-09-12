@@ -2304,21 +2304,23 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             )}
 
             {activeTool === '3d-stamp' && (
-                <ThreeDStampModal
-                    canvas={canvas}
-                    onClose={() => setActiveTool('select')}
-                    onAddToCanvas={(dataUrl) => {
-                        if (canvas) {
-                            fabric.Image.fromURL(dataUrl).then((img) => {
-                                img.scaleToWidth(Math.min(canvas.getWidth() * 0.4, 300));
-                                canvas.centerObject(img);
-                                canvas.add(img);
-                                canvas.setActiveObject(img);
-                                canvas.renderAll();
-                            });
-                        }
-                    }}
-                />
+                <BodyPortal>
+                    <ThreeDStampModal
+                        canvas={canvas}
+                        onClose={() => setActiveTool('select')}
+                        onAddToCanvas={(dataUrl) => {
+                            if (canvas) {
+                                fabric.Image.fromURL(dataUrl).then((img) => {
+                                    img.scaleToWidth(Math.min(canvas.getWidth() * 0.4, 300));
+                                    canvas.centerObject(img);
+                                    canvas.add(img);
+                                    canvas.setActiveObject(img);
+                                    canvas.renderAll();
+                                });
+                            }
+                        }}
+                    />
+                </BodyPortal>
             )}
 
             {(activeTool === 'color-wheel' || activeTool === 'eyedropper') && (

@@ -44,13 +44,72 @@ if (!fs.existsSync(nextBin)) {
 
 let result;
 try {
-    result = spawnSync(process.execPath, [nextBin, 'build', ...process.argv.slice(2)], {
+    const extraArgs = process.argv.slice(2);
+    const hasBundlerFlag = extraArgs.some(arg => arg === '--webpack' || arg === '--turbopack' || arg === '--turbo');
+    const buildArgs = hasBundlerFlag ? ['build', ...extraArgs] : ['build', '--webpack', ...extraArgs];
+    result = spawnSync(process.execPath, [nextBin, ...buildArgs], {
         stdio: 'inherit',
         cwd: rootDir,
         env: envWithSupportedNode(),
     });
 } finally {
     clearBuildLock();
+}
+
+function pruneStandaloneLeaks() {
+    const standaloneDir = path.join(rootDir, '.next', 'standalone');
+    if (!fs.existsSync(standaloneDir)) return;
+    const forbiddenPatterns = [
+        /^dist(-|$)/i,
+        /^3d-models$/i,
+        /^Packs-Assets-NotInclude$/i,
+        /^mobile-companion$/i,
+        /^ComfyUI workflows$/i,
+        /^external$/i,
+        /^coverage$/i,
+        /^test-results$/i,
+        /^src$/i,
+        /^\.git$/i,
+        /^\.claude$/i,
+        /\.(glb|gltf|fbx|obj)$/i,
+    ];
+    for (const entry of fs.readdirSync(standaloneDir)) {
+        if (forbiddenPatterns.some((pattern) => pattern.test(entry))) {
+            try {
+                fs.rmSync(path.join(standaloneDir, entry), { recursive: true, force: true });
+            } catch {
+                // Best effort
+            }
+        }
+    }
+}
+
+function enrichStandaloneDependencies() {
+    const standaloneModules = path.join(rootDir, '.next', 'standalone', 'node_modules');
+    if (!fs.existsSync(standaloneModules)) return;
+    const requiredPkgs = [
+        'next',
+        'react',
+        'react-dom',
+        path.join('@swc', 'helpers'),
+        path.join('@next', 'env'),
+    ];
+    for (const relPkg of requiredPkgs) {
+        const src = path.join(rootDir, 'node_modules', relPkg);
+        const dest = path.join(standaloneModules, relPkg);
+        if (fs.existsSync(src)) {
+            try {
+                fs.cpSync(src, dest, { recursive: true, force: true });
+            } catch (err) {
+                console.warn(`[BUILD] Warning: could not copy ${relPkg} to standalone node_modules:`, err?.message || err);
+            }
+        }
+    }
+}
+
+if (result && result.status === 0) {
+    pruneStandaloneLeaks();
+    enrichStandaloneDependencies();
 }
 
 process.exit(result.status === null ? 1 : result.status);

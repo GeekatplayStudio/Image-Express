@@ -175,6 +175,7 @@ export default function DraggableResizablePanel({
     }, [clampFrameToViewport, isMaximized, minHeight, minWidth, position, size]);
 
     const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+        event.stopPropagation();
         if (isMaximized) return;
         const target = event.target as HTMLElement;
         if (!target.closest(handleSelector)) return;
@@ -210,6 +211,7 @@ export default function DraggableResizablePanel({
             className={cn('fixed z-[100] flex flex-col', className)}
             style={{ left: position.x, top: position.y, width: size.width, height: size.height }}
             onMouseDown={handleMouseDown}
+            onPointerDown={(e) => e.stopPropagation()}
             onDoubleClick={handleDoubleClick}
         >
             {children}

@@ -1,6 +1,10 @@
 /**
  * 3D Stamp Tool - Podium (Backing Mount) Geometries
  * Backing plates for holding stamp dies with bevels, fillets, and tactile orientation notches.
+ *
+ * Every podium occupies exactly y = 0 (die mounting face) to y = thicknessMm (handle mounting
+ * face) and its widest cross-section matches the requested width/depth, so the dimensions shown
+ * in the viewport are the dimensions that get printed.
  */
 
 import * as THREE from 'three';
@@ -15,7 +19,7 @@ function createRoundedRectShape(width: number, depth: number, radius: number): T
     const y = -depth / 2;
     const w = width;
     const h = depth;
-    const r = Math.min(radius, Math.min(w, h) / 3);
+    const r = Math.max(0, Math.min(radius, Math.min(w, h) / 3));
 
     shape.moveTo(x + r, y);
     shape.lineTo(x + w - r, y);
@@ -31,7 +35,43 @@ function createRoundedRectShape(width: number, depth: number, radius: number): T
 }
 
 /**
- * Creates a rectangular stamp podium with rounded corners, top chamfer/bevel,
+ * Extrudes a podium profile vertically with a chamfer at both ends.
+ *
+ * `ExtrudeGeometry` offsets the profile outwards by `bevelSize` at the full-depth section and
+ * adds `bevelThickness` beyond each end, so the caller passes a profile already shrunk by the
+ * bevel; this keeps the finished solid inside the requested footprint and height.
+ */
+function extrudePodium(
+    shape: THREE.Shape,
+    thickness: number,
+    bevel: number,
+    curveSegments: number
+): THREE.BufferGeometry {
+    const bevelThickness = Math.max(0.01, Math.min(bevel, thickness * 0.25));
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: Math.max(0.05, thickness - bevelThickness * 2),
+        bevelEnabled: true,
+        bevelSegments: 4,
+        steps: 1,
+        bevelSize: bevelThickness,
+        bevelThickness,
+        curveSegments,
+    });
+
+    // Extrusion runs along +Z; rotate so it runs along +Y, then lift the chamfered
+    // bottom (which sits at -bevelThickness) up to exactly y = 0.
+    geometry.rotateX(-Math.PI / 2);
+    geometry.translate(0, bevelThickness, 0);
+    return geometry;
+}
+
+/** Bevel size shared by every podium shape. */
+function podiumBevel(thickness: number, limit: number = 1.5): number {
+    return Math.max(0.2, Math.min(limit, thickness * 0.25));
+}
+
+/**
+ * Creates a rectangular stamp podium with rounded corners, top/bottom chamfer,
  * and an authentic tactile orientation notch on the front edge.
  */
 function createRectangularPodium(
@@ -41,32 +81,20 @@ function createRectangularPodium(
     cornerRadius: number,
     hasOrientationNotch: boolean = true
 ): THREE.BufferGeometry {
-    const shape = createRoundedRectShape(width, depth, cornerRadius);
+    const bevel = podiumBevel(thickness, Math.min(1.5, Math.max(0.2, cornerRadius * 0.5)));
+    const shape = createRoundedRectShape(
+        Math.max(1, width - bevel * 2),
+        Math.max(1, depth - bevel * 2),
+        cornerRadius - bevel
+    );
 
-    const bevelSize = Math.min(1.5, thickness * 0.25, cornerRadius * 0.5);
-    const bevelThickness = Math.min(1.5, thickness * 0.25);
+    const geometry = extrudePodium(shape, thickness, bevel, 12);
 
-    const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-        depth: thickness - bevelThickness,
-        bevelEnabled: true,
-        bevelSegments: 4,
-        steps: 1,
-        bevelSize,
-        bevelThickness,
-    };
-
-    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-
-    // Reorient so that Extrude Z axis becomes Y axis (vertical height)
-    // and center at (0, 0, 0)
-    geometry.rotateX(-Math.PI / 2);
-    geometry.translate(0, 0, 0);
-
-    // If orientation notch is enabled, slightly carve or indent the front-center face (+Z)
+    // Indent the front-centre (+Z) face so the user can feel the stamp's orientation.
     if (hasOrientationNotch) {
         const positions = geometry.attributes.position;
         const notchWidth = Math.min(6, width * 0.2);
-        const notchDepth = 1.0;
+        const notchDepth = Math.min(1.0, depth * 0.05);
         const frontZ = depth / 2;
 
         for (let i = 0; i < positions.count; i++) {
@@ -74,8 +102,7 @@ function createRectangularPodium(
             const y = positions.getY(i);
             const z = positions.getZ(i);
 
-            // Check if vertex is near front edge (+Z) within notch X range and upper Y half
-            if (Math.abs(x) < notchWidth / 2 && z > frontZ - notchDepth && y > thickness * 0.3) {
+            if (Math.abs(x) < notchWidth / 2 && z > frontZ - bevel - notchDepth && y > thickness * 0.3) {
                 const factor = Math.cos((x / (notchWidth / 2)) * (Math.PI / 2));
                 positions.setZ(i, z - factor * notchDepth * 0.8);
             }
@@ -89,24 +116,14 @@ function createRectangularPodium(
 
 /**
  * Creates a circular stamp podium (classic brass wax seal mount or round desk stamp).
- * Includes stepped transition collar and chamfered top lip.
  */
 function createCircularPodium(diameter: number, thickness: number): THREE.BufferGeometry {
-    const radius = diameter / 2;
-    const segments = 48;
+    const bevel = podiumBevel(thickness);
+    const radius = Math.max(0.5, diameter / 2 - bevel);
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, radius, 0, Math.PI * 2, false);
 
-    // Build stepped lathe profile: bottom die face -> stepped collar -> bevelled top face
-    const points: THREE.Vector2[] = [];
-    const bevel = Math.min(1.5, thickness * 0.2);
-
-    // Profile from bottom center (0, 0) out to radius, up to thickness, back to top center (0, thickness)
-    points.push(new THREE.Vector2(0, 0));
-    points.push(new THREE.Vector2(radius, 0));
-    points.push(new THREE.Vector2(radius, thickness - bevel));
-    points.push(new THREE.Vector2(radius - bevel, thickness));
-    points.push(new THREE.Vector2(0, thickness));
-
-    const geometry = new THREE.LatheGeometry(points, segments);
+    const geometry = extrudePodium(shape, thickness, bevel, 72);
     geometry.computeVertexNormals();
     return geometry;
 }
@@ -115,30 +132,21 @@ function createCircularPodium(diameter: number, thickness: number): THREE.Buffer
  * Creates an oval stamp podium with rounded bevel.
  */
 function createOvalPodium(width: number, depth: number, thickness: number): THREE.BufferGeometry {
+    const bevel = podiumBevel(thickness);
     const shape = new THREE.Shape();
-    const xRadius = width / 2;
-    const yRadius = depth / 2;
+    const xRadius = Math.max(0.5, width / 2 - bevel);
+    const yRadius = Math.max(0.5, depth / 2 - bevel);
     shape.absellipse(0, 0, xRadius, yRadius, 0, Math.PI * 2, false, 0);
 
-    const bevelSize = Math.min(1.5, thickness * 0.25);
-    const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-        depth: thickness - bevelSize,
-        bevelEnabled: true,
-        bevelSegments: 4,
-        steps: 1,
-        bevelSize,
-        bevelThickness: bevelSize,
-    };
-
-    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    geometry.rotateX(-Math.PI / 2);
+    // Without an explicit segment count an ellipse extrudes as a visibly faceted 12-gon.
+    const geometry = extrudePodium(shape, thickness, bevel, 72);
     geometry.computeVertexNormals();
     return geometry;
 }
 
 /**
  * Generates a stamp backing podium based on shape and dimensions.
- * Sits between y = 0 (bottom die mounting surface) and y = thicknessMm (top handle mounting surface).
+ * Sits between y = 0 (bottom die mounting surface) and y = thicknessMm (top handle surface).
  */
 export function createStampPodiumGeometry(
     shape: PodiumShape,

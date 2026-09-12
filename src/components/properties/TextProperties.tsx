@@ -88,9 +88,8 @@ export function TextProperties({
 
     const fallbackCurveSpan = useMemo(() => {
         const strength = Math.min(Math.abs(curveStrength), 100);
-        const minSpan = 1;
-        const maxSpan = 359;
-        return Math.round(minSpan + ((maxSpan - minSpan) * (strength / 100)));
+        if (strength === 0) return 180;
+        return Math.max(2, Math.min(359, Math.round((strength / 50) * 180)));
     }, [curveStrength]);
 
     const activeCurveSpan = curveSpan ?? fallbackCurveSpan;
@@ -333,8 +332,12 @@ export function TextProperties({
                                 min="-100"
                                 max="100"
                                 value={curveStrength}
-                                onChange={(e) => onCurveChange(parseInt(e.target.value), curveCenter, activeCurveSpan)}
-                                onDoubleClick={() => onCurveChange(0, 0, activeCurveSpan)}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    const dynamicSpan = val === 0 ? 180 : Math.max(2, Math.min(359, Math.round((Math.abs(val) / 50) * 180)));
+                                    onCurveChange(val, curveCenter, dynamicSpan);
+                                }}
+                                onDoubleClick={() => onCurveChange(0, 0, 180)}
                                 className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
                                 title={t('text.doubleClickReset')}
                             />
@@ -373,7 +376,7 @@ export function TextProperties({
                                 </div>
                                 <input
                                     type="range"
-                                    min="15"
+                                    min="2"
                                     max="359"
                                     value={activeCurveSpan}
                                     onChange={(e) => onCurveChange(curveStrength, curveCenter, parseInt(e.target.value))}

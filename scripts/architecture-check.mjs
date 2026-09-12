@@ -41,7 +41,7 @@ for (const file of walk(sourceRoot)) {
     }
 
     if (fileName.startsWith('src/features/')) {
-        if (/from ['"]@\/components\//.test(source)) {
+        if (/from ['"]@\/components\/(?!ui\/)/.test(source)) {
             report(file, 'feature-boundary', 'Feature internals may not import legacy component internals.');
         }
         if (/from ['"]@\/app\//.test(source)) {

@@ -32,7 +32,13 @@
   ],
   "exclude": [
     "node_modules",
+    "node_modules.*/**",
+    "dist/**",
     "Imageprocessingui/**",
-    "mobile-companion/**"
+    "mobile-companion/**",
+    "e2e/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**"
   ]
 }

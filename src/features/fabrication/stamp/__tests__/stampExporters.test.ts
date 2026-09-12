@@ -2,6 +2,7 @@
  * 3D Stamp Tool - Exporter Unit Tests
  */
 
+import * as THREE from 'three';
 import { buildStampModel } from '../domain/stampModelBuilder';
 import {
     exportStampToSTL,
@@ -70,6 +71,26 @@ describe('3D Stamp Exporters', () => {
             const text = await readBlobAsText(blob);
             expect(text.includes('v ')).toBe(true);
             expect(text.includes('f ')).toBe(true);
+        });
+
+        it('still exports every part after the viewport has adopted the meshes', async () => {
+            const fresh = buildStampModel(DEFAULT_STAMP_CONFIG, dummyHeightmap, width, height);
+            const before = await readBlobAsText(exportStampToOBJ(fresh, 'complete'));
+
+            // The 3D viewport mounts the die, podium and handle individually, and
+            // THREE.Object3D.add detaches them from the assembly's own group.
+            const viewportScene = new THREE.Scene();
+            viewportScene.add(fresh.dieMesh);
+            viewportScene.add(fresh.podiumMesh);
+            viewportScene.add(fresh.handleMesh!);
+            expect(fresh.rootGroup.children.length).toBe(0);
+
+            const after = await readBlobAsText(exportStampToOBJ(fresh, 'complete'));
+            const countVertices = (obj: string) =>
+                obj.split('\n').filter((line) => line.startsWith('v ')).length;
+
+            expect(countVertices(after)).toBe(countVertices(before));
+            expect(countVertices(after)).toBeGreaterThan(0);
         });
     });
 

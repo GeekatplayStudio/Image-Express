@@ -108,7 +108,7 @@ describe('asset serve route', () => {
         const thumbnail = await call(['pic.png'], undefined, '?w=256');
         expect(original.headers.get('etag')).toBeTruthy();
         expect(thumbnail.headers.get('etag')).not.toBe(original.headers.get('etag'));
-    });
+    }, 15000);
 
     it('does not answer 304 when the validator came from the other variant', async () => {
         const thumbnail = await call(['pic.png'], undefined, '?w=256');

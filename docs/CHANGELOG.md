@@ -1,6 +1,6 @@
 # Changelog — Delivery History
 
-Last updated: 2026-09-03
+Last updated: 2026-09-12
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.1
@@ -18,6 +18,127 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-09-12 - Vault add-to-canvas revoked its own URL; local browsing rescanned everything
+
+Three reports, three unrelated causes.
+
+**An asset added from the Asset Vault never appeared on the canvas.** The vault
+handed `onSelect` a `blob:` URL taken from its own preview cache and then called
+`onClose()`. Closing runs `clearPreviewState()`, which revokes every `blob:` URL
+the grid owns — while fabric was still asynchronously decoding it. The image load
+died mid-flight and the layer silently never arrived. The same hazard applied to
+the 3D editor and the media preview, both of which dispatch a URL and immediately
+close. Anything escaping the modal now gets a freshly minted URL the caller owns.
+
+- Dropping a file onto the canvas also swallowed failures whole: a rejected
+  upload fell straight through the success branch with no layer, no toast and no
+  console entry, and a failed image decode had no `.catch()` at all. Both now
+  report, including the server's own reason. Audio uploads, previously silent,
+  say they landed in the library.
+
+**Opening the Asset Vault rescanned the entire local store sixteen times.**
+`loadAllLocalVaultRecords` looped four types x two categories x two scopes,
+calling a lister that did a full `getAll()` each time — and the unified search
+merges local records, so every search keystroke paid it again.
+
+- One scan now, filtered in memory, behind a cache invalidated on write.
+- Blob bytes moved out of the metadata records into their own IndexedDB store
+  (schema v2, migrated in place; pre-split records still read through a
+  fallback). Browsing reads metadata only; bytes are fetched for the one asset
+  that needs them. The Asset Library also stopped minting an object URL for every
+  local asset up front.
+- Catalog warm-up moved to server start (`instrumentation.ts`): the first vault
+  open after a restart used to pay for materialising the whole catalog snapshot
+  and deriving a hash vector per asset. Both are memoised for the process, so
+  doing it during boot means the user never waits for it. Fire-and-forget, and a
+  broken catalog cannot stop the server coming up.
+
+**Stamp letterforms were stair-stepped.** The relief thresholded artwork onto the
+coarse extrusion grid and only then measured distances, with an approximate
+chamfer sweep:
+
+- Thresholding first discarded the sub-pixel edge position; nothing downstream
+  could recover it. The signed distance field is now computed on the artwork
+  raster and sampled onto the extrusion grid — a distance field is smooth and
+  band-limited, so it is what downsamples cleanly.
+- The chamfer sweep was replaced with the exact linear-time
+  Felzenszwalb–Huttenlocher transform. The chamfer's level sets are octagons, so
+  curves and diagonals carried a faint faceting.
+- Anti-aliased coverage now refines the crossing to a fraction of a pixel inside
+  the transition band.
+- Cell size is derived from the draft run rather than fixed at 0.25 mm, because a
+  wall spanning one row of vertices renders as a staircase however accurate the
+  field is. Measured on a 40 mm disc at 8° draft, the mid-height isoline went
+  from 4 sampled vertices around the whole circle to 104.
+- Vertex colours are interpolated instead of bucketed into three flat tones,
+  which was quantising letter edges to the grid in the preview independently of
+  the geometry.
+
+Tests: 222 suites / 1,773 passing. New coverage for preview-URL ownership, the
+metadata/blob split and its cache, catalog warm-up, and wall resolution.
+
+## 2026-09-12 - 3D Stamp Studio: inside-out solids, dead draft angle, square round dies
+
+Every stamp the studio produced was geometrically inside out. The relief die
+and all five lathe-turned handles were wound clockwise as seen from outside, so
+their signed volume was negative: they rendered as hollow shells in the viewport
+and exported STLs whose normals pointed into the solid. The existing manifold
+suite could not see it — a consistently inverted mesh still has every edge shared
+by exactly two triangles with opposite directions, so it passed all seven checks.
+Only the primitive-built `t-bar` and `minimal-block` handles were correct, which
+meant a single export could mix solids and voids.
+
+- **Orientation fixed and now asserted.** Die faces, backplates, perimeter walls,
+  lathe caps, sidewalls, and apex cones all wound counter-clockwise from outside.
+  `stampMeshIntegrity.ts` computes signed volume, and every component test now
+  requires it to be positive alongside the existing closure checks.
+- **Draft angle was never applied.** `draftAngleDeg` was threaded from the slider
+  through the builder into `createStampReliefGeometry` and then ignored; the
+  sidewall profile was a fixed Hermite ramp between two hard-coded thresholds.
+  The relief is now driven by a signed distance field, giving a wall run of
+  exactly `reliefDepth * tan(draft)` — the surface a wall leaning back at that
+  angle actually sweeps — and continuously sloped walls instead of a one-cell
+  staircase. At 0° the ramp falls back to sub-cell width so edges stay
+  anti-aliased.
+- **Circular and oval dies were rectangular slabs.** Only the heightmap was
+  masked to the shape, so a 30 mm round podium sat on a 30 × 30 mm square plate
+  with 6 mm of rubber jutting out at each corner. Round and oval dies are now
+  built on a polar grid with a true elliptical outline.
+- **Podiums were larger than requested.** `ExtrudeGeometry` offsets the profile
+  outwards by `bevelSize` and adds `bevelThickness` past each end, so a podium
+  asked for 50 × 35 × 6 mm was modelled 53 × 38 × 7.5 mm and dipped 1.5 mm below
+  the die mounting plane. The profile is now pre-shrunk and the solid occupies
+  exactly `y = 0` to `y = thickness` within its stated footprint. Oval podiums
+  also extruded as faceted 12-gons for want of a `curveSegments` value.
+- **Metrics were fiction.** `isManifold` was hard-coded `true` and the viewport
+  badge was static text. Total height was summed from the sliders, over-reporting
+  a `finger-grip` stamp as 64.5 mm when the handle clamps itself to 12 mm and the
+  real model is 21.5 mm. Both are now measured from the assembled mesh, and solid
+  volume is reported as a material estimate.
+- **Heightmap sampling aliased fine artwork.** A 512 px heightmap was point-sampled
+  onto a 200-cell grid; it is now area-averaged when the source is finer, and grid
+  density follows physical size at ~0.25 mm per cell.
+- **Triangle budget roughly halved.** The flat backplate was tessellated at full
+  die-face density; it is a plane, so it is now a centre fan. A 50 × 35 mm die
+  dropped from ~160k to ~57k triangles, and the stamp test suite from 62 s to 9 s.
+- **Arc text ignored glyph widths and letter spacing.** Characters advanced by a
+  fixed 0.12 rad regardless of width, saturating into overlap on long strings,
+  and `letterSpacing` was configured in presets but never applied. Each glyph now
+  advances by its own measured width over the arc radius.
+- **UI de-duplicated.** The build-plate and stamp-base toggles existed in four
+  places (modal header, viewport overlay, and twice in the sidebar via a card
+  rendered in both the Podium and Relief tabs); they now live only in the
+  viewport overlay that owns them. Removed the unused `ReliefMode` type, the dead
+  `dieDataUrl` prop and `baseplatePixels` counter, and mutation of prop-held
+  meshes in a `useEffect`.
+- **Text bend Arc Span had a dead spot at 180°.** The panel treated an explicit
+  span of exactly 180 as "no span supplied" and recomputed it from bend strength,
+  so the Arc Span slider silently jumped elsewhere at that one position.
+
+Tests: 73 stamp tests (up from 58), including a new `stampReliefExtrusion` suite
+covering draft-angle wall runs, contact-plateau flatness, heightmap sampling, and
+triangle budgets. Full suite green at 220 suites / 1,759 tests.
 
 ## 2026-09-03 - Library updates, zero production vulnerabilities, mutation testing
 

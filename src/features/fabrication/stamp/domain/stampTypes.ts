@@ -11,12 +11,13 @@ export type HandleStyle =
     | 'classic-wood'
     | 'wax-seal-turned'
     | 'desk-knob'
+    | 'finger-grip'
+    | 'ribbed-peg'
+    | 't-bar'
     | 'minimal-block'
     | 'none';
 
 export type ArtworkInputMode = 'text' | 'image' | 'preset';
-
-export type ReliefMode = 'emboss' | 'deboss';
 
 export type BorderStyle = 'none' | 'single' | 'double' | 'coin-beaded';
 
@@ -59,6 +60,13 @@ export interface StampArtworkConfig {
     borderStyle: BorderStyle;
     borderThicknessMm: number;
     borderInsetMm: number;
+    blackLevel: number;         // 0 - 255 Input Black point (Photoshop-like level)
+    whiteLevel: number;         // 0 - 255 Input White point
+    gamma: number;              // 0.2 - 3.0 Midtones transfer curve
+    bitDepthSteps: number;      // 0 = continuous, 16 = 16-level, 8 = 8-level, 4 = 4-level, 2 = 2-level binary
+    lineThickening: number;     // 0 - 6 px morphological stroke expansion to bolden thin text & lines
+    imageInversion?: 'auto' | 'dark-ink' | 'light-ink'; // Auto or manual dark/light ink polarity
+    vectorSmoothing?: boolean;   // Clean noise & smooth contours into vector-quality stamp dies
 }
 
 export interface StampDimensions {
@@ -84,10 +92,14 @@ export interface StampConfig {
 export interface StampModelMetrics {
     widthMm: number;
     depthMm: number;
+    /** Measured from the assembled mesh, not summed from the config. */
     totalHeightMm: number;
     reliefDepthMm: number;
     triangleCount: number;
     vertexCount: number;
+    /** Solid volume of all parts, useful as a material estimate. */
+    solidVolumeMm3: number;
+    /** True when every part is a closed shell wound outwards (printable). */
     isManifold: boolean;
 }
 
@@ -122,9 +134,16 @@ export const DEFAULT_STAMP_CONFIG: StampConfig = {
         threshold: 128,
         useContinuousGrayscale: false,
         smoothRadius: 1.2,
-        borderStyle: 'double',
+        borderStyle: 'single',
         borderThicknessMm: 1.2,
         borderInsetMm: 1.5,
+        blackLevel: 0,
+        whiteLevel: 255,
+        gamma: 1.0,
+        bitDepthSteps: 0,
+        lineThickening: 0,
+        imageInversion: 'auto',
+        vectorSmoothing: true,
     },
     materialTheme: 'rubber-wood',
 };

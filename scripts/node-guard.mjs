@@ -184,14 +184,15 @@ function withDirOnPath(env, dir) {
  * so any `npm` we spawn runs under the right engine even if we could not re-exec.
  */
 export function envWithSupportedNode(env = process.env, minMajor = requiredNodeMajor()) {
-    // Already running on a supported Node, but PATH may still lead to a stale
-    // npm — the re-exec that got us here prepended the right directory, so keep
-    // whatever PATH we were given rather than searching again.
-    if (Number(process.versions.node.split('.')[0]) >= minMajor) return { ...env };
+    const runningMajor = Number(process.versions.node.split('.')[0]);
+    if (runningMajor >= minMajor) {
+        return withDirOnPath(env, path.dirname(process.execPath));
+    }
     const better = findSupportedNode(minMajor);
     if (!better) return { ...env };
     return withDirOnPath(env, better.dir);
 }
+
 
 /**
  * Path to the npm CLI that ships with `nodeExePath`, or null.

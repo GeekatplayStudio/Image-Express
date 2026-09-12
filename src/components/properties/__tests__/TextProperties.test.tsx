@@ -72,4 +72,52 @@ describe('TextProperties', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Detach Path' }));
         expect(onDetachPath).toHaveBeenCalledTimes(1);
     });
+
+    it('triggers onCurveChange with variable curvature when Bend slider moves', () => {
+        const onCurveChange = jest.fn();
+        render(
+            <TextProperties
+                {...baseProps}
+                onCurveChange={onCurveChange}
+            />
+        );
+
+        const sliders = screen.getAllByRole('slider');
+        const bendSlider = sliders[0];
+
+        // Move bend slider to 2 (should produce gentle curve ~7° rather than stuck at 180°)
+        fireEvent.change(bendSlider, { target: { value: '2' } });
+        expect(onCurveChange).toHaveBeenCalledWith(2, 0, 7);
+
+        // Move bend slider to 50 (half-circle 180°)
+        fireEvent.change(bendSlider, { target: { value: '50' } });
+        expect(onCurveChange).toHaveBeenCalledWith(50, 0, 180);
+
+        // Move bend slider to -25 (quarter-circle 90° downward)
+        fireEvent.change(bendSlider, { target: { value: '-25' } });
+        expect(onCurveChange).toHaveBeenCalledWith(-25, 0, 90);
+    });
+
+    it('forwards an explicit arc span, including exactly 180°', () => {
+        const onCurveChange = jest.fn();
+        render(
+            <TextProperties
+                {...baseProps}
+                curveStrength={30}
+                curveSpan={120}
+                onCurveChange={onCurveChange}
+            />
+        );
+
+        // Bend, curve centre, then arc span.
+        const spanSlider = screen.getAllByRole('slider')[2];
+
+        fireEvent.change(spanSlider, { target: { value: '240' } });
+        expect(onCurveChange).toHaveBeenCalledWith(30, 0, 240);
+
+        // 180 is a legitimate span, not a "no span supplied" sentinel.
+        fireEvent.change(spanSlider, { target: { value: '180' } });
+        expect(onCurveChange).toHaveBeenCalledWith(30, 0, 180);
+    });
 });
+

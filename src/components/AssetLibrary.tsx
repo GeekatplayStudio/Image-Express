@@ -411,7 +411,12 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         ]);
 
         const localNormalized: LibraryAsset[] = localAssets.map((item) => {
-            const previewPath = includePreviewPaths ? registerObjectUrl(URL.createObjectURL(item.data)) : undefined;
+            // Only records that still carry inline bytes (pre-blob-split) can be
+            // previewed for free here; everything else resolves lazily per tile,
+            // rather than holding an object URL open for the whole library.
+            const previewPath = includePreviewPaths && item.data
+                ? registerObjectUrl(URL.createObjectURL(item.data))
+                : undefined;
             return {
                 path: `local-file://${item.id}`,
                 previewPath,

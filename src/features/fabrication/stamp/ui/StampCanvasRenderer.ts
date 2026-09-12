@@ -7,6 +7,26 @@
  */
 
 import { PodiumShape, StampArtworkConfig, StampDimensions } from '../domain/stampTypes';
+import { drawArcText, applyLetterSpacing, drawStampBorder } from './stampCanvasArcAndBorders';
+import {
+    applyBoxBlur,
+    applyLevelsAndQuantization,
+    applyMorphologicalDilation,
+    applyVectorDeSpeckle,
+    applyVectorContourSmoothing,
+} from './stampImageProcessing';
+
+// Re-export processing helpers for consumers and unit tests
+export {
+    drawArcText,
+    applyLetterSpacing,
+    drawStampBorder,
+    applyBoxBlur,
+    applyLevelsAndQuantization,
+    applyMorphologicalDilation,
+    applyVectorDeSpeckle,
+    applyVectorContourSmoothing,
+};
 
 export interface RenderedArtworkResult {
     heightmapData: Uint8ClampedArray;
@@ -17,171 +37,11 @@ export interface RenderedArtworkResult {
 }
 
 /**
- * Renders curved arc text along a circular path.
- */
-function drawArcText(
-    ctx: CanvasRenderingContext2D,
-    text: string,
-    cx: number,
-    cy: number,
-    radius: number,
-    startAngle: number,
-    isDownward: boolean
-) {
-    if (!text.trim()) return;
-
-    ctx.save();
-    const chars = text.split('');
-    const totalChars = chars.length;
-    // Spread angle based on text length
-    const angularSpan = Math.min(Math.PI * 0.9, totalChars * 0.12);
-    const step = angularSpan / Math.max(1, totalChars - 1);
-    const initialAngle = startAngle - angularSpan / 2;
-
-    for (let i = 0; i < totalChars; i++) {
-        const char = chars[i];
-        const angle = initialAngle + i * step;
-
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(angle);
-        ctx.translate(0, isDownward ? radius : -radius);
-        if (isDownward) {
-            ctx.rotate(Math.PI);
-        }
-        ctx.fillText(char, 0, 0);
-        ctx.restore();
-    }
-    ctx.restore();
-}
-
-/**
- * Draws border rings matching the stamp shape (rectangular, circular, oval).
- */
-function drawStampBorder(
-    ctx: CanvasRenderingContext2D,
-    shape: PodiumShape,
-    w: number,
-    h: number,
-    style: string,
-    borderWidth: number,
-    inset: number
-) {
-    if (style === 'none') return;
-
-    const cx = w / 2;
-    const cy = h / 2;
-    ctx.save();
-    ctx.strokeStyle = '#ffffff';
-    ctx.fillStyle = '#ffffff';
-    ctx.lineWidth = borderWidth;
-
-    if (shape === 'circular' || shape === 'oval') {
-        const rx = cx - inset;
-        const ry = cy - inset;
-
-        if (style === 'single' || style === 'double') {
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-            ctx.stroke();
-
-            if (style === 'double') {
-                const innerRx = rx - borderWidth * 2.2;
-                const innerRy = ry - borderWidth * 2.2;
-                if (innerRx > 10 && innerRy > 10) {
-                    ctx.beginPath();
-                    ctx.ellipse(cx, cy, innerRx, innerRy, 0, 0, Math.PI * 2);
-                    ctx.lineWidth = Math.max(1, borderWidth * 0.6);
-                    ctx.stroke();
-                }
-            }
-        } else if (style === 'coin-beaded') {
-            // Coin edge beaded rim: circle of small dots
-            const count = Math.floor((Math.PI * 2 * rx) / (borderWidth * 2.2));
-            const dotR = borderWidth * 0.45;
-            for (let i = 0; i < count; i++) {
-                const angle = (i / count) * Math.PI * 2;
-                const px = cx + rx * Math.cos(angle);
-                const py = cy + ry * Math.sin(angle);
-                ctx.beginPath();
-                ctx.arc(px, py, dotR, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-    } else {
-        // Rectangular border
-        const rw = w - inset * 2;
-        const rh = h - inset * 2;
-        const rx = inset;
-        const ry = inset;
-        const cornerR = 8;
-
-        const drawRoundRect = (x: number, y: number, width: number, height: number, radius: number) => {
-            ctx.beginPath();
-            ctx.roundRect(x, y, width, height, radius);
-            ctx.stroke();
-        };
-
-        drawRoundRect(rx, ry, rw, rh, cornerR);
-
-        if (style === 'double') {
-            const gap = borderWidth * 2.2;
-            ctx.lineWidth = Math.max(1, borderWidth * 0.6);
-            drawRoundRect(rx + gap, ry + gap, rw - gap * 2, rh - gap * 2, Math.max(2, cornerR - 3));
-        }
-    }
-
-    ctx.restore();
-}
-
-/**
- * Applies a 1D horizontal and vertical box blur to smooth sharp edges into a draft slope.
- */
-function applyBoxBlur(data: Uint8ClampedArray, width: number, height: number, radius: number) {
-    if (radius <= 0) return;
-    const r = Math.round(radius);
-    const temp = new Uint8ClampedArray(data.length);
-
-    // Horizontal pass
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            let sum = 0;
-            let count = 0;
-            for (let dx = -r; dx <= r; dx++) {
-                const nx = x + dx;
-                if (nx >= 0 && nx < width) {
-                    sum += data[(y * width + nx) * 4];
-                    count++;
-                }
-            }
-            temp[(y * width + x) * 4] = Math.round(sum / count);
-        }
-    }
-
-    // Vertical pass
-    for (let x = 0; x < width; x++) {
-        for (let y = 0; y < height; y++) {
-            let sum = 0;
-            let count = 0;
-            for (let dy = -r; dy <= r; dy++) {
-                const ny = y + dy;
-                if (ny >= 0 && ny < height) {
-                    sum += temp[(ny * width + x) * 4];
-                    count++;
-                }
-            }
-            const val = Math.round(sum / count);
-            const idx = (y * width + x) * 4;
-            data[idx] = val;
-            data[idx + 1] = val;
-            data[idx + 2] = val;
-            data[idx + 3] = 255;
-        }
-    }
-}
-
-/**
  * Main artwork rasterization function.
+ * Produces:
+ * 1. heightmapData: 4-channel Uint8ClampedArray for 3D solid mesh extrusion.
+ * 2. imprintDataUrl: Positive unmirrored stencil - pure black solid, transparent background.
+ * 3. dieDataUrl: Mirrored die face view.
  */
 export async function renderStampArtwork(
     artwork: StampArtworkConfig,
@@ -189,37 +49,50 @@ export async function renderStampArtwork(
     dimensions: StampDimensions,
     canvasSize: number = 512
 ): Promise<RenderedArtworkResult> {
+    const maxDim = canvasSize || 512;
+    let canvasW = maxDim;
+    let canvasH = maxDim;
+
+    if (shape === 'circular') {
+        canvasW = maxDim;
+        canvasH = maxDim;
+    } else {
+        const wMm = Math.max(1, dimensions.widthMm);
+        const dMm = Math.max(1, dimensions.depthMm);
+        if (wMm >= dMm) {
+            canvasW = maxDim;
+            canvasH = Math.max(128, Math.round(maxDim * (dMm / wMm)));
+        } else {
+            canvasW = Math.max(128, Math.round(maxDim * (wMm / dMm)));
+            canvasH = maxDim;
+        }
+    }
+
     if (typeof document === 'undefined') {
-        // Fallback for non-DOM / test environments
-        const dummy = new Uint8ClampedArray(canvasSize * canvasSize * 4);
+        const dummy = new Uint8ClampedArray(canvasW * canvasH * 4);
         return {
             heightmapData: dummy,
-            gridWidth: canvasSize,
-            gridHeight: canvasSize,
+            gridWidth: canvasW,
+            gridHeight: canvasH,
             dieDataUrl: '',
             imprintDataUrl: '',
         };
     }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
-    const ctx = canvas.getContext('2d')!;
+    const totalPixels = canvasW * canvasH;
+    // 1. Raw continuous ink intensity buffer (0 = empty background, 255 = full ink)
+    const rawInk = new Uint8ClampedArray(totalPixels);
+    // Final single-channel relief mask buffer (0 = empty background, 255 = solid stamp relief)
+    const mask = new Uint8ClampedArray(totalPixels);
 
-    // 1. Fill base with black (0 = base plate level)
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, canvasSize, canvasSize);
+    const pxPerMm = canvasW / Math.max(1, dimensions.widthMm);
+    const borderPx = (artwork.borderThicknessMm || 1.5) * pxPerMm;
+    const insetPx = (artwork.borderInsetMm || 1.5) * pxPerMm;
+    const cx = canvasW / 2;
+    const cy = canvasH / 2;
 
-    const cx = canvasSize / 2;
-    const cy = canvasSize / 2;
-
-    // Draw borders
-    const borderPx = (artwork.borderThicknessMm / dimensions.widthMm) * canvasSize;
-    const insetPx = (artwork.borderInsetMm / dimensions.widthMm) * canvasSize;
-    drawStampBorder(ctx, shape, canvasSize, canvasSize, artwork.borderStyle, borderPx, insetPx);
-
-    // 2. Render Text or Image
     if (artwork.mode === 'image' && artwork.imageUrl) {
+        // Image / Logo Mode: load image and extract continuous grayscale ink luminance
         try {
             const img = new Image();
             img.crossOrigin = 'anonymous';
@@ -229,120 +102,282 @@ export async function renderStampArtwork(
                 img.src = artwork.imageUrl!;
             });
 
-            // Draw image centered with padding
-            const pad = insetPx + borderPx * 2;
-            const availW = canvasSize - pad * 2;
-            const availH = canvasSize - pad * 2;
-            const scale = Math.min(availW / img.width, availH / img.height);
-            const drawW = img.width * scale;
-            const drawH = img.height * scale;
-            const drawX = cx - drawW / 2;
-            const drawY = cy - drawH / 2;
+            // Inspect the source image dimensions and alpha channel directly
+            const srcCanvas = document.createElement('canvas');
+            srcCanvas.width = img.width;
+            srcCanvas.height = img.height;
+            const srcCtx = srcCanvas.getContext('2d')!;
+            srcCtx.drawImage(img, 0, 0);
+            const srcPixels = srcCtx.getImageData(0, 0, img.width, img.height).data;
 
-            ctx.drawImage(img, drawX, drawY, drawW, drawH);
+            // Check if source image has transparent pixels
+            let transparentPixels = 0;
+            let totalSampled = 0;
+            let sumLumaOpaque = 0;
+            let countOpaque = 0;
+
+            const step = Math.max(1, Math.floor((img.width * img.height) / 4000));
+            for (let i = 0; i < srcPixels.length; i += step * 4) {
+                const a = srcPixels[i + 3];
+                totalSampled++;
+                if (a < 230) {
+                    transparentPixels++;
+                } else {
+                    const luma = 0.299 * srcPixels[i] + 0.587 * srcPixels[i + 1] + 0.114 * srcPixels[i + 2];
+                    sumLumaOpaque += luma;
+                    countOpaque++;
+                }
+            }
+
+            const hasAlpha = transparentPixels / Math.max(1, totalSampled) > 0.02;
+            const avgLumaOpaque = countOpaque > 0 ? sumLumaOpaque / countOpaque : 128;
+
+            // Sample 4 corners for background color of opaque scans
+            const corner0 = 0.299 * srcPixels[0] + 0.587 * srcPixels[1] + 0.114 * srcPixels[2];
+            const corner1Idx = (img.width - 1) * 4;
+            const corner1 = 0.299 * srcPixels[corner1Idx] + 0.587 * srcPixels[corner1Idx + 1] + 0.114 * srcPixels[corner1Idx + 2];
+            const corner2Idx = (img.width * (img.height - 1)) * 4;
+            const corner2 = 0.299 * srcPixels[corner2Idx] + 0.587 * srcPixels[corner2Idx + 1] + 0.114 * srcPixels[corner2Idx + 2];
+            const corner3Idx = (img.width * img.height - 1) * 4;
+            const corner3 = 0.299 * srcPixels[corner3Idx] + 0.587 * srcPixels[corner3Idx + 1] + 0.114 * srcPixels[corner3Idx + 2];
+            const avgCornerLuma = (corner0 + corner1 + corner2 + corner3) / 4;
+
+            let isDarkInk = true;
+            if (hasAlpha) {
+                isDarkInk = avgLumaOpaque < 160;
+            } else {
+                isDarkInk = avgCornerLuma > 140;
+            }
+
+            const inversionMode = artwork.imageInversion ?? 'auto';
+            const useDarkInk = inversionMode === 'auto' ? isDarkInk : inversionMode === 'dark-ink';
+
+            // Draw image centered with padding into canvasW x canvasH
+            const imgCanvas = document.createElement('canvas');
+            imgCanvas.width = canvasW;
+            imgCanvas.height = canvasH;
+            const imgCtx = imgCanvas.getContext('2d')!;
+            imgCtx.imageSmoothingEnabled = true;
+            imgCtx.imageSmoothingQuality = 'high';
+
+            const pad = insetPx + borderPx * 2;
+            const availW = canvasW - pad * 2;
+            const availH = canvasH - pad * 2;
+            const scale = Math.min(availW / img.width, availH / img.height);
+            const drawW = Math.round(img.width * scale);
+            const drawH = Math.round(img.height * scale);
+            const drawX = Math.round(cx - drawW / 2);
+            const drawY = Math.round(cy - drawH / 2);
+
+            imgCtx.drawImage(img, drawX, drawY, drawW, drawH);
+            const imgPixels = imgCtx.getImageData(0, 0, canvasW, canvasH).data;
+
+            for (let y = 0; y < canvasH; y++) {
+                for (let x = 0; x < canvasW; x++) {
+                    if (x < drawX || x >= drawX + drawW || y < drawY || y >= drawY + drawH) {
+                        rawInk[y * canvasW + x] = 0;
+                        continue;
+                    }
+
+                    const idx = (y * canvasW + x) * 4;
+                    const r = imgPixels[idx];
+                    const g = imgPixels[idx + 1];
+                    const b = imgPixels[idx + 2];
+                    const a = imgPixels[idx + 3];
+
+                    let inkVal = 0;
+                    if (hasAlpha) {
+                        if (a < 10) {
+                            inkVal = 0;
+                        } else {
+                            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+                            const inkBase = useDarkInk ? Math.max(0, 255 - luma) : luma;
+                            inkVal = Math.round(inkBase * (a / 255));
+                        }
+                    } else {
+                        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+                        inkVal = useDarkInk ? Math.max(0, 255 - luma) : luma;
+                    }
+                    rawInk[y * canvasW + x] = inkVal;
+                }
+            }
         } catch {
-            // If image fails, fallback to rendering placeholder text
+            // Fallback to empty if image fails
         }
     } else {
-        // Text mode
+        // Text Generator Mode: render solid text typography
+        const textCanvas = document.createElement('canvas');
+        textCanvas.width = canvasW;
+        textCanvas.height = canvasH;
+        const tCtx = textCanvas.getContext('2d')!;
+        tCtx.imageSmoothingEnabled = true;
+        tCtx.imageSmoothingQuality = 'high';
+
         const { text } = artwork;
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        tCtx.fillStyle = '#ffffff';
+        tCtx.textAlign = 'center';
+        tCtx.textBaseline = 'middle';
         const fontStyle = `${text.isItalic ? 'italic ' : ''}${text.isBold ? 'bold ' : ''}`;
-        const fontSizePx = Math.round((text.fontSize / 50) * (canvasSize * 0.1));
-        ctx.font = `${fontStyle}${fontSizePx}px "${text.fontFamily}", sans-serif`;
+        const minDim = Math.min(canvasW, canvasH);
+        const fontSizePx = Math.round((text.fontSize / 50) * (minDim * 0.1));
+        tCtx.font = `${fontStyle}${fontSizePx}px "${text.fontFamily}", sans-serif`;
+
+        // Letter spacing is authored in design units; scale it with the rendered font size.
+        // Arc text does its own per-glyph advance, so tracking is only pushed onto the
+        // context for straight lines (where measureText would otherwise double-count it).
+        const letterSpacingPx = ((text.letterSpacing || 0) / 50) * fontSizePx;
 
         if (text.arcMode === 'circular-arc' || text.arcMode === 'top-bottom-arc') {
-            const arcR = (canvasSize / 2) - insetPx - borderPx * 3.5;
-            // Top arc text
-            drawArcText(ctx, text.primaryText, cx, cy, arcR, -Math.PI / 2, false);
+            const arcR = (minDim / 2) - insetPx - borderPx * 3.5;
+            drawArcText(tCtx, text.primaryText, cx, cy, arcR, -Math.PI / 2, false, letterSpacingPx);
 
-            // Bottom arc text
             if (text.secondaryText) {
-                drawArcText(ctx, text.secondaryText, cx, cy, arcR, Math.PI / 2, true);
+                drawArcText(tCtx, text.secondaryText, cx, cy, arcR, Math.PI / 2, true, letterSpacingPx);
             }
 
-            // Center icon or monogram
             if (text.centerIcon) {
-                ctx.font = `${fontStyle}${Math.round(fontSizePx * 1.5)}px "${text.fontFamily}", sans-serif`;
-                ctx.fillText(text.centerIcon, cx, cy);
+                tCtx.font = `${fontStyle}${Math.round(fontSizePx * 1.5)}px "${text.fontFamily}", sans-serif`;
+                tCtx.fillText(text.centerIcon, cx, cy);
             }
         } else {
-            // Straight text layout
+            applyLetterSpacing(tCtx, letterSpacingPx);
             if (text.secondaryText.trim()) {
-                ctx.font = `${fontStyle}${Math.round(fontSizePx * 1.1)}px "${text.fontFamily}", sans-serif`;
-                ctx.fillText(text.primaryText, cx, cy - fontSizePx * 0.65);
+                tCtx.font = `${fontStyle}${Math.round(fontSizePx * 1.1)}px "${text.fontFamily}", sans-serif`;
+                tCtx.fillText(text.primaryText, cx, cy - fontSizePx * 0.65);
 
                 const secondarySize = Math.max(12, Math.round(fontSizePx * 0.55));
-                ctx.font = `600 ${secondarySize}px "${text.fontFamily}", sans-serif`;
-                ctx.fillText(text.secondaryText, cx, cy + fontSizePx * 0.85);
+                tCtx.font = `600 ${secondarySize}px "${text.fontFamily}", sans-serif`;
+                tCtx.fillText(text.secondaryText, cx, cy + fontSizePx * 0.85);
             } else {
-                ctx.font = `${fontStyle}${fontSizePx * 1.2}px "${text.fontFamily}", sans-serif`;
-                ctx.fillText(text.primaryText, cx, cy);
+                tCtx.font = `${fontStyle}${fontSizePx * 1.2}px "${text.fontFamily}", sans-serif`;
+                tCtx.fillText(text.primaryText, cx, cy);
+            }
+        }
+
+        const tPixels = tCtx.getImageData(0, 0, canvasW, canvasH).data;
+        for (let i = 0; i < rawInk.length; i++) {
+            const idx = i * 4;
+            const r = tPixels[idx];
+            const g = tPixels[idx + 1];
+            const b = tPixels[idx + 2];
+            const a = tPixels[idx + 3];
+            rawInk[i] = Math.round((0.299 * r + 0.587 * g + 0.114 * b) * (a / 255));
+        }
+    }
+
+    // 2. Apply Photoshop-style Levels, Gamma, Bit-Depth Quantization, and Thresholding on rawInk
+    for (let i = 0; i < mask.length; i++) {
+        mask[i] = applyLevelsAndQuantization(
+            rawInk[i],
+            artwork.blackLevel,
+            artwork.whiteLevel,
+            artwork.gamma,
+            artwork.bitDepthSteps,
+            artwork.threshold,
+            artwork.useContinuousGrayscale
+        );
+    }
+
+    // 3. Vector Distance Field Contour Smoothing & Dilation (smooth diagonals, circles, connections)
+    if (artwork.vectorSmoothing ?? true) {
+        applyVectorDeSpeckle(mask, canvasW, canvasH);
+        const smoothness = Math.max(1.0, Math.min(3.5, artwork.smoothRadius || 1.6));
+        applyVectorContourSmoothing(mask, canvasW, canvasH, smoothness, artwork.lineThickening ?? 0);
+    } else {
+        if (artwork.lineThickening > 0) {
+            applyMorphologicalDilation(mask, canvasW, canvasH, artwork.lineThickening);
+        }
+        if (artwork.smoothRadius > 0) {
+            applyBoxBlur(mask, canvasW, canvasH, artwork.smoothRadius);
+        }
+    }
+
+    // 4. Draw solid borders
+    if (artwork.borderStyle !== 'none') {
+        const borderCanvas = document.createElement('canvas');
+        borderCanvas.width = canvasW;
+        borderCanvas.height = canvasH;
+        const bCtx = borderCanvas.getContext('2d')!;
+        drawStampBorder(bCtx, shape, canvasW, canvasH, artwork.borderStyle, borderPx, insetPx);
+        const bPixels = bCtx.getImageData(0, 0, canvasW, canvasH).data;
+        for (let i = 0; i < mask.length; i++) {
+            const bVal = bPixels[i * 4];
+            if (bVal > mask[i]) {
+                mask[i] = bVal;
             }
         }
     }
 
-    // Capture the normal imprint (unmirrored positive)
-    const imprintDataUrl = canvas.toDataURL('image/png');
-
-    // 3. Image Post-Processing (Mirroring, Inverting, Thresholding, Smoothing)
-    let imgData = ctx.getImageData(0, 0, canvasSize, canvasSize);
-    const pixels = imgData.data;
-
-    // Horizontal Mirroring (Stamps must be mirrored on the physical die face!)
-    if (artwork.flipHorizontal) {
-        const flippedCanvas = document.createElement('canvas');
-        flippedCanvas.width = canvasSize;
-        flippedCanvas.height = canvasSize;
-        const fCtx = flippedCanvas.getContext('2d')!;
-        fCtx.translate(canvasSize, 0);
-        fCtx.scale(-1, 1);
-        fCtx.drawImage(canvas, 0, 0);
-        imgData = fCtx.getImageData(0, 0, canvasSize, canvasSize);
-    }
-
-    const workingPixels = imgData.data;
-    const threshold = artwork.threshold;
-    const invert = artwork.invertRelief;
-    const isContinuous = artwork.useContinuousGrayscale;
-
-    for (let i = 0; i < workingPixels.length; i += 4) {
-        const r = workingPixels[i];
-        const g = workingPixels[i + 1];
-        const b = workingPixels[i + 2];
-        const a = workingPixels[i + 3];
-
-        // Perceived luminance
-        let luma = Math.round((0.299 * r + 0.587 * g + 0.114 * b) * (a / 255));
-
-        if (!isContinuous) {
-            luma = luma >= threshold ? 255 : 0;
+    // 5. Invert Relief if configured (e.g. wax seal deboss carving)
+    if (artwork.invertRelief) {
+        for (let i = 0; i < mask.length; i++) {
+            mask[i] = 255 - mask[i];
         }
+    }
 
-        if (invert) {
-            luma = 255 - luma;
+    // 6. Generate 2D stencil: solid black artwork on a transparent background
+    const imprintCanvas = document.createElement('canvas');
+    imprintCanvas.width = canvasW;
+    imprintCanvas.height = canvasH;
+    const impCtx = imprintCanvas.getContext('2d')!;
+    const impImgData = impCtx.createImageData(canvasW, canvasH);
+    const impPixels = impImgData.data;
+
+    for (let y = 0; y < canvasH; y++) {
+        for (let x = 0; x < canvasW; x++) {
+            const idx = (y * canvasW + x) * 4;
+            const val = mask[y * canvasW + x];
+            // Black solid artwork (#000000) with transparency where background is removed
+            impPixels[idx] = 0;       // R
+            impPixels[idx + 1] = 0;   // G
+            impPixels[idx + 2] = 0;   // B
+            impPixels[idx + 3] = val; // A (solid where val = 255, transparent where 0)
         }
-
-        workingPixels[i] = luma;
-        workingPixels[i + 1] = luma;
-        workingPixels[i + 2] = luma;
-        workingPixels[i + 3] = 255;
     }
+    impCtx.putImageData(impImgData, 0, 0);
+    const imprintDataUrl = imprintCanvas.toDataURL('image/png');
 
-    // Apply smoothing for organic draft angle taper
-    if (artwork.smoothRadius > 0) {
-        applyBoxBlur(workingPixels, canvasSize, canvasSize, artwork.smoothRadius);
+    // 7. Generate Die Face Stencil (Horizontally Mirrored)
+    const dieCanvas = document.createElement('canvas');
+    dieCanvas.width = canvasW;
+    dieCanvas.height = canvasH;
+    const dieCtx = dieCanvas.getContext('2d')!;
+    const dieImgData = dieCtx.createImageData(canvasW, canvasH);
+    const diePixels = dieImgData.data;
+
+    for (let y = 0; y < canvasH; y++) {
+        for (let x = 0; x < canvasW; x++) {
+            const srcX = canvasW - 1 - x;
+            const idx = (y * canvasW + x) * 4;
+            const val = mask[y * canvasW + srcX];
+            diePixels[idx] = 0;
+            diePixels[idx + 1] = 0;
+            diePixels[idx + 2] = 0;
+            diePixels[idx + 3] = val;
+        }
     }
+    dieCtx.putImageData(dieImgData, 0, 0);
+    const dieDataUrl = dieCanvas.toDataURL('image/png');
 
-    ctx.putImageData(imgData, 0, 0);
-    const dieDataUrl = canvas.toDataURL('image/png');
+    // 8. Generate Heightmap Data for 3D Mesh Extrusion (Height 0..255)
+    const heightmapData = new Uint8ClampedArray(canvasW * canvasH * 4);
+    for (let y = 0; y < canvasH; y++) {
+        for (let x = 0; x < canvasW; x++) {
+            // If physical flip is enabled, die heightmap is mirrored so physical stamp is unmirrored
+            const srcX = artwork.flipHorizontal ? (canvasW - 1 - x) : x;
+            const val = mask[y * canvasW + srcX];
+            const idx = (y * canvasW + x) * 4;
+            heightmapData[idx] = val;
+            heightmapData[idx + 1] = val;
+            heightmapData[idx + 2] = val;
+            heightmapData[idx + 3] = 255;
+        }
+    }
 
     return {
-        heightmapData: workingPixels,
-        gridWidth: canvasSize,
-        gridHeight: canvasSize,
+        heightmapData,
+        gridWidth: canvasW,
+        gridHeight: canvasH,
         dieDataUrl,
         imprintDataUrl,
     };

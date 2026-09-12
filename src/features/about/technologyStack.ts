@@ -113,7 +113,7 @@ export const TECHNOLOGY_GROUPS: TechGroup[] = [
             {
                 name: 'opentype.js',
                 package: 'opentype.js',
-                version: '1',
+                version: '2',
                 role: 'Parses font files to convert text into editable vector outlines.',
                 why: 'Converting text to paths needs the real glyph outlines, which the browser will not hand over.',
             },

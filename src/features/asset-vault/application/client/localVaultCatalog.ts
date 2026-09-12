@@ -12,7 +12,7 @@ export function localAssetToVaultRecord(record: LocalAssetRecord): VaultAssetRec
         mimeType: record.mimeType,
         type: record.type,
         category: record.category,
-        sizeBytes: record.data?.size ?? 0,
+        sizeBytes: record.sizeBytes ?? record.data?.size ?? 0,
         origin: {
             connector: 'indexeddb-legacy',
             uri: objectUrl,
@@ -37,41 +37,18 @@ export function localAssetToVaultRecord(record: LocalAssetRecord): VaultAssetRec
 
 export async function loadAllLocalVaultRecords(owner = 'Guest'): Promise<VaultAssetRecord[]> {
     if (typeof window === 'undefined') return [];
-    const { listLocalAssets } = await import('@/lib/localAssetStore');
-    const types = ['images', 'videos', 'audio', 'models'] as const;
-    const categories = ['uploads', 'generated'] as const;
-    const records: VaultAssetRecord[] = [];
-    const normalizedOwner = owner.trim() || 'Guest';
+    const { listLocalAssetsForOwner } = await import('@/lib/localAssetStore');
 
-    for (const type of types) {
-        for (const category of categories) {
-            const personal = await listLocalAssets({
-                type,
-                category,
-                owner: normalizedOwner,
-                scope: 'personal',
-                includePublic: true,
-                visibility: 'all',
-                search: '',
-            });
-            const shared = await listLocalAssets({
-                type,
-                category,
-                owner: normalizedOwner,
-                scope: 'shared',
-                includePublic: true,
-                visibility: 'all',
-                search: '',
-            });
-            const seen = new Set<string>();
-            for (const item of [...personal, ...shared]) {
-                if (seen.has(item.id)) continue;
-                seen.add(item.id);
-                records.push(localAssetToVaultRecord(item));
-            }
-        }
-    }
-    return records;
+    /**
+     * One scan, not sixteen.
+     *
+     * This used to loop four types x two categories x two scopes, calling a
+     * lister that read the entire store each time. Opening the vault therefore
+     * scanned every stored asset sixteen times over — and did it again on every
+     * search keystroke, since the unified search merges local records in.
+     */
+    const records = await listLocalAssetsForOwner(owner);
+    return records.map(localAssetToVaultRecord);
 }
 
 export async function resolveLocalPreviewUrl(record: VaultAssetRecord): Promise<string | null> {

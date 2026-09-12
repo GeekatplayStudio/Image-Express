@@ -129,16 +129,30 @@ export function useEditorCanvasAssetActions({
                     headers: authorization ? { Authorization: authorization } : undefined,
                     body: formData,
                 });
-                const json = await res.json();
-                const assetUrl = json.path || json.url;
+                const json = await res.json().catch(() => null);
+                const assetUrl = json?.path || json?.url;
 
-                if (json.success && assetUrl) {
+                // A rejected upload used to fall straight through this branch: no
+                // layer, no toast, no console entry. "Nothing happened" is the worst
+                // possible report for a failure the server already explained.
+                if (!res.ok || !json?.success || !assetUrl) {
+                    const reason = json?.message || `Upload rejected (${res.status})`;
+                    console.error(`Upload failed for ${file.name}: ${reason}`);
+                    toast({
+                        title: `Could not upload ${file.name}`,
+                        description: reason,
+                        variant: 'destructive',
+                    });
+                    continue;
+                }
+
+                {
                     const type = json.type || 'images';
                     if (!canvas) continue;
 
                     if (type === 'images' || type === 'image') {
                         fabric.FabricImage.fromURL(assetUrl, { crossOrigin: 'anonymous' }).then((img) => {
-                            if (!img) return;
+                            if (!img) throw new Error('Image decoded to nothing');
                             img.scaleToWidth(Math.min(300, (canvas.width || 800) / 3));
                             placeAtViewportCenter(canvas, img);
                             const ext = img as ExtendedFabricObject;
@@ -148,6 +162,14 @@ export function useEditorCanvasAssetActions({
                             canvas.setActiveObject(img);
                             canvas.requestRenderAll();
                             pushHistory();
+                        }).catch((error) => {
+                            // The file is on the server but never reached the canvas.
+                            console.error(`Uploaded ${file.name} but could not place it`, error);
+                            toast({
+                                title: `Uploaded ${file.name}, but it could not be placed`,
+                                description: 'The image saved to your library but failed to load onto the canvas.',
+                                variant: 'destructive',
+                            });
                         });
                     } else if (type === 'models' || type === 'model') {
                         const group = new fabric.Group([], { left: 100, top: 100, subTargetCheck: true, interactive: true });
@@ -168,6 +190,14 @@ export function useEditorCanvasAssetActions({
                         pushHistory();
                     } else if (type === 'videos' || type === 'video') {
                         toast({ title: 'Video uploaded to library. Please add from library.', variant: 'success' });
+                    } else {
+                        // Audio (and anything else the server accepts but the canvas
+                        // cannot show) used to land here and produce no feedback.
+                        toast({
+                            title: `${file.name} uploaded to your library`,
+                            description: 'This asset type cannot be placed on the canvas.',
+                            variant: 'success',
+                        });
                     }
                 }
             } catch (err) {

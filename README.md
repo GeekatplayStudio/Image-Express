@@ -32,12 +32,20 @@ It runs anywhere: as a **desktop app** on Windows/macOS, as a **self-hosted web 
 
 ## 🚀 Install & Run
 
-No native `.exe`/`.dmg` installer is published yet — the installer below is the
-real, working path today. It's still just "download one file, double-click
-it, answer a couple of questions" — no experience with computers required,
-and it installs everything else (Git, Node.js) for you.
+### 🌟 Recommended: Single-Click Desktop App (Windows & macOS)
 
-### 🪟 Windows — step by step
+No Node.js, Git, or command line required — the desktop app is completely self-contained with its own bundled runtime and launch environment:
+
+- **Windows (`.exe`)**: Download **[`ImageExpress-Setup-0.2.1.exe`](https://github.com/GeekatplayStudio/Image-Express/releases)** from GitHub Releases. Double-click the file to install. It installs instantly with zero prompts, automatically creates shortcuts on your Desktop and Start Menu, and launches Image Express in a dedicated desktop window.
+- **macOS (`.dmg`)**: Download **`ImageExpress-0.2.1-arm64.dmg`** (Apple Silicon M1/M2/M3/M4) or **`ImageExpress-0.2.1-x64.dmg`** (Intel Mac) from GitHub Releases. Open the `.dmg`, drag **Image Express** into your Applications folder, and launch it directly.
+
+---
+
+### 💻 Source Installation (Run directly from Git)
+
+If you are modifying code or prefer running straight from Git source:
+
+#### 🪟 Windows — step by step
 
 1. **[Click here to open `install.bat`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.bat)**, then click the little **⬇ download icon** near the top-right of the code box to save it.
 2. Open your **Downloads** folder and **double-click `install.bat`**.
@@ -46,7 +54,7 @@ and it installs everything else (Git, Node.js) for you.
 5. When it finishes, answer **yes** to "Create a desktop shortcut?" and **yes** to "Launch now?" — Image Express opens in your web browser.
 6. **Next time**, just double-click the **Image Express** shortcut on your desktop (or `start.bat` inside `C:\Users\<you>\ImageExpress`).
 
-### 🍎 macOS — step by step
+#### 🍎 macOS — step by step
 
 The easiest way uses **Terminal** and skips every "unidentified developer"
 warning entirely — it's three steps:
@@ -271,6 +279,9 @@ Turn the active page into monochrome, closed-path **SVG cut files** with exact m
 
 ### Fabrication Studio — one home for 3D, Cricut, materials, and CNC
 The left rail now combines physical-making tools under one **Fabrication** family. Click it for the workflow and material library, right-click it for direct 3D generation, 3D model library, Cricut Studio, and five-axis CNC planner subtools, or open the same family from the workspace circular selector. The CNC planner includes a searchable, persistent 5-axis foam-cutter hardware inventory with axis/category filters, completion tracking, safety-critical flags, and CSV export. [Read the Fabrication Studio guide](docs/FABRICATION_STUDIO.md).
+
+### 3D Stamp Studio — artwork in, printable stamp out
+Feed it the canvas, an image, or just type the text: **3D Stamp Studio** builds a press stamp or wax seal as a real solid — an extruded relief die, a chamfered backing podium, and a turned handle — and exports STL/OBJ/GLB for the whole assembly, the die plate, or the handle on its own. A signed-distance-field contour pass gives diagonals and curves smooth vector sidewalls instead of staircases, and the draft-angle control tapers those walls by exactly `reliefDepth × tan(draft)` so the stamp releases cleanly from ink, rubber, and hot wax. Circular and oval dies are built on a polar grid so the die matches the podium rather than poking out from under it. Every part is verified as a closed, outward-facing shell before you slice it, and the viewport reports the modelled height and solid volume. [Read the Fabrication Studio guide](docs/FABRICATION_STUDIO.md).
 
 Already have a 3D model on the canvas? **Right-click it and choose Unfold.** With no setup dialog, Image Express creates an origami-style vector net with cut lines, fold lines, numbered faces, glue tabs, and automatically packed millimetre sheets. Dense GLB/GLTF meshes are reduced to a practical paper-model topology automatically; exact material and scale controls remain available in Cricut Studio.
 
@@ -499,6 +510,7 @@ src/lib/server/jobQueue/   Durable job queue: store, lane scheduler, per-kind ha
 src/lib/cricut/      Cricut export: thresholding, contour tracing, node simplification, sheet nesting, SVG output
 src/lib/foamcut/     Low-poly unfold bridge: Foldcraft pipeline in a Web Worker with live step progress
 src/features/fabrication/  Fabrication workflows, material presets, and the CNC bill-of-materials inventory
+src/features/fabrication/stamp/  3D Stamp Studio: relief extrusion, podium/handle geometry, mesh integrity, exporters
 electron/            Desktop shell (child-process server boot, auto-updater, startup logging)
 theme-packs/          Theme-pack authoring workspace (gitignored — packs are downloads, not source)
 ambience-packs/       Dashboard-ambience authoring workspace (gitignored, same reasoning)
@@ -537,7 +549,7 @@ Every release is guarded by a comprehensive, multi-layer verification pipeline:
 - [docs/DESKTOP.md](docs/DESKTOP.md) — desktop packaging, auto-update, and startup-log internals
 - [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) — tag-to-artifact release pipeline
 - [docs/JOB_QUEUE.md](docs/JOB_QUEUE.md) — the job queue's design rationale and extension guide
-- [docs/FABRICATION_STUDIO.md](docs/FABRICATION_STUDIO.md) — the Fabrication tool family, one-click origami unfold, material presets, and the 5-axis CNC inventory
+- [docs/FABRICATION_STUDIO.md](docs/FABRICATION_STUDIO.md) — the Fabrication tool family, one-click origami unfold, 3D Stamp Studio, material presets, and the 5-axis CNC inventory
 - [docs/FOLDCRAFT.md](docs/FOLDCRAFT.md) — the Foldcraft unfolding library: design, groove maths, and roadmap
 - [docs/FOLDCRAFT_MACHINE.md](docs/FOLDCRAFT_MACHINE.md) — the open-source ultrasonic tilting-knife cutter the library targets
 - [docs/FOLDCRAFT_MACHINE_BUILD.md](docs/FOLDCRAFT_MACHINE_BUILD.md) — build requirements: controller choice, axis specs, grblHAL config, G-code contract, commissioning, BOM

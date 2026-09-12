@@ -26,30 +26,36 @@ export function downloadBlob(blob: Blob, filename: string): void {
 
 /**
  * Resolves the 3D object to export based on the chosen target:
- * - 'complete': the entire assembled rootGroup or merged mesh
+ * - 'complete': every part, or the pre-merged single mesh
  * - 'die-plate': the die mesh + podium
- * - 'handle': the handle mesh
+ * - 'handle': the handle mesh, dropped to the build plate
+ *
+ * Always assembled from clones. `Object3D.add` detaches an object from its current parent,
+ * so exporting the live meshes would pull them out of whatever scene is rendering them -
+ * and reading `rootGroup` would return an empty group once the viewport has adopted them.
  */
 function resolveExportObject(
     assembly: AssembledStampResult,
     target: StampExportTarget,
     useMergedMesh: boolean = false
 ): THREE.Object3D {
-    if (target === 'handle') {
-        if (assembly.handleMesh) {
-            return assembly.handleMesh;
-        }
-        return assembly.rootGroup;
+    if (target === 'handle' && assembly.handleMesh) {
+        const handle = assembly.handleMesh.clone();
+        // Print the handle standing on the bed rather than floating at podium height.
+        handle.position.set(0, 0, 0);
+        handle.updateMatrixWorld(true);
+        return handle;
     }
 
     if (target === 'die-plate') {
         const diePlateGroup = new THREE.Group();
         diePlateGroup.add(assembly.dieMesh.clone());
         diePlateGroup.add(assembly.podiumMesh.clone());
+        diePlateGroup.updateMatrixWorld(true);
         return diePlateGroup;
     }
 
-    // 'complete'
+    // 'complete' (also the fallback when a handle export is requested on a handle-less stamp)
     if (useMergedMesh) {
         return new THREE.Mesh(
             assembly.mergedGeometry,
@@ -57,7 +63,15 @@ function resolveExportObject(
         );
     }
 
-    return assembly.rootGroup;
+    const completeGroup = new THREE.Group();
+    completeGroup.name = 'StampAssembly';
+    completeGroup.add(assembly.dieMesh.clone());
+    completeGroup.add(assembly.podiumMesh.clone());
+    if (assembly.handleMesh) {
+        completeGroup.add(assembly.handleMesh.clone());
+    }
+    completeGroup.updateMatrixWorld(true);
+    return completeGroup;
 }
 
 /**

@@ -2034,62 +2034,77 @@ export default function PropertiesPanel({
              const { strength, center, span } = value as { strength: number; center?: number; span?: number };
              const extended = selectedObject as ExtendedFabricObject;
              const nextCenter = center ?? 0;
-             const nextSpan = Math.max(15, Math.min(359, Math.round(span ?? curveSpan ?? 180)));
-             extended.set({ curveStrength: strength, curveCenter: nextCenter, curveSpan: nextSpan, textPathSourceId: undefined });
-             setCurveStrength(strength);
-             setCurveCenter(nextCenter);
-             setCurveSpan(nextSpan);
+             const absStrength = Math.min(100, Math.abs(strength));
              
-             if (strength === 0) {
+             if (strength === 0 || absStrength === 0) {
+                 extended.set({ curveStrength: 0, curveCenter: nextCenter, curveSpan: span ?? curveSpan ?? 180, textPathSourceId: undefined });
+                 setCurveStrength(0);
+                 setCurveCenter(nextCenter);
                  selectedObject.set('path', null);
                  (selectedObject as fabric.IText).set('pathStartOffset', 0);
                  clearTextPathRenderSafetyIfUnused(selectedObject as fabric.IText);
+                 selectedObject.set('dirty', true);
+                 canvas.requestRenderAll();
              } else {
-                  const textObj = selectedObject as fabric.IText;
-                  const baseWidth = typeof textObj.calcTextWidth === 'function'
-                      ? textObj.calcTextWidth()
-                      : (textObj.width ?? 0);
-                  const textWidth = Math.max(baseWidth || 0, 1);
-                  const angle = (Math.max(15, Math.min(359.5, nextSpan)) * Math.PI) / 180;
-                  // Add a generous length buffer at stronger curves to keep text from wrapping on itself or clipping end characters.
-                  // Glyphs on curve edges often need more room.
-                  const fontSize = typeof textObj.fontSize === 'number' ? textObj.fontSize : 16;
-                  const padding = Math.max(24, fontSize * 1.5, textWidth * 0.25); 
-                  const arcLength = textWidth + padding;
-                  
-                  const baseRadius = arcLength / angle;
-                  const direction = strength >= 0 ? -1 : 1;
-                  const R = baseRadius;
-                  const halfAngle = angle / 2;
-                  
-                  const largeArcFlag = nextSpan > 180 ? 1 : 0;
-                  const sweepFlag = direction === -1 ? 1 : 0;
-                  
-                  const startX = -R * Math.sin(halfAngle);
-                  const startY = -direction * R * (1 - Math.cos(halfAngle));
-                  const endX = R * Math.sin(halfAngle);
-                  const endY = -direction * R * (1 - Math.cos(halfAngle));
+                 // The bend slider (-100 to 100) produces a variable curve at every tick:
+                 // |strength| 2 ≈ 7° deflection, 25 ≈ 90°, 50 ≈ 180°, 100 ≈ 359°.
+                 // TextProperties derives that span from the bend slider and sends it here, so an
+                 // explicit span is always honoured — including 180°, which the Arc Span slider
+                 // could otherwise never set because it looked like the "no span given" default.
+                 const derivedSpan = Math.round((absStrength / 50) * 180);
+                 const effectiveSpan = typeof span === 'number' ? span : (curveSpan ?? derivedSpan);
+                 const nextSpan = Math.max(2, Math.min(359, Math.round(effectiveSpan)));
+                 extended.set({ curveStrength: strength, curveCenter: nextCenter, curveSpan: nextSpan, textPathSourceId: undefined });
+                 setCurveStrength(strength);
+                 setCurveCenter(nextCenter);
+                 setCurveSpan(nextSpan);
 
-                  const originX = (selectedObject.originX ?? 'center') as 'left' | 'center' | 'right';
-                  const originY = (selectedObject.originY ?? 'center') as 'top' | 'center' | 'bottom';
-                  const anchorPoint = selectedObject.getPointByOrigin(originX, originY);
+                 const textObj = selectedObject as fabric.IText;
+                 const baseWidth = typeof textObj.calcTextWidth === 'function'
+                     ? textObj.calcTextWidth()
+                     : (textObj.width ?? 0);
+                 const textWidth = Math.max(baseWidth || 0, 1);
+                 const angle = (nextSpan * Math.PI) / 180;
+                 // Add a generous length buffer at stronger curves to keep text from wrapping on itself or clipping end characters.
+                 const fontSize = typeof textObj.fontSize === 'number' ? textObj.fontSize : 16;
+                 const padding = Math.max(24, fontSize * 1.5, textWidth * 0.25); 
+                 const arcLength = textWidth + padding;
+                 
+                 const baseRadius = arcLength / angle;
+                 const direction = strength >= 0 ? -1 : 1;
+                 const R = baseRadius;
+                 const halfAngle = angle / 2;
+                 
+                 const largeArcFlag = nextSpan > 180 ? 1 : 0;
+                 const sweepFlag = direction === -1 ? 1 : 0;
+                 
+                 const startX = -R * Math.sin(halfAngle);
+                 const startY = -direction * R * (1 - Math.cos(halfAngle));
+                 const endX = R * Math.sin(halfAngle);
+                 const endY = -direction * R * (1 - Math.cos(halfAngle));
 
-                  const pathData = `M ${startX} ${startY} A ${R} ${R} 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY}`;
+                 const originX = (selectedObject.originX ?? 'center') as 'left' | 'center' | 'right';
+                 const originY = (selectedObject.originY ?? 'center') as 'top' | 'center' | 'bottom';
+                 const anchorPoint = selectedObject.getPointByOrigin(originX, originY);
 
-                  const path = new fabric.Path(pathData);
-                  path.set({ visible: false });
-                  selectedObject.set('path', path);
-                  applyTextPathRenderSafety(textObj);
-                  const pathLength = Math.max(1, arcLength);
-                  const slack = Math.max(0, pathLength - textWidth);
-                  const align = (textObj.textAlign || 'left').toLowerCase();
-                  let baseOffset = 0;
-                  if (align.includes('left')) baseOffset = slack / 2;
-                  else if (align.includes('right')) baseOffset = -(slack / 2);
-                  const centerShift = (nextCenter / 100) * (pathLength * 0.5);
-                  textObj.set('pathStartOffset', baseOffset + centerShift);
-                  selectedObject.setPositionByOrigin(anchorPoint, originX, originY);
-                  selectedObject.setCoords();
+                 const pathData = `M ${startX} ${startY} A ${R} ${R} 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY}`;
+
+                 const path = new fabric.Path(pathData);
+                 path.set({ visible: false });
+                 selectedObject.set('path', path);
+                 applyTextPathRenderSafety(textObj);
+                 const pathLength = Math.max(1, arcLength);
+                 const slack = Math.max(0, pathLength - textWidth);
+                 const align = (textObj.textAlign || 'left').toLowerCase();
+                 let baseOffset = 0;
+                 if (align.includes('left')) baseOffset = slack / 2;
+                 else if (align.includes('right')) baseOffset = -(slack / 2);
+                 const centerShift = (nextCenter / 100) * (pathLength * 0.5);
+                 textObj.set('pathStartOffset', baseOffset + centerShift);
+                 selectedObject.setPositionByOrigin(anchorPoint, originX, originY);
+                 selectedObject.setCoords();
+                 selectedObject.set('dirty', true);
+                 canvas.requestRenderAll();
              }
         }
 

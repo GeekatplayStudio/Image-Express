@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { createStampHandleGeometry } from './stampHandleGeometry';
+import { computeSignedVolume } from './stampMeshIntegrity';
 import { createStampPodiumGeometry } from './stampPodiumGeometry';
 import { createStampReliefGeometry } from './stampReliefExtrusion';
 import {
@@ -89,7 +90,8 @@ export function createStampMaterials(theme: StampMaterialTheme): {
 
     // Default: 'rubber-wood' (Classic desk hand stamp)
     const terracottaRubber = new THREE.MeshStandardMaterial({
-        color: 0xc2410c, // Vulcanized orange/red stamp rubber
+        color: 0xffffff, // Modulates with vertexColors
+        vertexColors: true,
         roughness: 0.85,
         metalness: 0.0,
     });
@@ -192,6 +194,7 @@ export function buildStampModel(
         basePlateThicknessMm,
         shape: podiumShape,
         draftAngleDeg,
+        useContinuousGrayscale: config.artwork.useContinuousGrayscale,
     });
     const dieMesh = new THREE.Mesh(dieGeometry, materials.dieMaterial);
     dieMesh.name = 'StampDie';
@@ -243,15 +246,21 @@ export function buildStampModel(
     }
     const mergedGeometry = mergeGeometries(mergeParts);
 
-    // Calculate metrics
-    const totalHeightMm =
-        basePlateThicknessMm +
-        reliefDepthMm +
-        podiumThicknessMm +
-        (handleMesh ? handleHeightMm : 0);
+    // Measure the assembled solid rather than re-deriving it from the config: several
+    // handle styles clamp their own height (finger-grip tops out at 12mm), so adding the
+    // requested handle height would over-report how tall the printed stamp actually is.
+    mergedGeometry.computeBoundingBox();
+    const bounds = mergedGeometry.boundingBox;
+    const totalHeightMm = bounds ? bounds.max.y - bounds.min.y : 0;
 
     const triangleCount = mergedGeometry.getIndex() ? mergedGeometry.getIndex()!.count / 3 : 0;
     const vertexCount = mergedGeometry.getAttribute('position') ? mergedGeometry.getAttribute('position').count : 0;
+
+    // Each part is an independently closed shell; a negative signed volume means one of them
+    // is wound inside-out, which renders as a see-through shape and fails slicer repair.
+    const shellVolumes = mergeParts.map(({ geom }) => computeSignedVolume(geom));
+    const isManifold = shellVolumes.every((volume) => volume > 0);
+    const solidVolumeMm3 = shellVolumes.reduce((sum, volume) => sum + Math.abs(volume), 0);
 
     const metrics: StampModelMetrics = {
         widthMm,
@@ -260,7 +269,8 @@ export function buildStampModel(
         reliefDepthMm,
         triangleCount,
         vertexCount,
-        isManifold: true,
+        solidVolumeMm3: Math.round(solidVolumeMm3),
+        isManifold,
     };
 
     return {

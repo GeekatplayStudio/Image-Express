@@ -344,6 +344,24 @@ the unfolded pieces, so the result is watchable and diagnosable rather than a
 spinner. (The earlier paper Unfold was removed 2026-08-18; Foldcraft replaces
 it.)
 
+### 3D Stamp Studio — Shipped
+
+Turns canvas artwork, an uploaded image, or typeset text into a printable press
+stamp or wax seal: an extruded relief die, a chamfered backing podium, and a
+turned handle, exported as STL / OBJ / GLB for the complete assembly, the die
+plate alone, or the handle alone.
+
+Artwork passes through Levels, bit-depth quantisation, and a signed-distance-field
+contour pass before extrusion, so diagonals and curves come out as smooth vector
+walls rather than staircases. The **Draft Angle** control tapers the relief
+sidewalls by exactly `reliefDepth * tan(draft)` for clean release from ink,
+rubber, and wax. Circular and oval dies are built on a polar grid, so the die
+outline matches the podium instead of jutting out from under it.
+
+Each part is generated as a closed shell wound outwards; the viewport reports the
+measured result, the modelled height, and the solid volume as a material
+estimate. See [FABRICATION_STUDIO.md](FABRICATION_STUDIO.md).
+
 ### Media export overlay — Partial
 Single-canvas crop workflow (A1–A3) plus a frame-to-variant bridge (B1).
 *Missing:* the full campaign workspace — create/rename/duplicate/delete variants

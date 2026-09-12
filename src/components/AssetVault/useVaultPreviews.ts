@@ -221,11 +221,32 @@ export function useVaultPreviews({
         return url;
     }, [sourceUrls]);
 
+    /**
+     * A URL safe to hand to something that outlives this modal.
+     *
+     * Every `blob:` URL in `sourceUrls` is revoked when the modal closes
+     * (`clearPreviewState`) or when the asset scrolls off the page
+     * (`revokeRemovedBlobs`). Consumers only *start* an async load, so passing a
+     * tracked URL and then calling `onClose()` revoked it mid-decode: the canvas
+     * layer silently never appeared, and the 3D editor got an already-dead blob.
+     * Minting a fresh URL hands ownership to the caller instead.
+     */
+    const resolveEscapingUrl = useCallback(async (
+        asset: VaultAssetRecord,
+        knownUrl?: string,
+    ): Promise<string | null> => {
+        const shared = knownUrl || await resolveSourceUrl(asset);
+        if (!shared) return null;
+        if (!shared.startsWith('blob:')) return shared;
+        const owned = await resolveVaultPreviewUrl(asset).catch(() => null);
+        return owned || shared;
+    }, [resolveSourceUrl]);
+
     const openClassic3dViewer = useCallback(async (asset: VaultAssetRecord) => {
         setContextMenu(null);
         setPreviewPopup(null);
         setDetail(null);
-        const url = await resolveSourceUrl(asset);
+        const url = await resolveEscapingUrl(asset);
         if (!url) {
             setStatusMessage(t('vault.previewUnavailable'));
             return;
@@ -236,14 +257,14 @@ export function useVaultPreviews({
             detail: { url, name: asset.name },
         }));
         onClose();
-    }, [onClose, resolveSourceUrl, setStatusMessage, t]);
+    }, [onClose, resolveEscapingUrl, setStatusMessage, t]);
 
     const openClassicMediaPreview = useCallback(async (asset: VaultAssetRecord) => {
         if (asset.type !== 'videos' && asset.type !== 'audio') return;
         setContextMenu(null);
         setPreviewPopup(null);
         setDetail(null);
-        const url = await resolveSourceUrl(asset);
+        const url = await resolveEscapingUrl(asset);
         if (!url) {
             setStatusMessage(t('vault.previewUnavailable'));
             return;
@@ -252,7 +273,7 @@ export function useVaultPreviews({
             detail: { type: asset.type === 'videos' ? 'video' : 'audio', url },
         }));
         onClose();
-    }, [onClose, resolveSourceUrl, setStatusMessage, t]);
+    }, [onClose, resolveEscapingUrl, setStatusMessage, t]);
 
     const openDetail = useCallback(async (asset: VaultAssetRecord) => {
         setContextMenu(null);
@@ -376,14 +397,14 @@ export function useVaultPreviews({
     }, []);
 
     const handleAddToCanvas = useCallback(async (asset: VaultAssetRecord, knownUrl?: string) => {
-        const url = knownUrl || await resolveSourceUrl(asset);
+        const url = await resolveEscapingUrl(asset, knownUrl);
         if (!url) {
             setStatusMessage(t('vault.previewUnavailable'));
             return;
         }
         onSelect(url, asset.type as AssetType, asset.name);
         onClose();
-    }, [onClose, onSelect, resolveSourceUrl, setStatusMessage, t]);
+    }, [onClose, onSelect, resolveEscapingUrl, setStatusMessage, t]);
 
     const openContextMenu = useCallback((target: ContextTarget, event: MouseEvent) => {
         event.preventDefault();

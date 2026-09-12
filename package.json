@@ -10,13 +10,13 @@
   "overrides": {
     "tar": "^7.5.21",
     "fast-uri": "^3.1.6",
-    "sharp": "^0.35.0",
+    "sharp": "^0.35.4",
     "postcss": "^8.5.10",
     "brace-expansion@1": "^1.1.18",
     "brace-expansion@2": "^2.1.4",
     "brace-expansion@5": "^5.0.9",
     "dompurify": "^3.4.13",
-    "hono": "^4.13.1",
+    "hono": "^4.13.7",
     "builder-util-runtime": "^9.7.0",
     "@hono/node-server": "^2.0.12",
     "js-yaml": "^4.3.0",
@@ -38,7 +38,8 @@
     "canvas": true,
     "onnxruntime-node": true,
     "protobufjs": true,
-    "unrs-resolver": true
+    "unrs-resolver": true,
+    "@parcel/watcher": true
   },
   "scripts": {
     "doctor:node": "node scripts/node-guard.mjs",
@@ -126,7 +127,7 @@
     "heic-to": "^1.5.2",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
-    "lucide-react": "^1.41.0",
+    "lucide-react": "^0.562.0",
     "mime": "^4.1.0",
     "next": "^16.3.4",
     "opentype.js": "^2.0.0",
@@ -220,6 +221,16 @@
           "!playwright-report/**",
           "!.git/**",
           "!.claude/**",
+          "!ComfyUI workflows/**",
+          "!ComfyUI workflows",
+          "!3d-models/**",
+          "!3d-models",
+          "!Packs-Assets-NotInclude/**",
+          "!Packs-Assets-NotInclude",
+          "!mobile-companion/**",
+          "!mobile-companion",
+          "!external/**",
+          "!external",
           "!**/*.secret",
           "!**/users.json",
           "!**/user-key-vault.json",
@@ -247,8 +258,24 @@
         ]
       },
       {
-        "from": "node_modules/next/dist/compiled/next-server",
-        "to": "next-standalone/node_modules/next/dist/compiled/next-server"
+        "from": "node_modules/next",
+        "to": "next-standalone/node_modules/next"
+      },
+      {
+        "from": "node_modules/react",
+        "to": "next-standalone/node_modules/react"
+      },
+      {
+        "from": "node_modules/react-dom",
+        "to": "next-standalone/node_modules/react-dom"
+      },
+      {
+        "from": "node_modules/@swc/helpers",
+        "to": "next-standalone/node_modules/@swc/helpers"
+      },
+      {
+        "from": "node_modules/@next/env",
+        "to": "next-standalone/node_modules/@next/env"
       },
       {
         "from": "scripts",

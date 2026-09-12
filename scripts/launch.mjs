@@ -4,7 +4,7 @@ import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { ensureDependencies } from './ensure-deps.mjs';
 import { enforceSupportedNode } from './node-guard.mjs';
-import { assertNoConflictingServer } from './server-lock.mjs';
+import { assertNoConflictingServer, hasCompleteProductionBuild } from './server-lock.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -32,6 +32,34 @@ function banner() {
     console.log('===================================================');
     console.log('              Image Express Launcher                ');
     console.log('===================================================');
+}
+
+/**
+ * Returns true when any source file in src/ has been modified after the current
+ * production build was generated. Fast directory walk (~15ms on 800+ files).
+ */
+function hasSourceChanges() {
+    const buildIdPath = path.join(rootDir, '.next', 'BUILD_ID');
+    if (!fs.existsSync(buildIdPath)) return true;
+    try {
+        const buildMtime = fs.statSync(buildIdPath).mtimeMs;
+        const srcDir = path.join(rootDir, 'src');
+        function newestMtime(dir) {
+            let max = 0;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    max = Math.max(max, newestMtime(fullPath));
+                } else if (entry.isFile()) {
+                    max = Math.max(max, fs.statSync(fullPath).mtimeMs);
+                }
+            }
+            return max;
+        }
+        return newestMtime(srcDir) > buildMtime;
+    } catch {
+        return true;
+    }
 }
 
 /**
@@ -100,7 +128,8 @@ function main() {
     ensureDependencies(updated);
 
     const buildDir = path.join(rootDir, '.next');
-    if (fs.existsSync(buildDir)) {
+    const needsRebuild = updated || !hasCompleteProductionBuild() || hasSourceChanges();
+    if (needsRebuild && fs.existsSync(buildDir)) {
         log('Rebuilding to pick up the latest code...');
         const staleDir = `${buildDir}.stale-${Date.now()}`;
         try {

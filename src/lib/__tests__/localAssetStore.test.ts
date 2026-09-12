@@ -1,7 +1,9 @@
 import {
     deleteLocalAsset,
     getLocalAssetBlob,
+    invalidateLocalAssetCache,
     listLocalAssets,
+    listLocalAssetsForOwner,
     renameLocalAsset,
     saveLocalAsset,
     setLocalAssetVisibility,
@@ -14,9 +16,19 @@ type AnyRequest<T> = IDBRequest<T> & {
     error: Error | null;
 };
 
+/**
+ * A minimal IndexedDB stand-in.
+ *
+ * It models what the store actually relies on: several *named* object stores in
+ * one transaction, and out-of-line keys (`put(value, key)`) for the blob store.
+ * An earlier version kept a single shared record map and ignored the key
+ * argument, so every store aliased to the same data - which quietly made the
+ * metadata/blob split untestable.
+ */
 class FakeObjectStore {
     constructor(
         private readonly records: Map<string, unknown>,
+        private readonly keyPath: string | null,
         private readonly requestFactory: <T>(executor: () => T) => IDBRequest<T>
     ) { }
 
@@ -24,10 +36,15 @@ class FakeObjectStore {
         return undefined;
     }
 
-    put(value: unknown) {
+    private resolveKey(value: unknown, explicitKey?: string) {
+        if (this.keyPath) return (value as Record<string, string>)[this.keyPath];
+        if (explicitKey === undefined) throw new Error('A key is required for an out-of-line store.');
+        return explicitKey;
+    }
+
+    put(value: unknown, key?: string) {
         return this.requestFactory(() => {
-            const record = value as { id: string };
-            this.records.set(record.id, value);
+            this.records.set(this.resolveKey(value, key), value);
             return value;
         });
     }
@@ -46,6 +63,12 @@ class FakeObjectStore {
             return undefined;
         });
     }
+
+    openCursor() {
+        // No pre-split records exist in these tests, so the migration sweep has
+        // nothing to walk.
+        return this.requestFactory(() => null);
+    }
 }
 
 class FakeTransaction {
@@ -55,7 +78,7 @@ class FakeTransaction {
     error: Error | null = null;
     private pendingRequests = 0;
 
-    constructor(private readonly records: Map<string, unknown>) { }
+    constructor(private readonly stores: Map<string, FakeStoreState>) { }
 
     private scheduleComplete() {
         if (this.pendingRequests !== 0 || this.error) return;
@@ -93,27 +116,35 @@ class FakeTransaction {
         return request as AnyRequest<T>;
     }
 
-    objectStore() {
-        return new FakeObjectStore(this.records, (executor) => this.createRequest(executor)) as unknown as IDBObjectStore;
+    objectStore(name: string) {
+        const state = this.stores.get(name);
+        if (!state) throw new Error(`No such object store: ${name}`);
+        return new FakeObjectStore(
+            state.records,
+            state.keyPath,
+            (executor) => this.createRequest(executor),
+        ) as unknown as IDBObjectStore;
     }
 }
 
+type FakeStoreState = { records: Map<string, unknown>; keyPath: string | null };
+
 class FakeDatabase {
-    private hasAssetStore = false;
-    private readonly records = new Map<string, unknown>();
+    readonly stores = new Map<string, FakeStoreState>();
+
     objectStoreNames = {
-        contains: (name: string) => this.hasAssetStore && name === 'assets',
+        contains: (name: string) => this.stores.has(name),
     };
 
-    createObjectStore() {
-        this.hasAssetStore = true;
+    createObjectStore(name: string, options?: { keyPath?: string }) {
+        this.stores.set(name, { records: new Map(), keyPath: options?.keyPath ?? null });
         return {
             createIndex: () => undefined,
         } as unknown as IDBObjectStore;
     }
 
     transaction() {
-        return new FakeTransaction(this.records) as unknown as IDBTransaction;
+        return new FakeTransaction(this.stores) as unknown as IDBTransaction;
     }
 
     close() {
@@ -127,12 +158,14 @@ class FakeIndexedDb {
     open() {
         const request: Partial<IDBOpenDBRequest> & {
             result: IDBDatabase;
+            transaction: IDBTransaction | null;
             onupgradeneeded: ((event: Event) => void) | null;
             onsuccess: ((event: Event) => void) | null;
             onerror: ((event: Event) => void) | null;
             error: Error | null;
         } = {
             result: this.db as unknown as IDBDatabase,
+            transaction: null,
             onupgradeneeded: null,
             onsuccess: null,
             onerror: null,
@@ -141,8 +174,10 @@ class FakeIndexedDb {
 
         setTimeout(() => {
             try {
-                if (!this.db.objectStoreNames.contains('assets')) {
+                if (!this.db.objectStoreNames.contains('assets') || !this.db.objectStoreNames.contains('blobs')) {
+                    request.transaction = this.db.transaction();
                     request.onupgradeneeded?.(new Event('upgradeneeded'));
+                    request.transaction = null;
                 }
                 request.onsuccess?.(new Event('success'));
             } catch (error) {
@@ -172,6 +207,8 @@ describe('localAssetStore', () => {
             configurable: true,
             writable: true,
         });
+        // The metadata cache is module-level; a fresh database needs a fresh cache.
+        invalidateLocalAssetCache();
     });
 
     it('saves, lists, filters, renames, toggles visibility, downloads, and deletes local assets', async () => {
@@ -260,6 +297,85 @@ describe('localAssetStore', () => {
         await expect(renameLocalAsset('missing-id', 'new.png')).rejects.toThrow('Asset not found.');
         await expect(setLocalAssetVisibility('missing-id', true)).rejects.toThrow('Asset not found.');
         await expect(getLocalAssetBlob('missing-id')).rejects.toThrow('Asset not found.');
+    });
+
+    it('keeps listings free of blob bytes so browsing never deserialises them', async () => {
+        const saved = await saveLocalAsset({
+            file: new Blob(['payload-bytes']),
+            filename: 'alpha.png',
+            type: 'images',
+            category: 'uploads',
+            owner: 'alice@example.com',
+            isPublic: false,
+        });
+
+        const listed = await listLocalAssets({ ...listParams, owner: 'alice@example.com' });
+        const record = listed.find((item) => item.id === saved.id);
+
+        expect(record).toBeDefined();
+        // The whole point of the split: a listing carries metadata, not payloads.
+        expect(record?.data).toBeUndefined();
+        expect(record?.sizeBytes).toBe(13);
+
+        // The bytes are still retrievable on demand.
+        const blob = await getLocalAssetBlob(saved.id);
+        expect(blob.size).toBe(13);
+    });
+
+    it('returns every visible record for an owner in one pass', async () => {
+        await saveLocalAsset({
+            file: new Blob(['a']),
+            filename: 'mine.png',
+            type: 'images',
+            category: 'uploads',
+            owner: 'alice@example.com',
+            isPublic: false,
+        });
+        await saveLocalAsset({
+            file: new Blob(['b']),
+            filename: 'theirs-public.mp4',
+            type: 'videos',
+            category: 'generated',
+            owner: 'bob@example.com',
+            isPublic: true,
+        });
+        await saveLocalAsset({
+            file: new Blob(['c']),
+            filename: 'theirs-private.png',
+            type: 'images',
+            category: 'uploads',
+            owner: 'bob@example.com',
+            isPublic: false,
+        });
+
+        const visible = await listLocalAssetsForOwner('alice@example.com');
+        const names = visible.map((item) => item.name).sort();
+
+        // Across every type and category at once - own assets plus public ones.
+        expect(names).toEqual(['mine.png', 'theirs-public.mp4']);
+    });
+
+    it('serves repeat listings from cache and refreshes them after a write', async () => {
+        const saved = await saveLocalAsset({
+            file: new Blob(['a']),
+            filename: 'alpha.png',
+            type: 'images',
+            category: 'uploads',
+            owner: 'alice@example.com',
+            isPublic: false,
+        });
+
+        const first = await listLocalAssetsForOwner('alice@example.com');
+        const second = await listLocalAssetsForOwner('alice@example.com');
+        expect(second).toHaveLength(first.length);
+
+        await renameLocalAsset(saved.id, 'renamed.png');
+        const afterWrite = await listLocalAssetsForOwner('alice@example.com');
+        expect(afterWrite.map((item) => item.name)).toContain('renamed.png');
+
+        invalidateLocalAssetCache();
+        const afterInvalidate = await listLocalAssetsForOwner('alice@example.com');
+        expect(afterInvalidate.map((item) => item.name)).toContain('renamed.png');
     });
 
     it('throws when IndexedDB is unavailable', async () => {

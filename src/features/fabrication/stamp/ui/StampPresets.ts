@@ -3,14 +3,19 @@
  * Pre-configured real-world stamp designs: Desk Rubber Stamps & Wax Seals.
  */
 
-import { StampConfig } from '../domain/stampTypes';
+import { StampArtworkConfig, StampConfig, StampDimensions } from '../domain/stampTypes';
+
+export type PartialStampConfig = Partial<Omit<StampConfig, 'artwork' | 'dimensions'>> & {
+    dimensions?: Partial<StampDimensions>;
+    artwork?: Partial<StampArtworkConfig>;
+};
 
 export interface StampPresetDefinition {
     id: string;
     titleKey: string;
     descriptionKey: string;
     category: 'rubber-stamp' | 'wax-seal';
-    config: Partial<StampConfig>;
+    config: PartialStampConfig;
 }
 
 export const STAMP_PRESETS: StampPresetDefinition[] = [
