@@ -4,12 +4,26 @@ This guide is the recommended **easy path** to run Image Express locally, with o
 
 ## 1) Core App (Required)
 
-### 🌟 1-Click Standalone Desktop App (Recommended)
+### 🌟 1-Click Standalone Desktop App (Recommended for All Users)
 
 Image Express is distributed as a self-contained desktop application with its own bundled runtime — no external Node.js, Git, or terminal commands required:
 
-- **Windows**: Download **`ImageExpress-Setup-0.2.1.exe`** from [GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases). Double-click to install. It installs in seconds with zero prompts, places desktop shortcuts, and launches automatically in a dedicated window.
-- **macOS**: Download **`ImageExpress-0.2.1-arm64.dmg`** (Apple Silicon) or **`ImageExpress-0.2.1-x64.dmg`** (Intel) from [GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases). Open the `.dmg`, drag `Image Express.app` to Applications, and launch.
+#### 🪟 Windows (.exe)
+1. Download **[`ImageExpress-Setup-0.2.1.exe`](https://github.com/GeekatplayStudio/Image-Express/releases)** from GitHub Releases.
+2. Double-click the file in your Downloads folder.
+3. If the blue **"Windows protected your PC"** screen appears:
+   - Click **"More info"**.
+   - Click **"Run anyway"** *(this appears only because open-source software is not signed with paid Microsoft Store certificates)*.
+4. The app installs automatically in seconds, adds desktop shortcuts, and opens immediately.
+
+#### 🍎 macOS (.dmg)
+1. Download the disk image for your Mac from [GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases):
+   - **Apple Silicon (M1/M2/M3/M4/M5)**: `ImageExpress-0.2.1-arm64.dmg`
+   - **Intel Macs**: `ImageExpress-0.2.1-x64.dmg`
+2. Double-click the `.dmg` in Downloads.
+3. Drag **Image Express** into your **Applications** folder.
+4. Open Applications and double-click **Image Express**.
+5. *First launch only*: If macOS warns about an "unidentified developer", right-click (or hold <kbd>Control</kbd> and click) **Image Express** → select **Open** → click **Open**.
 
 ---
 

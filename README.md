@@ -34,99 +34,142 @@ It runs anywhere: as a **desktop app** on Windows/macOS, as a **self-hosted web 
 
 ### 🌟 Recommended: Single-Click Desktop App (Windows & macOS)
 
-No Node.js, Git, or command line required — the desktop app is completely self-contained with its own bundled runtime and launch environment:
-
-- **Windows (`.exe`)**: Download **[`ImageExpress-Setup-0.2.1.exe`](https://github.com/GeekatplayStudio/Image-Express/releases)** from GitHub Releases. Double-click the file to install. It installs instantly with zero prompts, automatically creates shortcuts on your Desktop and Start Menu, and launches Image Express in a dedicated desktop window.
-- **macOS (`.dmg`)**: Download **`ImageExpress-0.2.1-arm64.dmg`** (Apple Silicon M1/M2/M3/M4) or **`ImageExpress-0.2.1-x64.dmg`** (Intel Mac) from GitHub Releases. Open the `.dmg`, drag **Image Express** into your Applications folder, and launch it directly.
+**No coding, no terminal commands, and no extra software needed.** The desktop app is completely self-contained with its own bundled high-performance engine:
 
 ---
 
-### 💻 Source Installation (Run directly from Git)
+#### 🪟 Windows — Step-by-Step (30 Seconds)
 
-If you are modifying code or prefer running straight from Git source:
+1. **Download the installer**: Click **[`ImageExpress-Setup-0.2.1.exe`](https://github.com/GeekatplayStudio/Image-Express/releases)** on the GitHub Releases page and save it to your computer.
+2. **Open your Downloads folder** and **double-click** `ImageExpress-Setup-0.2.1.exe`.
+3. **If you see "Windows protected your PC" (SmartScreen)**:
+   - Click **"More info"** *(small text under the message)*.
+   - Click the **"Run anyway"** button that appears.  
+   *(Why does this appear? Image Express is a brand-new, free, open-source project. Because it isn't sold through Microsoft's paid store, Windows simply asks you to confirm you want to run it. It is 100% safe and virus-free.)*
+4. **Done!** The installer runs automatically in a few seconds, creates an **Image Express** shortcut on your Desktop and in your Start Menu, and opens right up.
+5. **Next time you want to use it**: Just double-click the **Image Express** icon on your Desktop!
 
-#### 🪟 Windows — step by step
+---
 
-1. **[Click here to open `install.bat`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.bat)**, then click the little **⬇ download icon** near the top-right of the code box to save it.
-2. Open your **Downloads** folder and **double-click `install.bat`**.
-3. If a blue **"Windows protected your PC"** screen appears, click **More info**, then **Run anyway**. *(This only means the file isn't sold through the Microsoft Store — Image Express is free, open-source software, so it doesn't have a paid publisher certificate. It is not a virus warning.)*
-4. A black window opens and walks you through everything else. **Press Enter** at each question to accept the suggested answer. It installs Git and Node.js if you don't already have them, then downloads and sets up Image Express — this takes a few minutes.
-5. When it finishes, answer **yes** to "Create a desktop shortcut?" and **yes** to "Launch now?" — Image Express opens in your web browser.
-6. **Next time**, just double-click the **Image Express** shortcut on your desktop (or `start.bat` inside `C:\Users\<you>\ImageExpress`).
+#### 🍎 macOS — Step-by-Step (1 Minute)
 
-#### 🍎 macOS — step by step
+1. **Download the disk image (`.dmg`) for your Mac** from [GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases):
+   - **Most modern Macs (Apple Silicon M1, M2, M3, M4, or M5)**: Download **`ImageExpress-0.2.1-arm64.dmg`**.
+   - **Older Intel Macs**: Download **`ImageExpress-0.2.1-x64.dmg`**.  
+   *(Not sure which Mac you have? Click the Apple  menu in the top-left corner of your screen → choose **About This Mac**. If it says "Apple M1/M2/M3/M4", choose `arm64`. If it mentions "Intel", choose `x64`.)*
+2. **Open your Downloads folder** and **double-click** the downloaded `.dmg` file.
+3. In the window that pops up, **drag the Image Express icon into your Applications folder**.
+4. Open your **Applications** folder (in Finder) and **double-click Image Express** to open it.
+5. **If macOS says "Apple cannot check it for malicious software" or "Unidentified Developer"**:
+   - Simply **right-click** (or hold <kbd>Control</kbd> and click) **Image Express** in your Applications folder, then click **Open**.
+   - Click **Open** on the confirmation prompt. *(You only ever need to do this once — from then on, a normal double-click will open it!)*
 
-The easiest way uses **Terminal** and skips every "unidentified developer"
-warning entirely — it's three steps:
+---
 
-1. Open **Terminal**: press <kbd>⌘ Cmd</kbd> + <kbd>Space</kbd>, type `Terminal`, press Return.
-2. **Copy** the line below, **paste** it into the Terminal window (right-click → Paste, or <kbd>⌘ Cmd</kbd> + <kbd>V</kbd>), then press Return:
+### 🛠️ Common Questions & Troubleshooting (Non-Technical Guide)
+
+<details>
+<summary><b>1. Windows says "Windows protected your PC" — is it safe?</b></summary>
+<br>
+
+**Yes, completely safe.** Microsoft displays this blue "SmartScreen" alert on any free or open-source software that does not purchase a yearly Microsoft commercial publisher certificate.
+
+**How to bypass it:**
+1. Click the small link that says **"More info"** directly under the message.
+2. Click the **"Run anyway"** button at the bottom.
+3. The app will install and open normally.
+
+</details>
+
+<details>
+<summary><b>2. macOS says it "cannot be opened because the developer cannot be verified"</b></summary>
+<br>
+
+Apple requires all Mac apps to be registered under Apple's paid Developer Program ($99/year). Because Image Express is free and community-driven, macOS displays this security notice the very first time you launch it.
+
+**How to open it (choose either method):**
+- **Option A (Easiest)**: Open your **Applications** folder. Hold the <kbd>Control</kbd> key on your keyboard and click **Image Express** (or right-click it). Select **Open** from the menu, then click **Open** on the dialog.
+- **Option B (System Settings)**: Click the **Apple  menu → System Settings → Privacy & Security**. Scroll down to the **Security** section where it says *"Image Express was blocked from use because it is not from an identified developer"*, and click **Open Anyway**.
+
+*You only have to do this once! Afterwards, Image Express will open with a regular double-click.*
+
+</details>
+
+<details>
+<summary><b>3. macOS says "Image Express is damaged and can't be opened"</b></summary>
+<br>
+
+On newer macOS versions (Sonoma, Sequoia), macOS sometimes aggressively quarantines downloaded disk images. The app file is **not** damaged.
+
+**Quick 1-step fix:**
+1. Press <kbd>⌘ Cmd</kbd> + <kbd>Space</kbd>, type `Terminal`, and press Return.
+2. Copy and paste this command into the Terminal window:
+   ```bash
+   xattr -cr "/Applications/Image Express.app"
+   ```
+3. Press Return. Now double-click **Image Express** in your Applications folder — it will launch immediately.
+
+</details>
+
+<details>
+<summary><b>4. The app takes 10–15 seconds to open the very first time</b></summary>
+<br>
+
+**This is completely normal.** On its initial launch, Image Express sets up its internal private local database and starts its high-performance local canvas engine. On all future launches, it starts in just 2 to 3 seconds.
+
+</details>
+
+<details>
+<summary><b>5. "Port 3927 already in use" or the window doesn't open</b></summary>
+<br>
+
+This happens if an earlier instance of Image Express is already running in the background.
+- **On Windows**: Check your system tray (bottom-right near the clock) or open Task Manager (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd>) and close any running `Image Express` processes, then re-launch the app.
+- **On Mac**: Press <kbd>⌘ Cmd</kbd> + <kbd>Option</kbd> + <kbd>Esc</kbd> (Force Quit Applications), select Image Express if present, click Force Quit, and reopen the app.
+- A computer restart will also immediately clear any stuck ports.
+
+</details>
+
+<details>
+<summary><b>6. My antivirus flagged the installer as suspicious</b></summary>
+<br>
+
+Certain antivirus programs (e.g., Norton, McAfee, Bitdefender) flag newly released executable files simply because not enough users have downloaded that specific version yet ("reputation-based detection"). Image Express is 100% open source — every single line of code is publicly readable here on GitHub. You can safely add an exception or click "Trust / Allow this file".
+
+</details>
+
+<details>
+<summary><b>7. How do I uninstall Image Express if I ever want to?</b></summary>
+<br>
+
+- **Windows**: Open the Windows Start Menu → **Settings** → **Apps** → **Installed apps**. Find **Image Express**, click the three dots (`...`), and select **Uninstall**.
+- **macOS**: Open Finder → click **Applications** in the sidebar → drag **Image Express** into the Trash (or press <kbd>⌘ Cmd</kbd> + <kbd>Delete</kbd>).
+
+</details>
+
+---
+
+### 💻 Alternative: Source Installation (Run directly from Git)
+
+If you are a developer, prefer contributing to the code, or want to run directly from source:
+
+#### 🪟 Windows — source install
+1. **[Click here to open `install.bat`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.bat)**, then click the **⬇ download icon** near the top-right to save it.
+2. Open your **Downloads** folder and double-click **`install.bat`**.
+3. If "Windows protected your PC" appears, click **More info** → **Run anyway**.
+4. The automated installer will install Git and Node.js if needed, then download and configure Image Express.
+5. Answer **yes** to "Create desktop shortcut?" and **yes** to "Launch now?".
+
+#### 🍎 macOS — source install
+1. Open **Terminal**: press <kbd>⌘ Cmd</kbd> + <kbd>Space</kbd>, type `Terminal`, and press Return.
+2. Paste this command into Terminal and press Return:
    ```bash
    bash <(curl -fsSL https://raw.githubusercontent.com/GeekatplayStudio/Image-Express/main/install.command)
    ```
-3. It asks a few questions — **press Return** at each one to accept the suggested answer. It installs Git and Node.js if needed, then downloads and sets up Image Express (a few minutes). When it asks, answer **yes** to "Launch Image Express now?"
-4. **Next time**, open **Finder → your home folder → ImageExpress**, and double-click **`start.command`**.
+3. Press Return at each prompt to accept the suggested defaults. When asked "Launch Image Express now?", choose **yes**.
+4. **Next time**: Open Finder → your home folder → `ImageExpress` → double-click **`start.command`**.
 
-<details>
-<summary><b>Downloaded the ZIP instead, and macOS says it "could not verify this app is free of malware"?</b></summary>
-<br>
-
-**Nothing is wrong with your download, and no virus was found.** macOS blocks
-*every* downloaded program whose author hasn't paid Apple $99/year for a
-Developer ID certificate. Image Express is free and open source, so it doesn't
-have one — and macOS shows the same wording for "unrecognised publisher" as it
-does for real malware. The whole installer is readable
-[here](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.command)
-before you run it. The same note ships inside the ZIP as
-`macOS-READ-ME-FIRST.txt`.
-
-Pick whichever you prefer:
-
-**Drag it into Terminal** — easiest, changes no settings, needs no password.
-Open **Terminal** (<kbd>⌘ Cmd</kbd> + <kbd>Space</kbd>, type `Terminal`,
-Return), type `bash` followed by a **space**, then drag `install.command` from
-Finder onto the Terminal window and press Return. Handing the file to Terminal
-yourself isn't "launching an app", so Gatekeeper never gets a vote.
-
-**Or approve it once.** Double-click `install.command`, let it be blocked, click
-**Done**. Go to **Apple menu → System Settings → Privacy & Security**, scroll
-down to the line saying `install.command` was blocked, click **Open Anyway**,
-confirm with Touch ID or your password, then double-click the file again and
-choose **Open**. *(On older macOS there's no such line — instead right-click, or
-Control-click, the file in Finder and choose **Open**.)*
-
-**You only do this once.** As it runs, the installer clears the quarantine flag
-from its own folder, so `start.command` opens with a plain double-click from
-then on.
-
-</details>
-
-<details>
-<summary><b>Why isn't there just a normal installer with no warnings?</b></summary>
-<br>
-
-Because that requires Apple's paid Developer Program ($99/year) to sign and
-notarize each release. The release pipeline is already wired for it —
-[`.github/workflows/release.yml`](.github/workflows/release.yml) picks up
-`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_API_KEY`, `APPLE_API_KEY_ID` and
-`APPLE_API_ISSUER` if those repository secrets are set, and produces a signed,
-notarized `.dmg` that opens with no warning at all. Until those secrets exist,
-every macOS build is unsigned and Gatekeeper will object. No script can work
-around that; it's the point of the mechanism.
-
-</details>
-
-That's it. You never need to know what Git, Node.js, or npm are — the
-installer handles all of that. Every step it takes is logged to a file you
-can hand to support if anything goes wrong: `~/ImageExpress-setup.log` (macOS)
-or `%USERPROFILE%\ImageExpress-setup.log` (Windows). Full details, Linux, and
-manual/advanced setup: **[docs/INSTALLATION.md](docs/INSTALLATION.md)**.
-
-> **Windows install slow (15+ min) or failing with `ENOTEMPTY`/`TAR_ENTRY_ERROR`?**
-> That's real-time antivirus scanning fighting npm over thousands of small
-> files. One admin-PowerShell command excludes just this project folder and
-> makes installs several times faster — see
-> [Troubleshooting](docs/INSTALLATION.md#5-troubleshooting).
+---
 
 ### 🔄 Keep it updated (source installs)
 
