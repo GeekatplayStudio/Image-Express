@@ -126,18 +126,18 @@
     "fabric": "^7.1.0",
     "heic-to": "^1.5.2",
     "jspdf": "^4.2.1",
-    "jszip": "^3.10.1",
+    "jszip": "^3.10.2",
     "lucide-react": "^0.562.0",
     "mime": "^4.1.0",
     "next": "^16.3.4",
     "opentype.js": "^2.0.0",
     "pdfjs-dist": "^6.3.289",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "tailwind-merge": "^3.4.0",
-    "three": "^0.185.1",
+    "three": "^0.186.0",
     "utif2": "^4.1.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@electron/asar": "4.3.0",
