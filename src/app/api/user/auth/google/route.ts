@@ -10,6 +10,7 @@ import {
 } from '@/lib/server/user-auth-store';
 import { notifyRegistrationApprovalRequest } from '@/lib/server/user-notifications';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { AUTH_CLIENT_LIMIT, limitRequest } from '@/lib/server/rateLimit';
 import { AUTH_BODY_LIMIT_BYTES, identifierField, tokenField } from '../authValidation';
 
 export const runtime = 'nodejs';
@@ -41,6 +42,8 @@ async function fetchGoogleTokenInfo(credential: string) {
 
 export async function POST(request: Request) {
     try {
+        const limited = limitRequest(request, AUTH_CLIENT_LIMIT);
+        if (limited) return limited;
         const body = await parseJsonRequest(request, GoogleLoginSchema, AUTH_BODY_LIMIT_BYTES);
         const credential = (body.credential || '').trim();
         const requestedClientId = (body.clientId || '').trim();

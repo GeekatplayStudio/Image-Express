@@ -604,6 +604,30 @@ Privileged runtime routes go through `authorizeLocalRuntimeCapability`, which
 requires a local profile, a loopback request, and — in desktop mode — a
 per-launch capability token.
 
+### Rate limiting
+
+`src/lib/server/rateLimit.ts` — sliding-window counters held in process memory
+(pinned to `globalThis`, capped at 10,000 keys). There is no shared store
+because there is one process; counters reset on restart.
+
+| Rule | Budget | Keyed on | Applied to |
+|---|---|---|---|
+| `AUTH_ACCOUNT_FAILURE_LIMIT` | 10 / 15 min | the account identifier | wrong passwords on `login` and `change-password`, wrong codes on `reset-password` |
+| `AUTH_CLIENT_LIMIT` | 30 / 5 min | client | every `login`, `change-password`, `reset-password`, `google` request |
+| `AUTH_SIDE_EFFECT_LIMIT` | 10 / 15 min | client | `register`, `request-reset` |
+| `URL_FETCH_LIMIT` | 120 / min | client | `assets/save-url`, `assets/fetch-url` |
+| `URL_INSTALL_LIMIT` | 10 / min | client | URL installs on `themes/install`, `ambience/install`, `comfy/library` (`install-repo`) |
+
+"Client" is a single shared budget on the local profiles and the first
+`x-forwarded-for` address on `self-hosted`. That header is forgeable unless a
+reverse proxy overwrites it, which is why password guessing is *also* keyed on
+the account: that budget holds however many addresses the guesses come from.
+Account failures are counted on failure only and cleared by a successful
+sign-in. A refused request answers `429` with `Retry-After`.
+
+Generation routes are not rate-limited here; their ceiling is the job queue's
+lane concurrency (§2).
+
 ---
 
 ## 7. Persistence

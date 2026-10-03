@@ -4,6 +4,7 @@ import { isValidEmail, normalizeEmail } from '@/lib/server/auth-utils';
 import { createPendingUser } from '@/lib/server/user-auth-store';
 import { notifyRegistrationApprovalRequest } from '@/lib/server/user-notifications';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { AUTH_SIDE_EFFECT_LIMIT, limitRequest } from '@/lib/server/rateLimit';
 import { AUTH_BODY_LIMIT_BYTES, credentialField, displayNameField, identifierField } from '../authValidation';
 
 const RegisterSchema = z.object({
@@ -14,6 +15,8 @@ const RegisterSchema = z.object({
 
 export async function POST(request: Request) {
     try {
+        const limited = limitRequest(request, AUTH_SIDE_EFFECT_LIMIT);
+        if (limited) return limited;
         const body = await parseJsonRequest(request, RegisterSchema, AUTH_BODY_LIMIT_BYTES);
         const email = (body.email || '').trim();
         const password = body.password || '';

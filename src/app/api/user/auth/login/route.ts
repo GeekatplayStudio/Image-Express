@@ -4,6 +4,15 @@ import { loadUsers, findUserByIdentifier, toPublicUser } from '@/lib/server/user
 import { verifyPassword } from '@/lib/server/auth-utils';
 import { createUserSessionToken } from '@/lib/server/user-session';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import {
+    AUTH_ACCOUNT_FAILURE_LIMIT,
+    AUTH_CLIENT_LIMIT,
+    checkRateLimit,
+    clearRateLimit,
+    limitRequest,
+    rateLimitedResponse,
+    recordRateLimitHit,
+} from '@/lib/server/rateLimit';
 import { AUTH_BODY_LIMIT_BYTES, credentialField, identifierField } from '../authValidation';
 
 // Fields stay optional so the route keeps answering with its own "required"
@@ -16,6 +25,8 @@ const LoginSchema = z.object({
 
 export async function POST(request: Request) {
     try {
+        const limited = limitRequest(request, AUTH_CLIENT_LIMIT);
+        if (limited) return limited;
         const body = await parseJsonRequest(request, LoginSchema, AUTH_BODY_LIMIT_BYTES);
         const identifier = (body.identifier || '').trim();
         const password = body.password || '';
@@ -24,11 +35,21 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'Email and password are required.' }, { status: 400 });
         }
 
+        // Checked before the password is, so a locked account answers the
+        // same way whether or not the guess was right.
+        const accountKey = identifier.toLowerCase();
+        const lockout = checkRateLimit(AUTH_ACCOUNT_FAILURE_LIMIT, accountKey);
+        if (!lockout.allowed) return rateLimitedResponse(lockout);
+
         const store = await loadUsers();
         const user = findUserByIdentifier(store.users, identifier);
         if (!user || !verifyPassword(password, user.passwordSalt, user.passwordHash)) {
+            // Counted for unknown identifiers too: skipping them would turn
+            // the 429 into an oracle for which accounts exist.
+            recordRateLimitHit(AUTH_ACCOUNT_FAILURE_LIMIT, accountKey);
             return NextResponse.json({ success: false, message: 'Invalid email or password.' }, { status: 401 });
         }
+        clearRateLimit(AUTH_ACCOUNT_FAILURE_LIMIT, accountKey);
 
         if (user.status === 'pending') {
             return NextResponse.json({

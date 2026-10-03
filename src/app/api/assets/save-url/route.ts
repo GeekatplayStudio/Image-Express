@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
 import { OutboundUrlError, assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
+import { URL_FETCH_LIMIT, limitRequest } from '@/lib/server/rateLimit';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import {
@@ -26,6 +27,8 @@ const SAVE_URL_BODY_LIMIT_BYTES = 8 * 1024;
 
 export async function POST(request: Request) {
   try {
+    const limited = limitRequest(request, URL_FETCH_LIMIT);
+    if (limited) return limited;
     // This previously destructured an untyped body and handed `url` straight to
     // fetch — the server would retrieve any address the caller named.
     const { url, filename, type, category, owner, isPublic } =

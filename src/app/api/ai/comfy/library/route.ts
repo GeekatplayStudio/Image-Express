@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OutboundUrlError, assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
+import { URL_INSTALL_LIMIT, limitRequest } from '@/lib/server/rateLimit';
 import { enforceJsonBody } from '@/lib/server/apiContract';
 import {
     buildComfyDiagnosticsSnapshot,
@@ -60,6 +61,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 );
             }
 
+            const limited = limitRequest(request, URL_INSTALL_LIMIT);
+            if (limited) return limited;
             try {
                 // The server clones from this address; a scheme check alone
                 // would let it be aimed at the metadata endpoint or the LAN.

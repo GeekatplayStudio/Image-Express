@@ -4,6 +4,7 @@ import { isValidEmail, normalizeEmail } from '@/lib/server/auth-utils';
 import { loadUsers, setResetToken } from '@/lib/server/user-auth-store';
 import { notifyPasswordResetToken } from '@/lib/server/user-notifications';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import { AUTH_SIDE_EFFECT_LIMIT, limitRequest } from '@/lib/server/rateLimit';
 import { AUTH_BODY_LIMIT_BYTES, identifierField } from '../authValidation';
 
 const RequestResetSchema = z.object({
@@ -12,6 +13,8 @@ const RequestResetSchema = z.object({
 
 export async function POST(request: Request) {
     try {
+        const limited = limitRequest(request, AUTH_SIDE_EFFECT_LIMIT);
+        if (limited) return limited;
         const body = await parseJsonRequest(request, RequestResetSchema, AUTH_BODY_LIMIT_BYTES);
         const email = normalizeEmail(body.email || '');
         if (!isValidEmail(email)) {

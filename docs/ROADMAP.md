@@ -6,7 +6,7 @@
 - How it works: [ARCHITECTURE.md](ARCHITECTURE.md)
 - What already shipped: [CHANGELOG.md](CHANGELOG.md)
 
-Status: Active · Last updated: 2026-08-08 · Branch baseline: `main`
+Status: Active · Last updated: 2026-10-03 · Branch baseline: `main`
 
 > **Change control.** Scope, priority, dependency and sequencing changes are
 > made *here first*. When an item ships, move its notes into
@@ -393,7 +393,7 @@ about what they said.
 > shell pipe returns the *last* command's status, not the script's.
 > `desktop:pack` is a plain `&&` chain and propagates correctly. No fix needed.
 
-### F-10 · Request validation and rate limiting — P0 *(validation done; rate limiting open)*
+### F-10 · Request validation and rate limiting — ✅ **done** *(session coverage and MCP auth scoped separately)*
 
 Found while writing the system explainer on 2026-08-08, by counting rather than
 assuming. The mechanism is good and the adoption is not:
@@ -467,18 +467,42 @@ this sits below the finished items rather than above them.
     user's own browser. It could have triggered a git pull and rebuild. All four
     now refuse cross-site callers.
 
-#### Still open
+- **Done, 2026-10-03 — rate limiting.** `src/lib/server/rateLimit.ts`: sliding
+  windows in process memory, no dependency and no shared store, because there
+  is one process. Rules and budgets are tabled in
+  [ARCHITECTURE.md](ARCHITECTURE.md) §6.
+  - **Password and reset-code guessing is keyed on the account**, not the
+    caller: 10 failures per 15 minutes across `login`, `change-password` and
+    `reset-password`. A caller address is forgeable on `self-hosted` unless a
+    proxy overwrites `x-forwarded-for`; the account being attacked is not.
+    Counted on failure only and cleared by a successful sign-in, so an owner who
+    mistypes never meets it. Unknown identifiers are counted too — otherwise the
+    429 would say which accounts exist.
+  - **The cost of that choice, stated:** someone who knows an email can lock
+    that account's sign-in for 15 minutes by failing ten times. That is the
+    standard trade against unlimited guessing and is accepted here.
+  - `register` and `request-reset` (10 / 15 min) and the URL-fetching routes —
+    `save-url`, `fetch-url` (120 / min), and URL installs on `themes`,
+    `ambience` and `comfy/library` (10 / min) — are limited per client.
+    Uploads to the installers are not: an upload costs the caller its own bytes.
+  - **Deliberately not limited: generation.** Its ceiling is the queue's lane
+    concurrency, and a per-minute cap would mostly throttle the one legitimate
+    user. `ollama/install` is already behind the runtime capability token.
 
-- **Rate limiting — nothing anywhere.** Not on auth, not on generation, not on
-  the URL-fetching installers. This is the remaining half of F-10.
+#### Still open — scoped separately, not part of F-10
+
 - **Session coverage.** Only 7 routes check a session. Deciding which *should*
   is a product question (the app is single-user by default), so it is scoped
   separately rather than assumed.
 
-**But it is the hard gate on two futures**: exposing the app on a network, and
-multi-user. Neither is safe until this closes. Order: adopt `parseJsonRequest`
-across the 35 routes (mechanical, one schema each), then rate-limit auth and
-the URL-fetching installers, then decide the MCP auth story.
+- **MCP auth story.** The bridge carries the local API token, and destructive
+  routes refuse cross-site callers, but what an authorised local tool may do is
+  still "everything".
+
+**These two remain the hard gate on two futures**: exposing the app on a
+network, and multi-user. Before either, a self-hosted deployment must also sit
+behind a proxy that overwrites `x-forwarded-for`, or the per-client limits are
+advisory.
 
 ### F-08 · Process — ✅ **done**
 **`npm run verify` now passes end to end**, and every stage of it is meaningful:
@@ -701,14 +725,6 @@ the main app's dependency audits. Open: decide whether to ship it at all.
 
 Not features, but they block the gates.
 
-- **`npm run lint` fails on `main`** — 14 errors in committed files
-  (`AssetVault/useVaultBrowse.ts` ×10, `ColorConstellation` ×2,
-  `useEditorCanvasSelectionInteractions.ts` ×2), nearly all
-  `react-hooks/set-state-in-effect`. This blocks `npm run verify` from passing.
-- **`desktop:pack` can report exit 0 while electron-builder failed**, leaving a
-  partially-copied package that only `desktop:verify-package` catches.
-- **`electron/main.js` logs the server child's stderr as a byte count only**,
-  which makes a packaged startup failure undiagnosable from the log.
 - **Broken submodule reference**: `Imageprocessingui` is a gitlink (mode
   `160000`) with no `.gitmodules` entry, so a fresh clone leaves an empty
   directory.

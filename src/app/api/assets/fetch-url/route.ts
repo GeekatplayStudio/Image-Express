@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
 import { OutboundUrlError, assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
+import { URL_FETCH_LIMIT, limitRequest } from '@/lib/server/rateLimit';
 
 const FetchUrlSchema = z.object({
     url: z.string().max(4096).optional(),
@@ -12,6 +13,8 @@ const FETCH_URL_BODY_LIMIT_BYTES = 8 * 1024;
 
 export async function POST(request: Request) {
     try {
+        const limited = limitRequest(request, URL_FETCH_LIMIT);
+        if (limited) return limited;
         const { url } = await parseJsonRequest(request, FetchUrlSchema, FETCH_URL_BODY_LIMIT_BYTES);
 
         if (!url) {

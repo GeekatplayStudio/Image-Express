@@ -4,6 +4,15 @@ import { z } from 'zod';
 import { verifyPassword } from '@/lib/server/auth-utils';
 import { changePassword, findUserByIdentifier, loadUsers } from '@/lib/server/user-auth-store';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import {
+    AUTH_ACCOUNT_FAILURE_LIMIT,
+    AUTH_CLIENT_LIMIT,
+    checkRateLimit,
+    clearRateLimit,
+    limitRequest,
+    rateLimitedResponse,
+    recordRateLimitHit,
+} from '@/lib/server/rateLimit';
 import { AUTH_BODY_LIMIT_BYTES, credentialField, identifierField } from '../authValidation';
 
 const ChangePasswordSchema = z.object({
@@ -14,6 +23,8 @@ const ChangePasswordSchema = z.object({
 
 export async function POST(request: Request) {
     try {
+        const limited = limitRequest(request, AUTH_CLIENT_LIMIT);
+        if (limited) return limited;
         const body = await parseJsonRequest(request, ChangePasswordSchema, AUTH_BODY_LIMIT_BYTES);
         const identifier = (body.identifier || '').trim();
         const currentPassword = body.currentPassword || '';
@@ -29,11 +40,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'New password must be at least 6 characters.' }, { status: 400 });
         }
 
+        // "Current password" is a password guess like any other, so it shares
+        // the sign-in route's per-account failure budget.
+        const accountKey = identifier.toLowerCase();
+        const lockout = checkRateLimit(AUTH_ACCOUNT_FAILURE_LIMIT, accountKey);
+        if (!lockout.allowed) return rateLimitedResponse(lockout);
+
         const store = await loadUsers();
         const user = findUserByIdentifier(store.users, identifier);
         if (!user || !verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+            recordRateLimitHit(AUTH_ACCOUNT_FAILURE_LIMIT, accountKey);
             return NextResponse.json({ success: false, message: 'Current password is incorrect.' }, { status: 401 });
         }
+        clearRateLimit(AUTH_ACCOUNT_FAILURE_LIMIT, accountKey);
 
         if (verifyPassword(newPassword, user.passwordSalt, user.passwordHash)) {
             return NextResponse.json({ success: false, message: 'New password must be different from the current password.' }, { status: 400 });

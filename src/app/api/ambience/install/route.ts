@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { enforceJsonBody } from '@/lib/server/apiContract';
 import { OutboundUrlError, assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
+import { URL_INSTALL_LIMIT, limitRequest } from '@/lib/server/rateLimit';
 import {
     AmbienceInstallError,
     installAmbienceFromZip,
@@ -35,6 +36,10 @@ export async function POST(request: NextRequest) {
             if (!url || typeof url !== 'string') {
                 return NextResponse.json({ success: false, error: 'Provide a pack zip file or an http(s) URL.' }, { status: 400 });
             }
+            // Only the URL path is limited: an upload costs the caller its own
+            // bytes, a URL makes the server do the downloading.
+            const limited = limitRequest(request, URL_INSTALL_LIMIT);
+            if (limited) return limited;
             try {
                 // Was a scheme-only check, which let the server be aimed at the
                 // cloud metadata endpoint or anything else on its network.

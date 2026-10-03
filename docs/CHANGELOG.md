@@ -1,9 +1,9 @@
 # Changelog — Delivery History
 
-Last updated: 2026-09-12
+Last updated: 2026-10-03
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
-App version: 0.2.1
+App version: 0.2.2
 
 **What has shipped, newest first.** This file is history — it is not where you
 look for current behaviour or future plans.
@@ -18,6 +18,43 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-10-03 - Rate limiting on auth and URL-fetching routes (closes F-10)
+
+Nothing in the app limited how often a route could be called. Sign-in could be
+guessed against without bound, and six routes would fetch a caller-supplied URL
+as fast as they were asked.
+
+- New `src/lib/server/rateLimit.ts`: sliding-window counters in process memory,
+  capped at 10,000 keys so the limiter cannot itself be used to exhaust memory.
+  A refused request answers `429` with `Retry-After`.
+- Wrong passwords (`login`, `change-password`) and wrong reset codes
+  (`reset-password`) share one budget of 10 per 15 minutes **per account**. The
+  account is the one key a caller cannot vary; a successful sign-in clears it.
+  A locked account answers 429 before the password is checked, and unknown
+  identifiers are counted the same way, so the response does not reveal which
+  accounts exist.
+- `register` and `request-reset`: 10 per 15 minutes per client. All auth
+  routes: 30 per 5 minutes per client.
+- `assets/save-url` and `assets/fetch-url`: 120 per minute. URL installs on
+  `themes/install`, `ambience/install` and `comfy/library`: 10 per minute.
+- Not limited: generation (bounded by queue lane concurrency) and file uploads
+  to the installers.
+- 16 tests: the window arithmetic, key eviction, and the route behaviour above.
+
+## 2026-09-13 - Simpler Mac installation and current desktop runtime (0.2.2)
+
+- Added **Install and Open** for downloaded Mac apps, with replacement confirmation,
+  cancellation, and a drag-to-Applications fallback. DMGs include **Start Here.txt**.
+- Replaced contradictory install guides with a short Mac walkthrough, Dock launch
+  instructions, and current security-message help. Removed quarantine-clearing scripts
+  and unsupported promises that unsigned downloads are safe.
+- Updated Electron to 44.3.0 (macOS 13+), Next to 16.3.5, React to 19.3.0, packaging
+  tools, and compatible locked dependencies. Larger unrelated major migrations remain separate.
+- Native Apple Silicon and Intel jobs now exercise installation from a DMG, read-only
+  app startup, relaunch, and data retention. Release jobs require signing credentials,
+  notarization-ticket validation, and Gatekeeper assessment. Updater manifests retain
+  both architectures. Publishing a signed release still requires configured credentials.
 
 ## 2026-09-12 - Vault add-to-canvas revoked its own URL; local browsing rescanned everything
 

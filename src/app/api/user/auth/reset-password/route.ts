@@ -3,6 +3,14 @@ import { z } from 'zod';
 import { isValidEmail, normalizeEmail } from '@/lib/server/auth-utils';
 import { loadUsers, changePassword, verifyResetToken } from '@/lib/server/user-auth-store';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
+import {
+    AUTH_ACCOUNT_FAILURE_LIMIT,
+    AUTH_CLIENT_LIMIT,
+    checkRateLimit,
+    limitRequest,
+    rateLimitedResponse,
+    recordRateLimitHit,
+} from '@/lib/server/rateLimit';
 import { AUTH_BODY_LIMIT_BYTES, credentialField, identifierField, tokenField } from '../authValidation';
 
 const ResetPasswordSchema = z.object({
@@ -13,6 +21,8 @@ const ResetPasswordSchema = z.object({
 
 export async function POST(request: Request) {
     try {
+        const limited = limitRequest(request, AUTH_CLIENT_LIMIT);
+        if (limited) return limited;
         const body = await parseJsonRequest(request, ResetPasswordSchema, AUTH_BODY_LIMIT_BYTES);
         const email = normalizeEmail(body.email || '');
         const token = (body.token || '').trim();
@@ -28,13 +38,20 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'Password must be at least 6 characters.' }, { status: 400 });
         }
 
+        // A reset code is a credential, so wrong guesses spend the same
+        // per-account budget as wrong passwords.
+        const lockout = checkRateLimit(AUTH_ACCOUNT_FAILURE_LIMIT, email);
+        if (!lockout.allowed) return rateLimitedResponse(lockout);
+
         const store = await loadUsers();
         const user = store.users.find((item) => item.email === email);
         if (!user) {
+            recordRateLimitHit(AUTH_ACCOUNT_FAILURE_LIMIT, email);
             return NextResponse.json({ success: false, message: 'Invalid reset request.' }, { status: 400 });
         }
 
         if (!verifyResetToken(user, token)) {
+            recordRateLimitHit(AUTH_ACCOUNT_FAILURE_LIMIT, email);
             return NextResponse.json({ success: false, message: 'Invalid or expired reset code.' }, { status: 400 });
         }
 
