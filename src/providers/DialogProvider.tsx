@@ -239,7 +239,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
             {children}
             {isOpen && (
                 <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+                    className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
                     onMouseDown={handleBackdropMouseDown}
                     data-testid="dialog-backdrop"
                 >

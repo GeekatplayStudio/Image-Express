@@ -51,12 +51,9 @@ function createCanvasStub() {
         off: jest.fn(),
         fire: jest.fn(),
         toJSON: jest.fn(() => ({ objects: [] })),
-        loadFromJSON: jest.fn((json: unknown, callback: () => void) => {
-            if (typeof callback === 'function') {
-                callback();
-            }
-            return json;
-        }),
+        // fabric 7: resolves when loaded. The second argument is a per-object
+        // reviver, not a completion callback, so the editor must not pass one.
+        loadFromJSON: jest.fn(async (json: unknown) => json),
         toDataURL: jest.fn(() => 'data:image/png;base64,AAAAAA=='),
         toSVG: jest.fn(() => '<svg></svg>'),
         getZoom: jest.fn(() => 1),
@@ -2725,8 +2722,7 @@ describe('EditorView', () => {
         });
         await waitFor(() => {
             expect(latestCanvasStub?.loadFromJSON).toHaveBeenCalledWith(
-                expect.any(Object),
-                expect.any(Function)
+                expect.any(Object)
             );
         });
         unmount();
@@ -2797,8 +2793,7 @@ describe('EditorView', () => {
                 expect(latestCanvasStub?.loadFromJSON).toHaveBeenCalledWith(
                     expect.objectContaining({
                         objects: [expect.objectContaining({ src: 'https://cdn.example/replacement.png' })],
-                    }),
-                    expect.any(Function)
+                    })
                 );
             });
             await waitFor(() => {

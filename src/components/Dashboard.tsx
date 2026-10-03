@@ -789,7 +789,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
       </div>
 
       {showCustomSizeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-card w-full max-w-md p-6 rounded-2xl shadow-2xl border border-border scale-100 animate-in zoom-in-95 duration-200">
                 <h3 className="text-xl font-bold mb-4">{t('dashboard.customSize')}</h3>
                 <div className="grid grid-cols-2 gap-4 mb-6">

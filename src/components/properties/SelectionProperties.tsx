@@ -696,8 +696,8 @@ export function SelectionProperties({
                         />
                          <SkewTaperProperties
                             values={{
-                                skewX: selectedObject.skewX || 0,
-                                skewY: selectedObject.skewY || 0,
+                                skewX: effectState.skew.x || 0,
+                                skewY: effectState.skew.y || 0,
                                 skewZ: effectState.skew.z || 0,
                                 taperDirection: effectState.skew.dir || 0,
                                 pseudoBacksidePreset: effectState.skew.preset || 'front'

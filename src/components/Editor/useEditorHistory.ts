@@ -3,7 +3,7 @@ import * as fabric from 'fabric';
 
 import type { DesignJson } from '@/components/Editor/editorView.types';
 import { duplicateActiveCanvasSelection } from '@/components/Editor/duplicateCanvasSelection';
-import { serializeCanvas } from '@/lib/fabric-utils';
+import { loadCanvasJson, serializeCanvas } from '@/lib/fabric-utils';
 
 type UseEditorHistoryArgs = {
     canvas: fabric.Canvas | null;
@@ -57,12 +57,15 @@ export function useEditorHistory({
     const restoreFromSnapshot = useCallback((snapshot: string) => {
         if (!canvas) return;
         isRestoringRef.current = true;
-        const json = JSON.parse(snapshot);
-        canvas.loadFromJSON(json, () => {
-            canvas.requestRenderAll();
-            isRestoringRef.current = false;
-            setIsDirty(true);
-        });
+        // The flag must stay up until the load has finished: the restore
+        // itself adds every object back, and each add would otherwise be
+        // recorded as a new history entry and wipe the redo stack.
+        void loadCanvasJson(canvas, snapshot)
+            .catch((error) => console.error('Failed to restore history snapshot', error))
+            .finally(() => {
+                isRestoringRef.current = false;
+                setIsDirty(true);
+            });
     }, [canvas, setIsDirty]);
 
     const handleUndo = useCallback(() => {

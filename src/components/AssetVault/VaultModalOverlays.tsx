@@ -49,7 +49,7 @@ export default function VaultModalOverlays({
         <>
             {detail && (
                 <div
-                    className="fixed inset-0 z-[130] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+                    className="fixed inset-0 z-[1130] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
                     onClick={onCloseDetail}
                 >
                     <div
@@ -107,7 +107,7 @@ export default function VaultModalOverlays({
 
             {previewPopup && (
                 <div
-                    className="fixed z-[135] bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                    className="fixed z-[1135] bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
                     style={{
                         left: previewPopup.x,
                         top: previewPopup.y,
@@ -164,7 +164,7 @@ export default function VaultModalOverlays({
             {contextMenu && (
                 <div
                     ref={contextMenuRef}
-                    className="fixed z-[140] w-56 rounded-lg border border-border bg-popover shadow-xl p-1"
+                    className="fixed z-[1140] w-56 rounded-lg border border-border bg-popover shadow-xl p-1"
                     style={{ left: contextMenu.x, top: contextMenu.y }}
                     onContextMenu={(event) => event.preventDefault()}
                     role="menu"

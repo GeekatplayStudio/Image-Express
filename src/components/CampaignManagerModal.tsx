@@ -290,7 +290,7 @@ export default function CampaignManagerModal({ canvas, onClose }: CampaignManage
     const inputClass = 'w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs';
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                     <h2 className="font-semibold text-sm flex items-center gap-2">

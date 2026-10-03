@@ -245,6 +245,25 @@ and CSV serialization. The library UI reuses the existing 3D generator, Asset
 Vault model filter, and Cricut modal. See
 [FABRICATION_STUDIO.md](FABRICATION_STUDIO.md).
 
+### Loading a page
+
+Every load of serialized page JSON — opening a page, a template, switching
+canvases, undo and redo — goes through `loadCanvasJson` in
+`src/lib/fabric-utils.ts`. Do not call `canvas.loadFromJSON` directly: in fabric
+7 its second argument is a per-object reviver, not a completion callback, the
+load removes the page rect, and it copies the saved `artboard` over the live
+record. The helper awaits the load, restores the rect, applies the saved size
+through it and refits the view only when the size changed.
+
+### Stacking order
+
+One scale, written down in `src/lib/zLayers.ts`: workspace chrome below 100,
+workspace panels and menus 100–999, popup windows 1000+, prompts 2000, confirm
+dialogs 3000, toasts 3500. Nothing in the workspace may draw over a popup;
+`zLayers.test.ts` enforces it. `ModalShell` offsets its `zIndex` prop into the
+modal tier and passes the level to its panel, which is portaled to `<body>` and
+so does not inherit it.
+
 ### Canvas model
 
 `DesignCanvas` owns a full-size Fabric canvas plus an explicit **artboard**

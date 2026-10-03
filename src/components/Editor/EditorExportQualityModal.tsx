@@ -30,7 +30,7 @@ export default function EditorExportQualityModal({
     if (!isOpen || !pendingExportFormat) return null;
 
     return (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1090] flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl p-6 flex flex-col gap-4 mx-4">
                 <div className="flex items-start gap-4">
                     <div className="p-2 rounded-full shrink-0 bg-primary/10 text-primary">

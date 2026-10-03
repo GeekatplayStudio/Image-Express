@@ -49,7 +49,7 @@ export default function InputModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-background/80 backdrop-blur-sm">
             <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-lg animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex flex-col gap-1 text-center sm:text-left mb-4">
                     <h2 className="text-lg font-semibold leading-none tracking-tight">{title}</h2>

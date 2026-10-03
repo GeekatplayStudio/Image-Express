@@ -22,7 +22,7 @@ export default function MissingAssetsModal({ isOpen, missingItems, onReplace, on
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-card w-[500px] border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
                 <div className="p-4 border-b border-border bg-destructive/10 flex items-center gap-3">
                     <div className="p-2 bg-destructive/20 rounded-full">

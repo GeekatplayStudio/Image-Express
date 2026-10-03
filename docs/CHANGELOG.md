@@ -19,6 +19,72 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-03 - Saved pages, the text tool, bend, skew and popup layering
+
+Reported as "the text tool is broken, toolbars sit on top of popups, canvases
+misbehave". Five separate causes, each reproduced in the running editor before
+it was changed.
+
+**Saved pages opened at the wrong size, and every new layer was invisible.**
+Fabric 7 changed `canvas.loadFromJSON(json, callback)`: the second argument is
+now a per-object *reviver*, called before the canvas is refilled and never
+called for a page with no layers. Five call sites still treated it as "run this
+when loading finishes". On top of that, a load copies every top-level JSON key
+onto the canvas, so the saved `artboard: { width, height }` replaced the live
+record and dropped its `left`/`top`.
+
+- A page saved at 1920x1080 opened as 1080x1080.
+- Anything positioned against the page computed `NaN`. Clicking the Text tool
+  created a layer with no position: nothing appeared, nothing was selected.
+- Undo and redo went through the same call, so the "restoring" flag was cleared
+  early and each restored object was recorded as a new history entry.
+
+All five sites now go through one helper, `loadCanvasJson`, which awaits the
+load, restores the page rect, applies the saved size through it, and refits the
+view only when the size actually changed (so undo keeps your pan and zoom).
+
+**A new text layer lost its selection the instant it was created.** Leaving the
+pen tool tore down the pen draft and unconditionally discarded the active
+object — on every tool change. Text was added, then immediately deselected, so
+its properties never appeared. It now discards only a selection that belongs to
+a draft.
+
+**Undo threw a new layer into the top-left corner.** History snapshots on add,
+and layers were centred only afterwards. They are now placed first.
+
+**Bent text garbled when the wording, font or size changed.** The arc was
+computed once, when the bend slider moved, and never again. Enlarging bent text
+piled the letters onto an arc sized for the old text. The geometry moved to
+`src/lib/textCurve.ts` and is rebuilt inside fabric's own layout pass, so every
+route that changes text — the panel, the options bar, the quick bar, typing in
+place, undo, loading — refits it.
+
+**Skew left the handles behind, and "Fake 3D depth" undid a resize.** The skew
+sliders never refreshed the layer's coordinates. The taper was applied against
+a copy of the layer's scale stored when the slider first moved, so resizing by
+the handles and then touching the slider snapped the layer back. The taper is
+now a pure function (`src/lib/taperTransform.ts`): old contribution off, new
+one on, nothing stored. The Skew sliders show the layer's own skew rather than
+skew-plus-taper.
+
+**Toolbars drew over popup windows.** Windows used ad-hoc z-index values from
+50 upward while the header sat at 90, floating panels at 100 and tool flyouts
+at 2000. Every popup now sits in a modal tier at 1000+, with prompts, confirm
+dialogs and toasts above that, and tool flyouts back in the workspace tier. The
+scale is written down in `src/lib/zLayers.ts` and a test fails if a full-screen
+overlay is added below the modal tier.
+
+**The dev server rendered the whole app unstyled.** Turbopack evaluates a copy
+of `postcss.config.mjs` from inside `.next`, so resolving `src` against the
+config's own location pointed Tailwind at a folder that does not exist and
+every utility class was dropped. The config now finds the project root by
+walking up. Production builds were unaffected, which is how it went unnoticed.
+
+Also in this pass: `PropertiesPanel.tsx` **3,860 → 3,491**. The adjustment-layer
+engine (which layers each adjustment reaches, clipping, stacking order) became
+`src/components/properties/applyAdjustmentLayers.ts` with 11 tests; it had none.
+52 tests added in total.
+
 ## 2026-10-03 - Pen-tool and 3D-capture logic moved out of oversized components (F-06)
 
 No behaviour change. Two of the five largest files gave up the logic sitting

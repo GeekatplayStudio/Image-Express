@@ -4,7 +4,7 @@ import * as fabric from 'fabric';
 import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import type { DesignJson, ExportDataUrlOptions, MissingItem, SerializedObject } from '@/components/Editor/editorView.types';
-import { serializeCanvas, getArtboardSize, applyArtboardSize } from '@/lib/fabric-utils';
+import { serializeCanvas, getArtboardSize, loadCanvasJson } from '@/lib/fabric-utils';
 import { saveUiPreferences } from '@/lib/ui-preferences';
 
 type Toast = (options: ToastOptions) => void;
@@ -98,17 +98,16 @@ export function useEditorPersistence({
             }
         }
 
-        const artboardSize = (designData as { artboard?: { width?: number; height?: number } }).artboard;
-
         historyReadyRef.current = false;
-        canvas.loadFromJSON(designData as Record<string, unknown>, () => {
-            if (artboardSize?.width && artboardSize?.height) {
-                applyArtboardSize(canvas, artboardSize.width, artboardSize.height);
-            }
-            canvas.requestRenderAll();
-            setIsDirty(false);
-            resetHistory();
-        });
+        void loadCanvasJson(canvas, designData as Record<string, unknown>)
+            .then(() => {
+                setIsDirty(false);
+                resetHistory();
+            })
+            .catch((error) => {
+                console.error('Error loading design data', error);
+                toast({ title: t('toolbar.loadFailed'), description: t('persist.couldNotLoad'), variant: 'destructive' });
+            });
     }, [canvas, historyReadyRef, resetHistory, setIsDirty, t, toast]);
 
     useEffect(() => {
@@ -323,17 +322,10 @@ export function useEditorPersistence({
                 return;
             }
 
-            const artboardSize = (json as { artboard?: { width?: number; height?: number } }).artboard;
-
             historyReadyRef.current = false;
-            canvas.loadFromJSON(json, () => {
-                if (artboardSize?.width && artboardSize?.height) {
-                    applyArtboardSize(canvas, artboardSize.width, artboardSize.height);
-                }
-                canvas.requestRenderAll();
-                setIsDirty(false);
-                resetHistory();
-            });
+            await loadCanvasJson(canvas, json as Record<string, unknown>);
+            setIsDirty(false);
+            resetHistory();
         } catch (error) {
             console.error('Failed to load template', error);
             toast({ title: t('toolbar.loadFailed'), description: t('persist.errorLoadingTemplate'), variant: 'destructive' });
@@ -380,20 +372,16 @@ export function useEditorPersistence({
             });
         }
 
-        const artboardSize = (json as { artboard?: { width?: number; height?: number } }).artboard;
-
         historyReadyRef.current = false;
-        canvas.loadFromJSON(json, () => {
-            if (artboardSize?.width && artboardSize?.height) {
-                applyArtboardSize(canvas, artboardSize.width, artboardSize.height);
-            }
-            canvas.requestRenderAll();
-            setIsDirty(false);
-            setPendingTemplateJson(null);
-            setMissingItems([]);
-            setShowMissingAssetsModal(false);
-            resetHistory();
-        });
+        void loadCanvasJson(canvas, json as Record<string, unknown>)
+            .catch((error) => console.error('Failed to load template', error))
+            .finally(() => {
+                setIsDirty(false);
+                setPendingTemplateJson(null);
+                setMissingItems([]);
+                setShowMissingAssetsModal(false);
+                resetHistory();
+            });
     }, [canvas, historyReadyRef, missingItems, pendingTemplateJson, resetHistory, setIsDirty]);
 
     return {

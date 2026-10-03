@@ -116,7 +116,7 @@ export default function EditorViewOverlays({
             />
 
             {showAssetBrowserForMissing && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[1060] flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className="bg-card w-[800px] h-[600px] rounded-xl shadow-2xl relative flex flex-col overflow-hidden border border-border">
                         <div className="flex-1 overflow-hidden">
                             <AssetLibrary
@@ -157,7 +157,7 @@ export default function EditorViewOverlays({
 
             {mediaPreview && (
                 <div
-                    className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
+                    className="fixed inset-0 z-[1130] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
                     onClick={() => setMediaPreview(null)}
                 >
                     <div

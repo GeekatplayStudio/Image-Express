@@ -183,7 +183,7 @@ export default function CricutExportModal({ sourceDataUrl, designName, onClose }
     const layerCount = layered ? Math.max(1, Math.ceil(options.targetDepthMm / options.materialThicknessMm)) : 1;
 
     return (
-        <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="cricut-export-title">
+        <div className="fixed inset-0 z-[1190] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="cricut-export-title">
             <div className="flex h-[min(900px,96vh)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
                 <header className="flex items-center justify-between gap-4 border-b border-border/70 px-5 py-4">
                     <div className="flex items-center gap-3">

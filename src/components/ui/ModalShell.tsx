@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MODAL_LAYER_BASE } from '@/lib/zLayers';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -23,7 +24,7 @@ interface ModalShellProps {
     initialHeight?: number;
     minWidth?: number;
     minHeight?: number;
-    /** Overlay z-index (panel renders above it). */
+    /** Order among popup windows; offset into the modal tier (see zLayers.ts). */
     zIndex?: number;
     /** Extra classes for the scrollable body. */
     bodyClassName?: string;
@@ -104,7 +105,7 @@ export default function ModalShell({
     return (
         <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-            style={{ zIndex }}
+            style={{ zIndex: MODAL_LAYER_BASE + zIndex }}
             onMouseDown={(event) => {
                 if (closeOnBackdrop && event.target === event.currentTarget) {
                     onClose();
@@ -115,6 +116,7 @@ export default function ModalShell({
                 key={`${frame.position.x}-${frame.position.y}-${frame.size.width}-${frame.size.height}`}
                 className="rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
                 initialPosition={frame.position}
+                zIndex={MODAL_LAYER_BASE + zIndex + 1}
                 initialSize={frame.size}
                 minWidth={minWidth}
                 minHeight={minHeight}

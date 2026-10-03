@@ -291,7 +291,7 @@ export default function AssetVaultModal({
 
     return (
         <>
-            <div className="fixed inset-0 z-[120] pointer-events-none">
+            <div className="fixed inset-0 z-[1120] pointer-events-none">
                 <DraggableResizablePanel
                     className="pointer-events-auto bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-4 duration-200"
                     initialPosition={{ x: 72, y: 96 }}

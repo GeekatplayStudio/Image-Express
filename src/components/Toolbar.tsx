@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardR
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
 import { placeAtViewportCenter } from '@/lib/canvas-placement';
-import { getArtboardSize, applyArtboardSize } from '@/lib/fabric-utils';
+import { getArtboardSize, loadCanvasJson } from '@/lib/fabric-utils';
 import { useI18n } from '@/providers/I18nProvider';
 import { applyEditorCanvasToolConfig } from '@/components/Editor/editorCanvasToolMode';
 import {
@@ -195,6 +195,15 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         canvas.requestRenderAll();
         openPropertiesPanel();
     }, [canvas, openPropertiesPanel]);
+    // Place first, then add: history snapshots on add, so a layer centred only
+    // afterwards was recorded at its construction position and the first undo
+    // threw it into the corner.
+    const insertCenteredLayer = (object: fabric.Object) => {
+        if (!canvas) return;
+        placeAtViewportCenter(canvas, object);
+        canvas.add(object);
+        focusInsertedObject(object);
+    };
     const [shapeConfig, setShapeConfig] = useState<ShapeConfigPayload>({
         mode: 'shape',
         fillColor: appTheme.shapeDefaultFillHex,
@@ -335,11 +344,19 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
     const clearPenDraft = useCallback(() => {
         if (canvas) {
+            const hadDraft = !!penActiveLineRef.current || penAnchorsRef.current.length > 0;
             if (penActiveLineRef.current) {
                 canvas.remove(penActiveLineRef.current);
             }
             penAnchorsRef.current.forEach((anchor) => canvas.remove(anchor));
-            canvas.discardActiveObject();
+            // Drop the selection only when it belongs to a draft being torn
+            // down. This runs on every switch away from the pen tool, and
+            // discarding unconditionally deselected whatever the new tool had
+            // just inserted — a new text layer lost its selection, and with it
+            // its properties panel, the moment it was created.
+            if (hadDraft || isPenDraftAnchor(canvas.getActiveObject())) {
+                canvas.discardActiveObject();
+            }
             canvas.requestRenderAll();
         }
         penActiveLineRef.current = null;
@@ -884,8 +901,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             fontWeight: 'bold',
         });
         (text as ExtendedFabricObject).textSpellcheck = true;
-        canvas.add(text);
-        focusInsertedObject(text);
+        insertCenteredLayer(text);
     };
 
     const syncToolbarColorsToCanvas = useCallback((
@@ -1279,8 +1295,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             ry: 0,
         });
         applyShapeConfig(rect);
-        canvas.add(rect);
-        focusInsertedObject(rect);
+        insertCenteredLayer(rect);
     };
 
     const addCircle = () => {
@@ -1291,8 +1306,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             radius: 50,
         });
         applyShapeConfig(circle);
-        canvas.add(circle);
-        focusInsertedObject(circle);
+        insertCenteredLayer(circle);
     };
 
     const addTriangle = () => {
@@ -1304,8 +1318,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             height: 100,
         });
         applyShapeConfig(triangle);
-        canvas.add(triangle);
-        focusInsertedObject(triangle);
+        insertCenteredLayer(triangle);
     };
 
     const addStar = () => {
@@ -1324,8 +1337,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         star.starInnerRadius = 0.5; // ratio
         applyShapeConfig(star);
 
-        canvas.add(star);
-        focusInsertedObject(star);
+        insertCenteredLayer(star);
     };
 
     const addArrow = () => {
@@ -1345,8 +1357,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             objectCaching: false
         });
         applyShapeConfig(arrow);
-        canvas.add(arrow);
-        focusInsertedObject(arrow);
+        insertCenteredLayer(arrow);
     };
 
     const addBentArrow = () => {
@@ -1384,8 +1395,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             objectCaching: false
         });
         applyShapeConfig(bentArrow);
-        canvas.add(bentArrow);
-        focusInsertedObject(bentArrow);
+        insertCenteredLayer(bentArrow);
     };
 
     const addSpeechBubble = () => {
@@ -1397,8 +1407,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             objectCaching: false
         });
         applyShapeConfig(bubble);
-        canvas.add(bubble);
-        focusInsertedObject(bubble);
+        insertCenteredLayer(bubble);
     };
 
     const addCloud = () => {
@@ -1419,8 +1428,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             objectCaching: false,
         });
         applyShapeConfig(cloud);
-        canvas.add(cloud);
-        focusInsertedObject(cloud);
+        insertCenteredLayer(cloud);
     };
 
     const addThoughtBubble = () => {
@@ -1444,8 +1452,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             objectCaching: false,
         });
         applyShapeConfig(thoughtBubble);
-        canvas.add(thoughtBubble);
-        focusInsertedObject(thoughtBubble);
+        insertCenteredLayer(thoughtBubble);
     };
 
     const addHexagon = () => {
@@ -1464,8 +1471,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             objectCaching: false,
         });
         applyShapeConfig(hexagon);
-        canvas.add(hexagon);
-        focusInsertedObject(hexagon);
+        insertCenteredLayer(hexagon);
     };
 
     const addDiamond = () => {
@@ -1482,8 +1488,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             objectCaching: false,
         });
         applyShapeConfig(diamond);
-        canvas.add(diamond);
-        focusInsertedObject(diamond);
+        insertCenteredLayer(diamond);
     };
 
     const createAdjustmentLayer = (type: AdjustmentLayerType) => {
@@ -1533,8 +1538,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             (group as ExtendedFabricObject).name = displayName;
         }
 
-        canvas.add(group);
-        focusInsertedObject(group);
+        insertCenteredLayer(group);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1620,8 +1624,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 img.scale(finalScale);
             }
 
-            canvas.add(img);
-            focusInsertedObject(img);
+            insertCenteredLayer(img);
         }).catch((err) => {
             console.error("Error loading image:", err);
         });
@@ -1703,8 +1706,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         (group as ExtendedFabricObject).mediaSource = url;
         (group as ExtendedFabricObject).name = `${labelText}: ${fileName}`;
 
-        canvas.add(group);
-        focusInsertedObject(group);
+        insertCenteredLayer(group);
     };
 
     const addVideoPlaceholder = (url: string) => addMediaPlaceholder('video', url);
@@ -1807,19 +1809,9 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         fetch(url)
             .then(res => res.json())
             .then(json => {
-                // Note: canvas.loadFromJSON() already clears existing objects
-                // internally; calling canvas.clear() first would also remove
-                // the (excludeFromExport) artboard rect before load, leaving
-                // the page with no visible artboard afterward.
-                const artboardSize = (json as { artboard?: { width?: number; height?: number } })?.artboard;
-                canvas.loadFromJSON(json, () => {
-                    if (artboardSize?.width && artboardSize?.height) {
-                        applyArtboardSize(canvas, artboardSize.width, artboardSize.height);
-                    }
-                    canvas.requestRenderAll();
-                    setActiveTool('select');
-                });
+                return loadCanvasJson(canvas, json);
             })
+            .then(() => setActiveTool('select'))
             .catch(err => {
                 console.error("Error loading template", err);
                 toast({ title: t('toolbar.loadFailed'), description: t('toolbar.loadTemplateError'), variant: 'destructive' });
@@ -2046,7 +2038,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 <div
                     ref={toolGroupMenuRef}
                     style={{ left: toolGroupMenuPos.left, top: toolGroupMenuPos.top }}
-                    className="fixed bg-card border border-border rounded-lg shadow-xl p-2 grid grid-cols-1 gap-1 z-[2000] w-52 animate-in fade-in slide-in-from-left-2 duration-150"
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-2 grid grid-cols-1 gap-1 z-[300] w-52 animate-in fade-in slide-in-from-left-2 duration-150"
                 >
                     <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/60">
                         {t(TOOL_GROUP_BY_ID[openToolGroup].labelKey)}
@@ -2209,7 +2201,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 <div
                     ref={shapesMenuRef}
                     style={{ left: shapesMenuPos.left, top: shapesMenuPos.top }}
-                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-[2000] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-2 gap-2 z-[300] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
                     <div
                         className="col-span-2 -mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
@@ -2270,7 +2262,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 <div
                     ref={adjustmentMenuRef}
                     style={{ left: adjustmentMenuPos.left, top: adjustmentMenuPos.top }}
-                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[2000] w-56 animate-in fade-in slide-in-from-left-2 duration-200"
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[300] w-56 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
                     <div
                         className="-mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"
@@ -2326,7 +2318,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                 <div
                     ref={extraMenuRef}
                     style={{ left: extraMenuPos.left, top: extraMenuPos.top }}
-                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[2000] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
+                    className="fixed bg-card border border-border rounded-lg shadow-xl p-3 grid grid-cols-1 gap-2 z-[300] w-44 animate-in fade-in slide-in-from-left-2 duration-200"
                 >
                     <div
                         className="-mx-1 px-1 pb-2 mb-1 border-b border-border/60 flex items-center justify-between cursor-move select-none"

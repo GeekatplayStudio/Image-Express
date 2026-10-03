@@ -106,7 +106,7 @@ export default function VaultCircularMenu({
     return (
         <div
             ref={menuRef}
-            className="fixed z-[110] w-0 h-0"
+            className="fixed z-[1110] w-0 h-0"
             style={{ left: menuX, top: menuY }}
             data-testid="vault-circular-menu"
         >

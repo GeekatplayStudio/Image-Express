@@ -426,7 +426,7 @@ export async function executeAgentStepOnCanvas(
             if (typeof canvas.setDimensions === 'function') {
                 canvas.setDimensions({ width: w, height: h });
             }
-            (canvas as unknown as { artboard?: { width: number; height: number } }).artboard = { width: w, height: h };
+            (canvas as unknown as { artboard?: { width: number; height: number; left: number; top: number } }).artboard = { width: w, height: h, left: 0, top: 0 };
             canvas.requestRenderAll();
             break;
         }

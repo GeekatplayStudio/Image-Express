@@ -318,7 +318,7 @@ export default function UnwarpEditorModal({
     const valid = isQuadValid(corners);
 
     return createPortal(
-        <div className="fixed inset-0 z-[300] flex flex-col bg-slate-950/90 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[1300] flex flex-col bg-slate-950/90 backdrop-blur-sm animate-in fade-in duration-150">
             <div className="flex items-center gap-4 px-4 py-2 border-b border-border/40 bg-card/90 text-sm">
                 <span className="font-semibold">{t('layer3d.unwarp.title')}</span>
                 <span className="text-xs text-muted-foreground hidden md:inline">{t('layer3d.unwarp.hint')}</span>

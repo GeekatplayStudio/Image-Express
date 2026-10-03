@@ -4,12 +4,15 @@ import * as fabric from 'fabric'; // Import all to be safe with versioning, or n
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { patchTextRender } from '@/components/canvas/designCanvasWarp';
+import { patchTextCurveLayout } from '@/lib/textCurve';
 import { installDeleteHotkeys, installPanZoomNavigation } from '@/components/canvas/designCanvasInteractions';
 import { installSharedLayerBadges } from '@/components/canvas/sharedLayerBadges';
 import { ExtendedFabricObject } from '@/types';
 
 patchTextRender(fabric.IText);
 patchTextRender(fabric.Textbox);
+// Patched on the base class so IText and Textbox both inherit it.
+patchTextCurveLayout(fabric.FabricText);
 
 // Fabric's WebGL filter backend crops any image larger than textureSize
 // (default 4096) when a filter is applied — e.g. changing Brightness visibly

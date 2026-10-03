@@ -220,7 +220,7 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
     }, [designName, onClose, plan]);
 
     return (
-        <div className="fixed inset-0 z-[140] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-150" onClick={onClose}>
+        <div className="fixed inset-0 z-[1140] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-150" onClick={onClose}>
             <div
                 className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
                 onClick={(event) => event.stopPropagation()}

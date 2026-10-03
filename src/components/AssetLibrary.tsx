@@ -2634,7 +2634,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             return (
                 <div
                     ref={contextMenuRef}
-                    className="fixed z-[130] w-52 rounded-lg border border-border bg-popover shadow-xl p-1 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
+                    className="fixed z-[1130] w-52 rounded-lg border border-border bg-popover shadow-xl p-1 overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
                     style={
                         contextMenuPosition
                             ? {
@@ -2795,7 +2795,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         })()}
         {assetDetail && (
             <div
-                className="fixed inset-0 z-[130] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-150"
+                className="fixed inset-0 z-[1130] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-150"
                 onClick={() => setAssetDetail(null)}
             >
                 <div
@@ -2884,7 +2884,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
         )}
         {modelPreviewPopup && (
             <div
-                className="fixed z-[120] bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                className="fixed z-[1120] bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
                 style={{
                     left: modelPreviewPopup.x,
                     top: modelPreviewPopup.y,

@@ -24,6 +24,13 @@ interface DraggableResizablePanelProps {
     minHeight?: number;
     handleSelector?: string;
     resizeHandle?: boolean;
+    /**
+     * Stacking level, for a panel that is the body of a popup window. The
+     * panel is portaled to <body>, so it does not inherit its overlay's level
+     * and must be told to sit above it. Floating workspace panels leave this
+     * unset and stay in the workspace tier.
+     */
+    zIndex?: number;
 }
 
 export default function DraggableResizablePanel({
@@ -34,7 +41,8 @@ export default function DraggableResizablePanel({
     minWidth = 260,
     minHeight = 320,
     handleSelector = '.draggable-handle',
-    resizeHandle = true
+    resizeHandle = true,
+    zIndex
 }: DraggableResizablePanelProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewportPadding = 8;
@@ -209,7 +217,7 @@ export default function DraggableResizablePanel({
         <div
             ref={containerRef}
             className={cn('fixed z-[100] flex flex-col', className)}
-            style={{ left: position.x, top: position.y, width: size.width, height: size.height }}
+            style={{ left: position.x, top: position.y, width: size.width, height: size.height, zIndex }}
             onMouseDown={handleMouseDown}
             onPointerDown={(e) => e.stopPropagation()}
             onDoubleClick={handleDoubleClick}

@@ -17,7 +17,7 @@ export default function HelpPopup({ isOpen, onClose, type }: HelpPopupProps) {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[1060] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-card w-full max-w-lg rounded-xl border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-4 border-b border-border bg-secondary/20 flex justify-between items-center">
                     <h3 className="font-semibold flex items-center gap-2">

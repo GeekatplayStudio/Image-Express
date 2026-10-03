@@ -225,6 +225,59 @@ export const getArtboardSize = (canvas: fabric.Canvas): { width: number; height:
     return { width: artboard.width, height: artboard.height };
 };
 
+/**
+ * Load a serialized page into the canvas and resolve once it is actually there.
+ *
+ * Exists because `canvas.loadFromJSON(json, callback)` no longer means what it
+ * did: in fabric 7 the second argument is a per-object *reviver*, called while
+ * objects are being built — before the canvas is cleared and refilled — and
+ * never called at all for a page with no objects. Post-load work passed there
+ * ran too early, once per layer, or not at all.
+ *
+ * Two more things a raw load gets wrong, both fixed here:
+ *  - `loadFromJSON` clears the canvas, which takes the page rect with it (it is
+ *    excluded from export, so it is not in the JSON to come back).
+ *  - It copies every top-level JSON key onto the canvas, so the saved
+ *    `artboard: { width, height }` replaced the live record and dropped its
+ *    `left`/`top`. Anything positioned against the page then computed NaN —
+ *    new layers were created invisible. The size is applied through the rect
+ *    instead, which keeps the record whole.
+ */
+export const loadCanvasJson = async (
+    canvas: fabric.Canvas,
+    json: string | Record<string, unknown>,
+): Promise<void> => {
+    const parsed = (typeof json === 'string' ? JSON.parse(json) : json) as Record<string, unknown>;
+    const { artboard: savedArtboard, ...serialized } = parsed;
+    const savedSize = savedArtboard as { width?: number; height?: number } | undefined;
+
+    await canvas.loadFromJSON(serialized);
+
+    const ext = canvas as CanvasArtboardAccess & { centerArtboard?: () => void };
+    const rect = ext.artboardRect;
+    if (rect) {
+        const previousWidth = rect.width;
+        const previousHeight = rect.height;
+        if (!canvas.getObjects().includes(rect)) {
+            canvas.add(rect);
+            canvas.sendObjectToBack(rect);
+        }
+        // Routed through the rect even when the size is unchanged: its
+        // object:modified listener is what rebuilds the canvas.artboard record.
+        applyArtboardSize(
+            canvas,
+            savedSize?.width || rect.width || 0,
+            savedSize?.height || rect.height || 0,
+        );
+        // A page of a different size is refit to the view; one of the same
+        // size (every undo and redo) keeps the pan and zoom the user chose.
+        if (rect.width !== previousWidth || rect.height !== previousHeight) {
+            ext.centerArtboard?.();
+        }
+    }
+    canvas.requestRenderAll();
+};
+
 /** Resizes the artboard rect (and dependent state via its object:modified listeners) to the given page size. */
 export const applyArtboardSize = (canvas: fabric.Canvas, width: number, height: number): void => {
     if (!width || !height) return;
