@@ -22,7 +22,7 @@ export type ValidationProvider = 'meshy' | 'tripo' | 'hitems' | 'google';
 export type ValidationState = 'idle' | 'checking' | 'valid' | 'invalid';
 export type SettingsTabId = 'comfy' | 'services' | 'storage' | 'workspace' | 'admin';
 
-export const sanitizeHeaderValue = (value: string) => value.replace(/Bearer /gi, '').replace(/["']/g, '').trim();
+export { sanitizeHeaderValue } from '@/lib/providerCredentials';
 
 export type ComfyCatalogSnapshot = Awaited<ReturnType<typeof inspectComfyServerCatalog>>;
 

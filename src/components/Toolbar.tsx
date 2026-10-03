@@ -23,21 +23,34 @@ import {
     ArrowUpDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ExtendedFabricObject, PenNode, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
+import { ExtendedFabricObject, ColorPalette, StarPolygon, AdjustmentLayerType, ThreeDGroup } from '@/types';
 import useAppTheme from '@/hooks/useAppTheme';
 import {
     PenPoint,
     PenModeSetting,
-    PEN_DEFAULT_STROKE,
-    PEN_DEFAULT_FILL,
     buildAutoBezierNodes,
     buildBezierPathData,
-    buildSmoothPathData,
     buildStraightNodes,
-    clonePenNodes,
     distanceBetween,
     getPenNodeBounds,
 } from '@/lib/pen-utils';
+import {
+    PEN_ANCHOR_COLOR,
+    PEN_FILL,
+    PEN_HANDLE_COLOR,
+    PEN_STROKE,
+    attachBezierControls,
+    createPenDraftLine,
+    isPenDraftAnchor,
+    isPenSpaceHeld,
+    penPathOperationToComposite,
+    setPenSpacePressed,
+    type BezierPathObject,
+    type PenAnchorObject,
+    type PenClosure,
+    type PenDraftLineObject,
+    type PenPathOperation,
+} from '@/lib/pen-fabric';
 import AssetLibrary from './AssetLibrary';
 import TemplateLibrary from './TemplateLibrary';
 import InputModal from './InputModal';
@@ -117,11 +130,6 @@ const getStarPoints = (numPoints: number, innerRadius: number, outerRadius: numb
     return points;
 };
 
-type PenClosure = 'open' | 'closed';
-type PenPathOperation = 'add' | 'subtract' | 'intersect';
-type BezierPathObject = fabric.Path & ExtendedFabricObject;
-type PenDraftLineObject = fabric.Object;
-type PenAnchorObject = fabric.Circle & { isPenDraftAnchor?: boolean; penAnchorIndex?: number };
 type ShapeTopMode = 'shape' | 'path' | 'pixels';
 type ShapeConfigPayload = {
     mode: ShapeTopMode;
@@ -130,226 +138,6 @@ type ShapeConfigPayload = {
     strokeWidth: number;
     cornerRadius: number;
     fixedSize: boolean;
-};
-
-const PEN_STROKE = PEN_DEFAULT_STROKE;
-const PEN_FILL = PEN_DEFAULT_FILL;
-const PEN_ANCHOR_COLOR = '#2563eb';
-const PEN_HANDLE_COLOR = '#ffffff';
-let isPenSpacePressed = false;
-
-const isPenDraftAnchor = (obj?: fabric.Object | null): obj is PenAnchorObject => !!obj && (obj as PenAnchorObject).isPenDraftAnchor === true;
-
-const penPathOperationToComposite: Record<PenPathOperation, GlobalCompositeOperation> = {
-    add: 'source-over',
-    subtract: 'destination-out',
-    intersect: 'source-atop',
-};
-
-/* 
- * Duplicated logic moved to @/lib/pen-utils 
- */
-
-const createPenDraftLine = (points: PenPoint[], mode: PenModeSetting, closure: PenClosure): PenDraftLineObject | null => {
-    if (points.length === 0) return null;
-    const isClosed = closure === 'closed' && points.length > 2;
-    const baseProps = {
-        stroke: PEN_STROKE,
-        strokeWidth: 2,
-        fill: isClosed ? 'rgba(59,130,246,0.08)' : 'transparent',
-        objectCaching: false,
-        selectable: false,
-        evented: false,
-        originX: 'left' as const,
-        originY: 'top' as const
-    };
-
-    if (mode === 'straight') {
-        if (isClosed) {
-            return new fabric.Polygon(points, baseProps);
-        }
-        const polyPoints = points.length === 1 ? [points[0], points[0]] : points;
-        return new fabric.Polyline(polyPoints, baseProps);
-    }
-
-    if (points.length === 1) {
-        return new fabric.Polyline([points[0], points[0]], baseProps);
-    }
-
-    if (mode === 'smooth') {
-        return new fabric.Path(buildSmoothPathData(points, isClosed), baseProps);
-    }
-
-    const nodes = buildAutoBezierNodes(points, isClosed);
-    return new fabric.Path(buildBezierPathData(nodes, isClosed), baseProps);
-};
-
-const getViewportPointFromPathPoint = (pathObj: fabric.Path, point: PenPoint): fabric.Point => {
-    const transformPoint = (fabric.util as unknown as { transformPoint: (point: fabric.Point, transform: number[]) => fabric.Point }).transformPoint;
-    const multiplyTransformMatrices = (fabric.util as unknown as { multiplyTransformMatrices: (a: number[], b: number[]) => number[] }).multiplyTransformMatrices;
-    const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
-    const localPoint = new fabric.Point(point.x - pathOffset.x, point.y - pathOffset.y);
-    const viewportTransform = pathObj.getViewportTransform();
-    return transformPoint(localPoint, multiplyTransformMatrices(viewportTransform, pathObj.calcTransformMatrix()));
-};
-
-const getPathPointFromScenePoint = (pathObj: fabric.Path, point: PenPoint): PenPoint => {
-    const transformPoint = (fabric.util as unknown as { transformPoint: (point: fabric.Point, transform: number[]) => fabric.Point }).transformPoint;
-    const invertTransform = (fabric.util as unknown as { invertTransform: (transform: number[]) => number[] }).invertTransform;
-    const inverse = invertTransform(pathObj.calcOwnMatrix());
-    const localPoint = transformPoint(new fabric.Point(point.x, point.y), inverse);
-    const pathOffset = pathObj.pathOffset || new fabric.Point(0, 0);
-    return {
-        x: localPoint.x + pathOffset.x,
-        y: localPoint.y + pathOffset.y
-    };
-};
-
-const applyBezierNodesToPath = (pathObj: BezierPathObject, nodes: PenNode[], closed: boolean) => {
-    const pathData = buildBezierPathData(nodes, closed);
-    const nextPath = new fabric.Path(pathData);
-    const center = pathObj.getCenterPoint();
-
-    pathObj.set({
-        path: nextPath.path,
-        width: nextPath.width,
-        height: nextPath.height,
-        pathOffset: nextPath.pathOffset,
-        dirty: true,
-        penNodes: nodes,
-        penSourcePoints: nodes.map((node) => ({ x: node.x, y: node.y })),
-        penClosed: closed,
-        penMode: 'bezier',
-        isPenPath: true
-    });
-    pathObj.setPositionByOrigin(center, 'center', 'center');
-    pathObj.setCoords();
-    pathObj.canvas?.requestRenderAll();
-};
-
-const attachBezierControls = (pathObj: BezierPathObject) => {
-    const nodes = pathObj.penNodes;
-    if (!nodes || nodes.length < 2) return;
-
-    const renderAnchor: fabric.Control['render'] = (ctx, left, top, styleOverride, fabricObject) => {
-        const size = styleOverride?.cornerSize ?? fabricObject.cornerSize ?? 10;
-        ctx.save();
-        ctx.fillStyle = PEN_ANCHOR_COLOR;
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.arc(left, top, size / 2.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-    };
-
-    const renderHandle = (nodeIndex: number): fabric.Control['render'] => {
-        return (ctx, left, top, styleOverride, fabricObject) => {
-            const target = fabricObject as BezierPathObject;
-            const currentNodes = target.penNodes || [];
-            const node = currentNodes[nodeIndex];
-            if (!node) return;
-            const anchorPoint = getViewportPointFromPathPoint(target, { x: node.x, y: node.y });
-            const size = styleOverride?.cornerSize ?? fabricObject.cornerSize ?? 10;
-
-            ctx.save();
-            ctx.strokeStyle = 'rgba(37,99,235,0.7)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(anchorPoint.x, anchorPoint.y);
-            ctx.lineTo(left, top);
-            ctx.stroke();
-
-            ctx.fillStyle = PEN_HANDLE_COLOR;
-            ctx.strokeStyle = PEN_ANCHOR_COLOR;
-            ctx.beginPath();
-            ctx.arc(left, top, size / 2.8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-        };
-    };
-
-    const controls: Record<string, fabric.Control> = {};
-
-    nodes.forEach((_, index) => {
-        controls[`anchor_${index}`] = new fabric.Control({
-            cursorStyle: 'move',
-            positionHandler: (_dim, _finalMatrix, fabricObject) => {
-                const target = fabricObject as BezierPathObject;
-                const currentNodes = target.penNodes || [];
-                const node = currentNodes[index];
-                if (!node) return new fabric.Point(0, 0);
-                return getViewportPointFromPathPoint(target, { x: node.x, y: node.y });
-            },
-            actionHandler: (_eventData, transform, x, y) => {
-                const target = transform.target as BezierPathObject;
-                const currentNodes = target.penNodes || [];
-                const nextNodes = clonePenNodes(currentNodes);
-                const node = nextNodes[index];
-                if (!node) return false;
-
-                const nextPoint = getPathPointFromScenePoint(target, { x, y });
-                const dx = nextPoint.x - node.x;
-                const dy = nextPoint.y - node.y;
-
-                node.x = nextPoint.x;
-                node.y = nextPoint.y;
-                node.handleIn.x += dx;
-                node.handleIn.y += dy;
-                node.handleOut.x += dx;
-                node.handleOut.y += dy;
-
-                applyBezierNodesToPath(target, nextNodes, !!target.penClosed);
-                return true;
-            },
-            render: renderAnchor
-        });
-
-        (['handleIn', 'handleOut'] as const).forEach((handleKey) => {
-            controls[`${handleKey}_${index}`] = new fabric.Control({
-                cursorStyle: 'crosshair',
-                positionHandler: (_dim, _finalMatrix, fabricObject) => {
-                    const target = fabricObject as BezierPathObject;
-                    const currentNodes = target.penNodes || [];
-                    const node = currentNodes[index];
-                    if (!node) return new fabric.Point(0, 0);
-                    return getViewportPointFromPathPoint(target, node[handleKey]);
-                },
-                actionHandler: (eventData, transform, x, y) => {
-                    const target = transform.target as BezierPathObject;
-                    const currentNodes = target.penNodes || [];
-                    const nextNodes = clonePenNodes(currentNodes);
-                    const node = nextNodes[index];
-                    if (!node) return false;
-
-                    const nextPoint = getPathPointFromScenePoint(target, { x, y });
-                    node[handleKey] = nextPoint;
-
-                    const oppositeKey = handleKey === 'handleIn' ? 'handleOut' : 'handleIn';
-                    void eventData;
-                    if (!isPenSpacePressed) {
-                        const dx = nextPoint.x - node.x;
-                        const dy = nextPoint.y - node.y;
-                        node[oppositeKey] = { x: node.x - dx, y: node.y - dy };
-                    }
-
-                    applyBezierNodesToPath(target, nextNodes, !!target.penClosed);
-                    return true;
-                },
-                render: renderHandle(index)
-            });
-        });
-    });
-
-    pathObj.set({
-        controls,
-        hasBorders: false,
-        cornerColor: PEN_ANCHOR_COLOR,
-        transparentCorners: false
-    });
-    pathObj.setCoords();
 };
 
 const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
@@ -520,7 +308,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.code !== 'Space') return;
             if (isTypingTarget(event.target)) return;
-            isPenSpacePressed = true;
+            setPenSpacePressed(true);
             if (activeTool === 'pen') {
                 event.preventDefault();
             }
@@ -528,11 +316,11 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
         const handleKeyUp = (event: KeyboardEvent) => {
             if (event.code !== 'Space') return;
-            isPenSpacePressed = false;
+            setPenSpacePressed(false);
         };
 
         const handleBlur = () => {
-            isPenSpacePressed = false;
+            setPenSpacePressed(false);
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -705,7 +493,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleMouseDown = (opt: any) => {
             if (activeTool !== 'pen') return;
-            if (isPenSpacePressed) return;
+            if (isPenSpaceHeld()) return;
 
             const pointer = opt.scenePoint
                 ?? (opt.e ? (canvas as unknown as { getScenePoint: (e: MouseEvent | PointerEvent | TouchEvent) => fabric.Point }).getScenePoint(opt.e) : null);

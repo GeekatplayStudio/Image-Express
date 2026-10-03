@@ -347,10 +347,28 @@ exit code**, so 40 files drifted past it with nothing to stop them.
   win: **pen-utils had no tests at all**, and it is 288 lines of geometry that
   decides how the pen tool behaves. Now 25. **2,689 → 2,660.**
 
+- **Done — fourth split (2026-10-03).** `Toolbar.tsx` gave up the fabric half
+  of the pen tool — draft lines, the path/viewport coordinate mapping and the
+  on-canvas anchor and handle controls — to `src/lib/pen-fabric.ts`, beside the
+  pure geometry in `pen-utils`. That was the whole remaining prefix: the
+  component now starts on line 143. 14 tests pin behaviour that had none,
+  including that dragging an anchor carries its handles, that a handle mirrors
+  its opposite, and that holding Space breaks the mirror. **2,567 → 2,355.**
+- **Done — fifth split (2026-10-03).** `ThreeDGenerator.tsx` gave its offscreen
+  scene capture to `src/lib/three/sceneCapture.ts` and its credential
+  sanitisers to `src/lib/providerCredentials.ts`. Two things fell out: the
+  capture restored renderer state through two hand-copied blocks, now one; and
+  `sanitizeHeaderValue` existed twice (here and in `settingsTypes.ts`), now
+  once. 17 tests, including that every piece of shared renderer state is put
+  back on the failure path too. **2,197 → 2,112.**
+- **The mechanical cuts are now spent** on the five largest files. What remains
+  in each is component body — JSX and handlers — so further progress means
+  splitting render trees by responsibility, one file per pass.
+
 - **What to look for.** The productive cut is the pure logic sitting *above* the
   component: it extracts cleanly, becomes testable immediately, and carries no
   JSX risk. Splitting a render tree is the harder, later job. Measured prefix
-  sizes, as of 2026-08-08 — the number is the line the component starts on, so
+  sizes, as of 2026-08-08 (Toolbar and ThreeDGenerator rows as of 2026-10-03) — the number is the line the component starts on, so
   it is roughly what can be lifted mechanically:
 
   | File | Lines | Pure prefix | Note |
@@ -358,8 +376,8 @@ exit code**, so 40 files drifted past it with nothing to stop them.
   | `PropertiesPanel.tsx` | 3,822 | 175 | Almost none. Needs the render tree split — the hard job. |
   | `ImageGeneratorModal.tsx` | 3,759 | 261 | Prefix already harvested once; the rest is JSX + handlers. |
   | `AssetLibrary.tsx` | 2,906 | 187 | Prefix already harvested once. |
-  | `Toolbar.tsx` | 2,660 | 473 | **Best remaining mechanical target** — ~380 lines of pen/bezier code still above the component. |
-  | `ThreeDGenerator.tsx` | 2,197 | 193 | Prefix mixes two small React components in; extract the credential sanitisers and scene capture separately. |
+  | `Toolbar.tsx` | 2,355 | 143 | Prefix harvested (pen geometry, then pen fabric code). |
+  | `ThreeDGenerator.tsx` | 2,112 | 109 | Sanitisers and scene capture extracted; two small React components remain above the main one. |
   | `EditorView.tsx` | 1,490 | 111 | Little prefix. |
   | `libraryServer.ts` | 1,243 | — | Not a component; splits by responsibility instead. |
 

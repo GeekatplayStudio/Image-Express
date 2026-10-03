@@ -19,6 +19,19 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-03 - Pen-tool and 3D-capture logic moved out of oversized components (F-06)
+
+No behaviour change. Two of the five largest files gave up the logic sitting
+above their component, which made it testable for the first time.
+
+- `Toolbar.tsx` 2,567 → 2,355. The pen tool's fabric code (draft lines,
+  coordinate mapping, bezier anchor and handle controls) is now
+  `src/lib/pen-fabric.ts`, with 14 tests.
+- `ThreeDGenerator.tsx` 2,197 → 2,112. Offscreen scene capture is now
+  `src/lib/three/sceneCapture.ts`; API-key sanitising is
+  `src/lib/providerCredentials.ts`, which also replaces a duplicate copy in the
+  settings code. 17 tests.
+
 ## 2026-10-03 - Rate limiting on auth and URL-fetching routes (closes F-10)
 
 Nothing in the app limited how often a route could be called. Sign-in could be
