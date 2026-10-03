@@ -28,6 +28,9 @@ jobs:
     - name: Verify
       run: npm run verify
 
+    - name: Test desktop installation decisions and release assembly
+      run: npm run test:packaging
+
     - name: Install critical-journey browser
       run: npx playwright install --with-deps chromium
 

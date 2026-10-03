@@ -32,158 +32,52 @@ It runs anywhere: as a **desktop app** on Windows/macOS, as a **self-hosted web 
 
 ## 🚀 Install & Run
 
-### 🌟 Recommended: Single-Click Desktop App (Windows & macOS)
+### Mac — download, install, open
 
-**No coding, no terminal commands, and no extra software needed.** The desktop app is completely self-contained with its own bundled high-performance engine:
+**[Download Image Express](https://github.com/GeekatplayStudio/Image-Express/releases)** · **[Mac help with every step](docs/MAC_INSTALL.md)**
 
----
+Requires **macOS 13 Ventura or later**. No Terminal, Node.js, Git, or Homebrew needed.
 
-#### 🪟 Windows — Step-by-Step (30 Seconds)
+1. On the Downloads page, choose the newest published release. Under **Assets**, download
+   **`arm64.dmg` for an Apple M-series chip**, or **`x64.dmg` for Intel**.
+   Find your chip under **Apple menu → About This Mac**.
+2. Double-click the downloaded `.dmg`, then double-click **Image Express** inside it.
+3. Click **Open** if macOS asks, then **Install and Open**. The app moves to Applications and opens.
+   You can also drag its icon onto **Applications**, then open it from there.
+4. Keep it handy: Control-click the app's Dock icon → **Options → Keep in Dock**.
+   **Next time, click that Dock icon.** You can eject the disk and delete the `.dmg`.
 
-1. **Download the installer**: Click **[`ImageExpress-Setup-0.2.1.exe`](https://github.com/GeekatplayStudio/Image-Express/releases)** on the GitHub Releases page and save it to your computer.
-2. **Open your Downloads folder** and **double-click** `ImageExpress-Setup-0.2.1.exe`.
-3. **If you see "Windows protected your PC" (SmartScreen)**:
-   - Click **"More info"** *(small text under the message)*.
-   - Click the **"Run anyway"** button that appears.  
-   *(Why does this appear? Image Express is a brand-new, free, open-source project. Because it isn't sold through Microsoft's paid store, Windows simply asks you to confirm you want to run it. It is 100% safe and virus-free.)*
-4. **Done!** The installer runs automatically in a few seconds, creates an **Image Express** shortcut on your Desktop and in your Start Menu, and opens right up.
-5. **Next time you want to use it**: Just double-click the **Image Express** icon on your Desktop!
+**Release availability:** the signed Mac release is being prepared. If there is no published
+Mac `.dmg` under Assets, please wait for it. **“Source code” is not the installer.**
 
----
+A normal first-open confirmation is expected. If macOS cannot verify the developer,
+see [Mac help](docs/MAC_INSTALL.md#if-your-mac-shows-a-warning). If it reports malware
+or damage, stop and report it. Do not disable Mac security to install the app.
 
-#### 🍎 macOS — Step-by-Step (1 Minute)
+### Windows
 
-1. **Download the disk image (`.dmg`) for your Mac** from [GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases):
-   - **Most modern Macs (Apple Silicon M1, M2, M3, M4, or M5)**: Download **`ImageExpress-0.2.1-arm64.dmg`**.
-   - **Older Intel Macs**: Download **`ImageExpress-0.2.1-x64.dmg`**.  
-   *(Not sure which Mac you have? Click the Apple  menu in the top-left corner of your screen → choose **About This Mac**. If it says "Apple M1/M2/M3/M4", choose `arm64`. If it mentions "Intel", choose `x64`.)*
-2. **Open your Downloads folder** and **double-click** the downloaded `.dmg` file.
-3. In the window that pops up, **drag the Image Express icon into your Applications folder**.
-4. Open your **Applications** folder (in Finder) and **double-click Image Express** to open it.
-5. **If macOS says "Apple cannot check it for malicious software" or "Unidentified Developer"**:
-   - Simply **right-click** (or hold <kbd>Control</kbd> and click) **Image Express** in your Applications folder, then click **Open**.
-   - Click **Open** on the confirmation prompt. *(You only ever need to do this once — from then on, a normal double-click will open it!)*
+Download **`ImageExpress-Setup-<version>.exe`** from the same
+[Downloads page](https://github.com/GeekatplayStudio/Image-Express/releases) and double-click it.
+The installer creates shortcuts and opens the app. Next time, use the Desktop or Start menu shortcut.
+If Windows blocks an installer, verify the download and publisher before deciding to run it;
+free/open-source software is not automatically safe.
 
----
+### First use, updates, and removal
 
-### 🛠️ Common Questions & Troubleshooting (Non-Technical Guide)
+The setup wizard opens on first use. **AI engines, models, and cloud accounts are optional**;
+you can skip them and start editing. The desktop runtime is bundled, but local AI models are not.
+The desktop app checks for updates and offers a restart when one is ready. Save your work first.
 
-<details>
-<summary><b>1. Windows says "Windows protected your PC" — is it safe?</b></summary>
-<br>
+To uninstall on Mac, quit the app and move it from Applications to Trash. On Windows, use
+Settings → Apps → Installed apps → Image Express → Uninstall. Saved work is retained separately.
+See [installation help](docs/INSTALLATION.md) for storage locations and troubleshooting.
 
-**Yes, completely safe.** Microsoft displays this blue "SmartScreen" alert on any free or open-source software that does not purchase a yearly Microsoft commercial publisher certificate.
+### Developers: install from source
 
-**How to bypass it:**
-1. Click the small link that says **"More info"** directly under the message.
-2. Click the **"Run anyway"** button at the bottom.
-3. The app will install and open normally.
-
-</details>
-
-<details>
-<summary><b>2. macOS says it "cannot be opened because the developer cannot be verified"</b></summary>
-<br>
-
-Apple requires all Mac apps to be registered under Apple's paid Developer Program ($99/year). Because Image Express is free and community-driven, macOS displays this security notice the very first time you launch it.
-
-**How to open it (choose either method):**
-- **Option A (Easiest)**: Open your **Applications** folder. Hold the <kbd>Control</kbd> key on your keyboard and click **Image Express** (or right-click it). Select **Open** from the menu, then click **Open** on the dialog.
-- **Option B (System Settings)**: Click the **Apple  menu → System Settings → Privacy & Security**. Scroll down to the **Security** section where it says *"Image Express was blocked from use because it is not from an identified developer"*, and click **Open Anyway**.
-
-*You only have to do this once! Afterwards, Image Express will open with a regular double-click.*
-
-</details>
-
-<details>
-<summary><b>3. macOS says "Image Express is damaged and can't be opened"</b></summary>
-<br>
-
-On newer macOS versions (Sonoma, Sequoia), macOS sometimes aggressively quarantines downloaded disk images. The app file is **not** damaged.
-
-**Quick 1-step fix:**
-1. Press <kbd>⌘ Cmd</kbd> + <kbd>Space</kbd>, type `Terminal`, and press Return.
-2. Copy and paste this command into the Terminal window:
-   ```bash
-   xattr -cr "/Applications/Image Express.app"
-   ```
-3. Press Return. Now double-click **Image Express** in your Applications folder — it will launch immediately.
-
-</details>
-
-<details>
-<summary><b>4. The app takes 10–15 seconds to open the very first time</b></summary>
-<br>
-
-**This is completely normal.** On its initial launch, Image Express sets up its internal private local database and starts its high-performance local canvas engine. On all future launches, it starts in just 2 to 3 seconds.
-
-</details>
-
-<details>
-<summary><b>5. "Port 3927 already in use" or the window doesn't open</b></summary>
-<br>
-
-This happens if an earlier instance of Image Express is already running in the background.
-- **On Windows**: Check your system tray (bottom-right near the clock) or open Task Manager (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd>) and close any running `Image Express` processes, then re-launch the app.
-- **On Mac**: Press <kbd>⌘ Cmd</kbd> + <kbd>Option</kbd> + <kbd>Esc</kbd> (Force Quit Applications), select Image Express if present, click Force Quit, and reopen the app.
-- A computer restart will also immediately clear any stuck ports.
-
-</details>
-
-<details>
-<summary><b>6. My antivirus flagged the installer as suspicious</b></summary>
-<br>
-
-Certain antivirus programs (e.g., Norton, McAfee, Bitdefender) flag newly released executable files simply because not enough users have downloaded that specific version yet ("reputation-based detection"). Image Express is 100% open source — every single line of code is publicly readable here on GitHub. You can safely add an exception or click "Trust / Allow this file".
-
-</details>
-
-<details>
-<summary><b>7. How do I uninstall Image Express if I ever want to?</b></summary>
-<br>
-
-- **Windows**: Open the Windows Start Menu → **Settings** → **Apps** → **Installed apps**. Find **Image Express**, click the three dots (`...`), and select **Uninstall**.
-- **macOS**: Open Finder → click **Applications** in the sidebar → drag **Image Express** into the Trash (or press <kbd>⌘ Cmd</kbd> + <kbd>Delete</kbd>).
-
-</details>
-
----
-
-### 💻 Alternative: Source Installation (Run directly from Git)
-
-If you are a developer, prefer contributing to the code, or want to run directly from source:
-
-#### 🪟 Windows — source install
-1. **[Click here to open `install.bat`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.bat)**, then click the **⬇ download icon** near the top-right to save it.
-2. Open your **Downloads** folder and double-click **`install.bat`**.
-3. If "Windows protected your PC" appears, click **More info** → **Run anyway**.
-4. The automated installer will install Git and Node.js if needed, then download and configure Image Express.
-5. Answer **yes** to "Create desktop shortcut?" and **yes** to "Launch now?".
-
-#### 🍎 macOS — source install
-1. Open **Terminal**: press <kbd>⌘ Cmd</kbd> + <kbd>Space</kbd>, type `Terminal`, and press Return.
-2. Paste this command into Terminal and press Return:
-   ```bash
-   bash <(curl -fsSL https://raw.githubusercontent.com/GeekatplayStudio/Image-Express/main/install.command)
-   ```
-3. Press Return at each prompt to accept the suggested defaults. When asked "Launch Image Express now?", choose **yes**.
-4. **Next time**: Open Finder → your home folder → `ImageExpress` → double-click **`start.command`**.
-
----
-
-### 🔄 Keep it updated (source installs)
-
-| Action | Command / file |
-|---|---|
-| **Run (auto-updates when clean)** | `start.bat` (Windows) · `start.command` (macOS) · `npm run launch` |
-| **Update code + deps** | `npm run update` |
-| **Check only** | `npm run update -- --check` |
-| **Also refresh libraries in-range** | `npm run update -- --libs` |
-| **Force main branch + update** | `npm run update -- --main` |
-
-The updater never destroys local edits (dirty tree → refuse) and only fast-forwards. Dependencies are repaired automatically via `scripts/ensure-deps.mjs` (`npm ci` when possible, `npm install` fallback, integrity marker).
-
-Packaged desktop releases use the native GitHub Releases updater instead — the two systems are not mixed.
+Source setup requires Git, **Node 24+**, and **npm 11**. It is separate from the beginner desktop download.
+See [source installation](docs/INSTALLATION.md#source-installation-developers) for commands and updates.
+`install.bat` and `install.command` remain available for source checkouts; they do not produce
+signed desktop installers.
 
 ### 🐳 Self-host it (Docker / your own server)
 
@@ -240,8 +134,8 @@ supported Node 26.4.0 installed elsewhere and shadowed on `PATH`:
 
 The one path that cannot self-correct is a bare `npm install`: that is npm's own
 process, so nothing in the repo runs before it. Use `npm run setup` instead, or
-point your version manager at the pinned release — `nvm install 24.14.1 && nvm
-use 24.14.1` (see [`.nvmrc`](.nvmrc)).
+point your version manager at the pinned release — `nvm install && nvm use`
+from the project folder (see [`.nvmrc`](.nvmrc)).
 
 Full walkthrough, ComfyUI/Ollama setup, Docker volume mounts, and API-key configuration: **[docs/INSTALLATION.md](docs/INSTALLATION.md)** · desktop packaging internals: **[docs/DESKTOP.md](docs/DESKTOP.md)** · driving the app from AI agents (Claude Desktop/Code) via Model Context Protocol: **[docs/MCP.md](docs/MCP.md)** · canonical terminology (workspace / canvas / page / album / library): **[docs/TERMINOLOGY.md](docs/TERMINOLOGY.md)**.
 
@@ -571,7 +465,7 @@ Every release is guarded by a comprehensive, multi-layer verification pipeline:
 - **Unit & Integration Tests (`npm test`)**: 220+ test suites and 1,790+ tests spanning 2D Fabric canvas mechanics, Three.js 3D pipelines, the job queue scheduler, SQLite catalogs, and Foldcraft geometry algorithms.
 - **End-to-End (E2E) Workflows (`npm run test:e2e:critical`)**: Playwright automated browser tests covering canvas exports, media overlay frame generation, variant draft saves, and ZIP/PDF/image packaging.
 - **Mutation Testing (`npm run test:mutation`)**: Dedicated mutation testing harness injecting operator inversions and boundary mutations into core algorithms (Foldcraft mesh topology and selection mask geometry), achieving a **100% mutant kill rate**.
-- **Dependency & Security Audits (`npm run audit:dependencies`)**: Zero production vulnerabilities, with strict overrides enforcement (`npm run audit:overrides`).
+- **Dependency & Security Audits (`npm run audit:dependencies`)**: Checks current production advisories, with strict overrides enforcement (`npm run audit:overrides`).
 - **i18n Parity Ratchet (`npm run audit:i18n:ratchet`)**: Monitored locale completeness preventing translation regressions across all supported languages.
 
 ## 📚 Documentation
@@ -597,7 +491,7 @@ Every release is guarded by a comprehensive, multi-layer verification pipeline:
 - [docs/FOLDCRAFT_MACHINE.md](docs/FOLDCRAFT_MACHINE.md) — the open-source ultrasonic tilting-knife cutter the library targets
 - [docs/FOLDCRAFT_MACHINE_BUILD.md](docs/FOLDCRAFT_MACHINE_BUILD.md) — build requirements: controller choice, axis specs, grblHAL config, G-code contract, commissioning, BOM
 - [docs/CRICUT_EXPORT.md](docs/CRICUT_EXPORT.md) — Cricut SVG cut files: tracing, nesting, stacked profiles, and current geometry limits
-- [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived (current state: `npm audit` clean)
+- [docs/DEPENDENCY_SECURITY.md](docs/DEPENDENCY_SECURITY.md) — how advisory fixes are pinned, enforced in CI, and waived (audits are checked on each release)
 - [docs/THEME_PACKS_SPEC.md](docs/THEME_PACKS_SPEC.md) — build your own theme/ambience pack (no code required)
 - [docs/i18n_multilanguage_support.md](docs/i18n_multilanguage_support.md) — translation system and adding a language
 - [docs/MCP.md](docs/MCP.md) — driving the app from AI agents via Model Context Protocol

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-#  Image Express one-file installer (macOS). Double-click me - that's all.
+#  Image Express source setup (macOS developers). Run: bash install.command
 #  Downloads everything from GitHub (nothing bundled), and logs EVERY step
 #  and error to ~/ImageExpress-setup.log - if anything breaks, send that
 #  file to support.
@@ -29,38 +29,11 @@ fail() {
 REPO_URL="https://github.com/GeekatplayStudio/Image-Express.git"
 INSTALL_DIR="$HOME/ImageExpress"
 
-# ---------------------------------------------------------------------------
-# Gatekeeper self-heal.
-#
-# Anything unpacked from a downloaded .zip carries com.apple.quarantine, and
-# macOS refuses to launch a quarantined script that has no Developer ID
-# signature — the "Apple could not verify this app is free of malware" dialog.
-# The user has already had to work around that to get THIS script running, so
-# clear the flag from every file we own now. Without it they hit the same wall
-# again the first time they double-click start.command.
-#
-# This only ever touches Image Express's own folder, and it can only run
-# because the user already chose to run this installer.
-# ---------------------------------------------------------------------------
-clear_quarantine() {
-    [ -d "$1" ] || return 0
-    [ "$(uname -s)" = "Darwin" ] || return 0
-    command -v xattr >/dev/null 2>&1 || return 0
-    xattr -dr com.apple.quarantine "$1" 2>/dev/null || true
-    # The zip preserves the executable bit, but a copy through some tools does
-    # not — make sure the double-clickable entry points stay double-clickable.
-    for entry in "$1"/*.command; do
-        [ -f "$entry" ] && chmod +x "$entry" 2>/dev/null
-    done
-    return 0
-}
-
 # If this file sits inside an existing checkout, install in place.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -f "$SCRIPT_DIR/package.json" ] && [ -f "$SCRIPT_DIR/next.config.ts" ]; then
     INSTALL_DIR="$SCRIPT_DIR"
 fi
-clear_quarantine "$SCRIPT_DIR"
 
 # Unattended mode (testing/CI): IMAGEEXPRESS_SETUP_AUTO=1 takes every default.
 AUTO="${IMAGEEXPRESS_SETUP_AUTO:-0}"
@@ -124,8 +97,6 @@ else
     git clone --depth 1 "$REPO_URL" "$INSTALL_DIR" || fail "Download failed. Check your network connection."
 fi
 cd "$INSTALL_DIR" || fail "Could not enter $INSTALL_DIR"
-# The install folder may differ from where this script was launched from.
-clear_quarantine "$INSTALL_DIR"
 
 echo "=== 4/7 Installing dependencies (longest step) ==="
 # ensure-deps enforces the Node engine and prefers `npm ci` off the lockfile;
@@ -151,8 +122,9 @@ echo "development: https://geekatplay.gumroad.com/"
 
 echo "=== 7/7 Finishing up ==="
 echo "Setup complete. Full log: $LOGFILE"
-LAUNCH="$(ask "Launch Image Express now? [Y/n]" "n")"
+LAUNCH="n"
+if [ "$AUTO" != "1" ]; then LAUNCH="$(ask "Launch Image Express now? [Y/n]" "y")"; fi
 if [ "$LAUNCH" != "n" ] && [ "$LAUNCH" != "N" ]; then
-    open "$INSTALL_DIR/start.command" || bash "$INSTALL_DIR/start.command"
+    bash "$INSTALL_DIR/start.command"
 fi
 echo "Woof! All done."

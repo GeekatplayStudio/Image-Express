@@ -1,0 +1,29 @@
+IMAGE EXPRESS — INSTALL ON YOUR MAC
+
+1. Double-click Image Express in this window.
+2. Click Open if macOS asks, then click Install and Open.
+3. Next time, open Finder > Applications > Image Express.
+
+You can also drag Image Express onto Applications in this window,
+then open it from Applications.
+
+ONE-CLICK LAUNCH NEXT TIME
+While Image Express is open, Control-click its Dock icon and choose
+Options > Keep in Dock. Click that icon whenever you want to open it.
+
+After installation, eject this disk in Finder. You can delete the .dmg.
+No Terminal, Node.js, Git, Homebrew, or developer tools are needed.
+Local AI engines and models are optional and are installed separately.
+
+Requires macOS 13 Ventura or later. Use the Apple Silicon download for
+an Apple M-series chip, or the Intel download for an Intel processor.
+Check Apple menu > About This Mac if you are unsure.
+
+IF MACOS BLOCKS THE APP
+Download only from the official Image Express GitHub Releases page.
+For a developer-verification warning, see the current Mac help guide.
+For a damaged-app or malware warning, stop and report it. Do not disable
+Mac security or remove download protection to force the app to open.
+
+Downloads: https://github.com/GeekatplayStudio/Image-Express/releases
+Help: https://github.com/GeekatplayStudio/Image-Express/blob/main/docs/MAC_INSTALL.md

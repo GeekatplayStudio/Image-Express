@@ -1,6 +1,6 @@
 {
   "name": "creative-flow",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "engines": {
     "node": ">=24",
@@ -95,6 +95,8 @@
     "desktop:pack": "npm run build && electron-builder --dir --publish never",
     "desktop:verify-package": "node scripts/verify-package.mjs",
     "desktop:smoke-package": "node scripts/smoke-package.mjs",
+    "desktop:smoke-mac-install": "node scripts/smoke-mac-install.mjs",
+    "test:packaging": "node --test scripts/mac-installation.test.cjs scripts/collect-release-artifacts.test.mjs",
     "mcp": "node scripts/mcp-server.mjs",
     "audit:filesize": "node scripts/file-size-ratchet.mjs",
     "audit:filesize:update": "node scripts/file-size-ratchet.mjs --update",
@@ -129,11 +131,11 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "mime": "^4.1.0",
-    "next": "^16.3.4",
+    "next": "^16.3.5",
     "opentype.js": "^2.0.0",
     "pdfjs-dist": "^6.3.289",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "tailwind-merge": "^3.4.0",
     "three": "^0.185.1",
     "utif2": "^4.1.0",
@@ -153,17 +155,17 @@
     "@types/react-dom": "^19",
     "concurrently": "^9.1.0",
     "cross-env": "^10.1.0",
-    "electron": "^41.10.4",
-    "electron-builder": "^26.5.0",
-    "electron-updater": "^6.3.9",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
+    "electron-updater": "^6.8.9",
     "eslint": "^9",
-    "eslint-config-next": "16.3.3",
+    "eslint-config-next": "^16.3.5",
     "jest": "^30.5.1",
     "jest-environment-jsdom": "30.5.1",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "typescript": "^5",
-    "wait-on": "^7.2.0"
+    "wait-on": "^9.1.0"
   },
   "build": {
     "appId": "com.imageexpress.desktop",
@@ -311,6 +313,7 @@
     "mac": {
       "category": "public.app-category.graphics-design",
       "icon": "icon.png",
+      "minimumSystemVersion": "13.0.0",
       "hardenedRuntime": true,
       "target": [
         {
@@ -369,7 +372,16 @@
       "artifactName": "ImageExpress-Setup-${version}.${ext}"
     },
     "dmg": {
-      "writeUpdateInfo": false
+      "writeUpdateInfo": false,
+      "title": "Install Image Express",
+      "window": { "width": 600, "height": 400 },
+      "iconSize": 96,
+      "iconTextSize": 14,
+      "contents": [
+        { "x": 150, "y": 150, "type": "file" },
+        { "x": 450, "y": 150, "type": "link", "path": "/Applications" },
+        { "x": 300, "y": 295, "type": "file", "path": "electron/assets/Start Here.txt" }
+      ]
     },
     "asar": true,
     "npmRebuild": false

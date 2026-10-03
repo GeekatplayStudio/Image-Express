@@ -2,7 +2,24 @@
 
 How advisory alerts are resolved and kept resolved in this repository.
 
-## Current state (2026-08-07)
+## Current refresh (2026-09-13)
+
+For the 0.2.2 installer work, Electron is updated to **44.3.0**, electron-builder
+to **26.15.3**, electron-updater to **6.8.9**, Next/its ESLint config to **16.3.5**,
+and React/React DOM to **19.3.0**. Compatible dependencies were refreshed in the
+lockfile under npm 11. Full and production npm audits report **0 vulnerabilities**
+at this check; the release workflow repeats the production audit.
+
+The bundled runtime now requires macOS 13+. Package verification rejects stale
+Next/React versions and stale app versions; launch smoke tests compare the actual
+Electron runtime to the lockfile. `electron:ensure` checks the downloaded binary's
+version rather than only its presence.
+
+Unrelated major migrations (Transformers, TypeScript, ESLint, Lucide, Three.js,
+and testing libraries) are not forced into the installer change. Latest-major
+does not mean API-compatible; those upgrades require their own migration checks.
+
+## Previous advisory sweep (2026-08-07)
 
 `npm audit` reports **0 vulnerabilities**. The last advisory sweep resolved:
 

@@ -10,6 +10,8 @@ on:
       - "electron/**"
       - "scripts/smoke-package.mjs"
       - "scripts/verify-package.mjs"
+      - "scripts/smoke-mac-install.mjs"
+      - "scripts/mac-installation.test.cjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/desktop-smoke.yml"
@@ -19,6 +21,8 @@ on:
       - "electron/**"
       - "scripts/smoke-package.mjs"
       - "scripts/verify-package.mjs"
+      - "scripts/smoke-mac-install.mjs"
+      - "scripts/mac-installation.test.cjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/desktop-smoke.yml"
@@ -33,10 +37,16 @@ jobs:
       matrix:
         include:
           - os: windows-latest
+            build: npm run desktop:pack
             smoke: npm run desktop:smoke-package
-          - os: macos-latest
-            smoke: npm run desktop:smoke-package
+          - os: macos-15
+            build: npm run desktop:dist:mac -- --arm64 --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false
+            smoke: npm run desktop:smoke-mac-install
+          - os: macos-15-intel
+            build: npm run desktop:dist:mac -- --x64 --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false
+            smoke: npm run desktop:smoke-mac-install
           - os: ubuntu-latest
+            build: npm run desktop:pack
             smoke: xvfb-run -a npm run desktop:smoke-package
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -47,7 +57,16 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run desktop:pack
+      - run: npm run test:packaging
+      # Internal unsigned/ad-hoc packages only. Release enforces signing and notarization.
+      - run: ${{ matrix.build }}
       - run: npm run desktop:verify-package
       - name: Launch packaged application
         run: ${{ matrix.smoke }}
+      - name: Retain internal Mac test installers
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: internal-unsigned-mac-${{ runner.arch }}
+          path: dist/*.dmg
+          retention-days: 7

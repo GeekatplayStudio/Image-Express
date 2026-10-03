@@ -1,165 +1,68 @@
-# Installation Guide (PC & Mac)
+# Installation Guide
 
-This guide is the recommended **easy path** to run Image Express locally, with optional ComfyUI and local LLM setup.
+## Desktop app (recommended)
 
-## 1) Core App (Required)
+For Mac, follow **[Install Image Express on your Mac](MAC_INSTALL.md)**.
+It covers downloading the correct `.dmg`, **Install and Open**, one-click Dock launch,
+Mac security messages, updating, and uninstalling. Requires **macOS 13+**.
+No Node.js, Git, Homebrew, or developer tools are needed for the desktop app.
 
-### 🌟 1-Click Standalone Desktop App (Recommended for All Users)
+For Windows, get `ImageExpress-Setup-<version>.exe` from the
+[official Downloads page](https://github.com/GeekatplayStudio/Image-Express/releases),
+double-click it, and use the Desktop or Start menu shortcut next time.
+Verify the download and publisher if Windows blocks it; do not ignore malware warnings.
 
-Image Express is distributed as a self-contained desktop application with its own bundled runtime — no external Node.js, Git, or terminal commands required:
+Only files attached to a **published release** are end-user installers. If there is no
+installer for your platform yet, wait for the signed release. GitHub's **Source code**
+download is intended for developers.
 
-#### 🪟 Windows (.exe)
-1. Download **[`ImageExpress-Setup-0.2.1.exe`](https://github.com/GeekatplayStudio/Image-Express/releases)** from GitHub Releases.
-2. Double-click the file in your Downloads folder.
-3. If the blue **"Windows protected your PC"** screen appears:
-   - Click **"More info"**.
-   - Click **"Run anyway"** *(this appears only because open-source software is not signed with paid Microsoft Store certificates)*.
-4. The app installs automatically in seconds, adds desktop shortcuts, and opens immediately.
+The first-use wizard lets you skip AI setup and start editing. Local ComfyUI/Ollama
+and AI models are optional downloads; provider keys are needed only for cloud AI.
 
-#### 🍎 macOS (.dmg)
-1. Download the disk image for your Mac from [GitHub Releases](https://github.com/GeekatplayStudio/Image-Express/releases):
-   - **Apple Silicon (M1/M2/M3/M4/M5)**: `ImageExpress-0.2.1-arm64.dmg`
-   - **Intel Macs**: `ImageExpress-0.2.1-x64.dmg`
-2. Double-click the `.dmg` in Downloads.
-3. Drag **Image Express** into your **Applications** folder.
-4. Open Applications and double-click **Image Express**.
-5. *First launch only*: If macOS warns about an "unidentified developer", right-click (or hold <kbd>Control</kbd> and click) **Image Express** → select **Open** → click **Open**.
+Desktop updates come from GitHub Releases. Save your work before accepting a restart.
+User files are stored outside the installation, in:
 
----
+- macOS: `~/Library/Application Support/Image Express/`
+- Windows: `%APPDATA%/Image Express/`
+- Linux: `~/.config/Image Express/`
 
-### 💻 Source-based Automated Installers (Developers / Git Users)
+Logs are in the `logs` subfolder. Include the app version, OS version, chip/processor,
+and exact error in a support report. Review logs for personal information before sharing.
 
-If you prefer installing directly from the Git repository:
-Use [`install.bat`](../install.bat) (Windows) or [`install.command`](../install.command) (macOS).
-They install Git and Node.js 24+ if needed, download the app, install its dependencies, verify the build, and can configure optional local AI runtimes (ComfyUI / Ollama).
+## Source installation (developers)
 
-Every step is logged to:
-- Windows: `%USERPROFILE%\ImageExpress-setup.log`
-- macOS: `~/ImageExpress-setup.log`
+Install Git, Node.js 24+ (the tested Node 24 version is in `.nvmrc`), and npm 11.x first.
+Source installs require a development toolchain and are not the novice desktop path.
 
-#### Windows
-
-1. [Open `install.bat` on GitHub](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.bat) and click the **⬇ download icon** near the top-right of the file view.
-2. Double-click the downloaded `install.bat` in your Downloads folder.
-3. If a blue **"Windows protected your PC"** screen appears, click **More info**, then **Run anyway**. That screen appears for any free/open-source app without a paid Microsoft publisher certificate — it is not a virus warning.
-4. Press **Enter** at each question in the window that opens to accept the suggested answer.
-
-#### macOS
-
-The simplest way avoids every Gatekeeper ("unidentified developer") warning
-entirely, because it never downloads a file through the browser at all —
-paste this one line into **Terminal** (press <kbd>⌘ Cmd</kbd>+<kbd>Space</kbd>, type `Terminal`, press Return):
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/GeekatplayStudio/Image-Express/main/install.command)
-```
-
-Press Return, then press **Return** again at each question it asks to accept
-the suggested default.
-
-**If you'd rather download and double-click the file instead:** get
-[`install.command`](https://github.com/GeekatplayStudio/Image-Express/blob/main/install.command)
-from GitHub (the **⬇** icon on that page), then in Finder **right-click**
-(not double-click) it and choose **Open**. macOS will say it can't verify the
-developer — click **Open** anyway; this is normal for any open-source app not
-sold through the App Store, not a sign of malware.
-
-If macOS still won't run it — a stronger message mentioning malware, or no
-"Open" option is offered — go to **Apple menu → System Settings → Privacy &
-Security**, scroll to the blocked-file notice near the bottom, click **Open
-Anyway**, confirm with your password or Touch ID, then right-click →
-**Open** the file once more in Finder.
-
-If double-clicking does nothing at all (some browsers strip the file's
-permission to run), that's exactly what the Terminal one-liner above avoids —
-use it instead; it always works.
-
-**You only ever fight Gatekeeper once.** As the installer runs it clears the
-download-quarantine flag from its own folder (`xattr -dr com.apple.quarantine`),
-so `start.command` — and every later launch — opens with a plain double-click.
-If you downloaded the whole repository as a ZIP, the same explanation ships
-inside it as `macOS-READ-ME-FIRST.txt`.
-
-### Prerequisites (if installing manually instead)
-- Node.js 24+ (the repo pins 24.14.1 in `.nvmrc`)
-- npm 11.x (ships with Node 24+)
-- Git
-
-Check what your shell will actually use — a version manager (nvm, nvm4w, volta,
-fnm) often puts an older Node first on `PATH` even when a newer one is
-installed:
-
-```bash
-npm run doctor:node
-```
-
-It prints the running version, the required minimum, and the location of a
-supported Node if one is installed elsewhere.
-
-You do not have to fix your shell: `npm run setup`, `npm run build`,
-`npm run dev`, `npm start`, `npm run update` and every `desktop:*` script
-re-execute themselves under a supported Node when they find one, and use that
-Node's npm rather than whatever the shell provides. Only `npm install` run
-directly is outside our reach -- it prints npm's own `EBADENGINE` warning and
-can write a subtly different lockfile, so prefer:
-
-```bash
-npm run setup
-```
-
-To fix the shell permanently instead, point your version manager at the pinned
-release (`.nvmrc`):
-
-```bash
-nvm install 24.14.1 && nvm use 24.14.1
-```
-
-### Manual install + run
 ```bash
 git clone https://github.com/GeekatplayStudio/Image-Express.git
 cd Image-Express
-npm install
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. Use `npm run desktop:dev` to develop the Electron shell.
+Use `npm run doctor:node` if your shell selects an older Node installation.
 
-### Desktop Shell (Optional but easy for non-dev users)
-```bash
-npm run desktop:dev
-```
+For an existing checkout, `install.bat` (Windows) or `bash install.command` (Mac)
+can install dependencies and offer optional local AI setup. On Mac, Git and Node must
+already be installed, or Homebrew must be available for Node installation. These scripts
+are not signed applications and do not remove macOS download protection.
+Setup logs are saved to `~/ImageExpress-setup.log` on Mac or
+`%USERPROFILE%/ImageExpress-setup.log` on Windows.
 
-A packaged native installer (one-click `.exe` / drag-to-Applications `.dmg`,
-no terminal at all) isn't published yet — see [DESKTOP.md](DESKTOP.md) for how
-to build one yourself in the meantime. If the desktop app fails to start,
-check its startup log: `%APPDATA%\creative-flow\startup-trace.log` (Windows)
-or `~/Library/Application Support/creative-flow/startup-trace.log` (macOS);
-failures also write `startup-error.log` next to it.
-
-### Running it again later
-
-Use the matching **start** file in your install folder — no terminal required:
-
-- **Windows**: `start.bat`
-- **macOS**: `start.command`
-
-Each run checks for updates, rebuilds only if needed, and opens the app in your browser.
-
-### Updating
-
-Source installs stay current with one command (or automatically on every start):
+Run later with `start.bat` on Windows or `bash start.command` on Mac.
+`npm run launch` works on both. Source launch checks for updates when the tree is clean,
+repairs dependencies if needed, and opens a browser.
 
 ```bash
-npm run update              # pull latest code + refresh npm deps when needed
-npm run update -- --check   # report only (exit 2 if commits are waiting)
-npm run update -- --libs    # also bump libraries within package.json ranges
-npm run update -- --main    # switch to main first, then update (everyday installs)
+npm run update              # update code and dependencies
+npm run update -- --check   # check only
+npm run update -- --libs    # refresh dependencies within declared ranges
 ```
 
-Safe by design: refuses to overwrite uncommitted local edits, and only fast-forwards (`git pull --ff-only`).
-`start.bat` / `start.command` / `npm run launch` also auto-pull when the tree is clean, then verify `node_modules`.
-
-Packaged desktop releases use the separate native GitHub Releases updater — do not mix the two.
+The updater refuses dirty working trees and only fast-forwards Git history.
+Do not run these source update commands for a packaged desktop installation.
 
 ## 1b) Indexing your drives into the Asset Vault
 

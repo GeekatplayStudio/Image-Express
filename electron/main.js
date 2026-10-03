@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
 const { safeLogText, createDiagnosticRedactor } = require('./logRedaction');
+const { prepareMacInstallation } = require('./macInstallation');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -301,7 +302,7 @@ function sendUpdateStatus(status, message) {
 }
 
 function registerAutoUpdater() {
-  if (isDev || !autoUpdater) {
+  if (isDev || isDesktopSmokeTest || !autoUpdater) {
     return;
   }
 
@@ -369,14 +370,13 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     recordStartupTiming('window-ready');
     if (isDesktopSmokeTest) {
-      writeStructuredLog('info', 'smoke.ready', { result: 'passed' });
+      writeStructuredLog('info', 'smoke.ready', { result: 'passed', electron: process.versions.electron, appVersion: app.getVersion() });
       return;
     }
     mainWindow?.show();
   });
 
-  const targetUrl = isDev ? NEXT_URL : NEXT_URL;
-  mainWindow.loadURL(targetUrl).catch((error) => {
+  mainWindow.loadURL(NEXT_URL).catch((error) => {
     dialog.showErrorBox('Navigation error', String(error));
   });
 
@@ -578,13 +578,13 @@ ipcMain.handle('vault/read-file', async (_event, filePath) => {
 });
 
 app.whenReady().then(async () => {
+  if (!await prepareMacInstallation({ app, dialog, platform: process.platform, smoke: isDesktopSmokeTest })) return;
   recordStartupTiming('electron-ready');
   traceStartup(`app ready; isDev=${isDev} packaged=${app.isPackaged}`);
   if (!isDev) {
     await startProductionServer();
     registerAutoUpdater();
   }
-
   createWindow();
 
   app.on('activate', () => {

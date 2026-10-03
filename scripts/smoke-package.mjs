@@ -84,19 +84,25 @@ function findLinuxExecutable() {
     return undefined;
 }
 
-const executable = process.platform === 'darwin'
+const executable = process.env.IMAGE_EXPRESS_SMOKE_EXECUTABLE || (process.platform === 'darwin'
     ? findMacExecutable()
     : process.platform === 'win32'
         ? findWindowsExecutable()
-        : findLinuxExecutable();
+        : findLinuxExecutable());
 
 if (!executable) {
     throw new Error(`No unpacked ${process.platform} desktop executable was found under dist/.`);
 }
 
-const smokeRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'image-express-smoke-'));
+const suppliedSmokeRoot = process.env.IMAGE_EXPRESS_SMOKE_ROOT;
+if (suppliedSmokeRoot && !path.isAbsolute(suppliedSmokeRoot)) {
+    throw new Error('IMAGE_EXPRESS_SMOKE_ROOT must be absolute.');
+}
+const smokeRoot = suppliedSmokeRoot || await fsPromises.mkdtemp(path.join(os.tmpdir(), 'image-express-smoke-'));
 const userDataDirectory = path.join(smokeRoot, 'user-data');
 await fsPromises.mkdir(userDataDirectory, { recursive: true });
+// A relaunch must produce fresh readiness events, not pass on the previous log.
+await fsPromises.rm(path.join(userDataDirectory, 'logs', 'desktop.jsonl'), { force: true });
 
 let output = '';
 let succeeded = false;
@@ -105,6 +111,8 @@ const child = spawn(executable, smokeArguments, {
     cwd: path.dirname(executable),
     env: {
         ...process.env,
+        ...(process.platform === 'darwin' ? { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' } : {}),
+        ELECTRON_RUN_AS_NODE: undefined,
         IMAGE_EXPRESS_DESKTOP_SMOKE: '1',
         IMAGE_EXPRESS_SMOKE_USER_DATA_DIR: userDataDirectory,
     },
@@ -204,6 +212,12 @@ try {
     if (!smokeReady) {
         throw new Error('Packaged renderer never reached the smoke-ready checkpoint.');
     }
+    const manifest = JSON.parse(await fsPromises.readFile(path.join(root, 'package.json'), 'utf8'));
+    const lock = JSON.parse(await fsPromises.readFile(path.join(root, 'package-lock.json'), 'utf8'));
+    if (smokeReady.details?.appVersion !== manifest.version
+        || smokeReady.details?.electron !== lock.packages['node_modules/electron'].version) {
+        throw new Error('Packaged app or Electron runtime is stale; rebuild with the current lockfile.');
+    }
 
     await terminateProcessTree();
     succeeded = true;
@@ -218,7 +232,7 @@ try {
     console.error(`Smoke diagnostics retained at ${smokeRoot}`);
     throw error;
 } finally {
-    if (succeeded) {
+    if (succeeded && !suppliedSmokeRoot) {
         await fsPromises.rm(smokeRoot, { recursive: true, force: true });
     }
 }

@@ -26,7 +26,10 @@ function binaryPresent() {
     const pathTxt = path.join(electronDir, 'path.txt');
     if (!fs.existsSync(pathTxt)) return false;
     const relative = fs.readFileSync(pathTxt, 'utf8').trim();
-    return relative.length > 0 && fs.existsSync(path.join(electronDir, 'dist', relative));
+    const expected = JSON.parse(fs.readFileSync(path.join(electronDir, 'package.json'), 'utf8')).version;
+    const versionFile = path.join(electronDir, 'dist', 'version');
+    const actual = fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8').trim().replace(/^v/, '') : '';
+    return relative.length > 0 && actual === expected && fs.existsSync(path.join(electronDir, 'dist', relative));
 }
 
 export function ensureElectronBinary({ force = false } = {}) {

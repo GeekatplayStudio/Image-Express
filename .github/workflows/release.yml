@@ -29,18 +29,23 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            command: npm run desktop:dist:win -- --publish never
+            command: npm run desktop:dist:win -- --publish never -c.forceCodeSigning=true
             smoke: npm run desktop:smoke-package
             artifact: windows
-          - os: macos-latest
-            command: npm run desktop:dist:mac -- --publish never
-            smoke: npm run desktop:smoke-package
-            artifact: macos
+          - os: macos-15
+            command: npm run desktop:dist:mac -- --arm64 --publish never -c.forceCodeSigning=true
+            smoke: npm run desktop:smoke-mac-install -- --signed
+            artifact: macos-arm64
+          - os: macos-15-intel
+            command: npm run desktop:dist:mac -- --x64 --publish never -c.forceCodeSigning=true
+            smoke: npm run desktop:smoke-mac-install -- --signed
+            artifact: macos-x64
           - os: ubuntu-latest
             command: npm run desktop:dist:linux -- --publish never
             smoke: xvfb-run -a npm run desktop:smoke-package
             artifact: linux
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -90,6 +95,8 @@ jobs:
               ;;
           esac
           echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+      - name: Require release signing credentials
+        run: node scripts/check-release-signing.mjs
       - run: npm ci
       - run: ${{ matrix.command }}
       - run: npm run desktop:verify-package
@@ -125,8 +132,11 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v8
         with:
-          path: release-artifacts
-          merge-multiple: true
+          path: release-downloads
+      - name: Collect artifacts and merge native Mac updater feeds
+        run: node scripts/collect-release-artifacts.mjs
+      - name: Include beginner installation instructions
+        run: cp docs/MAC_INSTALL.md release-artifacts/Mac-Install-Guide.md
       - name: Generate CycloneDX SBOM
         run: npm sbom --sbom-format cyclonedx > release-artifacts/sbom.cdx.json
       - name: Generate checksums

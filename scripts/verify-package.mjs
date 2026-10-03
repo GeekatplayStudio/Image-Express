@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { listPackage } from '@electron/asar';
+import { extractFile, listPackage } from '@electron/asar';
 
 const root = process.cwd();
 const distDir = path.join(root, 'dist');
+const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
 
 function findFiles(directory, filename, results = []) {
     if (!fs.existsSync(directory)) return results;
@@ -66,10 +68,13 @@ if (asarFiles.length === 0) {
 const requiredAsarEntries = [
     '/electron/main.js',
     '/electron/preload.js',
+    '/electron/macInstallation.js',
     '/package.json',
 ];
 
 for (const asarFile of asarFiles) {
+    const packagedManifest = JSON.parse(extractFile(asarFile, 'package.json').toString());
+    if (packagedManifest.version !== manifest.version) throw new Error(`${asarFile} has a stale app version.`);
     // @electron/asar uses the host path separator in its listing. Normalize the
     // archive paths so the same package assertions work on Windows and POSIX.
     const entries = new Set(listPackage(asarFile).map((entry) => entry.replaceAll('\\', '/')));
@@ -96,6 +101,16 @@ for (const asarFile of asarFiles) {
         if (!fs.existsSync(required)) {
             throw new Error(`${asarFile} is missing required resource ${required}`);
         }
+    }
+    for (const name of ['next', 'react', 'react-dom']) {
+        const packaged = JSON.parse(fs.readFileSync(path.join(standaloneDir, 'node_modules', name, 'package.json'), 'utf8'));
+        if (packaged.version !== lock.packages[`node_modules/${name}`].version) {
+            throw new Error(`${asarFile} bundles stale ${name} ${packaged.version}. Rebuild from the current lockfile.`);
+        }
+    }
+    const updater = JSON.parse(fs.readFileSync(path.join(resourcesDir, 'electron-runtime', 'node_modules', 'electron-updater', 'package.json'), 'utf8'));
+    if (updater.version !== lock.packages['node_modules/electron-updater'].version) {
+        throw new Error(`${asarFile} bundles a stale electron-updater ${updater.version}.`);
     }
 
     const leaked = fs.readdirSync(standaloneDir)

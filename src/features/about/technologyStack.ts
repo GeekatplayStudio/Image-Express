@@ -72,7 +72,7 @@ export const TECHNOLOGY_GROUPS: TechGroup[] = [
             {
                 name: 'Electron',
                 package: 'electron',
-                version: '41',
+                version: '44',
                 role: 'The desktop shell: native file dialogs, whole-drive indexing, logs and user-data folders, auto-update.',
                 why: 'Browsers cannot return real filesystem paths. Indexing a drive in place — without copying files — needs a native shell.',
             },
