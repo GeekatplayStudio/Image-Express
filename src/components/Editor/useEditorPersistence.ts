@@ -4,7 +4,8 @@ import * as fabric from 'fabric';
 import { loadDriveConfig, uploadBackup } from '@/lib/googleDrive';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import type { DesignJson, ExportDataUrlOptions, MissingItem, SerializedObject } from '@/components/Editor/editorView.types';
-import { serializeCanvas, getArtboardSize, loadCanvasJson } from '@/lib/fabric-utils';
+import { serializeCanvas, getArtboardSize } from '@/lib/fabric-utils';
+import { loadPageJson, withSavedChannels } from '@/lib/pageChannels';
 import { saveUiPreferences } from '@/lib/ui-preferences';
 
 type Toast = (options: ToastOptions) => void;
@@ -99,7 +100,7 @@ export function useEditorPersistence({
         }
 
         historyReadyRef.current = false;
-        void loadCanvasJson(canvas, designData as Record<string, unknown>)
+        void loadPageJson(canvas, designData as Record<string, unknown>)
             .then(() => {
                 setIsDirty(false);
                 resetHistory();
@@ -158,7 +159,7 @@ export function useEditorPersistence({
             if (inputName) nextName = inputName;
         }
 
-        const json = serializeCanvas<DesignJson>(canvas, customHistoryProps);
+        const json = withSavedChannels(canvas, serializeCanvas<DesignJson>(canvas, customHistoryProps));
         const artboardSize = getArtboardSize(canvas);
         if (artboardSize) {
             json.artboard = artboardSize;
@@ -323,7 +324,7 @@ export function useEditorPersistence({
             }
 
             historyReadyRef.current = false;
-            await loadCanvasJson(canvas, json as Record<string, unknown>);
+            await loadPageJson(canvas, json as Record<string, unknown>);
             setIsDirty(false);
             resetHistory();
         } catch (error) {
@@ -373,7 +374,7 @@ export function useEditorPersistence({
         }
 
         historyReadyRef.current = false;
-        void loadCanvasJson(canvas, json as Record<string, unknown>)
+        void loadPageJson(canvas, json as Record<string, unknown>)
             .catch((error) => console.error('Failed to load template', error))
             .finally(() => {
                 setIsDirty(false);

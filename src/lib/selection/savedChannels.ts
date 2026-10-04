@@ -247,3 +247,88 @@ export function decodeChannelData(runs: readonly number[], size: number): Uint8C
 export const blankMaskFor = (channel: SavedChannel): DocumentSelectionMask => (
     createDocumentSelectionMask({ left: channel.left, top: channel.top, width: channel.width, height: channel.height })
 );
+
+/** A channel as it is stored with a page: its mask run-length encoded. */
+export interface SerializedSavedChannel {
+    id: string;
+    name: string;
+    source: SavedChannelSource;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    /** Run-length pairs: compact for a hard-edged selection. */
+    runs?: number[];
+    /** Raw bytes, base64: smaller than runs for a soft mask (a brightness channel). */
+    bytes?: string;
+}
+
+const toBase64 = (data: Uint8ClampedArray): string => {
+    let binary = '';
+    // In chunks: one String.fromCharCode call cannot take millions of arguments.
+    for (let offset = 0; offset < data.length; offset += 0x8000) {
+        binary += String.fromCharCode(...data.subarray(offset, offset + 0x8000));
+    }
+    return btoa(binary);
+};
+
+const fromBase64 = (encoded: string, size: number): Uint8ClampedArray | null => {
+    try {
+        const binary = atob(encoded);
+        if (binary.length !== size) return null;
+        const data = new Uint8ClampedArray(size);
+        for (let index = 0; index < size; index += 1) data[index] = binary.charCodeAt(index);
+        return data;
+    } catch {
+        return null;
+    }
+};
+
+const SOURCES: readonly SavedChannelSource[] = ['selection', 'alpha', 'luma'];
+/** A page cannot ask for more mask than this, whatever its file says (64 MP). */
+const MAX_CHANNEL_PIXELS = 64_000_000;
+const MAX_CHANNELS = 64;
+
+/** The channel stack in a form that can be written into a saved page. */
+export function serializeSavedChannels(canvas: fabric.Canvas | null): SerializedSavedChannel[] {
+    return getSavedChannels(canvas).map(({ data, ...rest }) => {
+        const runs = encodeChannelData(data);
+        // Each run is two numbers of text; past this point raw bytes are smaller.
+        return runs.length > data.length / 2 ? { ...rest, bytes: toBase64(data) } : { ...rest, runs };
+    });
+}
+
+/**
+ * Replace the channel stack with what a saved page carried.
+ *
+ * The input comes from a file, so every entry is checked: a channel whose
+ * size, source or run data does not hold together is dropped, not trusted.
+ * Anything that is not a list (a page saved before channels were stored)
+ * leaves the page with no channels.
+ */
+export function restoreSavedChannels(canvas: fabric.Canvas, serialized: unknown): number {
+    const restored: SavedChannel[] = [];
+    for (const entry of Array.isArray(serialized) ? serialized.slice(0, MAX_CHANNELS) : []) {
+        const channel = entry as Partial<SerializedSavedChannel> | null;
+        if (!channel || typeof channel !== 'object') continue;
+        const { width, height } = channel;
+        if (!Number.isInteger(width) || !Number.isInteger(height) || width! <= 0 || height! <= 0) continue;
+        if (width! * height! > MAX_CHANNEL_PIXELS) continue;
+        const data = Array.isArray(channel.runs)
+            ? decodeChannelData(channel.runs, width! * height!)
+            : typeof channel.bytes === 'string' ? fromBase64(channel.bytes, width! * height!) : null;
+        if (!data) continue;
+        restored.push({
+            id: typeof channel.id === 'string' && channel.id ? channel.id : nextId(),
+            name: typeof channel.name === 'string' && channel.name.trim() ? channel.name.slice(0, 120) : 'Channel',
+            source: SOURCES.includes(channel.source as SavedChannelSource) ? channel.source as SavedChannelSource : 'selection',
+            left: Number.isFinite(channel.left) ? Number(channel.left) : 0,
+            top: Number.isFinite(channel.top) ? Number(channel.top) : 0,
+            width: width!,
+            height: height!,
+            data,
+        });
+    }
+    setChannels(canvas, restored);
+    return restored.length;
+}

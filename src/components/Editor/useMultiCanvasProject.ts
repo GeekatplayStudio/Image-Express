@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 
-import { serializeCanvas, ensureObjectId, applyArtboardSize, loadCanvasJson } from '@/lib/fabric-utils';
+import { serializeCanvas, ensureObjectId, applyArtboardSize } from '@/lib/fabric-utils'; import { loadPageJson, withSavedChannels } from '@/lib/pageChannels';
 import { captureCanvasThumbnail } from '@/lib/multicanvas/canvasThumbnail';
 import { inlineVolatileImageSources } from '@/lib/multicanvas/inlineImageSources';
 import type { ExtendedFabricObject } from '@/types';
@@ -123,7 +123,7 @@ export function useMultiCanvasProject({
 
     const serializeEditorCanvas = useCallback((): SerializedCanvasJson | null => {
         if (!canvas) return null;
-        const json = serializeCanvas<SerializedCanvasJson>(canvas, customHistoryProps);
+        const json = withSavedChannels(canvas, serializeCanvas<SerializedCanvasJson>(canvas, customHistoryProps));
         // blob: URLs die with the session — inline them so snapshots reload.
         return inlineVolatileImageSources(canvas, json);
     }, [canvas, customHistoryProps]);
@@ -197,7 +197,7 @@ export function useMultiCanvasProject({
             // The second loadFromJSON argument is a per-object REVIVER in
             // fabric v7, invoked before the canvas is cleared and refilled —
             // post-load work passed there runs against the outgoing page.
-            void loadCanvasJson(canvas, target.json).then(restoreArtboard);
+            void loadPageJson(canvas, target.json).then(restoreArtboard);
         } else {
             // A brand-new page: remove the previous page's objects AND its
             // canvas-level state. Background/overlay images live on the canvas

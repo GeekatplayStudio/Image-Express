@@ -248,7 +248,10 @@ export const loadCanvasJson = async (
     json: string | Record<string, unknown>,
 ): Promise<void> => {
     const parsed = (typeof json === 'string' ? JSON.parse(json) : json) as Record<string, unknown>;
-    const { artboard: savedArtboard, ...serialized } = parsed;
+    // `savedChannels` is page data (see pageChannels.ts), not a canvas
+    // property: fabric copies any top-level key it is handed onto the canvas.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { artboard: savedArtboard, savedChannels: _pageChannels, ...serialized } = parsed;
     const savedSize = savedArtboard as { width?: number; height?: number } | undefined;
 
     await canvas.loadFromJSON(serialized);

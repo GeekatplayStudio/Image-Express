@@ -713,9 +713,11 @@ critique.
 **Done 2026-10-03:** save the selection, a layer's alpha or its luma as a named
 channel; load a channel as the selection (replace / add / subtract / intersect);
 rename, reorder and delete.
-**Open:** saving channels with the page. They live on the canvas for the
-session. The run-length encoder for storing them is written and tested but not
-wired into save and load.
+**Done 2026-10-04:** channels are saved with the page and restored when it is
+opened, per page in a multi-page document. Hard-edged masks are stored as runs,
+soft ones as bytes, whichever is smaller; what comes back from a file is
+validated entry by entry.
+**Open:** loading a template does not clear the previous page's channels.
 **Note:** the document content-selection mask is live — channel load should
 write into that mask.
 

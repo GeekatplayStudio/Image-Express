@@ -399,7 +399,7 @@ graph TD
 - **Real Channels Panel**: Composite, Red, Green, Blue, Alpha, and Luminosity rows are available in the right rail and circular context menu.
 - **Per-Channel Controls**: Each editable channel supports opacity, composite masking, isolate, invert, and mask actions.
 - **Layer-Aware Behavior**: Selected images use non-destructive ColorMatrix filters, while fillable layers and solid-color adjustments support direct per-channel value edits.
-- **Saved Channels**: Keep the current selection under a name, or build a channel from a layer's **alpha** (what is opaque) or **luma** (what is bright). Load one back as the selection — replace, add, subtract or intersect — and rename, reorder or delete channels in the stack. Saved channels last for the editing session.
+- **Saved Channels**: Keep the current selection under a name, or build a channel from a layer's **alpha** (what is opaque) or **luma** (what is bright). Load one back as the selection — replace, add, subtract or intersect — and rename, reorder or delete channels in the stack. Saved channels are stored with the page and come back when you reopen it.
 
 ### Shadow & Stroke
 - **Drop Shadow**: Blur (0-150px), Offset (±200px), Opacity, Blend Modes

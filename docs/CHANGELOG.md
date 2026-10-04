@@ -19,6 +19,27 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-04 - Saved channels are stored with the page (R-05)
+
+Channels lived on the canvas object and were gone when the page was closed.
+They are now written into the page on save and restored on open, and each page
+of a multi-page document keeps its own.
+
+- **Size.** A hard-edged selection is stored run-length encoded (a full-HD
+  mask is a few hundred numbers). A soft mask — a brightness channel — has no
+  long runs, and as runs would be two numbers of text per pixel, so it is
+  stored as base64 bytes instead. The smaller form is chosen per channel.
+- **Undo does not touch them.** History snapshots carry no channels; only
+  opening a page replaces the stack (`pageChannels.loadPageJson`).
+- **A file is not trusted.** Each stored channel is checked — dimensions, a
+  64-megapixel ceiling, run data that must decode to exactly width × height —
+  and dropped if it does not hold together.
+- The `savedChannels` key is removed before the JSON reaches fabric, which
+  would otherwise copy it onto the canvas object.
+
+Not exercised in the running app in this pass; covered by tests. Loading a
+template does not yet clear the previous page's channels.
+
 ## 2026-10-04 - ComfyUI workflows convert like the frontend; the 3D editor works offline
 
 The second half of the port from the sibling projects.
