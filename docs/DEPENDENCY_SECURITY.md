@@ -2,7 +2,43 @@
 
 How advisory alerts are resolved and kept resolved in this repository.
 
-## Current refresh (2026-09-13)
+## Current sweep (2026-10-04)
+
+Raised by the host's dependency scanner against the deployed lockfile. Every
+item is fixed by a real upgrade; nothing was waived.
+
+| Advisory | Package (was) | Now | How |
+|---|---|---|---|
+| GHSA-vcvr-r3jv-pc5j (critical, RCE in `next/og` ImageResponse) | `next` 16.3.5 | **16.3.8** | Direct dependency, with `eslint-config-next` |
+| CVE-2026-102276 / -102277 / -102278 (stack exhaustion, quadratic expansion) | `brace-expansion` 1.1.18 | **1.1.21** | Override `brace-expansion@1` |
+| same | `brace-expansion` 2.1.4 | **2.1.7** | Override `brace-expansion@2` |
+| same | `brace-expansion` 5.0.9 | **5.0.12** | Override `brace-expansion@5` |
+| CVE-2026-86472 | `fast-uri` 3.1.7 | **3.1.8** | Override |
+| CVE-2026-101911 / -101912 | `ip-address` 10.7.0 | **10.7.3** | New override `^10.7.1` |
+| GHSA-p98j-92pf-mc4p | `dompurify` 3.4.15 | **3.4.16** | Override |
+
+`npm audit --omit=dev` reports **0 vulnerabilities** and `audit:dependencies`
+passes with **no active waivers** — the brace-expansion waiver below is retired.
+
+**Why this stays fixed.** The floors live in `package.json` `overrides`, keyed
+per major line where the lines are not API-compatible. `audit:overrides` (part
+of `npm run verify`) fails if the lockfile ever resolves below a floor, which is
+how an override silently regresses. CI and the release workflow run
+`audit:dependencies`, and Dependabot opens weekly minor/patch updates.
+
+**Still reported by a full `npm audit`, and why it is left.** `braces` 3.0.3
+(GHSA-vfj7-8cjw-p6xm), reached only through `eslint-config-next` →
+`fast-glob` → `micromatch`. It is lint tooling that never ships or runs in
+production, 3.0.3 is the newest release, and the advisory range is `<=3.0.3` —
+there is no patched version to move to. It is not in the production tree and
+was not in the host's report.
+
+**Not covered: `mobile-companion/`.** That sub-project has its own lockfile on
+Expo 51 / React Native 0.74 and a full audit of it reports 69 advisories, most
+of which need an Expo major upgrade. It is a separate prototype (R-19), is not
+part of the deployed app, and was not changed here.
+
+## Previous refresh (2026-09-13)
 
 For the 0.2.2 installer work, Electron is updated to **44.3.0**, electron-builder
 to **26.15.3**, electron-updater to **6.8.9**, Next/its ESLint config to **16.3.5**,
@@ -71,23 +107,14 @@ is the only place an advisory may be accepted. Each entry needs the advisory ID,
 a technical reason, and an `expiresOn` date; the audit script fails once a date
 passes, forcing a re-review rather than letting a waiver become permanent.
 
-Exactly one advisory is currently waived, dev-only, and only because the
-suggested version is not loadable by its consumers:
+No advisory is currently waived; `config/dependency-audit-exceptions.json` is empty.
 
-- **brace-expansion / GHSA-mh99-v99m-4gvg (CVE-2026-14257).** The patched
-  backports `1.1.18` and `2.1.4` are pinned, but the advisory range is the flat
-  `<=5.0.7`, so scanners keep reporting them. The fix is present in the
-  installed code — verified, not assumed: the 1.x and 2.x `index.js` both carry
-  `var EXPANSION_MAX_LENGTH = 4000000` with an explicit CVE comment and apply it
-  as the default `options.maxLength`. `1.1.18` and `2.1.4` are the newest
-  releases on their lines, so there is nothing further to upgrade to.
-  `5.x` still cannot be forced everywhere (re-verified 2026-08-07): it exports
-  an **object** — `{ EXPANSION_MAX, EXPANSION_MAX_LENGTH, expand }` — not a
-  callable default, while `minimatch@3` does `var expand = require('brace-expansion')`
-  and then calls `expand(pattern)`, so it would throw `expand is not a function`
-  at runtime. `minimatch@3`/`@9` are required by eslint, jest and
-  electron-builder. Clearing the alert outright needs upstream tooling to move
-  to `minimatch@10`.
+**Retired waiver — brace-expansion / GHSA-mh99-v99m-4gvg (CVE-2026-14257).**
+Waived from 2026-08-07 because the patched 1.x and 2.x backports were still
+inside the advisory's flat `<=5.0.7` range. Retired on 2026-10-04: with
+1.1.21, 2.1.7 and 5.0.12 installed the audit no longer reports it. `5.x` still
+cannot be forced onto `minimatch@3` (it exports an object, not a callable), which
+is why the overrides stay keyed per major line.
 
 **Retired waiver — cacheable-request / GHSA-8x6c-cv3v-vp6g.** Fixed properly on
 2026-08-07 instead of waived. `@electron/get@5` dropped `got` from its

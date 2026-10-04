@@ -91,7 +91,10 @@ describe('3D Stamp Exporters', () => {
 
             expect(countVertices(after)).toBe(countVertices(before));
             expect(countVertices(after)).toBeGreaterThan(0);
-        });
+            // Builds a full stamp and serialises it twice: seconds of pure CPU. Late
+            // in a single-process run of the whole suite that crossed the 5 s default
+            // and failed with nothing wrong.
+        }, 30_000);
     });
 
     describe('exportStampToGLB', () => {

@@ -19,6 +19,26 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-04 - Dependency advisories from the host's scan
+
+Fourteen findings across five packages, one of them critical (remote code
+execution in Next's `next/og` ImageResponse). All fixed by upgrading; none
+waived.
+
+- `next` and `eslint-config-next` 16.3.5 → **16.3.8**.
+- `brace-expansion` 1.1.18 → **1.1.21**, 2.1.4 → **2.1.7**, 5.0.9 → **5.0.12**.
+- `fast-uri` 3.1.7 → **3.1.8**, `ip-address` 10.7.0 → **10.7.3** (new override),
+  `dompurify` 3.4.15 → **3.4.16**.
+- The production audit reports 0 vulnerabilities, and the one audit waiver the
+  repo carried (brace-expansion) is retired because it is no longer needed.
+- `audit:overrides` in `npm run verify` fails the build if the lockfile ever
+  resolves below these floors again.
+
+Left as is, with reasons in [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md):
+`braces` 3.0.3 in lint-only tooling (no patched release exists), and the
+separate `mobile-companion/` prototype, whose own audit needs an Expo major
+upgrade.
+
 ## 2026-10-04 - Saved channels are stored with the page (R-05)
 
 Channels lived on the canvas object and were gone when the page was closed.

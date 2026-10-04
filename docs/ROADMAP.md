@@ -817,11 +817,11 @@ the main app's dependency audits. Open: decide whether to ship it at all.
 
 Not features, but they block the gates.
 
-- **`brace-expansion` scanner noise** — the installed 1.1.18/2.1.4 builds carry
-  the CVE-2026-14257 fix and are the last releases on their lines, but scanners
-  use a flat `<=5.0.7` range. Silencing it permanently requires forcing
-  `minimatch@10` everywhere so nothing needs the old callable export. See
-  [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
+- **Dependency advisories** — the production tree audits clean with no waivers
+  as of 2026-10-04 (Next 16.3.8; brace-expansion, fast-uri, ip-address and
+  dompurify raised through overrides). Open: `braces` 3.0.3 in lint tooling has
+  no patched release, and `mobile-companion/` needs an Expo major upgrade to
+  clear its own audit. See [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
 - **A workspace panel opened from a popup opens behind it.** Floating panels
   (Asset Library, Template Library) live in the workspace tier, below the modal
   tier. Opening one from inside a popup window would need it raised.
