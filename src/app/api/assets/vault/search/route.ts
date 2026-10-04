@@ -1,5 +1,6 @@
 import { parseJsonRequest, jsonWithRequestId, apiError } from '@/lib/server/apiContract';
-import { readVaultCatalog } from '@/lib/server/vault-store';
+import { readVaultCatalog, readVaultCatalogSummary } from '@/lib/server/vault-store';
+import { runIndexedVaultSearch } from '@/lib/server/vaultIndexedSearch';
 import {
     readEmbeddedAssetIds,
     readVectorStore,
@@ -37,7 +38,28 @@ function withPersistedVectors(catalog: VaultCatalog, persisted: VectorRecord[]):
 export async function POST(request: Request) {
     try {
         const payload = await parseJsonRequest(request, VaultSearchRequestSchema, 32_768);
-        const catalog = await readVaultCatalog();
+        const isSmart = payload.mode === 'smart' && payload.query.trim().length > 0;
+
+        // Browsing and keyword search are answered by the index alone: a page
+        // of rows and a count, with no record loaded that is not returned.
+        if (!isSmart) {
+            const indexed = await runIndexedVaultSearch(payload);
+            if (indexed) {
+                void requestVaultThumbnails().catch(() => {});
+                return jsonWithRequestId(request, {
+                    success: true as const,
+                    ...indexed,
+                    query: payload.query,
+                    expandedTerms: [],
+                });
+            }
+        }
+
+        // The whole catalog is only materialised when it is really needed: the
+        // JSON fallback, or smart search before any real embedding exists.
+        let loadedCatalog: VaultCatalog | null = null;
+        const loadCatalog = async () => (loadedCatalog ??= await readVaultCatalog());
+        const assetCount = (await readVaultCatalogSummary()).assetCount;
         // Loaded only if the indexed path is unavailable: materialising every
         // embedding costs 1.2 GB at 200k assets, which is the whole reason the
         // SQLite store exists.
@@ -82,9 +104,9 @@ export async function POST(request: Request) {
                 // hundreds of thousands of assets pending it would have taken
                 // thousands of searches to finish, each one paying that cost.
                 embeddedIds = await readEmbeddedAssetIds(embedModel);
-                if (catalog.assets.length > embeddedIds.size) {
+                if (assetCount > embeddedIds.size) {
                     // Fire and forget: a queue outage must not fail a search.
-                    void requestVaultEmbedding(catalog.assets.length - embeddedIds.size)
+                    void requestVaultEmbedding(assetCount - embeddedIds.size)
                         .catch(() => {});
                 }
             }
@@ -103,6 +125,31 @@ export async function POST(request: Request) {
                 if (hits.length > 0) indexedHits?.push(hits);
             }
 
+            // Real neighbours from the vector store: fuse them with keyword hits
+            // from the full-text index and hydrate only what was ranked.
+            if (indexedHits && indexedHits.length > 0) {
+                const indexed = await runIndexedVaultSearch(
+                    { ...payload, query: expandedQuery || payload.query },
+                    indexedHits,
+                );
+                if (indexed) {
+                    void requestVaultThumbnails().catch(() => {});
+                    return jsonWithRequestId(request, {
+                        success: true as const,
+                        ...indexed,
+                        query: payload.query,
+                        expandedTerms,
+                        engine: {
+                            ollamaRunning,
+                            embedModel,
+                            semanticQuery: true,
+                            pendingSemantic: Math.max(0, assetCount - embeddedIds.size),
+                        },
+                    });
+                }
+            }
+
+            const catalog = await loadCatalog();
             if (indexedHits) {
                 // Hash vectors stay in memory: they are 64-dim, derived rather
                 // than stored, and exist so contextual search works before any
@@ -124,6 +171,7 @@ export async function POST(request: Request) {
         // queue, so this is a no-op once a pass is already running.
         void requestVaultThumbnails().catch(() => {});
 
+        const catalog = await loadCatalog();
         const results = runVaultSearch(
             catalog.assets,
             { ...payload, query: expandedQuery || payload.query },
@@ -133,7 +181,7 @@ export async function POST(request: Request) {
         );
 
         const pendingSemantic = payload.mode === 'smart'
-            ? catalog.assets.length - embeddedIds.size
+            ? assetCount - embeddedIds.size
             : 0;
 
         return jsonWithRequestId(request, {

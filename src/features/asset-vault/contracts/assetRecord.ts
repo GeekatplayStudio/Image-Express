@@ -43,6 +43,18 @@ export const VaultAssetRecordSchema = z.object({
     description: z.string().optional(),
     tags: z.array(z.string()).optional(),
     prompt: z.string().optional(),
+    /** How an AI image was made, read from the file itself (ComfyUI / A1111 metadata). */
+    generation: z.object({
+        source: z.enum(['comfyui', 'a1111']),
+        negativePrompt: z.string().optional(),
+        model: z.string().optional(),
+        sampler: z.string().optional(),
+        seed: z.string().optional(),
+        steps: z.number().optional(),
+        cfg: z.number().optional(),
+    }).optional(),
+    /** Which version of the file-metadata reader last looked at this file. */
+    metaVersion: z.number().int().optional(),
     width: z.number().optional(),
     height: z.number().optional(),
     durationMs: z.number().optional(),

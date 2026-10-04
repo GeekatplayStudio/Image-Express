@@ -9,6 +9,12 @@ type VaultModalFooterProps = {
     resultCount: number;
     pageSize: VaultPageSize;
     onPageSizeChange: (size: VaultPageSize) => void;
+    /** Paging of the browse view: how much of the index is loaded, and a way to get more. */
+    loadedCount?: number;
+    totalCount?: number;
+    hasMore?: boolean;
+    isLoadingMore?: boolean;
+    onLoadMore?: () => void;
 };
 
 export default function VaultModalFooter({
@@ -16,6 +22,11 @@ export default function VaultModalFooter({
     resultCount,
     pageSize,
     onPageSizeChange,
+    loadedCount = 0,
+    totalCount = 0,
+    hasMore = false,
+    isLoadingMore = false,
+    onLoadMore,
 }: VaultModalFooterProps) {
     const { t } = useI18n();
 
@@ -25,6 +36,19 @@ export default function VaultModalFooter({
                 {statusMessage || t('vault.resultCount', { count: resultCount })}
             </span>
             <div className="inline-flex items-center gap-2 shrink-0">
+                {hasMore && onLoadMore && (
+                    <span className="inline-flex items-center gap-1.5" data-testid="vault-load-more">
+                        <span className="hidden sm:inline tabular-nums">{t('vault.loadedOfTotal', { loaded: loadedCount, total: totalCount })}</span>
+                        <button
+                            type="button"
+                            onClick={onLoadMore}
+                            disabled={isLoadingMore}
+                            className="h-5 rounded border border-border bg-background px-1.5 text-[10px] text-foreground hover:bg-secondary disabled:opacity-50"
+                        >
+                            {isLoadingMore ? t('vault.loadingMore') : t('vault.loadMore')}
+                        </button>
+                    </span>
+                )}
                 <label className="inline-flex items-center gap-1" title={t('vault.pageSize')}>
                     <span className="hidden sm:inline">{t('vault.pageSize')}</span>
                     <select

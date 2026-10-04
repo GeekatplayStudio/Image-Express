@@ -7,6 +7,7 @@ import {
     scanDirectoryRecursive,
 } from '@/lib/server/vaultWatchStore';
 import { WatchRootSchema } from '@/features/asset-vault/contracts/watchRoot';
+import { backfillVaultFileMeta } from '@/lib/server/vaultFileMeta';
 import { applyWatchRootScan } from '@/lib/server/vaultRescan';
 import { decideVaultPathAccess } from '@/lib/server/vaultFilesystemPolicy';
 
@@ -123,6 +124,9 @@ export async function PUT(request: Request) {
         // Write what changed, mark what vanished; an unchanged folder costs a
         // fingerprint comparison and nothing else. See vaultRescan.ts.
         const stats = await applyWatchRootScan(root, scan);
+        // Files indexed before the metadata reader existed are caught up in the
+        // background; the scan does not wait for them.
+        void backfillVaultFileMeta().catch((error) => console.warn('Vault metadata backfill stopped:', error));
 
         await upsertWatchRoot({
             ...root,

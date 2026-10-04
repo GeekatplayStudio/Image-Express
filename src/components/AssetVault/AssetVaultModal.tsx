@@ -456,6 +456,11 @@ export default function AssetVaultModal({
                             resultCount={browse.displayedAssets.length}
                             pageSize={browse.pageSize}
                             onPageSizeChange={browse.setPageSize}
+                            loadedCount={catalog.allAssets.length}
+                            totalCount={catalog.browseTotal}
+                            hasMore={catalog.hasMoreAssets}
+                            isLoadingMore={catalog.isLoadingMore}
+                            onLoadMore={() => { void catalog.loadMoreAssets(); }}
                         />
                     </div>
                 </DraggableResizablePanel>

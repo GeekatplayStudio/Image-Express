@@ -753,6 +753,9 @@ const it: LocaleDictionary = {
     'channels.saved.rename': 'Nome del canale',
     'channels.saved.needLayer': 'Seleziona prima un singolo livello.',
     'channels.saved.captureFailed': 'Impossibile leggere i pixel di quel livello.',
+    'vault.loadMore': 'Carica altri',
+    'vault.loadingMore': 'Caricamento…',
+    'vault.loadedOfTotal': '{loaded} di {total} caricati',
 };
 
 export default it;

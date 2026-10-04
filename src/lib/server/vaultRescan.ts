@@ -9,6 +9,7 @@ import {
     sqliteCatalogReady,
     upsertVaultAssets,
 } from '@/lib/server/vault-store';
+import { mapWithConcurrency, readFileMeta, withFileMeta } from '@/lib/server/vaultFileMeta';
 import { selectPrunableAssetIds } from '@/lib/server/vaultScanPrune';
 import {
     checkpointCatalog,
@@ -31,6 +32,8 @@ import type { ScanResult, ScannedFile } from '@/lib/server/vaultWatchStore';
  *
  * - **Incremental.** A file whose size and modified time match what is stored
  *   is skipped. Only new and changed files are written.
+ * - **File metadata.** What is written carries what the file says about itself
+ *   (see `vaultFileMeta.ts`), so an AI image is searchable by its own prompt.
  * - **Soft delete.** A file that is gone is marked missing and kept for
  *   `MISSING_RETENTION_DAYS`, so captions and tags survive a folder that was
  *   moved and put back. Only what the scan actually looked for is marked.
@@ -115,7 +118,13 @@ async function applyIncrementally(
         (await readVaultAssetsByIds(toWrite.filter((entry) => entry.existed).map((entry) => entry.id)))
             .map((asset) => [asset.id, asset]),
     );
-    await upsertVaultAssets(toWrite.map((entry) => buildScannedAssetRecord(root, entry.file, priorById.get(entry.id))));
+    // New and changed files are read once, here: their type, and for a PNG its
+    // size and whatever the generator wrote into it (prompt, model, seed).
+    const records = await mapWithConcurrency(toWrite, 8, async (entry) => withFileMeta(
+        buildScannedAssetRecord(root, entry.file, priorById.get(entry.id)),
+        await readFileMeta(entry.file.absolutePath, entry.file.name),
+    ));
+    await upsertVaultAssets(records);
     stats.added = toWrite.filter((entry) => !entry.existed).length;
     stats.updated = toWrite.length - stats.added;
 

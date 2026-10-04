@@ -763,6 +763,9 @@ const pl: LocaleDictionary = {
     'channels.saved.rename': 'Nazwa kanału',
     'channels.saved.needLayer': 'Najpierw wybierz jedną warstwę.',
     'channels.saved.captureFailed': 'Nie udało się odczytać pikseli tej warstwy.',
+    'vault.loadMore': 'Wczytaj więcej',
+    'vault.loadingMore': 'Wczytywanie…',
+    'vault.loadedOfTotal': 'Wczytano {loaded} z {total}',
 };
 
 export default pl;

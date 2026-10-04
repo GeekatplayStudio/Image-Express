@@ -3188,6 +3188,9 @@ const uk: LocaleDictionary = {
     'channels.saved.rename': 'Назва каналу',
     'channels.saved.needLayer': 'Спочатку виберіть один шар.',
     'channels.saved.captureFailed': 'Не вдалося прочитати пікселі цього шару.',
+    'vault.loadMore': 'Завантажити ще',
+    'vault.loadingMore': 'Завантаження…',
+    'vault.loadedOfTotal': 'Завантажено {loaded} з {total}',
 };
 
 export default uk;

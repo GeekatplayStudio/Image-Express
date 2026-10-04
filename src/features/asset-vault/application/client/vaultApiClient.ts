@@ -11,6 +11,7 @@ import { DEFAULT_BOOKCASES } from '@/features/asset-vault/contracts/bookcase';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
 import type {
     VaultSearchRequest,
+    VaultSearchRequestInput,
     VaultSearchResponse,
     VaultSearchResult,
     VaultStatusResponse,
@@ -131,9 +132,10 @@ export async function fetchBookcases(): Promise<Bookcase[]> {
 }
 
 export async function searchVaultUnified(
-    request: VaultSearchRequest,
+    input: VaultSearchRequestInput,
     owner = 'Guest',
 ): Promise<VaultSearchResponse> {
+    const request: VaultSearchRequest = { ...input, mode: input.mode ?? 'keyword', query: input.query ?? '', limit: input.limit ?? 60, offset: input.offset ?? 0 };
     const settings = typeof window !== 'undefined'
         ? loadAssetStorageSettings()
         : {
@@ -151,7 +153,7 @@ export async function searchVaultUnified(
         vaultFetch<VaultSearchResponse>('/api/assets/vault/search', {
             method: 'POST',
             body: JSON.stringify(request),
-        }).catch(() => ({
+        }).catch((): VaultSearchResponse => ({
             success: true as const,
             results: [] as VaultSearchResult[],
             total: 0,
@@ -189,7 +191,9 @@ export async function searchVaultUnified(
         return {
             success: true,
             results,
-            total: results.length,
+            // The server counts its whole index; local and Drive items are all here.
+            total: Math.max(results.length, serverResponse.total ?? 0),
+            hasMore: serverResponse.hasMore,
             query: request.query,
             expandedTerms,
             engine: serverResponse.engine,

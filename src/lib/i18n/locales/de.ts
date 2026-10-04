@@ -753,6 +753,9 @@ const de: LocaleDictionary = {
     'channels.saved.rename': 'Kanalname',
     'channels.saved.needLayer': 'Wähle zuerst eine einzelne Ebene.',
     'channels.saved.captureFailed': 'Die Pixel dieser Ebene konnten nicht gelesen werden.',
+    'vault.loadMore': 'Mehr laden',
+    'vault.loadingMore': 'Wird geladen…',
+    'vault.loadedOfTotal': '{loaded} von {total} geladen',
 };
 
 export default de;

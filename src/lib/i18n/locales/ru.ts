@@ -3188,6 +3188,9 @@ const ru: LocaleDictionary = {
     'channels.saved.rename': 'Название канала',
     'channels.saved.needLayer': 'Сначала выберите один слой.',
     'channels.saved.captureFailed': 'Не удалось прочитать пиксели этого слоя.',
+    'vault.loadMore': 'Загрузить ещё',
+    'vault.loadingMore': 'Загрузка…',
+    'vault.loadedOfTotal': 'Загружено {loaded} из {total}',
 };
 
 export default ru;

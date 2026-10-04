@@ -1103,6 +1103,9 @@ const es: LocaleDictionary = {
     'channels.saved.rename': 'Nombre del canal',
     'channels.saved.needLayer': 'Selecciona primero una sola capa.',
     'channels.saved.captureFailed': 'No se pudieron leer los píxeles de esa capa.',
+    'vault.loadMore': 'Cargar más',
+    'vault.loadingMore': 'Cargando…',
+    'vault.loadedOfTotal': '{loaded} de {total} cargados',
 };
 
 export default es;

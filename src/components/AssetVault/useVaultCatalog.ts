@@ -13,6 +13,9 @@ import {
 import { loadVaultUiState } from '@/features/asset-vault/application/client/vaultUiState';
 import { parseVaultNaturalQuery } from '@/features/asset-vault/domain/vaultNaturalQuery';
 
+/** One page of the browse view. The server caps a request at 200. */
+const BROWSE_PAGE_SIZE = 200;
+
 type UseVaultCatalogArgs = {
     isOpen: boolean;
     owner: string;
@@ -32,6 +35,11 @@ export function useVaultCatalog({
     const [smartSearch, setSmartSearch] = useState(savedUi?.smartSearch ?? true);
     const [bookcases, setBookcases] = useState<Bookcase[]>([]);
     const [allAssets, setAllAssets] = useState<VaultAssetRecord[]>([]);
+    /** How many the server holds for this view, and whether another page exists. */
+    const [browseTotal, setBrowseTotal] = useState(0);
+    const [hasMoreAssets, setHasMoreAssets] = useState(false);
+    const [serverOffset, setServerOffset] = useState(0);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [searchHits, setSearchHits] = useState<VaultAssetRecord[] | null>(null);
     /**
      * Why each hit matched, keyed by asset id.
@@ -59,11 +67,14 @@ export function useVaultCatalog({
                     query: '',
                     mode: 'keyword',
                     filter: initialFilter,
-                    limit: 200,
+                    limit: BROWSE_PAGE_SIZE,
                 }, owner),
             ]);
             setBookcases(list);
             setAllAssets(response.results.map((entry) => entry.asset));
+            setBrowseTotal(response.total);
+            setHasMoreAssets(Boolean(response.hasMore));
+            setServerOffset(BROWSE_PAGE_SIZE);
         } catch (error) {
             console.error('Vault load failed', error);
             setAllAssets([]);
@@ -71,6 +82,33 @@ export function useVaultCatalog({
             setIsLoading(false);
         }
     }, [initialFilter, owner]);
+
+    /** Fetch the next page of the browse view and append it. */
+    const loadMoreAssets = useCallback(async () => {
+        if (isLoadingMore || !hasMoreAssets) return;
+        setIsLoadingMore(true);
+        try {
+            const response = await searchVaultUnified({
+                query: '',
+                mode: 'keyword',
+                filter: initialFilter,
+                limit: BROWSE_PAGE_SIZE,
+                offset: serverOffset,
+            }, owner);
+            // Local and Drive items come back with every page; keep one of each.
+            setAllAssets((current) => {
+                const seen = new Set(current.map((asset) => asset.id));
+                return [...current, ...response.results.map((entry) => entry.asset).filter((asset) => !seen.has(asset.id))];
+            });
+            setBrowseTotal(response.total);
+            setHasMoreAssets(Boolean(response.hasMore));
+            setServerOffset((offset) => offset + BROWSE_PAGE_SIZE);
+        } catch (error) {
+            console.error('Vault load-more failed', error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [hasMoreAssets, initialFilter, isLoadingMore, owner, serverOffset]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -178,5 +216,9 @@ export function useVaultCatalog({
         handleSync,
         handleEnrich,
         workingAssets: searchHits ?? allAssets,
+        browseTotal,
+        hasMoreAssets: searchHits ? false : hasMoreAssets,
+        isLoadingMore,
+        loadMoreAssets,
     };
 }

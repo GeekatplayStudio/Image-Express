@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 
 import { getVaultDir } from '@/lib/server/appPaths';
 import type { VaultAssetRecord, VaultCatalog } from '@/features/asset-vault/contracts/assetRecord';
+import { loadNodeSqlite } from '@/lib/server/nodeSqlite';
 import { applyMigrations } from '@/lib/server/sqliteMigrations';
 import { CATALOG_MIGRATIONS } from '@/lib/server/vaultCatalogSchema';
 
@@ -45,22 +46,11 @@ export type SqliteDatabase = {
     close: () => void;
 };
 
-let sqliteModule: SqliteModule | null | undefined;
-
 /**
  * Resolve `node:sqlite` once. Returns null when the runtime does not provide
  * it, which is a supported outcome rather than an error.
  */
-function loadSqlite(): SqliteModule | null {
-    if (sqliteModule !== undefined) return sqliteModule;
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        sqliteModule = require('node:sqlite') as SqliteModule;
-    } catch {
-        sqliteModule = null;
-    }
-    return sqliteModule;
-}
+const loadSqlite = () => loadNodeSqlite<SqliteModule>();
 
 export function isSqliteAvailable(): boolean {
     return loadSqlite() !== null;
@@ -120,6 +110,7 @@ function rowFor(record: VaultAssetRecord) {
         record.isPublic ? 1 : 0,
         record.capturedAt || record.modifiedAt || record.createdAt || null,
         searchTextOf(record),
+        record.metaVersion ?? 0,
     ];
 }
 
@@ -129,6 +120,8 @@ export function searchTextOf(record: VaultAssetRecord): string {
         record.owner ?? '',
         record.description ?? '',
         record.prompt ?? '',
+        record.generation?.model ?? '',
+        record.generation?.sampler ?? '',
         record.origin?.displayPath ?? '',
         (record.tags ?? []).join(' '),
     ].join(' ').replace(/\s+/g, ' ').trim();
@@ -139,14 +132,15 @@ export const PRESENT = 'missing_since IS NULL';
 
 const INSERT_SQL = `
 INSERT INTO assets (id, type, category, name, uri, folder_path, watch_root, modified_at, size_bytes, record,
-    connector, owner, is_public, asset_date, search_text)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    connector, owner, is_public, asset_date, search_text, meta_version)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     type=excluded.type, category=excluded.category, name=excluded.name,
     uri=excluded.uri, folder_path=excluded.folder_path, watch_root=excluded.watch_root,
     modified_at=excluded.modified_at, size_bytes=excluded.size_bytes, record=excluded.record,
     connector=excluded.connector, owner=excluded.owner, is_public=excluded.is_public,
     asset_date=excluded.asset_date, search_text=excluded.search_text,
+    meta_version=excluded.meta_version,
     -- Written again means seen again: a file that came back is no longer missing.
     missing_since=NULL
 `;

@@ -743,6 +743,9 @@ const zh: LocaleDictionary = {
     'channels.saved.rename': '通道名称',
     'channels.saved.needLayer': '请先选择单个图层。',
     'channels.saved.captureFailed': '无法读取该图层的像素。',
+    'vault.loadMore': '加载更多',
+    'vault.loadingMore': '正在加载…',
+    'vault.loadedOfTotal': '已加载 {loaded} / {total}',
 };
 
 export default zh;

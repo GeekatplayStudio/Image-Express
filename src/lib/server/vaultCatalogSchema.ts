@@ -129,4 +129,15 @@ export const CATALOG_MIGRATIONS: readonly SqliteMigration[] = [
             if (sqliteHasFts5(database)) database.exec(V2_FTS);
         },
     },
+    {
+        // Which files the metadata reader has seen, so a better reader can
+        // revisit everything without a forced rescan: bump the version it
+        // writes and the backfill picks up every row below it.
+        version: 3,
+        name: 'file metadata version',
+        up: (database) => database.exec(`
+            ALTER TABLE assets ADD COLUMN meta_version INTEGER NOT NULL DEFAULT 0;
+            CREATE INDEX idx_assets_meta_version ON assets(meta_version, id);
+        `),
+    },
 ];

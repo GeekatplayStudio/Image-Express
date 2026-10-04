@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { loadNodeSqlite } from '@/lib/server/nodeSqlite';
+import { applyMigrations, type SqliteMigration } from '@/lib/server/sqliteMigrations';
 import { mkdir } from 'node:fs/promises';
 
 import { getVaultDir } from '@/lib/server/appPaths';
@@ -53,18 +55,7 @@ type SqliteDatabase = {
 
 type SqliteModule = { DatabaseSync: new (path: string) => SqliteDatabase };
 
-let sqliteModule: SqliteModule | null | undefined;
-
-function loadSqlite(): SqliteModule | null {
-    if (sqliteModule !== undefined) return sqliteModule;
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        sqliteModule = require('node:sqlite') as SqliteModule;
-    } catch {
-        sqliteModule = null;
-    }
-    return sqliteModule;
-}
+const loadSqlite = () => loadNodeSqlite<SqliteModule>();
 
 export function isVectorDbAvailable(): boolean {
     return loadSqlite() !== null;
@@ -90,6 +81,11 @@ CREATE TABLE IF NOT EXISTS vector_meta (
 );
 `;
 
+/** Version 1 is the schema as it stood before migrations existed. Add the next one; never edit a shipped one. */
+const VECTOR_MIGRATIONS: readonly SqliteMigration[] = [
+    { version: 1, name: 'initial vector index', up: (database) => database.exec(SCHEMA) },
+];
+
 let db: SqliteDatabase | null = null;
 
 async function openDb(): Promise<SqliteDatabase | null> {
@@ -101,7 +97,13 @@ async function openDb(): Promise<SqliteDatabase | null> {
     const database = new sqlite.DatabaseSync(DB_PATH());
     database.exec('PRAGMA journal_mode = WAL;');
     database.exec('PRAGMA synchronous = NORMAL;');
-    database.exec(SCHEMA);
+    database.exec('PRAGMA busy_timeout = 5000;');
+    try {
+        applyMigrations(database, VECTOR_MIGRATIONS, 'The vault vector index');
+    } catch (error) {
+        database.close();
+        throw error;
+    }
     db = database;
     return db;
 }

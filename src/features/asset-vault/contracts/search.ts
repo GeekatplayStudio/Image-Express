@@ -10,9 +10,17 @@ export const VaultSearchRequestSchema = z.object({
     mode: VaultSearchModeSchema.default('keyword'),
     filter: BookcaseFilterSchema.optional(),
     limit: z.number().int().min(1).max(200).default(60),
+    /** Rows to skip: page N starts at `N * limit`. */
+    offset: z.number().int().min(0).default(0),
+    /** Defaults to relevance for a query and newest-first for browsing. */
+    sort: z.enum(['relevance', 'newest', 'oldest', 'name']).optional(),
+    /** Restrict to one indexed folder and everything below it. */
+    folderPrefix: z.string().max(2048).optional(),
 });
 
 export type VaultSearchRequest = z.infer<typeof VaultSearchRequestSchema>;
+/** What a caller writes: the defaulted fields may be left out. */
+export type VaultSearchRequestInput = z.input<typeof VaultSearchRequestSchema>;
 
 export const VaultSearchResultSchema = z.object({
     asset: VaultAssetRecordSchema,
@@ -36,7 +44,10 @@ export type VaultSearchEngineStatus = z.infer<typeof VaultSearchEngineStatusSche
 export const VaultSearchResponseSchema = z.object({
     success: z.literal(true),
     results: z.array(VaultSearchResultSchema),
+    /** Everything that matches on the server, not just the rows returned. */
     total: z.number(),
+    /** True when another page exists past `offset + results.length`. */
+    hasMore: z.boolean().optional(),
     query: z.string(),
     expandedTerms: z.array(z.string()).optional(),
     engine: VaultSearchEngineStatusSchema.optional(),

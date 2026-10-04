@@ -754,6 +754,9 @@ const fr: LocaleDictionary = {
     'channels.saved.rename': 'Nom de la couche',
     'channels.saved.needLayer': 'Sélectionnez d’abord un seul calque.',
     'channels.saved.captureFailed': 'Impossible de lire les pixels de ce calque.',
+    'vault.loadMore': 'Charger plus',
+    'vault.loadingMore': 'Chargement…',
+    'vault.loadedOfTotal': '{loaded} sur {total} chargés',
 };
 
 export default fr;

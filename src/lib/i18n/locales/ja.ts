@@ -743,6 +743,9 @@ const ja: LocaleDictionary = {
     'channels.saved.rename': 'チャンネル名',
     'channels.saved.needLayer': 'まずレイヤーを 1 つ選択してください。',
     'channels.saved.captureFailed': 'そのレイヤーのピクセルを読み取れませんでした。',
+    'vault.loadMore': 'さらに読み込む',
+    'vault.loadingMore': '読み込み中…',
+    'vault.loadedOfTotal': '{total} 件中 {loaded} 件を読み込み済み',
 };
 
 export default ja;

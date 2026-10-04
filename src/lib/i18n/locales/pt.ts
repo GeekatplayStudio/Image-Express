@@ -753,6 +753,9 @@ const pt: LocaleDictionary = {
     'channels.saved.rename': 'Nome do canal',
     'channels.saved.needLayer': 'Selecione primeiro uma única camada.',
     'channels.saved.captureFailed': 'Não foi possível ler os píxeis dessa camada.',
+    'vault.loadMore': 'Carregar mais',
+    'vault.loadingMore': 'A carregar…',
+    'vault.loadedOfTotal': '{loaded} de {total} carregados',
 };
 
 export default pt;
