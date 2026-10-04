@@ -261,7 +261,21 @@ export type ScanResult = {
     files: ScannedFile[];
     /** True when the walk stopped at maxFiles — the root has more to index. */
     truncated: boolean;
+    /**
+     * Folders inside the root that could not be read (absolute paths). What the
+     * catalog holds under them is unknown, not gone, and must not be pruned.
+     */
+    unreadableDirs: string[];
 };
+
+/** The root itself could not be read: unplugged drive, offline share, revoked access. */
+export class WatchRootUnavailableError extends Error {
+    constructor(rootPath: string, cause: unknown) {
+        const code = (cause as NodeJS.ErrnoException | null)?.code;
+        super(`The folder ${rootPath} is not reachable${code ? ` (${code})` : ''}. Nothing was changed.`);
+        this.name = 'WatchRootUnavailableError';
+    }
+}
 
 /**
  * Ceiling for one root's scan. Override with `IMAGE_EXPRESS_VAULT_MAX_SCAN_FILES`.
@@ -295,13 +309,23 @@ export async function scanDirectoryRecursive(
     // Guard against symlink loops: a directory link pointing at an ancestor
     // would otherwise recurse until maxFiles, wasting the whole budget.
     const visitedDirs = new Set<string>();
+    const unreadableDirs: string[] = [];
+
+    // An unreadable folder is not an empty one. For the root that means the
+    // whole scan has nothing to say, so it fails; below the root it is recorded
+    // so the caller keeps what it already knows about that folder.
+    const unreadable = (current: string, error: unknown) => {
+        if (current === rootPath) throw new WatchRootUnavailableError(rootPath, error);
+        unreadableDirs.push(current);
+    };
 
     async function walk(current: string, relative: string) {
         if (results.length >= maxFiles) { truncated = true; return; }
         let realCurrent = current;
         try {
             realCurrent = await realpath(current);
-        } catch {
+        } catch (error) {
+            unreadable(current, error);
             return;
         }
         if (visitedDirs.has(realCurrent)) return;
@@ -309,7 +333,8 @@ export async function scanDirectoryRecursive(
         let entries;
         try {
             entries = await readdir(current, { withFileTypes: true });
-        } catch {
+        } catch (error) {
+            unreadable(current, error);
             return;
         }
         for (const entry of entries) {
@@ -344,5 +369,5 @@ export async function scanDirectoryRecursive(
     }
 
     await walk(rootPath, '');
-    return { files: results, truncated };
+    return { files: results, truncated, unreadableDirs };
 }

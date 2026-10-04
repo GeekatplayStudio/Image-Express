@@ -6,6 +6,9 @@ const ALLOWED_PATH_PREFIXES = [
     '/system_stats',
     '/object_info',
     '/prompt',
+    // Cancel: read the queue, drop a waiting prompt, interrupt a running one.
+    '/queue',
+    '/interrupt',
     '/upload/image',
     '/history',
     '/view',

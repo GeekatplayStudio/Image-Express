@@ -5,6 +5,7 @@ import {
     shouldUseComfyBrowserProxy,
     type ResolvedComfyTransport,
 } from '@/lib/comfyui/connection';
+import { formatComfyPromptError } from '@/lib/comfyui/promptControl';
 
 export interface ComfyExecutionProgress {
     nodeId: string | null;
@@ -207,7 +208,7 @@ export class ComfyUIClient {
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to upload image to ComfyUI: ${response.statusText}`);
+            throw new Error(formatComfyPromptError(response.status, response.statusText, await response.text().catch(() => '')));
         }
 
         const result = await response.json() as { name?: string };
@@ -401,9 +402,7 @@ export class ComfyUIClient {
         });
 
         if (!response.ok) {
-            const detail = await response.text().catch(() => '');
-            const detailSuffix = detail ? ` (${detail.slice(0, 280)})` : '';
-            throw new Error(`Failed to queue prompt: ${response.status} ${response.statusText}${detailSuffix}`);
+            throw new Error(formatComfyPromptError(response.status, response.statusText, await response.text().catch(() => '')));
         }
 
         const payload = await response.json() as { prompt_id?: string };

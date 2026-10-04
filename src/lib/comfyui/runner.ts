@@ -1,4 +1,5 @@
 import { extractCheckpointNames } from '@/lib/comfyui/customModels';
+import { uniqueComfyUploadName } from '@/lib/comfyui/promptControl';
 import {
     ComfyUIClient,
     type ComfyExecutionResult,
@@ -52,7 +53,7 @@ const uploadAssetIfNeeded = async (
         return value;
     }
 
-    return client.uploadImage(value, filename);
+    return client.uploadImage(value, uniqueComfyUploadName(value, filename));
 };
 
 export const prepareComfyTask = async (options: PrepareComfyTaskOptions): Promise<PreparedComfyTaskExecution> => {

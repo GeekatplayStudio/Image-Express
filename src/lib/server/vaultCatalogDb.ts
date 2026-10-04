@@ -3,6 +3,8 @@ import { mkdir } from 'node:fs/promises';
 
 import { getVaultDir } from '@/lib/server/appPaths';
 import type { VaultAssetRecord, VaultCatalog } from '@/features/asset-vault/contracts/assetRecord';
+import { applyMigrations } from '@/lib/server/sqliteMigrations';
+import { CATALOG_MIGRATIONS } from '@/lib/server/vaultCatalogSchema';
 
 /**
  * SQLite backing for the asset catalog.
@@ -20,6 +22,11 @@ import type { VaultAssetRecord, VaultCatalog } from '@/features/asset-vault/cont
  * Assets are stored one row each with their full record as JSON. Queries that
  * the UI actually runs — by type, by watch root, by folder prefix — are indexed
  * columns, so they become real queries instead of full-array scans.
+ *
+ * The schema and its history live in `vaultCatalogSchema.ts`. A row whose file
+ * a scan no longer finds carries `missing_since`; every read here leaves those
+ * out, so "missing" behaves like "gone" to callers until it is restored or
+ * purged (see `vaultScanStore.ts`).
  */
 
 type SqliteModule = {
@@ -32,7 +39,7 @@ type SqliteStatement = {
     get: (...params: unknown[]) => Record<string, unknown> | undefined;
 };
 
-type SqliteDatabase = {
+export type SqliteDatabase = {
     exec: (sql: string) => void;
     prepare: (sql: string) => SqliteStatement;
     close: () => void;
@@ -61,38 +68,9 @@ export function isSqliteAvailable(): boolean {
 
 const DB_PATH = () => path.join(getVaultDir(), 'catalog.db');
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS assets (
-    id           TEXT PRIMARY KEY,
-    type         TEXT NOT NULL,
-    category     TEXT,
-    name         TEXT,
-    uri          TEXT,
-    folder_path  TEXT,
-    watch_root   TEXT,
-    modified_at  TEXT,
-    size_bytes   INTEGER,
-    record       TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_assets_type        ON assets(type);
-CREATE INDEX IF NOT EXISTS idx_assets_watch_root  ON assets(watch_root);
-CREATE INDEX IF NOT EXISTS idx_assets_folder      ON assets(folder_path);
-CREATE INDEX IF NOT EXISTS idx_assets_modified    ON assets(modified_at);
-
--- Covers syncCatalogAssets' change-detection scan so it reads an index rather
--- than touching the row bodies. Measured at 200k assets: 486ms -> 313ms, for
--- about 5% more on disk. SCHEMA runs on every open, so existing DBs pick it up.
-CREATE INDEX IF NOT EXISTS idx_assets_fingerprint ON assets(id, modified_at, size_bytes);
-
-CREATE TABLE IF NOT EXISTS meta (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-`;
-
 let db: SqliteDatabase | null = null;
 
-async function openDb(): Promise<SqliteDatabase | null> {
+export async function openCatalogDb(): Promise<SqliteDatabase | null> {
     if (db) return db;
     const sqlite = loadSqlite();
     if (!sqlite) return null;
@@ -104,7 +82,15 @@ async function openDb(): Promise<SqliteDatabase | null> {
     // index of files that still exist on disk.
     database.exec('PRAGMA journal_mode = WAL;');
     database.exec('PRAGMA synchronous = NORMAL;');
-    database.exec(SCHEMA);
+    // A second process on the same file (a second dev server, the desktop app
+    // next to `next dev`) waits for the writer instead of failing at once.
+    database.exec('PRAGMA busy_timeout = 5000;');
+    try {
+        applyMigrations(database, CATALOG_MIGRATIONS, 'The vault catalog');
+    } catch (error) {
+        database.close();
+        throw error;
+    }
     db = database;
     return db;
 }
@@ -129,16 +115,40 @@ function rowFor(record: VaultAssetRecord) {
         record.modifiedAt ?? null,
         record.sizeBytes ?? 0,
         JSON.stringify(record),
+        record.origin?.connector ?? null,
+        (record.owner || 'Guest').toLowerCase(),
+        record.isPublic ? 1 : 0,
+        record.capturedAt || record.modifiedAt || record.createdAt || null,
+        searchTextOf(record),
     ];
 }
 
+/** What keyword search reads besides the name. Mirrors the v2 backfill. */
+export function searchTextOf(record: VaultAssetRecord): string {
+    return [
+        record.owner ?? '',
+        record.description ?? '',
+        record.prompt ?? '',
+        record.origin?.displayPath ?? '',
+        (record.tags ?? []).join(' '),
+    ].join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Appended to every read: a missing file is not listed. */
+export const PRESENT = 'missing_since IS NULL';
+
 const INSERT_SQL = `
-INSERT INTO assets (id, type, category, name, uri, folder_path, watch_root, modified_at, size_bytes, record)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO assets (id, type, category, name, uri, folder_path, watch_root, modified_at, size_bytes, record,
+    connector, owner, is_public, asset_date, search_text)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     type=excluded.type, category=excluded.category, name=excluded.name,
     uri=excluded.uri, folder_path=excluded.folder_path, watch_root=excluded.watch_root,
-    modified_at=excluded.modified_at, size_bytes=excluded.size_bytes, record=excluded.record
+    modified_at=excluded.modified_at, size_bytes=excluded.size_bytes, record=excluded.record,
+    connector=excluded.connector, owner=excluded.owner, is_public=excluded.is_public,
+    asset_date=excluded.asset_date, search_text=excluded.search_text,
+    -- Written again means seen again: a file that came back is no longer missing.
+    missing_since=NULL
 `;
 
 /**
@@ -146,7 +156,7 @@ ON CONFLICT(id) DO UPDATE SET
  * writes one row rather than rewriting a 153 MB document.
  */
 export async function upsertAssets(records: VaultAssetRecord[]): Promise<number> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return 0;
     const statement = database.prepare(INSERT_SQL);
     database.exec('BEGIN');
@@ -161,7 +171,7 @@ export async function upsertAssets(records: VaultAssetRecord[]): Promise<number>
 }
 
 export async function deleteAssets(ids: string[]): Promise<number> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database || ids.length === 0) return 0;
     const statement = database.prepare('DELETE FROM assets WHERE id = ?');
     database.exec('BEGIN');
@@ -176,9 +186,9 @@ export async function deleteAssets(ids: string[]): Promise<number> {
 }
 
 export async function countAssets(): Promise<number> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return 0;
-    const row = database.prepare('SELECT COUNT(*) AS n FROM assets').get();
+    const row = database.prepare(`SELECT COUNT(*) AS n FROM assets WHERE ${PRESENT}`).get();
     return Number(row?.n ?? 0);
 }
 
@@ -192,9 +202,9 @@ const parseRecord = (row: Record<string, unknown>): VaultAssetRecord | null => {
 
 /** Every asset. Kept for the JSON-compatible read path during migration. */
 export async function readAllAssets(): Promise<VaultAssetRecord[]> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return [];
-    return database.prepare('SELECT record FROM assets')
+    return database.prepare(`SELECT record FROM assets WHERE ${PRESENT}`)
         .all()
         .map(parseRecord)
         .filter((record): record is VaultAssetRecord => record !== null);
@@ -207,7 +217,7 @@ export async function readAllAssets(): Promise<VaultAssetRecord[]> {
  * Order of the result is not the order of `ids`; callers that care index it.
  */
 export async function readAssetsByIds(ids: string[]): Promise<VaultAssetRecord[]> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database || ids.length === 0) return [];
     const unique = Array.from(new Set(ids));
     const found: VaultAssetRecord[] = [];
@@ -215,7 +225,7 @@ export async function readAssetsByIds(ids: string[]): Promise<VaultAssetRecord[]
     for (let start = 0; start < unique.length; start += CHUNK) {
         const chunk = unique.slice(start, start + CHUNK);
         const rows = database
-            .prepare(`SELECT record FROM assets WHERE id IN (${chunk.map(() => '?').join(',')})`)
+            .prepare(`SELECT record FROM assets WHERE ${PRESENT} AND id IN (${chunk.map(() => '?').join(',')})`)
             .all(...chunk);
         for (const row of rows) {
             const record = parseRecord(row);
@@ -235,10 +245,10 @@ export async function queryAssets(filter: {
     folderPrefix?: string;
     limit?: number;
 }): Promise<VaultAssetRecord[]> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return [];
 
-    const where: string[] = [];
+    const where: string[] = [PRESENT];
     const params: unknown[] = [];
     if (filter.type) { where.push('type = ?'); params.push(filter.type); }
     if (filter.watchRootId) { where.push('watch_root = ?'); params.push(filter.watchRootId); }
@@ -247,7 +257,7 @@ export async function queryAssets(filter: {
         where.push('(folder_path = ? OR folder_path LIKE ?)');
         params.push(filter.folderPrefix, `${filter.folderPrefix}/%`);
     }
-    const sql = `SELECT record FROM assets${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`
+    const sql = `SELECT record FROM assets WHERE ${where.join(' AND ')}`
         + ` LIMIT ${Math.max(1, Math.min(filter.limit ?? 500, 100_000))}`;
 
     return database.prepare(sql).all(...params)
@@ -270,7 +280,7 @@ export async function syncCatalogAssets(records: VaultAssetRecord[]): Promise<{
     deleted: number;
     unchanged: number;
 }> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return { inserted: 0, updated: 0, deleted: 0, unchanged: 0 };
 
     const existing = new Map<string, string>();
@@ -304,14 +314,14 @@ export async function syncCatalogAssets(records: VaultAssetRecord[]): Promise<{
 }
 
 export async function readMeta(key: string): Promise<string | null> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return null;
     const row = database.prepare('SELECT value FROM meta WHERE key = ?').get(key);
     return row ? String(row.value) : null;
 }
 
 export async function writeMeta(key: string, value: string): Promise<void> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return;
     database.prepare(
         'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
@@ -328,7 +338,7 @@ export async function migrateCatalogFromJson(catalog: VaultCatalog): Promise<{
     migrated: boolean;
     assetCount: number;
 }> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return { migrated: false, assetCount: 0 };
 
     if (await readMeta('migrated_from_json')) {
@@ -350,7 +360,7 @@ export async function migrateCatalogFromJson(catalog: VaultCatalog): Promise<{
  * needs callers to move to `queryAssets`, which is a separate change.
  */
 export async function readCatalogSnapshot(): Promise<VaultCatalog | null> {
-    const database = await openDb();
+    const database = await openCatalogDb();
     if (!database) return null;
     return {
         version: 1,

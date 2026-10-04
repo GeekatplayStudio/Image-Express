@@ -3,14 +3,13 @@
  */
 
 import * as THREE from 'three';
-import { renderSceneToDataUrl } from '@/lib/three/sceneCapture';
+import { clampCaptureSize, renderSceneToDataUrl } from '@/lib/three/sceneCapture';
 
 /**
  * A renderer that records its state the way the real one holds it, so a test
- * can assert the capture left that state as it found it. `pixels` is what
- * `readRenderTargetPixels` hands back — rows bottom-up, as WebGL does.
+ * can assert the capture left that state as it found it.
  */
-const createRenderer = (pixels: number[] = []) => {
+const createRenderer = () => {
     const state = {
         target: null as THREE.WebGLRenderTarget | null,
         size: new THREE.Vector2(800, 600),
@@ -19,8 +18,9 @@ const createRenderer = (pixels: number[] = []) => {
         scissor: new THREE.Vector4(10, 20, 30, 40),
         scissorTest: true,
     };
-    const renderedInto: Array<THREE.WebGLRenderTarget | null> = [];
+    const frames: Array<{ size: number[]; pixelRatio: number; target: unknown }> = [];
     const gl = {
+        domElement: document.createElement('canvas'),
         getRenderTarget: () => state.target,
         setRenderTarget: (target: THREE.WebGLRenderTarget | null) => { state.target = target; },
         getSize: (out: THREE.Vector2) => out.copy(state.size),
@@ -33,13 +33,11 @@ const createRenderer = (pixels: number[] = []) => {
         setScissor: (value: THREE.Vector4) => { state.scissor.copy(value); },
         getScissorTest: () => state.scissorTest,
         setScissorTest: (value: boolean) => { state.scissorTest = value; },
-        clear: jest.fn(),
-        render: jest.fn(() => { renderedInto.push(state.target); }),
-        readRenderTargetPixels: jest.fn((
-            _target: unknown, _x: number, _y: number, _w: number, _h: number, buffer: Uint8Array,
-        ) => { buffer.set(pixels); }),
+        render: jest.fn(() => {
+            frames.push({ size: state.size.toArray(), pixelRatio: state.pixelRatio, target: state.target });
+        }),
     };
-    return { gl: gl as unknown as THREE.WebGLRenderer, state, renderedInto, mock: gl };
+    return { gl: gl as unknown as THREE.WebGLRenderer, state, frames, mock: gl };
 };
 
 const expectRestored = (state: ReturnType<typeof createRenderer>['state'], camera: THREE.PerspectiveCamera) => {
@@ -53,68 +51,94 @@ const expectRestored = (state: ReturnType<typeof createRenderer>['state'], camer
 };
 
 describe('renderSceneToDataUrl', () => {
-    const scene = new THREE.Scene();
+    let scene: THREE.Scene;
     let camera: THREE.PerspectiveCamera;
     let getContext: jest.SpyInstance;
+    let drawImage: jest.Mock;
 
     beforeEach(() => {
+        scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(50, 800 / 600);
+        drawImage = jest.fn();
+        getContext = jest.spyOn(HTMLCanvasElement.prototype, 'getContext')
+            .mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+        jest.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AAAA');
     });
 
     afterEach(() => {
-        getContext?.mockRestore();
+        jest.restoreAllMocks();
     });
 
-    const stub2dContext = () => {
-        const put = jest.fn();
-        getContext = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-            createImageData: (width: number, height: number) => ({
-                width, height, data: new Uint8ClampedArray(width * height * 4),
-            }),
-            putImageData: put,
-        } as unknown as CanvasRenderingContext2D);
-        jest.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AAAA');
-        return put;
-    };
-
-    it('renders offscreen at the requested size with the matching camera aspect', () => {
-        stub2dContext();
-        const { gl, renderedInto, mock } = createRenderer();
+    it('renders at exactly the requested size, whatever the display scale', () => {
+        const { gl, frames, mock } = createRenderer();
         let aspectDuringRender = 0;
         mock.render.mockImplementationOnce(() => {
             aspectDuringRender = camera.aspect;
-            renderedInto.push(gl.getRenderTarget());
+            frames.push({ size: [gl.getSize(new THREE.Vector2()).x, gl.getSize(new THREE.Vector2()).y], pixelRatio: gl.getPixelRatio(), target: gl.getRenderTarget() });
         });
 
         expect(renderSceneToDataUrl(gl, scene, camera, 4, 2)).toBe('data:image/png;base64,AAAA');
 
-        // Into a target, never the screen — or the preview would flash.
-        expect(renderedInto[0]).toBeInstanceOf(THREE.WebGLRenderTarget);
-        expect(renderedInto[0]?.width).toBe(4);
-        expect(renderedInto[0]?.height).toBe(2);
+        // Pixel ratio 1: a 2x display must not turn 4x2 into 8x4.
+        expect(frames[0]).toEqual({ size: [4, 2], pixelRatio: 1, target: null });
         expect(aspectDuringRender).toBe(2);
     });
 
-    it('puts every piece of renderer and camera state back afterwards', () => {
-        stub2dContext();
-        const { gl, state } = createRenderer();
+    it('draws to the canvas, not a render target, so tone mapping and anti-aliasing apply', () => {
+        const { gl, frames } = createRenderer();
+        gl.setRenderTarget(new THREE.WebGLRenderTarget(1, 1));
+        renderSceneToDataUrl(gl, scene, camera, 4, 2);
+        expect(frames[0].target).toBeNull();
+        expect(drawImage).toHaveBeenCalledWith(gl.domElement, 0, 0, 4, 2);
+    });
+
+    it('puts every piece of renderer and camera state back, and redraws the preview', () => {
+        const { gl, state, frames } = createRenderer();
         renderSceneToDataUrl(gl, scene, camera, 4, 2);
         expectRestored(state, camera);
+        expect(frames).toHaveLength(2);
+        expect(frames[1]).toEqual({ size: [800, 600], pixelRatio: 2, target: null });
     });
 
-    it('restores state and returns an empty string when no 2D context exists', () => {
-        getContext = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
-        const { gl, state } = createRenderer();
-        expect(renderSceneToDataUrl(gl, scene, camera, 4, 2)).toBe('');
+    it('restores state when the render throws', () => {
+        const { gl, state, mock } = createRenderer();
+        mock.render.mockImplementationOnce(() => { throw new Error('context lost'); });
+        expect(() => renderSceneToDataUrl(gl, scene, camera, 4, 2)).toThrow('context lost');
         expectRestored(state, camera);
     });
 
-    it('flips rows, because WebGL reads bottom-up and a canvas is top-down', () => {
-        const put = stub2dContext();
-        // 1 px wide, 2 px tall: WebGL row 0 (bottom) is red, row 1 (top) is blue.
-        const { gl } = createRenderer([255, 0, 0, 255, 0, 0, 255, 255]);
-        renderSceneToDataUrl(gl, scene, camera, 1, 2);
-        const written = put.mock.calls[0][0] as ImageData;
-        expect(Array.from(written.data)).toEqual([0, 0, 255, 255, 255, 0, 0, 255]);
+    it('touches nothing and returns an empty string when no 2D context exists', () => {
+        getContext.mockReturnValue(null);
+        const { gl, state, mock } = createRenderer();
+        expect(renderSceneToDataUrl(gl, scene, camera, 4, 2)).toBe('');
+        expect(mock.render).not.toHaveBeenCalled();
+        expectRestored(state, camera);
+    });
+
+    it('hides a named helper for the captured frame only', () => {
+        const helper = new THREE.Group();
+        helper.name = 'gizmo';
+        scene.add(helper);
+        const { gl, mock } = createRenderer();
+        const visibleDuring: boolean[] = [];
+        mock.render.mockImplementation(() => { visibleDuring.push(helper.visible); });
+
+        renderSceneToDataUrl(gl, scene, camera, 4, 2, { hideObjectNamed: 'gizmo' });
+
+        expect(visibleDuring).toEqual([false, true]);
+    });
+});
+
+describe('clampCaptureSize', () => {
+    it('keeps a size inside what the renderer can produce', () => {
+        expect(clampCaptureSize(2048)).toBe(2048);
+        expect(clampCaptureSize(10)).toBe(64);
+        expect(clampCaptureSize(100000)).toBe(8192);
+        expect(clampCaptureSize('1024')).toBe(1024);
+    });
+
+    it('falls back for an empty or unreadable value', () => {
+        expect(clampCaptureSize('')).toBe(2048);
+        expect(clampCaptureSize(Number.NaN, 512)).toBe(512);
     });
 });

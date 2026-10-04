@@ -7,13 +7,7 @@ import {
     scanDirectoryRecursive,
 } from '@/lib/server/vaultWatchStore';
 import { WatchRootSchema } from '@/features/asset-vault/contracts/watchRoot';
-import { stableVaultAssetId, inferVaultAssetType } from '@/features/asset-vault/domain/inferAssetType';
-import {
-    deleteVaultAssets,
-    readVaultAssetsByWatchRoot,
-    upsertVaultAssets,
-} from '@/lib/server/vault-store';
-import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
+import { applyWatchRootScan } from '@/lib/server/vaultRescan';
 import { decideVaultPathAccess } from '@/lib/server/vaultFilesystemPolicy';
 
 export async function GET(request: Request) {
@@ -107,7 +101,7 @@ export async function PUT(request: Request) {
         };
         await upsertWatchRoot(scanning);
 
-        let scan: Awaited<ReturnType<typeof scanDirectoryRecursive>> = { files: [], truncated: false };
+        let scan: Awaited<ReturnType<typeof scanDirectoryRecursive>> = { files: [], truncated: false, unreadableDirs: [] };
         try {
             scan = await scanDirectoryRecursive(root.rootUri);
         } catch (error) {
@@ -126,52 +120,9 @@ export async function PUT(request: Request) {
             });
         }
 
-        // Only this root's assets, not the whole catalog: a rescan of one folder
-        // has no reason to materialise every other asset on the machine.
-        const priorAssets = await readVaultAssetsByWatchRoot(root.id);
-        // Asset ids are stable across rescans; keep prior AI enrichment
-        // (descriptions, tags) instead of wiping it on every scan.
-        const priorById = new Map(priorAssets.map((asset) => [asset.id, asset]));
-        const scannedAssets: VaultAssetRecord[] = scan.files.map((file) => {
-            const type = inferVaultAssetType(file.name);
-            const prior = priorById.get(stableVaultAssetId('vdrv', `${root.id}:${file.relativePath}`));
-            return {
-                ...(prior ?? {}),
-                id: stableVaultAssetId('vdrv', `${root.id}:${file.relativePath}`),
-                name: file.name,
-                mimeType: 'application/octet-stream',
-                type,
-                category: 'uploads' as const,
-                sizeBytes: file.sizeBytes,
-                origin: {
-                    connector: 'local' as const,
-                    uri: `file://${file.absolutePath.replace(/\\/g, '/')}`,
-                    displayPath: `${root.label} / ${file.relativePath}`,
-                    watchRootId: root.id,
-                },
-                aliases: [],
-                createdAt: file.modifiedAt,
-                modifiedAt: file.modifiedAt,
-                owner: 'Guest',
-                isPublic: false,
-                previewUrl: undefined,
-            };
-        });
-
-        // Replacing this root's contents = write what the scan found, drop what
-        // it no longer finds. Equivalent to rewriting the catalog with
-        // `[everything else, ...scanned]`, without touching everything else.
-        const scannedIds = new Set(scannedAssets.map((asset) => asset.id));
-        const removedIds = [...priorById.keys()].filter((id) => !scannedIds.has(id));
-        await upsertVaultAssets(scannedAssets);
-        await deleteVaultAssets(removedIds);
-
-        // Hash vectors are a deterministic function of the asset text, so they
-        // are derived at search time rather than persisted. Writing them here
-        // produced a vector store hundreds of MB large that carried no
-        // information the catalog did not already hold. Only real embedding
-        // vectors (from Ollama) are worth storing, and those are backfilled by
-        // the search/enrichment paths — which must not be clobbered here.
+        // Write what changed, mark what vanished; an unchanged folder costs a
+        // fingerprint comparison and nothing else. See vaultRescan.ts.
+        const stats = await applyWatchRootScan(root, scan);
 
         await upsertWatchRoot({
             ...root,
@@ -189,6 +140,8 @@ export async function PUT(request: Request) {
             success: true as const,
             fileCount: scan.files.length,
             truncated: scan.truncated,
+            unreadableFolders: scan.unreadableDirs.length,
+            stats,
             rootId: root.id,
         });
     } catch (error) {

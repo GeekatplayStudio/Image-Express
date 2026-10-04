@@ -35,6 +35,7 @@ import {
 import { getComfyTaskPreference, saveComfyTaskPreference } from '@/lib/comfyui/preferences';
 import { workflowRequiresPositivePrompt } from '@/lib/comfyui/promptRequirements';
 import { executeComfyTask, inspectComfyServerCatalog, recoverComfyTaskByPromptId } from '@/lib/comfyui/runner';
+import { cancelComfyPrompt } from '@/lib/comfyui/promptControl';
 import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
 import { useDialog } from '@/providers/DialogProvider';
 import {
@@ -539,11 +540,11 @@ export default function ImageGeneratorModal({
       comfyCancelRequestedRef.current = true;
       comfyRunTokenRef.current += 1;
       rememberCancelledComfyPrompt(currentComfyPromptIdRef.current);
-      clearPendingComfyJob();
+      void cancelComfyPrompt(readPendingComfyJob()); clearPendingComfyJob(); // stop the server too, not just the wait
       currentComfyPromptIdRef.current = '';
       setStatusMessage('ComfyUI job cancelled by user.');
       setIsGenerating(false);
-  }, [clearPendingComfyJob, rememberCancelledComfyPrompt]);
+  }, [clearPendingComfyJob, readPendingComfyJob, rememberCancelledComfyPrompt]);
 
   const syncComfyTaskSelections = useCallback((task: ComfyTask) => {
       const taskPreference = getComfyTaskPreference(task);

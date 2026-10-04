@@ -29,6 +29,7 @@ export {
 export type { LightPreset, ModelBounds, Vec3 };
 import { Check, X, RotateCw, Sun, Camera, Box, Palette, Wand2, Monitor } from 'lucide-react';
 import * as THREE from 'three';
+import { clampCaptureSize, renderSceneToDataUrl } from '@/lib/three/sceneCapture';
 import * as fabric from 'fabric';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -482,36 +483,19 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
     };
 
     const handleCapture = () => {
-        if (gl && gl.glInstance) {
-            const { glInstance: renderer, scene, camera } = gl;
-            try {
-                const originalSize = new THREE.Vector2();
-                renderer.getSize(originalSize);
-                const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
-
-                renderer.setSize(resolution.width, resolution.height, false);
-
-                (camera as THREE.PerspectiveCamera).aspect = resolution.width / resolution.height;
-                (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-
-                withGizmoHidden(scene, () => renderer.render(scene, camera));
-
-                const dataUrl = renderer.domElement.toDataURL('image/png', 1.0);
-
-                renderer.setSize(originalSize.x, originalSize.y, false);
-
-                (camera as THREE.PerspectiveCamera).aspect = originalAspect;
-                (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-
-                renderer.render(scene, camera);
-
-                onSave(dataUrl, modelUrl, buildSettings());
-            } catch (e) {
-                console.error("High-res capture failed", e);
-                withGizmoHidden(gl.scene, () => gl.render());
-                const dataUrl = gl.domElement.toDataURL('image/png', 1.0);
-                onSave(dataUrl, modelUrl, buildSettings());
-            }
+        if (!gl?.glInstance) return;
+        const { glInstance: renderer, scene, camera } = gl;
+        const width = clampCaptureSize(resolution.width);
+        const height = clampCaptureSize(resolution.height);
+        try {
+            const dataUrl = renderSceneToDataUrl(renderer, scene, camera, width, height, { hideObjectNamed: GIZMO_GROUP_NAME });
+            if (!dataUrl) throw new Error('No 2D canvas context');
+            onSave(dataUrl, modelUrl, { ...buildSettings(), resolution: { width, height } });
+        } catch (e) {
+            // The renderer is back at its own size by now, so this is the view as shown.
+            console.error("High-res capture failed", e);
+            withGizmoHidden(gl.scene, () => gl.render());
+            onSave(gl.domElement.toDataURL('image/png', 1.0), modelUrl, buildSettings());
         }
     };
 
@@ -757,6 +741,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                                             const val = parseInt(e.target.value);
                                             setResolution(p => ({ ...p, width: val }))
                                         }}
+                                        onBlur={() => setResolution(p => ({ width: clampCaptureSize(p.width), height: clampCaptureSize(p.height) }))}
                                         className="w-full bg-muted px-2 py-1 rounded border border-border/50 text-right"
                                     />
                                 </div>
@@ -766,6 +751,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
                                         type="number"
                                         value={resolution.height}
                                         onChange={e => setResolution(p => ({ ...p, height: parseInt(e.target.value) }))}
+                                        onBlur={() => setResolution(p => ({ width: clampCaptureSize(p.width), height: clampCaptureSize(p.height) }))}
                                         className="w-full bg-muted px-2 py-1 rounded border border-border/50 text-right"
                                     />
                                 </div>

@@ -75,7 +75,8 @@ let catalogCache: { catalog: VaultCatalog; mtimeMs: number } | null = null;
 let sqliteSnapshotCache: VaultCatalog | null = null;
 let sqliteSnapshotInFlight: Promise<VaultCatalog | null> | null = null;
 
-function invalidateCatalogCaches() {
+/** Drop the in-memory copies. Anything that writes the catalog directly must call this. */
+export function invalidateCatalogCaches() {
     catalogCache = null;
     sqliteSnapshotCache = null;
     sqliteSnapshotInFlight = null;
@@ -115,6 +116,22 @@ async function ensureCatalogMigrated(): Promise<void> {
         }
     })();
     await migrationPromise;
+}
+
+/**
+ * True when SQLite is the active catalog and is ready to be queried directly.
+ * Modules that run their own SQL (scan bookkeeping, search) ask this first and
+ * take the whole-catalog path when it says no.
+ */
+export async function sqliteCatalogReady(): Promise<boolean> {
+    if (!sqliteCatalogEnabled()) return false;
+    try {
+        await ensureCatalogMigrated();
+        return true;
+    } catch (error) {
+        console.error('Vault catalog SQLite is not usable, using the JSON store:', error);
+        return false;
+    }
 }
 
 export async function readVaultCatalog(): Promise<VaultCatalog> {
