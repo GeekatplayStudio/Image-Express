@@ -1,3 +1,4 @@
+import { getOllamaGenerationProfile } from '@/lib/ollamaGenerationProfiles';
 import { DEFAULT_OLLAMA_BASE_URL } from '@/lib/localAiPreferences';
 
 const trimTrailingSlashes = (value: string): string => value.replace(/\/+$/, '');
@@ -150,7 +151,10 @@ export const buildOllamaSvgGenerationPrompt = (options: {
     prompt: string;
     width: number;
     height: number;
+    /** Speed/detail profile; defaults to balanced. */
+    quality?: unknown;
 }): string => {
+    const profile = getOllamaGenerationProfile(options.quality);
     const safeWidth = Math.max(64, Math.round(options.width));
     const safeHeight = Math.max(64, Math.round(options.height));
 
@@ -164,6 +168,7 @@ export const buildOllamaSvgGenerationPrompt = (options: {
         '- Use only basic SVG elements such as path, rect, circle, ellipse, polygon, line, polyline, defs, linearGradient, radialGradient, g, and text.',
         '- Do not use script, foreignObject, external images, remote URLs, CSS imports, or animation.',
         '- Prefer bold, readable shapes, layered color, and a polished poster-like composition.',
+        ...profile.directions,
         `Prompt: ${options.prompt.trim()}`,
     ].join('\n');
 };

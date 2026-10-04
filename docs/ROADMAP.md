@@ -574,12 +574,12 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-01 | Durable encrypted user key vault | P0 | Owner-only access delivered; rotation and audit open | M0 |
 | R-13 | Super installer + first-run orchestration | P0 | Scripts, wizard step and trust policy delivered; sources unpinned | M0 |
 | R-02 | Campaign Workspace (media overlay B2) | P1 | B1 bridge done | M1 |
-| R-03 | AI critique quality program | P1 | In progress | M1 |
-| R-04 | Ollama local generation quality | P1 | In progress | M1 |
-| R-05 | Channels advanced workflows | P1 | Partial | M1 |
-| R-12 | Comfy custom workflows/nodes bundling | P1 | Foundation exists | M1 |
-| R-14 | Comfy model catalog + custom upload UI | P1 | Not started | M1 |
-| R-06 | Background jobs control center | P2 | **Core delivered**; provider polling open | M2 |
+| R-03 | AI critique quality program | P1 | **Delivered** 2026-10-03 | M1 |
+| R-04 | Ollama local generation quality | P1 | Profiles delivered; model matrix open | M1 |
+| R-05 | Channels advanced workflows | P1 | Delivered for the session; saving with the page open | M1 |
+| R-12 | Comfy custom workflows/nodes bundling | P1 | Version tracking and update check delivered | M1 |
+| R-14 | Comfy model catalog + custom upload UI | P1 | **Delivered** 2026-10-03 (checkpoints) | M1 |
+| R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
 | R-11 | Provider QA hardening | P2 | Planned | M2 |
 | R-08 | Additional cloud storage providers | P2 | Drive only | M2 |
 | R-15 | Global resizable modal compliance | P2 | Mixed | M2 |
@@ -658,9 +658,14 @@ global pipeline rail. `POST /api/generate` no longer executes inline;
    is best-effort and only applies to **signed-in** accounts — keys are vaulted
    per account and Guest has none — so the browser poller is still the fallback
    path and still carries a per-tab cap.
-2. A full Activity panel with history and reorder. `BackgroundJobsPanel` today
-   serves only the legacy localStorage jobs, and only inside the Editor.
-3. OS-level notifications when the window is unfocused (Electron `Notification`).
+2. ~~A full Activity panel with history and reorder.~~ **Done 2026-10-03.**
+   *Window → Activity* lists every queue job with history, cancel, retry, *Run
+   next* and *Clear finished*. It covers the server queue; the legacy
+   browser-polled jobs still appear only on the rail.
+3. ~~OS-level notifications when the window is unfocused.~~ **Done 2026-10-03**
+   with the Web Notification API, which works in both the browser and the
+   desktop shell, so no Electron IPC was needed. Not exercised in a packaged
+   desktop build.
 
 **Closed since this section was written:** running-job cancellation. It did not
 need abort signals threaded into providers — a *cooperative* stop was both
@@ -677,36 +682,52 @@ flyout from Export, active-variant badge near the title.
 export of current and of all; snapshots carry metadata and thumbnail linkage.
 Benefits from the queue for variant-export batching.
 
-### R-03 · AI critique quality program — P1
-Profiles (composition, typography, brand consistency, conversion-readiness),
-structured score + issue list + recommended actions, and "apply in editor" jump
-actions.
+### R-03 · AI critique quality program — P1 — ✅ delivered 2026-10-03
+Profiles (composition, typography, brand consistency, conversion-readiness, plus
+general), structured score + issue list + recommended actions, and "apply in
+editor" jump actions. The jump navigates and selects; it never edits the page.
+**Open:** applying a recommendation automatically, and a cloud-provider path —
+the structured report is produced by the Ollama route only.
 **Acceptance:** same image + profile yields a stable structure; always at least
 one actionable recommendation; runtime/model preflight still blocks clearly.
 
 ### R-04 · Ollama local generation quality — P1
-Define the supported local model matrix, decide SVG-first vs bitmap-first per
-use case, and add `fast` / `balanced` / `quality` profiles with explicit
-tradeoffs.
+**Done 2026-10-03:** `fast` / `balanced` / `quality` profiles with stated
+tradeoffs, capability guidance shown before a run, and `qa:ollama` covering
+status, generation per profile and critique. Measured to change the output.
+**Open:** the supported local model matrix (which installed models draw usable
+SVG — only `gemma3:12b` was measured), and bitmap generation, which Ollama's
+text models cannot do; today local generation is SVG only.
 **Acceptance:** capability guidance shown before a run; profile choice
 materially changes output; `npm run qa:ollama` covers status, generation and
 critique.
 
 ### R-05 · Channels advanced workflows — P1
-Save named alpha/luma channels, load a channel as the active selection, and
-manage the channel stack.
+**Done 2026-10-03:** save the selection, a layer's alpha or its luma as a named
+channel; load a channel as the selection (replace / add / subtract / intersect);
+rename, reorder and delete.
+**Open:** saving channels with the page. They live on the canvas for the
+session. The run-length encoder for storing them is written and tested but not
+wired into save and load.
 **Note:** the document content-selection mask is live — channel load should
 write into that mask.
 
 ### R-12 · Comfy custom workflows/nodes bundling — P1
-Bundle first-party workflow/node repo definitions, add install/update actions in
-Settings, track installed version/commit and surface updates.
+**Done before this pass:** install and update actions in Settings, first-party
+bundle definitions in the installer config.
+**Done 2026-10-03:** installed commit, branch and date per repository, and an
+explicit *Check for updates*.
+**Open:** naming the specific missing node or model in dependency messages for
+user-added workflows (built-in ones already do).
 **Acceptance:** install/update without manual git; bundled workflows appear when
 requirements are met; missing-dependency messages name the specific node/model.
 
-### R-14 · Comfy model catalog + custom upload — P1
-Per-workflow model picker, UI path to register custom model files, and
-compatibility guardrails.
+### R-14 · Comfy model catalog + custom upload — P1 — ✅ delivered 2026-10-03
+The per-workflow model picker and its persistence already existed. Added: a UI
+path to register custom checkpoint files, and guardrails.
+**Open:** custom models for graphs that load a UNet, text encoders and a VAE
+separately (FLUX, Qwen) — those need several files chosen together — and
+uploading a model file through the app rather than placing it in the folder.
 **Acceptance:** switch from default SDXL to alternative or custom models in UI;
 invalid combinations blocked with guidance; selection persists across sessions.
 

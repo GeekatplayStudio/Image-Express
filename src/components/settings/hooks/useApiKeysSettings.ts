@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_OLLAMA_GENERATION_PROFILE, type OllamaGenerationProfileId } from '@/lib/ollamaGenerationProfiles';
 import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -45,6 +46,7 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
     const [bananaKey, setBananaKey] = useState('');
     const [ollamaBaseUrl, setOllamaBaseUrl] = useState(DEFAULT_OLLAMA_BASE_URL);
     const [ollamaModel, setOllamaModel] = useState(DEFAULT_OLLAMA_MODEL);
+    const [ollamaQuality, setOllamaQuality] = useState<OllamaGenerationProfileId>(DEFAULT_OLLAMA_GENERATION_PROFILE);
 
     const [upscaleKeys, setUpscaleKeys] = useState<Record<string, string>>({});
     const [upscalePreferences, setUpscalePreferences] = useState<UpscalePreferences>(() => loadUpscalePreferences());
@@ -97,6 +99,7 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
         const localAiPreferences = loadLocalAiPreferences();
         setOllamaBaseUrl(localAiPreferences.ollamaBaseUrl);
         setOllamaModel(localAiPreferences.ollamaModel);
+        setOllamaQuality(localAiPreferences.ollamaQuality);
 
         if (userId && userId !== 'Guest') {
             setSyncStatus('syncing');
@@ -297,8 +300,8 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
     }, [upscaleKeys, upscalePreferences]);
 
     const saveOllamaPreferences = useCallback(() => {
-        saveLocalAiPreferences({ ollamaBaseUrl, ollamaModel });
-    }, [ollamaBaseUrl, ollamaModel]);
+        saveLocalAiPreferences({ ollamaBaseUrl, ollamaModel, ollamaQuality });
+    }, [ollamaBaseUrl, ollamaModel, ollamaQuality]);
 
     return {
         meshyKey, setMeshyKey,
@@ -314,6 +317,7 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
         bananaKey, setBananaKey,
         ollamaBaseUrl, setOllamaBaseUrl,
         ollamaModel, setOllamaModel,
+        ollamaQuality, setOllamaQuality,
         upscaleKeys, setUpscaleKey,
         upscalePreferences, setUpscalePreferences,
         getUpscaleKeysForSave, saveUpscaleSettings,

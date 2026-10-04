@@ -126,12 +126,15 @@ stroke, glow, highlight, gradient, sticker, texture, readability.
 Paint: Pencil, Spray, Oil, Watercolour with Normal/Multiply/Screen/Overlay
 blending; strokes auto-group into Paint Folders, one layer per session.
 
-### Channels — Partial
+### Channels — Shipped
 Composite, Red, Green, Blue, Alpha and Luminosity rows in the right rail and
 circular context menu, each with opacity, composite masking, isolate, invert and
 mask actions. Images use non-destructive ColorMatrix filters; fillable layers
 support direct per-channel edits.
-*Missing:* saved named channels and load-channel-as-selection.
+
+**Saved channels:** keep the current selection under a name, or build one from
+a layer's alpha or luma; load it back as the selection (replace, add, subtract,
+intersect); rename, reorder, delete. Session-only — not yet saved with the page.
 
 ### 3D layers — Shipped
 Pose, light and shadow a generated or uploaded model inside a canvas layer, with
@@ -177,6 +180,16 @@ hardcoded model list — so new models work immediately. When the saved model
 cannot read images, the critique panel lists installed vision models plus a
 curated, size-labelled install list checked live against the Ollama library,
 with streamed download progress.
+
+Generation has **Fast / Balanced / Quality** profiles (Settings → Services),
+which set the drawing brief and the token budget together. Local generation
+draws flat vector illustration (SVG), never photographs, and the panel says so.
+
+**AI Critique** returns a structured report for a chosen profile — General,
+Composition, Typography, Brand consistency, Conversion readiness: an overall
+score, the profile's criteria scored in a fixed order, issues by severity, and
+recommended edits with a button to where each is made. A model that replies in
+plain prose still produces a report, marked as unscored.
 
 ### AI Edit Notes — Beta
 Annotate a layer with point notes, save a flattened reference layer with
@@ -226,8 +239,12 @@ Every generation is queued, never run inline, so the app stays usable. A thin
 **pipeline rail** under the top toolbar shows where each request is — queued, on
 your GPU, at an external API, validating, saving — distinguishing external from
 local work. Hover for detail, cancel what is still queued, retry what failed
-with the real error, and get a toast on completion. Configure in Settings →
-Workspace: Hidden / Minimal / Detailed, plus a completion-notification toggle.
+with the real error, and get a toast on completion — or a system notification
+when the window is in the background. Configure in Settings → Workspace: Hidden
+/ Minimal / Detailed, plus a completion-notification toggle.
+
+**Window → Activity** is the full list with history: running, waiting (in run
+order) and finished jobs, with cancel, retry, *Run next* and *Clear finished*.
 Jobs survive an app restart; interrupted ones report as interrupted rather than
 spinning forever.
 
@@ -424,10 +441,10 @@ Tracked in [ROADMAP.md](ROADMAP.md); listed here so behaviour claims stay honest
 | Area | Gap |
 |---|---|
 | Background jobs | Meshy/Tripo/Hitem3D/Stability still polled from the browser — closing the tab abandons them |
-| Channels | No saved channels, no load-as-selection |
+| Channels | Saved channels are not stored with the page |
 | Media overlay | No full campaign-variant workspace |
 | Social | No direct posting; manual export only |
 | Auth | No Facebook sign-in |
 | Cloud storage | Google Drive only in practice |
-| Key vault | Encrypted at rest, but rotation policy and stronger authz still open |
+| Key vault | Encrypted at rest and owner-only; rotation policy and audit trail still open |
 | Scale | All persistence is filesystem JSON — single-node only |

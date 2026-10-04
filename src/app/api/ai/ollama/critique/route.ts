@@ -3,7 +3,6 @@ import { enforceJsonBody } from '@/lib/server/apiContract';
 import { assertFetchableUrl } from '@/lib/server/outboundUrlPolicy';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
 import {
-    buildOllamaCritiquePrompt,
     extractBase64PayloadFromDataUrl,
     formatOllamaModelList,
     normalizeOllamaBaseUrl,
@@ -15,6 +14,13 @@ import {
     listOllamaVisionModelsByCapability,
 } from '@/lib/ollamaServer';
 import { buildVisionCatalog } from '@/lib/server/ollamaVisionCatalog';
+import {
+    buildStructuredCritiquePrompt,
+    formatCritiqueReport,
+    getCritiqueProfile,
+    parseCritiqueResponse,
+    pickCritiqueText,
+} from '@/lib/critique/critiqueReport';
 
 /**
  * Budget for a local vision critique.
@@ -36,6 +42,8 @@ type OllamaTagsPayload = {
 
 type OllamaGeneratePayload = {
     response?: string;
+    /** Reasoning from a thinking model; occasionally where the answer ends up. */
+    thinking?: string;
     error?: string;
 };
 
@@ -47,6 +55,7 @@ export async function POST(request: NextRequest) {
         target?: 'selection' | 'canvas';
         targetLabel?: string;
         focus?: string;
+        profile?: string;
     };
 
     try {
@@ -63,6 +72,7 @@ if (badBody) return badBody;
     const target = payload.target === 'selection' ? 'selection' : 'canvas';
     const targetLabel = payload.targetLabel?.trim() || (target === 'selection' ? 'Selected layer' : 'Full canvas');
     const focus = payload.focus?.trim() || '';
+    const profile = getCritiqueProfile(payload.profile);
     const imageDataUrl = payload.imageDataUrl?.trim() || '';
 
     if (!imageDataUrl) {
@@ -155,11 +165,12 @@ if (badBody) return badBody;
             body: JSON.stringify({
                 model: requestedModel,
                 stream: false,
-                prompt: buildOllamaCritiquePrompt({
-                    target,
-                    targetLabel,
-                    focus,
-                }),
+                prompt: buildStructuredCritiquePrompt({ profile, target, targetLabel, focus }),
+                // No "format: json" here. Measured against qwen3-vl: with it, a
+                // thinking model writes the JSON into its "thinking" field and
+                // returns an empty "response". Asking in the prompt works for
+                // thinking and non-thinking models alike; the parser handles
+                // whatever comes back.
                 images: [imageBase64],
                 options: {
                     temperature: 0.2,
@@ -191,7 +202,7 @@ if (badBody) return badBody;
             }, { status: 502 });
         }
 
-        const critique = critiquePayload.response?.trim();
+        const critique = pickCritiqueText(critiquePayload.response, critiquePayload.thinking);
         if (!critique) {
             return NextResponse.json({
                 success: false,
@@ -199,9 +210,12 @@ if (badBody) return badBody;
             }, { status: 502 });
         }
 
+        const report = parseCritiqueResponse(critique, profile.id);
         return NextResponse.json({
             success: true,
-            critique,
+            // Prose rendering of the report, for callers that predate it.
+            critique: formatCritiqueReport(report) || critique,
+            report,
             model: requestedModel,
             baseUrl: resolvedBaseUrl,
             target,

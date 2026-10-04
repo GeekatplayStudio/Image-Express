@@ -492,7 +492,7 @@ export async function executeAgentStepOnCanvas(
             try {
                 const prefs = typeof window !== 'undefined'
                     ? JSON.parse(localStorage.getItem('image-express-local-ai-preferences') || '{}') as {
-                        ollamaBaseUrl?: string;
+                        ollamaBaseUrl?: string; ollamaQuality?: string;
                         ollamaModel?: string;
                     }
                     : {};
@@ -506,7 +506,7 @@ export async function executeAgentStepOnCanvas(
                         provider: 'remote',
                         specificProvider: String(step.params.specificProvider || 'ollama'),
                         localAiBaseUrl: prefs.ollamaBaseUrl,
-                        localAiModel: prefs.ollamaModel,
+                        localAiModel: prefs.ollamaModel, localAiQuality: prefs.ollamaQuality,
                     }),
                 });
                 const data = await response.json() as { success?: boolean; imageUrl?: string };

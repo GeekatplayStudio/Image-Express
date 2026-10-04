@@ -2872,7 +2872,7 @@ export default function PropertiesPanel({
     if (panelMode === 'channels') {
         return withPanelRail(
             <ChannelsPanelView
-                key={channelPanelKey}
+                key={channelPanelKey} canvas={canvas}
                 supportedTarget={channelSupportedTarget}
                 selectionLabel={channelSelectionLabel}
                 previewSource={channelPreviewSource}

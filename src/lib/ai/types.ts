@@ -10,6 +10,7 @@ export const GenerationParamsSchema = z.object({
     specificProvider: z.string().optional().or(z.null()),
     localAiBaseUrl: z.string().url('Invalid local AI base URL').optional().or(z.literal('')).or(z.null()),
     localAiModel: z.string().optional().or(z.null()),
+    localAiQuality: z.string().max(20).optional().or(z.null()),
     mockMode: z.boolean().default(false),
 });
 

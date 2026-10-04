@@ -174,6 +174,15 @@ or handler registration is skipped.
   localStorage background jobs, distinguishes External-API vs Local work,
   surfaces failure reasons inline, and offers cancel/retry.
 
+### Reordering and history
+
+`prioritize(id)` raises one queued job above every other queued job, rather
+than renumbering the rest, so it is a single write; the pump already orders by
+priority then arrival. `clearFinished()` removes terminal jobs and emits a
+`snapshot` event, which the SSE route forwards — a removal has no per-job
+event, and a snapshot is what clients already treat as authoritative. The
+Activity panel subscribes only while open.
+
 ### Known gap
 
 Meshy/Tripo/Hitem3D/Stability 3D jobs are still polled **from the browser**

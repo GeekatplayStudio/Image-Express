@@ -7,11 +7,16 @@ import { requestOllamaModelInstall } from '@/lib/ollamaModelInstall';
 import VisionModelPicker from '@/components/VisionModelPicker';
 import { formatOllamaRuntimeStatusMessage, requestOllamaRuntimeStatus } from '@/lib/ollamaRuntimeStatus';
 import { useI18n } from '@/providers/I18nProvider';
+import CritiqueReportView from '@/components/CritiqueReportView';
+import { captureCritiqueImage, resolveSelectionLabel, type CanvasWithSelectionControls } from '@/lib/critique/captureCritiqueImage';
+import { CRITIQUE_PROFILES, DEFAULT_CRITIQUE_PROFILE, type CritiqueJump, type CritiqueProfileId, type CritiqueReport } from '@/lib/critique/critiqueReport';
 
 interface AICritiqueModalProps {
     isOpen?: boolean;
     canvas?: fabric.Canvas | null;
     onClose: () => void;
+    /** Take the user to where a recommended edit is made. */
+    onJump?: (jump: Exclude<CritiqueJump, 'none'>) => void;
 }
 
 type CritiqueTarget = 'selection' | 'canvas';
@@ -24,84 +29,11 @@ type RuntimeCheckState = {
     visionCapable: boolean;
 };
 
-type CanvasWithSelectionControls = fabric.Canvas & {
-    artboard?: { width: number; height: number };
-    defaultCursor: string;
-    hoverCursor: string;
-    isDrawingMode?: boolean;
-    selection: boolean;
-    viewportTransform?: fabric.TMat2D;
-};
-
-type FabricObjectLike = fabric.Object & {
-    name?: string;
-};
-
-const resolveSelectionLabel = (target: fabric.Object | null | undefined): string | null => {
-    if (!target) return null;
-    const namedTarget = target as FabricObjectLike;
-    if (typeof namedTarget.name === 'string' && namedTarget.name.trim().length > 0) {
-        return namedTarget.name.trim();
-    }
-    if (typeof target.type === 'string' && target.type.trim().length > 0) {
-        return target.type.replace(/-/g, ' ');
-    }
-    return 'Selected layer';
-};
-
-const captureCritiqueImage = (canvas: CanvasWithSelectionControls, target: CritiqueTarget): string => {
-    const originalViewportTransform = Array.isArray(canvas.viewportTransform) && canvas.viewportTransform.length === 6
-        ? [...canvas.viewportTransform] as fabric.TMat2D
-        : undefined;
-    canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
-    canvas.requestRenderAll();
-
-    try {
-        if (target === 'selection') {
-            const activeObject = canvas.getActiveObject();
-            if (!activeObject) {
-                throw new Error('Select a layer on the canvas before running critique.');
-            }
-
-            const bounds = activeObject.getBoundingRect();
-            return canvas.toDataURL({
-                format: 'png',
-                multiplier: 1,
-                left: Math.max(0, bounds.left),
-                top: Math.max(0, bounds.top),
-                width: Math.max(1, bounds.width),
-                height: Math.max(1, bounds.height),
-            });
-        }
-
-        if (canvas.artboard) {
-            return canvas.toDataURL({
-                format: 'png',
-                multiplier: 1,
-                left: 0,
-                top: 0,
-                width: Math.max(1, canvas.artboard.width),
-                height: Math.max(1, canvas.artboard.height),
-            });
-        }
-
-        return canvas.toDataURL({ format: 'png', multiplier: 1 });
-    } finally {
-        if (originalViewportTransform) {
-            if (typeof canvas.setViewportTransform === 'function') {
-                canvas.setViewportTransform(originalViewportTransform);
-            } else {
-                canvas.viewportTransform = originalViewportTransform;
-            }
-            canvas.requestRenderAll();
-        }
-    }
-};
-
 export default function AICritiqueModal({
     isOpen = true,
     canvas,
     onClose,
+    onJump,
 }: AICritiqueModalProps) {
     const { t } = useI18n();
     const [runtimeCheck, setRuntimeCheck] = useState<RuntimeCheckState>({
@@ -119,6 +51,8 @@ export default function AICritiqueModal({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isInstallingModel, setIsInstallingModel] = useState(false);
     const [critique, setCritique] = useState('');
+    const [report, setReport] = useState<CritiqueReport | null>(null);
+    const [profile, setProfile] = useState<CritiqueProfileId>(DEFAULT_CRITIQUE_PROFILE);
     const [errorMessage, setErrorMessage] = useState('');
 
     useEscapeKey(onClose, { enabled: isOpen });
@@ -186,7 +120,7 @@ export default function AICritiqueModal({
             visionCapable: false,
         });
         setFocus('');
-        setCritique('');
+        setCritique(''); setReport(null);
         setErrorMessage('');
         void checkRuntime(preferences.ollamaBaseUrl, preferences.ollamaModel);
 
@@ -263,7 +197,7 @@ export default function AICritiqueModal({
 
         setIsAnalyzing(true);
         setErrorMessage('');
-        setCritique('');
+        setCritique(''); setReport(null);
 
         try {
             const imageDataUrl = captureCritiqueImage(canvas as CanvasWithSelectionControls, target);
@@ -278,6 +212,7 @@ export default function AICritiqueModal({
                     target,
                     targetLabel,
                     focus,
+                    profile,
                     imageDataUrl,
                 }),
             });
@@ -285,6 +220,7 @@ export default function AICritiqueModal({
             const payload = await response.json() as {
                 success?: boolean;
                 critique?: string;
+                report?: CritiqueReport;
                 message?: string;
             };
 
@@ -293,6 +229,7 @@ export default function AICritiqueModal({
             }
 
             setCritique(payload.critique);
+            setReport(payload.report ?? null);
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : 'Failed to generate local AI critique.');
         } finally {
@@ -467,6 +404,13 @@ export default function AICritiqueModal({
                     </div>
                 </fieldset>
 
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t('critique.profile.label')}
+                    <select value={profile} onChange={(event) => setProfile(event.target.value as CritiqueProfileId)} className="mt-2 w-full rounded-xl border border-input bg-secondary/30 px-3 py-2 text-sm font-normal normal-case tracking-normal text-foreground">
+                        {CRITIQUE_PROFILES.map((entry) => <option key={entry.id} value={entry.id}>{t(entry.labelKey)}</option>)}
+                    </select>
+                </label>
+
                 <div>
                     <label htmlFor="ai-critique-focus" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         {t('critique.focusPrompt')}
@@ -518,7 +462,7 @@ export default function AICritiqueModal({
                         {t('critique.output')}
                     </div>
                     <div className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap text-sm leading-6">
-                        {critique || t('critique.outputPlaceholder')}
+                        {report ? <CritiqueReportView report={report} onJump={onJump} /> : (critique || t('critique.outputPlaceholder'))}
                     </div>
                 </div>
             </div>

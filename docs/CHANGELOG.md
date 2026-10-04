@@ -19,6 +19,76 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-03 - Activity panel, structured critique, generation profiles, saved channels, Comfy versions and custom models
+
+Six roadmap items in one pass. Each has tests; three were also run against the
+real thing (a live queue job, a local vision model, a local text model).
+
+**Activity panel and background notifications (R-06).** The pipeline rail shows
+what is in flight and forgets a job seconds after it ends. *Window → Activity*
+is the durable view: every job the queue knows about, running first, then the
+queue in the order it will actually run, then history newest first — with the
+failure reason, cancel, retry, **Run next** (moves a waiting job to the front of
+its lane) and **Clear finished**. When a job ends while the window is hidden or
+unfocused, the result is announced through the operating system; a toast would
+not be seen. Permission is requested from the settings checkbox, never from a
+job finishing.
+
+- New queue operations: `prioritize` (`POST /api/queue/[id]/prioritize`) and
+  `clearFinished` (`DELETE /api/queue`), both refused cross-site.
+- Checked live: a real vault-thumbnail job appeared, was cancelled from the
+  panel, and moved to history with Retry offered.
+
+**Structured AI critique (R-03).** Five review profiles — General, Composition,
+Typography, Brand consistency, Conversion readiness — each with its own named
+criteria. The report has an overall score, per-criterion scores, issues ranked
+by severity and recommended edits, each with a button that goes to where the
+edit is made. The structure is enforced in `critiqueReport.ts`, not trusted to
+the model: criteria always come from the profile in the profile's order, scores
+are clamped, and there is always at least one action.
+
+- **Found by testing against a real model:** with Ollama's `format: "json"`, a
+  thinking model (`qwen3-vl`) writes its JSON into the `thinking` field and
+  returns an empty `response`. The first version of this change did exactly
+  that and produced "empty critique" for every request. The JSON is now asked
+  for in the prompt, which works for thinking and non-thinking models, and the
+  `thinking` field is used only if it actually holds the JSON object.
+- Verified live: two runs with the same profile returned the same structure.
+
+**Local generation profiles (R-04).** Fast, Balanced and Quality change both
+the drawing brief and the token budget together — a detailed brief on a small
+budget is cut off mid-SVG. Measured on `gemma3:12b` with the same prompt:
+Fast gave 12 flat shapes in 12 s; Quality gave 22 shapes with 3 gradients in
+20 s; both complete documents. The settings panel states that local generation
+is flat vector illustration, not photography, before a run rather than after.
+`npm run qa:ollama` now generates with two profiles and asserts the richer one
+is richer, and asserts the critique returns a report for the requested profile.
+
+**Saved channels (R-05).** Save the current selection under a name, or build a
+channel from a layer's alpha or luma, and load it back as the selection —
+replace, add, subtract or intersect. Channels can be renamed, reordered and
+deleted. Loading writes into the existing document selection mask, so every
+selection-aware tool works with it unchanged. **Not saved with the page yet:**
+channels last for the editing session. The run-length encoding that would make
+storing them practical is written and tested (a full-HD mask shrinks more than
+500-fold), but not wired into save and load.
+
+**ComfyUI repository versions (R-12).** Each node and workflow repository in the
+manager now shows its installed commit, branch and date, and *Check for updates*
+reports how many commits each is behind. An ordinary scan stays offline; only
+the explicit check contacts the remote. Tested against real temporary git
+repositories.
+
+**Custom ComfyUI models (R-14).** Register a checkpoint file from your ComfyUI
+checkpoints folder and it joins the model picker for every workflow that loads
+a single checkpoint; the choice persists like any other. Guardrails: it is not
+offered for FLUX or Qwen graphs, which load a UNet rather than a checkpoint; the
+entry must be a bare file name with a model extension; and once the connection
+is verified, a file the server does not list is refused with where to put it.
+
+All new interface text is translated into all eleven languages, which the
+translation ratchet requires.
+
 ## 2026-10-03 - The key vault only answers its owner (R-01)
 
 **`GET /api/user/keys?userId=<name>` returned that account's decrypted provider

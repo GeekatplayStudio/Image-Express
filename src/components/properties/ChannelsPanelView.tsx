@@ -13,10 +13,14 @@ import {
 } from './channelEditing';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/providers/I18nProvider';
+import type * as fabric from 'fabric';
+import { SavedChannelsSection } from './SavedChannelsSection';
 
 type SupportedChannelsTarget = 'none' | 'color' | 'image';
 
 interface ChannelsPanelViewProps {
+    /** Saved channels belong to the page, so they are offered whatever is selected. */
+    canvas?: fabric.Canvas | null;
     supportedTarget: SupportedChannelsTarget;
     selectionLabel?: string;
     previewSource?: ChannelPreviewSource | null;
@@ -39,6 +43,7 @@ const CHANNEL_ROWS: Array<{ target: ChannelTarget; labelKey: string; accent: str
 ];
 
 export function ChannelsPanelView({
+    canvas,
     supportedTarget,
     selectionLabel,
     previewSource,
@@ -121,6 +126,7 @@ export function ChannelsPanelView({
                     <p>{t('channels.emptyHint')}</p>
                     <p className="text-xs">{t('channels.capabilities')}</p>
                 </div>
+                <SavedChannelsSection canvas={canvas} />
             </div>
         );
     }
@@ -300,6 +306,7 @@ export function ChannelsPanelView({
                         : t('channels.colorMaskHint')}
                 </div>
             </div>
+            <SavedChannelsSection canvas={canvas} />
         </div>
     );
 }

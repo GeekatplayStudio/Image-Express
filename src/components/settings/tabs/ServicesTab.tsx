@@ -1,5 +1,6 @@
 'use client';
 
+import OllamaQualityPicker from '@/components/settings/OllamaQualityPicker';
 import { Box, Cloud, Loader2 } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
@@ -18,7 +19,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
         meshyKey, setMeshyKey, tripoKey, setTripoKey,
         hitemsMode, setHitemsMode, hitemsKey, setHitemsKey, hitemsAk, setHitemsAk, hitemsSk, setHitemsSk, hitemsAppId, setHitemsAppId,
         stabilityKey, setStabilityKey, openaiKey, setOpenaiKey, googleKey, setGoogleKey, bananaKey, setBananaKey,
-        ollamaBaseUrl, setOllamaBaseUrl, ollamaModel, setOllamaModel, ollamaCheck, setOllamaCheck, isInstallingOllamaModel,
+        ollamaBaseUrl, setOllamaBaseUrl, ollamaModel, setOllamaModel, ollamaQuality, setOllamaQuality, ollamaCheck, setOllamaCheck, isInstallingOllamaModel,
         validationStatus, clearProviderValidation, validateProviderKey, handleCheckOllama, handleInstallOllamaModel,
     } = apiKeys;
 
@@ -324,6 +325,7 @@ export default function ServicesTab({ apiKeys }: ServicesTabProps) {
                         <p className="mt-2 text-[11px] text-muted-foreground">
                             {t('settings.services.localAiHint')}
                         </p>
+                        <OllamaQualityPicker value={ollamaQuality} onChange={setOllamaQuality} />
                     </div>
                 </div>
             </section>

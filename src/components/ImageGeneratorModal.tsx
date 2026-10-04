@@ -2578,7 +2578,7 @@ export default function ImageGeneratorModal({
           specificProvider: selectedProvider, 
                     apiKey: currentKey,
                     localAiBaseUrl: localAiPreferences?.ollamaBaseUrl,
-                    localAiModel: localAiPreferences?.ollamaModel,
+                    localAiModel: localAiPreferences?.ollamaModel, localAiQuality: localAiPreferences?.ollamaQuality,
         }),
       });
 

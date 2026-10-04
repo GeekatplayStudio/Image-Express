@@ -1,3 +1,4 @@
+import { getOllamaGenerationProfile } from '@/lib/ollamaGenerationProfiles';
 import { GenerationParams } from './types';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from '@/lib/localAiPreferences';
 import {
@@ -266,7 +267,8 @@ class BananaAdapter implements ProviderAdapter {
 // 5. Local Ollama SVG Generator Adapter
 class OllamaAdapter implements ProviderAdapter {
     async execute(params: GenerationParams): Promise<GenerationResult> {
-        const { prompt, width, height, localAiBaseUrl, localAiModel } = params;
+        const { prompt, width, height, localAiBaseUrl, localAiModel, localAiQuality } = params;
+        const qualityProfile = getOllamaGenerationProfile(localAiQuality);
         const targetWidth = Math.max(64, width || 1024);
         const targetHeight = Math.max(64, height || 1024);
         const requestedBaseUrl = localAiBaseUrl && localAiBaseUrl.trim().length > 0
@@ -338,12 +340,13 @@ class OllamaAdapter implements ProviderAdapter {
                     prompt: typeof prompt === 'string' ? prompt : '',
                     width: targetWidth,
                     height: targetHeight,
+                    quality: qualityProfile.id,
                 }),
                 stream: false,
                 keep_alive: '15m',
-                options: {
-                    temperature: 0.2,
-                },
+                // The token budget travels with the prompt: a detailed brief
+                // on a small budget is cut off mid-document.
+                options: qualityProfile.options,
             });
 
             const requestGeneration = async () => fetchOllamaWithFallback(resolvedBaseUrl, '/api/generate', {

@@ -7,8 +7,7 @@ import { getArtboardSize, loadCanvasJson } from '@/lib/fabric-utils';
 import { useI18n } from '@/providers/I18nProvider';
 import { applyEditorCanvasToolConfig } from '@/components/Editor/editorCanvasToolMode';
 import {
-    Circle,
-    Square,
+    Circle, Square,
     Triangle,
     Star,
     Box,
@@ -72,6 +71,7 @@ import { ensureDisplayableImage } from '@/lib/imageFormats/universalImageDecoder
 import { buildImageAcceptAttribute, getImageFormatEntry } from '@/lib/imageFormats/supportedFormats';
 import FabricationLibraryModal from '@/components/fabrication/FabricationLibraryModal';
 import ThreeDStampModal from '@/features/fabrication/stamp/ui/ThreeDStampModal';
+import { runCritiqueJump } from '@/lib/critique/critiqueJump';
 import {
     CREATION_LIBRARY_TOOLS,
     CREATION_PRIMARY_TOOLS,
@@ -2134,7 +2134,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
             {/* AI tool modals sharing the same mount shape: canvas in, reset tool on close. */}
             {canvas && ['ai-critique', 'ai-brand-manager', 'super-agent', 'ai-upscale', 'campaign-manager'].includes(activeTool) && (
                 <BodyPortal>
-                    {activeTool === 'ai-critique' && <AICritiqueModal canvas={canvas} onClose={() => setActiveTool('select')} />}
+                    {activeTool === 'ai-critique' && <AICritiqueModal canvas={canvas} onClose={() => setActiveTool('select')} onJump={(jump) => runCritiqueJump(jump, { canvas, setActiveTool, openPanel: onRequestPropertiesPanel })} />}
                     {activeTool === 'ai-brand-manager' && <BrandManagerModal canvas={canvas} onClose={() => setActiveTool('select')} />}
                     {activeTool === 'super-agent' && <SuperAgentModal canvas={canvas} onClose={() => setActiveTool('select')} />}
                     {activeTool === 'ai-upscale' && <UpscaleModal canvas={canvas} onClose={() => setActiveTool('select')} />}
