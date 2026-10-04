@@ -8,23 +8,11 @@ import {
     readInstallerConfig,
     resolveComfyDirectory,
     resolveLocalWorkspaceDirectory,
-    runCommand,
+    syncGitRepository,
 } from '../common.mjs';
+import { resolveInsideDirectory, resolveTrustedHosts } from '../trust-policy.mjs';
 
 const LOCAL_SYNC_DIRECTORIES = ['custom_nodes', 'user', 'models'];
-
-async function syncGitRepo({ targetDir, repo, branch, dryRun }) {
-    const gitDir = path.join(targetDir, '.git');
-    if (await pathExists(gitDir)) {
-        await runCommand('git', ['-C', targetDir, 'fetch', '--all'], { dryRun });
-        await runCommand('git', ['-C', targetDir, 'checkout', branch], { dryRun });
-        await runCommand('git', ['-C', targetDir, 'pull', '--ff-only', 'origin', branch], { dryRun });
-        return;
-    }
-
-    await ensureDir(path.dirname(targetDir));
-    await runCommand('git', ['clone', '--branch', branch, repo, targetDir], { dryRun });
-}
 
 async function main() {
     const { flags } = parseInstallerFlags(process.argv.slice(2));
@@ -48,18 +36,22 @@ async function main() {
     }
 
     console.log(formatTaskLabel('Comfy Custom Bundles Install/Update'));
+    const trustedHosts = resolveTrustedHosts(config);
     for (const bundle of bundles) {
         if (!bundle?.repo || !bundle?.targetPath) {
             console.warn('Skipping invalid bundle entry in installer config.');
             continue;
         }
-        const targetDir = path.join(comfyDir, bundle.targetPath);
+        // A bundle may not install itself outside the ComfyUI directory.
+        const targetDir = resolveInsideDirectory(comfyDir, bundle.targetPath);
         console.log(`Syncing ${bundle.name || bundle.targetPath} -> ${targetDir}`);
-        await syncGitRepo({
-            targetDir,
+        await syncGitRepository({
+            directory: targetDir,
             repo: bundle.repo,
             branch: bundle.branch || 'main',
+            commit: bundle.commit,
             dryRun: flags.dryRun,
+            trustedHosts,
         });
     }
 

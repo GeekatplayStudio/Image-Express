@@ -96,7 +96,7 @@
     "desktop:verify-package": "node scripts/verify-package.mjs",
     "desktop:smoke-package": "node scripts/smoke-package.mjs",
     "desktop:smoke-mac-install": "node scripts/smoke-mac-install.mjs",
-    "test:packaging": "node --test scripts/mac-installation.test.cjs scripts/collect-release-artifacts.test.mjs",
+    "test:packaging": "node --test scripts/mac-installation.test.cjs scripts/collect-release-artifacts.test.mjs scripts/installer-trust-policy.test.mjs",
     "mcp": "node scripts/mcp-server.mjs",
     "audit:filesize": "node scripts/file-size-ratchet.mjs",
     "audit:filesize:update": "node scripts/file-size-ratchet.mjs --update",

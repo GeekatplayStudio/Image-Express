@@ -19,6 +19,35 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-03 - Installer trust policy (R-13)
+
+The one-click installers clone repositories and download model files from
+addresses in `scripts/installers/config/sources.json` and from workflow catalogs
+the user has added. Those addresses went straight to `git clone` and `fetch`,
+and a model was written wherever its `targetPath` pointed.
+
+`scripts/installers/trust-policy.mjs` now sits in front of all of it:
+
+- **Where from.** https only, no embedded credentials, host on an allowlist
+  (`github.com`, `huggingface.co`, plus any `trustedHosts` in the config). That
+  also closes git's own escape hatches — a "URL" starting with `-` is read as an
+  option, and `ext::` transports run commands. Branch names are validated and
+  the clone uses `--` to end option parsing.
+- **What exactly.** A repository may carry a `commit` and a model a `sha256`. A
+  pin that is present is enforced: the checkout is moved to the commit and
+  confirmed, and a model that fails its checksum is deleted before it is ever
+  renamed into place.
+- **Where to.** A bundle or model target may not resolve outside the ComfyUI
+  directory.
+
+A model refused by the policy is skipped with a reason, not fatal to the rest.
+The two installers' duplicated git logic is now one `syncGitRepository`.
+
+**No source is pinned yet.** Pins are opt-in because upstream moves and a stale
+pin installs an old build; adding real commit ids and checksums is a release
+decision. The mechanism is in place and tested (11 tests, run in CI with the
+packaging suite), and `describeUnpinnedSources` lists what is still floating.
+
 ## 2026-10-03 - Vault status, sync and "find similar" stop loading the whole library
 
 Three callers materialised every catalog record — about 200k at the scale the

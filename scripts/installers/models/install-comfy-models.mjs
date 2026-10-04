@@ -12,6 +12,13 @@ import {
     resolveComfyDirectory,
     resolveLocalWorkspaceDirectory,
 } from '../common.mjs';
+import {
+    InstallerTrustError,
+    assertTrustedSourceUrl,
+    resolveInsideDirectory,
+    resolveTrustedHosts,
+    verifyFileSha256,
+} from '../trust-policy.mjs';
 
 const MANIFEST_SUFFIX = '.manifest.json';
 
@@ -198,12 +205,26 @@ async function main() {
     }
 
     console.log(formatTaskLabel('Comfy Model Download'));
+    const trustedHosts = resolveTrustedHosts(config);
+    let refused = 0;
     for (const model of selectedModels) {
         if (!model?.downloadUrl || !model?.targetPath) {
             console.warn(`Skipping invalid model entry: ${model?.id || '(missing id)'}`);
             continue;
         }
-        const targetFile = path.join(comfyDir, model.targetPath);
+        // Models come from the installer config and from workflow catalogs the
+        // user added, so the address and the destination are both untrusted
+        // input. One refused entry is skipped rather than aborting the rest.
+        let targetFile;
+        try {
+            assertTrustedSourceUrl(model.downloadUrl, trustedHosts);
+            targetFile = resolveInsideDirectory(comfyDir, model.targetPath);
+        } catch (error) {
+            if (!(error instanceof InstallerTrustError)) throw error;
+            refused += 1;
+            console.warn(`Skipping model ${model.id}: ${error.message}`);
+            continue;
+        }
         const targetExists = await pathExists(targetFile);
         if (targetExists && !flags.force) {
             console.log(`Skipping existing model ${model.id} (${targetFile})`);
@@ -217,7 +238,19 @@ async function main() {
         console.log(`Downloading ${model.id} -> ${targetFile}`);
         const tempFile = `${targetFile}.partial`;
         await downloadFile(model.downloadUrl, tempFile);
+        try {
+            // Checked before the rename, so a file that fails its pin never
+            // appears under the name ComfyUI loads.
+            const { verified } = await verifyFileSha256(tempFile, model.sha256);
+            if (verified) console.log(`Checksum verified for ${model.id}.`);
+        } catch (error) {
+            await fs.rm(tempFile, { force: true });
+            throw error;
+        }
         await fs.rename(tempFile, targetFile);
+    }
+    if (refused > 0) {
+        console.warn(`${refused} model(s) were skipped by the installer trust policy.`);
     }
 
     console.log('Comfy model download step complete.');

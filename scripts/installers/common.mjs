@@ -1,5 +1,11 @@
+import {
+    assertSafeGitRef,
+    assertTrustedSourceUrl,
+    enforceCommitPin,
+    normalizeCommitPin,
+} from './trust-policy.mjs';
 import path from 'path';
-import { spawn } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
 
@@ -148,6 +154,46 @@ export async function runCommand(command, args = [], options = {}) {
             reject(new Error(`Command failed (${code ?? 'unknown'}): ${printable}`));
         });
     });
+}
+
+/** Run git and return its stdout. Used where the answer matters, not just the exit code. */
+function captureGit(args) {
+    return new Promise((resolve, reject) => {
+        execFile('git', args, { cwd: REPO_ROOT, windowsHide: true }, (error, stdout) => {
+            if (error) reject(error);
+            else resolve(String(stdout));
+        });
+    });
+}
+
+/**
+ * Clone or update a repository the installer config names.
+ *
+ * The address, branch and optional commit pin are checked against the trust
+ * policy before git is given any of them. With a `commit`, the checkout is
+ * moved to it and confirmed afterwards; without one, the branch head is used.
+ */
+export async function syncGitRepository({ directory, repo, branch, commit, dryRun = false, trustedHosts }) {
+    const url = assertTrustedSourceUrl(repo, trustedHosts);
+    const ref = assertSafeGitRef(branch);
+    const pin = normalizeCommitPin(commit);
+
+    if (await pathExists(path.join(directory, '.git'))) {
+        await runCommand('git', ['-C', directory, 'fetch', '--all'], { dryRun });
+        await runCommand('git', ['-C', directory, 'checkout', ref], { dryRun });
+        await runCommand('git', ['-C', directory, 'pull', '--ff-only', 'origin', ref], { dryRun });
+    } else {
+        await ensureDir(path.dirname(directory));
+        // `--` ends option parsing, so neither value can be read as a flag.
+        await runCommand('git', ['clone', '--branch', ref, '--', url, directory], { dryRun });
+    }
+
+    if (!pin) return { pinned: false };
+    if (dryRun) {
+        console.log(`[dry-run] git -C ${directory} checkout --detach ${pin}`);
+        return { pinned: true };
+    }
+    return enforceCommitPin({ directory, commit: pin, runGit: captureGit });
 }
 
 export async function runNodeScript(scriptRelativePath, scriptArgs = [], options = {}) {

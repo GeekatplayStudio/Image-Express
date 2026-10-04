@@ -1,26 +1,12 @@
-import path from 'path';
 import {
-    ensureDir,
     formatTaskLabel,
     parseInstallerFlags,
-    pathExists,
     readInstallerConfig,
     resolveComfyDirectory,
     runCommand,
+    syncGitRepository,
 } from '../common.mjs';
-
-async function syncComfyRepo({ comfyDir, repo, branch, dryRun }) {
-    const gitDir = path.join(comfyDir, '.git');
-    if (await pathExists(gitDir)) {
-        await runCommand('git', ['-C', comfyDir, 'fetch', '--all'], { dryRun });
-        await runCommand('git', ['-C', comfyDir, 'checkout', branch], { dryRun });
-        await runCommand('git', ['-C', comfyDir, 'pull', '--ff-only', 'origin', branch], { dryRun });
-        return;
-    }
-
-    await ensureDir(path.dirname(comfyDir));
-    await runCommand('git', ['clone', '--branch', branch, repo, comfyDir], { dryRun });
-}
+import { resolveTrustedHosts } from '../trust-policy.mjs';
 
 async function installComfyPythonDependencies({ comfyDir, dryRun }) {
     const pythonCandidates = [
@@ -75,11 +61,15 @@ async function main() {
     console.log(`Repository: ${comfyConfig.repo}`);
     console.log(`Branch: ${comfyConfig.branch || 'master'}`);
 
-    await syncComfyRepo({
-        comfyDir,
+    if (comfyConfig.commit) console.log(`Pinned commit: ${comfyConfig.commit}`);
+
+    await syncGitRepository({
+        directory: comfyDir,
         repo: comfyConfig.repo,
         branch: comfyConfig.branch || 'master',
+        commit: comfyConfig.commit,
         dryRun: flags.dryRun,
+        trustedHosts: resolveTrustedHosts(config),
     });
     await installComfyPythonDependencies({
         comfyDir,

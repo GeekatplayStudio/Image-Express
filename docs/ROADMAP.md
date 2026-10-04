@@ -572,7 +572,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | ID | Initiative | Priority | State | Milestone |
 |---|---|---|---|---|
 | R-01 | Durable encrypted user key vault | P0 | Phase 1 delivered; hardening open | M0 |
-| R-13 | Super installer + first-run orchestration | P0 | Scripts delivered; wizard UI open | M0 |
+| R-13 | Super installer + first-run orchestration | P0 | Scripts, wizard step and trust policy delivered; sources unpinned | M0 |
 | R-02 | Campaign Workspace (media overlay B2) | P1 | B1 bridge done | M1 |
 | R-03 | AI critique quality program | P1 | In progress | M1 |
 | R-04 | Ollama local generation quality | P1 | In progress | M1 |
@@ -628,8 +628,14 @@ authorized read path; rotation and failure cases covered by tests.
 
 ### R-13 · Super installer + first-run orchestration — P0
 **Done:** `scripts/super-installer.mjs`, task scripts, config, `qa-installation` scaffold.
-**Open:** Setup Wizard + Settings integration, deeper readiness tests, trust and
-pinning policy for remote sources.
+**Done 2026-10-03:** trust policy for remote sources — https and host allowlist,
+enforced commit and sha256 pins, install targets confined to the ComfyUI
+directory (`scripts/installers/trust-policy.mjs`). The Setup Wizard's runtime
+step (status, one-click install) already exists.
+**Open:** actually pinning the shipped sources (every repo and model in
+`sources.json` still floats on a branch head — choosing commits and recording
+checksums is a release decision), deeper readiness tests, and surfacing pin
+status in the wizard.
 **Scope:** first-run selectors for ComfyUI, bundled custom nodes/workflows,
 Comfy models and Ollama models; post-install validation with safe auto-fix.
 **Acceptance:** one flow reaches a ready runtime; every action logged with a
