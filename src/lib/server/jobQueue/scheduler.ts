@@ -195,6 +195,52 @@ export class JobScheduler {
         return requeued;
     }
 
+    /**
+     * Move a waiting job to the front of its lane.
+     *
+     * Raises its priority above every other queued job rather than rewriting
+     * the others, so one call is one write. Only a queued job can be moved: a
+     * running one has already started and a finished one has nothing to jump.
+     * Returns undefined when unknown, the unchanged record when not queued.
+     */
+    async prioritize(id: string): Promise<QueueJobRecord | undefined> {
+        await this.ready;
+        const job = this.store.get(id);
+        if (!job || job.status !== 'queued') return job;
+
+        const highest = this.store.list()
+            .filter((other) => other.status === 'queued' && other.id !== id)
+            .reduce((max, other) => Math.max(max, other.priority), Number.NEGATIVE_INFINITY);
+        // Already first: nothing to write, nothing to announce.
+        if (job.priority > highest) return job;
+
+        const moved: QueueJobRecord = {
+            ...job,
+            priority: (Number.isFinite(highest) ? highest : 0) + 1,
+            updatedAt: nowIso(),
+        };
+        this.store.upsert(moved);
+        this.emit({ type: 'job', job: moved });
+        queueMicrotask(() => { void this.pump(); });
+        return moved;
+    }
+
+    /**
+     * Forget every finished job. Queued and running jobs are untouched.
+     *
+     * Subscribers get a full snapshot afterwards: a removal has no per-job
+     * event, and a snapshot is already what clients treat as authoritative.
+     */
+    async clearFinished(): Promise<number> {
+        await this.ready;
+        const finished = this.store.list().filter((job) => isTerminalQueueStatus(job.status));
+        for (const job of finished) this.store.remove(job.id);
+        if (finished.length > 0) {
+            this.emit({ type: 'snapshot', jobs: this.store.list() });
+        }
+        return finished.length;
+    }
+
     /** Wait until all persisted mutations reach disk (used by tests). */
     flush(): Promise<void> {
         return this.store.flush();

@@ -32,6 +32,8 @@ import { QUEUE_STAGES, type QueueJobRecord, type QueueStage } from '@/lib/server
 import { useQueueStream } from '@/hooks/useQueueStream';
 import { useToast } from '@/providers/ToastProvider';
 import { useI18n } from '@/providers/I18nProvider';
+import { OPEN_ACTIVITY_PANEL_EVENT } from '@/lib/activityJobs';
+import { notifyJobFinished } from '@/lib/jobNotifications';
 import {
     loadUiPreferences,
     UI_PREFERENCES_CHANGED_EVENT,
@@ -148,13 +150,17 @@ export default function PipelineRail() {
                 finishedAt = observedTransition ? Date.now() : 0;
                 finishedAtRef.current.set(job.id, finishedAt);
                 if (observedTransition && !silent && notifyRef.current) {
+                    const title = job.status === 'succeeded'
+                        ? tRef.current('queue.rail.toastDone')
+                        : tRef.current('queue.rail.toastFailed');
                     toastRef.current({
-                        title: job.status === 'succeeded'
-                            ? tRef.current('queue.rail.toastDone')
-                            : tRef.current('queue.rail.toastFailed'),
+                        title,
                         description: job.label,
                         variant: job.status === 'succeeded' ? 'success' : 'destructive',
                     });
+                    // A toast is invisible while the window is in the
+                    // background, which is exactly when a long job finishes.
+                    notifyJobFinished({ id: job.id, title, body: job.label });
                 }
             }
             stamped.push({ ...job, finishedAt });
@@ -321,9 +327,18 @@ export default function PipelineRail() {
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                             {t('queue.rail.title')}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">
-                            {t('queue.rail.activeCount', { count: activeJobs.length })}
-                        </p>
+                        <div className="flex items-center gap-3">
+                            <p className="text-[10px] text-muted-foreground">
+                                {t('queue.rail.activeCount', { count: activeJobs.length })}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => window.dispatchEvent(new Event(OPEN_ACTIVITY_PANEL_EVENT))}
+                                className="text-[10px] font-semibold text-primary hover:underline"
+                            >
+                                {t('queue.rail.viewAll')}
+                            </button>
+                        </div>
                     </div>
                     <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto">
                         {visibleJobs.slice(0, 8).map((job) => {

@@ -1,3 +1,4 @@
+import type { ComfyRepoGitState } from '@/lib/comfyui/repoGitState';
 import {
     comfyWorkflowRegistry,
     normalizeComfyPromptBlueprint,
@@ -60,6 +61,8 @@ export interface ComfyLibraryNodeRepo {
     gitManaged: boolean;
     workflowHintCount: number;
     requirementsFile: boolean;
+    /** Installed version; absent for a plain folder or an empty repository. */
+    git?: ComfyRepoGitState;
 }
 
 export interface ComfyLocalWorkspaceState {

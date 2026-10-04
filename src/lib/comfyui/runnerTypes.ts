@@ -63,6 +63,8 @@ export interface ComfyServerCatalogSnapshot {
     workflowCount: number;
     compatibleWorkflowCount: number;
     records: ComfyWorkflowCompatibilityRecord[];
+    /** Checkpoint files the server can load; null when it did not say. */
+    checkpoints: string[] | null;
 }
 
 export interface RecoverComfyTaskOptions {

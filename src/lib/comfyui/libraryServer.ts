@@ -9,6 +9,7 @@ import {
     type ResolvedComfyTransport,
 } from '@/lib/comfyui/connection';
 import { resolveComfyBaseUrlCandidates } from '@/lib/comfyui/proxy';
+import { scanComfyNodeRepos } from '@/lib/comfyui/nodeRepoScan';
 import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 import {
     type ComfyDiagnosticsSnapshot,
@@ -583,53 +584,15 @@ const countWorkflowHints = async (repoPath: string): Promise<number> => {
     return count;
 };
 
-export const scanNodeRepos = async (
+export const scanNodeRepos = (
     customNodesPath: string,
-    workflowLibraryPaths: string[]
-): Promise<ComfyLibraryNodeRepo[]> => {
-    const results: ComfyLibraryNodeRepo[] = [];
-    const scanTargets: Array<{ basePath: string; repoKind: ComfyLibraryRepoKind }> = [
-        { basePath: customNodesPath, repoKind: 'custom-nodes' },
-        ...workflowLibraryPaths.map((workflowLibraryPath) => ({
-            basePath: workflowLibraryPath,
-            repoKind: 'workflow-library' as const,
-        })),
-    ];
-    const seenRepoPaths = new Set<string>();
-
-    for (const target of scanTargets) {
-        if (!target.basePath || !(await fileExists(target.basePath))) {
-            continue;
-        }
-
-        const entries = await readdir(target.basePath, { withFileTypes: true });
-        for (const entry of entries) {
-            if (!entry.isDirectory()) {
-                continue;
-            }
-
-            const repoPath = path.join(target.basePath, entry.name);
-            if (seenRepoPaths.has(repoPath)) {
-                continue;
-            }
-            seenRepoPaths.add(repoPath);
-            const gitManaged = await fileExists(path.join(repoPath, '.git'));
-            const requirementsFile = await fileExists(path.join(repoPath, 'requirements.txt'));
-            const workflowHintCount = await countWorkflowHints(repoPath);
-
-            results.push({
-                name: entry.name,
-                path: repoPath,
-                repoKind: target.repoKind,
-                gitManaged,
-                workflowHintCount,
-                requirementsFile,
-            });
-        }
-    }
-
-    return results.sort((left, right) => left.name.localeCompare(right.name));
-};
+    workflowLibraryPaths: string[],
+    options: { checkUpdates?: boolean } = {},
+): Promise<ComfyLibraryNodeRepo[]> => scanComfyNodeRepos(customNodesPath, workflowLibraryPaths, {
+    ...options,
+    countWorkflowHints,
+    runGit: async (args) => (await execFile('git', args, { windowsHide: true })).stdout,
+});
 
 const buildTemplateFetchCandidates = (transport: ResolvedComfyTransport): string[] => {
     const candidates = [
@@ -947,7 +910,8 @@ export const fetchServerTemplateWorkflows = async (
 
 export const buildComfyLibrarySnapshot = async (
     connection: ComfyConnectionOptions,
-    pathInput: ComfyLibraryPathsInput
+    pathInput: ComfyLibraryPathsInput,
+    options: { checkUpdates?: boolean } = {},
 ): Promise<ComfyLibrarySnapshot> => {
     const warnings: string[] = [];
     const resolvedPaths = await resolveComfyLibraryPaths(pathInput);
@@ -995,7 +959,7 @@ export const buildComfyLibrarySnapshot = async (
 
     let nodeRepos: ComfyLibraryNodeRepo[] = [];
     try {
-        nodeRepos = await scanNodeRepos(resolvedPaths.customNodesPath, resolvedPaths.workflowLibraryPaths);
+        nodeRepos = await scanNodeRepos(resolvedPaths.customNodesPath, resolvedPaths.workflowLibraryPaths, options);
     } catch (error) {
         warnings.push(error instanceof Error ? error.message : 'Failed to inspect ComfyUI repositories.');
     }

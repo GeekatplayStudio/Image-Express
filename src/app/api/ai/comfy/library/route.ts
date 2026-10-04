@@ -15,7 +15,7 @@ import type { ComfyDiagnosticsSnapshot, ComfyLibraryRepoKind } from '@/lib/comfy
 import type { ComfyWorkflowInstallableModel } from '@/lib/comfyui/registry';
 
 interface ComfyLibraryRequestBody {
-    action?: 'scan' | 'inspect-config' | 'install-repo' | 'update-repo' | 'update-install' | 'install-requirements';
+    action?: 'scan' | 'check-updates' | 'inspect-config' | 'install-repo' | 'update-repo' | 'update-install' | 'install-requirements';
     connectionMode?: ComfyConnectionMode;
     comfyServerUrl?: string;
     comfyTunnelUrl?: string;
@@ -170,7 +170,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             });
         }
 
-        const snapshot = await buildComfyLibrarySnapshot(buildConnection(body), buildPathInput(body));
+        // 'check-updates' is a scan that also asks each repository's remote
+        // what is new. It is separate from 'scan' so opening the panel never
+        // waits on the network.
+        const snapshot = await buildComfyLibrarySnapshot(
+            buildConnection(body),
+            buildPathInput(body),
+            { checkUpdates: action === 'check-updates' },
+        );
+        if (action === 'check-updates') {
+            const behind = snapshot.nodeRepos.filter((repo) => (repo.git?.behindBy ?? 0) > 0).length;
+            return NextResponse.json({
+                success: true,
+                message: behind > 0
+                    ? `${behind} repositor${behind === 1 ? 'y has' : 'ies have'} updates available.`
+                    : 'Every repository is up to date.',
+                snapshot,
+            });
+        }
         return NextResponse.json({
             success: true,
             snapshot,

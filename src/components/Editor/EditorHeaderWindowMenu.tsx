@@ -4,6 +4,7 @@ import { WINDOW_PANEL_ITEMS } from '@/components/Editor/editorViewConfig';
 import type { PanelDockMode } from '@/components/Editor/editorView.types';
 import type { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
 import { useI18n } from '@/providers/I18nProvider';
+import { OPEN_ACTIVITY_PANEL_EVENT } from '@/lib/activityJobs';
 
 type PanelState = {
     mode: PanelDockMode;
@@ -65,6 +66,17 @@ export default function EditorHeaderWindowMenu({
                             </button>
                         );
                     })}
+                    <div className="my-1 border-t border-border/50" />
+                    <button
+                        role="menuitem"
+                        onClick={() => {
+                            window.dispatchEvent(new Event(OPEN_ACTIVITY_PANEL_EVENT));
+                            setShowWindowMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                    >
+                        {t('menu.window.activity')}
+                    </button>
                     <div className="my-1 border-t border-border/50" />
                     <button
                         role="menuitemcheckbox"

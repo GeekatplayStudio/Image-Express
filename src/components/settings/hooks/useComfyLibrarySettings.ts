@@ -48,7 +48,7 @@ export function useComfyLibrarySettings(
     }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyCustomNodesPath, comfyInstallPath, comfyServerUrl, comfyTunnelUrl, comfyWorkflowLibraryPath]);
 
     const runComfyLibraryAction = useCallback(async (
-        action: 'scan' | 'install-repo' | 'update-repo' | 'update-install' | 'install-requirements',
+        action: 'scan' | 'check-updates' | 'install-repo' | 'update-repo' | 'update-install' | 'install-requirements',
         extraBody: Record<string, unknown> = {},
     ) => {
         setComfyLibraryCheck({ state: 'checking', message: action === 'scan' ? 'Scanning Comfy workflow library...' : 'Running Comfy library action...' });
@@ -107,6 +107,10 @@ export function useComfyLibrarySettings(
         await runComfyLibraryAction('update-install');
     }, [runComfyLibraryAction]);
 
+    const handleCheckRepoUpdates = useCallback(async () => {
+        await runComfyLibraryAction('check-updates');
+    }, [runComfyLibraryAction]);
+
     const handleUpdateManagedRepo = useCallback(async (repoPath: string) => {
         await runComfyLibraryAction('update-repo', { repoPath });
     }, [runComfyLibraryAction]);
@@ -144,6 +148,7 @@ export function useComfyLibrarySettings(
         handleInstallComfyRepo,
         handleUpdateComfyInstall,
         handleUpdateManagedRepo,
+        handleCheckRepoUpdates,
         handleInstallMissingComfyRequirements,
     };
 }

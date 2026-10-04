@@ -1,3 +1,4 @@
+import { applyCustomModelsToRegistry, loadComfyCustomModels } from '@/lib/comfyui/customModels';
 import textToImageBlueprint from '@/lib/comfyui/workflows/text_to_image.json';
 import fluxTextToImageBlueprint from '@/lib/comfyui/workflows/image_flux2_text_to_image.json';
 import fluxTextToImage9bBlueprint from '@/lib/comfyui/workflows/image_flux2_text_to_image_9b.json';
@@ -408,4 +409,13 @@ export const ensureComfyWorkflowCatalogRegistered = () => {
     }
 
     builtInCatalogRegistered = true;
+    // The user's own checkpoints join the built-in presets from the start, so
+    // a saved choice of one is still valid on the next launch.
+    applyCustomModelsToRegistry(comfyWorkflowRegistry, loadComfyCustomModels());
+};
+
+/** Re-read the registered custom models; call after adding or removing one. */
+export const syncComfyCustomModels = () => {
+    ensureComfyWorkflowCatalogRegistered();
+    applyCustomModelsToRegistry(comfyWorkflowRegistry, loadComfyCustomModels());
 };

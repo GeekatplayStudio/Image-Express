@@ -103,6 +103,9 @@ export function useComfyConnectionSettings(isOpen: boolean, apiKeys: { stability
         setComfyMissingRequirements(null);
     }, [comfyCloudApiKey, comfyCloudUrl, comfyConnectionMode, comfyServerUrl, comfyTunnelUrl]);
 
+    // What the server can load, learned from a verified connection. Null until then.
+    const [comfyCheckpoints, setComfyCheckpoints] = useState<string[] | null>(null);
+
     const applyComfyCatalogRequirements = useCallback((catalog: ComfyCatalogSnapshot) => {
         const workflows = catalog.records
             .filter((record) => record.missingNodeTypes.length > 0 || record.missingModels.length > 0)
@@ -151,6 +154,7 @@ export function useComfyConnectionSettings(isOpen: boolean, apiKeys: { stability
                 connection: { mode: comfyConnectionMode, localUrl: comfyServerUrl, tunnelUrl: comfyTunnelUrl, cloudUrl: comfyCloudUrl, cloudApiKey: comfyCloudApiKey },
             });
             applyComfyCatalogRequirements(catalog);
+            setComfyCheckpoints(catalog.checkpoints);
         } catch (error) {
             setComfyConnectionCheck({ state: 'error', message: error instanceof Error ? error.message : 'Failed to verify Comfy connection.' });
         }
@@ -286,6 +290,7 @@ export function useComfyConnectionSettings(isOpen: boolean, apiKeys: { stability
         comfySetupCheck, setComfySetupCheck,
         comfyDiagnostics,
         comfyMissingRequirements,
+        comfyCheckpoints,
         handleVerifyComfyConnection,
         handleVerifyLocalComfySetup,
         loadComfyDiagnostics,

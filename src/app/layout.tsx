@@ -28,6 +28,7 @@ import UiThemeSync from '@/components/UiThemeSync';
 import UpdateAutoCheck from '@/components/UpdateAutoCheck';
 import SpriteTheater from '@/components/SpriteTheater';
 import PipelineRail from '@/components/PipelineRail';
+import ActivityPanel from '@/components/ActivityPanel';
 import SupportCorner from '@/components/SupportCorner';
 import { buildUiThemeInitScript } from '@/lib/ui-themes-shared';
 import RangeResetListener from "@/components/ui/RangeResetListener";
@@ -95,6 +96,7 @@ export default function RootLayout({
               <SpriteTheater />
               <SupportCorner />
               <PipelineRail />
+              <ActivityPanel />
             </ToastProvider>
           </DialogProvider>
         </I18nProvider>

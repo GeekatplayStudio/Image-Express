@@ -1,3 +1,4 @@
+import { extractCheckpointNames } from '@/lib/comfyui/customModels';
 import {
     ComfyUIClient,
     type ComfyExecutionResult,
@@ -216,6 +217,7 @@ export const inspectComfyServerCatalog = async (
         workflowCount: records.length,
         compatibleWorkflowCount: records.filter((record) => record.compatible).length,
         records,
+        checkpoints: extractCheckpointNames(objectInfo),
     };
 };
 

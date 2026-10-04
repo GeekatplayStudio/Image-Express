@@ -1,5 +1,6 @@
 'use client';
 
+import ComfyCustomModelsPanel from './ComfyCustomModelsPanel';
 import { fetchInstallerRuntimeStatus } from '@/lib/installerRuntimeStatus';
 import type { ComfyConnectionSettings } from '../../hooks/useComfyConnectionSettings';
 import type { InstallerSettings } from '../../hooks/useInstallerSettings';
@@ -31,6 +32,7 @@ export default function ComfyTab({ comfy, installer, library }: ComfyTabProps) {
                 comfyInstallPath={comfy.comfyInstallPath}
                 onRunInstallerWorkflow={installer.handleRunInstallerWorkflow}
             />
+            <ComfyCustomModelsPanel availableCheckpoints={comfy.comfyCheckpoints} />
 
             <div className="grid gap-2 sm:grid-cols-2 xl:col-span-12">
                 <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none rounded-xl border border-border/50 bg-background/50 px-3 py-2">

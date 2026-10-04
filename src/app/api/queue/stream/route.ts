@@ -40,6 +40,10 @@ export async function GET() {
             unsubscribe = queue.subscribe((event) => {
                 if (event.type === 'job') {
                     safeEnqueue(sseChunk('job', event.job));
+                } else {
+                    // Sent after history is cleared: removals have no per-job
+                    // event, so clients resync from the full list.
+                    safeEnqueue(sseChunk('snapshot', { jobs: event.jobs }));
                 }
             });
 

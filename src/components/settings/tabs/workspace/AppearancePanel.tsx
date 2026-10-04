@@ -1,5 +1,6 @@
 'use client';
 
+import { requestSystemNotificationPermission } from '@/lib/jobNotifications';
 import { RefreshCcw, Server } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { ThemePreferenceMode } from '@/lib/themePreferences';
@@ -137,7 +138,13 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                     <input
                         type="checkbox"
                         checked={notifyOnJobComplete}
-                        onChange={(event) => setNotifyOnJobComplete(event.target.checked)}
+                        onChange={(event) => {
+                            setNotifyOnJobComplete(event.target.checked);
+                            // Asked here because browsers only grant it from a
+                            // user gesture; it lets a finished job reach you
+                            // when the window is in the background.
+                            if (event.target.checked) void requestSystemNotificationPermission();
+                        }}
                         className="rounded border-border text-primary focus:ring-primary/20"
                     />
                     {t('settings.workspace.notifyOnJobComplete')}

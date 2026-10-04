@@ -1,5 +1,6 @@
 'use client';
 
+import { formatRepoVersion } from '@/lib/comfyui/repoGitState';
 import { DownloadCloud, Loader2, RefreshCcw, Server } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import { RichText } from '@/lib/i18n/RichText';
@@ -33,7 +34,7 @@ export default function ComfyManagerPanel({ installer, library, comfyInstallPath
     } = installer;
     const {
         comfyLibrarySnapshot, comfyLibraryCheck, comfyRepoUrl, setComfyRepoUrl, comfyRepoKind, setComfyRepoKind,
-        handleRefreshComfyLibrary, handleInstallComfyRepo, handleUpdateComfyInstall, handleUpdateManagedRepo,
+        handleRefreshComfyLibrary, handleInstallComfyRepo, handleUpdateComfyInstall, handleUpdateManagedRepo, handleCheckRepoUpdates,
     } = library;
 
     return (
@@ -322,6 +323,16 @@ export default function ComfyManagerPanel({ installer, library, comfyInstallPath
                     </div>
                 ) : null}
 
+                {comfyLibrarySnapshot?.nodeRepos.some((repo) => repo.gitManaged) && (
+                    <button
+                        onClick={() => void handleCheckRepoUpdates()}
+                        disabled={comfyLibraryCheck.state === 'checking'}
+                        className="h-7 self-start px-2 text-[10px] font-semibold rounded border border-border hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {t('comfyMgr.checkUpdates')}
+                    </button>
+                )}
+
                 <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
                     {(comfyLibrarySnapshot?.nodeRepos || []).map((repo) => (
                         <div key={`${repo.repoKind}:${repo.path}`} className="rounded-md border border-border/50 bg-background/70 px-2 py-2">
@@ -336,6 +347,18 @@ export default function ComfyManagerPanel({ installer, library, comfyInstallPath
                                             hints: repo.workflowHintCount,
                                         })}
                                     </div>
+                                    {repo.git && (
+                                        <div className="text-[10px] text-muted-foreground" data-testid="comfy-repo-version">
+                                            {formatRepoVersion(repo.git)}
+                                            {repo.git.behindBy !== null && (
+                                                <span className={repo.git.behindBy > 0 ? 'ml-1.5 font-semibold text-amber-500' : 'ml-1.5 text-emerald-500'}>
+                                                    {repo.git.behindBy > 0
+                                                        ? t('comfyMgr.updatesAvailable', { count: repo.git.behindBy })
+                                                        : t('comfyMgr.upToDate')}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 {repo.gitManaged && (
                                     <button
