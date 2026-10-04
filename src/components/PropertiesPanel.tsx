@@ -78,6 +78,8 @@ import {
     readMaskGradientSettings,
 } from './properties/maskGradientUtils';
 import { buildNavigatorPreviewDataUrl } from './properties/navigatorPreview';
+import { getNavigatorObjectRects, getNavigatorViewport, getNavigatorWorldBounds } from './properties/navigatorGeometry';
+import { getLayerOrderState as readLayerOrderState, moveLayerInOrder, type LayerOrderAction } from './properties/layerOrder';
 import { useLayerOperations } from './properties/useLayerOperations';
 import { applyAdjustmentLayersToCanvas } from './properties/applyAdjustmentLayers';
 import ComfyMaskEditor from '@/components/comfy/ComfyMaskEditor';
@@ -602,113 +604,15 @@ export default function PropertiesPanel({
         setCanvasBackgroundEnabled(true);
     }, [canvas]);
 
-    const normalizeNavigatorRect = useCallback((rect: NavigatorSceneRect): NavigatorSceneRect => {
-        const width = Number.isFinite(rect.width) ? Math.max(1, rect.width) : 1;
-        const height = Number.isFinite(rect.height) ? Math.max(1, rect.height) : 1;
-        const left = Number.isFinite(rect.left) ? rect.left : 0;
-        const top = Number.isFinite(rect.top) ? rect.top : 0;
-        return { left, top, width, height };
-    }, []);
-
-    const getObjectSceneRect = useCallback((obj: fabric.Object | null | undefined): NavigatorSceneRect | null => {
-        if (!obj) return null;
-        if (typeof obj.getCoords === 'function') {
-            const coords = obj.getCoords();
-            if (Array.isArray(coords) && coords.length > 0) {
-                const xs = coords.map((point) => point.x).filter((value) => Number.isFinite(value));
-                const ys = coords.map((point) => point.y).filter((value) => Number.isFinite(value));
-                if (xs.length > 0 && ys.length > 0) {
-                    const minX = Math.min(...xs);
-                    const maxX = Math.max(...xs);
-                    const minY = Math.min(...ys);
-                    const maxY = Math.max(...ys);
-                    if (Number.isFinite(minX) && Number.isFinite(maxX) && Number.isFinite(minY) && Number.isFinite(maxY)) {
-                        return normalizeNavigatorRect({
-                            left: minX,
-                            top: minY,
-                            width: maxX - minX,
-                            height: maxY - minY,
-                        });
-                    }
-                }
-            }
-        }
-
-        if (typeof obj.getBoundingRect === 'function') {
-            const bounds = obj.getBoundingRect();
-            if (
-                Number.isFinite(bounds.left)
-                && Number.isFinite(bounds.top)
-                && Number.isFinite(bounds.width)
-                && Number.isFinite(bounds.height)
-            ) {
-                return normalizeNavigatorRect({
-                    left: bounds.left,
-                    top: bounds.top,
-                    width: bounds.width,
-                    height: bounds.height,
-                });
-            }
-        }
-
-        return null;
-    }, [normalizeNavigatorRect]);
-
-    const getNavigatorWorldBounds = useCallback((): NavigatorSceneRect => {
-        if (!canvas) {
-            return { left: 0, top: 0, width: Math.max(1, canvasWidth), height: Math.max(1, canvasHeight) };
-        }
-
-        const extendedCanvas = canvas as CanvasWithArtboard;
-        if (extendedCanvas.artboard) {
-            return normalizeNavigatorRect({
-                left: extendedCanvas.artboard.left,
-                top: extendedCanvas.artboard.top,
-                width: extendedCanvas.artboard.width,
-                height: extendedCanvas.artboard.height,
-            });
-        }
-
-        if (extendedCanvas.artboardRect) {
-            const artboardRect = getObjectSceneRect(extendedCanvas.artboardRect);
-            if (artboardRect) {
-                return artboardRect;
-            }
-        }
-
-        return { left: 0, top: 0, width: Math.max(1, canvasWidth), height: Math.max(1, canvasHeight) };
-    }, [canvas, canvasWidth, canvasHeight, getObjectSceneRect, normalizeNavigatorRect]);
-
-    const getNavigatorObjectRects = useCallback((world: NavigatorSceneRect) => {
-        if (!canvas) return [];
-        const extendedCanvas = canvas as CanvasWithArtboard;
-        const items = canvas.getObjects()
-            .filter((obj) => obj !== extendedCanvas.artboardRect && obj.visible !== false)
-            .map((obj) => getObjectSceneRect(obj))
-            .filter((rect): rect is NavigatorSceneRect => !!rect)
-            .map((rect) => {
-                const right = Math.min(world.left + world.width, rect.left + rect.width);
-                const bottom = Math.min(world.top + world.height, rect.top + rect.height);
-                const left = Math.max(world.left, rect.left);
-                const top = Math.max(world.top, rect.top);
-                const width = right - left;
-                const height = bottom - top;
-                if (width <= 0 || height <= 0) return null;
-                return { left, top, width, height };
-            })
-            .filter((rect): rect is NavigatorSceneRect => !!rect);
-        return items.slice(0, 200);
-    }, [canvas, getObjectSceneRect]);
-
     const syncNavigatorStatic = useCallback(() => {
         if (!canvas) {
             setNavigatorPreviewDataUrl(null);
             return;
         }
-        const nextWorld = getNavigatorWorldBounds();
+        const nextWorld = getNavigatorWorldBounds(canvas, canvasWidth, canvasHeight);
         navigatorWorldRef.current = nextWorld;
         setNavigatorWorld(nextWorld);
-        setNavigatorObjects(getNavigatorObjectRects(nextWorld));
+        setNavigatorObjects(getNavigatorObjectRects(canvas, nextWorld));
 
         const extendedCanvas = canvas as CanvasWithArtboard;
         const artboardColor = extendedCanvas.artboardRect && typeof extendedCanvas.artboardRect.canvasBackgroundColor === 'string'
@@ -721,25 +625,12 @@ export default function PropertiesPanel({
             world: nextWorld,
             backgroundColor: nextBackground,
         }));
-    }, [canvas, canvasColor, getNavigatorObjectRects, getNavigatorWorldBounds]);
+    }, [canvas, canvasColor, canvasWidth, canvasHeight]);
 
     const syncNavigatorViewport = useCallback(() => {
         if (!canvas) return;
-        const world = navigatorWorldRef.current;
-        const zoomValue = Math.max(0.0001, canvas.getZoom() || 1);
-        const viewport = canvas.viewportTransform || [zoomValue, 0, 0, zoomValue, 0, 0];
-        const visibleWidth = (canvas.width || canvas.getWidth() || 1) / zoomValue;
-        const visibleHeight = (canvas.height || canvas.getHeight() || 1) / zoomValue;
-        const sceneLeft = (-viewport[4]) / zoomValue;
-        const sceneTop = (-viewport[5]) / zoomValue;
-        const nextViewport = normalizeNavigatorRect({
-            left: Math.max(world.left, Math.min(sceneLeft, world.left + world.width - visibleWidth)),
-            top: Math.max(world.top, Math.min(sceneTop, world.top + world.height - visibleHeight)),
-            width: Math.min(world.width, visibleWidth),
-            height: Math.min(world.height, visibleHeight),
-        });
-        setNavigatorViewport(nextViewport);
-    }, [canvas, normalizeNavigatorRect]);
+        setNavigatorViewport(getNavigatorViewport(canvas, navigatorWorldRef.current));
+    }, [canvas]);
 
     const applyAdjustmentLayers = useCallback(() => {
         if (canvas) applyAdjustmentLayersToCanvas(canvas);
@@ -2325,124 +2216,15 @@ export default function PropertiesPanel({
         updateObjects();
     };
 
-    const getLayerOrderState = useCallback((target: fabric.Object | null) => {
-        if (!canvas || !target) {
-            return {
-                canMoveUp: false,
-                canMoveDown: false,
-                canBringToFront: false,
-                canSendToBack: false,
-            };
-        }
+    const getLayerOrderState = useCallback(
+        (target: fabric.Object | null) => readLayerOrderState(canvas, target),
+        [canvas],
+    );
 
-        const ext = target as ExtendedFabricObject;
-        const canvasWithArtboard = canvas as CanvasWithArtboard;
-        if (
-            target.type === 'activeSelection'
-            || target.type === 'selection'
-            || ext.isRetouchLayer
-            || ext.name === 'Artboard'
-            || (canvasWithArtboard.artboardRect && target === canvasWithArtboard.artboardRect)
-        ) {
-            return {
-                canMoveUp: false,
-                canMoveDown: false,
-                canBringToFront: false,
-                canSendToBack: false,
-            };
-        }
-
-        if (target.group && typeof target.group.getObjects === 'function') {
-            const siblings = target.group.getObjects();
-            const currentIndex = siblings.indexOf(target);
-            const maxIndex = siblings.length - 1;
-            const canMoveUp = currentIndex >= 0 && currentIndex < maxIndex;
-            const canMoveDown = currentIndex > 0;
-            return {
-                canMoveUp,
-                canMoveDown,
-                canBringToFront: canMoveUp,
-                canSendToBack: canMoveDown,
-            };
-        }
-
-        const objects = canvas.getObjects();
-        const currentIndex = objects.indexOf(target);
-        if (currentIndex < 0) {
-            return {
-                canMoveUp: false,
-                canMoveDown: false,
-                canBringToFront: false,
-                canSendToBack: false,
-            };
-        }
-        const artboardIndex = canvasWithArtboard.artboardRect ? objects.indexOf(canvasWithArtboard.artboardRect) : -1;
-        const minIndex = artboardIndex >= 0 ? artboardIndex + 1 : 0;
-        const maxIndex = objects.length - 1;
-        const canMoveUp = currentIndex < maxIndex;
-        const canMoveDown = currentIndex > minIndex;
-        return {
-            canMoveUp,
-            canMoveDown,
-            canBringToFront: canMoveUp,
-            canSendToBack: canMoveDown,
-        };
-    }, [canvas]);
-
-    const handleLayerOrderAction = useCallback((action: 'move-up' | 'move-down' | 'to-front' | 'to-back', targetOverride?: fabric.Object | null) => {
+    const handleLayerOrderAction = useCallback((action: LayerOrderAction, targetOverride?: fabric.Object | null) => {
         if (!canvas) return;
         const target = targetOverride || selectedObject;
-        if (!target) return;
-        const ext = target as ExtendedFabricObject;
-        const canvasWithArtboard = canvas as CanvasWithArtboard;
-        if (
-            target.type === 'activeSelection'
-            || target.type === 'selection'
-            || ext.isRetouchLayer
-            || ext.name === 'Artboard'
-            || (canvasWithArtboard.artboardRect && target === canvasWithArtboard.artboardRect)
-        ) {
-            return;
-        }
-
-        let moved = false;
-        if (target.group && typeof target.group.getObjects === 'function') {
-            const parent = target.group as fabric.Group;
-            const siblings = parent.getObjects();
-            const currentIndex = siblings.indexOf(target);
-            if (currentIndex < 0) return;
-            const maxIndex = siblings.length - 1;
-            let nextIndex = currentIndex;
-            if (action === 'move-up') nextIndex = Math.min(maxIndex, currentIndex + 1);
-            if (action === 'move-down') nextIndex = Math.max(0, currentIndex - 1);
-            if (action === 'to-front') nextIndex = maxIndex;
-            if (action === 'to-back') nextIndex = 0;
-            if (nextIndex !== currentIndex) {
-                parent.remove(target);
-                parent.insertAt(nextIndex, target);
-                parent.setCoords();
-                parent.set('dirty', true);
-                moved = true;
-            }
-        } else {
-            const objects = canvas.getObjects();
-            const currentIndex = objects.indexOf(target);
-            if (currentIndex < 0) return;
-            const artboardIndex = canvasWithArtboard.artboardRect ? objects.indexOf(canvasWithArtboard.artboardRect) : -1;
-            const minIndex = artboardIndex >= 0 ? artboardIndex + 1 : 0;
-            const maxIndex = objects.length - 1;
-            let nextIndex = currentIndex;
-            if (action === 'move-up') nextIndex = Math.min(maxIndex, currentIndex + 1);
-            if (action === 'move-down') nextIndex = Math.max(minIndex, currentIndex - 1);
-            if (action === 'to-front') nextIndex = maxIndex;
-            if (action === 'to-back') nextIndex = minIndex;
-            if (nextIndex !== currentIndex) {
-                canvas.moveObjectTo(target, nextIndex);
-                moved = true;
-            }
-        }
-
-        if (!moved) return;
+        if (!target || !moveLayerInOrder(canvas, target, action)) return;
         target.setCoords();
         if (target.group) target.group.set('dirty', true);
         canvas.setActiveObject(target);

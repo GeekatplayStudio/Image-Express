@@ -39,6 +39,12 @@ export const encodeDesignPayload = (designJson: DesignJson) => {
     return '';
 };
 
+/**
+ * The viewer script shipped inside an exported page. It runs in a browser as
+ * plain JavaScript against the fabric build the export bundles — nothing here
+ * is compiled, so it must not contain TypeScript syntax, and it must use the
+ * fabric 7 API. `editorHtmlExportTemplates.test.ts` parses and runs it.
+ */
 export const buildHtmlExportMainScript = (designJsonBase64: string) => `const DESIGN_DATA_BASE64 = '${designJsonBase64}';
 
 const decodeDesignData = () => {
@@ -125,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         canvas.add(artboard);
-        canvas.sendToBack(artboard);
+        canvas.sendObjectToBack(artboard);
         canvas.requestRenderAll();
     };
 
@@ -136,10 +142,10 @@ document.addEventListener('DOMContentLoaded', () => {
         objects.forEach((obj, index) => {
             if (!obj) return;
 
-            const mediaType = obj.mediaType as 'video' | 'audio' | undefined;
+            const mediaType = obj.mediaType;
             const mediaSource = typeof obj.mediaSource === 'string' ? obj.mediaSource : undefined;
             const isModel = Boolean(obj.is3DModel && typeof obj.modelUrl === 'string');
-            const modelUrl = isModel ? (obj.modelUrl as string) : undefined;
+            const modelUrl = isModel ? obj.modelUrl : undefined;
 
             if (!mediaType && !isModel) return;
             if (mediaType && !mediaSource) return;
@@ -231,7 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.requestRenderAll();
     };
     if (metadata.backgroundColor) {
-        canvas.setBackgroundColor(metadata.backgroundColor, () => canvas.renderAll());
+        canvas.backgroundColor = metadata.backgroundColor;
     }
 
     if (typeof metadata.canvasWidth === 'number' && typeof metadata.canvasHeight === 'number') {
@@ -240,10 +246,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
 
-    canvas.loadFromJSON(designData, () => {
+    // fabric 7: loadFromJSON resolves when the page is on the canvas. Its
+    // second argument is a per-object reviver, so post-load work goes in then().
+    // metadata and artboard are ours, not canvas properties: keep them out of
+    // the load, which would otherwise copy them onto the canvas.
+    const { metadata: _metadata, artboard: _artboard, ...serialized } = designData;
+    canvas.loadFromJSON(serialized).then(() => {
         applyArtboard();
         syncDimensions();
         renderMediaOverlays();
+        canvas.requestRenderAll();
+    }).catch((error) => {
+        console.error('Failed to load the exported page:', error);
     });
 
     window.addEventListener('resize', () => {

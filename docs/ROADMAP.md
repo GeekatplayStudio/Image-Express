@@ -365,10 +365,13 @@ exit code**, so 40 files drifted past it with nothing to stop them.
   adjustment-layer engine — a 300-line callback whose only tie to the component
   was the canvas — to `properties/applyAdjustmentLayers.ts`, plus the bend and
   taper maths to `lib/textCurve.ts` and `lib/taperTransform.ts` (both of which
-  were rewritten to fix bugs, see the changelog). **3,860 → 3,491.** The next
-  cuts in this file, in order of safety: the navigator sync callbacks
-  (~180 lines), the layer ordering and folder handlers (~380), the channel
-  handlers (~210), and last the 940-line `handlePropChange`.
+  were rewritten to fix bugs, see the changelog). **3,860 → 3,491.**
+- **Done — seventh and eighth splits (2026-10-03).** Navigator geometry and
+  layer stacking order left the same file for `properties/navigatorGeometry.ts`
+  and `properties/layerOrder.ts`, 29 tests between them. **3,491 → 3,273.**
+  Remaining cuts in this file, in order of safety: the folder and reorder
+  handlers (~250 lines), the channel handlers (~210), and last the 940-line
+  `handlePropChange`.
 - **The mechanical cuts are now spent** on the other four of the five largest files. What remains
   in each is component body — JSX and handlers — so further progress means
   splitting render trees by responsibility, one file per pass.
@@ -381,7 +384,7 @@ exit code**, so 40 files drifted past it with nothing to stop them.
 
   | File | Lines | Pure prefix | Note |
   |---|---|---|---|
-  | `PropertiesPanel.tsx` | 3,491 | 175 | No prefix; being cut by lifting self-contained callbacks out of the component body. |
+  | `PropertiesPanel.tsx` | 3,273 | 175 | No prefix; being cut by lifting self-contained callbacks out of the component body. |
   | `ImageGeneratorModal.tsx` | 3,759 | 261 | Prefix already harvested once; the rest is JSX + handlers. |
   | `AssetLibrary.tsx` | 2,906 | 187 | Prefix already harvested once. |
   | `Toolbar.tsx` | 2,355 | 143 | Prefix harvested (pen geometry, then pen fabric code). |
@@ -759,10 +762,6 @@ Not features, but they block the gates.
   use a flat `<=5.0.7` range. Silencing it permanently requires forcing
   `minimatch@10` everywhere so nothing needs the old callable export. See
   [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
-- **`editorHtmlExportTemplates.ts` still passes a completion callback to
-  `loadFromJSON`.** It is a template string for exported HTML, so which fabric
-  it runs against depends on what the export bundles; not verified. If the
-  export uses fabric 7 it has the same defect fixed in the editor on 2026-10-03.
 - **A workspace panel opened from a popup opens behind it.** Floating panels
   (Asset Library, Template Library) live in the workspace tier, below the modal
   tier. Opening one from inside a popup window would need it raised.

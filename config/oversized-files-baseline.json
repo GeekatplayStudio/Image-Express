@@ -4,9 +4,9 @@
   "generatedAt": "2026-09-11",
   "files": {
     "src/components/ImageGeneratorModal.tsx": 3759,
-    "src/components/PropertiesPanel.tsx": 3492,
+    "src/components/PropertiesPanel.tsx": 3274,
     "src/components/AssetLibrary.tsx": 2932,
-    "src/components/Editor/__tests__/EditorView.test.tsx": 2816,
+    "src/components/Editor/__tests__/EditorView.test.tsx": 2811,
     "src/components/Toolbar.tsx": 2348,
     "src/components/ThreeDGenerator.tsx": 2113,
     "src/components/Editor/EditorView.tsx": 1580,

@@ -19,6 +19,30 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-03 - Exported HTML pages could not run; PropertiesPanel split continues
+
+**Export → HTML produced a page whose viewer script never ran.** The script is a
+string shipped inside the export and executed by a browser with no build step,
+so nothing type-checked or linted it. It contained two TypeScript casts — a
+syntax error in a browser, which stops the whole script — and called
+`canvas.setBackgroundColor` and `canvas.sendToBack`, both removed from fabric
+two major versions ago, plus the same `loadFromJSON` completion-callback
+mistake fixed in the editor. The exported page showed an empty canvas.
+
+- The script is now plain JavaScript on the fabric 7 API, and loads through the
+  promise.
+- `editorHtmlExportTemplates.test.ts` parses the script and runs it against a
+  fabric double that only has the fabric 7 surface. 7 of its 8 tests fail
+  against the previous script.
+
+**`PropertiesPanel.tsx` 3,491 → 3,273.** Two more self-contained blocks left the
+component, both previously untestable without mounting the whole panel:
+
+- Navigator geometry → `properties/navigatorGeometry.ts` (17 tests): page
+  bounds, layer outlines clipped to the page, and the visible-area frame.
+- Layer stacking order → `properties/layerOrder.ts` (12 tests): which moves a
+  layer may make, and making one, without ever going beneath the page.
+
 ## 2026-10-03 - Saved pages, the text tool, bend, skew and popup layering
 
 Reported as "the text tool is broken, toolbars sit on top of popups, canvases
