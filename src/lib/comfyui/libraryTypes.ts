@@ -1,4 +1,8 @@
 import type { ComfyRepoGitState } from '@/lib/comfyui/repoGitState';
+import { isUiWorkflow, uiNodeTypes } from '@/lib/comfyui/uiWorkflowConverter';
+import { extractInstallableModelsFromEditorGraph } from '@/lib/comfyui/workflowModels';
+import { detectWorkflowBindings } from '@/lib/comfyui/workflowTargets';
+import type { ComfyWorkflowSetupRequirements } from '@/lib/comfyui/registryTypes';
 import {
     comfyWorkflowRegistry,
     normalizeComfyPromptBlueprint,
@@ -32,6 +36,7 @@ export interface SerializedComfyWorkflowRegistration {
     outputNodeIds: string[];
     modelPresetIds: string[];
     defaultModelPresetId?: string;
+    setupRequirements?: ComfyWorkflowSetupRequirements;
 }
 
 export interface ComfyLibraryWorkflowImportRef {
@@ -317,12 +322,23 @@ const dedupeBindings = (bindings: WorkflowInputBinding[]): WorkflowInputBinding[
     });
 };
 
-const inferBindings = (blueprint: ComfyPromptBlueprint): WorkflowInputBinding[] => dedupeBindings([
-    ...inferPromptBindings(blueprint),
-    ...inferImageBindings(blueprint),
-    ...inferSamplerBindings(blueprint),
-    ...inferDimensionBindings(blueprint),
-]);
+/**
+ * Prompt and image targets read from the graph; the name-based guesses are
+ * kept only for a graph in which nothing can be traced.
+ */
+const inferBindings = (blueprint: ComfyPromptBlueprint): WorkflowInputBinding[] => {
+    const traced = detectWorkflowBindings(blueprint)
+        .filter((binding) => ['prompt', 'negativePrompt', 'image', 'mask'].includes(String(binding.source)));
+    const isText = (binding: WorkflowInputBinding) => binding.source === 'prompt' || binding.source === 'negativePrompt';
+    const tracedText = traced.filter(isText);
+    const tracedImages = traced.filter((binding) => !isText(binding));
+    return dedupeBindings([
+        ...(tracedText.some((binding) => binding.source === 'prompt') ? tracedText : inferPromptBindings(blueprint)),
+        ...(tracedImages.length > 0 ? tracedImages : inferImageBindings(blueprint)),
+        ...inferSamplerBindings(blueprint),
+        ...inferDimensionBindings(blueprint),
+    ]);
+};
 
 interface CreateWorkflowEntryOptions {
     idSeed: string;
@@ -344,14 +360,22 @@ export const createComfyLibraryWorkflowEntry = (
     const workflowName = manifest.name || options.name || workflowId;
     const description = manifest.description || options.description || 'Imported ComfyUI workflow.';
     const normalizedBlueprint = normalizeComfyPromptBlueprint(workflowId, options.blueprint);
-    const nodeTypes = extractNodeTypes(normalizedBlueprint);
+    // A saved (editor) graph is kept as saved: it is converted when it runs,
+    // against the server's own node definitions, which is the only way its
+    // subgraphs and custom-node widgets come out right. Until then the
+    // table-driven conversion above is good enough to classify it.
+    const savedGraph = isUiWorkflow(options.blueprint) ? options.blueprint as Record<string, unknown> : null;
+    const nodeTypes = savedGraph ? uiNodeTypes(savedGraph) : extractNodeTypes(normalizedBlueprint);
+    const installableModels = savedGraph ? extractInstallableModelsFromEditorGraph(savedGraph) : [];
     const task = manifest.task || inferTaskFromNameAndBlueprint(workflowId, workflowName, nodeTypes);
     const outputNodeIds = manifest.outputNodeIds && manifest.outputNodeIds.length > 0
         ? manifest.outputNodeIds
         : inferOutputNodeIds(normalizedBlueprint);
+    // Node ids inside subgraphs only exist after the real conversion, so a
+    // saved graph declares nothing here and is bound from the graph at run time.
     const inputBindings = manifest.inputBindings && manifest.inputBindings.length > 0
         ? manifest.inputBindings
-        : inferBindings(normalizedBlueprint);
+        : savedGraph ? [] : inferBindings(normalizedBlueprint);
     const modelPresetIds = manifest.modelPresetIds && manifest.modelPresetIds.length > 0
         ? manifest.modelPresetIds
         : ['default'];
@@ -373,7 +397,12 @@ export const createComfyLibraryWorkflowEntry = (
             task,
             name: workflowName,
             description,
-            blueprint: normalizedBlueprint,
+            blueprint: (savedGraph ?? normalizedBlueprint) as ComfyPromptBlueprint,
+            // What the workflow's author listed on its nodes, so a missing
+            // model is named, with its download link, before the run fails on it.
+            setupRequirements: installableModels.length > 0
+                ? { models: installableModels, updateInstallForMissingNodes: false }
+                : undefined,
             inputBindings,
             outputNodeIds,
             modelPresetIds,
@@ -395,6 +424,7 @@ export const registerSerializedComfyWorkflow = (
         outputNodeIds: registration.outputNodeIds,
         modelPresetIds: registration.modelPresetIds,
         defaultModelPresetId: registration.defaultModelPresetId,
+        setupRequirements: registration.setupRequirements,
     };
 
     comfyWorkflowRegistry.register(workflow);

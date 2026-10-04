@@ -21,8 +21,8 @@ jest.mock('@react-three/drei', () => ({
             {children}
         </div>
     ),
-    Environment: ({ preset }: { preset: string }) => (
-        <div data-testid="mock-environment" data-preset={preset} />
+    Environment: ({ files }: { files: string }) => (
+        <div data-testid="mock-environment" data-files={files} />
     ),
     OrbitControls: ({
         autoRotate,
@@ -62,12 +62,12 @@ describe('Asset3DPreview', () => {
     it('loads model and renders three scene helpers', () => {
         const { container } = render(<Asset3DPreview url="/assets/models/robot.glb" />);
 
-        expect(mockUseGLTF).toHaveBeenCalledWith('/assets/models/robot.glb');
+        expect(mockUseGLTF).toHaveBeenCalledWith('/assets/models/robot.glb', '/three/draco/');
         expect(mockSceneClone).toHaveBeenCalledTimes(1);
         expect(screen.getByTestId('mock-three-canvas')).toBeInTheDocument();
         expect(screen.getByTestId('mock-resize')).toHaveAttribute('data-scale', '3.5');
         expect(screen.getByTestId('mock-center')).toBeInTheDocument();
-        expect(screen.getByTestId('mock-environment')).toHaveAttribute('data-preset', 'city');
+        expect(screen.getByTestId('mock-environment')).toHaveAttribute('data-files', '/three/hdri/city.exr');
         expect(screen.getByTestId('mock-orbit-controls')).toHaveAttribute('data-auto-rotate', 'true');
         expect(screen.getByTestId('mock-orbit-controls')).toHaveAttribute('data-auto-rotate-speed', '3.2');
         // enableZoom defaults to true; this renders without the prop.

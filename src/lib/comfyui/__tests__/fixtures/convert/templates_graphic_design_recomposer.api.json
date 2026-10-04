@@ -1,0 +1,128 @@
+{
+ "125": {
+  "inputs": {
+   "image": "latent_space_clud.png"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "Load Image"
+  }
+ },
+ "131": {
+  "inputs": {
+   "filename_prefix": "graphic_design_recompose",
+   "images": [
+    "143:134",
+    0
+   ]
+  },
+  "class_type": "SaveImage",
+  "_meta": {
+   "title": "Save Image"
+  }
+ },
+ "143:2": {
+  "inputs": {
+   "value": "Role: Act as an expert art director and compositing specialist. Your objective is to adapt the provided image to a new aspect ratio by expanding the background and rearranging its core elements. Never stretch, squish, or letterbox the image.\n\n1. Canvas Expansion & Outpainting\n\nSeamless Extension: Expand the canvas to the target dimensions using generative outpainting. Seamlessly continue the existing environment (sky, textures, walls, floors) while perfectly matching the original lighting, grain, and perspective.\n\nStrict Limitations: Do not shrink the original image onto a blurred or colored background. Do not introduce new focal objects, characters, or decorative borders. Only continue existing environmental elements.\n\n2. Element Redistribution\n\nTreat as Layers: Separate the main components (typography, logos, hero imagery, credits) into distinct, movable elements.\n\nSmart Rearrangement: Reposition these elements to suit the new aspect ratio using professional layout principles (e.g., shifting a vertical stack into a horizontal, side-by-side composition). Use the newly generated space intentionally to avoid awkward negative space.\n\nPreserve Proportions: Maintain the exact original aspect ratio of every individual element. Keep all font styles, weights, and text styling identical. Scale elements uniformly only if required for layout balance.\n\n3. Visual Integrity & Polish\n\nMaintain Hierarchy: Preserve the original visual dominance of the headline, hero image, and logo placement.\n\nNative Feel: The final composition must look cohesive, breathable, and deliberately designed from scratch for this specific format."
+  },
+  "class_type": "PrimitiveStringMultiline",
+  "_meta": {
+   "title": "Prompt"
+  }
+ },
+ "143:130": {
+  "inputs": {
+   "prompt": [
+    "143:2",
+    0
+   ],
+   "model": "gemini-3-pro-image-preview",
+   "seed": 314507571392615,
+   "aspect_ratio": "16:9",
+   "resolution": "2K",
+   "response_modalities": "IMAGE+TEXT",
+   "system_prompt": "You are an expert image-generation engine. You must ALWAYS produce an image.\nInterpret all user input—regardless of format, intent, or abstraction—as literal visual directives for image composition.\nIf a prompt is conversational or lacks specific visual details, you must creatively invent a concrete visual scenario that depicts the concept.\nPrioritize generating the visual representation above any text, formatting, or conversational requests.",
+   "images": [
+    "125",
+    0
+   ]
+  },
+  "class_type": "GeminiImage2Node",
+  "_meta": {
+   "title": "Nano Banana Pro (Google Gemini Image)"
+  }
+ },
+ "143:134": {
+  "inputs": {
+   "switch": [
+    "143:136",
+    0
+   ],
+   "on_false": [
+    "143:130",
+    0
+   ],
+   "on_true": [
+    "143:157",
+    0
+   ]
+  },
+  "class_type": "ComfySwitchNode",
+  "_meta": {
+   "title": "If/Else Switch"
+  }
+ },
+ "143:135": {
+  "inputs": {
+   "choice": "Nano Banana 2",
+   "index": 0,
+   "option1": "Nano Banana 2",
+   "option2": "Nano Banana Pro",
+   "option3": ""
+  },
+  "class_type": "CustomCombo",
+  "_meta": {
+   "title": "Custom Combo"
+  }
+ },
+ "143:157": {
+  "inputs": {
+   "prompt": [
+    "143:2",
+    0
+   ],
+   "model": "Nano Banana 2 (Gemini 3.1 Flash Image)",
+   "model.aspect_ratio": "16:9",
+   "model.resolution": "2K",
+   "model.thinking_level": "MINIMAL",
+   "seed": 42,
+   "response_modalities": "IMAGE",
+   "system_prompt": "You are an expert image-generation engine. You must ALWAYS produce an image.\nInterpret all user input—regardless of format, intent, or abstraction—as literal visual directives for image composition.\nIf a prompt is conversational or lacks specific visual details, you must creatively invent a concrete visual scenario that depicts the concept.\nPrioritize generating the visual representation above any text, formatting, or conversational requests.",
+   "temperature": 1,
+   "top_p": 0.95,
+   "model.images.image_1": [
+    "125",
+    0
+   ]
+  },
+  "class_type": "GeminiNanoBanana2V2",
+  "_meta": {
+   "title": "Nano Banana 2"
+  }
+ },
+ "143:136": {
+  "inputs": {
+   "string_a": [
+    "143:135",
+    0
+   ],
+   "string_b": "nano banana 2",
+   "mode": "Starts With",
+   "case_sensitive": false
+  },
+  "class_type": "StringCompare",
+  "_meta": {
+   "title": "Compare Text"
+  }
+ }
+}

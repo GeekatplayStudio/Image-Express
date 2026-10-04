@@ -1,0 +1,102 @@
+{
+ "1": {
+  "inputs": {
+   "model": "Reimagine",
+   "prompt": "",
+   "subject_detection": "All",
+   "face_enhancement": false,
+   "face_enhancement_creativity": 0,
+   "face_enhancement_strength": 1,
+   "crop_to_fill": false,
+   "output_width": [
+    "3",
+    0
+   ],
+   "output_height": [
+    "3",
+    1
+   ],
+   "creativity": 2,
+   "face_preservation": false,
+   "color_preservation": true,
+   "image": [
+    "5",
+    0
+   ]
+  },
+  "class_type": "TopazImageEnhance",
+  "_meta": {
+   "title": "Topaz Image Enhance (Legacy)"
+  }
+ },
+ "2": {
+  "inputs": {
+   "upscale_method": "lanczos",
+   "scale_by": 4,
+   "image": [
+    "5",
+    0
+   ]
+  },
+  "class_type": "ImageScaleBy",
+  "_meta": {
+   "title": "Upscale Image By"
+  }
+ },
+ "3": {
+  "inputs": {
+   "image": [
+    "2",
+    0
+   ]
+  },
+  "class_type": "GetImageSize",
+  "_meta": {
+   "title": "Get Image Size"
+  }
+ },
+ "4": {
+  "inputs": {
+   "filename_prefix": "",
+   "images": [
+    "1",
+    0
+   ]
+  },
+  "class_type": "SaveImage",
+  "_meta": {
+   "title": "Save Image"
+  }
+ },
+ "5": {
+  "inputs": {
+   "image": "silent_sanctuary.jpg"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "Load Image"
+  }
+ },
+ "8": {
+  "inputs": {
+   "compare_view": {
+    "__value__": [
+     "",
+     ""
+    ]
+   },
+   "image_a": [
+    "1",
+    0
+   ],
+   "image_b": [
+    "5",
+    0
+   ]
+  },
+  "class_type": "ImageCompare",
+  "_meta": {
+   "title": "Compare Images"
+  }
+ }
+}

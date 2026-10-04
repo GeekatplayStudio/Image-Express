@@ -5,7 +5,7 @@ import {
     shouldUseComfyBrowserProxy,
     type ResolvedComfyTransport,
 } from '@/lib/comfyui/connection';
-import { formatComfyPromptError } from '@/lib/comfyui/promptControl';
+import { createPromptQueueWatch, formatComfyPromptError } from '@/lib/comfyui/promptControl';
 
 export interface ComfyExecutionProgress {
     nodeId: string | null;
@@ -277,18 +277,19 @@ export class ComfyUIClient {
         const startTime = Date.now();
         const progressStart = startedAt || startTime;
         let pollCount = 0;
-
+        const queueWatch = createPromptQueueWatch(this.transport, promptId);
         while (Date.now() - startTime < timeoutMs) {
             const history = await this.getHistory(promptId);
             const promptEntry = history[promptId];
             pollCount += 1;
+            const queueNote = await queueWatch.check(Boolean(promptEntry));
 
             if (onProgress) {
                 const elapsedMs = Date.now() - progressStart;
                 const summary = parseHistoryStatusSummary(promptEntry);
                 const heartbeat = summary
                     ? `Waiting for image output (${summary})`
-                    : 'Waiting for image output...';
+                    : `${queueNote ?? 'Waiting for image output'}...`;
 
                 if (pollCount === 1 || pollCount % 2 === 0) {
                     onProgress({

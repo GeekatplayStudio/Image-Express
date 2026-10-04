@@ -1,0 +1,33 @@
+{
+ "6": {
+  "inputs": {
+   "filename_prefix": "video/flux3_t2v",
+   "format": "auto",
+   "format.codec": "auto",
+   "codec": "auto",
+   "video": [
+    "13",
+    0
+   ]
+  },
+  "class_type": "SaveVideo",
+  "_meta": {
+   "title": "Save Video"
+  }
+ },
+ "13": {
+  "inputs": {
+   "prompt": "1980s detective show - Snake Detective - a giant snake in a trenchcoat running around solving mysteries",
+   "aspect_ratio": "auto",
+   "duration": "auto",
+   "resolution": "720p",
+   "generate_audio": true,
+   "safety_tolerance": 2,
+   "seed": 42
+  },
+  "class_type": "Flux3TextToVideoNode",
+  "_meta": {
+   "title": "Flux 3 Text to Video"
+  }
+ }
+}

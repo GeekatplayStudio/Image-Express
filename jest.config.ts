@@ -16,6 +16,11 @@ const config: Config = {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^jspdf$': '<rootDir>/src/test/mocks/jspdf.ts',
   },
+  // Only where tests and their imports live. Without this Jest walks the whole
+  // project on start-up, including `data/vault/thumbs` — 160,000 files on a
+  // machine with an indexed drive — and sits there for minutes before the
+  // first test runs.
+  roots: ['<rootDir>/src', '<rootDir>/__tests__'],
   modulePathIgnorePatterns: ['<rootDir>/.next/'],
   testPathIgnorePatterns: ['<rootDir>/.next/'],
   // Add more setup options before each test is run

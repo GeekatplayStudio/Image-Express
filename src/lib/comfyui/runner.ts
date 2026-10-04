@@ -1,5 +1,6 @@
 import { extractCheckpointNames } from '@/lib/comfyui/customModels';
 import { uniqueComfyUploadName } from '@/lib/comfyui/promptControl';
+import { ConversionError } from '@/lib/comfyui/uiWorkflowConverter';
 
 export { cancelComfyPrompt } from '@/lib/comfyui/promptControl';
 import {
@@ -82,11 +83,27 @@ export const prepareComfyTask = async (options: PrepareComfyTaskOptions): Promis
     params.image = await uploadAssetIfNeeded(client, params.image, 'image-express-input.png') as string | undefined;
     params.mask = await uploadAssetIfNeeded(client, params.mask, 'image-express-mask.png') as string | undefined;
 
-    let workflowJson = await prepareWorkflowBlueprint(selection.workflow, params, selection.modelPreset);
-
+    // Definitions first: a saved workflow can only be converted faithfully
+    // against what this server's nodes actually declare.
     const objectInfo = await client.getObjectInfoSnapshot();
+    const prepare = async (workflow: typeof selection.workflow, modelPreset: typeof selection.modelPreset) => {
+        try {
+            return { blueprint: await prepareWorkflowBlueprint(workflow, params, modelPreset, objectInfo), missing: [] as string[] };
+        } catch (error) {
+            // A node the workflow depends on is not installed: same outcome as
+            // the missing-node check below, so the same fallback applies.
+            if (error instanceof ConversionError && error.missingNodeType) {
+                return { blueprint: null, missing: [error.missingNodeType] };
+            }
+            throw error;
+        }
+    };
+
+    const first = await prepare(selection.workflow, selection.modelPreset);
+    let workflowJson = first.blueprint as ComfyPromptBlueprint;
+
     if (objectInfo && typeof objectInfo === 'object') {
-        const missingNodeTypes = findMissingNodeTypes(workflowJson, objectInfo);
+        const missingNodeTypes = first.blueprint ? findMissingNodeTypes(first.blueprint, objectInfo) : first.missing;
 
         if (missingNodeTypes.length > 0) {
             let resolvedFallback = false;
@@ -96,9 +113,10 @@ export const prepareComfyTask = async (options: PrepareComfyTaskOptions): Promis
 
                 for (const candidateWorkflow of candidates) {
                     const candidateModelPreset = resolveModelPresetForWorkflow(candidateWorkflow, options.modelPresetId);
-                    const candidateBlueprint = await prepareWorkflowBlueprint(candidateWorkflow, params, candidateModelPreset);
-                    const candidateMissing = findMissingNodeTypes(candidateBlueprint, objectInfo);
-                    if (candidateMissing.length === 0) {
+                    const candidate = await prepare(candidateWorkflow, candidateModelPreset);
+                    const candidateBlueprint = candidate.blueprint;
+                    const candidateMissing = candidateBlueprint ? findMissingNodeTypes(candidateBlueprint, objectInfo) : candidate.missing;
+                    if (candidateBlueprint && candidateMissing.length === 0) {
                         selection = {
                             workflow: candidateWorkflow,
                             modelPreset: candidateModelPreset,

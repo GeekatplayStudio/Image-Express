@@ -46,7 +46,7 @@ import {
     type HitemsSplitPart,
 } from '@/lib/hitemsOptions';
 import { isMissingSanitizedKey, sanitizeHeaderValue } from '@/lib/providerCredentials';
-import { renderSceneToDataUrl, type CaptureContext } from '@/lib/three/sceneCapture';
+import { DRACO_DECODER_PATH, environmentFile, renderSceneToDataUrl, type CaptureContext } from '@/lib/three';
 
 const SUPPORTED_PROVIDERS = ['meshy', 'tripo', 'hitems'];
 
@@ -86,7 +86,7 @@ const CaptureHelper = ({ controlRef }: { controlRef: React.MutableRefObject<Capt
 
 // Component to render the GLTF Model
 const ModelViewer = ({ url, onGroundY }: { url: string; onGroundY?: (y: number) => void }) => {
-    const { scene } = useGLTF(url);
+    const { scene } = useGLTF(url, DRACO_DECODER_PATH);
     useEffect(() => {
         scene.traverse((child) => {
             if (child instanceof THREE.Mesh) {
@@ -2048,7 +2048,7 @@ export default function ThreeDGenerator({ onAddToCanvas, onClose, onOpenSettings
                                         color="#000000"
                                     />
                                 )}
-                                <Stage environment="city" intensity={0.6} shadows={false}>
+                                <Stage environment={{ files: environmentFile('city') }} intensity={0.6} shadows={false}>
                                     <ModelViewer url={modelUrl} onGroundY={setGroundY} />
                                 </Stage>
                                 <OrbitControls makeDefault autoRotate />

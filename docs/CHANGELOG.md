@@ -19,6 +19,92 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-04 - ComfyUI workflows convert like the frontend; the 3D editor works offline
+
+The second half of the port from the sibling projects.
+
+**Saved workflows are converted the way ComfyUI's own frontend queues them.**
+The converter knew the widget order of about 27 core nodes from a hard-coded
+table and had no notion of a subgraph. Any other node lost its widget values,
+and a workflow with subgraphs came out with node classes that were subgraph
+ids, which the server rejects as unknown nodes. That included this app's own
+bundled FLUX 2 Klein edit templates.
+
+- `uiWorkflowConverter.ts` is a TypeScript port of the Photoshop bridge's
+  converter. It reads the server's `/object_info` and handles subgraphs
+  (nested, with id renumbering), promoted widgets, reroutes, Set/Get nodes,
+  primitives, muted and bypassed nodes, dynamic combos, seed-control slots and
+  dynamic prompts.
+- It is checked against **eleven golden fixtures**: template workflows next to
+  exactly what frontend 1.53.10 queues for each. All eleven match.
+- The runner now asks the server for its node definitions *before* preparing a
+  workflow. Without them (server not reachable for definitions) the old
+  table-driven conversion is still used.
+- A node the workflow depends on that is not installed is named — "Node "My
+  Loader" (X) is not installed on this ComfyUI server" — and a missing node
+  nothing depends on is skipped instead of failing the run.
+
+**The prompt and the image go where the graph says.** The bundled FLUX
+templates declared no input bindings at all, so a typed prompt never reached
+them. For user-added workflows the prompt was written into every text-like
+node whose title did not contain "negative", and the uploaded image into any
+node with "image" in its class — which could replace a link with a filename.
+
+- `workflowTargets.ts` traces the text that feeds a sampler's (or guider's)
+  positive input, keeping positive and negative apart through nodes that pass
+  both, and gives the image only to a Load Image node that something reads.
+- A workflow's declared bindings still win; detection fills in only the
+  sources it does not cover. Steps, CFG and denoise are never auto-bound: a
+  template's sampler settings are tuned to its model.
+- An uploaded file never overwrites a link.
+
+**User-added workflows keep their saved graph** and are converted at run time
+against the server, and the models their author listed on the nodes
+(`properties.models`) are now read for them too — so a missing model is named
+with its download link before the run fails on it (the open R-12 item).
+
+**A job that vanishes is noticed.** Waiting on history alone could not tell
+"still working" from "no longer there": a prompt deleted from the queue, or
+lost when ComfyUI restarted, waited out a 30-minute timeout. The wait now also
+reads the queue: it reports "Waiting in the ComfyUI queue (2 of 5)" or
+"running", and after three polls with the prompt in neither queue nor history
+it says so and stops.
+
+**The 3D editor no longer needs the network.** It fetched the Draco decoder
+from www.gstatic.com and its lighting environments from a GitHub CDN at run
+time.
+
+- The decoders are served from `public/three/` (copied from the installed
+  three.js by `scripts/sync-three-assets.mjs`; a test fails when they drift)
+  and the ten environments from `public/three/hdri/` (CC0, 1.6 MB).
+- One loader for every path. Thumbnails and the in-panel bake used a bare
+  `GLTFLoader`, so a Draco- or meshopt-compressed GLB opened in the editor but
+  failed there.
+- Re-editing a 3D layer at a new resolution keeps its size on the page; copying
+  the old scale made a 2048 → 4096 re-render twice as large.
+
+**Test start-up.** Jest walked the whole project on start, including
+`data/vault/thumbs` — 160,000 files on a machine with an indexed drive — and
+sat for minutes before the first test. It is now limited to `src` and
+`__tests__`.
+
+**Not done / known limits.**
+
+- **None of the ComfyUI changes were run against a live ComfyUI server** (none
+  was running). The converter is verified against frontend output and the
+  bundled templates against synthesised node definitions; cancel, queue watch
+  and error formatting against mocked responses.
+- Workflow settings detected from the workflow (model, sampler and LoRA
+  dropdowns filled from the server — the open R-14 item for FLUX and Qwen) are
+  not built. The converter already reports the inputs an author exposed; the
+  panel that would show them does not exist yet.
+- Multiple output images, ComfyUI's own template catalog, freeing memory when
+  the model set changes, and built-in depth / SeedVR2 upscale workflows were
+  identified in the review and not ported.
+- 3D: the offline assets and shared loader were not checked on screen in this
+  pass. Importing FBX/OBJ/STL by converting to GLB, the fuller pose and camera
+  state, and a real-GPU end-to-end test were identified and not ported.
+
 ## 2026-10-04 - Ported from our other projects: a vault that survives an unplugged drive, SQL search, real ComfyUI cancel
 
 A side-by-side review of four sibling projects (ComfyUIAssetManager, the

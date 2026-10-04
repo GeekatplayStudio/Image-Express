@@ -4,7 +4,7 @@
 // (VSM shadow map, bounds-fitted shadow frustum, bottom pivot).
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { createGltfLoader } from '@/lib/three/gltfLoading';
 import type { GlobalLightState } from './globalLight';
 import type { Quaternion } from './fspySolver';
 
@@ -25,7 +25,7 @@ const modelCache = new Map<string, Promise<THREE.Group>>();
 function loadModel(url: string): Promise<THREE.Group> {
     let cached = modelCache.get(url);
     if (!cached) {
-        cached = new GLTFLoader().loadAsync(url).then((gltf) => gltf.scene);
+        cached = createGltfLoader().loadAsync(url).then((gltf) => gltf.scene);
         cached.catch(() => modelCache.delete(url));
         modelCache.set(url, cached);
     }

@@ -1,0 +1,33 @@
+{
+ "4": {
+  "inputs": {
+   "prompt": "A band of adorable toy rabbits rocks out on the moon's surface. They play a variety of instruments like guitars, drums, and keyboards under a star - filled sky with the Earth and moon in the background. Concert lights add a vibrant touch to this intergalactic musical performance. ",
+   "aspect_ratio": "16:9",
+   "quality": "720p",
+   "duration_seconds": 5,
+   "motion_mode": "normal",
+   "seed": 1233550256,
+   "negative_prompt": ""
+  },
+  "class_type": "PixverseTextToVideoNode",
+  "_meta": {
+   "title": "PixVerse Text to Video"
+  }
+ },
+ "6": {
+  "inputs": {
+   "filename_prefix": "video/ComfyUI",
+   "format": "auto",
+   "format.codec": "auto",
+   "codec": "auto",
+   "video": [
+    "4",
+    0
+   ]
+  },
+  "class_type": "SaveVideo",
+  "_meta": {
+   "title": "Save Video"
+  }
+ }
+}

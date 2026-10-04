@@ -140,3 +140,59 @@ export function formatComfyPromptError(status: number, statusText: string, body:
     if (nodeLines.length > shown.length) shown.push(`…and ${nodeLines.length - shown.length} more`);
     return [`ComfyUI refused the workflow: ${headline || `${status} ${statusText}`}`, ...shown].join('\n');
 }
+
+/** After this many consecutive polls with the prompt nowhere to be found, it is gone. */
+const LOST_AFTER_POLLS = 3;
+
+/**
+ * Watches a queued prompt's place in the server's queue while its history is
+ * awaited.
+ *
+ * Waiting on history alone cannot tell "still working" from "no longer there":
+ * a prompt deleted from the queue, or lost when ComfyUI restarted, never gets
+ * a history entry, and the wait ran to its 30-minute timeout. The queue says
+ * which it is, and where a waiting prompt stands.
+ */
+export function createPromptQueueWatch(transport: ResolvedComfyTransport, promptId: string) {
+    let absentPolls = 0;
+    return {
+        /**
+         * Call once per history poll. Returns a status line for a prompt that is
+         * queued or running, null when the queue could not be read, and throws
+         * once the prompt has been absent from queue and history long enough.
+         */
+        async check(hasHistoryEntry: boolean): Promise<string | null> {
+            if (hasHistoryEntry) return null;
+            let queue: { queue_running?: unknown; queue_pending?: unknown };
+            try {
+                const response = await fetch(apiUrl(transport, '/queue'), { headers: transport.defaultHeaders });
+                if (!response.ok) return null;
+                queue = await response.json();
+            } catch {
+                // A queue that cannot be read proves nothing either way.
+                return null;
+            }
+            if (queueHasPrompt(queue.queue_running, promptId)) {
+                absentPolls = 0;
+                return 'ComfyUI is running this job';
+            }
+            const pending = Array.isArray(queue.queue_pending) ? queue.queue_pending : [];
+            const position = pending
+                .filter((entry): entry is unknown[] => Array.isArray(entry))
+                .sort((a, b) => Number(a[0]) - Number(b[0]))
+                .findIndex((entry) => entry[1] === promptId);
+            if (position >= 0) {
+                absentPolls = 0;
+                return `Waiting in the ComfyUI queue (${position + 1} of ${pending.length})`;
+            }
+            absentPolls += 1;
+            if (absentPolls >= LOST_AFTER_POLLS) {
+                throw new Error(
+                    'This job is no longer in the ComfyUI queue and produced no result. '
+                    + 'It was removed from the queue, or ComfyUI restarted. Run it again.',
+                );
+            }
+            return null;
+        },
+    };
+}

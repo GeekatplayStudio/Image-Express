@@ -1,7 +1,7 @@
 'use client';
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { createGltfLoader } from '@/lib/three/gltfLoading';
 
 /**
  * Offscreen still-frame renderer for 3D model thumbnails.
@@ -73,7 +73,7 @@ export function renderModelThumbnail(cacheKey: string, url: string, size = 256):
 }
 
 async function renderModelToDataUrl(url: string, size: number): Promise<string> {
-    const gltf = await new GLTFLoader().loadAsync(url);
+    const gltf = await createGltfLoader().loadAsync(url);
     const model = gltf.scene;
 
     const scene = new THREE.Scene();

@@ -720,6 +720,10 @@ wired into save and load.
 write into that mask.
 
 ### R-12 · Comfy custom workflows/nodes bundling — P1
+
+> **2026-10-04:** user-added workflows now run through the frontend-faithful
+> converter and report missing models with download links, and a missing node
+> is named. That closes the "missing-dependency messages" item. See CHANGELOG.
 **Done before this pass:** install and update actions in Settings, first-party
 bundle definitions in the installer config.
 **Done 2026-10-03:** installed commit, branch and date per repository, and an
@@ -730,6 +734,12 @@ user-added workflows (built-in ones already do).
 requirements are met; missing-dependency messages name the specific node/model.
 
 ### R-14 · Comfy model catalog + custom upload — P1 — ✅ delivered 2026-10-03
+
+> **Still open (2026-10-04):** model, sampler and LoRA choices for FLUX and Qwen
+> graphs. The plan is the Photoshop bridge's approach — read the settings from
+> the workflow and fill each dropdown from the server's own lists
+> (`workflowParams` / `inputSpec` in its `workflow.js`). The converter already
+> returns the inputs an author exposed; the UI is not built.
 The per-workflow model picker and its persistence already existed. Added: a UI
 path to register custom checkpoint files, and guardrails.
 **Open:** custom models for graphs that load a UNet, text encoders and a VAE

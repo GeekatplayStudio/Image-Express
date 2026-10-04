@@ -30,6 +30,8 @@ const eslintConfig = defineConfig([
     "external/**",
     "logs/**",
     "next-env.d.ts",
+    // Vendored three.js decoders (copied by scripts/sync-three-assets.mjs).
+    "public/three/**",
     // Build output is not source, wherever it lands. The bare ".next/**"
     // above only matches the repo root, so a build inside a git worktree
     // (".claude/worktrees/<name>/.next") was linted as if it were source:

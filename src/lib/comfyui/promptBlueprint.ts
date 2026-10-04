@@ -6,6 +6,8 @@ import type {
     RegisteredWorkflow,
     WorkflowInputBinding,
 } from './registryTypes';
+import { convertUiWorkflow, type ComfyNodeDefs } from './uiWorkflowConverter';
+import { isPromptLink, resolveWorkflowBindings } from './workflowTargets';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
     typeof value === 'object' && value !== null
@@ -245,13 +247,28 @@ const assertPromptBlueprintShape: (
     }
 };
 
-const normalizePromptBlueprint = (workflowId: string, blueprint: unknown): ComfyPromptBlueprint => {
+/**
+ * A workflow in the API format, whichever format it was saved in.
+ *
+ * With the server's node definitions (`defs`, from /object_info) a saved
+ * workflow is converted the way the ComfyUI frontend queues it — subgraphs,
+ * reroutes, bypassed nodes and every node's widgets included. Without them
+ * (the server has not been asked yet) the older table-driven conversion is
+ * used, which only knows core nodes and cannot expand a subgraph.
+ */
+const normalizePromptBlueprint = (workflowId: string, blueprint: unknown, defs?: ComfyNodeDefs | null): ComfyPromptBlueprint => {
     if (!isRecord(blueprint)) {
         throw new Error(`ComfyUI workflow "${workflowId}" is invalid: blueprint must be an object.`);
     }
 
     const hasGraphShape = Array.isArray((blueprint as { nodes?: unknown }).nodes)
         && Array.isArray((blueprint as { links?: unknown }).links);
+
+    if (hasGraphShape && defs && Object.keys(defs).length > 0) {
+        const converted = convertUiWorkflow(blueprint, defs).prompt as ComfyPromptBlueprint;
+        assertPromptBlueprintShape(workflowId, converted);
+        return converted;
+    }
 
     if (hasGraphShape) {
         const converted = convertEditorGraphToPromptBlueprint(workflowId, blueprint);
@@ -295,6 +312,13 @@ export const applyWorkflowInputBindings = (
     for (const binding of bindings) {
         const value = params[binding.source];
         if (value === undefined || value === null || value === '') {
+            continue;
+        }
+
+        // An uploaded file replaces a file name, never a connection: writing it
+        // over a link would cut the node off from whatever was feeding it.
+        if ((binding.source === 'image' || binding.source === 'mask')
+            && isPromptLink(blueprint[binding.nodeId]?.inputs[binding.inputName])) {
             continue;
         }
 
@@ -344,13 +368,17 @@ export const applyModelPresetToBlueprint = (
 export const prepareWorkflowBlueprint = async (
     workflow: RegisteredWorkflow,
     params: ComfyWorkflowVariableParams,
-    modelPreset: ComfyModelPreset
+    modelPreset: ComfyModelPreset,
+    /** The server's /object_info, when known: enables the full conversion. */
+    defs?: ComfyNodeDefs | null,
 ): Promise<ComfyPromptBlueprint> => {
     const rawBlueprint = await workflow.loadBlueprint();
-    const normalizedBlueprint = normalizePromptBlueprint(workflow.id, rawBlueprint);
+    const normalizedBlueprint = normalizePromptBlueprint(workflow.id, rawBlueprint, defs);
     const blueprint = cloneComfyPromptBlueprint(normalizedBlueprint);
 
-    applyWorkflowInputBindings(blueprint, workflow.inputBindings, params);
+    // The workflow's own bindings, plus the graph's answer for anything it
+    // does not declare — so a prompt reaches a template that binds nothing.
+    applyWorkflowInputBindings(blueprint, resolveWorkflowBindings(blueprint, workflow.inputBindings), params);
     applyModelPresetToBlueprint(blueprint, modelPreset);
 
     return blueprint;

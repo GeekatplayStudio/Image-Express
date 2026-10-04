@@ -1,0 +1,350 @@
+{
+ "9": {
+  "inputs": {
+   "filename_prefix": "Flux.1_dev",
+   "images": [
+    "150:8",
+    0
+   ]
+  },
+  "class_type": "SaveImage",
+  "_meta": {
+   "title": "Save Image"
+  }
+ },
+ "17": {
+  "inputs": {
+   "image": "flux_depth_lora_example_input_image.png"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "Load Image"
+  }
+ },
+ "150:26": {
+  "inputs": {
+   "guidance": 10,
+   "conditioning": [
+    "150:23",
+    0
+   ]
+  },
+  "class_type": "FluxGuidance",
+  "_meta": {
+   "title": "FluxGuidance"
+  }
+ },
+ "150:35": {
+  "inputs": {
+   "positive": [
+    "150:26",
+    0
+   ],
+   "negative": [
+    "150:106",
+    0
+   ],
+   "vae": [
+    "150:32",
+    0
+   ],
+   "pixels": [
+    "150:41:99",
+    0
+   ]
+  },
+  "class_type": "InstructPixToPixConditioning",
+  "_meta": {
+   "title": "InstructPixToPixConditioning"
+  }
+ },
+ "150:3": {
+  "inputs": {
+   "seed": 229472716717627,
+   "steps": 20,
+   "cfg": 1,
+   "sampler_name": "euler",
+   "scheduler": "normal",
+   "denoise": 1,
+   "model": [
+    "150:37",
+    0
+   ],
+   "positive": [
+    "150:35",
+    0
+   ],
+   "negative": [
+    "150:35",
+    1
+   ],
+   "latent_image": [
+    "150:35",
+    2
+   ]
+  },
+  "class_type": "KSampler",
+  "_meta": {
+   "title": "KSampler"
+  }
+ },
+ "150:41:92": {
+  "inputs": {
+   "noise": [
+    "150:41:93",
+    0
+   ],
+   "guider": [
+    "150:41:94",
+    0
+   ],
+   "sampler": [
+    "150:41:100",
+    0
+   ],
+   "sigmas": [
+    "150:41:101",
+    0
+   ],
+   "latent_image": [
+    "150:41:97",
+    0
+   ]
+  },
+  "class_type": "SamplerCustomAdvanced",
+  "_meta": {
+   "title": "SamplerCustomAdvanced"
+  }
+ },
+ "150:41:94": {
+  "inputs": {
+   "model": [
+    "150:41:87",
+    0
+   ],
+   "conditioning": [
+    "150:41:96",
+    0
+   ]
+  },
+  "class_type": "BasicGuider",
+  "_meta": {
+   "title": "Basic Guider"
+  }
+ },
+ "150:41:95": {
+  "inputs": {
+   "scheduler": "normal",
+   "steps": 1,
+   "denoise": 1,
+   "model": [
+    "150:41:87",
+    0
+   ]
+  },
+  "class_type": "BasicScheduler",
+  "_meta": {
+   "title": "BasicScheduler"
+  }
+ },
+ "150:41:96": {
+  "inputs": {},
+  "class_type": "LotusConditioning",
+  "_meta": {
+   "title": "LotusConditioning"
+  }
+ },
+ "150:41:97": {
+  "inputs": {
+   "pixels": [
+    "150:107",
+    0
+   ],
+   "vae": [
+    "150:41:89",
+    0
+   ]
+  },
+  "class_type": "VAEEncode",
+  "_meta": {
+   "title": "VAE Encode"
+  }
+ },
+ "150:41:93": {
+  "inputs": {},
+  "class_type": "DisableNoise",
+  "_meta": {
+   "title": "DisableNoise"
+  }
+ },
+ "150:41:98": {
+  "inputs": {
+   "samples": [
+    "150:41:92",
+    0
+   ],
+   "vae": [
+    "150:41:89",
+    0
+   ]
+  },
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE Decode"
+  }
+ },
+ "150:41:99": {
+  "inputs": {
+   "image": [
+    "150:41:98",
+    0
+   ]
+  },
+  "class_type": "ImageInvert",
+  "_meta": {
+   "title": "Invert Image Colors"
+  }
+ },
+ "150:41:89": {
+  "inputs": {
+   "vae_name": "vae-ft-mse-840000-ema-pruned.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "Load VAE"
+  }
+ },
+ "150:41:87": {
+  "inputs": {
+   "unet_name": "lotus-depth-d-v1-1.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Load Diffusion Model"
+  }
+ },
+ "150:41:101": {
+  "inputs": {
+   "sigma": 10000,
+   "sigmas": [
+    "150:41:95",
+    0
+   ]
+  },
+  "class_type": "SetFirstSigma",
+  "_meta": {
+   "title": "SetFirstSigma"
+  }
+ },
+ "150:41:100": {
+  "inputs": {
+   "sampler_name": "euler"
+  },
+  "class_type": "KSamplerSelect",
+  "_meta": {
+   "title": "KSamplerSelect"
+  }
+ },
+ "150:8": {
+  "inputs": {
+   "samples": [
+    "150:3",
+    0
+   ],
+   "vae": [
+    "150:32",
+    0
+   ]
+  },
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE Decode"
+  }
+ },
+ "150:23": {
+  "inputs": {
+   "text": "A cute ghost-shaped desktop ornament, softly glowing with a warm light, placed on a tidy, cozy home table, creating a gentle and sweet atmosphere.",
+   "clip": [
+    "150:34",
+    0
+   ]
+  },
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "CLIP Text Encode (Positive Prompt)"
+  }
+ },
+ "150:31": {
+  "inputs": {
+   "unet_name": "flux1-dev-fp8.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Load Diffusion Model"
+  }
+ },
+ "150:37": {
+  "inputs": {
+   "lora_name": "flux1-depth-dev-lora.safetensors",
+   "strength_model": 1,
+   "model": [
+    "150:31",
+    0
+   ]
+  },
+  "class_type": "LoraLoaderModelOnly",
+  "_meta": {
+   "title": "Load LoRA"
+  }
+ },
+ "150:34": {
+  "inputs": {
+   "clip_name1": "clip_l.safetensors",
+   "clip_name2": "t5xxl_fp16.safetensors",
+   "type": "flux",
+   "device": "default"
+  },
+  "class_type": "DualCLIPLoader",
+  "_meta": {
+   "title": "Load CLIP (Dual)"
+  }
+ },
+ "150:32": {
+  "inputs": {
+   "vae_name": "ae.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "Load VAE"
+  }
+ },
+ "150:106": {
+  "inputs": {
+   "conditioning": [
+    "150:23",
+    0
+   ]
+  },
+  "class_type": "ConditioningZeroOut",
+  "_meta": {
+   "title": "Conditioning Zero Out"
+  }
+ },
+ "150:107": {
+  "inputs": {
+   "upscale_method": "lanczos",
+   "megapixels": 1,
+   "resolution_steps": 1,
+   "image": [
+    "17",
+    0
+   ]
+  },
+  "class_type": "ImageScaleToTotalPixels",
+  "_meta": {
+   "title": "Scale Image to Total Pixels"
+  }
+ }
+}

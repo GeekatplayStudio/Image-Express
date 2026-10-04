@@ -1,6 +1,7 @@
 import { createLocalComfyTransport } from '@/lib/comfyui/transport';
 import {
     cancelComfyPromptOnTransport,
+    createPromptQueueWatch,
     formatComfyPromptError,
     uniqueComfyUploadName,
 } from '@/lib/comfyui/promptControl';
@@ -98,5 +99,60 @@ describe('formatComfyPromptError', () => {
     it('falls back to the raw reply when it is not JSON', () => {
         expect(formatComfyPromptError(500, 'Server Error', 'boom'))
             .toBe('ComfyUI refused the workflow: 500 Server Error (boom)');
+    });
+});
+
+describe('createPromptQueueWatch', () => {
+    const transport = createLocalComfyTransport('http://127.0.0.1:8188');
+    const fetchMock = jest.fn();
+    const originalFetch = global.fetch;
+    const queueIs = (queue: unknown, ok = true) => fetchMock.mockResolvedValue({ ok, json: async () => queue });
+
+    beforeEach(() => {
+        fetchMock.mockReset();
+        global.fetch = fetchMock as unknown as typeof fetch;
+    });
+
+    afterAll(() => {
+        global.fetch = originalFetch;
+    });
+
+    it('says where a waiting job stands and when it is running', async () => {
+        const watch = createPromptQueueWatch(transport, 'abc');
+        queueIs({ queue_running: [[1, 'x']], queue_pending: [[5, 'abc'], [3, 'y']] });
+        await expect(watch.check(false)).resolves.toBe('Waiting in the ComfyUI queue (2 of 2)');
+        queueIs({ queue_running: [[5, 'abc']], queue_pending: [] });
+        await expect(watch.check(false)).resolves.toBe('ComfyUI is running this job');
+    });
+
+    it('reports a job that has vanished from queue and history, after three polls', async () => {
+        const watch = createPromptQueueWatch(transport, 'abc');
+        queueIs({ queue_running: [], queue_pending: [] });
+        await expect(watch.check(false)).resolves.toBeNull();
+        await expect(watch.check(false)).resolves.toBeNull();
+        await expect(watch.check(false)).rejects.toThrow('no longer in the ComfyUI queue');
+    });
+
+    it('does not count a job as lost while it has a history entry or the queue cannot be read', async () => {
+        const watch = createPromptQueueWatch(transport, 'abc');
+        queueIs({ queue_running: [], queue_pending: [] });
+        for (let poll = 0; poll < 5; poll += 1) await expect(watch.check(true)).resolves.toBeNull();
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        queueIs({}, false);
+        for (let poll = 0; poll < 5; poll += 1) await expect(watch.check(false)).resolves.toBeNull();
+        fetchMock.mockRejectedValue(new Error('offline'));
+        for (let poll = 0; poll < 5; poll += 1) await expect(watch.check(false)).resolves.toBeNull();
+    });
+
+    it('starts counting again once the job reappears', async () => {
+        const watch = createPromptQueueWatch(transport, 'abc');
+        queueIs({ queue_running: [], queue_pending: [] });
+        await watch.check(false);
+        await watch.check(false);
+        queueIs({ queue_running: [[1, 'abc']], queue_pending: [] });
+        await watch.check(false);
+        queueIs({ queue_running: [], queue_pending: [] });
+        await expect(watch.check(false)).resolves.toBeNull();
     });
 });

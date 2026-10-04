@@ -29,7 +29,7 @@ export {
 export type { LightPreset, ModelBounds, Vec3 };
 import { Check, X, RotateCw, Sun, Camera, Box, Palette, Wand2, Monitor } from 'lucide-react';
 import * as THREE from 'three';
-import { clampCaptureSize, renderSceneToDataUrl } from '@/lib/three/sceneCapture';
+import { clampCaptureSize, DRACO_DECODER_PATH, environmentFile, renderSceneToDataUrl } from '@/lib/three';
 import * as fabric from 'fabric';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -98,7 +98,7 @@ const saveLightingDefaults = (defaults: LightingDefaults) => {
 
 
 export const ModelViewer = ({ url, onBounds }: { url: string; onBounds?: (bounds: ModelBounds) => void }) => {
-    const { scene } = useGLTF(url);
+    const { scene } = useGLTF(url, DRACO_DECODER_PATH);
     const clone = useMemo(() => scene.clone(), [scene]);
     useEffect(() => {
         clone.traverse((child) => {
@@ -348,7 +348,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
     }, [existingObject, gl]);
 
     useEffect(() => {
-        useGLTF.preload(modelUrl);
+        useGLTF.preload(modelUrl, DRACO_DECODER_PATH);
     }, [modelUrl]);
 
     // Remember lighting adjustments as the default for the NEXT new model.
@@ -403,7 +403,7 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
     }, []);
 
     const stageContent = useMemo(() => (
-        <Stage environment={environment as 'city'} intensity={envIntensity} adjustCamera={false} shadows={false}>
+        <Stage environment={{ files: environmentFile(environment) }} intensity={envIntensity} adjustCamera={false} shadows={false}>
             <group ref={modelGroupRef}>
                 <ModelViewer url={modelUrl} onBounds={handleModelBounds} />
             </group>

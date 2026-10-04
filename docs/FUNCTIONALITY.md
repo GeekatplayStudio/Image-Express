@@ -457,3 +457,5 @@ Tracked in [ROADMAP.md](ROADMAP.md); listed here so behaviour claims stay honest
 - **Generation details.** PNGs written by ComfyUI or AUTOMATIC1111 carry their prompt, negative prompt, model, sampler, seed, steps and CFG into the index; the prompt and model are searchable.
 - **ComfyUI cancel.** *Cancel job* interrupts a running prompt or removes a waiting one from the server's queue.
 - **3D export size.** The rendered layer is exactly the width and height asked for, whatever the display scale; sizes are limited to 64–8192 px.
+- **ComfyUI workflows.** Saved workflows (including subgraphs) run without exporting to API format. While a job waits, the status shows its place in the ComfyUI queue; a job that is no longer queued and has no result is reported.
+- **3D lighting and compressed models** work without an internet connection.

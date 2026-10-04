@@ -866,3 +866,22 @@ was consolidated.
 The JSON catalog remains the fallback when `node:sqlite` is unavailable or
 `IMAGE_EXPRESS_VAULT_STORE=json` is set; on that path a rescan still prunes
 directly, but only what the scan positively looked for.
+
+## ComfyUI workflow preparation — as of 2026-10-04
+
+`runner.prepareComfyTask` fetches `/object_info` first, then
+`promptBlueprint.prepareWorkflowBlueprint(workflow, params, preset, defs)`:
+
+1. **Convert.** A saved graph goes through `uiWorkflowConverter.convertUiWorkflow`
+   (widget layout in `uiWorkflowWidgets.ts`); an API-format workflow is used as
+   is. No definitions → the legacy table-driven conversion.
+2. **Bind.** `workflowTargets.resolveWorkflowBindings` = the workflow's declared
+   bindings + graph-detected ones for sources it does not cover.
+3. **Preset.** Model preset overrides.
+
+`promptControl.ts` holds what happens around a queued prompt: cancel
+(interrupt or dequeue), content-named uploads, readable `/prompt` errors, and
+the queue watch used while waiting on history.
+
+3D assets: `lib/three/gltfLoading.ts` (decoder paths, environment files, the
+shared loader) and `lib/three/sceneCapture.ts` (exact-size capture).

@@ -3,6 +3,7 @@
 import React, { Component, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, Loader2, RotateCcw, Sun } from 'lucide-react';
 import { Center, Environment, OrbitControls, Resize, useGLTF } from '@react-three/drei';
+import { DRACO_DECODER_PATH, environmentFile } from '@/lib/three/gltfLoading';
 import { Canvas } from '@react-three/fiber';
 import { canRenderModelThumbnail } from '@/lib/modelThumbnail';
 
@@ -16,7 +17,7 @@ interface Asset3DPreviewProps {
 }
 
 function Model({ url }: { url: string }) {
-    const { scene } = useGLTF(url);
+    const { scene } = useGLTF(url, DRACO_DECODER_PATH);
     const clonedScene = useMemo(() => scene.clone(), [scene]);
     return (
         <Resize scale={3.5}>
@@ -187,7 +188,7 @@ export default function Asset3DPreview({
                     <ModelErrorBoundary onError={() => setFailed(true)}>
                         <Model url={url} />
                     </ModelErrorBoundary>
-                    <Environment preset="city" />
+                    <Environment files={environmentFile('city')} />
                     <OrbitControls
                         autoRotate={rotate}
                         autoRotateSpeed={3.2}

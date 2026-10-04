@@ -28,6 +28,20 @@ interface UseEditorThreeDWorkspaceParams {
     t: (key: string) => string;
 }
 
+/**
+ * Scale for a re-rendered 3D layer so it stays as wide on the page as the one
+ * it replaces. Copying the old scale made a 2048 → 4096 re-render twice the
+ * size. Uniform, so a change of aspect ratio is not squashed into the old box.
+ */
+export function sameWidthScale(
+    previous: { getScaledWidth: () => number },
+    next: { width?: number },
+): { scaleX: number; scaleY: number } {
+    const width = next.width || 1;
+    const scale = (previous.getScaledWidth() || width) / width;
+    return { scaleX: scale, scaleY: scale };
+}
+
 export function useEditorThreeDWorkspace({
     canvas,
     activeTool,
@@ -197,8 +211,7 @@ export function useEditorThreeDWorkspace({
                 img.set({
                     left: editingModelObject.left,
                     top: editingModelObject.top,
-                    scaleX: editingModelObject.scaleX,
-                    scaleY: editingModelObject.scaleY,
+                    ...sameWidthScale(editingModelObject, img),
                     angle: editingModelObject.angle,
                     originX: 'center',
                     originY: 'center',
