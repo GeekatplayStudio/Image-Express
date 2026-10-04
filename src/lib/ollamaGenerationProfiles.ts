@@ -38,7 +38,10 @@ export const OLLAMA_GENERATION_PROFILES: readonly OllamaGenerationProfile[] = [
             '- Keep it simple: at most 12 shapes.',
             '- Flat solid fills only. No gradients, no filters, no fine detail.',
         ],
-        options: { temperature: 0.2, num_predict: 900 },
+        // A ceiling, not a target: the brief keeps a fast SVG near 400 tokens, but
+        // a budget set close to that truncated the occasional wordier reply
+        // before its closing tag, which fails the whole generation.
+        options: { temperature: 0.2, num_predict: 1600 },
     },
     {
         id: 'balanced',
@@ -48,7 +51,7 @@ export const OLLAMA_GENERATION_PROFILES: readonly OllamaGenerationProfile[] = [
             '- Use roughly 15 to 30 shapes, with a clear foreground, midground and background.',
             '- Gradients are welcome where they add depth.',
         ],
-        options: { temperature: 0.3, num_predict: 2200 },
+        options: { temperature: 0.3, num_predict: 3600 },
     },
     {
         id: 'quality',
@@ -59,7 +62,7 @@ export const OLLAMA_GENERATION_PROFILES: readonly OllamaGenerationProfile[] = [
             '- Use gradients for lighting, overlapping layers for depth, and small accent shapes for detail.',
             '- Group related shapes with <g> and keep the palette harmonious.',
         ],
-        options: { temperature: 0.4, num_predict: 5000 },
+        options: { temperature: 0.4, num_predict: 7000 },
     },
 ];
 
