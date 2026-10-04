@@ -146,8 +146,12 @@ entire file** — adding one asset rewrites 153 MB.
   every write helper and pinned by tests that fail if the invalidation is
   removed. **This was a regression I introduced and then caught; without the
   cache the migration would have made search 3.5× slower.**
-- **Next, and the honest fix:** search, similar-asset lookup and the sync route
-  should stop asking for the whole catalog. A cache holds the line; it does not
+- **Done 2026-10-03 — status, sync and find-similar are scoped.** They use
+  `readVaultCatalogSummary` and `readVaultAssetsByIds` and no longer build the
+  snapshot. **Search is the one caller left**, along with the embed and
+  thumbnail queue handlers: its keyword ranking runs over every record in
+  memory, so scoping it means a full-text index (SQLite FTS5) — a design change.
+- **Next, and the honest fix:** search should stop asking for the whole catalog. A cache holds the line; it does not
   remove the ceiling, and it costs a full copy of the catalog in memory.
 - **Cost paid:** the DB is larger on disk than the JSON — 229 MB vs 158 MB —
   from storing each record plus four indexes. Accepted: disk is cheap, the
@@ -754,9 +758,6 @@ the main app's dependency audits. Open: decide whether to ship it at all.
 
 Not features, but they block the gates.
 
-- **Broken submodule reference**: `Imageprocessingui` is a gitlink (mode
-  `160000`) with no `.gitmodules` entry, so a fresh clone leaves an empty
-  directory.
 - **`brace-expansion` scanner noise** — the installed 1.1.18/2.1.4 builds carry
   the CVE-2026-14257 fix and are the last releases on their lines, but scanners
   use a flat `<=5.0.7` range. Silencing it permanently requires forcing

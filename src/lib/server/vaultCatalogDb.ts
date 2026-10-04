@@ -201,6 +201,31 @@ export async function readAllAssets(): Promise<VaultAssetRecord[]> {
 };
 
 /**
+ * Specific assets by id — a primary-key lookup per id.
+ *
+ * Bound parameters are capped per statement in SQLite, so ids go in chunks.
+ * Order of the result is not the order of `ids`; callers that care index it.
+ */
+export async function readAssetsByIds(ids: string[]): Promise<VaultAssetRecord[]> {
+    const database = await openDb();
+    if (!database || ids.length === 0) return [];
+    const unique = Array.from(new Set(ids));
+    const found: VaultAssetRecord[] = [];
+    const CHUNK = 500;
+    for (let start = 0; start < unique.length; start += CHUNK) {
+        const chunk = unique.slice(start, start + CHUNK);
+        const rows = database
+            .prepare(`SELECT record FROM assets WHERE id IN (${chunk.map(() => '?').join(',')})`)
+            .all(...chunk);
+        for (const row of rows) {
+            const record = parseRecord(row);
+            if (record) found.push(record);
+        }
+    }
+    return found;
+}
+
+/**
  * Targeted query — the reason for the schema. Filtering in SQL avoids
  * materialising 200k records to answer "images under this folder".
  */

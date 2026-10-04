@@ -21,10 +21,12 @@ import {
 } from '@/features/asset-vault/contracts/bookcase';
 import { stableVaultAssetId, inferVaultAssetType } from '@/features/asset-vault/domain/inferAssetType';
 import {
+    countAssets as countCatalogAssets,
     deleteAssets as deleteCatalogAssets,
     isSqliteAvailable,
     queryAssets as queryCatalogAssets,
     migrateCatalogFromJson,
+    readAssetsByIds as readCatalogAssetsByIds,
     readCatalogSnapshot,
     readMeta as readCatalogMeta,
     syncCatalogAssets,
@@ -250,6 +252,60 @@ export async function readVaultAssetsByWatchRoot(watchRootId: string): Promise<V
     ));
 }
 
+/**
+ * Specific assets by id.
+ *
+ * "Find similar" needs the seed and its handful of neighbours, not the library.
+ * If a search has already built the in-memory snapshot it is used — a map
+ * lookup beats a query — but this never *builds* the snapshot, which is the
+ * 900 ms, full-copy-in-memory cost the caller is here to avoid.
+ */
+export async function readVaultAssetsByIds(ids: string[]): Promise<VaultAssetRecord[]> {
+    if (ids.length === 0) return [];
+    const wanted = new Set(ids);
+
+    if (sqliteCatalogEnabled()) {
+        try {
+            await ensureCatalogMigrated();
+            if (sqliteSnapshotCache) {
+                return sqliteSnapshotCache.assets.filter((asset) => wanted.has(asset.id));
+            }
+            return await readCatalogAssetsByIds(ids);
+        } catch (error) {
+            console.error('Vault catalog SQLite lookup failed, falling back to JSON:', error);
+        }
+    }
+
+    const catalog = await readVaultCatalogFromJson();
+    return catalog.assets.filter((asset) => wanted.has(asset.id));
+}
+
+/**
+ * How many assets there are and when the catalog last changed.
+ *
+ * The status endpoint is polled, and it used to materialise every record just
+ * to read `.length`. On SQLite this is a COUNT and one meta row.
+ */
+export async function readVaultCatalogSummary(): Promise<{ assetCount: number; updatedAt: string }> {
+    if (sqliteCatalogEnabled()) {
+        try {
+            await ensureCatalogMigrated();
+            if (sqliteSnapshotCache) {
+                return { assetCount: sqliteSnapshotCache.assets.length, updatedAt: sqliteSnapshotCache.updatedAt };
+            }
+            return {
+                assetCount: await countCatalogAssets(),
+                updatedAt: (await readCatalogMeta('catalog_updated_at')) ?? new Date(0).toISOString(),
+            };
+        } catch (error) {
+            console.error('Vault catalog SQLite summary failed, falling back to JSON:', error);
+        }
+    }
+
+    const catalog = await readVaultCatalogFromJson();
+    return { assetCount: catalog.assets.length, updatedAt: catalog.updatedAt };
+}
+
 /** Remove specific assets. Same reasoning as `upsertVaultAssets`. */
 export async function deleteVaultAssets(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
@@ -382,11 +438,11 @@ export async function syncServerAssetsToCatalog(): Promise<VaultCatalog> {
 }
 
 export async function getVaultStatus() {
-    const catalog = await readVaultCatalog();
+    const summary = await readVaultCatalogSummary();
     const bookcases = await readBookcaseStore();
     return {
-        assetCount: catalog.assets.length,
-        lastSyncAt: catalog.updatedAt === new Date(0).toISOString() ? null : catalog.updatedAt,
+        assetCount: summary.assetCount,
+        lastSyncAt: summary.updatedAt === new Date(0).toISOString() ? null : summary.updatedAt,
         indexing: false,
         bookcases: bookcases.bookcases.length,
     };

@@ -1,5 +1,5 @@
 import { parseJsonRequest, jsonWithRequestId, apiError } from '@/lib/server/apiContract';
-import { readVaultCatalog, readBookcaseStore, writeBookcaseStore } from '@/lib/server/vault-store';
+import { readVaultAssetsByIds, readVaultCatalog, readBookcaseStore, writeBookcaseStore } from '@/lib/server/vault-store';
 import {
     readEmbeddingForAsset,
     searchEmbeddings,
@@ -80,8 +80,9 @@ async function seedVectorFor(
 export async function POST(request: Request) {
     try {
         const body = await parseJsonRequest(request, SimilarRequestSchema, 16_384);
-        const catalog = await readVaultCatalog();
-        const seed = catalog.assets.find((asset) => asset.id === body.assetId);
+        // The seed alone, by id. The whole catalog is only loaded further
+        // down, and only if the indexed tier has nothing to offer.
+        const [seed] = await readVaultAssetsByIds([body.assetId]);
         if (!seed) {
             return apiError(request, {
                 code: 'asset_not_found',
@@ -108,13 +109,17 @@ export async function POST(request: Request) {
         let reasonsById = new Map<string, string[]>();
         if (hits.length === 0) {
             // Nothing indexed nearby — fall back to what the file itself says.
+            // This tier compares the seed against every asset's metadata, so
+            // it is the one path that genuinely needs the whole catalog.
             source = 'metadata';
+            const catalog = await readVaultCatalog();
             const affine = findAffineAssets(seed, catalog.assets, { limit: body.limit });
             hits = affine.map((hit) => ({ assetId: hit.assetId, score: hit.score }));
             reasonsById = new Map(affine.map((hit) => [hit.assetId, hit.reasons]));
         }
 
-        const byId = new Map(catalog.assets.map((asset) => [asset.id, asset]));
+        const wanted = hits.slice(0, body.limit).map((hit) => hit.assetId);
+        const byId = new Map((await readVaultAssetsByIds(wanted)).map((asset) => [asset.id, asset]));
         const results = hits
             .slice(0, body.limit)
             .map((hit) => {

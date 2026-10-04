@@ -19,6 +19,30 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-03 - Vault status, sync and "find similar" stop loading the whole library
+
+Three callers materialised every catalog record — about 200k at the scale the
+vault targets — to answer a question about a handful of them.
+
+- **Status and sync** read `.length` and a timestamp. Both now use
+  `readVaultCatalogSummary`: a `COUNT` and one meta row. Status is polled, so
+  this was being paid repeatedly.
+- **Find similar** needed the seed asset and its few neighbours. It now fetches
+  them by id (`readVaultAssetsByIds`) and loads the catalog only for the
+  metadata tier, which compares the seed against everything by design.
+- If a search has already built the in-memory snapshot the scoped reads use it;
+  they never build it themselves. A test asserts that.
+- Both helpers have a JSON-store implementation with the same results, tested
+  against the same cases.
+
+Search itself still loads the catalog. Moving its keyword ranking into the
+database needs a full-text index, which is a design change, not a caller swap.
+
+Also: the dangling `Imageprocessingui` submodule entry is gone. It was a gitlink
+with no `.gitmodules` record, so a fresh clone produced an empty folder and
+`git submodule` commands failed. The reference repo has not been a dependency
+since the parity pass finished.
+
 ## 2026-10-03 - Exported HTML pages could not run; PropertiesPanel split continues
 
 **Export → HTML produced a page whose viewer script never ran.** The script is a

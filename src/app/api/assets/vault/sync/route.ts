@@ -1,6 +1,6 @@
 import { jsonWithRequestId, apiError } from '@/lib/server/apiContract';
 import { blockCrossSiteRequest } from '@/lib/server/trustedCaller';
-import { syncServerAssetsToCatalog, readVaultCatalog } from '@/lib/server/vault-store';
+import { syncServerAssetsToCatalog, readVaultCatalogSummary } from '@/lib/server/vault-store';
 
 export async function POST(request: Request) {
     const crossSite = blockCrossSiteRequest(request);
@@ -24,10 +24,11 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-    const catalog = await readVaultCatalog();
+    // A count and a timestamp: no reason to load the library for that.
+    const summary = await readVaultCatalogSummary();
     return jsonWithRequestId(request, {
         success: true,
-        assetCount: catalog.assets.length,
-        updatedAt: catalog.updatedAt,
+        assetCount: summary.assetCount,
+        updatedAt: summary.updatedAt,
     });
 }

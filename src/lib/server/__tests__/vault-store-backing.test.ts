@@ -292,3 +292,103 @@ describeDb('vault-store on SQLite', () => {
         expect((await readVaultCatalog()).assets).toEqual([]);
     });
 });
+
+// Scoped reads exist so callers stop loading the whole library for a count or
+// a handful of rows. Both backings must give the same answers.
+describe.each([
+    ['json', 'json'],
+    ['sqlite', undefined],
+] as const)('scoped reads on the %s store', (label, backend) => {
+    const run = label === 'sqlite' && !isSqliteAvailable() ? it.skip : it;
+
+    beforeEach(() => {
+        if (backend) process.env.IMAGE_EXPRESS_VAULT_STORE = backend;
+        else delete process.env.IMAGE_EXPRESS_VAULT_STORE;
+    });
+
+    run('returns only the assets asked for, ignoring unknown and repeated ids', async () => {
+        const { writeVaultCatalog, readVaultAssetsByIds } = await loadStore();
+        await writeVaultCatalog(catalogOf([asset('a1'), asset('a2'), asset('a3')]));
+
+        const found = await readVaultAssetsByIds(['a3', 'missing', 'a1', 'a1']);
+
+        expect(found.map((r) => r.id).sort()).toEqual(['a1', 'a3']);
+        await expect(readVaultAssetsByIds([])).resolves.toEqual([]);
+    });
+
+    run('looks up more ids than one statement can bind', async () => {
+        const { writeVaultCatalog, readVaultAssetsByIds } = await loadStore();
+        const many = Array.from({ length: 1203 }, (_, index) => asset(`m${index}`));
+        await writeVaultCatalog(catalogOf(many));
+
+        const found = await readVaultAssetsByIds(many.map((r) => r.id));
+
+        expect(found).toHaveLength(1203);
+    });
+
+    run('summarises the catalog as a count and a timestamp', async () => {
+        const { writeVaultCatalog, readVaultCatalogSummary, getVaultStatus } = await loadStore();
+        await writeVaultCatalog(catalogOf([asset('a1'), asset('a2')], '2026-09-01T00:00:00.000Z'));
+
+        await expect(readVaultCatalogSummary()).resolves.toEqual({
+            assetCount: 2,
+            updatedAt: '2026-09-01T00:00:00.000Z',
+        });
+        await expect(getVaultStatus()).resolves.toMatchObject({
+            assetCount: 2,
+            lastSyncAt: '2026-09-01T00:00:00.000Z',
+        });
+    });
+
+    run('reports an empty vault as never synced', async () => {
+        const { getVaultStatus } = await loadStore();
+        await expect(getVaultStatus()).resolves.toMatchObject({ assetCount: 0, lastSyncAt: null });
+    });
+
+    run('sees a write made after an earlier scoped read', async () => {
+        const { writeVaultCatalog, upsertVaultAssets, deleteVaultAssets, readVaultAssetsByIds, readVaultCatalogSummary } = await loadStore();
+        await writeVaultCatalog(catalogOf([asset('a1')]));
+        expect((await readVaultCatalogSummary()).assetCount).toBe(1);
+
+        await upsertVaultAssets([asset('a1', { name: 'renamed.png' }), asset('a2')]);
+        expect((await readVaultCatalogSummary()).assetCount).toBe(2);
+        expect((await readVaultAssetsByIds(['a1']))[0].name).toBe('renamed.png');
+
+        await deleteVaultAssets(['a1']);
+        expect(await readVaultAssetsByIds(['a1'])).toEqual([]);
+        expect((await readVaultCatalogSummary()).assetCount).toBe(1);
+    });
+});
+
+describeDb('scoped reads do not build the whole-catalog snapshot', () => {
+    it('answers a count and an id lookup without materialising every record', async () => {
+        const first = await loadStore();
+        await first.writeVaultCatalog(catalogOf([asset('a1'), asset('a2'), asset('a3')]));
+        (await import('@/lib/server/vaultCatalogDb')).closeCatalogDb();
+
+        // Fresh registry over the same DB file: nothing has built the snapshot
+        // yet. The store builds it through readCatalogSnapshot, so count calls.
+        jest.resetModules();
+        const snapshotBuilds = jest.fn();
+        jest.doMock('@/lib/server/vaultCatalogDb', () => {
+            const actual = jest.requireActual('@/lib/server/vaultCatalogDb');
+            return {
+                ...actual,
+                readCatalogSnapshot: (...args: unknown[]) => {
+                    snapshotBuilds();
+                    return actual.readCatalogSnapshot(...args);
+                },
+            };
+        });
+        const fresh = await loadStore();
+
+        expect((await fresh.readVaultCatalogSummary()).assetCount).toBe(3);
+        expect((await fresh.readVaultAssetsByIds(['a2'])).map((r) => r.id)).toEqual(['a2']);
+        expect(snapshotBuilds).not.toHaveBeenCalled();
+
+        // And the guard is live: a whole-catalog read does build it.
+        await fresh.readVaultCatalog();
+        expect(snapshotBuilds).toHaveBeenCalledTimes(1);
+        jest.dontMock('@/lib/server/vaultCatalogDb');
+    });
+});
