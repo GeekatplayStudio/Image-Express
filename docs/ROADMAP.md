@@ -571,7 +571,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 
 | ID | Initiative | Priority | State | Milestone |
 |---|---|---|---|---|
-| R-01 | Durable encrypted user key vault | P0 | Phase 1 delivered; hardening open | M0 |
+| R-01 | Durable encrypted user key vault | P0 | Owner-only access delivered; rotation and audit open | M0 |
 | R-13 | Super installer + first-run orchestration | P0 | Scripts, wizard step and trust policy delivered; sources unpinned | M0 |
 | R-02 | Campaign Workspace (media overlay B2) | P1 | B1 bridge done | M1 |
 | R-03 | AI critique quality program | P1 | In progress | M1 |
@@ -620,7 +620,10 @@ model. Share menu posts to connected accounts with manual export as fallback.
 
 ### R-01 · Durable encrypted user key vault — P0
 **Done:** encrypted filesystem vault service; `/api/user/keys` migrated.
-**Open:** stronger authz on read/update paths, rotation/expiry policy,
+**Done 2026-10-03:** authorisation on the read and update paths. The route used
+to return any named account's decrypted keys to any caller; it and the
+server-side polling route now require the owner's session.
+**Open:** rotation/expiry policy, an audit trail of vault reads and writes,
 optional external KMS for multi-node.
 **Files:** `src/lib/server/user-key-vault.ts`, `src/app/api/user/keys/route.ts`.
 **Acceptance:** keys survive restart; never returned in clear text outside the

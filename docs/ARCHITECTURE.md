@@ -623,6 +623,14 @@ Privileged runtime routes go through `authorizeLocalRuntimeCapability`, which
 requires a local profile, a loopback request, and — in desktop mode — a
 per-launch capability token.
 
+### Who may use a vaulted key
+
+`/api/user/keys` (read and write) and `/api/queue/poll` (which runs a job with a
+vaulted key) take the owner from the session token, not from the request. The
+name in the request must be one of the session account's own identifiers.
+Guests have no vault and no session, so their keys stay in the browser and
+their jobs are polled from the browser.
+
 ### Rate limiting
 
 `src/lib/server/rateLimit.ts` — sliding-window counters held in process memory

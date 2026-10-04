@@ -1,5 +1,6 @@
 'use client';
 
+import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import { useCallback, useEffect, useState } from 'react';
 import {
     DEFAULT_OLLAMA_BASE_URL,
@@ -99,7 +100,8 @@ export function useApiKeysSettings(isOpen: boolean, userId?: string) {
 
         if (userId && userId !== 'Guest') {
             setSyncStatus('syncing');
-            fetch(`/api/user/keys?userId=${encodeURIComponent(userId)}`)
+            const authorization = buildSessionAuthorizationHeader();
+            fetch(`/api/user/keys?userId=${encodeURIComponent(userId)}`, authorization ? { headers: { Authorization: authorization } } : undefined)
                 .then(async (res) => {
                     if (!res.ok) {
                         setSyncStatus('local');

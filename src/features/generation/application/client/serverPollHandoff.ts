@@ -1,5 +1,6 @@
 'use client';
 
+import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import type { BackgroundJob } from '@/types';
 
 /**
@@ -42,10 +43,16 @@ export async function handOffPollingToServer(
     if (!canHandOffToServer(job, owner)) return { handedOff: false, reason: 'unsupported' };
 
     const doFetch = options?.fetchImpl ?? fetch;
+    const authorization = buildSessionAuthorizationHeader();
     try {
         const response = await doFetch('/api/queue/poll', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                // The server polls with this account's vaulted key, so it has
+                // to know the request really comes from that account.
+                ...(authorization ? { Authorization: authorization } : {}),
+            },
             body: JSON.stringify({
                 provider: job.provider,
                 taskId: job.id,

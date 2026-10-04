@@ -2,6 +2,7 @@ import { getQueue } from '@/lib/server/jobQueue';
 import { enforceJsonBody } from '@/lib/server/apiContract';
 import { apiError, jsonWithRequestId, toApiErrorResponse } from '@/lib/server/apiContract';
 import { getRuntimeProfile } from '@/lib/server/runtimeProfile';
+import { resolveRequestUser } from '@/lib/server/user-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -59,6 +60,19 @@ if (badBody) return badBody;
                 code: 'poll_requires_account',
                 message: 'Server-side polling needs a signed-in account with a saved API key.',
                 status: 400,
+            });
+        }
+        // The job runs with the owner's vaulted provider key and spends their
+        // credits, so the owner named here must be the account making the call.
+        const user = await resolveRequestUser(request);
+        const ownIds = user
+            ? [user.id, user.email, user.username].filter((value): value is string => !!value).map((value) => value.toLowerCase())
+            : [];
+        if (!ownIds.includes(owner.toLowerCase())) {
+            return apiError(request, {
+                code: user ? 'poll_owner_mismatch' : 'poll_requires_session',
+                message: 'Server-side polling needs a signed-in session for the account that owns the API key.',
+                status: user ? 403 : 401,
             });
         }
         if (getRuntimeProfile() === 'self-hosted') {

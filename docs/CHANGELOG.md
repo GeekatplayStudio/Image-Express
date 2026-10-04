@@ -19,6 +19,31 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-10-03 - The key vault only answers its owner (R-01)
+
+**`GET /api/user/keys?userId=<name>` returned that account's decrypted provider
+keys to anyone who asked.** The route trusted the name in the request and
+checked nothing else; a POST overwrote the vault the same way. The keys were
+encrypted at rest and handed out in clear text on request.
+
+On a local install the caller had to already be on the machine, and a web page
+could not read the reply. On a self-hosted install it was open to the network.
+
+- Both methods now require a valid session token, and the name in the request
+  must be one of that account's own identifiers (id, email or username). No
+  session is 401; someone else's vault is 403.
+- A save is also refused when driven by another site, and the read is marked
+  `no-store`.
+- `POST /api/queue/poll` had the same shape of problem: it took an `owner` name
+  and ran the job with that account's vaulted key, spending their credits. It
+  now requires the owner's session too.
+- The Settings dialog and the polling handoff send the session token. An older
+  sign-in without one gets a 401: key sync shows as local-only and polling
+  falls back to the browser, exactly as it does for guests. Signing in again
+  restores both.
+
+11 tests cover the refusals and the owner path.
+
 ## 2026-10-03 - Installer trust policy (R-13)
 
 The one-click installers clone repositories and download model files from

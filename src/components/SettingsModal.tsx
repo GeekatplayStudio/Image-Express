@@ -1,5 +1,6 @@
 'use client';
 
+import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Key } from 'lucide-react';
 import HelpPopup from './HelpPopup';
@@ -142,9 +143,13 @@ export default function SettingsModal({ isOpen, onClose, userId, userRoles }: Se
 
         if (userId && userId !== 'Guest') {
             try {
+                const authorization = buildSessionAuthorizationHeader();
                 const res = await fetch('/api/user/keys', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authorization ? { Authorization: authorization } : {}),
+                    },
                     body: JSON.stringify({
                         userId,
                         keys: {
