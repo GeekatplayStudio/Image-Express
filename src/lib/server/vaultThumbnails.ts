@@ -1,7 +1,9 @@
 import crypto from 'node:crypto';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { getVaultDir, joinRuntimePath } from '@/lib/server/appPaths';
+import { renameWithRetry } from '@/lib/server/atomicRename';
 
 /**
  * Small, cached thumbnails for the vault grid.
@@ -17,6 +19,10 @@ import { getVaultDir, joinRuntimePath } from '@/lib/server/appPaths';
  * this adds no native module that was not in the package already. It is still
  * loaded optionally: if it ever goes missing the caller falls back to serving
  * the original, which is slow but never broken.
+ *
+ * The cache itself follows ComfyUIAssetManager's `thumb_service`: fanned-out
+ * folders, write-then-rename, one render per rendition however many requests
+ * arrive at once, and a size ceiling.
  */
 
 type SharpModule = {
@@ -80,9 +86,39 @@ export function thumbnailCacheKey(
 
 const thumbnailDir = () => joinRuntimePath(getVaultDir(), 'thumbs');
 
-/** Where a rendition lives on disk. Exported so a precache pass can test for it. */
+/**
+ * Where a rendition lives on disk: `thumbs/ab/cd/<digest>.webp`.
+ *
+ * The cache used to be one flat folder, which at whole-drive scale means
+ * hundreds of thousands of files in a single directory — slow to open on every
+ * filesystem. Two levels of fan-out keep each folder to a handful of files.
+ */
+const fannedPath = (key: string) => joinRuntimePath(thumbnailDir(), key.slice(0, 2), key.slice(2, 4), key);
+
+/** Renditions written before the fan-out are still served, from where they are. */
+const legacyPath = (key: string) => joinRuntimePath(thumbnailDir(), key);
+
+/** Exported so a precache pass can test for a rendition. */
 export function thumbnailCachePath(absolutePath: string, width: number, stats: { size: number; mtimeMs: number }): string {
-    return joinRuntimePath(thumbnailDir(), thumbnailCacheKey(absolutePath, normalizeThumbnailWidth(width), stats));
+    return fannedPath(thumbnailCacheKey(absolutePath, normalizeThumbnailWidth(width), stats));
+}
+
+/** A validator for one rendition: it changes whenever the file or the width does. */
+export function thumbnailEtag(absolutePath: string, width: number | undefined, stats: { size: number; mtimeMs: number }): string {
+    return `"${thumbnailCacheKey(absolutePath, normalizeThumbnailWidth(width), stats).replace('.webp', '')}"`;
+}
+
+async function readCached(key: string): Promise<Buffer | null> {
+    for (const candidate of [fannedPath(key), legacyPath(key)]) {
+        try {
+            const body = await readFile(/*turbopackIgnore: true*/ candidate);
+            // An empty file is a write that never finished, not a thumbnail.
+            if (body.byteLength > 0) return body;
+        } catch {
+            // Try the next location.
+        }
+    }
+    return null;
 }
 
 /**
@@ -95,14 +131,55 @@ export function thumbnailCachePath(absolutePath: string, width: number, stats: {
 export async function hasCachedThumbnail(absolutePath: string, width: number): Promise<boolean> {
     try {
         const stats = await stat(absolutePath);
-        await stat(/*turbopackIgnore: true*/ thumbnailCachePath(absolutePath, width, stats));
-        return true;
+        const key = thumbnailCacheKey(absolutePath, normalizeThumbnailWidth(width), stats);
+        for (const candidate of [fannedPath(key), legacyPath(key)]) {
+            try {
+                if ((await stat(/*turbopackIgnore: true*/ candidate)).size > 0) return true;
+            } catch {
+                // Try the next location.
+            }
+        }
+        return false;
     } catch {
         return false;
     }
 }
 
 export type Thumbnail = { body: Buffer; contentType: string; cached: boolean };
+
+/** Renders in progress, so a burst of requests for one tile decodes the image once. */
+const inFlight = new Map<string, Promise<Buffer | null>>();
+
+async function render(sharp: SharpModule, absolutePath: string, width: number, key: string): Promise<Buffer | null> {
+    let body: Buffer;
+    try {
+        body = await sharp(absolutePath)
+            // Honour the EXIF orientation; without this, phone photos come out
+            // rotated in the grid while looking upright everywhere else.
+            .rotate()
+            .resize({ width, height: width, fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 72 })
+            .toBuffer();
+    } catch {
+        // Not a still image sharp can read (a PSD, a RAW file, a corrupt JPEG).
+        return null;
+    }
+
+    try {
+        const target = fannedPath(key);
+        await mkdir(path.dirname(target), { recursive: true });
+        // Written beside the target and renamed into place: a crash mid-write
+        // used to leave a truncated file that was then served as the cached
+        // thumbnail from then on.
+        const partial = `${target}.${process.pid}.part`;
+        await writeFile(partial, body);
+        await renameWithRetry(partial, target);
+    } catch {
+        // A cache write failure must not fail the request; the next view
+        // simply regenerates.
+    }
+    return body;
+}
 
 /**
  * A resized WebP for the grid, generated once and reused.
@@ -126,34 +203,77 @@ export async function getVaultThumbnail(
         return null;
     }
 
-    const cachePath = joinRuntimePath(thumbnailDir(), thumbnailCacheKey(absolutePath, width, stats));
-    try {
-        const cached = await readFile(/*turbopackIgnore: true*/ cachePath);
-        return { body: cached, contentType: 'image/webp', cached: true };
-    } catch {
-        // Not generated yet — fall through and build it.
+    const key = thumbnailCacheKey(absolutePath, width, stats);
+    const cached = await readCached(key);
+    if (cached) return { body: cached, contentType: 'image/webp', cached: true };
+
+    let pending = inFlight.get(key);
+    if (!pending) {
+        pending = render(sharp, absolutePath, width, key).finally(() => inFlight.delete(key));
+        inFlight.set(key, pending);
     }
+    const body = await pending;
+    return body ? { body, contentType: 'image/webp', cached: false } : null;
+}
 
-    try {
-        const body = await sharp(absolutePath)
-            // Honour the EXIF orientation; without this, phone photos come out
-            // rotated in the grid while looking upright everywhere else.
-            .rotate()
-            .resize({ width, height: width, fit: 'inside', withoutEnlargement: true })
-            .webp({ quality: 72 })
-            .toBuffer();
+/** Ceiling for the thumbnail cache. Override with `IMAGE_EXPRESS_VAULT_THUMB_CACHE_MB`. */
+export const DEFAULT_THUMBNAIL_CACHE_BYTES = (() => {
+    const configured = Number.parseInt(process.env.IMAGE_EXPRESS_VAULT_THUMB_CACHE_MB ?? '', 10);
+    return (Number.isFinite(configured) && configured > 0 ? configured : 4096) * 1024 * 1024;
+})();
 
+/**
+ * Keep the cache under a size ceiling by deleting the renditions written
+ * longest ago.
+ *
+ * Nothing ever removed a thumbnail: the key includes the file's modified time,
+ * so every edit left the previous rendition behind, and a deleted file's
+ * renditions stayed for good. Unfinished `.part` files are swept as well.
+ */
+export async function pruneThumbnailCache(
+    maxBytes = DEFAULT_THUMBNAIL_CACHE_BYTES,
+): Promise<{ files: number; bytes: number; removed: number }> {
+    const entries: Array<{ file: string; size: number; mtimeMs: number }> = [];
+    let removed = 0;
+
+    async function walk(dir: string) {
+        let children;
         try {
-            await mkdir(thumbnailDir(), { recursive: true });
-            await writeFile(cachePath, body);
+            children = await readdir(dir, { withFileTypes: true });
         } catch {
-            // A cache write failure must not fail the request; the next view
-            // simply regenerates.
+            return;
         }
-
-        return { body, contentType: 'image/webp', cached: false };
-    } catch {
-        // Not a still image sharp can read (a PSD, a RAW file, a corrupt JPEG).
-        return null;
+        for (const child of children) {
+            const full = path.join(dir, child.name);
+            if (child.isDirectory()) {
+                await walk(full);
+            } else if (child.name.endsWith('.part')) {
+                await rm(full, { force: true }).then(() => { removed += 1; }, () => {});
+            } else if (child.name.endsWith('.webp')) {
+                try {
+                    const info = await stat(full);
+                    entries.push({ file: full, size: info.size, mtimeMs: info.mtimeMs });
+                } catch {
+                    // Gone between listing and stat.
+                }
+            }
+        }
     }
+    await walk(thumbnailDir());
+
+    let bytes = entries.reduce((sum, entry) => sum + entry.size, 0);
+    let files = entries.length;
+    entries.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    for (const entry of entries) {
+        if (bytes <= maxBytes) break;
+        try {
+            await rm(entry.file, { force: true });
+            bytes -= entry.size;
+            files -= 1;
+            removed += 1;
+        } catch {
+            // Leave it for the next pass.
+        }
+    }
+    return { files, bytes, removed };
 }

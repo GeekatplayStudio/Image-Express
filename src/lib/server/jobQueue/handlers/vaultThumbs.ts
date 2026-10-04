@@ -3,6 +3,7 @@ import { fileUriToPath } from '@/lib/server/vaultFilesystemPolicy';
 import {
     getVaultThumbnail,
     hasCachedThumbnail,
+    pruneThumbnailCache,
     isThumbnailerAvailable,
 } from '@/lib/server/vaultThumbnails';
 import { getQueue } from '@/lib/server/jobQueue';
@@ -195,6 +196,12 @@ export async function runVaultThumbsJob(ctx: QueueHandlerContext): Promise<void>
             message: `Prepared ${generated.toLocaleString()} thumbnails; continuing with ${remaining.toLocaleString()} to go.`,
         });
         return;
+    }
+
+    // A finished sweep is the moment to trim: renditions of files that were
+    // edited or deleted since are the oldest ones in the cache.
+    if (remaining === 0) {
+        await pruneThumbnailCache().catch((error) => console.warn('Thumbnail cache prune skipped:', error));
     }
 
     await ctx.update({

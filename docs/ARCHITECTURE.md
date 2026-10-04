@@ -848,3 +848,21 @@ ship something, mirror it into [CHANGELOG.md](CHANGELOG.md) and adjust
 [ROADMAP.md](ROADMAP.md). Keep the API list in §6 in step with
 `src/app/api/**/route.ts` — it was 40 entries out of date before this document
 was consolidated.
+
+## Vault storage — as of 2026-10-04
+
+| Module | Role |
+|---|---|
+| `lib/server/nodeSqlite.ts` | Loads `node:sqlite` via `process.getBuiltinModule` (a bundled `require` fails at runtime). |
+| `lib/server/sqliteMigrations.ts` | `PRAGMA user_version` migrations, one transaction per step, refuses a newer file. |
+| `lib/server/vaultCatalogSchema.ts` | Catalog schema history: v1 initial, v2 filter columns + `missing_since` + FTS5 (triggers), v3 `meta_version`. |
+| `lib/server/vaultCatalogSearch.ts` | Browse, keyword search, folder listing in SQL. User text never reaches `MATCH` unquoted. |
+| `lib/server/vaultIndexedSearch.ts` | Keyword-only or RRF of FTS + vector neighbours; hydrates only ranked ids. |
+| `lib/server/vaultRescan.ts`, `vaultScanStore.ts`, `vaultScanPrune.ts` | Incremental merge of a scan: fingerprint skip, soft delete, restore, purge. |
+| `lib/server/vaultScanRunner.ts`, `jobQueue/handlers/vaultScan.ts` | One scan end to end; the `vault-scan` queue job. |
+| `lib/server/generationMeta.ts`, `vaultFileMeta.ts` | PNG text chunks → generation details; versioned backfill. |
+| `lib/server/vaultThumbnails.ts` | Fanned-out, atomically written, size-capped thumbnail cache with ETags. |
+
+The JSON catalog remains the fallback when `node:sqlite` is unavailable or
+`IMAGE_EXPRESS_VAULT_STORE=json` is set; on that path a rescan still prunes
+directly, but only what the scan positively looked for.

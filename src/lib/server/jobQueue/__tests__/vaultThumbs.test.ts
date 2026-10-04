@@ -32,6 +32,7 @@ const generated: string[] = [];
 let cachedPaths = new Set<string>();
 jest.mock('@/lib/server/vaultThumbnails', () => ({
     isThumbnailerAvailable: () => true,
+    pruneThumbnailCache: async () => ({ files: 0, bytes: 0, removed: 0 }),
     hasCachedThumbnail: async (absolute: string) => cachedPaths.has(absolute),
     getVaultThumbnail: async (absolute: string) => {
         generated.push(absolute);

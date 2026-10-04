@@ -12,10 +12,12 @@ import { getQueue } from '@/lib/server/jobQueue';
 
 export {
     VAULT_EMBED_JOB_KIND,
+    VAULT_SCAN_JOB_KIND,
     VAULT_THUMBS_JOB_KIND,
 } from '@/features/asset-vault/contracts/vaultIndexJobs';
 import {
     VAULT_EMBED_JOB_KIND,
+    VAULT_SCAN_JOB_KIND,
     VAULT_THUMBS_JOB_KIND,
 } from '@/features/asset-vault/contracts/vaultIndexJobs';
 
@@ -90,4 +92,30 @@ export async function requestVaultEmbedding(
         priority: -10,
     });
     return job.id;
+}
+
+/**
+ * Queue a scan of one root. A root that is already queued or being scanned is
+ * not queued again: the existing job's id is returned instead.
+ */
+export async function requestWatchRootScan(rootId: string, label: string): Promise<{ jobId: string; alreadyQueued: boolean }> {
+    const queue = getQueue();
+    const existing = (await queue.listJobs()).find((job) => (
+        job.kind === VAULT_SCAN_JOB_KIND
+        && job.payload?.rootId === rootId
+        && (job.status === 'queued' || job.status === 'running')
+    ));
+    if (existing) return { jobId: existing.id, alreadyQueued: true };
+
+    const job = await queue.enqueue({
+        kind: VAULT_SCAN_JOB_KIND,
+        lane: 'local-cpu',
+        external: false,
+        label: `Scanning ${label}`,
+        payload: { rootId },
+        // The user asked for this one; it goes ahead of thumbnail and embedding passes.
+        priority: 5,
+        maxAttempts: 1,
+    });
+    return { jobId: job.id, alreadyQueued: false };
 }

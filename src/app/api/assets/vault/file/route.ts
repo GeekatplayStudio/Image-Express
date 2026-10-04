@@ -8,7 +8,7 @@ import {
     parseRangeHeader,
     unsatisfiedRangeHeader,
 } from '@/lib/server/httpRange';
-import { getVaultThumbnail } from '@/lib/server/vaultThumbnails';
+import { getVaultThumbnail, thumbnailEtag } from '@/lib/server/vaultThumbnails';
 import { readWatchRootStore } from '@/lib/server/vaultWatchStore';
 import {
     decideVaultPathAccess,
@@ -97,15 +97,22 @@ export async function GET(request: Request) {
     // available or the file is not a still image sharp can read.
     const requestedWidth = Number(new URL(request.url).searchParams.get('w') || '');
     if (requestedWidth > 0) {
+        // The URL is the same before and after an edit, so the validator has
+        // to carry the version: it is derived from the file's size and
+        // modified time. A day-long max-age without one showed the old tile
+        // for a day; a short one with an ETag costs a 304 and no bytes.
+        const etag = thumbnailEtag(decision.resolvedPath, requestedWidth, info);
+        const cacheHeaders = { etag, 'cache-control': 'private, max-age=300, must-revalidate' };
+        if (request.headers.get('if-none-match') === etag) {
+            return new Response(null, { status: 304, headers: cacheHeaders });
+        }
         const thumbnail = await getVaultThumbnail(decision.resolvedPath, requestedWidth);
         if (thumbnail) {
             return new Response(new Uint8Array(thumbnail.body), {
                 headers: {
                     'content-type': thumbnail.contentType,
                     'content-length': String(thumbnail.body.byteLength),
-                    // Keyed on size and mtime, so a longer cache is safe: an
-                    // edited file produces a different URL.
-                    'cache-control': 'private, max-age=86400',
+                    ...cacheHeaders,
                     'x-content-type-options': 'nosniff',
                 },
             });

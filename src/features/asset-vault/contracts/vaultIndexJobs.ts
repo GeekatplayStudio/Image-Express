@@ -7,3 +7,4 @@
  */
 export const VAULT_EMBED_JOB_KIND = 'vault-embed';
 export const VAULT_THUMBS_JOB_KIND = 'vault-thumbs';
+export const VAULT_SCAN_JOB_KIND = 'vault-scan';

@@ -4,11 +4,10 @@ import {
     readWatchRootStore,
     upsertWatchRoot,
     removeWatchRoot,
-    scanDirectoryRecursive,
 } from '@/lib/server/vaultWatchStore';
 import { WatchRootSchema } from '@/features/asset-vault/contracts/watchRoot';
-import { backfillVaultFileMeta } from '@/lib/server/vaultFileMeta';
-import { applyWatchRootScan } from '@/lib/server/vaultRescan';
+import { requestWatchRootScan } from '@/lib/server/vaultEmbedQueue';
+import { runWatchRootScan, WatchRootScanError } from '@/lib/server/vaultScanRunner';
 import { decideVaultPathAccess } from '@/lib/server/vaultFilesystemPolicy';
 
 export async function GET(request: Request) {
@@ -68,87 +67,40 @@ const ScanBodySchema = z.object({
     rootId: z.string().min(1),
     /** When true, also rebuild text embeddings for scanned assets. */
     embed: z.boolean().default(true),
+    /**
+     * Queue the scan and return at once with its job id. The scan then shows
+     * its progress in the Activity panel and can be stopped there. Without it
+     * the request waits for the scan, which is only reasonable for a small folder.
+     */
+    background: z.boolean().default(false),
 });
 
 /** Scan a registered watch root on the server filesystem and merge into the vault catalog. */
 export async function PUT(request: Request) {
     try {
         const body = await parseJsonRequest(request, ScanBodySchema, 4096);
-        const store = await readWatchRootStore();
-        const root = store.roots.find((entry) => entry.id === body.rootId);
-        if (!root) {
-            return apiError(request, {
-                code: 'watch_root_not_found',
-                message: 'Watch root not found.',
-                status: 404,
-            });
+
+        if (body.background) {
+            const store = await readWatchRootStore();
+            const root = store.roots.find((entry) => entry.id === body.rootId);
+            if (!root) {
+                return apiError(request, { code: 'watch_root_not_found', message: 'Watch root not found.', status: 404 });
+            }
+            const queued = await requestWatchRootScan(root.id, root.label);
+            return jsonWithRequestId(request, { success: true as const, queued: true as const, rootId: root.id, ...queued });
         }
 
-        // Re-check at scan time too: the allowlist may have been tightened after
-        // this root was registered, and a stored root must never outlive the policy.
-        const decision = decideVaultPathAccess(root.rootUri);
-        if (!decision.allowed) {
-            return apiError(request, {
-                code: 'watch_root_not_authorized',
-                message: decision.reason,
-                status: 403,
-            });
-        }
-
-        const scanning: typeof root = {
-            ...root,
-            lastScanStatus: 'scanning',
-            updatedAt: new Date().toISOString(),
-        };
-        await upsertWatchRoot(scanning);
-
-        let scan: Awaited<ReturnType<typeof scanDirectoryRecursive>> = { files: [], truncated: false, unreadableDirs: [] };
-        try {
-            scan = await scanDirectoryRecursive(root.rootUri);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Scan failed';
-            await upsertWatchRoot({
-                ...scanning,
-                lastScanStatus: 'error',
-                lastError: message,
-                updatedAt: new Date().toISOString(),
-            });
-            return apiError(request, {
-                code: 'watch_root_scan_failed',
-                message,
-                status: 500,
-                retryable: true,
-            });
-        }
-
-        // Write what changed, mark what vanished; an unchanged folder costs a
-        // fingerprint comparison and nothing else. See vaultRescan.ts.
-        const stats = await applyWatchRootScan(root, scan);
-        // Files indexed before the metadata reader existed are caught up in the
-        // background; the scan does not wait for them.
-        void backfillVaultFileMeta().catch((error) => console.warn('Vault metadata backfill stopped:', error));
-
-        await upsertWatchRoot({
-            ...root,
-            lastScanAt: new Date().toISOString(),
-            lastScanStatus: 'ready',
-            estimatedFileCount: scan.files.length,
-            // A truncated scan is a partial success, not a failure — see
-            // lastScanTruncated on the contract.
-            lastScanTruncated: scan.truncated || undefined,
-            lastError: undefined,
-            updatedAt: new Date().toISOString(),
-        });
-
-        return jsonWithRequestId(request, {
-            success: true as const,
-            fileCount: scan.files.length,
-            truncated: scan.truncated,
-            unreadableFolders: scan.unreadableDirs.length,
-            stats,
-            rootId: root.id,
-        });
+        const outcome = await runWatchRootScan(body.rootId);
+        return jsonWithRequestId(request, { success: true as const, ...outcome });
     } catch (error) {
+        if (error instanceof WatchRootScanError) {
+            return apiError(request, {
+                code: error.code,
+                message: error.message,
+                status: error.status,
+                retryable: error.code === 'watch_root_scan_failed',
+            });
+        }
         console.error('Watch root scan failed:', error);
         return apiError(request, {
             code: 'watch_root_scan_failed',

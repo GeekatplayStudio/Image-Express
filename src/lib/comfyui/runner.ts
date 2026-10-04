@@ -1,5 +1,7 @@
 import { extractCheckpointNames } from '@/lib/comfyui/customModels';
 import { uniqueComfyUploadName } from '@/lib/comfyui/promptControl';
+
+export { cancelComfyPrompt } from '@/lib/comfyui/promptControl';
 import {
     ComfyUIClient,
     type ComfyExecutionResult,

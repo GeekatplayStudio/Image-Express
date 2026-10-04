@@ -1,6 +1,6 @@
 # Changelog — Delivery History
 
-Last updated: 2026-10-03
+Last updated: 2026-10-04
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.2
@@ -18,6 +18,111 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-10-04 - Ported from our other projects: a vault that survives an unplugged drive, SQL search, real ComfyUI cancel
+
+A side-by-side review of four sibling projects (ComfyUIAssetManager, the
+Photoshop 3D plugin, the ComfyUI Photoshop bridge) against this one. What they
+do more reliably was ported; what this app already does better was left alone.
+This entry covers the fixes and the vault; the workflow converter and 3D work
+have their own entries.
+
+**A rescan could delete a whole folder's index.** The folder walk swallowed a
+failed read and returned an empty list, and the rescan then deleted everything
+it "no longer found" — so rescanning an unplugged drive, an offline share or a
+folder whose permissions had changed removed every entry for it, captions and
+tags included, and marked the root *ready*. A scan cut off at the file ceiling
+deleted the entries past the cut the same way.
+
+- A root that cannot be read now **fails the scan** and changes nothing.
+- A scan that was truncated, stopped, or met unreadable subfolders prunes only
+  what it actually looked for (`vaultScanPrune.ts`).
+- A file that is gone is **marked missing and kept for 30 days**
+  (`missing_since`), then purged together with its embedding. Putting a folder
+  back restores its captions and tags.
+
+**The app was not using SQLite at all in development.** The bundler rewrote
+`require('node:sqlite')` and it failed at runtime ("Unsupported external type
+Url for commonjs reference"). The stores catch a failed load and fall back to
+JSON, so this was silent: every test exercised SQLite while `next dev` ran on
+the 150 MB JSON catalog. It is now loaded through `process.getBuiltinModule`
+(`nodeSqlite.ts`), and a failure to load is logged. Found only because the new
+search was checked against the real catalog and returned the old answers.
+
+**Search and browsing are SQL now (closes the F-03 follow-up).** Filter, sort,
+page and count run over indexed columns; keyword search is an FTS5 query with
+sanitised prefix terms; smart search fuses FTS hits with vector neighbours and
+loads only the ranked ids. Measured on the real 239,769-asset catalog:
+
+| | Before | After |
+|---|---|---|
+| Open the vault (browse) | ~5 s cold, an arbitrary 200, `total: 200` | 17 ms, newest first, `total: 239,769` |
+| Keyword `logo` | 149 ms | 13 ms |
+| Paging | none | `offset` + **Load more** in the footer |
+
+**Incremental rescans.** A file whose size and modified time match what is
+stored is skipped; only new and changed files are written, and a file's
+first-seen date is no longer overwritten on every scan.
+
+**Scans are queue jobs.** A scan reports "Found N files in M folders…" in the
+Activity panel, can be stopped there (what it found is kept, nothing is
+removed), and no longer holds a web request open for the length of a
+whole-drive walk.
+
+**Prompts are read from the images themselves.** New and changed files get
+their real MIME type, and a PNG its dimensions and whatever ComfyUI or
+AUTOMATIC1111 wrote into it — prompt, negative prompt, model, sampler, seed,
+steps, CFG — so an AI image is searchable by its own prompt with no captioning
+model. Files indexed earlier are caught up in the background by metadata
+version.
+
+**Schema migrations.** Both vault databases moved from `CREATE … IF NOT EXISTS`
+on every open to versioned migrations keyed on `PRAGMA user_version`, each in
+its own transaction; a file from a newer build is refused instead of being
+opened and damaged. `busy_timeout` is set, and the WAL is checkpointed after
+each scan.
+
+**Thumbnail cache.** Two-level folder fan-out instead of one directory with
+hundreds of thousands of files (old renditions are still served from where they
+are); write-then-rename so a crash cannot leave a truncated file that is then
+served as cached; one render per rendition however many requests arrive at
+once; a size ceiling (4 GB by default, `IMAGE_EXPRESS_VAULT_THUMB_CACHE_MB`)
+trimmed oldest-first after a finished sweep; and an ETag, so an edited file no
+longer shows its old tile for a day.
+
+**ComfyUI (from the Photoshop bridge).**
+
+- **Cancel stops the server.** It used to stop watching and leave the GPU
+  working. It now interrupts the prompt if it is running and removes it from
+  the queue if it is waiting. The queue is read first, because older ComfyUI
+  builds ignore the prompt id in an interrupt and would stop someone else's job.
+- **Uploads are named by content.** Every upload used to be
+  `image-express-input.png` with overwrite on, so a second job queued before
+  the first ran replaced the first job's input.
+- **A refused prompt names the node and the input**, instead of the first 280
+  characters of raw JSON, and an oversized upload says which ComfyUI flag
+  raises the limit.
+
+**3D capture (from the Photoshop 3D plugin).** The layer editor never set the
+pixel ratio, so asking for 2048 px on a 2x display produced 4096 px, and a
+failed capture left the renderer at the wrong size. Both the layer editor and
+the generator now capture through one function that renders at pixel ratio 1
+to the canvas — so tone mapping, sRGB and anti-aliasing match the preview,
+which a render target skipped — and restores everything in a `finally`. Export
+size inputs are clamped to 64–8192.
+
+**Not done / known limits.**
+
+- The folder tree is still built from the loaded page of assets; the grouped
+  query for a full tree exists (`listCatalogFolders`) but is not wired to the UI.
+- Metadata is read from PNG only; JPEG/WebP dimensions and video duration are
+  not read yet.
+- The thumbnail and embedding jobs still load the whole catalog to find work.
+- The first open after this update runs the schema migration over the existing
+  catalog synchronously (a few seconds at 240k assets).
+- ComfyUI cancel, upload naming and error formatting are covered by tests, not
+  yet exercised against a live ComfyUI server. The 3D capture change is covered
+  by tests with a mocked renderer, not checked on screen.
 
 ## 2026-10-03 - Activity panel, structured critique, generation profiles, saved channels, Comfy versions and custom models
 

@@ -34,8 +34,7 @@ import {
 } from '@/lib/comfyui/libraryTypes';
 import { getComfyTaskPreference, saveComfyTaskPreference } from '@/lib/comfyui/preferences';
 import { workflowRequiresPositivePrompt } from '@/lib/comfyui/promptRequirements';
-import { executeComfyTask, inspectComfyServerCatalog, recoverComfyTaskByPromptId } from '@/lib/comfyui/runner';
-import { cancelComfyPrompt } from '@/lib/comfyui/promptControl';
+import { cancelComfyPrompt, executeComfyTask, inspectComfyServerCatalog, recoverComfyTaskByPromptId } from '@/lib/comfyui/runner';
 import { ensureComfyWorkflowCatalogRegistered } from '@/lib/comfyui/workflows/catalog';
 import { useDialog } from '@/providers/DialogProvider';
 import {

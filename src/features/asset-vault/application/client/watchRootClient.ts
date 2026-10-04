@@ -51,12 +51,43 @@ export async function deleteWatchRoot(id: string): Promise<WatchRoot[]> {
     return toWatchRoots(data?.roots);
 }
 
-export async function scanWatchRoot(rootId: string, embed = true): Promise<{ fileCount: number }> {
-    const data = await vaultFetch<{ success: true; fileCount: number }>('/api/assets/vault/watch-roots', {
+type QueueJobSnapshot = { id: string; status: string; message?: string; error?: string };
+
+const SCAN_POLL_MS = 1500;
+
+/**
+ * Scan a watch root and resolve when it has finished.
+ *
+ * The scan runs as a queue job, not inside this request: it reports progress
+ * in the Activity panel, can be stopped there, and is not at the mercy of a
+ * request timeout on a whole drive. This waits on the job so callers keep the
+ * simple "scan, then refresh" shape.
+ */
+export async function scanWatchRoot(rootId: string, embed = true): Promise<{ fileCount: number; stopped?: boolean }> {
+    const started = await vaultFetch<{ success: true; jobId?: string; fileCount?: number }>('/api/assets/vault/watch-roots', {
         method: 'PUT',
-        body: JSON.stringify({ rootId, embed }),
+        body: JSON.stringify({ rootId, embed, background: true }),
     });
-    return { fileCount: Number.isFinite(data?.fileCount) ? data.fileCount : 0 };
+    // An older server answers with the finished scan directly.
+    if (!started?.jobId) return { fileCount: Number.isFinite(started?.fileCount) ? Number(started.fileCount) : 0 };
+
+    for (;;) {
+        await new Promise((resolve) => setTimeout(resolve, SCAN_POLL_MS));
+        const snapshot = await vaultFetch<{ jobs: QueueJobSnapshot[] }>('/api/queue');
+        const job = snapshot?.jobs?.find((entry) => entry.id === started.jobId);
+        // Cleared from the history while we waited: it finished.
+        if (!job || job.status === 'succeeded') break;
+        if (job.status === 'cancelled') {
+            return { fileCount: await scannedFileCount(rootId), stopped: true };
+        }
+        if (job.status === 'failed') throw new Error(job.error || job.message || 'The scan failed.');
+    }
+    return { fileCount: await scannedFileCount(rootId) };
+}
+
+async function scannedFileCount(rootId: string): Promise<number> {
+    const roots = await listWatchRoots().catch(() => [] as WatchRoot[]);
+    return roots.find((root) => root.id === rootId)?.estimatedFileCount ?? 0;
 }
 
 export function createWatchRootId() {

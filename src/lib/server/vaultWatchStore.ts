@@ -266,7 +266,11 @@ export type ScanResult = {
      * catalog holds under them is unknown, not gone, and must not be pruned.
      */
     unreadableDirs: string[];
+    /** The walk was stopped on request. What it had not reached is unseen, exactly as when truncated. */
+    stopped: boolean;
 };
+
+export type ScanProgress = { files: number; directories: number };
 
 /** The root itself could not be read: unplugged drive, offline share, revoked access. */
 export class WatchRootUnavailableError extends Error {
@@ -301,11 +305,19 @@ export const DEFAULT_MAX_SCAN_FILES = (() => {
 
 export async function scanDirectoryRecursive(
     rootPath: string,
-    options?: { maxFiles?: number },
+    options?: {
+        maxFiles?: number;
+        /** Called as the walk enters each folder. */
+        onProgress?: (progress: ScanProgress) => void;
+        /** Checked at each folder; returning true ends the walk early. */
+        shouldStop?: () => boolean;
+    },
 ): Promise<ScanResult> {
     const maxFiles = options?.maxFiles ?? DEFAULT_MAX_SCAN_FILES;
     const results: ScannedFile[] = [];
     let truncated = false;
+    let stopped = false;
+    let directories = 0;
     // Guard against symlink loops: a directory link pointing at an ancestor
     // would otherwise recurse until maxFiles, wasting the whole budget.
     const visitedDirs = new Set<string>();
@@ -320,6 +332,10 @@ export async function scanDirectoryRecursive(
     };
 
     async function walk(current: string, relative: string) {
+        if (stopped) return;
+        // A stopped walk is an incomplete one: reported as truncated so nothing
+        // it did not reach is taken for missing.
+        if (options?.shouldStop?.()) { stopped = true; truncated = true; return; }
         if (results.length >= maxFiles) { truncated = true; return; }
         let realCurrent = current;
         try {
@@ -330,6 +346,8 @@ export async function scanDirectoryRecursive(
         }
         if (visitedDirs.has(realCurrent)) return;
         visitedDirs.add(realCurrent);
+        directories += 1;
+        options?.onProgress?.({ files: results.length, directories });
         let entries;
         try {
             entries = await readdir(current, { withFileTypes: true });
@@ -369,5 +387,5 @@ export async function scanDirectoryRecursive(
     }
 
     await walk(rootPath, '');
-    return { files: results, truncated, unreadableDirs };
+    return { files: results, truncated, unreadableDirs, stopped };
 }

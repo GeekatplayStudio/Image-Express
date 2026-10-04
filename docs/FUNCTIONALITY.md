@@ -448,3 +448,12 @@ Tracked in [ROADMAP.md](ROADMAP.md); listed here so behaviour claims stay honest
 | Cloud storage | Google Drive only in practice |
 | Key vault | Encrypted at rest and owner-only; rotation policy and audit trail still open |
 | Scale | All persistence is filesystem JSON — single-node only |
+
+## Asset Vault index — behaviour added 2026-10-04
+
+- **Missing, not deleted.** A file a scan no longer finds is hidden and kept for 30 days, then removed with its embedding. A scan of an unreachable folder fails and changes nothing; a truncated or stopped scan removes nothing.
+- **Rescan.** Runs as a queue job (*Window → Activity*): shows files and folders found, can be stopped, and ends with what changed (new, changed, restored, missing).
+- **Browse and search.** Newest first by default; `sort` may be `newest`, `oldest`, `name` or `relevance`; `offset` pages; `folderPrefix` scopes to a folder. The footer shows "N of M loaded" and **Load more**.
+- **Generation details.** PNGs written by ComfyUI or AUTOMATIC1111 carry their prompt, negative prompt, model, sampler, seed, steps and CFG into the index; the prompt and model are searchable.
+- **ComfyUI cancel.** *Cancel job* interrupts a running prompt or removes a waiting one from the server's queue.
+- **3D export size.** The rendered layer is exactly the width and height asked for, whatever the display scale; sizes are limited to 64–8192 px.

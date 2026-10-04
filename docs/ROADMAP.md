@@ -71,7 +71,14 @@ pre-refactor implementation.
 failed on it, so folder navigation moved to `useVaultFolderNav.ts`
 (463 + 109 lines). The gate caught its author, which is the point.
 
-### F-03 · Catalog storage → SQLite — ✅ **done** *(targeted-write follow-up open)*
+### F-03 · Catalog storage → SQLite — ✅ **done**
+
+> **2026-10-04 — closed, and one thing it had wrong.** Search and browsing are
+> SQL now (FTS5, paging, sort, a true total), rescans are incremental, and the
+> schema is versioned. While checking that against the real catalog it turned
+> out `next dev` had never opened SQLite at all: the bundler broke
+> `require('node:sqlite')`, the store fell back to JSON, and nothing said so.
+> Fixed in `nodeSqlite.ts`. See CHANGELOG 2026-10-04.
 The single architectural ceiling. `data/vault/catalog.json` is **153 MB**,
 fully parsed and Zod-validated into heap, and **every mutation rewrites the
 entire file** — adding one asset rewrites 153 MB.
@@ -740,6 +747,16 @@ suggested fix.
 ### R-17 · Asset Vault phases 2–4 — P2
 Phases 0–1 (foundation, entry points, hybrid search, local merge) are delivered,
 as is folder-tree navigation.
+**Delivered 2026-10-04 (ported from ComfyUIAssetManager):** soft delete for
+vanished files, incremental rescans, scans as stoppable queue jobs, SQL search
+with paging, generation metadata read from PNGs, versioned schema migrations,
+and a bounded thumbnail cache.
+**Open from that port:** a full folder tree from the index (the grouped query
+exists, the UI still builds the tree from the loaded page); dimensions and
+duration for JPEG/WebP/video; the thumbnail and embedding jobs still load the
+whole catalog to find work; a poll-driven watch that rescans on its own;
+re-embedding an asset when its caption changes; model-file indexing
+(safetensors headers, duplicate detection).
 **Open:** full CRUD parity with the classic library and richer previews (P2);
 multi-location indexing across network shares and cloud connectors (P3); agent
 and canvas bridges (P4).
