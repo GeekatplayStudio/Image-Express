@@ -11,6 +11,9 @@ const config: Config = {
   coverageProvider: 'v8',
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  // The stamp mesh tests build and validate real geometry: 1–2 s here, over
+  // Jest's 5 s default on a loaded CI runner, where they were failing `main`.
+  testTimeout: 30_000,
   moduleNameMapper: {
     // Handle module aliases (this will be automatically configured for you soon)
     '^@/(.*)$': '<rootDir>/src/$1',

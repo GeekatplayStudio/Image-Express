@@ -3,7 +3,8 @@ import { useEffect, useState, useRef, useCallback, useImperativeHandle, forwardR
 import { createPortal } from 'react-dom';
 import * as fabric from 'fabric';
 import { placeAtViewportCenter } from '@/lib/canvas-placement';
-import { getArtboardSize, loadCanvasJson } from '@/lib/fabric-utils';
+import { getArtboardSize } from '@/lib/fabric-utils';
+import { loadPageJson } from '@/lib/pageChannels';
 import { useI18n } from '@/providers/I18nProvider';
 import { applyEditorCanvasToolConfig } from '@/components/Editor/editorCanvasToolMode';
 import {
@@ -1808,9 +1809,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         if (!canvas) return;
         fetch(url)
             .then(res => res.json())
-            .then(json => {
-                return loadCanvasJson(canvas, json);
-            })
+            .then(json => loadPageJson(canvas, json))
             .then(() => setActiveTool('select'))
             .catch(err => {
                 console.error("Error loading template", err);
