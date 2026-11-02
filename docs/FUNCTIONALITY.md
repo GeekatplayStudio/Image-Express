@@ -446,7 +446,7 @@ Tracked in [ROADMAP.md](ROADMAP.md); listed here so behaviour claims stay honest
 | Social | No direct posting; manual export only |
 | Auth | No Facebook sign-in |
 | Cloud storage | Google Drive only in practice |
-| Key vault | Encrypted at rest and owner-only; rotation policy and audit trail still open |
+| Key vault | Encrypted at rest and owner-only; every read/write audited by key name; per-key age against a 180-day policy; keys removable; admin can re-encrypt under a new secret |
 | Scale | All persistence is filesystem JSON — single-node only |
 
 ## Asset Vault index — behaviour added 2026-10-04

@@ -89,7 +89,7 @@ describe('runRemotePollJob', () => {
         const result = await runRemotePollJob(context);
 
         expect(result).toEqual({ resultUrl: '/api/assets/serve/generated/models/stored-out.glb' });
-        expect(mockLoadUserApiKeys).toHaveBeenCalledWith('alice');
+        expect(mockLoadUserApiKeys).toHaveBeenCalledWith('alice', { source: 'queue:remote-poll' });
         const [, init] = (global.fetch as jest.Mock).mock.calls[0];
         expect(init.headers.Authorization).toBe('Bearer secret-key');
     });

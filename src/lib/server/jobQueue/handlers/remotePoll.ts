@@ -69,7 +69,7 @@ const stageFor = (progress: number): QueueStage => (progress >= 100 ? 'store' : 
  * job stays retryable once they sign in and save the key.
  */
 async function resolveApiKey(owner: string, provider: RemoteProvider): Promise<string | null> {
-    const keys = await loadUserApiKeys(owner);
+    const keys = await loadUserApiKeys(owner, { source: 'queue:remote-poll' });
     const value = keys[provider];
     return typeof value === 'string' && value.trim() ? value.trim() : null;
 }

@@ -1,34 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { legacyValidationResponse, parseJsonRequest } from '@/lib/server/apiContract';
-import { loadUserApiKeys, mergeUserApiKeys } from '@/lib/server/user-key-vault';
-import { resolveRequestUser } from '@/lib/server/user-session';
+import { loadUserApiKeys, mergeUserApiKeys, removeUserApiKeys } from '@/lib/server/user-key-vault';
+import { authorizeVaultOwner } from '@/lib/server/keyVaultOwner';
 import { assertTrustedCaller } from '@/lib/server/trustedCaller';
 
-/**
- * Only the signed-in owner may read or change a vault.
- *
- * This route used to trust the name in the request: `?userId=someone` returned
- * that account's decrypted provider keys to anyone who could reach the server,
- * and a POST overwrote them. The owner is now taken from the session token and
- * the name in the request must be one of that account's own identifiers.
- *
- * Returns a response to send, or null to continue.
- */
-async function authorizeVaultOwner(request: Request, ownerId: string): Promise<NextResponse | null> {
-    const user = await resolveRequestUser(request);
-    if (!user) {
-        return NextResponse.json({ message: 'Sign in to sync API keys.' }, { status: 401 });
-    }
-    const requested = ownerId.trim().toLowerCase();
-    const own = [user.id, user.email, user.username]
-        .filter((value): value is string => typeof value === 'string' && value.length > 0)
-        .map((value) => value.toLowerCase());
-    if (!own.includes(requested)) {
-        return NextResponse.json({ message: 'You can only access your own API keys.' }, { status: 403 });
-    }
-    return null;
-}
+const AUDIT_SOURCE = 'api:user/keys';
 
 // A record of provider -> key. Values stay `unknown` because the vault does
 // its own normalisation; the schema's job is to guarantee this is an object and
@@ -37,6 +14,8 @@ const UserApiKeysSchema = z.object({
     username: z.string().max(320).optional(),
     userId: z.string().max(320).optional(),
     keys: z.record(z.string().max(200), z.unknown()).optional(),
+    /** Key names to delete; applied after `keys`. */
+    remove: z.array(z.string().min(1).max(200)).max(100).optional(),
 });
 
 /** Vaults hold many provider keys, so this is roomier than an auth body. */
@@ -58,7 +37,10 @@ export async function POST(req: NextRequest) {
         const keys = body.keys && typeof body.keys === 'object' && !Array.isArray(body.keys)
             ? body.keys
             : {};
-        const result = await mergeUserApiKeys(ownerId, keys);
+        let result = await mergeUserApiKeys(ownerId, keys, { source: AUDIT_SOURCE });
+        if (body.remove && body.remove.length > 0) {
+            result = await removeUserApiKeys(ownerId, body.remove, { source: AUDIT_SOURCE });
+        }
 
         return NextResponse.json({
             message: 'Keys saved successfully',
@@ -88,7 +70,7 @@ export async function GET(req: NextRequest) {
         const denied = await authorizeVaultOwner(req, ownerId);
         if (denied) return denied;
 
-        const keys = await loadUserApiKeys(ownerId);
+        const keys = await loadUserApiKeys(ownerId, { source: AUDIT_SOURCE });
         // Decrypted credentials: never let a proxy or the browser keep a copy.
         return NextResponse.json({ keys }, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {

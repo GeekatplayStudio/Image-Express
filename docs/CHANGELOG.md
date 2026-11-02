@@ -19,6 +19,30 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-02 - Key vault audit trail and rotation (R-01)
+
+- **Audit trail.** Every vault read, write, removal and rotation appends one
+  line to `data/user-key-vault.audit.jsonl`: when, which owner, which key
+  names, how many keys remain, and who asked — the keys route, the server-side
+  poller, or an administrator by id. Values are never written. The file is
+  capped at 5,000 lines (trimmed to 2,500).
+- **Per-key ages and a staleness policy.** The record now keeps when each key
+  was last changed; a key older than `IMAGE_EXPRESS_KEY_MAX_AGE_DAYS` (180) is
+  reported stale. Records from before this carry their last write time for
+  every key. `GET /api/user/keys/audit` returns ages and the recent trail to
+  the owner, under the same authorisation as the keys.
+- **Removing a key.** `POST /api/user/keys` accepts `remove: [names]`, applied
+  after the patch. Until now a revoked provider key could only be blanked.
+- **Secret rotation.** `POST /api/user/admin/key-vault/rotate` (admin session,
+  same-site only) re-encrypts every account under a new secret. The previous
+  secret and store are left as `.previous` files so a crash between the two
+  writes is recoverable by hand. When the secret comes from
+  `IMAGE_EXPRESS_KEY_VAULT_SECRET` the app refuses to invent one: the caller
+  passes `nextSecret`, which is echoed back for the operator to set.
+
+20 new tests across the vault module and the three routes; not exercised in
+the running app. No Settings UI reads the audit endpoint yet.
+
 ## 2026-11-02 - Two editor fixes after the upgrade
 
 - **Loading a template from the toolbar kept the previous page's saved

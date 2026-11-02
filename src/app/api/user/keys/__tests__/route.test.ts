@@ -4,11 +4,13 @@
 
 const loadUserApiKeys = jest.fn(async () => ({ openai: 'sk-owner-secret' }));
 const mergeUserApiKeys = jest.fn(async () => ({ keyCount: 1, updatedAt: '2026-10-03T00:00:00.000Z' }));
+const removeUserApiKeys = jest.fn(async () => ({ keyCount: 0, updatedAt: '2026-10-03T00:00:00.000Z' }));
 const resolveRequestUser = jest.fn();
 
 jest.mock('@/lib/server/user-key-vault', () => ({
     loadUserApiKeys: (owner: string) => loadUserApiKeys(owner),
     mergeUserApiKeys: (owner: string, keys: unknown) => mergeUserApiKeys(owner, keys),
+    removeUserApiKeys: (owner: string, names: string[]) => removeUserApiKeys(owner, names),
 }));
 jest.mock('@/lib/server/user-session', () => ({
     resolveRequestUser: (request: Request) => resolveRequestUser(request),
@@ -79,6 +81,15 @@ describe('/api/user/keys authorisation', () => {
         const response = await post({ userId: 'owner@example.com', keys: { openai: 'sk-new' } });
         expect(response.status).toBe(200);
         expect(mergeUserApiKeys).toHaveBeenCalledWith('owner@example.com', { openai: 'sk-new' });
+    });
+
+    it('removes named keys after applying the patch, and reports the final count', async () => {
+        resolveRequestUser.mockResolvedValue(OWNER);
+        const response = await post({ userId: 'owner', keys: { openai: 'sk-new' }, remove: ['meshy'] });
+        expect(response.status).toBe(200);
+        expect(mergeUserApiKeys).toHaveBeenCalledWith('owner', { openai: 'sk-new' });
+        expect(removeUserApiKeys).toHaveBeenCalledWith('owner', ['meshy']);
+        await expect(response.json()).resolves.toMatchObject({ keyCount: 0 });
     });
 
     it('refuses a save driven by another site, even with a valid session', async () => {

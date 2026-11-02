@@ -586,7 +586,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 
 | ID | Initiative | Priority | State | Milestone |
 |---|---|---|---|---|
-| R-01 | Durable encrypted user key vault | P0 | Owner-only access delivered; rotation and audit open | M0 |
+| R-01 | Durable encrypted user key vault | P0 | **Delivered** 2026-11-02; external KMS deferred | M0 |
 | R-13 | Super installer + first-run orchestration | P0 | Scripts, wizard step and trust policy delivered; sources unpinned | M0 |
 | R-02 | Campaign Workspace (media overlay B2) | P1 | B1 bridge done | M1 |
 | R-03 | AI critique quality program | P1 | **Delivered** 2026-10-03 | M1 |
@@ -638,11 +638,28 @@ model. Share menu posts to connected accounts with manual export as fallback.
 **Done 2026-10-03:** authorisation on the read and update paths. The route used
 to return any named account's decrypted keys to any caller; it and the
 server-side polling route now require the owner's session.
-**Open:** rotation/expiry policy, an audit trail of vault reads and writes,
-optional external KMS for multi-node.
-**Files:** `src/lib/server/user-key-vault.ts`, `src/app/api/user/keys/route.ts`.
-**Acceptance:** keys survive restart; never returned in clear text outside the
-authorized read path; rotation and failure cases covered by tests.
+**Done 2026-11-02:** the audit trail and rotation.
+- Every read, write, removal and secret rotation appends a line to
+  `user-key-vault.audit.jsonl` beside the vault: time, owner, key *names*,
+  count and who asked (`api:user/keys`, `queue:remote-poll`, the admin's id).
+  A key value never reaches it. Capped at 5,000 lines.
+- `GET /api/user/keys/audit` gives the owner their trail and each key's age
+  against the policy (`IMAGE_EXPRESS_KEY_MAX_AGE_DAYS`, default 180): a key is
+  reported stale past that. Ages are per key and move only when the value
+  changes, so re-saving Settings does not reset them.
+- Keys can be removed (`remove: [...]` on the keys POST); before, revoking a
+  provider meant saving an empty string.
+- `POST /api/user/admin/key-vault/rotate` re-encrypts every record under a
+  new secret (admin only); the previous secret and store are kept as
+  `*.previous`. An env-managed secret cannot be rotated by the app — the
+  operator passes the next secret and then sets it.
+**Open:** showing ages and the trail in Settings (the endpoint exists, the UI
+does not read it yet); an external KMS for multi-node is deferred with
+horizontal scaling (§5).
+**Files:** `src/lib/server/user-key-vault.ts`, `user-key-vault-audit.ts`,
+`keyVaultOwner.ts`, `src/app/api/user/keys/`, `src/app/api/user/admin/key-vault/`.
+**Acceptance:** keys survive restart ✅; never returned in clear text outside
+the authorized read path ✅; rotation and failure cases covered by tests ✅.
 
 ### R-13 · Super installer + first-run orchestration — P0
 **Done:** `scripts/super-installer.mjs`, task scripts, config, `qa-installation` scaffold.

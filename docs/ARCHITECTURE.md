@@ -626,7 +626,7 @@ providers are swappable mid-project.
 **Assets / designs / templates** — `/api/assets/{upload,list,delete,rename,visibility,save-url,fetch-url,serve/[...path]}`, `/api/designs/*`, `/api/templates/*`, `/api/export/proxy`
 **Themes / ambience** — `/api/themes/*`, `/api/ambience/*` (both with `install` and sandboxed `files/[id]/[...path]`)
 **Runtime** — `/api/runtime/comfy`, `/api/runtime/{dependencies,installer}/{status,run}`, `/api/system/update`
-**User / auth / admin** — `/api/user/auth/*`, `/api/user/admin/users`, `/api/user/keys`, `/api/logs/login`
+**User / auth / admin** — `/api/user/auth/*`, `/api/user/admin/users`, `/api/user/admin/key-vault/rotate`, `/api/user/keys`, `/api/user/keys/audit`, `/api/logs/login`
 
 Privileged runtime routes go through `authorizeLocalRuntimeCapability`, which
 requires a local profile, a loopback request, and — in desktop mode — a
@@ -675,7 +675,7 @@ lane concurrency (§2).
 | Agentic jobs / revisions | `data/ai-jobs/`, `data/ai-revisions/` | Filesystem, atomic |
 | Vault catalog, embeddings | `data/vault/catalog.db`, `vectors.db` | SQLite (WAL), JSON fallback |
 | Watch roots, bookcases | `data/vault/*.json` | Filesystem, atomic |
-| Users, encrypted key vault | `data/users.json`, `data/user-key-vault.json` | Filesystem |
+| Users, encrypted key vault | `data/users.json`, `data/user-key-vault.json`, `data/user-key-vault.audit.jsonl` | Filesystem |
 | Local assets | IndexedDB `image-express-local-assets` | Browser |
 | Preferences, API keys, background jobs, vault UI state | localStorage | Browser |
 | Optional backup | Google Drive (user OAuth) | Cloud |
