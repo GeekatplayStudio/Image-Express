@@ -106,7 +106,7 @@ export const TECHNOLOGY_GROUPS: TechGroup[] = [
             {
                 name: 'ag-psd',
                 package: 'ag-psd',
-                version: '31',
+                version: '34',
                 role: 'Reads and writes Photoshop .psd files with layers intact.',
                 why: 'The only maintained JavaScript library that round-trips layered PSD. Flattening on import would make the format useless for real work.',
             },
