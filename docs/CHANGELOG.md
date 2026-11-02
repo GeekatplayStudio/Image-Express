@@ -19,6 +19,19 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-02 - Installer sources: checksums where available, pin status in the wizard (R-13)
+
+- `sources.json` now carries `sha256` for SDXL base, CLIP-L, T5-XXL fp16 and
+  fp8, read from Hugging Face's LFS metadata rather than from downloads. The
+  installer already verified any pin present; these are the first.
+- The FLUX repositories mask their hashes (gated), so those four files stay
+  unpinned; and both custom-bundle repositories named in the config do not
+  exist on GitHub — recorded as an open decision in the roadmap, not papered
+  over.
+- `GET /api/runtime/installer/status` reports `sources.pinned` and
+  `sources.unpinned`; the Setup Wizard's runtime summary shows "Pinned
+  sources: n/m" with the floating ones in the tooltip.
+
 ## 2026-11-02 - Key vault audit trail and rotation (R-01)
 
 - **Audit trail.** Every vault read, write, removal and rotation appends one

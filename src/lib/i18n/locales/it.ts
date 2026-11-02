@@ -756,6 +756,7 @@ const it: LocaleDictionary = {
     'vault.loadMore': 'Carica altri',
     'vault.loadingMore': 'Caricamento…',
     'vault.loadedOfTotal': '{loaded} di {total} caricati',
+    'wizard.pinnedSources': 'Sorgenti bloccate:',
 };
 
 export default it;

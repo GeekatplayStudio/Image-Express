@@ -50,6 +50,14 @@ export type InstallerRuntimeStatus = {
         cliAvailable: boolean;
         configuredModels: Array<{ id: string; displayName: string }>;
     };
+    /**
+     * Which configured sources are pinned (a repository to a commit, a model
+     * file to a checksum) and which install whatever upstream serves today.
+     */
+    sources: {
+        pinned: string[];
+        unpinned: string[];
+    };
     summary: {
         ready: boolean;
         missing: string[];

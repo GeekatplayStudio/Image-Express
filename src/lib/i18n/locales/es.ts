@@ -477,6 +477,7 @@ const es: LocaleDictionary = {
 
     // Asistente de configuraciÃ³n â€” metadatos de pasos
     'wizard.step.welcome': 'Bienvenida',
+    'wizard.pinnedSources': 'Fuentes fijadas:',
     'wizard.step.welcomeDesc': 'Entiende qué se va a configurar.',
     'wizard.step.storage': 'Almacenamiento de recursos',
     'wizard.step.storageDesc': 'Elige el modo local, híbrido o en la nube.',

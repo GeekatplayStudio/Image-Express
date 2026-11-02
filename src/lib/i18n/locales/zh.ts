@@ -746,6 +746,7 @@ const zh: LocaleDictionary = {
     'vault.loadMore': '加载更多',
     'vault.loadingMore': '正在加载…',
     'vault.loadedOfTotal': '已加载 {loaded} / {total}',
+    'wizard.pinnedSources': '已固定的来源：',
 };
 
 export default zh;

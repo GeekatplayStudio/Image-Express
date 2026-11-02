@@ -1134,6 +1134,7 @@ const ru: LocaleDictionary = {
     'wizard.comfyCheckout': 'Git-версия Comfy:',
     'wizard.customBundles': 'Установлено пользовательских наборов:',
     'wizard.comfyModelsInstalled': 'Установлено моделей Comfy:',
+    'wizard.pinnedSources': 'Закреплённых источников:',
     'wizard.ollamaCli': 'Ollama CLI:',
     'wizard.missingItems': 'Отсутствующие элементы',
     'wizard.allReady': 'Все отслеживаемые локальные зависимости среды выполнения готовы.',

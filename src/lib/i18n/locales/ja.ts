@@ -746,6 +746,7 @@ const ja: LocaleDictionary = {
     'vault.loadMore': 'さらに読み込む',
     'vault.loadingMore': '読み込み中…',
     'vault.loadedOfTotal': '{total} 件中 {loaded} 件を読み込み済み',
+    'wizard.pinnedSources': '固定されたソース:',
 };
 
 export default ja;

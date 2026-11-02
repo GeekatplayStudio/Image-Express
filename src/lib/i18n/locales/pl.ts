@@ -766,6 +766,7 @@ const pl: LocaleDictionary = {
     'vault.loadMore': 'Wczytaj więcej',
     'vault.loadingMore': 'Wczytywanie…',
     'vault.loadedOfTotal': 'Wczytano {loaded} z {total}',
+    'wizard.pinnedSources': 'Przypięte źródła:',
 };
 
 export default pl;

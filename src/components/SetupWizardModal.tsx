@@ -28,14 +28,8 @@ import {
 } from '@/lib/generative-preferences';
 import { loadUiPreferences, saveUiPreferences } from '@/lib/ui-preferences';
 import { DEFAULT_COMFY_LOCAL_URL } from '@/lib/comfyui/connection';
-import {
-    fetchInstallerRuntimeStatus,
-    type InstallerRuntimeStatus,
-} from '@/lib/installerRuntimeStatus';
-import {
-    runInstallerRuntime,
-    type InstallerRunResult,
-} from '@/lib/installerRuntimeRun';
+import { fetchInstallerRuntimeStatus, type InstallerRuntimeStatus } from '@/lib/installerRuntimeStatus';
+import { runInstallerRuntime, type InstallerRunResult } from '@/lib/installerRuntimeRun';
 
 interface SetupWizardModalProps {
     isOpen: boolean;
@@ -930,6 +924,10 @@ export default function SetupWizardModal({ isOpen, onClose, onComplete }: SetupW
                                     <p>
                                         <span className="font-semibold">{t('wizard.comfyModelsInstalled')}</span>{' '}
                                         {installerStatus.comfyModels.filter((model) => model.exists).length}/{installerStatus.comfyModels.length}
+                                    </p>
+                                    <p title={installerStatus.sources.unpinned.join(', ')}>
+                                        <span className="font-semibold">{t('wizard.pinnedSources')}</span>{' '}
+                                        {installerStatus.sources.pinned.length}/{installerStatus.sources.pinned.length + installerStatus.sources.unpinned.length}
                                     </p>
                                     <p>
                                         <span className="font-semibold">{t('wizard.ollamaCli')}</span> {installerStatus.ollama.cliAvailable ? t('wizard.available') : t('wizard.notFound')}

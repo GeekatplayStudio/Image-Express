@@ -11,6 +11,8 @@ export type InstallerConfigModel = {
     displayName?: string;
     targetPath?: string;
     downloadUrl?: string;
+    /** Checksum pin; the installer verifies the downloaded file against it. */
+    sha256?: string;
     category?: string;
     recommendedFor?: string[];
 };
@@ -19,6 +21,8 @@ export type InstallerConfigBundle = {
     name?: string;
     targetPath?: string;
     bundleType?: string;
+    /** Full commit id the installer checks out instead of the branch head. */
+    commit?: string;
 };
 
 type InstallerLocalWorkspaceConfig = {
@@ -28,6 +32,7 @@ type InstallerLocalWorkspaceConfig = {
 export type InstallerConfig = {
     comfyUi?: {
         targetDir?: string;
+        commit?: string;
     };
     customBundles?: InstallerConfigBundle[];
     comfyModels?: InstallerConfigModel[];

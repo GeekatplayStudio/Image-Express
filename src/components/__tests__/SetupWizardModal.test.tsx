@@ -68,6 +68,7 @@ describe('SetupWizardModal', () => {
                     cliAvailable: true,
                     configuredModels: [],
                 },
+                sources: { pinned: [], unpinned: [] },
                 summary: {
                     ready: true,
                     missing: [],

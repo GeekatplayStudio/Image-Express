@@ -153,6 +153,21 @@ export async function getInstallerRuntimeStatus(comfyDirOverride = ''): Promise<
             })),
     };
 
+    // Mirrors `describeUnpinnedSources` in scripts/installers/trust-policy.mjs,
+    // which the installer scripts enforce; this is the same question asked for
+    // display. A pin that is present is always verified by the installer.
+    const sources = { pinned: [] as string[], unpinned: [] as string[] };
+    const repos = [
+        ...(config.comfyUi ? [{ name: 'comfyUi', commit: config.comfyUi.commit }] : []),
+        ...(Array.isArray(config.customBundles) ? config.customBundles : []),
+    ];
+    for (const repo of repos) {
+        (repo.commit ? sources.pinned : sources.unpinned).push(`repo ${repo.name}`);
+    }
+    for (const model of Array.isArray(config.comfyModels) ? config.comfyModels : []) {
+        (model.sha256 ? sources.pinned : sources.unpinned).push(`model ${model.id}`);
+    }
+
     const missing: string[] = [];
     if (!comfyExists) {
         missing.push('ComfyUI directory is missing');
@@ -191,6 +206,7 @@ export async function getInstallerRuntimeStatus(comfyDirOverride = ''): Promise<
         comfyModels,
         localWorkspace,
         ollama,
+        sources,
         summary: {
             ready: missing.length === 0,
             missing,

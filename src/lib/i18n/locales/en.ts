@@ -1918,6 +1918,7 @@ const en: LocaleDictionary = {
     'wizard.comfyCheckout': 'Comfy git checkout:',
     'wizard.customBundles': 'Custom bundles installed:',
     'wizard.comfyModelsInstalled': 'Comfy models installed:',
+    'wizard.pinnedSources': 'Pinned sources:',
     'wizard.ollamaCli': 'Ollama CLI:',
     'wizard.missingItems': 'Missing items',
     'wizard.allReady': 'All tracked local runtime dependencies are ready.',

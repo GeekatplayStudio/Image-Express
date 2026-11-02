@@ -587,7 +587,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | ID | Initiative | Priority | State | Milestone |
 |---|---|---|---|---|
 | R-01 | Durable encrypted user key vault | P0 | **Delivered** 2026-11-02; external KMS deferred | M0 |
-| R-13 | Super installer + first-run orchestration | P0 | Scripts, wizard step and trust policy delivered; sources unpinned | M0 |
+| R-13 | Super installer + first-run orchestration | P0 | Model checksums pinned where the host exposes them; pin status shown; bundle repos missing (decision) | M0 |
 | R-02 | Campaign Workspace (media overlay B2) | P1 | B1 bridge done | M1 |
 | R-03 | AI critique quality program | P1 | **Delivered** 2026-10-03 | M1 |
 | R-04 | Ollama local generation quality | P1 | Profiles delivered; model matrix open | M1 |
@@ -667,10 +667,24 @@ the authorized read path ✅; rotation and failure cases covered by tests ✅.
 enforced commit and sha256 pins, install targets confined to the ComfyUI
 directory (`scripts/installers/trust-policy.mjs`). The Setup Wizard's runtime
 step (status, one-click install) already exists.
-**Open:** actually pinning the shipped sources (every repo and model in
-`sources.json` still floats on a branch head — choosing commits and recording
-checksums is a release decision), deeper readiness tests, and surfacing pin
-status in the wizard.
+**Done 2026-11-02:** checksums for the four model files Hugging Face exposes
+unauthenticated (SDXL base, CLIP-L, T5 fp16 and fp8); the runtime status
+reports `sources.pinned` / `sources.unpinned` and the wizard shows the count.
+**Open — needs a decision, not code:**
+- **The two custom bundle repositories do not exist on GitHub.**
+  `GeekatplayStudio/image-express-comfy-custom-nodes` and
+  `…-comfy-workflows` return "not found" (checked with the owner's token, so
+  they are not merely private). The installer's bundle step cannot succeed
+  for anyone; custom nodes ship from the in-repo `ComfyUI workflows/`
+  workspace instead. Create them, point at existing repos, or drop the entries.
+- **ComfyUI itself is still on `master`.** Pinning a commit means every
+  install gets that build until the pin is bumped, so it needs a cadence
+  (bump on each Image Express release). The commit at the time of writing
+  was `4d988b647853f587173728cfda163d1f77501102`.
+- **FLUX files cannot be checksum-pinned from the API:** `FLUX.1-dev` and
+  `FLUX.1-schnell` mask their LFS hashes (gated / consent-gated). Record them
+  from a downloaded copy, or ship a tool that does.
+Also open: deeper readiness tests after an install.
 **Scope:** first-run selectors for ComfyUI, bundled custom nodes/workflows,
 Comfy models and Ollama models; post-install validation with safe auto-fix.
 **Acceptance:** one flow reaches a ready runtime; every action logged with a
