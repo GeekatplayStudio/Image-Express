@@ -835,9 +835,15 @@ Not features, but they block the gates.
 - **Pinned for an upstream gap:** `@tailwindcss/oxide-wasm32-wasi` is overridden
   to 4.3.3 because 4.3.4 is not published and `npm ci` refuses the lockfile
   without an entry. Drop the override when Tailwind publishes it.
-- **Not exercised by the 2026-11-02 upgrade:** the Transformers.js 4 pipelines
-  (CLIP embedding and depth) are mocked or lazily loaded in tests, so they have
-  not been run against real models on this major version.
+- **Transformers.js 4, checked against real models (2026-11-02):** the depth
+  pipeline the 3D layer uses returns what `depth.ts` expects. The in-browser
+  CLIP embedder did not survive: its text path failed on v3 and v4 alike
+  (`pipeline('feature-extraction', <CLIP>)` loads the vision tower and demands
+  `pixel_values`), and nothing imported it, so it was removed. If R-17 revives
+  in-browser similarity, use `CLIPTextModelWithProjection` and
+  `CLIPVisionModelWithProjection` with the tokenizer and processor: both give
+  512-d vectors in one space, and the vision one equals the
+  `image-feature-extraction` pipeline's output exactly. Verified in Node.
 - ~~A workspace panel opened from a popup opens behind it.~~ **Fixed
   2026-11-02** for the one path that did this: the asset browser for replacing a
   missing asset. `AssetLibrary` now takes a stacking level, as `ModalShell` does.

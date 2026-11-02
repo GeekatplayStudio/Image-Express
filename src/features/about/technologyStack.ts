@@ -196,8 +196,8 @@ export const TECHNOLOGY_GROUPS: TechGroup[] = [
                 name: 'Transformers.js',
                 package: '@huggingface/transformers',
                 version: '4',
-                role: 'Runs CLIP and depth-estimation models directly in the browser via WebGPU/WASM.',
-                why: 'Depth maps for 3D layers and image embeddings need no server round trip and no install.',
+                role: 'Runs the depth-estimation model directly in the browser via WebGPU/WASM.',
+                why: 'Depth maps for 3D layers need no server round trip and no install.',
             },
             {
                 name: 'ComfyUI (optional)',

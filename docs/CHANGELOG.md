@@ -31,6 +31,11 @@ look for current behaviour or future plans.
   backdrop and the missing-assets window. `AssetLibrary` now accepts a stacking
   level and the browser passes one above both. Pinned by a test; not exercised
   in the running app.
+- **The in-browser CLIP embedder is gone.** `clipEmbedder.ts` had no importer
+  since the vault shipped, and its text embedding never worked: the generic
+  `feature-extraction` pipeline loads CLIP's vision tower, which rejects text.
+  Found by running the Transformers.js 4 pipelines against real models, which
+  also confirmed the depth estimator still returns the shape `depth.ts` reads.
 - Jest's timeout is 30 s for the whole suite. The stamp mesh tests take 1–2 s
   here and were exceeding the 5 s default on GitHub's runner, which is what had
   been failing CI on `main`.
