@@ -31,7 +31,7 @@ and exact error in a support report. Review logs for personal information before
 
 ## Source installation (developers)
 
-Install Git, Node.js 24+ (the tested Node 24 version is in `.nvmrc`), and npm 11.x first.
+Install Git, Node.js 24+ (the tested version is in `.nvmrc`), and npm 11 or 12 first.
 Source installs require a development toolchain and are not the novice desktop path.
 
 ```bash

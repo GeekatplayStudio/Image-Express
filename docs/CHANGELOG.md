@@ -1,6 +1,6 @@
 # Changelog — Delivery History
 
-Last updated: 2026-10-04
+Last updated: 2026-11-02
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.2
@@ -18,6 +18,37 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-11-02 - Everything on latest; CI and the Mac smoke test repaired
+
+`main` had been failing since at least 2026-10-04. This brings every dependency
+and the runtime to its latest release and fixes what was keeping it red.
+
+- **Runtime:** Node **26.13.0** (latest LTS, in `.nvmrc`, CI, release and Docker).
+  `engines` still allows Node 24+, because Electron 45 embeds Node 24.22. npm 12
+  is now allowed; Node 26 itself ships npm 11.20.
+- **Majors:** Electron 44 → **45**, ESLint 9 → **10**, TypeScript 5 → **6.0.3**,
+  Transformers.js 3 → **4**, lucide-react 0.562 → **1.66**, ag-psd 31 → **34**,
+  concurrently 9 → **10**, jest-dom 6 → **7**, `@types/node` → **26**.
+- **Minors:** Next **16.4.4**, React **19.3.1**, three **0.187**, Tailwind
+  **4.3.4**, zod **4.6.7**, MCP SDK **1.32.2**, fabric **7.4**, and the rest.
+- **Security:** 14 vulnerable production packages (3 critical) → **0**. See
+  [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
+- **lucide-react 1.0 removed brand icons.** Chrome, Facebook, Instagram and
+  YouTube now live in `components/ui/brandIcons.ts`, with the same shapes and props.
+- **Mac smoke test:** `lipo` takes the file before `-verify_arch`. The script had
+  them reversed, so the test failed on every run without the app being at fault.
+- **STL export test:** it timed out at 5 s on a loaded CI runner; the export takes
+  under 1 s on a desktop machine. The file now allows 30 s.
+
+Verified under Node 26.13.0: `npm run verify` (2,315 tests), `test:packaging`,
+`test:e2e:critical`, and on macOS arm64 `desktop:pack`, `desktop:verify-package`
+and `desktop:smoke-package`. The packaged standalone server is 251 MB of its 400
+MB budget. Windows, Linux and the Docker image were not built here; CI covers
+Windows and Linux. Transformers.js 4 pipelines were not run against real models.
+
+**Held back:** TypeScript 7 (the lint toolchain cannot load it), and
+`mobile-companion/`. See ROADMAP §4.
 
 ## 2026-10-04 - Dependency advisories from the host's scan
 

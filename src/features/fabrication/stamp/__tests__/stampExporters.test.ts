@@ -29,6 +29,9 @@ function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
     });
 }
 
+// The text exports build megabytes of strings; a loaded CI runner took over 5 s.
+jest.setTimeout(30_000);
+
 describe('3D Stamp Exporters', () => {
     const width = 16;
     const height = 16;

@@ -58,7 +58,7 @@ export const TECHNOLOGY_GROUPS: TechGroup[] = [
             {
                 name: 'TypeScript',
                 package: 'typescript',
-                version: '5',
+                version: '6',
                 role: 'Strict mode across the codebase, including the contracts shared between client and server.',
                 why: 'The client and server agree on shapes by construction. A renamed field is a compile error, not a blank panel at runtime.',
             },

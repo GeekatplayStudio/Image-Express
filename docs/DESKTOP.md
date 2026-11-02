@@ -64,7 +64,7 @@ Source checkouts instead use `npm run update`; do not mix these mechanisms.
 
 ## Build and test
 
-Use Node 24+ and npm 11. Install the locked dependencies with `npm ci`.
+Use Node 24+ and npm 11 or 12. Install the locked dependencies with `npm ci`.
 
 ```bash
 npm run test:packaging

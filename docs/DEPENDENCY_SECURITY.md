@@ -2,7 +2,28 @@
 
 How advisory alerts are resolved and kept resolved in this repository.
 
-## Current sweep (2026-10-04)
+## Current sweep (2026-11-02)
+
+A month of new advisories: 14 vulnerable production packages, 3 of them critical
+(`next`, `dompurify`, `proxy-addr`). All fixed by upgrading to the latest
+release; nothing was waived. `npm audit --omit=dev` reports **0 vulnerabilities**.
+
+Floors raised or added in `overrides` so these cannot regress: `dompurify`
+3.4.17, `fast-uri` 3.1.9, `ip-address` 10.7.5, `hono` 4.13.16,
+`@hono/node-server` 2.1.6, `qs` 6.17.1, `sharp` 0.35.5, `body-parser` 2.4.0,
+`proxy-addr` 2.0.8, `source-map-js` 1.2.2. `next`, `zod` and the MCP SDK are
+direct dependencies, on 16.4.4, 4.6.7 and 1.32.2.
+
+**Still reported by a full `npm audit`:** 40 low and moderate findings in build
+and test tooling (jest, eslint-config-next, electron-builder and what they pull
+in). None is in the production tree. npm's only suggested fixes are downgrades to
+ancient majors, so they were not applied.
+
+**`mobile-companion/`:** still Expo 51, now 65 advisories (2 critical, 21 high).
+It is a separate prototype and not part of the app. Fixing it means migrating to
+Expo 58, which should wait for the R-19 decision.
+
+## Previous sweep (2026-10-04)
 
 Raised by the host's dependency scanner against the deployed lockfile. Every
 item is fixed by a real upgrade; nothing was waived.

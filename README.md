@@ -74,7 +74,7 @@ See [installation help](docs/INSTALLATION.md) for storage locations and troubles
 
 ### Developers: install from source
 
-Source setup requires Git, **Node 24+**, and **npm 11**. It is separate from the beginner desktop download.
+Source setup requires Git, **Node 24+**, and **npm 11 or 12**. It is separate from the beginner desktop download.
 See [source installation](docs/INSTALLATION.md#source-installation-developers) for commands and updates.
 `install.bat` and `install.command` remain available for source checkouts; they do not produce
 signed desktop installers.

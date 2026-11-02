@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { Plus, Image as ImageIcon, Layout, Search, Instagram, Youtube, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
+import { Plus, Image as ImageIcon, Layout, Search, Book, Monitor, Heart, Upload, Sparkles, Box } from 'lucide-react';
+import { Instagram, Youtube } from '@/components/ui/brandIcons';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import { useI18n } from '@/providers/I18nProvider';
@@ -144,11 +145,6 @@ const POPULAR_TEMPLATES: TemplateDescriptor[] = [
   }
 ];
 
-// Expanded mock data for when user clicks "Show More"
-// const MORE_TEMPLATES: TemplateDescriptor[] = [
-//     ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_2', name: t.name + ' II'})),
-//     ...POPULAR_TEMPLATES.map(t => ({...t, id: t.id + '_3', name: t.name + ' III'})),
-// ];
 
 export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign }: DashboardProps) {
     const { t } = useI18n();

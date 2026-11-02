@@ -15,11 +15,10 @@ import {
     Crosshair as CrosshairIcon,
     Archive,
     Square,
-    Facebook,
-    Instagram,
     Scissors,
     ScanLine,
 } from 'lucide-react';
+import { Facebook, Instagram } from '@/components/ui/brandIcons';
 
 import { Switch } from '@/components/ui/switch';
 import LanguageSelector from '@/components/LanguageSelector';

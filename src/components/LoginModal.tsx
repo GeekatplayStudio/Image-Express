@@ -1,16 +1,15 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { User, Lock, ArrowRight, Loader2, Mail, UserPlus, KeyRound, CheckCircle2, Chrome, Facebook, Laptop, LogIn } from 'lucide-react';
+import { User, Lock, ArrowRight, Loader2, Mail, UserPlus, KeyRound, CheckCircle2, Laptop, LogIn } from 'lucide-react';
+import { Chrome, Facebook } from '@/components/ui/brandIcons';
 import { AuthUser } from '@/types';
 import { loadDriveConfig } from '@/lib/googleDrive';
 import { requestOpenSetupWizard } from '@/lib/setupWizard';
 import ModalShell from '@/components/ui/ModalShell';
 import { useI18n } from '@/providers/I18nProvider';
 
-type GoogleCredentialResponse = {
-    credential?: string;
-};
+type GoogleCredentialResponse = { credential?: string };
 
 type GoogleAuthResponse = {
     success?: boolean;

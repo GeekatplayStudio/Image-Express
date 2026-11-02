@@ -34,7 +34,7 @@ try {
 
     const executable = path.join(app, 'Contents', 'MacOS', 'Image Express');
     const architecture = process.arch === 'arm64' ? 'arm64' : 'x86_64';
-    run('/usr/bin/lipo', ['-verify_arch', architecture, executable]);
+    run('/usr/bin/lipo', [executable, '-verify_arch', architecture]);
     if (signed) {
         run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', app]);
         run('/usr/bin/xcrun', ['stapler', 'validate', app]);

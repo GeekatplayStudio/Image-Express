@@ -6,7 +6,7 @@
 - How it works: [ARCHITECTURE.md](ARCHITECTURE.md)
 - What already shipped: [CHANGELOG.md](CHANGELOG.md)
 
-Status: Active · Last updated: 2026-10-03 · Branch baseline: `main`
+Status: Active · Last updated: 2026-11-02 · Branch baseline: `main`
 
 > **Change control.** Scope, priority, dependency and sequencing changes are
 > made *here first*. When an item ships, move its notes into
@@ -26,6 +26,16 @@ The governing rule: **`npm run verify` must pass, and it must mean something.**
 It now runs `audit:overrides → audit:architecture → audit:filesize → lint →
 typecheck → tests → build → audit:bundle`. Run it before every commit. If a gate
 is red, that is the work.
+
+> **State on 2026-11-02.** `main` had been red since at least 2026-10-04: CI
+> failed at Verify (an STL export test timing out on the runner), the Mac smoke
+> test failed every week (`lipo` was called with its arguments in the wrong
+> order), and a month of new advisories (14 vulnerable production packages, 3
+> critical) would have failed the audit gate as well. All three are fixed and
+> every dependency is on its latest release, with one exception, in §4.
+> `npm run verify` passes under Node 26.13.0 (2,315 tests). See CHANGELOG.
+> **Local installs:** a stale `node_modules` fails 6 tests that pass in CI. Run
+> `npm ci` after pulling.
 
 ### F-01 · Zero lint errors — ✅ **done**
 `npm run lint` exits 0. Keep it that way — `verify` enforces it.
@@ -158,16 +168,14 @@ entire file** — adding one asset rewrites 153 MB.
   snapshot. **Search is the one caller left**, along with the embed and
   thumbnail queue handlers: its keyword ranking runs over every record in
   memory, so scoping it means a full-text index (SQLite FTS5) — a design change.
-- **Next, and the honest fix:** search should stop asking for the whole catalog. A cache holds the line; it does not
-  remove the ceiling, and it costs a full copy of the catalog in memory.
+- **Done 2026-10-04:** search stopped asking for the whole catalog (FTS5). The
+  embed and thumbnail jobs still load it to find work; that is tracked in R-17.
 - **Cost paid:** the DB is larger on disk than the JSON — 229 MB vs 158 MB —
   from storing each record plus four indexes. Accepted: disk is cheap, the
   158 MB write amplification was not.
 - **Acceptance:** adding one asset writes O(1), not 153 MB ✅; latency measured
-  before and after ✅; catalog load no longer holds the full set in heap
-  **partially** — the watch-root rescan no longer does, but `readVaultCatalog`
-  still materialises everything for search, similar-asset lookup and the sync
-  route. Those are the remaining callers to move onto scoped queries.
+  before and after ✅; catalog load no longer holds the full set in heap ✅ for
+  search, status, sync, find-similar and rescans. Remaining callers are in R-17.
 
 ### F-04 · Server-side provider polling — ✅ **done**
 
@@ -343,10 +351,10 @@ exit code**, so 40 files drifted past it with nothing to stop them.
   once, and deciding they are one asset — and which copy to hand back — was
   untested logic where merging too much could collapse a private copy into a
   public one. **3,041 → 2,906.**
-- **Open:** 39 baselined files. Attack worst first, splitting by responsibility
-  rather than by line count:
-  `PropertiesPanel.tsx` (3,822) · `ImageGeneratorModal.tsx` (3,759) ·
-  `AssetLibrary.tsx` (2,906) · `Toolbar.tsx` (2,689) · `ThreeDGenerator.tsx` (2,197).
+- **Open:** 43 baselined files, 46,019 lines (2026-11-02). Attack worst first,
+  splitting by responsibility rather than by line count:
+  `ImageGeneratorModal.tsx` (3,759) · `PropertiesPanel.tsx` (3,274) ·
+  `AssetLibrary.tsx` (2,932) · `Toolbar.tsx` (2,348) · `ThreeDGenerator.tsx` (2,113).
 - **`PropertiesPanel.tsx` needs a different approach.** Its component begins at
   line 175 and runs to the end, so there is no pure prefix to lift — it needs
   the render tree split by responsibility, which is the harder job and should
@@ -400,7 +408,7 @@ exit code**, so 40 files drifted past it with nothing to stop them.
   | `AssetLibrary.tsx` | 2,906 | 187 | Prefix already harvested once. |
   | `Toolbar.tsx` | 2,355 | 143 | Prefix harvested (pen geometry, then pen fabric code). |
   | `ThreeDGenerator.tsx` | 2,112 | 109 | Sanitisers and scene capture extracted; two small React components remain above the main one. |
-  | `EditorView.tsx` | 1,490 | 111 | Little prefix. |
+  | `EditorView.tsx` | 1,580 | 111 | Little prefix. |
   | `libraryServer.ts` | 1,243 | — | Not a component; splits by responsibility instead. |
 
 - **8,115 of the 44,600 baselined lines are test files.** They are not the same
@@ -583,7 +591,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-02 | Campaign Workspace (media overlay B2) | P1 | B1 bridge done | M1 |
 | R-03 | AI critique quality program | P1 | **Delivered** 2026-10-03 | M1 |
 | R-04 | Ollama local generation quality | P1 | Profiles delivered; model matrix open | M1 |
-| R-05 | Channels advanced workflows | P1 | Delivered for the session; saving with the page open | M1 |
+| R-05 | Channels advanced workflows | P1 | Saved with the page; template load does not clear them | M1 |
 | R-12 | Comfy custom workflows/nodes bundling | P1 | Version tracking and update check delivered | M1 |
 | R-14 | Comfy model catalog + custom upload UI | P1 | **Delivered** 2026-10-03 (checkpoints) | M1 |
 | R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
@@ -717,7 +725,9 @@ rename, reorder and delete.
 opened, per page in a multi-page document. Hard-edged masks are stored as runs,
 soft ones as bytes, whichever is smaller; what comes back from a file is
 validated entry by entry.
-**Open:** loading a template does not clear the previous page's channels.
+**Open:** loading a template from the toolbar does not clear the previous page's
+channels — `Toolbar.handleLoadTemplate` calls `loadCanvasJson` directly, where the
+other template path goes through `loadPageJson`.
 **Note:** the document content-selection mask is live — channel load should
 write into that mask.
 
@@ -730,8 +740,6 @@ write into that mask.
 bundle definitions in the installer config.
 **Done 2026-10-03:** installed commit, branch and date per repository, and an
 explicit *Check for updates*.
-**Open:** naming the specific missing node or model in dependency messages for
-user-added workflows (built-in ones already do).
 **Acceptance:** install/update without manual git; bundled workflows appear when
 requirements are met; missing-dependency messages name the specific node/model.
 
@@ -818,10 +826,19 @@ the main app's dependency audits. Open: decide whether to ship it at all.
 Not features, but they block the gates.
 
 - **Dependency advisories** — the production tree audits clean with no waivers
-  as of 2026-10-04 (Next 16.3.8; brace-expansion, fast-uri, ip-address and
-  dompurify raised through overrides). Open: `braces` 3.0.3 in lint tooling has
-  no patched release, and `mobile-companion/` needs an Expo major upgrade to
-  clear its own audit. See [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
+  as of 2026-11-02. Open: a full `npm audit` still reports 40 low/moderate
+  findings, all in build and test tooling, and `mobile-companion/` (Expo 51, 65
+  advisories) needs a migration to Expo 58 — do that only if R-19 decides to
+  ship it. See [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
+- **Held below latest:** TypeScript stays on 6.0.3. 7.0.2 typechecks this code,
+  but it has no JS compiler API, so `eslint-config-next` fails to load and
+  `typescript-eslint` declares `<6.1.0`. Move when those support it.
+- **Pinned for an upstream gap:** `@tailwindcss/oxide-wasm32-wasi` is overridden
+  to 4.3.3 because 4.3.4 is not published and `npm ci` refuses the lockfile
+  without an entry. Drop the override when Tailwind publishes it.
+- **Not exercised by the 2026-11-02 upgrade:** the Transformers.js 4 pipelines
+  (CLIP embedding and depth) are mocked or lazily loaded in tests, so they have
+  not been run against real models on this major version.
 - **A workspace panel opened from a popup opens behind it.** Floating panels
   (Asset Library, Template Library) live in the workspace tier, below the modal
   tier. Opening one from inside a popup window would need it raised.
