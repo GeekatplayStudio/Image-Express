@@ -13,6 +13,16 @@ import type { MissingItem } from '@/components/Editor/editorView.types';
 import type { UserProfileSettings } from '@/lib/profile-utils';
 import type { AssetType } from '@/types';
 import type { BookcaseFilter } from '@/features/asset-vault/contracts/bookcase';
+import { MODAL_LAYER_BASE } from '@/lib/zLayers';
+
+/**
+ * The asset browser for replacing a missing asset is a floating panel that
+ * portals itself to <body>, so it does not inherit the stacking level of the
+ * backdrop rendered beside it. It is told to sit above that backdrop (1060)
+ * and the missing-assets window under it (1050); wrapped in a card at the
+ * workspace tier, as it used to be, it drew behind both.
+ */
+const MISSING_ASSET_BROWSER_Z = MODAL_LAYER_BASE + 61;
 
 type MediaPreviewState = { type: 'video' | 'audio'; url: string } | null;
 type PendingExportFormat = 'png' | 'jpg' | null;
@@ -116,24 +126,24 @@ export default function EditorViewOverlays({
             />
 
             {showAssetBrowserForMissing && (
-                <div className="fixed inset-0 z-[1060] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="bg-card w-[800px] h-[600px] rounded-xl shadow-2xl relative flex flex-col overflow-hidden border border-border">
-                        <div className="flex-1 overflow-hidden">
-                            <AssetLibrary
-                                currentUser={user}
-                                onSelect={(url) => {
-                                    if (replacingItemId) {
-                                        setReplacementMap((prev) => ({ ...prev, [replacingItemId]: url }));
-                                    }
-                                    setShowAssetBrowserForMissing(false);
-                                    setReplacingItemId(null);
-                                }}
-                                onClose={() => setShowAssetBrowserForMissing(false)}
-                            />
-                        </div>
-                        <button onClick={() => setShowAssetBrowserForMissing(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground bg-background/50 rounded-full p-1 z-50"> <X size={20} /> </button>
-                    </div>
-                </div>
+                <>
+                    <div
+                        className="fixed inset-0 z-[1060] bg-black/60 backdrop-blur-sm"
+                        onClick={() => setShowAssetBrowserForMissing(false)}
+                    />
+                    <AssetLibrary
+                        currentUser={user}
+                        zIndex={MISSING_ASSET_BROWSER_Z}
+                        onSelect={(url) => {
+                            if (replacingItemId) {
+                                setReplacementMap((prev) => ({ ...prev, [replacingItemId]: url }));
+                            }
+                            setShowAssetBrowserForMissing(false);
+                            setReplacingItemId(null);
+                        }}
+                        onClose={() => setShowAssetBrowserForMissing(false)}
+                    />
+                </>
             )}
 
             <AssetVaultModal

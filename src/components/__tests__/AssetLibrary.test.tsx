@@ -30,25 +30,18 @@ const mockSetLocalAssetVisibility = jest.fn();
 const mockLoadAssetStorageSettings = jest.fn();
 const mockOnAssetStorageSettingsChanged = jest.fn();
 
-jest.mock('@/hooks/useEscapeKey', () => ({
-    __esModule: true,
-    default: (...args: unknown[]) => mockUseEscapeKey(...args),
-}));
+jest.mock('@/hooks/useEscapeKey', () => ({ __esModule: true, default: (...args: unknown[]) => mockUseEscapeKey(...args) }));
 
 jest.mock('@/lib/authSession', () => ({
     buildSessionAuthorizationHeader: (...args: unknown[]) => mockBuildSessionAuthorizationHeader(...args),
 }));
 
 jest.mock('@/providers/DialogProvider', () => ({
-    useDialog: () => ({
-        confirm: (...args: unknown[]) => mockDialogConfirm(...args),
-    }),
+    useDialog: () => ({ confirm: (...args: unknown[]) => mockDialogConfirm(...args) }),
 }));
 
 jest.mock('@/providers/ToastProvider', () => ({
-    useToast: () => ({
-        toast: (...args: unknown[]) => mockToast(...args),
-    }),
+    useToast: () => ({ toast: (...args: unknown[]) => mockToast(...args) }),
 }));
 
 jest.mock('@/lib/googleDrive', () => ({
@@ -89,12 +82,12 @@ jest.mock('../Asset3DPreview', () => ({
 
 jest.mock('@/components/ui/DraggableResizablePanel', () => ({
     __esModule: true,
-    default: ({ children }: { children: React.ReactNode }) => <div data-testid="asset-library-panel">{children}</div>,
+    default: ({ children, zIndex }: { children: React.ReactNode; zIndex?: number }) => (
+        <div data-testid="asset-library-panel" data-z={zIndex}>{children}</div>
+    ),
 }));
 
-jest.mock('@/lib/modelThumbnail', () => ({
-    renderModelThumbnail: jest.fn().mockResolvedValue(null),
-}));
+jest.mock('@/lib/modelThumbnail', () => ({ renderModelThumbnail: jest.fn().mockResolvedValue(null) }));
 
 function makeJsonResponse(payload: unknown, ok = true): Response {
     return {
@@ -217,6 +210,12 @@ describe('AssetLibrary', () => {
 
     afterEach(() => {
         anchorClickSpy.mockRestore();
+    });
+
+    it('hands its stacking level to the panel, so a popup can raise it above itself', async () => {
+        render(<AssetLibrary onSelect={jest.fn()} onClose={jest.fn()} zIndex={1061} />);
+        expect(screen.getByTestId('asset-library-panel')).toHaveAttribute('data-z', '1061');
+        await waitFor(() => expect(mockListLocalAssets).toHaveBeenCalled());
     });
 
     it('loads local, drive, and server assets and responds to scope/filter/settings changes', async () => {

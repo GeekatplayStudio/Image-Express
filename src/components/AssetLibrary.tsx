@@ -142,6 +142,8 @@ interface AssetLibraryProps {
     onClose: () => void;
     /** Current signed in user for personal/shared filtering */
     currentUser?: string;
+    /** Stacking level when opened from a popup window; see ModalShell. */
+    zIndex?: number;
 }
 
 type ModelPreviewPopupState = {
@@ -185,17 +187,14 @@ type AssetContextMenuState = {
  * - 3D: User uploaded 3D models (public/assets/uploads/models)
  * - Generated: AI generated images (public/assets/generated/images)
  */
-export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLibraryProps) {
+export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }: AssetLibraryProps) {
     const normalizedUser = currentUser?.trim() || 'Guest';
     const driveClientId = (process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID || '').trim();
-    // Current active view tab
     const [activeTab, setActiveTab] = useState<LibraryTab>('images');
     const [scopeTab, setScopeTab] = useState<AssetScopeTab>('personal');
     
-    // List of assets currently displayed
     const [assets, setAssets] = useState<LibraryAsset[]>([]);
     
-    // UI Loading States
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     
@@ -1766,6 +1765,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser }: AssetLi
             initialSize={{ width: 560, height: 680 }}
             minWidth={420}
             minHeight={460}
+            zIndex={zIndex}
         >
             {/* Header Section */}
             <div className="p-2.5 border-b border-border flex items-center justify-between bg-secondary/10 rounded-t-lg draggable-handle cursor-move">

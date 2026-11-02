@@ -591,7 +591,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-02 | Campaign Workspace (media overlay B2) | P1 | B1 bridge done | M1 |
 | R-03 | AI critique quality program | P1 | **Delivered** 2026-10-03 | M1 |
 | R-04 | Ollama local generation quality | P1 | Profiles delivered; model matrix open | M1 |
-| R-05 | Channels advanced workflows | P1 | Saved with the page; template load does not clear them | M1 |
+| R-05 | Channels advanced workflows | P1 | **Delivered** 2026-11-02 | M1 |
 | R-12 | Comfy custom workflows/nodes bundling | P1 | Version tracking and update check delivered | M1 |
 | R-14 | Comfy model catalog + custom upload UI | P1 | **Delivered** 2026-10-03 (checkpoints) | M1 |
 | R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
@@ -725,9 +725,8 @@ rename, reorder and delete.
 opened, per page in a multi-page document. Hard-edged masks are stored as runs,
 soft ones as bytes, whichever is smaller; what comes back from a file is
 validated entry by entry.
-**Open:** loading a template from the toolbar does not clear the previous page's
-channels — `Toolbar.handleLoadTemplate` calls `loadCanvasJson` directly, where the
-other template path goes through `loadPageJson`.
+**Done 2026-11-02:** loading a template from the toolbar now replaces the
+channel stack like every other page open; it had bypassed `loadPageJson`.
 **Note:** the document content-selection mask is live — channel load should
 write into that mask.
 
@@ -839,9 +838,11 @@ Not features, but they block the gates.
 - **Not exercised by the 2026-11-02 upgrade:** the Transformers.js 4 pipelines
   (CLIP embedding and depth) are mocked or lazily loaded in tests, so they have
   not been run against real models on this major version.
-- **A workspace panel opened from a popup opens behind it.** Floating panels
-  (Asset Library, Template Library) live in the workspace tier, below the modal
-  tier. Opening one from inside a popup window would need it raised.
+- ~~A workspace panel opened from a popup opens behind it.~~ **Fixed
+  2026-11-02** for the one path that did this: the asset browser for replacing a
+  missing asset. `AssetLibrary` now takes a stacking level, as `ModalShell` does.
+  The vault's *classic library* button closes the vault first, so it was never
+  affected; `TemplateLibrary` is only ever opened from the toolbar.
 - **Positional vault page ids** (`<album>::page_N`) renumber on re-index. The
   folder tree avoids this by keying on paths; the group view still does not.
 

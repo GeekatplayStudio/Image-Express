@@ -19,6 +19,22 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-02 - Two editor fixes after the upgrade
+
+- **Loading a template from the toolbar kept the previous page's saved
+  channels.** That path loaded the page with `loadCanvasJson`; it now goes
+  through `loadPageJson` like opening a page does, so the channel stack is
+  replaced. Closes the last open R-05 item.
+- **The missing-asset browser opened behind its own backdrop.** It rendered the
+  Asset Library inside a card at z-1060, but the library is a floating panel that
+  portals itself to `<body>` at the workspace tier, so it drew behind the
+  backdrop and the missing-assets window. `AssetLibrary` now accepts a stacking
+  level and the browser passes one above both. Pinned by a test; not exercised
+  in the running app.
+- Jest's timeout is 30 s for the whole suite. The stamp mesh tests take 1–2 s
+  here and were exceeding the 5 s default on GitHub's runner, which is what had
+  been failing CI on `main`.
+
 ## 2026-11-02 - Everything on latest; CI and the Mac smoke test repaired
 
 `main` had been failing since at least 2026-10-04. This brings every dependency

@@ -7,7 +7,7 @@
     "src/components/PropertiesPanel.tsx": 3274,
     "src/components/AssetLibrary.tsx": 2932,
     "src/components/Editor/__tests__/EditorView.test.tsx": 2811,
-    "src/components/Toolbar.tsx": 2348,
+    "src/components/Toolbar.tsx": 2347,
     "src/components/ThreeDGenerator.tsx": 2113,
     "src/components/Editor/EditorView.tsx": 1580,
     "src/components/properties/PanelUtilityViews.tsx": 1330,
