@@ -25,9 +25,11 @@ look for current behaviour or future plans.
   fp8, read from Hugging Face's LFS metadata rather than from downloads. The
   installer already verified any pin present; these are the first.
 - The FLUX repositories mask their hashes (gated), so those four files stay
-  unpinned; and both custom-bundle repositories named in the config do not
-  exist on GitHub — recorded as an open decision in the roadmap, not papered
-  over.
+  unpinned.
+- **2026-11-03:** both custom-bundle repositories named in the config turned
+  out not to exist on GitHub, so the bundle step could never succeed; the
+  entries are removed (decision recorded in the roadmap). ComfyUI stays on
+  floating `master` until there is a release cadence to bump a pin.
 - `GET /api/runtime/installer/status` reports `sources.pinned` and
   `sources.unpinned`; the Setup Wizard's runtime summary shows "Pinned
   sources: n/m" with the floating ones in the tooltip.

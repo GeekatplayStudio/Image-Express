@@ -7,22 +7,7 @@
   "localWorkspace": {
     "sourceDir": "ComfyUI workflows"
   },
-  "customBundles": [
-    {
-      "name": "image-express-custom-nodes",
-      "repo": "https://github.com/GeekatplayStudio/image-express-comfy-custom-nodes.git",
-      "branch": "main",
-      "targetPath": "custom_nodes/image-express-custom-nodes",
-      "bundleType": "custom-node"
-    },
-    {
-      "name": "image-express-workflows",
-      "repo": "https://github.com/GeekatplayStudio/image-express-comfy-workflows.git",
-      "branch": "main",
-      "targetPath": "user/default/workflows/image-express",
-      "bundleType": "workflow-library"
-    }
-  ],
+  "customBundles": [],
   "comfyModels": [
     {
       "id": "sdxl-base-1.0",
