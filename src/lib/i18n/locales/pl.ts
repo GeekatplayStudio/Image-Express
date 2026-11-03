@@ -767,6 +767,19 @@ const pl: LocaleDictionary = {
     'vault.loadingMore': 'Wczytywanie…',
     'vault.loadedOfTotal': 'Wczytano {loaded} z {total}',
     'wizard.pinnedSources': 'Przypięte źródła:',
+    'campaignWorkspace.title': 'Obszar roboczy kampanii',
+    'campaignWorkspace.open': 'Obszar roboczy kampanii…',
+    'campaignWorkspace.close': 'Zamknij obszar roboczy',
+    'campaignWorkspace.snapshotActiveFrame': 'Zapisz aktywną ramkę',
+    'campaignWorkspace.snapshotHint': 'Najpierw włącz nakładkę mediów i dodaj ramkę.',
+    'campaignWorkspace.exportAll': 'Eksportuj wszystko',
+    'campaignWorkspace.exportOne': 'Eksportuj ten wariant',
+    'campaignWorkspace.rename': 'Zmień nazwę',
+    'campaignWorkspace.duplicate': 'Duplikuj',
+    'campaignWorkspace.delete': 'Usuń wariant',
+    'campaignWorkspace.empty': 'Brak wariantów. Zapisz ramkę nakładki, aby rozpocząć kampanię.',
+    'campaignWorkspace.footerHint': 'Każdy wariant to migawka strony; eksport renderuje migawkę, nie bieżące płótno.',
+    'campaignWorkspace.activeVariantTitle': 'Aktywny wariant kampanii: {name}. Kliknij, aby otworzyć obszar roboczy.',
 };
 
 export default pl;

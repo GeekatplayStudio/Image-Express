@@ -758,6 +758,19 @@ const fr: LocaleDictionary = {
     'vault.loadingMore': 'Chargement…',
     'vault.loadedOfTotal': '{loaded} sur {total} chargés',
     'wizard.pinnedSources': 'Sources épinglées :',
+    'campaignWorkspace.title': 'Espace de campagne',
+    'campaignWorkspace.open': 'Espace de campagne…',
+    'campaignWorkspace.close': 'Fermer l’espace de campagne',
+    'campaignWorkspace.snapshotActiveFrame': 'Capturer le cadre actif',
+    'campaignWorkspace.snapshotHint': 'Activez d’abord la superposition média et ajoutez un cadre.',
+    'campaignWorkspace.exportAll': 'Tout exporter',
+    'campaignWorkspace.exportOne': 'Exporter cette variante',
+    'campaignWorkspace.rename': 'Renommer',
+    'campaignWorkspace.duplicate': 'Dupliquer',
+    'campaignWorkspace.delete': 'Supprimer la variante',
+    'campaignWorkspace.empty': 'Aucune variante pour l’instant. Capturez un cadre de superposition pour lancer la campagne.',
+    'campaignWorkspace.footerHint': 'Chaque variante est un instantané de la page ; les exports rendent l’instantané, pas le canevas en cours.',
+    'campaignWorkspace.activeVariantTitle': 'Variante de campagne active : {name}. Cliquez pour ouvrir l’espace.',
 };
 
 export default fr;

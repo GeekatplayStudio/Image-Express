@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Home as HomeIcon, ChevronRight } from 'lucide-react';
+import { Home as HomeIcon, ChevronRight, Layers } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 
 import BrandIcon from '@/components/BrandIcon';
@@ -15,6 +15,9 @@ type EditorHeaderPrimaryProps = {
     onBack: () => void;
     showTopNavMenus: boolean;
     onToggleTopNavMenus: () => void;
+    /** Name of the active campaign variant, shown as a badge beside the title. */
+    activeVariantName?: string | null;
+    onOpenCampaignWorkspace?: () => void;
     children?: ReactNode;
 };
 
@@ -29,6 +32,8 @@ export default function EditorHeaderPrimary({
     onBack,
     showTopNavMenus,
     onToggleTopNavMenus,
+    activeVariantName,
+    onOpenCampaignWorkspace,
     children,
 }: EditorHeaderPrimaryProps) {
     const { t } = useI18n();
@@ -61,6 +66,18 @@ export default function EditorHeaderPrimary({
                         title={t('editor.clickToRename')}
                     >
                         {designName}
+                    </button>
+                )}
+                {activeVariantName && (
+                    <button
+                        type="button"
+                        onClick={onOpenCampaignWorkspace}
+                        data-testid="active-variant-badge"
+                        className="hidden md:inline-flex items-center gap-1 max-w-[200px] truncate rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/20"
+                        title={t('campaignWorkspace.activeVariantTitle', { name: activeVariantName })}
+                    >
+                        <Layers size={12} />
+                        <span className="truncate">{activeVariantName}</span>
                     </button>
                 )}
             </div>

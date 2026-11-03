@@ -1107,6 +1107,19 @@ const es: LocaleDictionary = {
     'vault.loadMore': 'Cargar más',
     'vault.loadingMore': 'Cargando…',
     'vault.loadedOfTotal': '{loaded} de {total} cargados',
+    'campaignWorkspace.title': 'Espacio de campaña',
+    'campaignWorkspace.open': 'Espacio de campaña…',
+    'campaignWorkspace.close': 'Cerrar espacio de campaña',
+    'campaignWorkspace.snapshotActiveFrame': 'Capturar marco activo',
+    'campaignWorkspace.snapshotHint': 'Activa la superposición de medios y añade un marco primero.',
+    'campaignWorkspace.exportAll': 'Exportar todo',
+    'campaignWorkspace.exportOne': 'Exportar esta variante',
+    'campaignWorkspace.rename': 'Renombrar',
+    'campaignWorkspace.duplicate': 'Duplicar',
+    'campaignWorkspace.delete': 'Eliminar variante',
+    'campaignWorkspace.empty': 'Aún no hay variantes. Captura un marco de superposición para empezar la campaña.',
+    'campaignWorkspace.footerHint': 'Cada variante es una instantánea de la página; las exportaciones renderizan la instantánea, no el lienzo actual.',
+    'campaignWorkspace.activeVariantTitle': 'Variante activa de la campaña: {name}. Haz clic para abrir el espacio.',
 };
 
 export default es;

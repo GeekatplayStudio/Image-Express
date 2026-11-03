@@ -19,6 +19,26 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-03 - Campaign Workspace (R-02)
+
+The variant snapshot workspace had a hook, a storage format and tests, and
+no UI: the header's *Convert Frame to Variant* ran a different, destructive
+converter that cropped the live page. The workspace is now reachable.
+
+- **Flyout** from Export → *Campaign workspace…*, or from the new
+  active-variant badge beside the page title. Snapshot the active media
+  overlay frame; select, rename inline, duplicate, delete; export one or all.
+- **Deterministic export.** A variant renders offscreen from its own
+  snapshot, cropped to its own bounds, named `<page>-<variant>.<ext>`; *Export
+  all* builds `<page>-variants.zip`. No timestamps, so re-exports overwrite.
+- Snapshots keep a 160 px thumbnail and metadata (page id/name, canvas size);
+  stored data is validated on load, and a name the user typed is kept when
+  the same frame is snapshotted again.
+- Strings added in all eleven locales. 13 new tests over the utilities, the
+  export naming/ZIP, and the flyout. The offscreen fabric renderer is the one
+  path not covered — the export tests inject a renderer — and the flow was
+  not exercised in the running app.
+
 ## 2026-11-03 - Provider QA: live check script and proxy contract tests (R-11)
 
 - `npm run qa:providers` makes one cheap authenticated call per provider with

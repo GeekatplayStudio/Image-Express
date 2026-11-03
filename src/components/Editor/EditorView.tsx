@@ -20,6 +20,7 @@ import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import useAppTheme from '@/hooks/useAppTheme';
 import { useMediaOverlay } from '@/components/Editor/useMediaOverlay';
+import { useCampaignWorkspace } from '@/components/Editor/useCampaignWorkspace';
 import { useEditorExport } from '@/components/Editor/useEditorExport';
 import { useEditorPersistence } from '@/components/Editor/useEditorPersistence';
 import { useEditorAutosave } from '@/components/Editor/useEditorAutosave';
@@ -256,25 +257,12 @@ export default function EditorView({
         handTopLockPan, setHandTopLockPan,
     } = useEditorTopToolState();
     const {
-        mediaOverlayEnabled,
-        setMediaOverlayEnabled,
-        mediaOverlayPreset,
-        mediaOverlayFrames,
-        activeMediaOverlayFrameId,
-        mediaOverlayFrameRef,
-        mediaOverlayLabelRef,
-        getMediaOverlayBatchTargets,
-        handleMediaOverlayPresetChange,
-        handleAddMediaOverlayFrame,
-        handleRemoveActiveMediaOverlayFrame,
-        handleToggleMediaOverlayFrameInclude,
-        mediaOverlayNamingTemplate,
-        setMediaOverlayNamingTemplate,
-        mediaOverlayVariantConversionMode,
-        setMediaOverlayVariantConversionMode,
-        handleActiveMediaOverlayFrameSafeAreaPresetChange,
-        handleSelectMediaOverlayFrame,
-        handleConvertActiveMediaOverlayFrameToVariant,
+        mediaOverlayEnabled, setMediaOverlayEnabled, mediaOverlayPreset, mediaOverlayFrames, activeMediaOverlayFrameId,
+        mediaOverlayFrameRef, mediaOverlayLabelRef, getMediaOverlayBatchTargets, handleMediaOverlayPresetChange,
+        handleAddMediaOverlayFrame, handleRemoveActiveMediaOverlayFrame, handleToggleMediaOverlayFrameInclude,
+        mediaOverlayNamingTemplate, setMediaOverlayNamingTemplate, mediaOverlayVariantConversionMode,
+        setMediaOverlayVariantConversionMode, handleActiveMediaOverlayFrameSafeAreaPresetChange,
+        handleSelectMediaOverlayFrame, handleConvertActiveMediaOverlayFrameToVariant, resolveMediaOverlayFrameBounds,
     } = useMediaOverlay({
         canvas,
         designId: propDesignId,
@@ -287,6 +275,10 @@ export default function EditorView({
             onUpdateDesignInfo(null, name);
             setIsDirty(true);
         },
+    });
+    const campaign = useCampaignWorkspace({
+        canvas, designId: propDesignId, designName: propDesignName || 'Untitled Page', customHistoryProps, toast,
+        mediaOverlayEnabled, mediaOverlayFrames, activeMediaOverlayFrameId, resolveMediaOverlayFrameBounds,
     });
 
     const {
@@ -1320,6 +1312,8 @@ export default function EditorView({
                     onBack={handleBack}
                     showTopNavMenus={showTopNavMenus}
                     onToggleTopNavMenus={handleToggleTopNavMenus}
+                    activeVariantName={campaign.activeVariantName}
+                    onOpenCampaignWorkspace={campaign.openWorkspace}
                 >
                     {showTopNavMenus && (
                         <EditorHeaderMenus
@@ -1418,6 +1412,7 @@ export default function EditorView({
                     handleConvertActiveMediaOverlayFrameToVariant={handleConvertActiveMediaOverlayFrameToVariant}
                     handleExport={handleExport}
                     exportMediaOverlayFramesZip={exportMediaOverlayFramesZip}
+                    campaign={campaign}
                     setShowProfileModal={setShowProfileModal}
                     profileSettings={profileSettings}
                 />

@@ -757,6 +757,19 @@ const de: LocaleDictionary = {
     'vault.loadingMore': 'Wird geladen…',
     'vault.loadedOfTotal': '{loaded} von {total} geladen',
     'wizard.pinnedSources': 'Fixierte Quellen:',
+    'campaignWorkspace.title': 'Kampagnen-Arbeitsbereich',
+    'campaignWorkspace.open': 'Kampagnen-Arbeitsbereich…',
+    'campaignWorkspace.close': 'Arbeitsbereich schließen',
+    'campaignWorkspace.snapshotActiveFrame': 'Aktiven Rahmen aufnehmen',
+    'campaignWorkspace.snapshotHint': 'Zuerst das Medien-Overlay einschalten und einen Rahmen hinzufügen.',
+    'campaignWorkspace.exportAll': 'Alle exportieren',
+    'campaignWorkspace.exportOne': 'Diese Variante exportieren',
+    'campaignWorkspace.rename': 'Umbenennen',
+    'campaignWorkspace.duplicate': 'Duplizieren',
+    'campaignWorkspace.delete': 'Variante löschen',
+    'campaignWorkspace.empty': 'Noch keine Varianten. Nimm einen Overlay-Rahmen auf, um die Kampagne zu starten.',
+    'campaignWorkspace.footerHint': 'Jede Variante ist ein Schnappschuss der Seite; Exporte rendern den Schnappschuss, nicht die Live-Leinwand.',
+    'campaignWorkspace.activeVariantTitle': 'Aktive Kampagnenvariante: {name}. Klicken, um den Arbeitsbereich zu öffnen.',
 };
 
 export default de;

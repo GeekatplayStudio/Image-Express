@@ -30,6 +30,17 @@ export type CampaignVariant = {
     snapshot: DesignJson;
     createdAt: string;
     updatedAt: string;
+    /** Small PNG data URL of the frame region at the time of the snapshot. */
+    thumbnail?: string;
+    /** Where the snapshot came from, for the workspace list and exports. */
+    meta?: CampaignVariantMeta;
+};
+
+export type CampaignVariantMeta = {
+    designId: string | null;
+    designName: string;
+    canvasWidth: number;
+    canvasHeight: number;
 };
 
 export type CampaignWorkspace = {

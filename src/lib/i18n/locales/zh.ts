@@ -747,6 +747,19 @@ const zh: LocaleDictionary = {
     'vault.loadingMore': '正在加载…',
     'vault.loadedOfTotal': '已加载 {loaded} / {total}',
     'wizard.pinnedSources': '已固定的来源：',
+    'campaignWorkspace.title': '活动工作区',
+    'campaignWorkspace.open': '活动工作区…',
+    'campaignWorkspace.close': '关闭活动工作区',
+    'campaignWorkspace.snapshotActiveFrame': '保存当前框架快照',
+    'campaignWorkspace.snapshotHint': '请先开启媒体叠加并添加一个框架。',
+    'campaignWorkspace.exportAll': '全部导出',
+    'campaignWorkspace.exportOne': '导出此变体',
+    'campaignWorkspace.rename': '重命名',
+    'campaignWorkspace.duplicate': '复制',
+    'campaignWorkspace.delete': '删除变体',
+    'campaignWorkspace.empty': '还没有变体。保存一个媒体叠加框架快照即可开始活动。',
+    'campaignWorkspace.footerHint': '每个变体都是保存时页面的快照；导出渲染的是快照，而非当前画布。',
+    'campaignWorkspace.activeVariantTitle': '当前活动变体：{name}。点击打开工作区。',
 };
 
 export default zh;

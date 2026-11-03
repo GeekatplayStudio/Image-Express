@@ -2,8 +2,10 @@ import type { DesignJson, RectBounds } from '@/components/Editor/editorView.type
 import type { MediaOverlayFrameConfig } from '@/components/Editor/mediaOverlayTypes';
 import {
     createEmptyCampaignWorkspace,
+    duplicateCampaignVariant,
     normalizeCampaignWorkspace,
     removeCampaignVariant,
+    renameCampaignVariant,
     upsertCampaignVariantFromFrame,
 } from '@/components/Editor/mediaOverlayCampaignVariantUtils';
 
@@ -121,6 +123,49 @@ describe('mediaOverlayCampaignVariantUtils', () => {
         expect(normalized.variants).toHaveLength(1);
         expect(normalized.activeVariantId).toBe('campaign-variant-frame-1');
         expect(normalized.variants[0]?.snapshot).toEqual(snapshot);
+    });
+
+    it('renames a variant, keeps the typed name across a re-snapshot, and duplicates after the source', () => {
+        const frame: MediaOverlayFrameConfig = { id: 'frame-1', preset: 'instagram-square', includeInBatchExport: true, safeAreaPreset: 'none' };
+        const bounds = { left: 0, top: 0, width: 10, height: 10 };
+        const snapshot = { objects: [] } as unknown as DesignJson;
+        const first = upsertCampaignVariantFromFrame({ workspace: createEmptyCampaignWorkspace(), frame, frameBounds: bounds, snapshot, frameIndex: 0, now: '2026-11-03T00:00:00.000Z', meta: { designId: null, designName: 'Page', canvasWidth: 20, canvasHeight: 20 } }).workspace;
+        const id = first.variants[0].id;
+
+        const renamed = renameCampaignVariant(first, id, '  Hero story  ', '2026-11-03T00:01:00.000Z');
+        expect(renamed.variants[0].name).toBe('Hero story');
+        expect(renameCampaignVariant(renamed, id, '   ', 'x')).toBe(renamed);
+
+        const resnapped = upsertCampaignVariantFromFrame({ workspace: renamed, frame, frameBounds: bounds, snapshot, frameIndex: 0, now: '2026-11-03T00:02:00.000Z' }).workspace;
+        expect(resnapped.variants[0].name).toBe('Hero story');
+        expect(resnapped.variants[0].meta?.designName).toBeUndefined();
+
+        const duplicated = duplicateCampaignVariant(resnapped, id, '2026-11-03T00:03:00.000Z');
+        expect(duplicated.variants.map((v) => v.name)).toEqual(['Hero story', 'Hero story copy']);
+        expect(duplicated.activeVariantId).toBe(duplicated.variants[1].id);
+        expect(duplicated.variants[1].sourceFrameId).not.toBe('frame-1');
+        const again = duplicateCampaignVariant(duplicated, id, '2026-11-03T00:04:00.000Z');
+        expect(again.variants.map((v) => v.name)).toEqual(['Hero story', 'Hero story copy 2', 'Hero story copy']);
+        // A copy's snapshot is its own.
+        expect(again.variants[1].snapshot).not.toBe(again.variants[0].snapshot);
+    });
+
+    it('keeps a thumbnail and metadata through persistence, and drops malformed ones', () => {
+        const base = normalizeCampaignWorkspace({ variants: [{
+            id: 'v', name: 'n', sourceFrameId: 'f', framePreset: 'instagram-square', safeAreaPreset: 'none',
+            bounds: { left: 0, top: 0, width: 1, height: 1 }, snapshot: {}, exportProfile: { format: 'png', includeBackground: true },
+            createdAt: 'x', updatedAt: 'x', thumbnail: 'data:image/png;base64,AA==', meta: { designId: 'd1', designName: 'Page', canvasWidth: 10, canvasHeight: 10 },
+        }] });
+        expect(base.variants[0].thumbnail).toBe('data:image/png;base64,AA==');
+        expect(base.variants[0].meta).toEqual({ designId: 'd1', designName: 'Page', canvasWidth: 10, canvasHeight: 10 });
+
+        const bad = normalizeCampaignWorkspace({ variants: [{
+            id: 'v', name: 'n', sourceFrameId: 'f', framePreset: 'instagram-square', safeAreaPreset: 'none',
+            bounds: { left: 0, top: 0, width: 1, height: 1 }, snapshot: {}, exportProfile: { format: 'png', includeBackground: true },
+            createdAt: 'x', updatedAt: 'x', thumbnail: 'javascript:alert(1)', meta: { designName: 5 },
+        }] });
+        expect(bad.variants[0].thumbnail).toBeUndefined();
+        expect(bad.variants[0].meta).toBeUndefined();
     });
 
     it('removes campaign variants and clears the active selection when needed', () => {

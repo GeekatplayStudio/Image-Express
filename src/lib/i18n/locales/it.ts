@@ -757,6 +757,19 @@ const it: LocaleDictionary = {
     'vault.loadingMore': 'Caricamento…',
     'vault.loadedOfTotal': '{loaded} di {total} caricati',
     'wizard.pinnedSources': 'Sorgenti bloccate:',
+    'campaignWorkspace.title': 'Area di lavoro campagna',
+    'campaignWorkspace.open': 'Area di lavoro campagna…',
+    'campaignWorkspace.close': 'Chiudi area di lavoro',
+    'campaignWorkspace.snapshotActiveFrame': 'Cattura il riquadro attivo',
+    'campaignWorkspace.snapshotHint': 'Attiva prima la sovrapposizione media e aggiungi un riquadro.',
+    'campaignWorkspace.exportAll': 'Esporta tutto',
+    'campaignWorkspace.exportOne': 'Esporta questa variante',
+    'campaignWorkspace.rename': 'Rinomina',
+    'campaignWorkspace.duplicate': 'Duplica',
+    'campaignWorkspace.delete': 'Elimina variante',
+    'campaignWorkspace.empty': 'Nessuna variante. Cattura un riquadro di sovrapposizione per iniziare la campagna.',
+    'campaignWorkspace.footerHint': 'Ogni variante è un’istantanea della pagina; le esportazioni rendono l’istantanea, non la tela attuale.',
+    'campaignWorkspace.activeVariantTitle': 'Variante attiva della campagna: {name}. Fai clic per aprire l’area di lavoro.',
 };
 
 export default it;

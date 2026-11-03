@@ -747,6 +747,19 @@ const ja: LocaleDictionary = {
     'vault.loadingMore': '読み込み中…',
     'vault.loadedOfTotal': '{total} 件中 {loaded} 件を読み込み済み',
     'wizard.pinnedSources': '固定されたソース:',
+    'campaignWorkspace.title': 'キャンペーンワークスペース',
+    'campaignWorkspace.open': 'キャンペーンワークスペース…',
+    'campaignWorkspace.close': 'ワークスペースを閉じる',
+    'campaignWorkspace.snapshotActiveFrame': 'アクティブなフレームを保存',
+    'campaignWorkspace.snapshotHint': '先にメディアオーバーレイをオンにしてフレームを追加してください。',
+    'campaignWorkspace.exportAll': 'すべて書き出し',
+    'campaignWorkspace.exportOne': 'このバリアントを書き出し',
+    'campaignWorkspace.rename': '名前を変更',
+    'campaignWorkspace.duplicate': '複製',
+    'campaignWorkspace.delete': 'バリアントを削除',
+    'campaignWorkspace.empty': 'バリアントはまだありません。オーバーレイのフレームを保存してキャンペーンを始めましょう。',
+    'campaignWorkspace.footerHint': '各バリアントは保存時点のページのスナップショットです。書き出しは現在のキャンバスではなくスナップショットを描画します。',
+    'campaignWorkspace.activeVariantTitle': 'アクティブなキャンペーンバリアント：{name}。クリックでワークスペースを開きます。',
 };
 
 export default ja;

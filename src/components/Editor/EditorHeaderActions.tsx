@@ -1,8 +1,11 @@
 import type { RefObject } from 'react';
+import CampaignWorkspaceFlyout from '@/components/Editor/CampaignWorkspaceFlyout';
+import type { CampaignWorkspaceController } from '@/components/Editor/useCampaignWorkspace';
 import NextImage from 'next/image';
 import * as fabric from 'fabric';
 import {
     Download,
+    Layers,
     Share2,
     ChevronDown,
     Image as ImageIcon,
@@ -74,6 +77,8 @@ type EditorHeaderActionsProps = {
     handleConvertActiveMediaOverlayFrameToVariant: () => void | Promise<void>;
     handleExport: (format: ExportFormat) => void | Promise<void>;
     exportMediaOverlayFramesZip: (scope: 'selected' | 'all') => void | Promise<void>;
+    /** The campaign workspace (variant snapshots); absent in harnesses that do not mount it. */
+    campaign?: CampaignWorkspaceController;
     setShowProfileModal: (show: boolean) => void;
     profileSettings: UserProfileSettings | null;
 };
@@ -110,6 +115,7 @@ export default function EditorHeaderActions({
     handleConvertActiveMediaOverlayFrameToVariant,
     handleExport,
     exportMediaOverlayFramesZip,
+    campaign,
     setShowProfileModal,
     profileSettings,
 }: EditorHeaderActionsProps) {
@@ -327,6 +333,9 @@ export default function EditorHeaderActions({
                         <div className="my-1 border-t border-border/50" />
                         <button onClick={() => { void exportMediaOverlayFramesZip('selected'); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-indigo-500" /> <span className="font-medium">{t('hdr.zipSelected')}</span></button>
                         <button onClick={() => { void exportMediaOverlayFramesZip('all'); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-violet-500" /> <span className="font-medium">{t('hdr.zipAll')}</span></button>
+                        {campaign && (
+                            <button onClick={() => { campaign.openWorkspace(); toggleEditorMenu('export'); }} data-testid="open-campaign-workspace" className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Layers size={16} className="text-primary" /> <span className="font-medium">{t('campaignWorkspace.open')}</span></button>
+                        )}
                         <div className="my-1 border-t border-border/50" />
                         <button onClick={() => handleExport('json')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><FileCode size={16} className="text-green-500" /> <span className="font-medium">JSON</span></button>
                         <button onClick={() => handleExport('html')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50 flex items-center gap-3"><Archive size={16} className="text-sky-400" /> <span className="font-medium">{t('hdr.htmlBundle')}</span></button>
@@ -356,6 +365,9 @@ export default function EditorHeaderActions({
                     <User size={16} className="text-white/90" />
                 )}
             </button>
+            {campaign && (
+                <CampaignWorkspaceFlyout open={campaign.open} onClose={campaign.closeWorkspace} workspace={campaign.workspace} canSnapshot={campaign.canSnapshot} />
+            )}
         </div>
     );
 }

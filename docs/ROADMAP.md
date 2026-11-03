@@ -592,7 +592,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 |---|---|---|---|---|
 | R-01 | Durable encrypted user key vault | P0 | **Delivered** 2026-11-02; external KMS deferred | M0 |
 | R-13 | Super installer + first-run orchestration | P0 | Pins where the host exposes them; phantom bundles removed; FLUX checksums and readiness tests open | M0 |
-| R-02 | Campaign Workspace (media overlay B2) | P1 | B1 bridge done | M1 |
+| R-02 | Campaign Workspace (media overlay B2) | P1 | **Delivered** 2026-11-03; offscreen renderer unverified in-app | M1 |
 | R-03 | AI critique quality program | P1 | **Delivered** 2026-10-03 | M1 |
 | R-04 | Ollama local generation quality | P1 | Profiles delivered; model matrix open | M1 |
 | R-05 | Channels advanced workflows | P1 | **Delivered** 2026-11-02 | M1 |
@@ -726,12 +726,28 @@ simpler and more honest. `cancel` flags the job, the handler checks
 (a generation mid-provider-call) completes and reports `succeeded`, because
 labelling finished work "cancelled" would hide a real result.
 
-### R-02 · Campaign Workspace (media overlay B2) — P1
-Promote the frame-to-variant bridge into a real campaign workspace: right-side
-flyout from Export, active-variant badge near the title.
-**Acceptance:** create/rename/duplicate/delete/select variants; deterministic
-export of current and of all; snapshots carry metadata and thumbnail linkage.
-Benefits from the queue for variant-export batching.
+### R-02 · Campaign Workspace (media overlay B2) — P1 — ✅ delivered 2026-11-03
+**Done:** the snapshot workspace (`useMediaOverlayCampaignVariants`, the B1
+bridge — which turned out to be wired to nothing; the header's *Convert Frame
+to Variant* was a separate, destructive draft converter) now has its UI.
+- `CampaignWorkspaceFlyout`: right-side flyout opened from Export → *Campaign
+  workspace…* or by clicking the active-variant badge beside the page title.
+  Snapshot the active frame; select, rename inline, duplicate, delete, export
+  one, export all.
+- **Deterministic export** (`campaignVariantExport.ts`): a variant is rendered
+  offscreen from its *own snapshot* cropped to its own bounds, so the same
+  variant exports the same pixels whatever happened to the canvas since.
+  Names are `<page>-<variant>.<ext>` and `<page>-variants.zip`, no timestamps,
+  so a re-export overwrites.
+- Snapshots carry a thumbnail (160 px PNG of the frame region) and metadata
+  (page id and name, canvas size); a typed name survives a re-snapshot.
+**Not exercised in the running app:** the offscreen fabric renderer
+(`renderVariantOffscreen`) is the one piece without a test — the export tests
+inject a renderer. Open: variant-export batching through the job queue, and
+replacing the destructive draft converter with "open variant as draft" from the
+workspace.
+**Acceptance:** create/rename/duplicate/delete/select ✅; deterministic export
+of current and of all ✅; snapshots carry metadata and thumbnail linkage ✅.
 
 ### R-03 · AI critique quality program — P1 — ✅ delivered 2026-10-03
 Profiles (composition, typography, brand consistency, conversion-readiness, plus

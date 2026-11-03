@@ -1,8 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import {
-    MEDIA_OVERLAY_NAMING_TEMPLATES,
-    MEDIA_OVERLAY_PRESETS,
+    MEDIA_OVERLAY_NAMING_TEMPLATES, MEDIA_OVERLAY_PRESETS,
     MEDIA_OVERLAY_SAFE_AREA_PRESETS,
     MEDIA_OVERLAY_STORAGE_KEY_PREFIX,
     MEDIA_OVERLAY_VARIANT_CONVERSION_MODES,
@@ -736,5 +735,6 @@ export function useMediaOverlay({
         handleActiveMediaOverlayFrameSafeAreaPresetChange,
         handleSelectMediaOverlayFrame,
         handleConvertActiveMediaOverlayFrameToVariant,
+        resolveMediaOverlayFrameBounds,
     };
 }
