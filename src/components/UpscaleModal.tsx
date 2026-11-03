@@ -2,8 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as fabric from 'fabric';
-import { ArrowUpWideNarrow, CheckCircle2, Loader2, X } from 'lucide-react';
+import { ArrowUpWideNarrow, CheckCircle2, Loader2 } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import ModalShell from '@/components/ui/ModalShell';
 import { useI18n } from '@/providers/I18nProvider';
 import { captureSelectionImage, captureSourceImage } from '@/components/AI/stability-generator/stabilityGeneratorCanvas';
 import {
@@ -129,18 +130,47 @@ export default function UpscaleModal({ canvas, onClose }: UpscaleModalProps) {
     }, [canvas, placement, provider.id, resultImage, scale]);
 
     return (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                    <h2 className="font-semibold text-sm flex items-center gap-2">
-                        <ArrowUpWideNarrow size={16} className="text-primary" />
-                        {t('upscale.title')}
-                    </h2>
-                    <button type="button" onClick={onClose} aria-label={t('common.close')} className="p-1 rounded hover:bg-secondary transition-colors">
-                        <X size={16} />
+        <ModalShell
+            isOpen
+            onClose={onClose}
+            closeOnEscape={false}
+            zIndex={100}
+            title={t('upscale.title')}
+            icon={<ArrowUpWideNarrow size={16} className="text-primary" />}
+            initialWidth={520}
+            initialHeight={600}
+            minWidth={360}
+            minHeight={360}
+            persistKey="upscale"
+            footer={(
+                <div className="flex justify-end gap-2 px-5 py-3">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="h-9 px-4 rounded-md border border-border text-xs font-semibold hover:bg-secondary transition-colors"
+                    >
+                        {t('common.close')}
+                    </button>
+                    {resultImage ? (
+                        <button
+                            type="button"
+                            onClick={() => void handleAddLayer()}
+                            className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
+                        >
+                            {t('upscale.addAsLayer')}
+                        </button>
+                    ) : null}
+                    <button
+                        type="button"
+                        onClick={() => void handleRun()}
+                        disabled={isProcessing || !canvas || keyMissing}
+                        className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                        {isProcessing ? t('upscale.running') : t('upscale.run')}
                     </button>
                 </div>
-
+            )}
+        >
                 <div className="p-5 space-y-4">
                     <div>
                         <label className="text-xs font-semibold mb-1.5 block">{t('upscale.source')}</label>
@@ -239,34 +269,6 @@ export default function UpscaleModal({ canvas, onClose }: UpscaleModalProps) {
                         </p>
                     ) : null}
                 </div>
-
-                <div className="flex justify-end gap-2 px-5 py-4 border-t border-border">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="h-9 px-4 rounded-md border border-border text-xs font-semibold hover:bg-secondary transition-colors"
-                    >
-                        {t('common.close')}
-                    </button>
-                    {resultImage ? (
-                        <button
-                            type="button"
-                            onClick={() => void handleAddLayer()}
-                            className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
-                        >
-                            {t('upscale.addAsLayer')}
-                        </button>
-                    ) : null}
-                    <button
-                        type="button"
-                        onClick={() => void handleRun()}
-                        disabled={isProcessing || !canvas || keyMissing}
-                        className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-                    >
-                        {isProcessing ? t('upscale.running') : t('upscale.run')}
-                    </button>
-                </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }

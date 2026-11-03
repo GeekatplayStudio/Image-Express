@@ -32,8 +32,8 @@ look for current behaviour or future plans.
   closes. Callers that already own Escape through `useEscapeKey` pass
   `closeOnEscape={false}` so the key does not fire twice.
 
-`HelpPopup`, `MissingAssetsModal` and the export-quality dialog moved onto the
-shell from hand-rolled overlays. Six tests for the shell, which had none. The
+`HelpPopup`, `MissingAssetsModal`, the export-quality dialog and `UpscaleModal`
+(which now remembers its frame) moved onto the shell from hand-rolled overlays. Six tests for the shell, which had none. The
 remaining hand-rolled windows are listed in the roadmap; not exercised in the
 running app in this pass.
 
