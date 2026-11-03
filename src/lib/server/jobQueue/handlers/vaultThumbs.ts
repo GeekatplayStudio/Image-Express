@@ -1,4 +1,5 @@
-import { readVaultCatalog } from '@/lib/server/vault-store';
+import { readVaultAssetIds, readVaultAssetsByIds } from '@/lib/server/vault-store';
+import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
 import { fileUriToPath } from '@/lib/server/vaultFilesystemPolicy';
 import {
     getVaultThumbnail,
@@ -84,15 +85,28 @@ export async function runVaultThumbsJob(ctx: QueueHandlerContext): Promise<void>
         : 0;
 
     await ctx.update({ stage: 'worker', progress: 0.02, message: 'Finding images to prepare…' });
-    const catalog = await readVaultCatalog();
-
+    // Ids of every image, in a stable order the cursor can index into. The
+    // records are fetched a page at a time as the walk reaches them, so a
+    // 200k-asset catalog is never held in memory to prepare 4,000 thumbnails.
+    const candidates = await readVaultAssetIds({ type: 'images' });
+    const PAGE = 500;
+    let pageStart = -1;
+    let page = new Map<string, VaultAssetRecord>();
+    const recordAt = async (position: number): Promise<VaultAssetRecord | null> => {
+        const start = position - (position % PAGE);
+        if (start !== pageStart) {
+            pageStart = start;
+            const rows = await readVaultAssetsByIds(candidates.slice(start, start + PAGE));
+            page = new Map(rows.map((row) => [row.id, row] as const));
+        }
+        return page.get(candidates[position]) ?? null;
+    };
     // Only drive-indexed stills: server assets are warmed on demand through
     // their serve route, and video and 3D thumbnails are produced in the
     // browser from a captured frame.
-    const candidates = catalog.assets.filter((asset) => (
-        asset.type === 'images'
-        && (asset.origin?.connector === 'local' || asset.origin?.connector === 'network')
-    ));
+    const isDriveStill = (asset: VaultAssetRecord) => (
+        asset.origin?.connector === 'local' || asset.origin?.connector === 'network'
+    );
 
     if (candidates.length === 0) {
         await ctx.update({ stage: 'store', progress: 1, message: 'Nothing to prepare.' });
@@ -131,7 +145,8 @@ export async function runVaultThumbsJob(ctx: QueueHandlerContext): Promise<void>
         if (queued >= MAX_PER_RUN) break;
         if (ctx.stopRequested?.()) break;
 
-        const asset = candidates[index];
+        const asset = await recordAt(index);
+        if (!asset || !isDriveStill(asset)) continue;
         const absolute = fileUriToPath(asset.origin.uri);
         if (!absolute) continue;
         if (undecodablePaths.has(absolute)) continue;

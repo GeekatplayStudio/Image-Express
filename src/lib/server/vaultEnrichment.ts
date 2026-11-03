@@ -10,7 +10,8 @@ import {
     checkOllamaModelVision,
     listOllamaVisionModelsByCapability,
 } from '@/lib/ollamaServer';
-import { readVaultCatalog, upsertVaultAssets } from '@/lib/server/vault-store';
+import { readVaultAssetIds, upsertVaultAssets } from '@/lib/server/vault-store';
+import { collectVaultAssets, readVaultAssetsInOrder } from '@/lib/server/vaultAssetPages';
 import { readEmbeddedAssetIds, upsertVectorRecords } from '@/lib/server/vaultWatchStore';
 import { embedTextWithOllama, resolveEmbedModel } from '@/lib/server/ollamaEmbeddings';
 import {
@@ -156,22 +157,24 @@ export async function enrichVaultCatalog(options: EnrichVaultOptions = {}): Prom
     const embed = options.embed !== false;
     const baseUrl = normalizeOllamaBaseUrl(options.ollamaBaseUrl || DEFAULT_OLLAMA_BASE_URL);
 
-    const catalog = await readVaultCatalog();
     // Only which assets already have an embedding, not the embeddings
     // themselves: loading those costs 1.2 GB at 200k assets and this job needs
     // none of them.
     const embeddedIds = await readEmbeddedAssetIds(resolveEmbedModel());
     const freshVectors: VectorRecord[] = [];
 
-    const candidates = catalog.assets.filter((asset) => {
-        if (options.assetIds?.length) return options.assetIds.includes(asset.id);
-        if (options.onlyUncaptioned !== false) {
-            const needsCaption = caption && asset.type === 'images' && !asset.aiIndexed;
-            const needsEmbed = embed && !embeddedIds.has(asset.id);
-            return needsCaption || needsEmbed;
-        }
-        return true;
-    }).slice(0, limit);
+    // At most `limit` assets are touched per run, so the catalog is walked by
+    // id and records are read a page at a time until that many need work —
+    // never materialised whole to pick two dozen.
+    const needsWork = (asset: VaultAssetRecord) => {
+        if (options.onlyUncaptioned === false) return true;
+        const needsCaption = caption && asset.type === 'images' && !asset.aiIndexed;
+        const needsEmbed = embed && !embeddedIds.has(asset.id);
+        return needsCaption || needsEmbed;
+    };
+    const candidates = options.assetIds?.length
+        ? (await readVaultAssetsInOrder(options.assetIds)).slice(0, limit)
+        : (await collectVaultAssets({ ids: await readVaultAssetIds(), limit, where: needsWork })).assets;
 
     let captioned = 0;
     let embedded = 0;

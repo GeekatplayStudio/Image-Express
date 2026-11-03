@@ -1,4 +1,5 @@
-import { readVaultCatalog } from '@/lib/server/vault-store';
+import { readVaultAssetIds } from '@/lib/server/vault-store';
+import { readVaultAssetsInOrder } from '@/lib/server/vaultAssetPages';
 import { readEmbeddedAssetIds, upsertVectorRecords } from '@/lib/server/vaultWatchStore';
 import { embedTextsWithOllama, resolveEmbedModel } from '@/lib/server/ollamaEmbeddings';
 import { buildAssetEmbeddingText } from '@/features/asset-vault/domain/vectorMath';
@@ -41,13 +42,15 @@ export type VaultEmbedResult = {
 export async function runVaultEmbedJob(ctx: QueueHandlerContext): Promise<void> {
     const model = resolveEmbedModel();
 
+    // Ids only: which assets exist is a few MB of strings; the records are a
+    // full copy of the catalog, and this job needs at most 2,560 of them.
     await ctx.update({ stage: 'worker', progress: 0.02, message: 'Reading the catalog…' });
-    const catalog = await readVaultCatalog();
+    const ids = await readVaultAssetIds();
 
     await ctx.update({ stage: 'worker', progress: 0.05, message: 'Checking what is already indexed…' });
     const embedded = await readEmbeddedAssetIds(model);
 
-    const pending = catalog.assets.filter((asset) => !embedded.has(asset.id));
+    const pending = ids.filter((id) => !embedded.has(id));
     if (pending.length === 0) {
         await ctx.update({ stage: 'store', progress: 1, message: 'Everything is already indexed.' });
         return;
@@ -61,7 +64,9 @@ export async function runVaultEmbedJob(ctx: QueueHandlerContext): Promise<void> 
         // The user asked the run to stop; what was written so far is kept.
         if (ctx.stopRequested?.()) break;
 
-        const slice = pending.slice(batch * BATCH_SIZE, (batch + 1) * BATCH_SIZE);
+        // Fetched by id, one batch at a time; an asset deleted since the ids
+        // were listed simply drops out of its batch.
+        const slice = await readVaultAssetsInOrder(pending.slice(batch * BATCH_SIZE, (batch + 1) * BATCH_SIZE));
         if (slice.length === 0) break;
 
         const result = await embedTextsWithOllama({

@@ -26,6 +26,7 @@ import {
     isSqliteAvailable,
     queryAssets as queryCatalogAssets,
     migrateCatalogFromJson,
+    readAssetIds as readCatalogAssetIds,
     readAssetsByIds as readCatalogAssetsByIds,
     readCatalogSnapshot,
     readMeta as readCatalogMeta,
@@ -295,6 +296,33 @@ export async function readVaultAssetsByIds(ids: string[]): Promise<VaultAssetRec
 
     const catalog = await readVaultCatalogFromJson();
     return catalog.assets.filter((asset) => wanted.has(asset.id));
+}
+
+/**
+ * Every present asset id in id order, optionally one type.
+ *
+ * The embedding, thumbnail and enrichment jobs walk the catalog from this list
+ * and fetch records by id in pages (`readVaultAssetsByIds`), so none of them
+ * materialises 200k records to find a few hundred that need work — the last
+ * thing F-03 left them doing. Id order is stable across runs, which is what
+ * lets a job resume from a cursor.
+ */
+export async function readVaultAssetIds(filter: { type?: string } = {}): Promise<string[]> {
+    const matches = (asset: VaultAssetRecord) => !filter.type || asset.type === filter.type;
+    if (sqliteCatalogEnabled()) {
+        try {
+            await ensureCatalogMigrated();
+            if (sqliteSnapshotCache) {
+                return sqliteSnapshotCache.assets.filter(matches).map((asset) => asset.id).sort();
+            }
+            return await readCatalogAssetIds(filter);
+        } catch (error) {
+            console.error('Vault catalog SQLite id listing failed, falling back to JSON:', error);
+        }
+    }
+
+    const catalog = await readVaultCatalogFromJson();
+    return catalog.assets.filter(matches).map((asset) => asset.id).sort();
 }
 
 /**

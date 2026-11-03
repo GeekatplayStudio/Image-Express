@@ -108,6 +108,14 @@ describe('vault-store backing selection', () => {
 
         expect((await readVaultAssetsByWatchRoot('wr_1')).map((r) => r.id)).toEqual(['r1']);
     });
+
+    it('lists ids in id order through the JSON path, optionally one type', async () => {
+        process.env.IMAGE_EXPRESS_VAULT_STORE = 'json';
+        const { writeVaultCatalog, readVaultAssetIds } = await loadStore();
+        await writeVaultCatalog(catalogOf([asset('b'), asset('a'), asset('v', { type: 'videos' })]));
+        expect(await readVaultAssetIds()).toEqual(['a', 'b', 'v']);
+        expect(await readVaultAssetIds({ type: 'videos' })).toEqual(['v']);
+    });
 });
 
 // Skipped rather than failed without node:sqlite: falling back to JSON is a

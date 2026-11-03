@@ -168,8 +168,12 @@ entire file** — adding one asset rewrites 153 MB.
   snapshot. **Search is the one caller left**, along with the embed and
   thumbnail queue handlers: its keyword ranking runs over every record in
   memory, so scoping it means a full-text index (SQLite FTS5) — a design change.
-- **Done 2026-10-04:** search stopped asking for the whole catalog (FTS5). The
-  embed and thumbnail jobs still load it to find work; that is tracked in R-17.
+- **Done 2026-10-04:** search stopped asking for the whole catalog (FTS5).
+- **Done 2026-11-03:** the embed, thumbnail and enrichment jobs find their work
+  from the id list (`readVaultAssetIds`, a few MB of strings at 200k) and fetch
+  records by id a page at a time (`vaultAssetPages.ts`). `readVaultCatalog`'s
+  remaining callers are the index/sync route, find-similar's fallback and the
+  warm-up, each of which wants the whole thing.
 - **Cost paid:** the DB is larger on disk than the JSON — 229 MB vs 158 MB —
   from storing each record plus four indexes. Accepted: disk is cheap, the
   158 MB write amplification was not.
@@ -804,8 +808,8 @@ with paging, generation metadata read from PNGs, versioned schema migrations,
 and a bounded thumbnail cache.
 **Open from that port:** a full folder tree from the index (the grouped query
 exists, the UI still builds the tree from the loaded page); dimensions and
-duration for JPEG/WebP/video; the thumbnail and embedding jobs still load the
-whole catalog to find work; a poll-driven watch that rescans on its own;
+duration for JPEG/WebP/video; ~~the thumbnail and embedding jobs still load the
+whole catalog to find work~~ (done 2026-11-03); a poll-driven watch that rescans on its own;
 re-embedding an asset when its caption changes; model-file indexing
 (safetensors headers, duplicate detection).
 **Open:** full CRUD parity with the classic library and richer previews (P2);

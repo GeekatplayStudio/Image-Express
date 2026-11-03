@@ -260,6 +260,27 @@ export async function queryAssets(filter: {
 }
 
 /**
+ * Ids only, in id order, optionally one type.
+ *
+ * A background job that pages through the catalog looking for work — assets
+ * not yet embedded, images without a thumbnail — needs the list of candidates,
+ * not their records. At 200k assets the ids are a few MB of short strings;
+ * the records are 900 ms of JSON.parse and a full copy of the catalog in heap,
+ * which is what these jobs were paying before.
+ */
+export async function readAssetIds(filter: { type?: string } = {}): Promise<string[]> {
+    const database = await openCatalogDb();
+    if (!database) return [];
+    const where: string[] = [PRESENT];
+    const params: unknown[] = [];
+    if (filter.type) { where.push('type = ?'); params.push(filter.type); }
+    return database
+        .prepare(`SELECT id FROM assets WHERE ${where.join(' AND ')} ORDER BY id`)
+        .all(...params)
+        .map((row) => String(row.id));
+}
+
+/**
  * Reconcile the DB against a whole-catalog snapshot.
  *
  * The store's public interface is whole-catalog read/write, so this is what

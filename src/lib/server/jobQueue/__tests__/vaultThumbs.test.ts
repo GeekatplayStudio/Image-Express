@@ -19,9 +19,15 @@ import type { QueueHandlerContext, QueueJobRecord } from '@/lib/server/jobQueue/
 const enqueue = jest.fn();
 jest.mock('@/lib/server/jobQueue', () => ({ getQueue: () => ({ enqueue }) }));
 
+// The handler must find its work from ids and fetch records by id in pages;
+// a whole-catalog read is deliberately not offered by this mock.
 let catalogAssets: Array<Record<string, unknown>> = [];
 jest.mock('@/lib/server/vault-store', () => ({
-    readVaultCatalog: async () => ({ assets: catalogAssets }),
+    readVaultAssetIds: async ({ type }: { type?: string } = {}) => catalogAssets
+        .filter((asset) => !type || asset.type === type)
+        .map((asset) => String(asset.id))
+        .sort(),
+    readVaultAssetsByIds: async (ids: string[]) => catalogAssets.filter((asset) => ids.includes(String(asset.id))),
 }));
 
 jest.mock('@/lib/server/vaultFilesystemPolicy', () => ({

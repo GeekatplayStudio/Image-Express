@@ -15,6 +15,7 @@ import {
     migrateCatalogFromJson,
     queryAssets,
     readAllAssets,
+    readAssetIds,
     readCatalogSnapshot,
     readMeta,
     syncCatalogAssets,
@@ -101,6 +102,14 @@ describeDb('vaultCatalogDb', () => {
         ]);
         const videos = await queryAssets({ type: 'videos' });
         expect(videos.map((r) => r.id).sort()).toEqual(['v1', 'v2']);
+    });
+
+    it('lists ids in id order, optionally one type, without the records', async () => {
+        await upsertAssets([asset('b'), asset('a'), asset('v', { type: 'videos' })]);
+        expect(await readAssetIds()).toEqual(['a', 'b', 'v']);
+        expect(await readAssetIds({ type: 'videos' })).toEqual(['v']);
+        await deleteAssets(['a']);
+        expect(await readAssetIds()).toEqual(['b', 'v']);
     });
 
     it('filters by folder prefix, including nested folders', async () => {

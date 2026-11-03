@@ -19,6 +19,23 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-03 - Background vault jobs no longer load the whole catalog (F-03 / R-17)
+
+The embedding, thumbnail-precache and enrichment jobs each began by reading
+every record in the catalog — 900 ms of JSON.parse and a full copy in heap at
+200k assets — to pick the few hundred they would touch.
+
+- `readVaultAssetIds({ type? })` lists present ids in id order from SQLite
+  (an indexed column scan; a few MB of strings), with the JSON fallback kept.
+- `vaultAssetPages.ts` walks that list fetching records by id a page at a
+  time until enough need work, and returns where it stopped; the thumbnail
+  job's cursor now indexes the id list, so it means the same thing run to run.
+- The embedding job fetches exactly the records it embeds; an asset deleted
+  between listing and fetching drops out of its batch rather than failing it.
+- 10 new tests. The handler tests' store mock offers no whole-catalog read, so
+  a regression is a TypeError, not a slower pass. Not measured on the real
+  200k catalog in this pass.
+
 ## 2026-11-02 - Installer sources: checksums where available, pin status in the wizard (R-13)
 
 - `sources.json` now carries `sha256` for SDXL base, CLIP-L, T5-XXL fp16 and
