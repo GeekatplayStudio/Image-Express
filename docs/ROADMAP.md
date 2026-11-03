@@ -596,10 +596,10 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-03 | AI critique quality program | P1 | **Delivered** 2026-10-03 | M1 |
 | R-04 | Ollama local generation quality | P1 | Profiles delivered; model matrix open | M1 |
 | R-05 | Channels advanced workflows | P1 | **Delivered** 2026-11-02 | M1 |
-| R-12 | Comfy custom workflows/nodes bundling | P1 | Version tracking and update check delivered | M1 |
+| R-12 | Comfy custom workflows/nodes bundling | P1 | **Delivered** 2026-10-04 (every acceptance item met) | M1 |
 | R-14 | Comfy model catalog + custom upload UI | P1 | **Delivered** 2026-10-03 (checkpoints) | M1 |
 | R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
-| R-11 | Provider QA hardening | P2 | Planned | M2 |
+| R-11 | Provider QA hardening | P2 | **Delivered** 2026-11-03; Banana/Gemini paths open | M2 |
 | R-08 | Additional cloud storage providers | P2 | Drive only | M2 |
 | R-15 | Global resizable modal compliance | P2 | Mixed | M2 |
 | R-16 | Interface customization | P2 | Mode + accents delivered | M2 |
@@ -793,11 +793,22 @@ uploading a model file through the app rather than placing it in the folder.
 **Acceptance:** switch from default SDXL to alternative or custom models in UI;
 invalid combinations blocked with guidance; selection persists across sessions.
 
-### R-11 · Provider QA hardening — P2
-`scripts/qa-providers.mjs` plus an expanded route test matrix for the
-less-travelled provider paths (Banana/NanoBanana, multi-provider consistency).
-**Acceptance:** runs in the release gate; failures identify provider, stage and
-suggested fix.
+### R-11 · Provider QA hardening — P2 — ✅ delivered 2026-11-03
+**Done:** `scripts/qa-providers.mjs` (`npm run qa:providers`) makes one cheap
+authenticated call per provider — Meshy, Tripo, Stability, Hitem3D — with keys
+from the environment only, and reports provider / stage (`reach`, `auth`,
+`shape`) / result / suggested fix. A provider without a key is skipped, so the
+step sits in the release workflow where no keys exist and fails only when a
+configured key is refused. **Not run with live keys here;** the skip path is.
+**Done:** `providerProxies.test.ts`, a contract matrix over the Meshy, Tripo,
+Hitem3D and Stability proxies — refuse without a key before calling upstream,
+forward the key unchanged, keep the provider's status on an error, never log
+the key. It found three bugs: the Stability poll route could never report
+`IN_PROGRESS` (202 is `ok` to fetch, and the check sat in the error branch);
+the Tripo poll route folded a non-JSON provider error into a 500 and did not
+encode the task id; both Tripo proxies logged the first 15 characters of the
+caller's key.
+**Open:** the Banana/NanoBanana and Gemini paths are not in the matrix.
 
 ### R-17 · Asset Vault phases 2–4 — P2
 Phases 0–1 (foundation, entry points, hybrid search, local merge) are delivered,

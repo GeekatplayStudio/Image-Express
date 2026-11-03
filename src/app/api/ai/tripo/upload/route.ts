@@ -8,8 +8,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing Authorization header' }, { status: 401 });
     }
 
-    console.log("[Tripo Upload Proxy] Auth Header received. Prefix:", authHeader.substring(0, 15) + "...");
-
     // Capture the incoming form data
     const formData = await req.formData();
     

@@ -21,6 +21,8 @@ jobs:
       - run: npm ci
       - run: npm run audit:dependencies
       - run: npm run verify
+      - name: Live provider QA (skips providers without a key)
+        run: npm run qa:providers
 
   package:
     needs: verify

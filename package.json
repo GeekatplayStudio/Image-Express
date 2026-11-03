@@ -70,6 +70,7 @@
     "install:super": "node scripts/super-installer.mjs",
     "qa:install": "node scripts/qa-installation.mjs",
     "qa:ollama": "node scripts/qa-ollama.mjs",
+    "qa:providers": "node scripts/qa-providers.mjs",
     "qa:overlay": "playwright test e2e/export-verification.spec.ts e2e/media-overlay-verification.spec.ts",
     "test:e2e:critical": "playwright test e2e/export-verification.spec.ts e2e/media-overlay-verification.spec.ts",
     "lint": "eslint --max-warnings=0 .",

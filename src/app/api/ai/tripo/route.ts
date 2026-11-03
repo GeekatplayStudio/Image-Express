@@ -14,9 +14,6 @@ if (badBody) return badBody;
       return NextResponse.json({ message: 'Missing Authorization header' }, { status: 401 });
     }
 
-    // Log the start of the header to verify transmission
-    console.log("[Tripo Proxy] Auth Header received. Prefix:", authHeader.substring(0, 15) + "...");
-
     const res = await fetch('https://api.tripo3d.ai/v2/openapi/task', {
       method: 'POST',
       headers: {

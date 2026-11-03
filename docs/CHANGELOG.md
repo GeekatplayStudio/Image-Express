@@ -19,6 +19,23 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-03 - Provider QA: live check script and proxy contract tests (R-11)
+
+- `npm run qa:providers` makes one cheap authenticated call per provider with
+  keys from the environment (`MESHY_API_KEY`, `TRIPO_API_KEY`,
+  `STABILITY_API_KEY`, `HITEM3D_API_KEY` + `HITEM3D_APP_ID`) and reports
+  provider / stage / result / fix. Providers without a key are skipped; the
+  release workflow runs it after `verify`. Verified in skip mode only.
+- Twelve contract tests over the Meshy, Tripo, Hitem3D and Stability proxies,
+  which had none. Three bugs fixed on the way:
+  - **Stability upscale poll** never returned `IN_PROGRESS`: fetch counts a 202
+    as `ok`, and the 202 check sat inside the error branch, so a running job
+    became a 500. The poller read that as "still running", which is why it
+    went unnoticed.
+  - **Tripo poll** turned a non-JSON provider error (an HTML 502) into a bare
+    500, and did not URL-encode the task id.
+  - **Both Tripo proxies logged the first 15 characters of the caller's key.**
+
 ## 2026-11-03 - Background vault jobs no longer load the whole catalog (F-03 / R-17)
 
 The embedding, thumbnail-precache and enrichment jobs each began by reading

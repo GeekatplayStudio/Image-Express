@@ -34,11 +34,14 @@ async function handlePoll(request: Request) {
       }
     });
 
+    // 202 means still processing. It is checked before `ok` because fetch
+    // counts 202 as ok: this check used to sit inside the error branch, so a
+    // still-running job fell through to `response.json()` on an empty body and
+    // came back as a 500 instead of IN_PROGRESS.
+    if (response.status === 202) {
+        return NextResponse.json({ success: true, status: 'IN_PROGRESS' });
+    }
     if (!response.ok) {
-       // 202 means still processing
-       if (response.status === 202) {
-           return NextResponse.json({ success: true, status: 'IN_PROGRESS' });
-       }
        const errorText = await response.text();
        return NextResponse.json({ success: false, message: errorText }, { status: response.status });
     }
