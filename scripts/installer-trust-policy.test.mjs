@@ -28,8 +28,11 @@ test('the shipped installer config passes the policy', async () => {
     const config = JSON.parse(await readFile(path.join(here, 'installers', 'config', 'sources.json'), 'utf8'));
     assert.deepEqual(auditInstallerConfig(config), []);
     // Guards the guard: an empty config would pass by having nothing to check.
+    // Bundles are legitimately empty since 2026-11-03 (the repositories they
+    // named did not exist), so the models are what prove the audit ran.
     assert.ok(config.comfyModels.length > 0);
-    assert.ok(config.customBundles.length > 0);
+    assert.ok(Array.isArray(config.customBundles));
+    assert.ok(config.comfyModels.some((model) => model.sha256));
 });
 
 test('only https sources on a trusted host are accepted', () => {
