@@ -601,7 +601,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
 | R-11 | Provider QA hardening | P2 | **Delivered** 2026-11-03; Banana/Gemini paths open | M2 |
 | R-08 | Additional cloud storage providers | P2 | Drive only | M2 |
-| R-15 | Global resizable modal compliance | P2 | Mixed | M2 |
+| R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); 13 of ~28 windows on it | M2 |
 | R-16 | Interface customization | P2 | Mode + accents delivered | M2 |
 | R-17 | Asset Vault phases 2–4 | P2 | Phases 0–1 delivered | M2 |
 | R-18 | One-click distribution: signing + release validation | P2 | P0 foundation done | M2 |
@@ -859,10 +859,25 @@ Generalize the provider contract (list/upload/download/rename/delete/visibility)
 and bring one additional adapter to Drive parity without breaking existing Drive
 users.
 
-### R-15 · Resizable modal compliance — P2
-One shared `ResizableModalShell`, consistent handles and min/max constraints,
-mobile fallbacks, optional persisted size/position — without breaking
-keyboard/focus flows.
+### R-15 · Resizable modal compliance — P2 — contract delivered 2026-11-03, migration ongoing
+**Done:** `ModalShell` is the one contract. It now also: remembers size and
+position per window under `persistKey` (clamped to the current viewport on
+reopen, corrupt entries ignored); becomes a full-screen sheet below 640 px
+with drag and resize off; is a labelled `role="dialog"` that takes focus on
+open and returns it to the opener on close; and lets a caller that owns the
+Escape key (`useEscapeKey`) say so with `closeOnEscape={false}` rather than
+closing twice. `DraggableResizablePanel` gained `draggable` and
+`onFrameChange`. Six shell tests, the first it has had.
+**Done:** `HelpPopup`, `MissingAssetsModal` and `EditorExportQualityModal`
+migrated from hand-rolled overlays; 13 windows are on the shell.
+**Open — still hand-rolled (by size):** `ComfyWorkflowsModal`,
+`BrandManagerModal`, `CampaignManagerModal`, `ThreeDStampModal`,
+`AssetVaultModal`, `SuperAgentModal`, `EmbroideryExportModal`,
+`UnwarpEditorModal`, `CricutExportModal`, `UpscaleModal`,
+`VaultFolderBrowser`, plus the overlays inside `PropertiesPanel`,
+`AssetLibrary`, `Dashboard` and `EditorViewOverlays`. Migrate one per pass;
+each is a layout change that wants a look in the running app. Not verified
+in the running app in this pass.
 
 ### R-16 · Interface customization — P2
 Mode and accent palettes are delivered. Open: broader interface colour

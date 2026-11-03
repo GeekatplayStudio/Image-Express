@@ -19,6 +19,24 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-03 - One window contract: remembered frames, mobile sheets, focus (R-15)
+
+`ModalShell` gains the three things the resizable-modal contract was missing:
+- **`persistKey`** remembers a window's size and position in localStorage and
+  reopens it there, clamped to the current viewport; a corrupt entry is
+  ignored. Maximized state is not remembered.
+- **Narrow viewports** (under 640 px) get a full-screen sheet with drag and
+  resize disabled, instead of a 640 px window hanging off a phone screen.
+- **Keyboard and focus.** The window is a labelled `role="dialog"` that takes
+  focus when it opens and hands focus back to whatever opened it when it
+  closes. Callers that already own Escape through `useEscapeKey` pass
+  `closeOnEscape={false}` so the key does not fire twice.
+
+`HelpPopup`, `MissingAssetsModal` and the export-quality dialog moved onto the
+shell from hand-rolled overlays. Six tests for the shell, which had none. The
+remaining hand-rolled windows are listed in the roadmap; not exercised in the
+running app in this pass.
+
 ## 2026-11-03 - Campaign Workspace (R-02)
 
 The variant snapshot workspace had a hook, a storage format and tests, and

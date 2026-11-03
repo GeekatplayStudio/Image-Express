@@ -1,7 +1,8 @@
 'use client';
 
-import { X, HelpCircle } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import ModalShell from '@/components/ui/ModalShell';
 import { useI18n } from '@/providers/I18nProvider';
 
 interface HelpPopupProps {
@@ -14,22 +15,26 @@ export default function HelpPopup({ isOpen, onClose, type }: HelpPopupProps) {
     const { t } = useI18n();
     useEscapeKey(onClose, { enabled: isOpen });
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-[1060] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-card w-full max-w-lg rounded-xl border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="p-4 border-b border-border bg-secondary/20 flex justify-between items-center">
-                    <h3 className="font-semibold flex items-center gap-2">
-                        <HelpCircle size={18} className="text-primary" />
-                        {type === 'comfy' ? t('help.comfy.title') : t('help.api.title')}
-                    </h3>
-                    <button onClick={onClose} className="p-1 hover:bg-secondary rounded-full transition-colors">
-                        <X size={16} />
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose}
+            closeOnEscape={false}
+            zIndex={60}
+            title={type === 'comfy' ? t('help.comfy.title') : t('help.api.title')}
+            icon={<HelpCircle size={16} className="text-primary" />}
+            initialWidth={560}
+            initialHeight={520}
+            persistKey="help-popup"
+            footer={(
+                <div className="p-3 flex justify-end">
+                    <button onClick={onClose} className="text-xs font-medium bg-secondary hover:bg-secondary/80 text-foreground px-4 py-2 rounded-md transition-colors">
+                        {t('help.gotIt')}
                     </button>
                 </div>
-
-                <div className="p-6 space-y-4 text-sm text-foreground/80 overflow-y-auto max-h-[60vh]">
+            )}
+        >
+                <div className="p-6 space-y-4 text-sm text-foreground/80">
                     {type === 'comfy' ? (
                         <>
                             <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg text-xs leading-relaxed">
@@ -88,13 +93,6 @@ export default function HelpPopup({ isOpen, onClose, type }: HelpPopupProps) {
                         </>
                     )}
                 </div>
-
-                <div className="p-4 bg-secondary/10 border-t border-border flex justify-end">
-                    <button onClick={onClose} className="text-xs font-medium bg-secondary hover:bg-secondary/80 text-foreground px-4 py-2 rounded-md transition-colors">
-                        {t('help.gotIt')}
-                    </button>
-                </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }

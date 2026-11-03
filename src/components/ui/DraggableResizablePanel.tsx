@@ -31,6 +31,10 @@ interface DraggableResizablePanelProps {
      * unset and stay in the workspace tier.
      */
     zIndex?: number;
+    /** False pins the panel: no drag from the handle. Resizing is `resizeHandle`. */
+    draggable?: boolean;
+    /** Called when a drag or resize ends, or the panel is maximized/restored. */
+    onFrameChange?: (frame: { position: PanelPosition; size: PanelSize; maximized: boolean }) => void;
 }
 
 export default function DraggableResizablePanel({
@@ -42,7 +46,9 @@ export default function DraggableResizablePanel({
     minHeight = 320,
     handleSelector = '.draggable-handle',
     resizeHandle = true,
-    zIndex
+    zIndex,
+    draggable = true,
+    onFrameChange,
 }: DraggableResizablePanelProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewportPadding = 8;
@@ -120,9 +126,12 @@ export default function DraggableResizablePanel({
     const toggleMaximizePanel = () => {
         if (isMaximized) {
             restorePanel();
+            const restored = restoreFrameRef.current || { position: initialPosition, size: initialSize };
+            onFrameChange?.({ ...clampFrameToViewport(restored.position, restored.size), maximized: false });
             return;
         }
         maximizePanel();
+        onFrameChange?.({ position, size, maximized: true });
     };
 
     useEffect(() => {
@@ -149,8 +158,10 @@ export default function DraggableResizablePanel({
         };
 
         const handleMouseUp = () => {
+            const moved = dragState.current.dragging || resizeState.current.resizing;
             dragState.current.dragging = false;
             resizeState.current.resizing = false;
+            if (moved) onFrameChange?.({ position, size, maximized: false });
         };
 
         window.addEventListener('mousemove', handleMouseMove);
@@ -159,7 +170,7 @@ export default function DraggableResizablePanel({
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [clampFrameToViewport, minWidth, minHeight, position, size]);
+    }, [clampFrameToViewport, minWidth, minHeight, onFrameChange, position, size]);
 
     useEffect(() => {
         const handleWindowResize = () => {
@@ -184,7 +195,7 @@ export default function DraggableResizablePanel({
 
     const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
         event.stopPropagation();
-        if (isMaximized) return;
+        if (isMaximized || !draggable) return;
         const target = event.target as HTMLElement;
         if (!target.closest(handleSelector)) return;
         dragState.current.dragging = true;
@@ -207,6 +218,7 @@ export default function DraggableResizablePanel({
     const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
         const target = event.target as HTMLElement;
         if (!target.closest(handleSelector)) return;
+        if (!draggable && !resizeHandle) return; // a pinned sheet has nothing to maximize
         event.preventDefault();
         toggleMaximizePanel();
     };
