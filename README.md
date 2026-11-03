@@ -119,18 +119,22 @@ machine, and use **that** Node's npm rather than whatever the shell provides.
 You do not have to fix your shell first. `npm run doctor:node` reports what is
 being used.
 
-Verified end-to-end from a shell serving Node 22.22.0 / npm 10.9.4, with a
-supported Node 26.4.0 installed elsewhere and shadowed on `PATH`:
+The tested release is **Node 26.13.0** (the current LTS, in [`.nvmrc`](.nvmrc),
+CI, the release workflow and the Docker image); Node 24 still works because the
+desktop shell's Electron 45 embeds Node 24. Verified on 2026-11-02:
 
 | Command | Exit | Result |
 |---|---|---|
-| `npm run setup` | 0 | switches to Node 26.4.0 **and npm 11.17.0** — no `EBADENGINE` |
-| `npm run build` | 0 | |
-| `npm run verify` | 0 | 163 suites, 1005 tests |
-| `npm run desktop:pack` | 0 | Electron 41.10.4 |
-| `npm run desktop:verify-package` | 0 | standalone 114 MB, inside the 400 MB budget |
-| `npm run desktop:smoke-package` | 0 | packaged app launches: electron-ready → server-ready → window-ready |
-| `package-lock.json` after install | — | unchanged |
+| `npm ci` | 0 | lockfile and manifest in sync, 0 production advisories |
+| `npm run verify` | 0 | 262 suites, 2,240 tests, build and bundle budget |
+| `npm run test:e2e:critical` | 0 | 5 Playwright export flows |
+| `npm run desktop:pack` | 0 | Electron 45.2.1 |
+| `npm run desktop:verify-package` | 0 | standalone 251 MB, inside the 400 MB budget |
+| `npm run desktop:smoke-package` | 0 | packaged app launches: electron-ready → server-ready → window-ready (all four CI platforms) |
+
+Earlier the same chain was verified from a shell serving Node 22 with a
+supported Node shadowed on `PATH`: `setup` switched to it and its npm with no
+`EBADENGINE`, and the lockfile came back unchanged.
 
 The one path that cannot self-correct is a bare `npm install`: that is npm's own
 process, so nothing in the repo runs before it. Use `npm run setup` instead, or
@@ -437,6 +441,8 @@ To unlock AI features, add your own keys in **Settings** — they're stored loca
 
 **Fully local, zero cost, zero cloud**: local ComfyUI + local Ollama — no API key needed at all.
 
+For a signed-in account the keys live in an encrypted vault on the server that only the owner's session can read. Every read and write is logged by key *name* (never value) with who asked, each key's age is reported against a 180-day rotation policy, keys can be removed individually, and an administrator can re-encrypt the whole vault under a new secret. See [docs/ROADMAP.md](docs/ROADMAP.md) R-01.
+
 Settings includes built-in key validation (server-side for Hitem3D, format preflight for Meshy/Tripo/Google) so typos get caught before you burn a generation credit.
 
 **Optional Google Drive backup**: create an OAuth Web-app Client ID in Google Cloud Console, paste it into **Settings → Google Drive Backup**, click Connect — every save now also mirrors to a Drive folder automatically. Full steps in [docs/INSTALLATION.md](docs/INSTALLATION.md).
@@ -468,11 +474,12 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS · Fabric.js (2D) · Three
 
 Every release is guarded by a comprehensive, multi-layer verification pipeline:
 
-- **Unit & Integration Tests (`npm test`)**: 250+ test suites and 2,100+ tests spanning 2D Fabric canvas mechanics, Three.js 3D pipelines, the job queue scheduler, SQLite catalogs, and Foldcraft geometry algorithms.
+- **Unit & Integration Tests (`npm test`)**: 260+ test suites and 2,200+ tests spanning 2D Fabric canvas mechanics, Three.js 3D pipelines, the job queue scheduler, SQLite catalogs, and Foldcraft geometry algorithms.
 - **End-to-End (E2E) Workflows (`npm run test:e2e:critical`)**: Playwright automated browser tests covering canvas exports, media overlay frame generation, variant draft saves, and ZIP/PDF/image packaging.
 - **Mutation Testing (`npm run test:mutation`)**: Dedicated mutation testing harness injecting operator inversions and boundary mutations into core algorithms (Foldcraft mesh topology and selection mask geometry), achieving a **100% mutant kill rate**.
 - **Dependency & Security Audits (`npm run audit:dependencies`)**: Checks current production advisories, with strict overrides enforcement (`npm run audit:overrides`).
 - **i18n Parity Ratchet (`npm run audit:i18n:ratchet`)**: Monitored locale completeness preventing translation regressions across all supported languages.
+- **Provider QA (`npm run qa:providers`)**: One authenticated call per cloud provider (Meshy, Tripo, Stability, Hitem3D) using keys from the environment, reporting provider / stage / fix; providers without a key are skipped, so it also runs in the release workflow. The proxies themselves are pinned by contract tests — refuse without a key, forward it unchanged, keep the provider's status, never log it.
 
 ## 📚 Documentation
 
