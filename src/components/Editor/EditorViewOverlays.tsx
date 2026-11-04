@@ -1,8 +1,9 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import * as fabric from 'fabric';
-import { X } from 'lucide-react';
+import { Clapperboard, Music } from 'lucide-react';
 
 import AssetLibrary from '@/components/AssetLibrary';
+import ModalShell from '@/components/ui/ModalShell';
 import AssetVaultModal from '@/components/AssetVault/AssetVaultModal';
 import EditorExportQualityModal from '@/components/Editor/EditorExportQualityModal';
 import { GradientControls } from '@/components/GradientControls';
@@ -166,42 +167,32 @@ export default function EditorViewOverlays({
             />
 
             {mediaPreview && (
-                <div
-                    className="fixed inset-0 z-[1130] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
-                    onClick={() => setMediaPreview(null)}
-                >
-                    <div
-                        className="w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-                        onClick={(e) => e.stopPropagation()}
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label={mediaPreview.type === 'video' ? 'Video player' : 'Audio player'}
-                    >
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-secondary/40">
-                            <div className="flex flex-col">
-                                <span className="text-sm font-semibold text-foreground/90">{mediaPreview.type === 'video' ? 'Video Player' : 'Audio Player'}</span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[420px]">
-                                    {mediaPreview.url}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {mediaPreview.type === 'video' && (
-                                    <button
-                                        onClick={handleCaptureVideoFrame}
-                                        className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors"
-                                    >
-                                        Capture Frame
-                                    </button>
-                                )}
+                <ModalShell
+                    isOpen
+                    onClose={() => setMediaPreview(null)}
+                    zIndex={130}
+                    title={mediaPreview.type === 'video' ? 'Video Player' : 'Audio Player'}
+                    icon={mediaPreview.type === 'video' ? <Clapperboard size={16} className="text-primary" /> : <Music size={16} className="text-primary" />}
+                    closeLabel="Close media player"
+                    initialWidth={880}
+                    initialHeight={mediaPreview.type === 'video' ? 620 : 220}
+                    minWidth={420}
+                    minHeight={mediaPreview.type === 'video' ? 320 : 160}
+                    persistKey={`media-preview-${mediaPreview.type}`}
+                    headerExtras={(
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className="hidden md:block text-xs text-muted-foreground truncate max-w-[360px]" title={mediaPreview.url}>{mediaPreview.url}</span>
+                            {mediaPreview.type === 'video' && (
                                 <button
-                                    onClick={() => setMediaPreview(null)}
-                                    className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                                    aria-label="Close media player"
+                                    onClick={handleCaptureVideoFrame}
+                                    className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors"
                                 >
-                                    <X size={16} />
+                                    Capture Frame
                                 </button>
-                            </div>
+                            )}
                         </div>
+                    )}
+                >
                         <div className="p-4 bg-background">
                             {mediaPreview.type === 'video' ? (
                                 <video
@@ -220,8 +211,7 @@ export default function EditorViewOverlays({
                                 />
                             )}
                         </div>
-                    </div>
-                </div>
+                </ModalShell>
             )}
 
             <EditorExportQualityModal

@@ -19,6 +19,14 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-04 - Media player on the shell (R-15)
+
+The video/audio preview in the editor was a hand-rolled overlay with no test.
+It is now a `ModalShell` window — URL and *Capture Frame* in the header, the
+player in the body, frame remembered per media type, Escape-to-close — with a
+focused test over `EditorViewOverlays`. The one full-screen layer left in that
+file is the deliberate backdrop behind the missing-asset browser.
+
 ## 2026-11-04 - Vault folder browser on the shell, with its first tests (R-15)
 
 `VaultFolderBrowser` (the in-app folder picker for the browser build) gained
