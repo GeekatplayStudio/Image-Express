@@ -19,6 +19,15 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-04 - 3D Stamp Studio on the shell, with its first tests (R-15)
+
+`ThreeDStampModal` already used the draggable panel but with its own backdrop
+and header. Three tests were written first (build → Add to Page and export,
+pane switching, close/Escape); it now uses `ModalShell` with the pane switcher
+and *Add to Page* in the header, remembers its frame, and dropped below the
+500-line mark. The z-layer guard's overlay-count floor was lowered: windows
+moving onto the shell legitimately reduce the number of full-screen overlays.
+
 ## 2026-11-04 - Embroidery export window on the shell, with its first tests (R-15)
 
 `EmbroideryExportModal` had no test, so four were written against the old

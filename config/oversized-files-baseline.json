@@ -41,7 +41,6 @@
     "src/lib/agent/superAgentEngine.ts": 546,
     "src/features/fabrication/stamp/ui/StampViewport.tsx": 524,
     "src/lib/agentic-edit/jobs.ts": 520,
-    "src/features/fabrication/stamp/ui/ThreeDStampModal.tsx": 513,
     "src/components/properties/TextProperties.tsx": 512,
     "src/components/Editor/useEditorCanvasOverlayState.ts": 510,
     "src/features/fabrication/stamp/domain/stampReliefExtrusion.ts": 509,

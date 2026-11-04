@@ -46,8 +46,9 @@ describe('z-index layers', () => {
     it('finds the overlays it is meant to guard', () => {
         const overlays = files.flatMap(({ lines }) => lines.filter((line) => /\bfixed inset-0\b/.test(line)));
         // Guards the guard: a refactor that renames the pattern must not leave
-        // the checks below passing over nothing.
-        expect(overlays.length).toBeGreaterThan(15);
+        // the checks below passing over nothing. The count falls as windows
+        // move onto ModalShell (R-15); the floor only needs to catch a rename.
+        expect(overlays.length).toBeGreaterThan(8);
     });
 
     it('puts every full-screen overlay in the modal tier', () => {

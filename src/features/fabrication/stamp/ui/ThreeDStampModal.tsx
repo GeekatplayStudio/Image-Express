@@ -5,11 +5,10 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as fabric from 'fabric';
 import {
     Stamp,
-    X,
     Play,
     Plus,
     Check,
@@ -18,8 +17,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/providers/ToastProvider';
 import useEscapeKey from '@/hooks/useEscapeKey';
-import BodyPortal from '@/components/ui/BodyPortal';
-import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
+import ModalShell from '@/components/ui/ModalShell';
 import {
     DEFAULT_STAMP_CONFIG,
     StampConfig,
@@ -336,61 +334,22 @@ export default function ThreeDStampModal({
         });
     };
 
-    const initialFrame = useMemo(() => {
-        const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
-        const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-        const width = Math.min(1140, Math.max(760, vw - 32));
-        const height = Math.min(780, Math.max(520, vh - 32));
-        return {
-            size: { width, height },
-            position: {
-                x: Math.max(16, Math.round((vw - width) / 2)),
-                y: Math.max(16, Math.round((vh - height) / 2)),
-            },
-        };
-    }, []);
-
     return (
-        <BodyPortal>
-            <div
-                className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 md:p-6 animate-in fade-in duration-200 pointer-events-auto"
-                onMouseDown={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-                onWheel={(e) => e.stopPropagation()}
-            >
-                <DraggableResizablePanel
-                    className="bg-card rounded-xl shadow-2xl overflow-hidden border border-border flex flex-col pointer-events-auto z-[1001]"
-                    initialPosition={initialFrame.position}
-                    initialSize={initialFrame.size}
-                    minWidth={760}
-                    minHeight={520}
-                >
-                    {/* Header with draggable-handle cursor-move */}
-                    <div className="h-12 px-4 border-b border-border flex items-center justify-between bg-secondary/15 draggable-handle cursor-move shrink-0 select-none">
-                        <div className="flex items-center gap-2.5">
-                            <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
-                                <Stamp size={18} />
-                            </div>
-                            <div>
-                                <h2 className="text-sm font-semibold flex items-center gap-2">
-                                    3D Stamp Studio
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                        Fabrication & 3D Print
-                                    </span>
-                                    {isBuilding && (
-                                        <span className="text-[10px] text-muted-foreground animate-pulse">
-                                            Rendering...
-                                        </span>
-                                    )}
-                                </h2>
-                                <p className="text-[11px] text-muted-foreground">
-                                    Create press stamps and wax seals with authentic handles, backing podiums, and extruded dies.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* View Switcher & Action Buttons */}
+        <ModalShell
+            isOpen
+            onClose={onClose}
+            closeOnEscape={false}
+            closeLabel="Close 3D Stamp Tool"
+            zIndex={0}
+            title={<>3D Stamp Studio{isBuilding && <span className="text-[10px] font-normal text-muted-foreground animate-pulse">Rendering...</span>}</>}
+            icon={<Stamp size={16} className="text-primary" />}
+            initialWidth={1240}
+            initialHeight={820}
+            minWidth={760}
+            minHeight={520}
+            persistKey="stamp-studio"
+            bodyClassName="flex flex-col"
+            headerExtras={(
                         <div className="flex items-center gap-2">
                             <div className="flex p-0.5 rounded-lg bg-secondary border border-border">
                                 <button
@@ -442,16 +401,9 @@ export default function ThreeDStampModal({
                                 {addedToPage ? 'Added!' : 'Add to Page'}
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                                title="Close 3D Stamp Tool"
-                            >
-                                <X size={18} />
-                            </button>
                         </div>
-                    </div>
+            )}
+        >
 
                     {/* Main Content Split Pane */}
                     <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -505,8 +457,6 @@ export default function ThreeDStampModal({
                             />
                         </div>
                     </div>
-                </DraggableResizablePanel>
-            </div>
-        </BodyPortal>
+        </ModalShell>
     );
 }
