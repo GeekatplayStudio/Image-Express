@@ -19,7 +19,7 @@
     "src/components/__tests__/Toolbar.test.tsx": 989,
     "src/components/comfy/ComfyWorkflowsModal.tsx": 951,
     "src/lib/comfyui/client.ts": 883,
-    "src/components/Dashboard.tsx": 850,
+    "src/components/Dashboard.tsx": 840,
     "src/components/properties/AdjustmentControls.tsx": 831,
     "src/components/Editor/__tests__/TopToolOptionsBar.test.tsx": 830,
     "src/lib/multicanvas/projectStore.ts": 815,

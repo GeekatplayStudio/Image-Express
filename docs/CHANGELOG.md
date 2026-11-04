@@ -19,6 +19,12 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-04 - Dashboard custom-size dialog on the shell (R-15)
+
+The Dashboard's *Custom Size* dialog moves onto `ModalShell` (Escape-to-close,
+clamped to the viewport, sheet on phones); its existing tests cover the form.
+Two number inputs were compacted so the baselined file still shrank.
+
 ## 2026-11-04 - Media player on the shell (R-15)
 
 The video/audio preview in the editor was a hand-rolled overlay with no test.

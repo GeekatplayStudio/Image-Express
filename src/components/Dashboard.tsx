@@ -8,6 +8,7 @@ import { useI18n } from '@/providers/I18nProvider';
 import { RichText } from '@/lib/i18n/RichText';
 import quotes from '@/data/quotes.json';
 import DashboardAmbience from '@/components/DashboardAmbience';
+import ModalShell from '@/components/ui/ModalShell';
 import { UI_THEME_CHANGED_EVENT, type UiThemeQuote } from '@/lib/ui-themes-shared';
 import { listUiThemes, loadStoredUiTheme } from '@/lib/ui-themes';
 import { APP_VERSION_INFO, formatHubVersionLabel } from '@/lib/appVersion';
@@ -784,40 +785,31 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
 
       </div>
 
-      {showCustomSizeModal && (
-        <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-card w-full max-w-md p-6 rounded-2xl shadow-2xl border border-border scale-100 animate-in zoom-in-95 duration-200">
-                <h3 className="text-xl font-bold mb-4">{t('dashboard.customSize')}</h3>
+      <ModalShell
+        isOpen={showCustomSizeModal}
+        onClose={() => setShowCustomSizeModal(false)}
+        zIndex={50}
+        title={t('dashboard.customSize')}
+        icon={<Layout size={16} className="text-primary" />}
+        initialWidth={440}
+        initialHeight={300}
+        minWidth={320}
+        minHeight={240}
+        bodyClassName="p-6"
+      >
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-muted-foreground">{t('dashboard.widthPx')}</label>
-                        <input 
-                            type="number" 
-                            min={1}
-                            step={1}
-                            value={customWidth}
-                            onChange={(e) => {
-                                const next = e.target.value;
-                                if (next === '' || /^\d+$/.test(next)) {
-                                    setCustomWidth(next);
-                                }
-                            }}
+                        <input type="number" min={1} step={1} value={customWidth}
+                            // Digits or empty only: a cleared field must stay empty rather than snap to 0.
+                            onChange={(e) => { const next = e.target.value; if (next === '' || /^\d+$/.test(next)) setCustomWidth(next); }}
                             className="w-full h-10 px-3 rounded-md border border-input bg-background focus:ring-2 focus:ring-primary outline-none"
                         />
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-muted-foreground">{t('dashboard.heightPx')}</label>
-                        <input 
-                            type="number" 
-                            min={1}
-                            step={1}
-                            value={customHeight}
-                            onChange={(e) => {
-                                const next = e.target.value;
-                                if (next === '' || /^\d+$/.test(next)) {
-                                    setCustomHeight(next);
-                                }
-                            }}
+                        <input type="number" min={1} step={1} value={customHeight}
+                            onChange={(e) => { const next = e.target.value; if (next === '' || /^\d+$/.test(next)) setCustomHeight(next); }}
                             className="w-full h-10 px-3 rounded-md border border-input bg-background focus:ring-2 focus:ring-primary outline-none"
                         />
                     </div>
@@ -841,9 +833,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         {t('dashboard.createDesign')}
                     </button>
                 </div>
-            </div>
-        </div>
-      )}
+      </ModalShell>
     </div>
   );
 }
