@@ -34,7 +34,9 @@ look for current behaviour or future plans.
 
 `HelpPopup`, `MissingAssetsModal`, the export-quality dialog, `UpscaleModal`, the
 Cricut export, Super Agent, Campaign Manager, Brand Manager and ComfyUI Workflows windows (all remembering their frame)
-moved onto the shell from hand-rolled overlays. Six tests for the shell, which had none. The
+moved onto the shell from hand-rolled overlays; a window can name its close
+button (`closeLabel`). Every remaining hand-rolled window is untested, so the
+migration pauses there rather than proceed blind. Six tests for the shell, which had none. The
 remaining hand-rolled windows are listed in the roadmap; not exercised in the
 running app in this pass.
 

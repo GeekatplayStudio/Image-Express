@@ -874,11 +874,15 @@ closing twice. `DraggableResizablePanel` gained `draggable` and
 from hand-rolled overlays; 19 windows are on the shell. `UnwarpEditorModal` stays
 full-screen on purpose: it is a perspective editor whose pointer maths assume
 the whole viewport.
-**Open — still hand-rolled (by size):** `ThreeDStampModal`,
-`AssetVaultModal`, `EmbroideryExportModal`, `VaultFolderBrowser`, plus the overlays inside `PropertiesPanel`,
-`AssetLibrary`, `Dashboard` and `EditorViewOverlays`. Migrate one per pass;
-each is a layout change that wants a look in the running app. Not verified
-in the running app in this pass.
+**Open — still hand-rolled:** `ThreeDStampModal`, `EmbroideryExportModal`,
+`VaultFolderBrowser` and `AssetVaultModal` (whose overlay is a pointer-events-none
+layer, not a window), plus the overlays inside `PropertiesPanel`, `AssetLibrary`,
+`Dashboard` and `EditorViewOverlays`. **None of these has a test**, so they are
+not migrated blind: each needs a test first or a look in the running app.
+`UnwarpEditorModal` stays full-screen on purpose (a perspective editor whose
+pointer maths assume the whole viewport). Windows can name their close button
+(`closeLabel`) so a specific accessible name survives the move. None of the
+2026-11-03/04 migrations was exercised in the running app.
 
 ### R-16 · Interface customization — P2
 Mode and accent palettes are delivered. Open: broader interface colour
