@@ -6,13 +6,12 @@ import {
     CheckCircle2,
     Eye,
     Loader2,
-    Megaphone,
-    Plus,
+    Megaphone, X, Plus,
     Trash2,
     Wand2,
-    X,
 } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import ModalShell from '@/components/ui/ModalShell';
 import { useI18n } from '@/providers/I18nProvider';
 import {
     extractCanvasMetadata,
@@ -290,15 +289,21 @@ export default function CampaignManagerModal({ canvas, onClose }: CampaignManage
     const inputClass = 'w-full h-9 px-3 rounded-md bg-background border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs';
 
     return (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                    <h2 className="font-semibold text-sm flex items-center gap-2">
-                        <Megaphone size={16} className="text-primary" />
-                        {t('campaign.title')}
-                    </h2>
-                    <div className="flex items-center gap-2">
-                        <div className="flex gap-1 text-xs bg-secondary rounded p-0.5">
+        <ModalShell
+            isOpen
+            onClose={onClose}
+            closeOnEscape={false}
+            zIndex={100}
+            title={t('campaign.title')}
+            icon={<Megaphone size={16} className="text-primary" />}
+            initialWidth={880}
+            initialHeight={680}
+            minWidth={560}
+            minHeight={420}
+            persistKey="campaign-manager"
+            bodyClassName="flex flex-col"
+            headerExtras={(
+                <div className="flex gap-1 text-xs bg-secondary rounded p-0.5 mr-1">
                             <button
                                 type="button"
                                 onClick={() => setActiveTab('setup')}
@@ -313,13 +318,9 @@ export default function CampaignManagerModal({ canvas, onClose }: CampaignManage
                             >
                                 {t('campaign.tab.verify')}
                             </button>
-                        </div>
-                        <button type="button" onClick={onClose} aria-label={t('common.close')} className="p-1 rounded hover:bg-secondary transition-colors">
-                            <X size={16} />
-                        </button>
-                    </div>
                 </div>
-
+            )}
+        >
                 <div className="flex flex-1 min-h-0">
                     {/* Campaign list */}
                     <aside className="w-52 shrink-0 border-r border-border p-3 space-y-1 overflow-y-auto">
@@ -541,7 +542,6 @@ export default function CampaignManagerModal({ canvas, onClose }: CampaignManage
                         </button>
                     ) : null}
                 </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }
