@@ -9,9 +9,9 @@ import {
     Plus,
     Play,
     Wand2,
-    X,
 } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import ModalShell from '@/components/ui/ModalShell';
 import {
     AgentExecutionPlan,
     CustomAgentDefinition,
@@ -27,7 +27,6 @@ import {
 import { getActiveBrandProfile } from '@/lib/brand/brandProfile';
 import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
 import { loadGenerativePreferences } from '@/lib/generative-preferences';
-import { useI18n } from '@/providers/I18nProvider';
 
 interface SuperAgentModalProps {
     isOpen?: boolean;
@@ -40,7 +39,6 @@ export default function SuperAgentModal({
     canvas,
     onClose,
 }: SuperAgentModalProps) {
-    const { t } = useI18n();
     const [agents, setAgents] = useState<CustomAgentDefinition[]>([DEFAULT_SUPER_AGENT, DEFAULT_SOCIAL_AGENT]);
     const [selectedAgent, setSelectedAgent] = useState<CustomAgentDefinition>(DEFAULT_SUPER_AGENT);
 
@@ -202,35 +200,22 @@ export default function SuperAgentModal({
         setNewAgentModel('');
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-full max-w-3xl max-h-[85vh] bg-background border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden text-foreground">
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border/80 bg-muted/40">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                            <Bot size={22} />
-                        </div>
-                        <div>
-                            <h2 className="text-base font-semibold tracking-tight">Super Agent & Sub-Agents</h2>
-                            <p className="text-xs text-muted-foreground">
-                                Autonomous multi-step creation engine with custom agent creation & tool delegation
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                        title={t('common.close') || 'Close'}
-                    >
-                        <X size={18} />
-                    </button>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose}
+            closeOnEscape={false}
+            zIndex={100}
+            title="Super Agent & Sub-Agents"
+            icon={<Bot size={16} className="text-primary" />}
+            headerExtras={<span className="hidden lg:block truncate text-xs text-muted-foreground max-w-[380px]">Autonomous multi-step creation engine with custom agent creation & tool delegation</span>}
+            initialWidth={880}
+            initialHeight={720}
+            minWidth={480}
+            minHeight={400}
+            persistKey="super-agent"
+        >
+                <div className="p-6 space-y-6">
                     {errorMessage && (
                         <div className="p-3 text-xs rounded-lg bg-destructive/10 text-destructive border border-destructive/20">
                             {errorMessage}
@@ -454,7 +439,6 @@ export default function SuperAgentModal({
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }

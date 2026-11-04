@@ -32,8 +32,9 @@ look for current behaviour or future plans.
   closes. Callers that already own Escape through `useEscapeKey` pass
   `closeOnEscape={false}` so the key does not fire twice.
 
-`HelpPopup`, `MissingAssetsModal`, the export-quality dialog, `UpscaleModal` and the
-Cricut export window (both now remember their frame) moved onto the shell from hand-rolled overlays. Six tests for the shell, which had none. The
+`HelpPopup`, `MissingAssetsModal`, the export-quality dialog, `UpscaleModal`, the
+Cricut export window and the Super Agent window (all remembering their frame)
+moved onto the shell from hand-rolled overlays. Six tests for the shell, which had none. The
 remaining hand-rolled windows are listed in the roadmap; not exercised in the
 running app in this pass.
 
