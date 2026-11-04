@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, Download, Loader2, Scissors, ZoomIn, ZoomOut, Maximize2, Play, Pause } from 'lucide-react';
+import { Download, Loader2, Scissors, ZoomIn, ZoomOut, Maximize2, Play, Pause } from 'lucide-react';
+
+import ModalShell from '@/components/ui/ModalShell';
 
 import {
     buildEmbroideryFromDataUrl,
@@ -220,20 +222,20 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
     }, [designName, onClose, plan]);
 
     return (
-        <div className="fixed inset-0 z-[1140] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-150" onClick={onClose}>
-            <div
-                className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
-                onClick={(event) => event.stopPropagation()}
-            >
-                <div className="p-4 border-b border-border flex items-center justify-between bg-secondary/10 shrink-0">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                        <Scissors size={16} className="text-primary" />
-                        {t('emb.title')}
-                    </h3>
-                    <button onClick={onClose} className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground" aria-label={t('common.cancel')}>
-                        <X size={16} />
-                    </button>
-                </div>
+        <ModalShell
+            isOpen
+            onClose={onClose}
+            zIndex={140}
+            title={t('emb.title')}
+            icon={<Scissors size={16} className="text-primary" />}
+            closeLabel={t('common.cancel')}
+            initialWidth={1100}
+            initialHeight={760}
+            minWidth={640}
+            minHeight={480}
+            persistKey="embroidery-export"
+            bodyClassName="flex flex-col"
+        >
 
                 <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
                     {/* Preview */}
@@ -429,7 +431,6 @@ export default function EmbroideryExportModal({ sourceDataUrl, designName, onClo
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }

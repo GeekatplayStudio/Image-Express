@@ -19,6 +19,14 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-04 - Embroidery export window on the shell, with its first tests (R-15)
+
+`EmbroideryExportModal` had no test, so four were written against the old
+window first (build from the capture, rebuild on an option change, build
+error, close) and then it moved onto `ModalShell`, keeping its "Cancel" close
+label and remembering its frame. It also gains Escape-to-close, which it
+never had. 20 windows are on the shell.
+
 ## 2026-11-04 - Custom interface accent with contrast guardrails (R-16)
 
 Settings → Appearance gains a fifth accent, *Custom*: pick one colour and the
