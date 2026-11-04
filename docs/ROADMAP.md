@@ -601,7 +601,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
 | R-11 | Provider QA hardening | P2 | **Delivered** 2026-11-03; Banana/Gemini paths open | M2 |
 | R-08 | Additional cloud storage providers | P2 | Drive only | M2 |
-| R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); 14 of ~28 windows on it | M2 |
+| R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); 15 of ~28 windows on it | M2 |
 | R-16 | Interface customization | P2 | Mode + accents delivered | M2 |
 | R-17 | Asset Vault phases 2–4 | P2 | Phases 0–1 delivered | M2 |
 | R-18 | One-click distribution: signing + release validation | P2 | P0 foundation done | M2 |
@@ -868,13 +868,13 @@ open and returns it to the opener on close; and lets a caller that owns the
 Escape key (`useEscapeKey`) say so with `closeOnEscape={false}` rather than
 closing twice. `DraggableResizablePanel` gained `draggable` and
 `onFrameChange`. Six shell tests, the first it has had.
-**Done:** `HelpPopup`, `MissingAssetsModal`, `EditorExportQualityModal` and
-`UpscaleModal` migrated from hand-rolled overlays; 14 windows are on the shell.
+**Done:** `HelpPopup`, `MissingAssetsModal`, `EditorExportQualityModal`,
+`UpscaleModal` and `CricutExportModal` migrated from hand-rolled overlays; 15
+windows are on the shell.
 **Open — still hand-rolled (by size):** `ComfyWorkflowsModal`,
 `BrandManagerModal`, `CampaignManagerModal`, `ThreeDStampModal`,
 `AssetVaultModal`, `SuperAgentModal`, `EmbroideryExportModal`,
-`UnwarpEditorModal`, `CricutExportModal`,
-`VaultFolderBrowser`, plus the overlays inside `PropertiesPanel`,
+`UnwarpEditorModal`, `VaultFolderBrowser`, plus the overlays inside `PropertiesPanel`,
 `AssetLibrary`, `Dashboard` and `EditorViewOverlays`. Migrate one per pass;
 each is a layout change that wants a look in the running app. Not verified
 in the running app in this pass.

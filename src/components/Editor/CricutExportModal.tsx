@@ -9,8 +9,9 @@ import {
     Loader2,
     Scissors,
     Sparkles,
-    X,
 } from 'lucide-react';
+
+import ModalShell from '@/components/ui/ModalShell';
 
 import { buildCricutPlan, downloadCricutPlan } from '@/lib/cricut/cricutExport';
 import { cricutSvgDataUrl } from '@/lib/cricut/cricutSvg';
@@ -183,19 +184,20 @@ export default function CricutExportModal({ sourceDataUrl, designName, onClose }
     const layerCount = layered ? Math.max(1, Math.ceil(options.targetDepthMm / options.materialThicknessMm)) : 1;
 
     return (
-        <div className="fixed inset-0 z-[1190] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="cricut-export-title">
-            <div className="flex h-[min(900px,96vh)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-                <header className="flex items-center justify-between gap-4 border-b border-border/70 px-5 py-4">
-                    <div className="flex items-center gap-3">
-                        <span className="rounded-xl bg-primary/10 p-2.5 text-primary"><Scissors size={22} /></span>
-                        <div>
-                            <h2 id="cricut-export-title" className="font-semibold">{t('cricut.title')}</h2>
-                            <p className="text-xs text-muted-foreground">{t('cricut.subtitle')}</p>
-                        </div>
-                    </div>
-                    <button type="button" onClick={onClose} className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={t('cricut.close')}><X size={20} /></button>
-                </header>
-
+        <ModalShell
+            isOpen
+            onClose={onClose}
+            zIndex={190}
+            title={t('cricut.title')}
+            icon={<Scissors size={16} className="text-primary" />}
+            headerExtras={<span className="hidden lg:block truncate text-xs text-muted-foreground max-w-[360px]">{t('cricut.subtitle')}</span>}
+            initialWidth={1280}
+            initialHeight={900}
+            minWidth={640}
+            minHeight={480}
+            persistKey="cricut-export"
+            bodyClassName="flex flex-col"
+        >
                 <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[390px_minmax(0,1fr)] lg:overflow-hidden">
                     <div className="border-b border-border/70 p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
                         <section className="space-y-3">
@@ -291,7 +293,6 @@ export default function CricutExportModal({ sourceDataUrl, designName, onClose }
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }
