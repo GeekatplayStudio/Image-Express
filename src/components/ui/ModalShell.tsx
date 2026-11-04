@@ -49,6 +49,8 @@ interface ModalShellProps {
     persistKey?: string;
     /** Test id on the window element. */
     'data-testid'?: string;
+    /** Accessible name of the close button; defaults to the generic "Close". */
+    closeLabel?: string;
 }
 
 const readStoredFrame = (key: string): Frame | null => {
@@ -105,6 +107,7 @@ export default function ModalShell({
     headerExtras,
     persistKey,
     'data-testid': testId,
+    closeLabel,
 }: ModalShellProps) {
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
@@ -225,7 +228,7 @@ export default function ModalShell({
                         </h2>
                         <div className="flex items-center gap-1">
                             {headerExtras}
-                            <ModalCloseButton onClose={onClose} />
+                            <ModalCloseButton onClose={onClose} label={closeLabel} />
                         </div>
                     </div>
                     <div className={cn('flex-1 min-h-0 overflow-y-auto', bodyClassName)}>
@@ -242,14 +245,15 @@ export default function ModalShell({
     );
 }
 
-function ModalCloseButton({ onClose }: { onClose: () => void }) {
+function ModalCloseButton({ onClose, label }: { onClose: () => void; label?: string }) {
     const { t } = useI18n();
+    const name = label ?? t('common.close');
     return (
         <button
             onClick={onClose}
             className="h-7 w-7 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-            aria-label={t('common.close')}
-            title={t('common.close')}
+            aria-label={name}
+            title={name}
         >
             <X size={15} />
         </button>

@@ -14,10 +14,9 @@ import {
     Search,
     Server,
     Settings,
-    Workflow,
-    X,
-    XCircle,
+    Workflow, XCircle,
 } from 'lucide-react';
+import ModalShell from '@/components/ui/ModalShell';
 
 import {
     loadGenerativePreferences,
@@ -457,15 +456,22 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                 : <Circle size={13} className="text-muted-foreground" />;
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-            <div className="relative flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-                {/* Header */}
-                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <Workflow size={18} className="shrink-0 text-primary" />
-                        <div className="min-w-0">
-                            <h2 className="text-sm font-semibold text-foreground">{t('cw.title')}</h2>
-                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <ModalShell
+            isOpen
+            onClose={onClose}
+            zIndex={0}
+            title={t('cw.title')}
+            icon={<Workflow size={16} className="text-primary" />}
+            initialWidth={1100}
+            initialHeight={760}
+            minWidth={720}
+            minHeight={480}
+            persistKey="comfy-workflows"
+            closeLabel={t('cw.closeAria')}
+            bodyClassName="flex flex-col"
+            headerExtras={(
+                <div className="flex min-w-0 items-center gap-2">
+                    <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-muted-foreground max-w-[320px]">
                                 {connectionIcon}
                                 <span className="truncate" title={connection.message}>
                                     {connection.status === 'ok'
@@ -474,10 +480,7 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                             ? t('comfy.notConnected')
                                             : t('comfy.checkingConnection')}
                                 </span>
-                            </div>
-                        </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
                         <button
                             type="button"
                             onClick={() => void verifyConnection()}
@@ -498,16 +501,9 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                                 {t('common.settings')}
                             </button>
                         )}
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                            aria-label={t('cw.closeAria')}
-                        >
-                            <X size={14} />
-                        </button>
-                    </div>
                 </div>
+            )}
+        >
 
                 {connection.status === 'error' && (
                     <div className="border-b border-border bg-destructive/10 px-4 py-2 text-[11px] text-destructive">
@@ -949,7 +945,6 @@ export default function ComfyWorkflowsModal({ canvas, onClose, onOpenSettings }:
                         onCancel={() => setShowMaskEditor(false)}
                     />
                 )}
-            </div>
-        </div>
+        </ModalShell>
     );
 }

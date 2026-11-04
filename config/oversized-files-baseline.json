@@ -17,7 +17,7 @@
     "src/components/__tests__/ImageGeneratorModal.test.tsx": 1088,
     "src/components/Editor/CanvasStackView.tsx": 1030,
     "src/components/__tests__/Toolbar.test.tsx": 989,
-    "src/components/comfy/ComfyWorkflowsModal.tsx": 956,
+    "src/components/comfy/ComfyWorkflowsModal.tsx": 951,
     "src/lib/comfyui/client.ts": 883,
     "src/components/Dashboard.tsx": 850,
     "src/components/properties/AdjustmentControls.tsx": 831,
