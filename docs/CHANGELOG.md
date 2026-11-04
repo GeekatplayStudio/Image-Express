@@ -19,6 +19,16 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-04 - Vault folder browser on the shell, with its first tests (R-15)
+
+`VaultFolderBrowser` (the in-app folder picker for the browser build) gained
+four tests against the old window first — drive list, walk down and up, pick,
+server refusal, close — then moved onto `ModalShell`: current path in the
+header, actions in the footer, frame remembered, and Escape-to-close, which it
+never had. Every standalone window is now on the shell; what remains are the
+overlays embedded inside `PropertiesPanel`, `AssetLibrary`, `Dashboard` and
+`EditorViewOverlays`, and the vault's pointer-events-none layer.
+
 ## 2026-11-04 - 3D Stamp Studio on the shell, with its first tests (R-15)
 
 `ThreeDStampModal` already used the draggable panel but with its own backdrop

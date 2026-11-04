@@ -601,7 +601,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
 | R-11 | Provider QA hardening | P2 | **Delivered** 2026-11-03; Banana/Gemini paths open | M2 |
 | R-08 | Additional cloud storage providers | P2 | Drive only | M2 |
-| R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); 21 of ~28 windows on it | M2 |
+| R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); 22 of ~28 windows on it | M2 |
 | R-16 | Interface customization | P2 | **Delivered** 2026-11-04 (custom accent with contrast guardrails) | M2 |
 | R-17 | Asset Vault phases 2–4 | P2 | Phases 0–1 delivered | M2 |
 | R-18 | One-click distribution: signing + release validation | P2 | P0 foundation done | M2 |
@@ -871,8 +871,9 @@ closing twice. `DraggableResizablePanel` gained `draggable` and
 **Done:** `HelpPopup`, `MissingAssetsModal`, `EditorExportQualityModal`,
 `UpscaleModal`, `CricutExportModal`, `SuperAgentModal`,
 `CampaignManagerModal`, `BrandManagerModal`, `ComfyWorkflowsModal`,
-`EmbroideryExportModal` and `ThreeDStampModal` (tests written first for the
-last two) migrated from hand-rolled overlays; 21 windows are on the shell. `UnwarpEditorModal` stays
+`EmbroideryExportModal`, `ThreeDStampModal` and `VaultFolderBrowser` (tests
+written first for the last three) migrated from hand-rolled overlays; 22
+windows are on the shell. `UnwarpEditorModal` stays
 full-screen on purpose: it is a perspective editor whose pointer maths assume
 the whole viewport.
 **Open — still hand-rolled:** `VaultFolderBrowser` and `AssetVaultModal` (whose overlay is a pointer-events-none

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronRight, CornerLeftUp, Folder, HardDrive, Loader2 } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
+import ModalShell from '@/components/ui/ModalShell';
 import {
     browseVaultDirectory,
     listIndexableDrives,
@@ -67,21 +68,46 @@ export default function VaultFolderBrowser({ isOpen, onClose, onPick }: VaultFol
             .catch(() => setDrives([]));
     }, [isOpen, openFolder]);
 
-    if (!isOpen) return null;
-
     return (
-                <div
-            className="fixed inset-0 z-[1150] flex items-center justify-center bg-background/70 backdrop-blur-sm"
+        <ModalShell
+            isOpen={isOpen}
+            onClose={onClose}
+            zIndex={150}
             data-testid="vault-folder-browser"
-        >
-            <div className="w-[min(560px,92%)] max-h-[70%] flex flex-col rounded-lg border border-border bg-card shadow-2xl">
-                <div className="flex items-center gap-2 px-3 h-10 border-b border-border shrink-0">
-                    <Folder size={14} className="text-primary shrink-0" />
-                    <span className="text-xs font-semibold shrink-0">{t('vault.browseDriveFolder')}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono truncate ml-1" title={current ?? ''}>
-                        {current ?? t('vault.browsePickDrive')}
-                    </span>
+            title={t('vault.browseDriveFolder')}
+            icon={<Folder size={14} className="text-primary shrink-0" />}
+            headerExtras={(
+                <span className="hidden sm:block text-[10px] text-muted-foreground font-mono truncate max-w-[260px]" title={current ?? ''}>
+                    {current ?? t('vault.browsePickDrive')}
+                </span>
+            )}
+            initialWidth={560}
+            initialHeight={520}
+            minWidth={360}
+            minHeight={320}
+            persistKey="vault-folder-browser"
+            bodyClassName="flex flex-col"
+            footer={(
+                <div className="flex items-center justify-end gap-2 px-3 h-12">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-secondary rounded-md"
+                    >
+                        {t('common.cancel')}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => { if (current) { onPick(current); onClose(); } }}
+                        disabled={!current}
+                        className="px-3 py-1.5 text-[11px] font-semibold bg-primary text-primary-foreground rounded-md disabled:opacity-40"
+                        data-testid="vault-folder-browser-choose"
+                    >
+                        {t('vault.browseUseThisFolder')}
+                    </button>
                 </div>
+            )}
+        >
 
                 <div className="flex-1 min-h-0 overflow-y-auto p-2">
                     {error && (
@@ -144,26 +170,6 @@ export default function VaultFolderBrowser({ isOpen, onClose, onPick }: VaultFol
                         </>
                     )}
                 </div>
-
-                <div className="flex items-center justify-end gap-2 px-3 h-12 border-t border-border shrink-0">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-secondary rounded-md"
-                    >
-                        {t('common.cancel')}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => { if (current) { onPick(current); onClose(); } }}
-                        disabled={!current}
-                        className="px-3 py-1.5 text-[11px] font-semibold bg-primary text-primary-foreground rounded-md disabled:opacity-40"
-                        data-testid="vault-folder-browser-choose"
-                    >
-                        {t('vault.browseUseThisFolder')}
-                    </button>
-                </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }
