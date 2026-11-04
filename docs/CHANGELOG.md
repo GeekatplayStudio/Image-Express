@@ -33,7 +33,7 @@ look for current behaviour or future plans.
   `closeOnEscape={false}` so the key does not fire twice.
 
 `HelpPopup`, `MissingAssetsModal`, the export-quality dialog, `UpscaleModal`, the
-Cricut export, Super Agent and Campaign Manager windows (all remembering their frame)
+Cricut export, Super Agent, Campaign Manager and Brand Manager windows (all remembering their frame)
 moved onto the shell from hand-rolled overlays. Six tests for the shell, which had none. The
 remaining hand-rolled windows are listed in the roadmap; not exercised in the
 running app in this pass.

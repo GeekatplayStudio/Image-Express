@@ -9,6 +9,7 @@ import {
     X,
 } from 'lucide-react';
 import useEscapeKey from '@/hooks/useEscapeKey';
+import ModalShell from '@/components/ui/ModalShell';
 import {
     autoFixAllViolationsOnCanvas,
     autoFixViolationOnCanvas,
@@ -30,7 +31,6 @@ import {
 } from '@/lib/brand/brandProfile';
 import { loadLocalAiPreferences } from '@/lib/localAiPreferences';
 import { loadGenerativePreferences } from '@/lib/generative-preferences';
-import { useI18n } from '@/providers/I18nProvider';
 
 interface BrandManagerModalProps {
     isOpen?: boolean;
@@ -43,7 +43,6 @@ export default function BrandManagerModal({
     canvas,
     onClose,
 }: BrandManagerModalProps) {
-    const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<'audit' | 'setup'>('audit');
     const [profiles, setProfiles] = useState<BrandProfile[]>([DEFAULT_BRAND_PROFILE]);
     const [activeProfile, setActiveProfile] = useState<BrandProfile>(DEFAULT_BRAND_PROFILE);
@@ -316,36 +315,22 @@ export default function BrandManagerModal({
         setActiveTab('audit');
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-full max-w-3xl max-h-[85vh] bg-background border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden text-foreground">
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border/80 bg-muted/40">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                            <ShieldCheck size={22} />
-                        </div>
-                        <div>
-                            <h2 className="text-base font-semibold tracking-tight">AI Brand Manager</h2>
-                            <p className="text-xs text-muted-foreground">
-                                Brand Kit setup & VLM compliance audit with visual canvas highlights
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => {
-                            clearCanvasHighlight();
-                            onClose();
-                        }}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                        title={t('common.close') || 'Close'}
-                    >
-                        <X size={18} />
-                    </button>
-                </div>
-
+        <ModalShell
+            isOpen={isOpen}
+            onClose={() => { clearCanvasHighlight(); onClose(); }}
+            closeOnEscape={false}
+            zIndex={100}
+            title="AI Brand Manager"
+            icon={<ShieldCheck size={16} className="text-primary" />}
+            headerExtras={<span className="hidden lg:block truncate text-xs text-muted-foreground max-w-[380px]">Brand Kit setup & VLM compliance audit with visual canvas highlights</span>}
+            initialWidth={880}
+            initialHeight={720}
+            minWidth={520}
+            minHeight={420}
+            persistKey="brand-manager"
+            bodyClassName="flex flex-col"
+        >
                 {/* Profile Selector & Tabs */}
                 <div className="flex items-center justify-between px-6 py-2.5 border-b border-border/50 bg-secondary/20">
                     <div className="flex items-center gap-2">
@@ -780,7 +765,6 @@ export default function BrandManagerModal({
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+        </ModalShell>
     );
 }

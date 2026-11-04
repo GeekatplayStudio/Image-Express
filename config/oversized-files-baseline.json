@@ -26,7 +26,7 @@
     "src/components/LoginModal.tsx": 811,
     "src/components/properties/SelectionProperties.tsx": 807,
     "src/components/ThreeDLayerEditor.tsx": 795,
-    "src/components/BrandManagerModal.tsx": 787,
+    "src/components/BrandManagerModal.tsx": 771,
     "src/components/Editor/useMediaOverlay.ts": 741,
     "src/components/ColorWheelTool.tsx": 716,
     "src/components/__tests__/AssetLibrary.test.tsx": 701,
