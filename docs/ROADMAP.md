@@ -876,8 +876,8 @@ written first for the last three) migrated from hand-rolled overlays; 22
 windows are on the shell. `UnwarpEditorModal` stays
 full-screen on purpose: it is a perspective editor whose pointer maths assume
 the whole viewport.
-**Open — still hand-rolled:** `VaultFolderBrowser` and `AssetVaultModal` (whose overlay is a pointer-events-none
-layer, not a window), plus the overlays inside `PropertiesPanel`, `AssetLibrary`,
+**Open — still hand-rolled:** `AssetVaultModal` (whose overlay is a
+pointer-events-none layer, not a window), plus the overlays inside `PropertiesPanel`, `AssetLibrary`,
 `Dashboard` and `EditorViewOverlays`. **None of these has a test**, so they are
 not migrated blind: each needs a test first or a look in the running app.
 `UnwarpEditorModal` stays full-screen on purpose (a perspective editor whose
