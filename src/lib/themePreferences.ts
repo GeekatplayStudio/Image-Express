@@ -1,10 +1,21 @@
 export type ThemePreferenceMode = 'system' | 'dark' | 'light';
-export type ThemeAccentPreset = 'ocean' | 'ember' | 'meadow' | 'violet';
+import { CUSTOM_ACCENT_VARIABLES, deriveCustomAccent, isHexColor, normalizeHex } from '@/lib/themeAccent';
+
+export type ThemeAccentPreset = 'ocean' | 'ember' | 'meadow' | 'violet' | 'custom';
 
 export type ThemePreferences = {
     mode: ThemePreferenceMode;
     accentPreset: ThemeAccentPreset;
+    /** The colour behind the 'custom' accent, as `#rrggbb`. */
+    customAccent?: string;
+    /**
+     * The CSS variables derived from `customAccent`, stored so the
+     * pre-hydration script can apply them without any colour maths.
+     */
+    customAccentVariables?: Record<string, string>;
 };
+
+export const DEFAULT_CUSTOM_ACCENT = '#1f8aa5';
 
 export const THEME_PREFERENCES_STORAGE_KEY = 'image-express-theme-preferences';
 export const THEME_PREFERENCES_CHANGED_EVENT = 'image-express:theme-preferences-changed';
@@ -36,8 +47,21 @@ const isThemeMode = (value: unknown): value is ThemePreferenceMode => (
 );
 
 const isAccentPreset = (value: unknown): value is ThemeAccentPreset => (
-    value === 'ocean' || value === 'ember' || value === 'meadow' || value === 'violet'
+    value === 'ocean' || value === 'ember' || value === 'meadow' || value === 'violet' || value === 'custom'
 );
+
+const isVariableMap = (value: unknown): value is Record<string, string> => (
+    Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+    && Object.entries(value as Record<string, unknown>).every(([k, v]) => /^--[a-z-]+$/.test(k) && typeof v === 'string' && v.length < 80)
+);
+
+/** Fill in `customAccentVariables` from `customAccent`; a custom preset without a usable colour falls back to the default accent. */
+const completeCustomAccent = (prefs: ThemePreferences): ThemePreferences => {
+    if (prefs.accentPreset !== 'custom') return { mode: prefs.mode, accentPreset: prefs.accentPreset };
+    const derived = prefs.customAccent ? deriveCustomAccent(prefs.customAccent) : null;
+    if (!derived) return { mode: prefs.mode, accentPreset: DEFAULT_THEME_PREFERENCES.accentPreset };
+    return { mode: prefs.mode, accentPreset: 'custom', customAccent: derived.primary, customAccentVariables: derived.variables };
+};
 
 export const resolveThemeMode = (
     mode: ThemePreferenceMode,
@@ -61,10 +85,12 @@ export const loadThemePreferences = (): ThemePreferences => {
         }
 
         const parsed = JSON.parse(raw) as Partial<ThemePreferences>;
-        return {
+        return completeCustomAccent({
             mode: isThemeMode(parsed.mode) ? parsed.mode : DEFAULT_THEME_PREFERENCES.mode,
             accentPreset: isAccentPreset(parsed.accentPreset) ? parsed.accentPreset : DEFAULT_THEME_PREFERENCES.accentPreset,
-        };
+            customAccent: isHexColor(parsed.customAccent) ? normalizeHex(parsed.customAccent) : undefined,
+            customAccentVariables: isVariableMap(parsed.customAccentVariables) ? parsed.customAccentVariables : undefined,
+        });
     } catch {
         return DEFAULT_THEME_PREFERENCES;
     }
@@ -85,6 +111,12 @@ export const applyThemePreferences = (preferences: ThemePreferences = DEFAULT_TH
     root.dataset.themeModePreference = preferences.mode;
     root.dataset.themeAccent = preferences.accentPreset;
     root.style.colorScheme = resolvedMode;
+    // A custom accent lives in inline variables on <html>; a preset must clear
+    // them or it would be painted in the custom colours.
+    for (const name of CUSTOM_ACCENT_VARIABLES) root.style.removeProperty(name);
+    if (preferences.accentPreset === 'custom' && preferences.customAccentVariables) {
+        for (const [name, value] of Object.entries(preferences.customAccentVariables)) root.style.setProperty(name, value);
+    }
 
     return preferences;
 };
@@ -94,10 +126,10 @@ export const saveThemePreferences = (updates: Partial<ThemePreferences>) => {
         return { ...DEFAULT_THEME_PREFERENCES, ...updates };
     }
 
-    const next: ThemePreferences = {
+    const next: ThemePreferences = completeCustomAccent({
         ...loadThemePreferences(),
         ...updates,
-    };
+    });
 
     window.localStorage.setItem(THEME_PREFERENCES_STORAGE_KEY, JSON.stringify(next));
     applyThemePreferences(next);
@@ -112,7 +144,8 @@ export const buildThemePreferencesInitScript = () => `(() => {
     const raw = window.localStorage.getItem(storageKey);
     const parsed = raw ? JSON.parse(raw) : {};
     const mode = ['system', 'dark', 'light'].includes(parsed?.mode) ? parsed.mode : defaults.mode;
-    const accentPreset = ['ocean', 'ember', 'meadow', 'violet'].includes(parsed?.accentPreset) ? parsed.accentPreset : defaults.accentPreset;
+    const vars = parsed?.accentPreset === 'custom' && parsed?.customAccentVariables && typeof parsed.customAccentVariables === 'object' ? parsed.customAccentVariables : null;
+    const accentPreset = ['ocean', 'ember', 'meadow', 'violet'].includes(parsed?.accentPreset) || vars ? parsed.accentPreset : defaults.accentPreset;
     const prefersDark = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
     const resolvedMode = mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode;
     const root = document.documentElement;
@@ -120,6 +153,7 @@ export const buildThemePreferencesInitScript = () => `(() => {
     root.dataset.themeModePreference = mode;
     root.dataset.themeAccent = accentPreset;
     root.style.colorScheme = resolvedMode;
+    if (vars) for (const name in vars) { if (/^--[a-z-]+$/.test(name) && typeof vars[name] === 'string') root.style.setProperty(name, vars[name]); }
   } catch {
         document.documentElement.dataset.themeMode = ${JSON.stringify(DEFAULT_THEME_RESOLVED_MODE)};
         document.documentElement.dataset.themeModePreference = ${JSON.stringify(DEFAULT_THEME_PREFERENCES.mode)};

@@ -602,7 +602,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-11 | Provider QA hardening | P2 | **Delivered** 2026-11-03; Banana/Gemini paths open | M2 |
 | R-08 | Additional cloud storage providers | P2 | Drive only | M2 |
 | R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); 19 of ~28 windows on it | M2 |
-| R-16 | Interface customization | P2 | Mode + accents delivered | M2 |
+| R-16 | Interface customization | P2 | **Delivered** 2026-11-04 (custom accent with contrast guardrails) | M2 |
 | R-17 | Asset Vault phases 2–4 | P2 | Phases 0–1 delivered | M2 |
 | R-18 | One-click distribution: signing + release validation | P2 | P0 foundation done | M2 |
 | R-09 | Facebook authentication | P2 | Not started | M3 |
@@ -884,9 +884,20 @@ pointer maths assume the whole viewport). Windows can name their close button
 (`closeLabel`) so a specific accessible name survives the move. None of the
 2026-11-03/04 migrations was exercised in the running app.
 
-### R-16 · Interface customization — P2
-Mode and accent palettes are delivered. Open: broader interface colour
-customization within contrast guardrails.
+### R-16 · Interface customization — P2 — ✅ delivered 2026-11-04
+Mode and the four accent palettes were delivered earlier. **Done:** a fifth,
+*Custom* accent in Settings → Appearance: one colour picker, and the interface
+derives the nine variables the shipped accents set by hand (primary and its
+text colour, tool accent, brand and avatar gradients). **Guardrails:** the
+panel shows WCAG ratios for text on the accent and for the accent against the
+dark and light page backgrounds, and warns when the accent falls below 3:1
+against either page (AA for UI components). Text on the accent is reported but
+never warned about — the better of white and near-black always reaches ≥4.2:1,
+and white is kept down to 3:1 to match the shipped accents. The derived
+variables are stored with the preference so the pre-hydration script paints
+them without colour maths; stored variables are re-derived on load, never
+trusted. Canvas-side tokens (`getAppTheme`) follow the custom colour.
+**Not exercised in the running app;** 14 tests. Open: nothing beyond that look.
 
 ### R-09 · Facebook authentication — P2
 OAuth sign-in mapped into the existing pending/approved/rejected/disabled model,

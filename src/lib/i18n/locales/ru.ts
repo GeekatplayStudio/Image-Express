@@ -2853,6 +2853,13 @@ const ru: LocaleDictionary = {
     'accent.meadow.desc': 'Зелёно-бирюзовая рабочая палитра.',
     'accent.violet': 'Фиалка',
     'accent.violet.desc': 'Холодный индиго-пурпурный акцент.',
+    'accent.custom': 'Свой цвет',
+    'accent.custom.desc': 'Выберите один цвет — остальное интерфейс выведет сам.',
+    'settings.workspace.customAccentColor': 'Акцентный цвет',
+    'settings.workspace.contrastTextOnAccent': 'Текст на акценте',
+    'settings.workspace.contrastOnDark': 'На тёмной теме (требуется 3)',
+    'settings.workspace.contrastOnLight': 'На светлой теме (требуется 3)',
+    'settings.workspace.contrastWarning': 'Этот цвет не достигает нормы контраста; текст или элементы могут плохо читаться.',
     // ÐÐ°ÑÑ‚Ñ€Ð¾Ð¹ÐºÐ¸ > ÐÐ´Ð¼Ð¸Ð½Ð¸ÑÑ‚Ñ€Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ
     'settings.admin.hint': 'Роли администраторов, очередь одобрения и права пользователей.',
     'settings.admin.loadingUsers': 'Загрузка пользователей…',

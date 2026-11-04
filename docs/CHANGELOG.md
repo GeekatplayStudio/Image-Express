@@ -19,6 +19,23 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-04 - Custom interface accent with contrast guardrails (R-16)
+
+Settings → Appearance gains a fifth accent, *Custom*: pick one colour and the
+interface derives everything the four shipped accents set by hand — primary
+and its text colour, the tool accent, the brand and avatar gradients.
+
+- **Guardrails.** The panel shows WCAG contrast for text on the accent and for
+  the accent against the dark and light page backgrounds, and warns when the
+  accent drops below 3:1 against either page. White text is kept down to 3:1
+  (the shipped accents sit near 3.6:1); below that, near-black takes over.
+- **No flash on load.** The derived CSS variables are stored with the
+  preference and painted by the pre-hydration script; on load they are
+  re-derived from the colour rather than trusted from storage.
+- Canvas defaults that follow the accent (shape fill, zone stroke, circular
+  menu) follow the custom colour too.
+- Strings in all eleven locales; 14 tests. Not exercised in the running app.
+
 ## 2026-11-03 - One window contract: remembered frames, mobile sheets, focus (R-15)
 
 `ModalShell` gains the three things the resizable-modal contract was missing:

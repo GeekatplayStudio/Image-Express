@@ -1120,6 +1120,13 @@ const es: LocaleDictionary = {
     'campaignWorkspace.empty': 'Aún no hay variantes. Captura un marco de superposición para empezar la campaña.',
     'campaignWorkspace.footerHint': 'Cada variante es una instantánea de la página; las exportaciones renderizan la instantánea, no el lienzo actual.',
     'campaignWorkspace.activeVariantTitle': 'Variante activa de la campaña: {name}. Haz clic para abrir el espacio.',
+    'accent.custom': 'Personalizado',
+    'accent.custom.desc': 'Elige un color; la interfaz deriva el resto.',
+    'settings.workspace.customAccentColor': 'Color de acento',
+    'settings.workspace.contrastTextOnAccent': 'Texto sobre acento',
+    'settings.workspace.contrastOnDark': 'Sobre el tema oscuro (requiere 3)',
+    'settings.workspace.contrastOnLight': 'Sobre el tema claro (requiere 3)',
+    'settings.workspace.contrastWarning': 'Este color no alcanza una pauta de contraste; el texto o los controles pueden leerse mal.',
 };
 
 export default es;

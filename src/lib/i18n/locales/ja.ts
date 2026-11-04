@@ -760,6 +760,13 @@ const ja: LocaleDictionary = {
     'campaignWorkspace.empty': 'バリアントはまだありません。オーバーレイのフレームを保存してキャンペーンを始めましょう。',
     'campaignWorkspace.footerHint': '各バリアントは保存時点のページのスナップショットです。書き出しは現在のキャンバスではなくスナップショットを描画します。',
     'campaignWorkspace.activeVariantTitle': 'アクティブなキャンペーンバリアント：{name}。クリックでワークスペースを開きます。',
+    'accent.custom': 'カスタム',
+    'accent.custom.desc': '色を1つ選ぶと残りは自動で導かれます。',
+    'settings.workspace.customAccentColor': 'アクセントカラー',
+    'settings.workspace.contrastTextOnAccent': 'アクセント上の文字',
+    'settings.workspace.contrastOnDark': 'ダークテーマ上（3が必要）',
+    'settings.workspace.contrastOnLight': 'ライトテーマ上（3が必要）',
+    'settings.workspace.contrastWarning': 'この色はコントラスト基準を満たしません。文字や操作部が読みにくくなる可能性があります。',
 };
 
 export default ja;

@@ -780,6 +780,13 @@ const pl: LocaleDictionary = {
     'campaignWorkspace.empty': 'Brak wariantów. Zapisz ramkę nakładki, aby rozpocząć kampanię.',
     'campaignWorkspace.footerHint': 'Każdy wariant to migawka strony; eksport renderuje migawkę, nie bieżące płótno.',
     'campaignWorkspace.activeVariantTitle': 'Aktywny wariant kampanii: {name}. Kliknij, aby otworzyć obszar roboczy.',
+    'accent.custom': 'Własny',
+    'accent.custom.desc': 'Wybierz jeden kolor; resztę wyprowadzi interfejs.',
+    'settings.workspace.customAccentColor': 'Kolor akcentu',
+    'settings.workspace.contrastTextOnAccent': 'Tekst na akcencie',
+    'settings.workspace.contrastOnDark': 'Na ciemnym motywie (wymaga 3)',
+    'settings.workspace.contrastOnLight': 'Na jasnym motywie (wymaga 3)',
+    'settings.workspace.contrastWarning': 'Ten kolor nie spełnia wytycznej kontrastu; tekst lub elementy mogą być słabo czytelne.',
 };
 
 export default pl;

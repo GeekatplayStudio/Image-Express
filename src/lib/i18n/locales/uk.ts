@@ -2853,6 +2853,13 @@ const uk: LocaleDictionary = {
     'accent.meadow.desc': 'Зелено-бірюзова робоча палітра.',
     'accent.violet': 'Фіалка',
     'accent.violet.desc': 'Холодний індиго-пурпуровий акцент.',
+    'accent.custom': 'Свій колір',
+    'accent.custom.desc': 'Оберіть один колір — решту інтерфейс виведе сам.',
+    'settings.workspace.customAccentColor': 'Акцентний колір',
+    'settings.workspace.contrastTextOnAccent': 'Текст на акценті',
+    'settings.workspace.contrastOnDark': 'На темній темі (потрібно 3)',
+    'settings.workspace.contrastOnLight': 'На світлій темі (потрібно 3)',
+    'settings.workspace.contrastWarning': 'Цей колір не досягає норми контрасту; текст або елементи можуть погано читатися.',
     // ÐÐ°Ð»Ð°ÑˆÑ‚ÑƒÐ²Ð°Ð½Ð½Ñ > ÐÐ´Ð¼Ñ–Ð½Ñ–ÑÑ‚Ñ€ÑƒÐ²Ð°Ð½Ð½Ñ
     'settings.admin.hint': 'Ролі адміністраторів, черга схвалення та права користувачів.',
     'settings.admin.loadingUsers': 'Завантаження користувачів…',

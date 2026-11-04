@@ -760,6 +760,13 @@ const zh: LocaleDictionary = {
     'campaignWorkspace.empty': '还没有变体。保存一个媒体叠加框架快照即可开始活动。',
     'campaignWorkspace.footerHint': '每个变体都是保存时页面的快照；导出渲染的是快照，而非当前画布。',
     'campaignWorkspace.activeVariantTitle': '当前活动变体：{name}。点击打开工作区。',
+    'accent.custom': '自定义',
+    'accent.custom.desc': '选择一种颜色，其余由界面推导。',
+    'settings.workspace.customAccentColor': '强调色',
+    'settings.workspace.contrastTextOnAccent': '强调色上的文字',
+    'settings.workspace.contrastOnDark': '深色主题上（需 3）',
+    'settings.workspace.contrastOnLight': '浅色主题上（需 3）',
+    'settings.workspace.contrastWarning': '此颜色未达到对比度准则，文字或控件可能难以辨认。',
 };
 
 export default zh;

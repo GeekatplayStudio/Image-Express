@@ -770,6 +770,13 @@ const it: LocaleDictionary = {
     'campaignWorkspace.empty': 'Nessuna variante. Cattura un riquadro di sovrapposizione per iniziare la campagna.',
     'campaignWorkspace.footerHint': 'Ogni variante è un’istantanea della pagina; le esportazioni rendono l’istantanea, non la tela attuale.',
     'campaignWorkspace.activeVariantTitle': 'Variante attiva della campagna: {name}. Fai clic per aprire l’area di lavoro.',
+    'accent.custom': 'Personalizzato',
+    'accent.custom.desc': 'Scegli un colore; l’interfaccia ricava il resto.',
+    'settings.workspace.customAccentColor': 'Colore d’accento',
+    'settings.workspace.contrastTextOnAccent': 'Testo sull’accento',
+    'settings.workspace.contrastOnDark': 'Sul tema scuro (richiede 3)',
+    'settings.workspace.contrastOnLight': 'Sul tema chiaro (richiede 3)',
+    'settings.workspace.contrastWarning': 'Questo colore non raggiunge una soglia di contrasto; testo o controlli potrebbero essere poco leggibili.',
 };
 
 export default it;

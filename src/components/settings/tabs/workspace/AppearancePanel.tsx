@@ -1,7 +1,8 @@
 'use client';
 
 import { requestSystemNotificationPermission } from '@/lib/jobNotifications';
-import { RefreshCcw, Server } from 'lucide-react';
+import { Palette, RefreshCcw, Server } from 'lucide-react';
+import { BACKGROUND_CONTRAST_MIN, TEXT_CONTRAST_MIN, deriveCustomAccent } from '@/lib/themeAccent';
 import { useI18n } from '@/providers/I18nProvider';
 import type { ThemePreferenceMode } from '@/lib/themePreferences';
 import type { PipelineRailMode } from '@/lib/ui-preferences';
@@ -17,12 +18,19 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
     const { t } = useI18n();
     const {
         themeMode, setThemeMode, themeAccentPreset, setThemeAccentPreset,
+        themeCustomAccent, setThemeCustomAccent,
         expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover,
         suppressNumberDragHints, setSuppressNumberDragHints,
         pipelineRailMode, setPipelineRailMode,
         notifyOnJobComplete, setNotifyOnJobComplete,
         handleResetNumberDragHint, THEME_ACCENT_OPTIONS, THEME_MODE_OPTIONS,
     } = workspace;
+
+    const customAccent = deriveCustomAccent(themeCustomAccent);
+    const isCustomActive = themeAccentPreset === 'custom';
+    const ratio = (value: number, min: number) => (
+        <span className={value < min ? 'font-semibold text-amber-600' : 'font-semibold text-foreground'}>{value.toFixed(2)}:1</span>
+    );
 
     const pipelineRailOptions: Array<{ value: PipelineRailMode; labelKey: string }> = [
         { value: 'off', labelKey: 'settings.workspace.pipelineRailOff' },
@@ -84,7 +92,45 @@ export default function AppearancePanel({ workspace }: AppearancePanelProps) {
                                 </button>
                             );
                         })}
+                        <button
+                            type="button"
+                            aria-label={t('settings.workspace.accentPaletteAria', { name: t('accent.custom') })}
+                            aria-pressed={isCustomActive}
+                            onClick={() => setThemeAccentPreset('custom')}
+                            className={`rounded-xl border px-3 py-2 text-left transition-colors ${isCustomActive ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-secondary/40'}`}
+                        >
+                            <div className="mb-2 h-3 rounded-full" style={{ backgroundImage: customAccent ? `linear-gradient(135deg, ${customAccent.variables['--ui-brand-gradient-start']} 0%, ${customAccent.primary} 52%, ${customAccent.variables['--ui-brand-gradient-end']} 100%)` : undefined }} />
+                            <div className="text-xs font-semibold text-foreground flex items-center gap-1"><Palette size={12} />{t('accent.custom')}</div>
+                            <div className="text-[11px] text-muted-foreground">{t('accent.custom.desc')}</div>
+                        </button>
                     </div>
+                    {isCustomActive && (
+                        <div className="space-y-1.5 rounded-xl border border-border/60 bg-background/60 p-3" data-testid="custom-accent-editor">
+                            <label className="flex items-center justify-between gap-3 text-xs">
+                                <span className="font-medium">{t('settings.workspace.customAccentColor')}</span>
+                                <span className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={customAccent?.primary ?? themeCustomAccent}
+                                        onChange={(event) => setThemeCustomAccent(event.target.value)}
+                                        aria-label={t('settings.workspace.customAccentColor')}
+                                        className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent"
+                                    />
+                                    <code className="text-[11px] text-muted-foreground">{customAccent?.primary ?? themeCustomAccent}</code>
+                                </span>
+                            </label>
+                            {customAccent && (
+                                <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                                    <dt>{t('settings.workspace.contrastTextOnAccent')}</dt><dd>{ratio(customAccent.contrast.textOnPrimary, TEXT_CONTRAST_MIN)}</dd>
+                                    <dt>{t('settings.workspace.contrastOnDark')}</dt><dd>{ratio(customAccent.contrast.onDarkBackground, BACKGROUND_CONTRAST_MIN)}</dd>
+                                    <dt>{t('settings.workspace.contrastOnLight')}</dt><dd>{ratio(customAccent.contrast.onLightBackground, BACKGROUND_CONTRAST_MIN)}</dd>
+                                </dl>
+                            )}
+                            {customAccent && customAccent.warnings.length > 0 && (
+                                <p className="text-[11px] text-amber-600" role="status">{t('settings.workspace.contrastWarning')}</p>
+                            )}
+                        </div>
+                    )}
                     <p className="text-[11px] text-muted-foreground">
                         {t('settings.workspace.themeApplyHint')}
                     </p>

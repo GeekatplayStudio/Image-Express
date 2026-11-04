@@ -1,4 +1,5 @@
 import type { ThemeAccentPreset } from '@/lib/themePreferences';
+import { isHexColor, normalizeHex } from '@/lib/themeAccent';
 
 export type AppThemeTokens = {
     primaryHex: string;
@@ -36,7 +37,7 @@ export type AppThemeTokens = {
     utilitySwatches: string[];
 };
 
-const APP_THEME_PRESETS: Record<ThemeAccentPreset, AppThemeTokens> = {
+const APP_THEME_PRESETS: Record<Exclude<ThemeAccentPreset, 'custom'>, AppThemeTokens> = {
     ocean: {
         primaryHex: '#1f8aa5',
         primarySoftHex: '#3aa3be',
@@ -99,11 +100,37 @@ export const getThemeAccentPresetFromDocument = (): ThemeAccentPreset => {
     }
 
     const value = document.documentElement.dataset.themeAccent;
-    return value === 'ocean' || value === 'ember' || value === 'meadow' || value === 'violet'
+    return value === 'ocean' || value === 'ember' || value === 'meadow' || value === 'violet' || value === 'custom'
         ? value
         : 'ocean';
 };
 
-export const getAppTheme = (accentPreset: ThemeAccentPreset = getThemeAccentPresetFromDocument()): AppThemeTokens => (
-    APP_THEME_PRESETS[accentPreset] || APP_THEME
-);
+/** The custom accent's brand colour, read from the gradient-mid variable (always a hex). */
+const customPrimaryHexFromDocument = (): string | null => {
+    if (typeof document === 'undefined') return null;
+    const value = document.documentElement.style.getPropertyValue('--ui-brand-gradient-mid').trim();
+    return isHexColor(value) ? normalizeHex(value) : null;
+};
+
+/** Canvas-side tokens for a custom accent: the shipped palette with the brand colour swapped in. */
+export const customAppTheme = (primaryHex: string, base: AppThemeTokens = APP_THEME): AppThemeTokens => {
+    const r = parseInt(primaryHex.slice(1, 3), 16), g = parseInt(primaryHex.slice(3, 5), 16), b = parseInt(primaryHex.slice(5, 7), 16);
+    return {
+        ...base,
+        primaryHex,
+        primarySoftHex: primaryHex,
+        shapeDefaultFillHex: primaryHex,
+        zoneOverlayFill: `rgba(${r}, ${g}, ${b}, 0.14)`,
+        zoneStroke: primaryHex,
+        curveDefaultStroke: primaryHex,
+        circularMenuColors: { ...base.circularMenuColors, select: primaryHex, pathSelect: primaryHex, lasso: primaryHex },
+    };
+};
+
+export const getAppTheme = (accentPreset: ThemeAccentPreset = getThemeAccentPresetFromDocument()): AppThemeTokens => {
+    if (accentPreset === 'custom') {
+        const hex = customPrimaryHexFromDocument();
+        return hex ? customAppTheme(hex) : APP_THEME;
+    }
+    return APP_THEME_PRESETS[accentPreset] || APP_THEME;
+};

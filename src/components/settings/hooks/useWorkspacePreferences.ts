@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadUiPreferences, saveUiPreferences, type PipelineRailMode } from '@/lib/ui-preferences';
 import {
+    DEFAULT_CUSTOM_ACCENT,
     THEME_ACCENT_OPTIONS,
     THEME_MODE_OPTIONS,
     loadThemePreferences,
@@ -23,6 +24,7 @@ export function useWorkspacePreferences(isOpen: boolean, onSaved: () => void) {
     const [notifyOnJobComplete, setNotifyOnJobComplete] = useState(true);
     const [themeMode, setThemeMode] = useState<ThemePreferenceMode>('system');
     const [themeAccentPreset, setThemeAccentPreset] = useState<ThemeAccentPreset>('ocean');
+    const [themeCustomAccent, setThemeCustomAccent] = useState<string>(DEFAULT_CUSTOM_ACCENT);
 
     const [isLogVisible, setIsLogVisible] = useState(false);
     const [logContent, setLogContent] = useState('');
@@ -39,6 +41,7 @@ export function useWorkspacePreferences(isOpen: boolean, onSaved: () => void) {
         const themePreferences = loadThemePreferences();
         setThemeMode(themePreferences.mode);
         setThemeAccentPreset(themePreferences.accentPreset);
+        setThemeCustomAccent(themePreferences.customAccent ?? DEFAULT_CUSTOM_ACCENT);
     }, [isOpen]);
 
     const handleToggleLog = useCallback(async () => {
@@ -74,8 +77,8 @@ export function useWorkspacePreferences(isOpen: boolean, onSaved: () => void) {
             pipelineRailMode,
             notifyOnJobComplete,
         });
-        saveThemePreferences({ mode: themeMode, accentPreset: themeAccentPreset });
-    }, [expandToolRailLabelsOnHover, suppressNumberDragHints, pipelineRailMode, notifyOnJobComplete, themeAccentPreset, themeMode]);
+        saveThemePreferences({ mode: themeMode, accentPreset: themeAccentPreset, customAccent: themeCustomAccent });
+    }, [expandToolRailLabelsOnHover, suppressNumberDragHints, pipelineRailMode, notifyOnJobComplete, themeAccentPreset, themeCustomAccent, themeMode]);
 
     return {
         expandToolRailLabelsOnHover, setExpandToolRailLabelsOnHover,
@@ -84,6 +87,7 @@ export function useWorkspacePreferences(isOpen: boolean, onSaved: () => void) {
         notifyOnJobComplete, setNotifyOnJobComplete,
         themeMode, setThemeMode,
         themeAccentPreset, setThemeAccentPreset,
+        themeCustomAccent, setThemeCustomAccent,
         isLogVisible,
         logContent,
         isLogLoading,

@@ -770,6 +770,13 @@ const de: LocaleDictionary = {
     'campaignWorkspace.empty': 'Noch keine Varianten. Nimm einen Overlay-Rahmen auf, um die Kampagne zu starten.',
     'campaignWorkspace.footerHint': 'Jede Variante ist ein Schnappschuss der Seite; Exporte rendern den Schnappschuss, nicht die Live-Leinwand.',
     'campaignWorkspace.activeVariantTitle': 'Aktive Kampagnenvariante: {name}. Klicken, um den Arbeitsbereich zu öffnen.',
+    'accent.custom': 'Eigene',
+    'accent.custom.desc': 'Eine Farbe wählen; der Rest wird abgeleitet.',
+    'settings.workspace.customAccentColor': 'Akzentfarbe',
+    'settings.workspace.contrastTextOnAccent': 'Text auf Akzent',
+    'settings.workspace.contrastOnDark': 'Auf dunklem Thema (braucht 3)',
+    'settings.workspace.contrastOnLight': 'Auf hellem Thema (braucht 3)',
+    'settings.workspace.contrastWarning': 'Diese Farbe unterschreitet eine Kontrastvorgabe; Text oder Bedienelemente können schwer lesbar sein.',
 };
 
 export default de;
