@@ -37,9 +37,9 @@ that did not fit. What it found, and what changed:
 - **Colour picker flyout** (Eyedropper / colour wheel): only the wheel was
   positioned; the Classic / Constellation switch was appended below the
   workspace where nobody could reach it. The host is now the floating panel.
-- **Asset Library** (560×680 at y=140) and **Asset Vault** (960×640 at y=96)
-  opened taller than a 768px / 700px window, hiding their footers. Both now
-  size themselves to the window.
+- **Asset Library** (560×680 at y=140), **Asset Vault** (960×640 at y=96) and
+  **Template Library** (320×500 at y=320) opened taller than a 768px / 700px
+  window, hiding their footers. All three now size themselves to the window.
 - **Layers panel** action row (mask, lock, delete) overflowed the panel width;
   it wraps.
 - **Dashboard** quote headline is balanced across lines; the hub footer's

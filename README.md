@@ -104,6 +104,7 @@ npm run desktop:build    # package installers (Win NSIS / mac DMG / Linux AppIma
 npm run install:super    # interactive ComfyUI + Ollama installer, models fully opt-in
 npm run doctor:node      # is this shell's Node new enough? where's a good one?
 npm run verify           # the full gate: audits, lint, types, tests, build, bundle
+npm run qa:ui-sweep      # headless layout check: nothing off-screen at 4 window sizes (app on :3005)
 ```
 
 ### Node 24+ is required — and the toolchain enforces it for you

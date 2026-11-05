@@ -273,6 +273,23 @@ dialogs 3000, toasts 3500. Nothing in the workspace may draw over a popup;
 modal tier and passes the level to its panel, which is portaled to `<body>` and
 so does not inherit it.
 
+### Fitting the screen
+
+Nothing may open outside the window, and nothing reachable may be clipped.
+Three rules carry that:
+
+- **Popup windows** go through `ModalShell`, which shrinks the preferred size
+  to the viewport and remembers the user's frame (clamped on reopen).
+- **Floating panels** (Asset Library, Asset Vault, Template Library) compute
+  their initial size from `window.innerHeight` so their footers stay visible.
+- **Header dropdowns** use `clampMenuToViewport` as a callback ref: it shifts
+  the panel left past the right edge and caps its height with scrolling past
+  the bottom. The header itself wraps instead of overflowing, so the right-hand
+  actions are never pushed off-screen.
+
+`npm run qa:ui-sweep` checks all of this mechanically in headless Chromium at
+four viewport sizes and reports any control outside the viewport.
+
 ### Canvas model
 
 `DesignCanvas` owns a full-size Fabric canvas plus an explicit **artboard**
