@@ -27,7 +27,7 @@ export default function VaultNavModeSwitch({
 
     return (
         <div
-            className="flex shrink-0 border-r border-b border-border/50 bg-card/70"
+            className="flex shrink-0 border-b border-border/50 bg-card/70"
             role="tablist"
             aria-label={t('vault.navMode')}
             data-testid="vault-nav-mode-switch"

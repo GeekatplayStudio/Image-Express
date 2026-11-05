@@ -371,12 +371,12 @@ export default function AssetVaultModal({
                                       * Type/Date/Location/Subject controls with
                                       * nothing to act on.
                                       */}
-                                    <div className="flex flex-col min-h-0 shrink-0">
+                                    <div className="flex flex-col min-h-0 w-60 shrink-0 border-r border-border/50 bg-card/50">
                                             <VaultNavModeSwitch
                                                 navMode={browse.navMode}
                                                 onChange={browse.setNavMode}
                                             />
-                                            <div className="px-2 pb-2">
+                                            <div className="px-1.5 py-1.5 border-b border-border/40">
                                                 <VaultSourceSwitch
                                                     source={browse.assetSource}
                                                     counts={browse.sourceCounts}

@@ -50,7 +50,7 @@ export default function VaultSourceSwitch({
         <div
             role="group"
             aria-label={t('vault.sourceLabel')}
-            className="flex items-center gap-0.5 rounded-md border border-border bg-card/60 p-0.5"
+            className="grid grid-cols-3 gap-0.5 rounded-md border border-border bg-card/60 p-0.5"
         >
             {options.map(({ value, label, count, Icon }) => {
                 const active = source === value;
@@ -62,14 +62,14 @@ export default function VaultSourceSwitch({
                         aria-pressed={active}
                         title={`${label} · ${count.toLocaleString()}`}
                         className={cn(
-                            'flex items-center gap-1 rounded px-2 h-6 text-[11px] transition-colors',
+                            'flex items-center justify-center gap-1 rounded px-1 h-6 min-w-0 text-[10px] transition-colors',
                             active
                                 ? 'bg-primary/15 text-primary border border-primary/40'
                                 : 'text-muted-foreground hover:bg-secondary border border-transparent',
                         )}
                     >
                         <Icon size={11} className="shrink-0" />
-                        <span>{label}</span>
+                        <span className="truncate">{label}</span>
                         <span className="tabular-nums opacity-70">{compact(count)}</span>
                     </button>
                 );
