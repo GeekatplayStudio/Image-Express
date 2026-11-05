@@ -3670,6 +3670,17 @@ const en: LocaleDictionary = {
     'docs.settings.item7.desc': 'Pick any accent colour in Workspace appearance. Text and background contrast is checked against WCAG and you are warned when a colour would be hard to read.',
     'docs.settings.item8.label': 'Key vault',
     'docs.settings.item8.desc': 'Provider keys are stored encrypted on the server. Each key shows its age, the audit trail lists every read and change, and an admin can rotate the vault secret.',
+    'assets.status.count': '{count} shown',
+    'assets.status.local': '{count} local',
+    'assets.status.cloud': '{count} cloud',
+    'assets.status.server': '{count} server',
+    'assets.status.source.local': 'Local storage',
+    'assets.status.source.cloud': 'Cloud',
+    'assets.status.source.server': 'Server',
+    'assets.status.sourceFailed': '{source} unavailable',
+    'assets.status.sourceFailedHint': 'This source did not answer, so its assets are not listed. Refresh to try again.',
+    'assets.status.refreshing': 'Refreshing…',
+    'assets.status.loadedIn': 'loaded in {ms} ms',
 };
 
 export default en;

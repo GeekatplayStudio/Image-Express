@@ -796,6 +796,17 @@ const it: LocaleDictionary = {
     'docs.settings.item7.desc': 'Scegli qualsiasi colore accento in Aspetto dell’area di lavoro. Il contrasto di testo e sfondo è verificato secondo WCAG e un colore poco leggibile viene segnalato.',
     'docs.settings.item8.label': 'Cassaforte chiavi',
     'docs.settings.item8.desc': 'Le chiavi dei provider sono salvate cifrate sul server. Ogni chiave mostra la sua età, il registro elenca ogni lettura e modifica e un amministratore può ruotare il segreto della cassaforte.',
+    'assets.status.count': '{count} mostrati',
+    'assets.status.local': '{count} locali',
+    'assets.status.cloud': '{count} cloud',
+    'assets.status.server': '{count} server',
+    'assets.status.source.local': 'Archivio locale',
+    'assets.status.source.cloud': 'Cloud',
+    'assets.status.source.server': 'Server',
+    'assets.status.sourceFailed': '{source} non disponibile',
+    'assets.status.sourceFailedHint': 'Questa origine non ha risposto, quindi le sue risorse non sono elencate. Aggiorna per riprovare.',
+    'assets.status.refreshing': 'Aggiornamento…',
+    'assets.status.loadedIn': 'caricato in {ms} ms',
 };
 
 export default it;

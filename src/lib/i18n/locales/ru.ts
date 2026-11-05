@@ -3231,6 +3231,17 @@ const ru: LocaleDictionary = {
     'docs.settings.item7.desc': 'Выберите любой акцентный цвет в оформлении рабочей области. Контраст текста и фона проверяется по WCAG, а трудночитаемый цвет помечается предупреждением.',
     'docs.settings.item8.label': 'Хранилище ключей',
     'docs.settings.item8.desc': 'Ключи провайдеров хранятся на сервере в зашифрованном виде. У каждого ключа виден возраст, журнал аудита перечисляет каждое чтение и изменение, а администратор может сменить секрет хранилища.',
+    'assets.status.count': 'Показано {count}',
+    'assets.status.local': '{count} локально',
+    'assets.status.cloud': '{count} в облаке',
+    'assets.status.server': '{count} на сервере',
+    'assets.status.source.local': 'Локальное хранилище',
+    'assets.status.source.cloud': 'Облако',
+    'assets.status.source.server': 'Сервер',
+    'assets.status.sourceFailed': '{source}: недоступно',
+    'assets.status.sourceFailedHint': 'Этот источник не ответил, поэтому его файлы не показаны. Обновите, чтобы повторить.',
+    'assets.status.refreshing': 'Обновление…',
+    'assets.status.loadedIn': 'загружено за {ms} мс',
 };
 
 export default ru;

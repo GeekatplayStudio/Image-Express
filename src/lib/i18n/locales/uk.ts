@@ -3231,6 +3231,17 @@ const uk: LocaleDictionary = {
     'docs.settings.item7.desc': 'Оберіть будь-який акцентний колір в оформленні робочого простору. Контраст тексту й тла перевіряється за WCAG, а важкочитний колір позначається попередженням.',
     'docs.settings.item8.label': 'Сховище ключів',
     'docs.settings.item8.desc': 'Ключі провайдерів зберігаються на сервері зашифрованими. Кожен ключ показує свій вік, журнал аудиту перелічує кожне читання і зміну, а адміністратор може змінити секрет сховища.',
+    'assets.status.count': 'Показано {count}',
+    'assets.status.local': '{count} локально',
+    'assets.status.cloud': '{count} у хмарі',
+    'assets.status.server': '{count} на сервері',
+    'assets.status.source.local': 'Локальне сховище',
+    'assets.status.source.cloud': 'Хмара',
+    'assets.status.source.server': 'Сервер',
+    'assets.status.sourceFailed': '{source}: недоступно',
+    'assets.status.sourceFailedHint': 'Це джерело не відповіло, тому його файли не показані. Оновіть, щоб повторити.',
+    'assets.status.refreshing': 'Оновлення…',
+    'assets.status.loadedIn': 'завантажено за {ms} мс',
 };
 
 export default uk;

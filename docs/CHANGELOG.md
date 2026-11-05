@@ -19,6 +19,38 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-05 - Asset Library: thumbnails that stay, listings that cache, a status line
+
+The classic Asset Library was slow to open and showed bare icons where tiles
+should be. Three causes, all fixed:
+
+- **Local assets had no thumbnail at all.** Since the blob split, a stored
+  record carries no inline bytes, and the only code that made a tile URL
+  required them. The "resolves lazily per tile" comment described code that
+  did not exist. A new hook now reads bytes a few at a time in grid order,
+  downsizes images to a 320 px WebP once and keeps that thumbnail in its own
+  IndexedDB database, so the next open decodes a few kilobytes per tile, not a
+  20 MB photo.
+- **Every refresh revoked the tiles' object URLs first**, so previews broke
+  until the new list arrived, and every tab switch or search keystroke re-read
+  the stores from scratch. Listings are now cached for the page session
+  (stale-while-revalidate): a tab seen before paints at once and the fresh list
+  replaces it. Object URLs live for the session and are never revoked under a
+  mounted tile. A request sequence number drops a slow stale response that
+  lands after a newer query, which could previously overwrite the right list.
+- **Nothing said what had loaded or failed.** A status line under the grid
+  shows the count, total size, per-source counts (local / cloud / server), load
+  time, and names a source that did not answer. Tiles show size, pixel size
+  and date. The server listing now returns file sizes.
+
+The Asset Vault's first page is cached the same way, so reopening it no
+longer sits on a spinner, and a failed refresh keeps the last page rather
+than blanking it.
+
+`AssetLibrary.tsx` went from 2917 to 2709 lines; the query, tile preview and
+tab configuration moved to `src/components/assetLibrary/`, each with tests.
+Strings for the status line were added to all 11 locales.
+
 ## 2026-11-05 - UI sweep: nothing off-screen, menus clamped, windows fit the screen
 
 A scripted Playwright pass drove the dashboard, the editor, every header menu

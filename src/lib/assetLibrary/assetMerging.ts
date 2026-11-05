@@ -26,6 +26,10 @@ export type LibraryAsset = AssetDescriptor & {
     /** Search-index metadata (AI caption/tags, embedded prompt) when available. */
     description?: string;
     tags?: string[];
+    /** File size and pixel dimensions when the source records them. */
+    sizeBytes?: number;
+    width?: number;
+    height?: number;
 };
 
 const IMAGE_EXTENSIONS = ALL_IMAGE_EXTENSIONS;

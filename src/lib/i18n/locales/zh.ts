@@ -786,6 +786,17 @@ const zh: LocaleDictionary = {
     'docs.settings.item7.desc': '在工作区外观中选择任意强调色。文字与背景的对比度按 WCAG 检查，难以阅读的颜色会给出警告。',
     'docs.settings.item8.label': '密钥保险库',
     'docs.settings.item8.desc': '服务商密钥在服务器上加密存储。每个密钥显示其年龄，审计日志列出每次读取和更改，管理员可以轮换保险库密钥。',
+    'assets.status.count': '显示 {count} 项',
+    'assets.status.local': '本地 {count} 项',
+    'assets.status.cloud': '云端 {count} 项',
+    'assets.status.server': '服务器 {count} 项',
+    'assets.status.source.local': '本地存储',
+    'assets.status.source.cloud': '云端',
+    'assets.status.source.server': '服务器',
+    'assets.status.sourceFailed': '{source}不可用',
+    'assets.status.sourceFailedHint': '此来源未响应，因此未列出其素材。刷新以重试。',
+    'assets.status.refreshing': '正在刷新…',
+    'assets.status.loadedIn': '加载用时 {ms} 毫秒',
 };
 
 export default zh;

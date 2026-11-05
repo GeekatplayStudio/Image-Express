@@ -797,6 +797,17 @@ const fr: LocaleDictionary = {
     'docs.settings.item7.desc': 'Choisissez n’importe quelle couleur d’accent dans Apparence de l’espace de travail. Le contraste texte/fond est vérifié selon WCAG et une couleur difficile à lire est signalée.',
     'docs.settings.item8.label': 'Coffre à clés',
     'docs.settings.item8.desc': 'Les clés des fournisseurs sont stockées chiffrées sur le serveur. Chaque clé affiche son âge, le journal d’audit liste chaque lecture et modification, et un administrateur peut faire tourner le secret du coffre.',
+    'assets.status.count': '{count} affichés',
+    'assets.status.local': '{count} locaux',
+    'assets.status.cloud': '{count} cloud',
+    'assets.status.server': '{count} serveur',
+    'assets.status.source.local': 'Stockage local',
+    'assets.status.source.cloud': 'Cloud',
+    'assets.status.source.server': 'Serveur',
+    'assets.status.sourceFailed': '{source} indisponible',
+    'assets.status.sourceFailedHint': 'Cette source n’a pas répondu, ses ressources ne sont donc pas listées. Actualisez pour réessayer.',
+    'assets.status.refreshing': 'Actualisation…',
+    'assets.status.loadedIn': 'chargé en {ms} ms',
 };
 
 export default fr;

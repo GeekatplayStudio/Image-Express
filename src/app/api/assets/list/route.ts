@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readdir } from 'fs/promises';
+import { readdir, stat } from 'fs/promises';
 import path from 'path';
 import fs from 'fs';
 import { normalizeEmail } from '@/lib/server/auth-utils';
@@ -64,6 +64,18 @@ export async function GET(request: Request) {
 
     const files = await readdir(dirPath);
     const metadataByName = await getAssetMetadataByFolder(category, type);
+    // Sizes are shown on tiles; one stat per file, in parallel, is cheaper than
+    // the client fetching headers for each. A file that vanished mid-listing
+    // simply has no size.
+    const sizeByName = new Map<string, number>();
+    await Promise.all(files.map(async (file) => {
+      try {
+        const stats = await stat(path.join(dirPath, file));
+        if (stats.isFile()) sizeByName.set(file, stats.size);
+      } catch {
+        // Listed but unreadable: shown without a size.
+      }
+    }));
 
     const isVisibleByScope = (assetOwner: string, isPublic: boolean) => {
       const isOwnedByCurrentUser = owner.length > 0 && normalizeEmail(assetOwner) === normalizeEmail(owner);
@@ -100,7 +112,8 @@ export async function GET(request: Request) {
           owner: assetOwner,
           isPublic,
           createdAt: metadata?.createdAt,
-          updatedAt: metadata?.updatedAt
+          updatedAt: metadata?.updatedAt,
+          sizeBytes: sizeByName.get(file),
           };
         })
         .filter((asset) => {

@@ -260,6 +260,14 @@ visibility, live rotating 3D previews on hover, and real rendered thumbnails for
 or the hover **+** adds it directly. Video previews scrub and offer **Capture
 Frame** to grab the current frame as a new image layer.
 
+Listings are cached for the session: a tab seen before paints immediately and
+refreshes in the background. Image thumbnails are generated once (320 px WebP)
+and kept in the browser, so reopening a large local library is quick. A status
+line under the grid shows how many assets are listed, their total size, how many
+came from local storage, cloud and server, how long the load took, and which
+source, if any, did not answer. Each tile shows its file size, pixel size and
+date.
+
 Local and Google Drive 3D selections are copied once into the durable local
 asset store before canvas placement, so saved layers survive reloads instead of
 depending on a browser-session `blob:` URL. Older volatile model layers are

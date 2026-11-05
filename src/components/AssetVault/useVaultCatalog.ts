@@ -1,7 +1,7 @@
 'use client';
 import type { VaultSearchMatch } from '@/components/AssetVault/vaultModalTypes';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Bookcase, BookcaseFilter } from '@/features/asset-vault/contracts/bookcase';
 import type { VaultAssetRecord } from '@/features/asset-vault/contracts/assetRecord';
 import {
@@ -15,6 +15,20 @@ import { parseVaultNaturalQuery } from '@/features/asset-vault/domain/vaultNatur
 
 /** One page of the browse view. The server caps a request at 200. */
 const BROWSE_PAGE_SIZE = 200;
+
+type CatalogSnapshot = { bookcases: Bookcase[]; assets: VaultAssetRecord[]; total: number; hasMore: boolean };
+
+/**
+ * The first page per owner and filter, kept for the page session. Reopening
+ * the vault paints this at once and the fresh page replaces it when it lands;
+ * before, every open sat on a spinner for a round trip whose answer had not
+ * changed. Cleared by tests via `resetVaultCatalogCacheForTests`.
+ */
+const catalogCache = new Map<string, CatalogSnapshot>();
+
+export function resetVaultCatalogCacheForTests() {
+    catalogCache.clear();
+}
 
 type UseVaultCatalogArgs = {
     isOpen: boolean;
@@ -58,8 +72,23 @@ export function useVaultCatalog({
 
     const naturalQuery = useMemo(() => parseVaultNaturalQuery(query), [query]);
 
+    /** Monotonic load id so a slow first page cannot overwrite a newer one. */
+    const loadSeqRef = useRef(0);
+
+    const applySnapshot = useCallback((snapshot: CatalogSnapshot) => {
+        setBookcases(snapshot.bookcases);
+        setAllAssets(snapshot.assets);
+        setBrowseTotal(snapshot.total);
+        setHasMoreAssets(snapshot.hasMore);
+        setServerOffset(BROWSE_PAGE_SIZE);
+    }, []);
+
     const runLoad = useCallback(async () => {
-        setIsLoading(true);
+        const seq = ++loadSeqRef.current;
+        const cacheKey = `${owner}|${JSON.stringify(initialFilter ?? null)}`;
+        const cached = catalogCache.get(cacheKey);
+        if (cached) applySnapshot(cached);
+        else setIsLoading(true);
         try {
             const [list, response] = await Promise.all([
                 fetchBookcases().catch(() => [] as Bookcase[]),
@@ -70,18 +99,23 @@ export function useVaultCatalog({
                     limit: BROWSE_PAGE_SIZE,
                 }, owner),
             ]);
-            setBookcases(list);
-            setAllAssets(response.results.map((entry) => entry.asset));
-            setBrowseTotal(response.total);
-            setHasMoreAssets(Boolean(response.hasMore));
-            setServerOffset(BROWSE_PAGE_SIZE);
+            if (seq !== loadSeqRef.current) return;
+            const snapshot: CatalogSnapshot = {
+                bookcases: list,
+                assets: response.results.map((entry) => entry.asset),
+                total: response.total,
+                hasMore: Boolean(response.hasMore),
+            };
+            catalogCache.set(cacheKey, snapshot);
+            applySnapshot(snapshot);
         } catch (error) {
             console.error('Vault load failed', error);
-            setAllAssets([]);
+            // Keep the cached page on screen rather than blanking a list that was fine a moment ago.
+            if (seq === loadSeqRef.current && !cached) setAllAssets([]);
         } finally {
-            setIsLoading(false);
+            if (seq === loadSeqRef.current) setIsLoading(false);
         }
-    }, [initialFilter, owner]);
+    }, [applySnapshot, initialFilter, owner]);
 
     /** Fetch the next page of the browse view and append it. */
     const loadMoreAssets = useCallback(async () => {

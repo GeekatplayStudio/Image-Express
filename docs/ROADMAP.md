@@ -842,6 +842,11 @@ re-embedding an asset when its caption changes; model-file indexing
 **Open:** full CRUD parity with the classic library and richer previews (P2);
 multi-location indexing across network shares and cloud connectors (P3); agent
 and canvas bridges (P4).
+**Classic library (2026-11-05):** local tiles now get real thumbnails (they
+showed icons since the blob split), listings and the vault's first page are
+cached per session, stale responses are dropped, and a status line reports
+counts, size, load time and failed sources. Remaining for both: dimensions for
+server assets, and a human pass over a large (1,000+) local library.
 **Switch-over:** the vault replaces the classic library as default only once
 CRUD parity and preview fidelity match.
 

@@ -786,6 +786,17 @@ const ja: LocaleDictionary = {
     'docs.settings.item7.desc': 'ワークスペースの外観で任意のアクセント色を選べます。文字と背景のコントラストはWCAGで検証され、読みにくい色は警告されます。',
     'docs.settings.item8.label': 'キー保管庫',
     'docs.settings.item8.desc': 'プロバイダーのキーはサーバーに暗号化して保存されます。各キーの経過日数、すべての読み取りと変更の監査ログを表示し、管理者は保管庫の秘密鍵をローテーションできます。',
+    'assets.status.count': '{count} 件表示',
+    'assets.status.local': 'ローカル {count} 件',
+    'assets.status.cloud': 'クラウド {count} 件',
+    'assets.status.server': 'サーバー {count} 件',
+    'assets.status.source.local': 'ローカルストレージ',
+    'assets.status.source.cloud': 'クラウド',
+    'assets.status.source.server': 'サーバー',
+    'assets.status.sourceFailed': '{source} を利用できません',
+    'assets.status.sourceFailedHint': 'このソースが応答しなかったため、そのアセットは表示されていません。更新して再試行してください。',
+    'assets.status.refreshing': '更新中…',
+    'assets.status.loadedIn': '{ms} ms で読み込み',
 };
 
 export default ja;

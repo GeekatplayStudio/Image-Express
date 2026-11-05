@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { Upload, Image as ImageIcon, Box, Trash2, CheckCircle, Loader2, RotateCw, Pen, X, Video, Music, Search, Users, User, Globe, Lock, Download, HardDrive, Cloud, Play, Pause, Square, SlidersHorizontal, AlertTriangle, CheckSquare, MoreHorizontal, Folder, FolderPlus, FolderMinus, ImagePlus, Plus, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Asset3DPreview from './Asset3DPreview';
-import { AssetDescriptor, AssetType, AssetCategory } from '@/types';
+import { AssetType } from '@/types';
 import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
@@ -15,7 +15,6 @@ import useEscapeKey from '@/hooks/useEscapeKey';
 import {
     deleteDriveAsset,
     downloadDriveAssetBlob,
-    listDriveAssets,
     loadDriveConfig,
     renameDriveAsset,
     setDriveAssetVisibility,
@@ -24,7 +23,6 @@ import {
 import {
     deleteLocalAsset,
     getLocalAssetBlob,
-    listLocalAssets,
     renameLocalAsset,
     saveLocalAsset,
     setLocalAssetVisibility,
@@ -44,9 +42,7 @@ import {
     getAssetMergeKey,
     getSourceAssets,
     inferAssetType,
-    isDrivePassiveAuthError,
     loadAssetGroups,
-    mergeDuplicateAssets,
     pickRepresentativeAsset,
     saveAssetGroups,
     type AssetGroupMap,
@@ -70,71 +66,13 @@ import { canRenderModelThumbnail, getCachedModelThumbnail, renderModelThumbnail 
 import { backfillLocalAssetIndex, indexLocalAsset } from '@/lib/assetIndexer';
 import { loadAssetIndexSettings, saveAssetIndexSettings } from '@/lib/assetIndexSettings';
 import { materializeDurableModelSource } from '@/lib/assetLibrary/durableModelSource';
+import { forgetPreview } from '@/lib/assetLibrary/thumbnailCache';
+import { LIBRARY_TABS, TAB_CONFIG, typeToTabKey, type LibraryTab } from '@/components/assetLibrary/libraryTabs';
+import { invalidateAssetQueryCache, useAssetLibraryQuery } from '@/components/assetLibrary/useAssetLibraryQuery';
+import { needsResolvedPreview, previewCacheKey, useAssetTilePreviews } from '@/components/assetLibrary/useAssetTilePreviews';
+import AssetLibraryStatusBar, { formatAssetSize } from '@/components/assetLibrary/AssetLibraryStatusBar';
 
 const ACCEPTED_FILE_TYPES = `${buildImageAcceptAttribute()},video/*,audio/*,.glb,.gltf,.obj,.fbx,.stl,.ply`;
-
-/**
- * Media tab configuration describing available asset categories and upload behavior.
- */
-const LIBRARY_TABS = [
-    {
-        key: 'images',
-        labelKey: 'assets.tab.uploads',
-        icon: Upload,
-        type: 'images' as AssetType,
-        category: 'uploads' as AssetCategory,
-        accept: 'image/*'
-    },
-    {
-        key: 'videos',
-        labelKey: 'assets.tab.videos',
-        icon: Video,
-        type: 'videos' as AssetType,
-        category: 'uploads' as AssetCategory,
-        accept: 'video/*'
-    },
-    {
-        key: 'audio',
-        labelKey: 'assets.tab.audio',
-        icon: Music,
-        type: 'audio' as AssetType,
-        category: 'uploads' as AssetCategory,
-        accept: 'audio/*'
-    },
-    {
-        key: 'models',
-        labelKey: 'assets.tab.3d',
-        icon: Box,
-        type: 'models' as AssetType,
-        category: 'uploads' as AssetCategory,
-        accept: '.glb,.gltf'
-    },
-    {
-        key: 'generated',
-        labelKey: 'assets.tab.generated',
-        icon: ImageIcon,
-        type: 'images' as AssetType,
-        category: 'generated' as AssetCategory,
-        accept: 'image/*'
-    }
-] as const;
-
-type LibraryTab = typeof LIBRARY_TABS[number]['key'];
-
-const TAB_CONFIG: Record<LibraryTab, typeof LIBRARY_TABS[number]> = LIBRARY_TABS.reduce(
-    (acc, tab) => {
-        acc[tab.key] = tab;
-        return acc;
-    },
-    {} as Record<LibraryTab, typeof LIBRARY_TABS[number]>
-);
-
-const typeToTabKey: Record<AssetType, LibraryTab> = {
-    images: 'images',
-    videos: 'videos',
-    audio: 'audio',
-    models: 'models'
-};
 
 interface AssetLibraryProps {
     /** Callback when user selects an asset to add to canvas */
@@ -196,9 +134,6 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
     const [activeTab, setActiveTab] = useState<LibraryTab>('images');
     const [scopeTab, setScopeTab] = useState<AssetScopeTab>('personal');
     
-    const [assets, setAssets] = useState<LibraryAsset[]>([]);
-    
-    const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     
     const [storageSettings, setStorageSettings] = useState<AssetStorageSettings>(() => loadAssetStorageSettings());
@@ -206,6 +141,9 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
     const [showPublicAssets, setShowPublicAssets] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('all');
+    const { assets, isLoading, isRefreshing, loadStats, fetchAssets, queryAssetsForTab } = useAssetLibraryQuery({
+        normalizedUser, driveClientId, activeTab, scopeTab, visibilityFilter, showPublicAssets, searchQuery,
+    });
     
     // State for renaming assets inline
     const [editingAsset, setEditingAsset] = useState<string | null>(null);
@@ -325,167 +263,6 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
         return `${asset.storageProvider}:${asset.storageId || asset.path}`;
     }, []);
 
-    const queryAssetsForTab = useCallback(async (
-        targetTab: LibraryTab,
-        options?: {
-            includePreviewPaths?: boolean;
-            search?: string;
-            scope?: AssetScopeTab;
-            visibility?: VisibilityFilter;
-            includePublic?: boolean;
-        },
-    ) => {
-        const config = TAB_CONFIG[targetTab];
-        const settings = loadAssetStorageSettings();
-        const resolvedScope = options?.scope || scopeTab;
-        const resolvedVisibility = options?.visibility || visibilityFilter;
-        const includePreviewPaths = Boolean(options?.includePreviewPaths);
-        const includePublic = typeof options?.includePublic === 'boolean'
-            ? options.includePublic
-            : (resolvedScope === 'shared' ? true : showPublicAssets);
-        const search = (options?.search ?? searchQuery).trim();
-        const cloudProviderImplemented = isImplementedAssetCloudProvider(settings.cloudProvider);
-
-        const shouldLoadLocal = settings.mode === 'local' || settings.mode === 'hybrid';
-        const shouldLoadCloud = cloudProviderImplemented && (settings.mode === 'cloud' || settings.mode === 'hybrid');
-        const shouldLoadServer = settings.mode === 'hybrid' && settings.includeLegacyServerAssetsInHybrid;
-
-        const loadLocalPromise = shouldLoadLocal
-            ? listLocalAssets({
-                type: config.type,
-                category: config.category,
-                owner: normalizedUser,
-                scope: resolvedScope,
-                includePublic,
-                visibility: resolvedVisibility,
-                search,
-            })
-            : Promise.resolve([]);
-
-        const driveConfig = loadDriveConfig();
-        const resolvedDriveClientId = (driveConfig.clientId || driveClientId || '').trim();
-        const loadCloudPromise = shouldLoadCloud && driveConfig.enabled && resolvedDriveClientId
-            ? listDriveAssets(resolvedDriveClientId, {
-                owner: normalizedUser,
-                scope: resolvedScope,
-                includePublic,
-                visibility: resolvedVisibility,
-                search,
-                type: config.type,
-                category: config.category,
-            }, {
-                allowInteractiveAuth: false,
-            }).catch((error) => {
-                if (!isDrivePassiveAuthError(error)) {
-                    console.error('Failed loading Google Drive assets', error);
-                }
-                return [];
-            })
-            : Promise.resolve([]);
-
-        const loadServerPromise = shouldLoadServer
-            ? fetch(`/api/assets/list?${new URLSearchParams({
-                type: config.type,
-                category: config.category,
-                owner: normalizedUser,
-                scope: resolvedScope,
-                includePublic: String(includePublic),
-                visibility: resolvedVisibility,
-                search,
-            }).toString()}`, {
-                headers: (() => {
-                    const authorization = buildSessionAuthorizationHeader();
-                    return authorization ? { Authorization: authorization } : undefined;
-                })(),
-            })
-                .then((res) => res.json())
-                .then((data) => (data.success ? (data.files || []) as AssetDescriptor[] : []))
-                .catch((error) => {
-                    console.error('Failed loading legacy server assets', error);
-                    return [] as AssetDescriptor[];
-                })
-            : Promise.resolve([]);
-
-        const [localAssets, cloudAssets, serverAssets] = await Promise.all([
-            loadLocalPromise,
-            loadCloudPromise,
-            loadServerPromise,
-        ]);
-
-        const localNormalized: LibraryAsset[] = localAssets.map((item) => {
-            // Only records that still carry inline bytes (pre-blob-split) can be
-            // previewed for free here; everything else resolves lazily per tile,
-            // rather than holding an object URL open for the whole library.
-            const previewPath = includePreviewPaths && item.data
-                ? registerObjectUrl(URL.createObjectURL(item.data))
-                : undefined;
-            return {
-                path: `local-file://${item.id}`,
-                previewPath,
-                name: item.name,
-                type: item.type,
-                category: item.category,
-                owner: item.owner,
-                isPublic: item.isPublic,
-                createdAt: item.createdAt,
-                updatedAt: item.updatedAt,
-                storageProvider: 'local',
-                storageId: item.id,
-                description: item.description,
-                tags: item.tags,
-            };
-        });
-
-        const cloudNormalized: LibraryAsset[] = cloudAssets.map((item) => ({
-            path: `gdrive-file://${item.id}`,
-            name: item.name,
-            type: item.type,
-            category: item.category,
-            owner: item.owner,
-            isPublic: item.isPublic,
-            createdAt: item.createdAt,
-            updatedAt: item.updatedAt,
-            storageProvider: 'google-drive',
-            storageId: item.id,
-        }));
-
-        const serverNormalized: LibraryAsset[] = serverAssets.map((file) => ({
-            ...file,
-            category: file.category || config.category,
-            type: file.type || config.type,
-            storageProvider: 'server',
-        }));
-
-        return mergeDuplicateAssets([...localNormalized, ...cloudNormalized, ...serverNormalized]);
-    }, [driveClientId, normalizedUser, registerObjectUrl, scopeTab, searchQuery, showPublicAssets, visibilityFilter]);
-
-    /**
-     * Fetches assets from enabled storage providers based on storage mode.
-     */
-    const fetchAssets = useCallback(async (forcedTab?: LibraryTab) => {
-        setIsLoading(true);
-        const resolvedTab = forcedTab || activeTab;
-
-        try {
-            const settings = loadAssetStorageSettings();
-            setStorageSettings(settings);
-            clearObjectUrls();
-            setAssets(await queryAssetsForTab(resolvedTab, { includePreviewPaths: true }));
-        } catch (error) {
-            console.error('Failed to load assets', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [activeTab, clearObjectUrls, queryAssetsForTab]);
-
-    // Re-fetch when tabs/filters change
-    useEffect(() => {
-        const timer = window.setTimeout(() => {
-            fetchAssets();
-        }, 150);
-        return () => window.clearTimeout(timer);
-    }, [fetchAssets]);
-
     useEffect(() => {
         if (scopeTab === 'shared' && visibilityFilter === 'private') {
             setVisibilityFilter('public');
@@ -497,12 +274,15 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
             const next = loadAssetStorageSettings();
             setStorageSettings(next);
             setUploadToCloud(next.hybridUploadToCloudByDefault);
+            invalidateAssetQueryCache();
+            void fetchAssets();
         });
         return unsubscribe;
-    }, []);
+    }, [fetchAssets]);
 
     useEffect(() => {
         const handleAssetLibraryChanged = () => {
+            invalidateAssetQueryCache();
             void fetchAssets();
         };
 
@@ -653,6 +433,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
         }
         return response.blob();
     }, [driveClientId]);
+
+    const { previewUrls, failedPreviewKeys } = useAssetTilePreviews({ assets, getAssetKey, loadBlob: resolveAssetBlob });
 
     /**
      * Uploads a batch of files (from the file picker or drag & drop).
@@ -892,6 +674,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                 if (entry.storageProvider === 'local') {
                     if (!entry.storageId) throw new Error('Missing local asset id.');
                     await deleteLocalAsset(entry.storageId);
+                    void forgetPreview(previewCacheKey(entry));
                     return;
                 }
                 if (entry.storageProvider === 'google-drive') {
@@ -900,6 +683,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                         throw new Error('Google Drive is not connected.');
                     }
                     await deleteDriveAsset(resolvedDriveClientId, entry.storageId);
+                    void forgetPreview(previewCacheKey(entry));
                     return;
                 }
                 const authorization = buildSessionAuthorizationHeader();
@@ -1402,13 +1186,14 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
         const keys = new Set(assetGroups[activeGroup] || []);
         return assets.filter((asset) => keys.has(getAssetGroupKey(asset)));
     }, [activeGroup, assetGroups, assets]);
+    const displayedSizeBytes = useMemo(() => {
+        const known = displayedAssets.filter((asset) => typeof asset.sizeBytes === 'number');
+        return known.length > 0 ? known.reduce((sum, asset) => sum + (asset.sizeBytes || 0), 0) : null;
+    }, [displayedAssets]);
 
     const loadAllTabAssetsForBundle = useCallback(async (searchOverride?: string) => {
         const assetGroupsByTab = await Promise.all(
-            LIBRARY_TABS.map((tab) => queryAssetsForTab(tab.key, {
-                includePreviewPaths: false,
-                search: searchOverride,
-            }))
+            LIBRARY_TABS.map((tab) => queryAssetsForTab(tab.key, { search: searchOverride }).then((result) => result.assets))
         );
         return assetGroupsByTab.flat();
     }, [queryAssetsForTab]);
@@ -1416,12 +1201,11 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
     const buildExistingImportCollisionSet = useCallback(async () => {
         const assetGroups = await Promise.all(
             LIBRARY_TABS.map((tab) => queryAssetsForTab(tab.key, {
-                includePreviewPaths: false,
                 search: '',
                 scope: 'personal',
                 visibility: 'all',
                 includePublic: true,
-            }))
+            }).then((result) => result.assets))
         );
 
         const keys = new Set<string>();
@@ -1794,7 +1578,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                         title={t('assets.refresh')}
                         aria-label={t('assets.refresh')}
                     >
-                        <RotateCw size={14} className={isLoading ? "animate-spin" : ""} />
+                        <RotateCw size={14} className={isLoading || isRefreshing ? "animate-spin" : ""} />
                     </button>
                     <div className="relative" ref={moreMenuRef}>
                         <button
@@ -2295,7 +2079,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                             const sourceAssets = getSourceAssets(asset);
                             const representative = pickRepresentativeAsset(asset);
                             const isUpdatingVisibility = updatingVisibilityKey === assetKey;
-                            const imagePreviewUrl = representative.previewPath || (representative.storageProvider === 'server' ? representative.path : undefined);
+                            const imagePreviewUrl = representative.previewPath || (representative.storageProvider === 'server' ? representative.path : undefined) || previewUrls[assetKey];
+                            const isPreviewPending = !imagePreviewUrl && needsResolvedPreview(asset) && !failedPreviewKeys[assetKey];
                             const sourceLabels = Array.from(new Set(sourceAssets.map((entry) => (
                                 entry.storageProvider === 'local'
                                     ? t('assets.source.local')
@@ -2307,6 +2092,11 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                             const sourceCountLabel = sourceLabels.length > 1 ? t('assets.sourceCount', { count: sourceLabels.length }) : null;
                             const isSelected = selectedAssetKeys.includes(assetKey);
                             const memberGroup = groupNameForAsset(asset);
+                            const infoLine = [
+                                asset.sizeBytes ? formatAssetSize(asset.sizeBytes) : null,
+                                asset.width && asset.height ? `${asset.width}×${asset.height}` : null,
+                                asset.updatedAt ? new Date(asset.updatedAt).toLocaleDateString() : null,
+                            ].filter(Boolean).join(' · ');
 
                             return (
                                 <div
@@ -2450,7 +2240,8 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                                                         </div>
                                                     ) : (
                                                         <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                                                            <ImageIcon size={24} />
+                                                            {isPreviewPending ? <Loader2 size={20} className="animate-spin" /> : <ImageIcon size={24} />}
+                                                            {!isPreviewPending && <span className="text-[10px] text-muted-foreground/80">{t('assets.previewUnavailable')}</span>}
                                                         </div>
                                                     )
                                                 )}
@@ -2604,6 +2395,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                                                         {sourceLabels.length > 1 ? <Cloud size={8} /> : <HardDrive size={8} />}
                                                     </span>
                                                 </div>
+                                                {infoLine && <div className="text-[9px] leading-tight text-white/75 truncate">{infoLine}</div>}
                                             </div>
 
                                             {(asset.type === 'videos' || asset.type === 'audio') && playingMediaKey === assetKey && (
@@ -2619,6 +2411,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                     </div>
                 )}
             </div>
+            <AssetLibraryStatusBar count={displayedAssets.length} sizeBytes={displayedSizeBytes} stats={loadStats} isRefreshing={isRefreshing} />
                 </div>
             </div>
         </DraggableResizablePanel>

@@ -1146,6 +1146,17 @@ const es: LocaleDictionary = {
     'docs.settings.item7.desc': 'Elige cualquier color de acento en Apariencia del espacio de trabajo. El contraste de texto y fondo se comprueba según WCAG y se avisa cuando un color sería difícil de leer.',
     'docs.settings.item8.label': 'Bóveda de claves',
     'docs.settings.item8.desc': 'Las claves de proveedores se guardan cifradas en el servidor. Cada clave muestra su antigüedad, el registro de auditoría lista cada lectura y cambio, y un administrador puede rotar el secreto de la bóveda.',
+    'assets.status.count': '{count} mostrados',
+    'assets.status.local': '{count} locales',
+    'assets.status.cloud': '{count} en la nube',
+    'assets.status.server': '{count} en el servidor',
+    'assets.status.source.local': 'Almacenamiento local',
+    'assets.status.source.cloud': 'Nube',
+    'assets.status.source.server': 'Servidor',
+    'assets.status.sourceFailed': '{source} no disponible',
+    'assets.status.sourceFailedHint': 'Esta fuente no respondió, así que sus recursos no aparecen. Actualiza para reintentar.',
+    'assets.status.refreshing': 'Actualizando…',
+    'assets.status.loadedIn': 'cargado en {ms} ms',
 };
 
 export default es;

@@ -796,6 +796,17 @@ const de: LocaleDictionary = {
     'docs.settings.item7.desc': 'Beliebige Akzentfarbe unter Arbeitsbereich › Darstellung wählen. Der Kontrast von Text und Hintergrund wird nach WCAG geprüft und schwer lesbare Farben werden gemeldet.',
     'docs.settings.item8.label': 'Schlüsseltresor',
     'docs.settings.item8.desc': 'Anbieter-Schlüssel werden verschlüsselt auf dem Server gespeichert. Jeder Schlüssel zeigt sein Alter, das Protokoll listet jeden Zugriff und jede Änderung, und ein Admin kann das Tresor-Geheimnis rotieren.',
+    'assets.status.count': '{count} angezeigt',
+    'assets.status.local': '{count} lokal',
+    'assets.status.cloud': '{count} Cloud',
+    'assets.status.server': '{count} Server',
+    'assets.status.source.local': 'Lokaler Speicher',
+    'assets.status.source.cloud': 'Cloud',
+    'assets.status.source.server': 'Server',
+    'assets.status.sourceFailed': '{source} nicht verfügbar',
+    'assets.status.sourceFailedHint': 'Diese Quelle hat nicht geantwortet, ihre Assets fehlen daher. Aktualisieren, um es erneut zu versuchen.',
+    'assets.status.refreshing': 'Wird aktualisiert…',
+    'assets.status.loadedIn': 'geladen in {ms} ms',
 };
 
 export default de;

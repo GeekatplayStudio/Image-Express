@@ -796,6 +796,17 @@ const pt: LocaleDictionary = {
     'docs.settings.item7.desc': 'Escolha qualquer cor de destaque em Aparência do espaço de trabalho. O contraste de texto e fundo é verificado pelo WCAG e uma cor difícil de ler é avisada.',
     'docs.settings.item8.label': 'Cofre de chaves',
     'docs.settings.item8.desc': 'As chaves dos provedores ficam cifradas no servidor. Cada chave mostra a idade, a trilha de auditoria lista cada leitura e alteração, e um administrador pode rotacionar o segredo do cofre.',
+    'assets.status.count': '{count} exibidos',
+    'assets.status.local': '{count} locais',
+    'assets.status.cloud': '{count} na nuvem',
+    'assets.status.server': '{count} no servidor',
+    'assets.status.source.local': 'Armazenamento local',
+    'assets.status.source.cloud': 'Nuvem',
+    'assets.status.source.server': 'Servidor',
+    'assets.status.sourceFailed': '{source} indisponível',
+    'assets.status.sourceFailedHint': 'Esta origem não respondeu, por isso seus recursos não aparecem. Atualize para tentar de novo.',
+    'assets.status.refreshing': 'Atualizando…',
+    'assets.status.loadedIn': 'carregado em {ms} ms',
 };
 
 export default pt;

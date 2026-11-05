@@ -580,6 +580,34 @@ slider moves over *step indices*, and five of its six steps map onto the same
 resizing the grid is instant across almost the whole range instead of
 regenerating every visible thumbnail.
 
+### The classic Asset Library: session caches, not revocation
+
+`AssetLibrary.tsx` reads from three stores (IndexedDB, Google Drive, the
+server's upload folders) and used to rebuild everything on every tab switch and
+search keystroke, revoking every tile's object URL *before* the new list
+arrived. It now has three small modules under `src/components/assetLibrary/`:
+
+- `useAssetLibraryQuery` runs the three loads in parallel and keeps the last
+  result per query for the page session. A cached result is shown at once with
+  `isRefreshing`; the spinner appears only when there is nothing to show. A
+  request sequence number drops a response that is no longer the latest. The
+  hook also reports per-source counts, duration and which source failed, which
+  is what the status line under the grid renders.
+- `useAssetTilePreviews` fills in artwork for local and Drive assets, which have
+  no URL until their bytes are read. Reads run four at a time in grid order and
+  publish in batches. Server files and 3D models do not go through it.
+- `src/lib/assetLibrary/thumbnailCache.ts` is the cache behind that hook: object
+  URLs per asset for the session (never revoked under a mounted tile), and for
+  images a 320 px WebP thumbnail in its own IndexedDB database, pruned past
+  4000 entries. The cache key omits timestamps, since stored bytes never change
+  under an id, so a rename keeps its thumbnail. Formats that would lose
+  something when downscaled (SVG, GIF, APNG) keep their original bytes.
+
+Why this exists: records written after the blob split carry no inline bytes,
+and the only code that made a tile URL required them, so every local image
+showed as an icon. The vault had `useVaultPreviews` for this; the library had a
+comment.
+
 ### "Find similar": two tiers
 
 1. **The indexed store**, the same one search uses. Needs the seed to have a real

@@ -806,6 +806,17 @@ const pl: LocaleDictionary = {
     'docs.settings.item7.desc': 'Wybierz dowolny kolor akcentu w Wyglądzie obszaru roboczego. Kontrast tekstu i tła jest sprawdzany według WCAG, a trudny do odczytania kolor jest sygnalizowany.',
     'docs.settings.item8.label': 'Sejf kluczy',
     'docs.settings.item8.desc': 'Klucze dostawców są przechowywane zaszyfrowane na serwerze. Każdy klucz pokazuje swój wiek, dziennik audytu wymienia każdy odczyt i zmianę, a administrator może zrotować sekret sejfu.',
+    'assets.status.count': 'Pokazano {count}',
+    'assets.status.local': '{count} lokalnie',
+    'assets.status.cloud': '{count} w chmurze',
+    'assets.status.server': '{count} na serwerze',
+    'assets.status.source.local': 'Pamięć lokalna',
+    'assets.status.source.cloud': 'Chmura',
+    'assets.status.source.server': 'Serwer',
+    'assets.status.sourceFailed': '{source} niedostępne',
+    'assets.status.sourceFailedHint': 'To źródło nie odpowiedziało, więc jego zasoby nie są wyświetlane. Odśwież, aby spróbować ponownie.',
+    'assets.status.refreshing': 'Odświeżanie…',
+    'assets.status.loadedIn': 'wczytano w {ms} ms',
 };
 
 export default pl;
