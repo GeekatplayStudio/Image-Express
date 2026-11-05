@@ -109,7 +109,8 @@
     "audit:i18n:ratchet": "node scripts/i18n-parity-ratchet.mjs",
     "audit:i18n:update": "node scripts/i18n-parity-ratchet.mjs --update",
     "test:mutation": "node scripts/mutation-test.mjs",
-    "test:foldcraft": "jest --config packages/foldcraft/jest.config.cjs"
+    "test:foldcraft": "jest --config packages/foldcraft/jest.config.cjs",
+    "qa:ui-sweep": "node scripts/ui-layout-sweep.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

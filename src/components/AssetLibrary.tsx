@@ -189,6 +189,8 @@ type AssetContextMenuState = {
  * - Generated: AI generated images (public/assets/generated/images)
  */
 export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }: AssetLibraryProps) {
+    // Fit the panel to the window it opens in (a 680px frame at y=140 hid its own footer on a 768px screen).
+    const libraryInitialSize = useMemo(() => (typeof window === 'undefined' ? { width: 560, height: 680 } : { width: Math.max(420, Math.min(560, window.innerWidth - 96)), height: Math.max(460, Math.min(680, window.innerHeight - 156)) }), []);
     const normalizedUser = currentUser?.trim() || 'Guest';
     const driveClientId = (process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID || '').trim();
     const [activeTab, setActiveTab] = useState<LibraryTab>('images');
@@ -1762,10 +1764,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
         <>
         <DraggableResizablePanel
             className="bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-4 duration-200"
-            initialPosition={{ x: 80, y: 140 }}
-            initialSize={{ width: 560, height: 680 }}
-            minWidth={420}
-            minHeight={460}
+            initialPosition={{ x: 80, y: 140 }} initialSize={libraryInitialSize} minWidth={420} minHeight={460}
             zIndex={zIndex}
         >
             {/* Header Section */}

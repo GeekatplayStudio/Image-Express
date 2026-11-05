@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { clampMenuToViewport } from '@/components/Editor/menuViewportClamp';
 import TechnologyModal from '@/components/about/TechnologyModal';
 import { ChevronDown } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
@@ -51,7 +52,7 @@ export default function EditorHeaderHelpMenu({
                 <ChevronDown size={14} className={`transition-transform duration-200 ${showHelpMenu ? 'rotate-180' : ''}`} />
             </button>
             {showHelpMenu && (
-                <div role="menu" data-testid="menu-help" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                <div ref={clampMenuToViewport} role="menu" data-testid="menu-help" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                     <button
                         role="menuitem"
                         onClick={() => {

@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react';
+import { clampMenuToViewport } from '@/components/Editor/menuViewportClamp';
 import { useI18n } from '@/providers/I18nProvider';
 
 type EditorHeaderSelectMenuProps = {
@@ -34,7 +35,7 @@ export default function EditorHeaderSelectMenu({
                 <ChevronDown size={14} className={`transition-transform duration-200 ${showSelectMenu ? 'rotate-180' : ''}`} />
             </button>
             {showSelectMenu && (
-                <div data-testid="menu-select" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                <div ref={clampMenuToViewport} data-testid="menu-select" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                     <button
                         onClick={() => {
                             setShowSelectMenu(false);

@@ -1,8 +1,8 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { clampMenuToViewport } from '@/components/Editor/menuViewportClamp';
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import type { OpenableDesign } from '@/components/Editor/OpenDesignModal';
-
 import type { GridType } from '@/components/GridOverlay';
 import type { EditorMenuId } from '@/components/Editor/useEditorMenus';
 import type { PanelDockMode } from '@/components/Editor/editorView.types';
@@ -124,7 +124,7 @@ export default function EditorHeaderMenus({
     }, [showFileMenu]);
 
     return (
-        <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
+        <div className="flex flex-wrap items-center gap-1 bg-secondary/50 p-1 rounded-lg border">
             <div className="relative order-1">
                 <button
                     onClick={() => toggleEditorMenu('file')}
@@ -135,7 +135,7 @@ export default function EditorHeaderMenus({
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showFileMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showFileMenu && (
-                    <div data-testid="menu-file" className="absolute left-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                    <div ref={clampMenuToViewport} data-testid="menu-file" className="absolute left-0 top-full mt-2 w-48 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                         <button
                             onClick={() => {
                                 setShowFileMenu(false);
@@ -226,7 +226,7 @@ export default function EditorHeaderMenus({
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showImageMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showImageMenu && (
-                    <div data-testid="menu-image" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                    <div ref={clampMenuToViewport} data-testid="menu-image" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                         <button
                             onClick={() => {
                                 setShowImageMenu(false);
@@ -286,7 +286,7 @@ export default function EditorHeaderMenus({
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showLayerMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showLayerMenu && (
-                    <div data-testid="menu-layer" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                    <div ref={clampMenuToViewport} data-testid="menu-layer" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                         <button
                             onClick={() => {
                                 setShowLayerMenu(false);
@@ -380,7 +380,7 @@ export default function EditorHeaderMenus({
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showFilterMenu && (
-                    <div data-testid="menu-filter" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                    <div ref={clampMenuToViewport} data-testid="menu-filter" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                         <button
                             onClick={() => {
                                 setShowFilterMenu(false);
@@ -476,7 +476,7 @@ export default function EditorHeaderMenus({
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showEditMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showEditMenu && (
-                    <div data-testid="menu-edit" className="absolute left-0 top-full mt-2 w-52 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                    <div ref={clampMenuToViewport} data-testid="menu-edit" className="absolute left-0 top-full mt-2 w-52 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                         <button
                             onClick={() => {
                                 setShowEditMenu(false);
@@ -519,7 +519,7 @@ export default function EditorHeaderMenus({
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showViewMenu ? 'rotate-180' : ''}`} />
                 </button>
                 {showViewMenu && (
-                    <div data-testid="menu-view" className="absolute left-0 top-full mt-2 w-52 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                    <div ref={clampMenuToViewport} data-testid="menu-view" className="absolute left-0 top-full mt-2 w-52 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                         <button
                             onClick={() => {
                                 setShowViewMenu(false);

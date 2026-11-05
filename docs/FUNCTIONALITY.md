@@ -394,8 +394,9 @@ APIs are not implemented.
 
 ### Languages — Shipped
 Eleven languages from the top-bar globe menu with automatic persistence.
-**English, Russian and Ukrainian are at 100% UI coverage.** The rest fall back
-to English string-by-string, so nothing renders blank. Spanish is next.
+**English, Russian and Ukrainian are at 99–100% UI coverage.** The other eight
+sit at 30–40% and fall back to English string-by-string, so nothing renders
+blank; a parity ratchet stops any locale slipping further. Spanish is next.
 
 ### Theme and ambience packs — Shipped
 A pack can restyle every panel, button and font **and** populate the dashboard
@@ -414,6 +415,18 @@ was chosen over the alternatives. The filter searches the reasoning too, so
 looking up a rejected option finds the entry explaining the decision. Stated
 versions are checked against the real dependency list on every build, so the
 page cannot quietly go out of date.
+
+### Windows and layout — Shipped
+Every popup window shares one shell: a preferred size shrunk to fit the
+screen, the size and position you leave it in remembered, a full-screen sheet
+under 640px, focus taken on open and returned on close, and Escape closing
+only the topmost window. Floating panels (Asset Library, Asset Vault, the
+colour picker) size themselves to the window they open in. The editor header
+wraps instead of pushing Export, language and profile off-screen when the menu
+bar is open on a narrow window, and dropdown menus shift and scroll to stay
+inside the viewport. The stacking order is one table (`src/lib/zLayers.ts`):
+workspace chrome, then floating panels and flyouts, then windows, then prompts,
+confirms and toasts — nothing in the workspace can draw over a window.
 
 ### Preferences — Shipped
 Settings → Workspace: theme mode and accent palette, tool-rail hover labels,

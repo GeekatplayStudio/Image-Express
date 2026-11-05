@@ -46,8 +46,21 @@ export default function ColorPickerModeHost({
         saveConstellationUiPrefs({ preferConstellation: next === 'constellation' });
     };
 
+    // The floating variant is portaled to <body>. Before, only the picker inside
+    // was positioned (fixed, by the toolbar) while this wrapper and the
+    // Classic / Constellation switch stayed in normal flow — appended after the
+    // full-height workspace, i.e. below the bottom edge of the window, so the
+    // switch could never be reached. The host is now the floating panel and
+    // both pickers render in their in-panel form inside it.
+    const floating = variant === 'floating';
     return (
-        <div className="flex flex-col gap-2 min-h-0" data-testid="color-picker-mode-host">
+        <div
+            className={cn(
+                'flex flex-col gap-2 min-h-0',
+                floating && 'fixed left-[74px] top-16 z-[150] w-[430px] max-w-[calc(100vw-5.5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto scrollbar-thin rounded-2xl border border-border/70 bg-card/95 p-3 shadow-2xl backdrop-blur-sm',
+            )}
+            data-testid="color-picker-mode-host"
+        >
             <div
                 className="inline-flex self-start rounded-md border border-border overflow-hidden"
                 role="tablist"
@@ -81,7 +94,7 @@ export default function ColorPickerModeHost({
 
             {mode === 'classic' ? (
                 <ColorWheelTool
-                    variant={variant}
+                    variant="panel"
                     selectedColor={selectedColor}
                     currentPalette={currentPalette}
                     onPaletteSelect={onPaletteSelect}
@@ -89,7 +102,7 @@ export default function ColorPickerModeHost({
                 />
             ) : (
                 <ColorConstellationPicker
-                    variant={variant}
+                    variant="panel"
                     selectedColor={selectedColor}
                     currentPalette={currentPalette}
                     onPaletteSelect={onPaletteSelect}

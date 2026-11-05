@@ -289,13 +289,22 @@ export default function AssetVaultModal({
     if (!isOpen) return null;
 
 
+    // Fit the window to the screen it opens on; the 960×640 default at
+    // (72, 96) pushed the footer controls below a 700px-tall window.
+    const vaultInitialSize = typeof window === 'undefined'
+        ? { width: 960, height: 640 }
+        : {
+            width: Math.max(720, Math.min(960, window.innerWidth - 72 - 24)),
+            height: Math.max(480, Math.min(640, window.innerHeight - 96 - 16)),
+        };
+
     return (
         <>
             <div className="fixed inset-0 z-[1120] pointer-events-none">
                 <DraggableResizablePanel
                     className="pointer-events-auto bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-4 duration-200"
                     initialPosition={{ x: 72, y: 96 }}
-                    initialSize={{ width: 960, height: 640 }}
+                    initialSize={vaultInitialSize}
                     minWidth={720}
                     minHeight={480}
                 >

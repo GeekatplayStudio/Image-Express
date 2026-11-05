@@ -72,11 +72,18 @@ export default function TemplateLibrary({ onSelect, onSaveCurrent, onClose }: Te
 
     useEscapeKey(onClose);
 
+    // Open inside the window: at y=320 the 500px panel put its footer below a
+    // 768px-tall screen. Keep the height, move up when there is room; shrink
+    // only when there is not.
+    const viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
+    const libraryTop = Math.max(96, Math.min(320, viewportHeight - 500 - 16));
+    const libraryHeight = Math.max(360, Math.min(500, viewportHeight - libraryTop - 16));
+
     return (
         <DraggableResizablePanel
             className="bg-card border border-border rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-left-4 duration-200"
-            initialPosition={{ x: 80, y: 320 }}
-            initialSize={{ width: 320, height: 500 }}
+            initialPosition={{ x: 80, y: libraryTop }}
+            initialSize={{ width: 320, height: libraryHeight }}
             minWidth={300}
             minHeight={360}
         >

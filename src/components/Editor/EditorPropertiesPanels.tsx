@@ -5,6 +5,7 @@ import type * as fabric from 'fabric';
 import { ChevronLeft, ChevronRight, GripHorizontal, Maximize, Minimize } from 'lucide-react';
 
 import PropertiesPanel from '@/components/PropertiesPanel';
+import { useI18n } from '@/providers/I18nProvider';
 import type { PanelDockMode } from '@/components/Editor/editorView.types';
 
 type PropertiesPanelProps = ComponentProps<typeof PropertiesPanel>;
@@ -68,6 +69,7 @@ export default function EditorPropertiesPanels({
     contentControls,
     brushControls,
 }: EditorPropertiesPanelsProps) {
+    const { t } = useI18n();
     const {
         panelState,
         propertiesPanelMode,
@@ -150,7 +152,7 @@ export default function EditorPropertiesPanels({
             {placement === 'before-main' && panelState.mode === 'docked-left' && (
                 <aside style={{ width: panelState.width }} className="relative z-10 flex min-h-0 shrink-0 flex-col overflow-hidden border-r bg-card shadow-xl">
                     <div className="h-8 bg-muted border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground"><GripHorizontal size={14} /> Properties</div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground"><GripHorizontal size={14} /> {t('panel.propertiesTitle')}</div>
                         <div className="flex gap-1">
                             <button onClick={toggleFloat} className="p-0.5 hover:bg-background rounded"><Maximize size={12} /></button>
                             <button onClick={toggleCollapse} className="p-0.5 hover:bg-background rounded"><ChevronLeft size={12} /></button>
@@ -175,7 +177,7 @@ export default function EditorPropertiesPanels({
             {placement === 'after-main' && panelState.mode === 'docked-right' && (
                 <aside style={{ width: panelState.width }} className="relative z-10 flex min-h-0 shrink-0 flex-col overflow-hidden border-l bg-card shadow-xl">
                     <div className="h-8 bg-muted border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground"><GripHorizontal size={14} /> Properties</div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground"><GripHorizontal size={14} /> {t('panel.propertiesTitle')}</div>
                         <div className="flex gap-1">
                             <button onClick={toggleFloat} className="p-0.5 hover:bg-background rounded"><Maximize size={12} /></button>
                             <button onClick={toggleCollapse} className="p-0.5 hover:bg-background rounded"><ChevronRight size={12} /></button>
@@ -209,7 +211,7 @@ export default function EditorPropertiesPanels({
                     className="z-100 flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200"
                 >
                     <div className="h-8 bg-secondary border-b flex items-center justify-between px-2 cursor-move select-none" onMouseDown={handlePanelDragStart}>
-                        <div className="flex items-center gap-2 text-xs font-semibold"><GripHorizontal size={14} /> Properties (Floating)</div>
+                        <div className="flex items-center gap-2 text-xs font-semibold"><GripHorizontal size={14} /> {t('panel.propertiesTitle')}</div>
                         <div className="flex gap-1">
                             <button onClick={toggleFloat} className="p-0.5 hover:bg-background rounded" title="Dock Right"><Minimize size={12} /></button>
                         </div>

@@ -34,16 +34,17 @@ export function useEditorUtilityOverlayLayout({
     panelState,
     viewportSize,
 }: UseEditorUtilityOverlayLayoutArgs) {
-    const gridStatusLabel = useMemo(() => {
-        const labels: Record<GridType, string> = {
-            none: 'Off',
-            'rule-of-thirds': 'Thirds',
-            'golden-ratio': 'Golden',
-            cross: 'Cross',
-            'grid-4x4': '4x4',
-            'canvas-border': 'Border',
+    /** i18n key of the short grid name shown in the canvas corner badge. */
+    const gridStatusKey = useMemo(() => {
+        const keys: Record<GridType, string> = {
+            none: 'canvas.grid.off',
+            'rule-of-thirds': 'canvas.grid.thirds',
+            'golden-ratio': 'canvas.grid.golden',
+            cross: 'canvas.grid.cross',
+            'grid-4x4': 'canvas.grid.grid4x4',
+            'canvas-border': 'canvas.grid.border',
         };
-        return labels[gridType];
+        return keys[gridType];
     }, [gridType]);
 
     const bottomRightUtilityStyle = useMemo(() => {
@@ -105,7 +106,7 @@ export function useEditorUtilityOverlayLayout({
     }, [backgroundJobsCount, contextMenu, panelState, viewportSize]);
 
     return {
-        gridStatusLabel,
+        gridStatusKey,
         bottomRightUtilityStyle,
     };
 }

@@ -125,7 +125,7 @@ export default function EditorHeaderActions({
         : mediaOverlayFrames[0] ?? null;
 
     return (
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
             {/* Active Palette Bar */}
             {activePalette && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/50 rounded-full border border-border/50 animate-in fade-in zoom-in-95 duration-200">

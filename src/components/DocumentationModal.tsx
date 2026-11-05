@@ -103,6 +103,7 @@ const SECTIONS: DocSection[] = [
                     { labelKey: 'docs.properties.item4.label', descKey: 'docs.properties.item4.desc' },
                     { labelKey: 'docs.properties.item5.label', descKey: 'docs.properties.item5.desc' },
                     { labelKey: 'docs.properties.item6.label', descKey: 'docs.properties.item6.desc' },
+                    { labelKey: 'docs.properties.item7.label', descKey: 'docs.properties.item7.desc' },
                 ]
             },
         ],
@@ -181,6 +182,7 @@ const SECTIONS: DocSection[] = [
                     { labelKey: 'docs.saving.item3.label', descKey: 'docs.saving.item3.desc' },
                     { labelKey: 'docs.saving.item4.label', descKey: 'docs.saving.item4.desc' },
                     { labelKey: 'docs.saving.item5.label', descKey: 'docs.saving.item5.desc' },
+                    { labelKey: 'docs.saving.item6.label', descKey: 'docs.saving.item6.desc' },
                 ]
             },
         ],
@@ -197,6 +199,8 @@ const SECTIONS: DocSection[] = [
                     { labelKey: 'docs.settings.item4.label', descKey: 'docs.settings.item4.desc' },
                     { labelKey: 'docs.settings.item5.label', descKey: 'docs.settings.item5.desc' },
                     { labelKey: 'docs.settings.item6.label', descKey: 'docs.settings.item6.desc' },
+                    { labelKey: 'docs.settings.item7.label', descKey: 'docs.settings.item7.desc' },
+                    { labelKey: 'docs.settings.item8.label', descKey: 'docs.settings.item8.desc' },
                 ]
             },
         ],

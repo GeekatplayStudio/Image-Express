@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react';
+import { clampMenuToViewport } from '@/components/Editor/menuViewportClamp';
 
 import { WINDOW_PANEL_ITEMS } from '@/components/Editor/editorViewConfig';
 import type { PanelDockMode } from '@/components/Editor/editorView.types';
@@ -47,7 +48,7 @@ export default function EditorHeaderWindowMenu({
                 <ChevronDown size={14} className={`transition-transform duration-200 ${showWindowMenu ? 'rotate-180' : ''}`} />
             </button>
             {showWindowMenu && (
-                <div data-testid="menu-window" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
+                <div ref={clampMenuToViewport} data-testid="menu-window" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
                     {WINDOW_PANEL_ITEMS.map((item) => {
                         const checked = isPropertiesPanelVisible && propertiesPanelMode === item.mode;
                         return (

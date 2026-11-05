@@ -257,7 +257,7 @@ export function LayersView({
             </div>
 
             {/* Toolbar */}
-             <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/30 bg-secondary/5">
+             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-border/30 bg-secondary/5">
                  <div className="flex items-center gap-1">
                     <button onClick={onCreateFolder} className="p-1.5 hover:bg-secondary rounded text-muted-foreground" title={t('layers.newFolder')}>
                      <FolderPlus size={14} />

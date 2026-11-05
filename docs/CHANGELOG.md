@@ -1,6 +1,6 @@
 # Changelog — Delivery History
 
-Last updated: 2026-11-02
+Last updated: 2026-11-05
 Repository: https://github.com/GeekatplayStudio/Image-Express.git  
 Branch: main  
 App version: 0.2.2
@@ -18,6 +18,40 @@ look for current behaviour or future plans.
 > Renamed from `unified_progress_status.md` on 2026-08-07, when 45 docs were
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
+
+## 2026-11-05 - UI sweep: nothing off-screen, menus clamped, windows fit the screen
+
+A scripted Playwright pass drove the dashboard, the editor, every header menu
+and every toolbar window at 1920×1080, 1366×768, 1024×700 and 390×844 and
+listed each control outside the viewport, each clipped label and each dialog
+that did not fit. What it found, and what changed:
+
+- **Editor header** pushed Export, language and profile off-screen at 1366px
+  and below whenever the menu bar was open. The header now wraps: the menu bar
+  drops under the title when it does not fit, and the right-hand actions never
+  leave the screen.
+- **Dropdown menus** near the right edge (Help, Window, Settings) ran past the
+  window; on a 700px-tall window the Window menu ran past the bottom. Every
+  header menu now shifts left and caps its height to stay inside the viewport
+  (`menuViewportClamp.ts`).
+- **Colour picker flyout** (Eyedropper / colour wheel): only the wheel was
+  positioned; the Classic / Constellation switch was appended below the
+  workspace where nobody could reach it. The host is now the floating panel.
+- **Asset Library** (560×680 at y=140) and **Asset Vault** (960×640 at y=96)
+  opened taller than a 768px / 700px window, hiding their footers. Both now
+  size themselves to the window.
+- **Layers panel** action row (mask, lock, delete) overflowed the panel width;
+  it wraps.
+- **Dashboard** quote headline is balanced across lines; the hub footer's
+  contact links no longer overflow their column.
+- **Hard-coded English** in the canvas corner badges, zoom pill and panel
+  header replaced with strings in all eleven locales; in-app Documentation
+  gained entries for the Campaign Workspace, the Paint Mask editor, custom
+  accent colour and the key vault.
+
+Not changed: the tool-options bar scrolls sideways on narrow windows by design;
+phone-width (390px) editing is not a supported layout and the sweep only checks
+that nothing there is unreachable.
 
 ## 2026-11-05 - Raster mask editor on the shell; every window now uses it (R-15)
 

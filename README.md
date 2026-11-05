@@ -479,6 +479,7 @@ Every release is guarded by a comprehensive, multi-layer verification pipeline:
 - **Mutation Testing (`npm run test:mutation`)**: Dedicated mutation testing harness injecting operator inversions and boundary mutations into core algorithms (Foldcraft mesh topology and selection mask geometry), achieving a **100% mutant kill rate**.
 - **Dependency & Security Audits (`npm run audit:dependencies`)**: Checks current production advisories, with strict overrides enforcement (`npm run audit:overrides`).
 - **i18n Parity Ratchet (`npm run audit:i18n:ratchet`)**: Monitored locale completeness preventing translation regressions across all supported languages.
+- **UI layout sweep (`npm run qa:ui-sweep`)**: With the app running on port 3005, drives the dashboard, the editor, every header menu and every toolbar window at 1920×1080, 1366×768, 1024×700 and 390×844 in headless Chromium and lists each control outside the viewport, each clipped label and each dialog that does not fit or scroll, with screenshots. Findings tagged `SCROLL-ONLY` are reachable by scrolling and informational; the rest are defects.
 - **Provider QA (`npm run qa:providers`)**: One authenticated call per cloud provider (Meshy, Tripo, Stability, Hitem3D) using keys from the environment, reporting provider / stage / fix; providers without a key are skipped, so it also runs in the release workflow. The proxies themselves are pinned by contract tests — refuse without a key, forward it unchanged, keep the provider's status, never log it.
 
 ## 📚 Documentation

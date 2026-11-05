@@ -601,7 +601,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
 | R-11 | Provider QA hardening | P2 | **Delivered** 2026-11-03; Banana/Gemini paths open | M2 |
 | R-08 | Additional cloud storage providers | P2 | Drive only | M2 |
-| R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); every window on it; in-app look still owed | M2 |
+| R-15 | Global resizable modal compliance | P2 | Shell contract done; every window on it; scripted layout sweep green at 4 viewports (2026-11-05); a human look at the running app still owed | M2 |
 | R-16 | Interface customization | P2 | **Delivered** 2026-11-04 (custom accent with contrast guardrails) | M2 |
 | R-17 | Asset Vault phases 2–4 | P2 | Phases 0–1 delivered | M2 |
 | R-18 | One-click distribution: signing + release validation | P2 | P0 foundation done | M2 |
@@ -945,6 +945,18 @@ Not features, but they block the gates.
   missing asset. `AssetLibrary` now takes a stacking level, as `ModalShell` does.
   The vault's *classic library* button closes the vault first, so it was never
   affected; `TemplateLibrary` is only ever opened from the toolbar.
+- **UI layout sweep (2026-11-05).** `npm run qa:ui-sweep` (Playwright, four
+  viewports) is the mechanical half of the "in-app look" R-15 still owes. Its
+  first run found the header pushing Export/profile off-screen below 1440px
+  with the menu bar open, menus running past the right and bottom edges, the
+  colour-picker mode switch appended below the workspace, and three floating
+  panels opening taller than a 768px screen — all fixed the same day. What it
+  cannot judge: whether things look right. Phone width (390px) is not a
+  supported editing layout; the sweep only checks nothing there is
+  unreachable. Eight locales remain at 30–40% translation (parity ratchet
+  holds the line); 961 hard-coded strings remain per `audit:i18n:strings`,
+  most in server/API code and the Stamp Studio.
+
 - **Whole-suite in-band Jest crawls on the development Mac (2026-11-05).**
   `npm run verify` runs Jest `--runInBand`; on this machine the full in-band run
   took 48–99 minutes with heavy suites hitting the 30 s timeout, while the same

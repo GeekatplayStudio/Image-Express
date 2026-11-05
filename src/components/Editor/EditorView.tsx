@@ -933,7 +933,7 @@ export default function EditorView({
         onSave: handleSave,
     });
 
-    const { gridStatusLabel, bottomRightUtilityStyle } = useEditorUtilityOverlayLayout({
+    const { gridStatusKey, bottomRightUtilityStyle } = useEditorUtilityOverlayLayout({
         gridType,
         backgroundJobsCount: backgroundJobs.length,
         contextMenu,
@@ -1085,7 +1085,7 @@ export default function EditorView({
         bottomRightUtilityStyle,
         zoom,
         utilityCanvasSize,
-        gridStatusLabel,
+        gridStatusLabel: t(gridStatusKey),
         handleZoom,
         handleFitToScreen,
         handleResetZoomFromWorkspace,
@@ -1300,7 +1300,7 @@ export default function EditorView({
     return (
         <div className="flex h-screen w-full flex-col bg-background text-foreground overflow-hidden">
             {/* Editor Header */}
-            <header className="h-16 border-b bg-card/50 backdrop-blur-xl flex items-center px-4 justify-between z-90 relative shadow-sm overflow-visible">
+            <header className="min-h-16 border-b bg-card/50 backdrop-blur-xl flex flex-wrap items-center gap-3 px-4 py-2 justify-between z-90 relative shadow-sm overflow-visible">
                 <EditorHeaderPrimary
                     designName={propDesignName || 'Untitled Page'}
                     isRenamingDesignTitle={isRenamingDesignTitle}

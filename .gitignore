@@ -100,3 +100,6 @@ jest-editorview-output.txt
 .claude/
 .cursor/
 /public/assets/
+
+# UI layout sweep output (npm run qa:ui-sweep)
+ui-sweep-out/

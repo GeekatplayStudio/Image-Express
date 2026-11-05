@@ -586,7 +586,7 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
         {/* Modern Hero & Search */}
         <div className="relative py-12 text-center space-y-6">
             <div className="animation-fade-in space-y-2">
-                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground px-4">
+                <h1 className="mx-auto max-w-5xl text-balance text-3xl md:text-5xl font-black tracking-tight text-foreground px-4">
                     {t('dashboard.quoted', { text: quote.text })}
                 </h1>
                 {quote.author && (
@@ -753,9 +753,9 @@ export default function Dashboard({ onNewDesign, onSelectTemplate, onOpenDesign 
                         <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t('dashboard.contactUs')}</p>
                             <div className="mt-2 space-y-2 text-sm text-muted-foreground">
-                                <a href="mailto:hello@geekatplay.com" className="block transition-colors hover:text-foreground">hello@geekatplay.com</a>
-                                <a href="https://www.geekatplay.com" target="_blank" rel="noreferrer" className="block transition-colors hover:text-foreground">www.geekatplay.com</a>
-                                <a href="https://www.chopinephotography.com" target="_blank" rel="noreferrer" className="block transition-colors hover:text-foreground">www.chopinephotography.com</a>
+                                <a href="mailto:hello@geekatplay.com" className="block break-all transition-colors hover:text-foreground">hello@geekatplay.com</a>
+                                <a href="https://www.geekatplay.com" target="_blank" rel="noreferrer" className="block break-all transition-colors hover:text-foreground">www.geekatplay.com</a>
+                                <a href="https://www.chopinephotography.com" target="_blank" rel="noreferrer" className="block break-all transition-colors hover:text-foreground">www.chopinephotography.com</a>
                             </div>
                         </div>
 

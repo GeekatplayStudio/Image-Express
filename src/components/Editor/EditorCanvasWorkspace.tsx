@@ -10,6 +10,7 @@ import type {
 import { Lock, Unlock } from 'lucide-react';
 
 import DesignCanvas from '@/components/DesignCanvas';
+import { useI18n } from '@/providers/I18nProvider';
 import ThreeDGenerator from '@/components/ThreeDGenerator';
 import ThreeDLayerEditor from '@/components/ThreeDLayerEditor';
 import TextQuickBar from '@/components/Editor/TextQuickBar';
@@ -114,6 +115,7 @@ export default function EditorCanvasWorkspace({
     cursorPreview,
     utilityControls,
 }: EditorCanvasWorkspaceProps) {
+    const { t } = useI18n();
     const {
         onFileDrop,
         onOpenWorkspaceContextMenu,
@@ -324,20 +326,20 @@ export default function EditorCanvasWorkspace({
             >
                 <div className="flex items-center gap-1.5 pointer-events-auto">
                     <span className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide rounded-full border border-border/60 bg-popover/90 backdrop-blur text-muted-foreground">
-                        Zoom {Math.round(zoom * 100)}%
+                        {t('canvas.zoomBadge', { percent: Math.round(zoom * 100) })}
                     </span>
                     <span className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide rounded-full border border-border/60 bg-popover/90 backdrop-blur text-muted-foreground">
-                        Canvas {utilityCanvasSize.width}x{utilityCanvasSize.height}
+                        {t('canvas.sizeBadge', { width: utilityCanvasSize.width, height: utilityCanvasSize.height })}
                     </span>
                     <span className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide rounded-full border border-border/60 bg-popover/90 backdrop-blur text-muted-foreground">
-                        Grid {gridStatusLabel}
+                        {t('canvas.gridBadge', { label: gridStatusLabel })}
                     </span>
                 </div>
                 <div className="flex items-center gap-1 bg-popover/90 backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-border/50 pointer-events-auto">
                     <button
                         onClick={onZoomOut}
                         className="p-2 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors"
-                        title="Zoom Out"
+                        title={t('menu.zoomOut')} aria-label={t('menu.zoomOut')}
                     >
                         -
                     </button>
@@ -347,21 +349,21 @@ export default function EditorCanvasWorkspace({
                     <button
                         onClick={onZoomIn}
                         className="p-2 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground transition-colors"
-                        title="Zoom In"
+                        title={t('menu.zoomIn')} aria-label={t('menu.zoomIn')}
                     >
                         +
                     </button>
                     <button
                         onClick={onFitToScreen}
                         className="px-2.5 py-1.5 text-xs rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                        title="Fit to Screen"
+                        title={t('menu.fitToScreen')} aria-label={t('menu.fitToScreen')}
                     >
-                        Fit
+                        {t('canvas.fit')}
                     </button>
                     <button
                         onClick={onResetZoom}
                         className="px-2.5 py-1.5 text-xs rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                        title="Reset Zoom"
+                        title={t('menu.resetZoom')} aria-label={t('menu.resetZoom')}
                     >
                         100
                     </button>

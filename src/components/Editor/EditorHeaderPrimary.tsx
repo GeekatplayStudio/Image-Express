@@ -38,7 +38,7 @@ export default function EditorHeaderPrimary({
 }: EditorHeaderPrimaryProps) {
     const { t } = useI18n();
     return (
-        <div className="flex items-center gap-6">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2">
             <div className="flex items-center gap-2">
                 <BrandIcon />
                 {isRenamingDesignTitle ? (
