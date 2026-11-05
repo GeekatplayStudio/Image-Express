@@ -60,7 +60,23 @@ jest.mock('fabric', () => {
 });
 
 jest.mock('../properties/LayersView', () => ({
-    LayersView: () => <div data-testid="layers-view">Layers view</div>,
+    LayersView: ({ selectedObject, onPaintMask }: { selectedObject?: unknown; onPaintMask?: (obj: unknown) => void }) => (
+        <div data-testid="layers-view">
+            Layers view
+            <button type="button" onClick={() => { if (selectedObject) onPaintMask?.(selectedObject); }}>Paint raster mask</button>
+        </div>
+    ),
+}));
+
+jest.mock('@/components/comfy/comfyCanvasSources', () => ({
+    captureComfyLayersSource: () => ({ dataUrl: 'data:image/png;base64,src', width: 32, height: 32 }),
+}));
+
+jest.mock('@/components/comfy/ComfyMaskEditor', () => ({
+    __esModule: true,
+    default: ({ onCancel }: { onCancel: () => void }) => (
+        <div data-testid="mask-editor"><button type="button" onClick={onCancel}>Cancel mask</button></div>
+    ),
 }));
 
 jest.mock('../properties/SelectionProperties', () => ({
@@ -430,5 +446,25 @@ describe('PropertiesPanel panel mode rail persistence', () => {
         expect(selectedObject.skewZ).toBe(0);
         expect(selectedObject.taperDirection).toBe(0);
         expect(selectedObject.pseudoBacksidePreset).toBe('front');
+    });
+});
+
+describe('PropertiesPanel raster mask editor', () => {
+    it('opens for the selected layer from the layers view and closes from Cancel and Escape', async () => {
+        const selectedObject = createMockObject({ fill: '#112233' });
+        const canvas = createMockCanvas([selectedObject], [selectedObject]);
+        window.localStorage.setItem(PANEL_MODE_STORAGE_KEY, 'layers');
+        render(<PropertiesPanel canvas={canvas as unknown as fabric.Canvas} activeTool="select" />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Paint raster mask' }));
+        expect(await screen.findByTestId('mask-editor')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel mask' }));
+        await waitFor(() => expect(screen.queryByTestId('mask-editor')).toBeNull());
+
+        fireEvent.click(screen.getByRole('button', { name: 'Paint raster mask' }));
+        expect(await screen.findByTestId('mask-editor')).toBeInTheDocument();
+        fireEvent.keyDown(window, { key: 'Escape' });
+        await waitFor(() => expect(screen.queryByTestId('mask-editor')).toBeNull());
     });
 });

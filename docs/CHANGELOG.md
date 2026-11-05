@@ -19,6 +19,15 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-05 - Raster mask editor on the shell; every window now uses it (R-15)
+
+The layer mask painter inside `PropertiesPanel` was the last hand-rolled window.
+A test was written first (open from the layers view for the selected layer,
+close from Cancel and Escape), then it moved onto `ModalShell` with a
+remembered frame. R-15's migration is complete: every popup window in the app
+runs on one shell. What the whole series still owes is a look in the running
+app, which these changes have not had.
+
 ## 2026-11-04 - Asset Library preview on the shell, with its first tests (R-15)
 
 The large single-click asset preview had no test. Two were written against the

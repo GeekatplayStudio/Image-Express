@@ -83,6 +83,7 @@ import { getLayerOrderState as readLayerOrderState, moveLayerInOrder, type Layer
 import { useLayerOperations } from './properties/useLayerOperations';
 import { applyAdjustmentLayersToCanvas } from './properties/applyAdjustmentLayers';
 import ComfyMaskEditor from '@/components/comfy/ComfyMaskEditor';
+import ModalShell from '@/components/ui/ModalShell';
 import { captureComfyLayersSource, type ComfyCapturedSource } from '@/components/comfy/comfyCanvasSources';
 import { applyRasterMaskToObject } from '@/lib/layerMasks';
 import { cn } from '@/lib/utils';
@@ -433,20 +434,17 @@ export default function PropertiesPanel({
                 </div>,
                 document.body
             )}
-            {isClient && rasterMaskSession && createPortal(
-                <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/60 p-4">
-                    <div className="relative flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-                        <ComfyMaskEditor
+            {rasterMaskSession && (
+                <ModalShell isOpen onClose={() => setRasterMaskSession(null)} zIndex={500} title="Paint Mask" initialWidth={1000} initialHeight={760} minWidth={640} minHeight={480} persistKey="raster-mask-editor" bodyClassName="flex flex-col">
+                    <ComfyMaskEditor
                             sourceDataUrl={rasterMaskSession.source.dataUrl}
                             width={rasterMaskSession.source.width}
                             height={rasterMaskSession.source.height}
                             initialMaskDataUrl={rasterMaskSession.initialMask || undefined}
                             onApply={(maskDataUrl) => { void handleApplyRasterMask(maskDataUrl); }}
                             onCancel={() => setRasterMaskSession(null)}
-                        />
-                    </div>
-                </div>,
-                document.body
+                    />
+                </ModalShell>
             )}
         </div>
     );

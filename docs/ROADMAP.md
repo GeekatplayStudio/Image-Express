@@ -601,7 +601,7 @@ overrides → architecture → filesize → terms → i18n → lint → typechec
 | R-06 | Background jobs control center | P2 | Activity panel and notifications delivered; browser poller remains for guests | M2 |
 | R-11 | Provider QA hardening | P2 | **Delivered** 2026-11-03; Banana/Gemini paths open | M2 |
 | R-08 | Additional cloud storage providers | P2 | Drive only | M2 |
-| R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); 25 of ~28 windows on it | M2 |
+| R-15 | Global resizable modal compliance | P2 | Shell contract done (persist, sheet, focus); every window on it; in-app look still owed | M2 |
 | R-16 | Interface customization | P2 | **Delivered** 2026-11-04 (custom accent with contrast guardrails) | M2 |
 | R-17 | Asset Vault phases 2–4 | P2 | Phases 0–1 delivered | M2 |
 | R-18 | One-click distribution: signing + release validation | P2 | P0 foundation done | M2 |
@@ -873,14 +873,13 @@ closing twice. `DraggableResizablePanel` gained `draggable` and
 `CampaignManagerModal`, `BrandManagerModal`, `ComfyWorkflowsModal`,
 `EmbroideryExportModal`, `ThreeDStampModal` and `VaultFolderBrowser` (tests
 written first for the last three) migrated from hand-rolled overlays, as did
-the media player in `EditorViewOverlays`, the Dashboard's custom-size dialog
-and the Asset Library's preview (tests written first); 25 windows are on the
-shell. `UnwarpEditorModal` stays
+the media player in `EditorViewOverlays`, the Dashboard's custom-size dialog,
+the Asset Library's preview and the raster mask editor in `PropertiesPanel`
+(tests written first); **every window is on the shell**. `UnwarpEditorModal` stays
 full-screen on purpose: it is a perspective editor whose pointer maths assume
 the whole viewport.
-**Open — still hand-rolled:** `AssetVaultModal` (whose overlay is a
-pointer-events-none layer, not a window), plus the raster mask editor inside `PropertiesPanel` (a baselined file, so
-the swap must also shed lines). **None of these has a test**, so they are
+**Not a window:** `AssetVaultModal`'s full-screen layer is pointer-events-none
+chrome, not a popup, and stays as it is. **None of these has a test**, so they are
 not migrated blind: each needs a test first or a look in the running app.
 `UnwarpEditorModal` stays full-screen on purpose (a perspective editor whose
 pointer maths assume the whole viewport). Windows can name their close button
