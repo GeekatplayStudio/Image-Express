@@ -19,6 +19,14 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-04 - Asset Library preview on the shell, with its first tests (R-15)
+
+The large single-click asset preview had no test. Two were written against the
+old overlay (open, add to canvas; cancel, close button, Escape — without
+closing the library behind it), then it moved onto `ModalShell`: name and type
+icon in the header, Capture Frame / Cancel / Add to Canvas in the footer,
+frame remembered, "Close preview" kept as the close label.
+
 ## 2026-11-04 - Dashboard custom-size dialog on the shell (R-15)
 
 The Dashboard's *Custom Size* dialog moves onto `ModalShell` (Escape-to-close,

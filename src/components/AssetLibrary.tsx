@@ -10,6 +10,7 @@ import { buildSessionAuthorizationHeader } from '@/lib/authSession';
 import { useDialog } from '@/providers/DialogProvider';
 import { useToast } from '@/providers/ToastProvider';
 import DraggableResizablePanel from '@/components/ui/DraggableResizablePanel';
+import ModalShell from '@/components/ui/ModalShell';
 import useEscapeKey from '@/hooks/useEscapeKey';
 import {
     deleteDriveAsset,
@@ -2794,30 +2795,48 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
             );
         })()}
         {assetDetail && (
-            <div
-                className="fixed inset-0 z-[1130] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-150"
-                onClick={() => setAssetDetail(null)}
-            >
-                <div
-                    className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
-                    onClick={(event) => event.stopPropagation()}
-                >
-                    <div className="p-3 border-b border-border flex items-center justify-between bg-secondary/10 shrink-0">
-                        <h3 className="font-semibold text-sm flex items-center gap-2 min-w-0">
-                            {assetDetail.asset.type === 'videos' ? <Video size={15} className="text-primary shrink-0" />
+            <ModalShell
+                isOpen
+                onClose={() => setAssetDetail(null)}
+                zIndex={130}
+                title={assetDetail.asset.name}
+                icon={assetDetail.asset.type === 'videos' ? <Video size={15} className="text-primary shrink-0" />
                                 : assetDetail.asset.type === 'audio' ? <Music size={15} className="text-primary shrink-0" />
                                 : assetDetail.asset.type === 'models' ? <Box size={15} className="text-primary shrink-0" />
                                 : <ImageIcon size={15} className="text-primary shrink-0" />}
-                            <span className="truncate" title={assetDetail.asset.name}>{assetDetail.asset.name}</span>
-                        </h3>
-                        <button
-                            onClick={() => setAssetDetail(null)}
-                            className="p-1.5 hover:bg-secondary rounded-full text-muted-foreground hover:text-foreground"
-                            aria-label={t('assets.closePreview')}
-                        >
-                            <X size={16} />
-                        </button>
+                closeLabel={t('assets.closePreview')}
+                initialWidth={880}
+                initialHeight={680}
+                minWidth={420}
+                minHeight={320}
+                persistKey="asset-preview"
+                bodyClassName="flex flex-col"
+                footer={(
+                    <div className="p-3 flex items-center justify-between gap-2">
+                        {assetDetail.asset.type === 'videos' ? (
+                            <span className="text-[11px] text-muted-foreground">{t('assets.captureFrameHint')}</span>
+                        ) : <span />}
+                        <div className="flex items-center gap-2">
+                            {assetDetail.asset.type === 'videos' && (
+                                <button onClick={captureVideoFrame} className="h-9 px-3 rounded-md border border-border text-xs font-semibold inline-flex items-center gap-2 hover:bg-secondary transition-colors">
+                                    <Camera size={14} />
+                                    {t('assets.captureFrame')}
+                                </button>
+                            )}
+                            <button onClick={() => setAssetDetail(null)} className="h-9 px-3 rounded-md text-xs font-medium text-muted-foreground hover:bg-secondary transition-colors">
+                                {t('common.cancel')}
+                            </button>
+                            <button
+                                onClick={() => { const target = assetDetail.asset; setAssetDetail(null); void handleAssetSelect(target); }}
+                                className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center gap-2 hover:bg-primary/90 transition-colors"
+                            >
+                                <Plus size={14} />
+                                {t('assets.addToCanvas')}
+                            </button>
+                        </div>
                     </div>
+                )}
+            >
                     <div className="flex-1 min-h-0 p-4 bg-secondary/10 flex items-center justify-center overflow-hidden">
                         {assetDetail.asset.type === 'videos' ? (
                             <video
@@ -2846,41 +2865,7 @@ export default function AssetLibrary({ onSelect, onClose, currentUser, zIndex }:
                             />
                         )}
                     </div>
-                    <div className="p-3 border-t border-border flex items-center justify-between gap-2 bg-card shrink-0">
-                        {assetDetail.asset.type === 'videos' ? (
-                            <span className="text-[11px] text-muted-foreground">{t('assets.captureFrameHint')}</span>
-                        ) : <span />}
-                        <div className="flex items-center gap-2">
-                            {assetDetail.asset.type === 'videos' && (
-                                <button
-                                    onClick={captureVideoFrame}
-                                    className="h-9 px-3 rounded-md border border-border text-xs font-semibold inline-flex items-center gap-2 hover:bg-secondary transition-colors"
-                                >
-                                    <Camera size={14} />
-                                    {t('assets.captureFrame')}
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setAssetDetail(null)}
-                                className="h-9 px-3 rounded-md text-xs font-medium text-muted-foreground hover:bg-secondary transition-colors"
-                            >
-                                {t('common.cancel')}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const target = assetDetail.asset;
-                                    setAssetDetail(null);
-                                    void handleAssetSelect(target);
-                                }}
-                                className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center gap-2 hover:bg-primary/90 transition-colors"
-                            >
-                                <Plus size={14} />
-                                {t('assets.addToCanvas')}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </ModalShell>
         )}
         {modelPreviewPopup && (
             <div
