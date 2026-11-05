@@ -945,6 +945,14 @@ Not features, but they block the gates.
   missing asset. `AssetLibrary` now takes a stacking level, as `ModalShell` does.
   The vault's *classic library* button closes the vault first, so it was never
   affected; `TemplateLibrary` is only ever opened from the toolbar.
+- **Whole-suite in-band Jest crawls on the development Mac (2026-11-05).**
+  `npm run verify` runs Jest `--runInBand`; on this machine the full in-band run
+  took 48–99 minutes with heavy suites hitting the 30 s timeout, while the same
+  files pass in seconds in isolation or in parallel, heap stays under 200 MB,
+  and CI's in-band run of the identical tree takes 52 s. Not reproduced
+  anywhere else, so it is recorded rather than worked around in the gate.
+  Local practice until it is understood: run `npx jest` (parallel) plus the
+  non-test `verify` steps, and treat CI's in-band run as the authority.
 - **Positional vault page ids** (`<album>::page_N`) renumber on re-index. The
   folder tree avoids this by keying on paths; the group view still does not.
 
