@@ -1,42 +1,39 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import ToolsDropdownMenu from '../ToolsDropdownMenu';
+import { ALL_TOOLBAR_TOOLS } from '@/components/toolbar/toolRegistry';
 
 describe('ToolsDropdownMenu', () => {
-    it('routes tool selections through the trigger callback', () => {
+    it('stays closed until toggled', () => {
+        render(<ToolsDropdownMenu open={false} onToggle={jest.fn()} onTriggerTool={jest.fn()} />);
+        expect(screen.queryByTestId('menu-tools')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Tools/ })).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('offers every rail tool exactly once and routes the choice through the trigger', () => {
+        const onToggle = jest.fn();
         const onTriggerTool = jest.fn();
-        render(<ToolsDropdownMenu onTriggerTool={onTriggerTool} />);
+        render(<ToolsDropdownMenu open onToggle={onToggle} onTriggerTool={onTriggerTool} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /^Move\s+V$/ }));
-        fireEvent.click(screen.getByRole('button', { name: /^Quick Selection\s+Q$/ }));
-        fireEvent.click(screen.getByRole('button', { name: /^Selection Brush\s+K$/ }));
-        fireEvent.click(screen.getByRole('button', { name: 'Healing' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Clone Stamp' }));
-        fireEvent.click(screen.getByRole('button', { name: 'History Brush' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Blur Tool' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Sharpen Tool' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Dodge Tool' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Burn Tool' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Sponge Tool' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Spot Healing' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Remove Tool' }));
-        fireEvent.click(screen.getByRole('button', { name: 'AI Zone' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Fabrication Studio' }));
+        const items = within(screen.getByTestId('menu-tools')).getAllByRole('menuitem');
+        expect(items).toHaveLength(ALL_TOOLBAR_TOOLS.length);
 
-        expect(onTriggerTool).toHaveBeenNthCalledWith(1, 'select');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(2, 'quick-select');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(3, 'selection-brush');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(4, 'healing');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(5, 'clone-stamp');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(6, 'history-brush');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(7, 'blur');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(8, 'sharpen');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(9, 'dodge');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(10, 'burn');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(11, 'sponge');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(12, 'spot-healing');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(13, 'remove');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(14, 'ai-zone');
-        expect(onTriggerTool).toHaveBeenNthCalledWith(15, 'fabrication-library');
+        const move = screen.getByRole('menuitem', { name: 'Move' });
+        expect(move).toHaveAttribute('aria-keyshortcuts', 'V');
+        expect(screen.getByRole('menuitem', { name: 'Magic Wand' })).toHaveAttribute('aria-keyshortcuts', 'Shift+W');
+        fireEvent.click(move);
+        fireEvent.click(screen.getByRole('menuitem', { name: /^Campaign Manager$/ }));
+        fireEvent.click(screen.getByRole('menuitem', { name: /^CNC Planner$/i }));
+
+        expect(onTriggerTool.mock.calls.map(([tool]) => tool)).toEqual(['select', 'campaign-manager', 'cnc-planner']);
+        expect(onToggle).toHaveBeenCalledTimes(3);
+    });
+
+    it('groups tools under the same families as the rail', () => {
+        render(<ToolsDropdownMenu open onToggle={jest.fn()} onTriggerTool={jest.fn()} />);
+        const retouch = screen.getByRole('group', { name: 'Retouch Tools' });
+        expect(within(retouch).getByRole('menuitem', { name: /Clone Stamp/ })).toBeInTheDocument();
+        const ai = screen.getByRole('group', { name: 'AI Tools' });
+        expect(within(ai).getAllByRole('menuitem')).toHaveLength(7);
     });
 });

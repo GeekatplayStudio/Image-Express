@@ -204,6 +204,7 @@ export default function EditorView({
         showExportMenu,
         showShareMenu,
         showGridMenu,
+        showToolsMenu,
         setShowFileMenu,
         setShowEditMenu,
         setShowImageMenu,
@@ -1008,14 +1009,6 @@ export default function EditorView({
         user,
     });
 
-    // Connection status check commented out
-    /*
-    const is3DMode = activeTool === '3d-gen';
-    const has2DKey = !!(apiKeys.stability || apiKeys.openai || apiKeys.google || apiKeys.banana);
-    const has3DKey = !!(apiKeys.meshy || apiKeys.tripo || apiKeys.hitems);
-    // const isConnected = is3DMode ? has3DKey : has2DKey;
-    */
-
     const handleResetZoomFromWorkspace = useCallback(() => {
         if (!canvas) {
             return;
@@ -1327,6 +1320,7 @@ export default function EditorView({
                             showWindowMenu={showWindowMenu}
                             showSettingsMenu={showSettingsMenu}
                             showHelpMenu={showHelpMenu}
+                            showToolsMenu={showToolsMenu}
                             toggleEditorMenu={toggleEditorMenu}
                             openEditorMenu={openEditorMenu}
                             setShowFileMenu={setShowFileMenu}

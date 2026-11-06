@@ -7,6 +7,7 @@ import type { GridType } from '@/components/GridOverlay';
 import type { EditorMenuId } from '@/components/Editor/useEditorMenus';
 import type { PanelDockMode } from '@/components/Editor/editorView.types';
 import type { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
+import ToolsDropdownMenu from '@/components/Editor/ToolsDropdownMenu';
 import EditorHeaderSelectMenu from '@/components/Editor/EditorHeaderSelectMenu';
 import EditorHeaderWindowMenu from '@/components/Editor/EditorHeaderWindowMenu';
 import EditorHeaderSettingsMenu from '@/components/Editor/EditorHeaderSettingsMenu';
@@ -28,6 +29,7 @@ type EditorHeaderMenusProps = {
     showWindowMenu: boolean;
     showSettingsMenu: boolean;
     showHelpMenu: boolean;
+    showToolsMenu: boolean;
     toggleEditorMenu: (menu: EditorMenuId) => void;
     openEditorMenu: (menu: EditorMenuId) => void;
     setShowFileMenu: BooleanStateSetter;
@@ -81,7 +83,7 @@ type EditorHeaderMenusProps = {
 
 export default function EditorHeaderMenus({
     showFileMenu, showEditMenu, showImageMenu, showLayerMenu, showSelectMenu, showFilterMenu, showViewMenu, showWindowMenu,
-    showSettingsMenu, showHelpMenu, toggleEditorMenu, openEditorMenu, setShowFileMenu, setShowEditMenu, setShowImageMenu,
+    showSettingsMenu, showHelpMenu, showToolsMenu, toggleEditorMenu, openEditorMenu, setShowFileMenu, setShowEditMenu, setShowImageMenu,
     setShowLayerMenu, setShowSelectMenu, setShowFilterMenu, setShowViewMenu, setShowWindowMenu, setShowSettingsMenu,
     setShowHelpMenu, handleSave, onOpenDesignPicker, onOpenRecentDesign, autosaveEnabled, onToggleAutosave, handleFitToScreen, handleResetZoomFromMenu, openPanelModeFromMenu, triggerToolbarTool,
     handleDuplicate, handleLayerDeleteFromMenu, handleLayerToggleLockFromMenu, menuLayerTarget, activeLayerOrderState,
@@ -370,7 +372,8 @@ export default function EditorHeaderMenus({
                 handleSelectionModify={handleSelectionModify}
                 triggerToolbarTool={triggerToolbarTool}
             />
-            <div className="relative order-6">
+            <ToolsDropdownMenu open={showToolsMenu} onToggle={() => toggleEditorMenu('tools')} onTriggerTool={triggerToolbarTool} />
+            <div className="relative order-7">
                 <button
                     onClick={() => toggleEditorMenu('filter')}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"
@@ -381,78 +384,18 @@ export default function EditorHeaderMenus({
                 </button>
                 {showFilterMenu && (
                     <div ref={clampMenuToViewport} data-testid="menu-filter" className="absolute left-0 top-full mt-2 w-56 bg-card border border-border/50 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 z-50">
-                        <button
-                            onClick={() => {
-                                setShowFilterMenu(false);
-                                triggerToolbarTool('blur');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            {t('toolbar.blurTool')}
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowFilterMenu(false);
-                                triggerToolbarTool('sharpen');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            {t('toolbar.sharpenTool')}
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowFilterMenu(false);
-                                triggerToolbarTool('dodge');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            {t('toolbar.dodgeTool')}
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowFilterMenu(false);
-                                triggerToolbarTool('burn');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            {t('toolbar.burnTool')}
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowFilterMenu(false);
-                                triggerToolbarTool('sponge');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            {t('toolbar.spongeTool')}
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowFilterMenu(false);
-                                triggerToolbarTool('healing');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            {t('toolbar.healingBrush')}
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowFilterMenu(false);
-                                triggerToolbarTool('spot-healing');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            {t('menu.spotHealingTool')}
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowFilterMenu(false);
-                                triggerToolbarTool('remove');
-                            }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                            {t('toolbar.removeTool')}
-                        </button>
+                        {([['blur', 'toolbar.blurTool'], ['sharpen', 'toolbar.sharpenTool'], ['dodge', 'toolbar.dodgeTool'], ['burn', 'toolbar.burnTool'], ['sponge', 'toolbar.spongeTool'], ['healing', 'toolbar.healingBrush'], ['spot-healing', 'menu.spotHealingTool'], ['remove', 'toolbar.removeTool']] as const).map(([tool, labelKey]) => (
+                            <button
+                                key={tool}
+                                onClick={() => {
+                                    setShowFilterMenu(false);
+                                    triggerToolbarTool(tool);
+                                }}
+                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary/50"
+                            >
+                                {t(labelKey)}
+                            </button>
+                        ))}
                         <div className="my-1 border-t border-border/50" />
                         <button
                             onClick={() => {
@@ -509,7 +452,7 @@ export default function EditorHeaderMenus({
                     </div>
                 )}
             </div>
-            <div className="relative order-7">
+            <div className="relative order-8">
                 <button
                     onClick={() => toggleEditorMenu('view')}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"

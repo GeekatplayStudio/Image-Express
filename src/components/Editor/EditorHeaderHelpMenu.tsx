@@ -41,7 +41,7 @@ export default function EditorHeaderHelpMenu({
     };
 
     return (
-        <div className="relative order-10">
+        <div className="relative order-11">
             <button
                 onClick={toggleEditorMenu}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"

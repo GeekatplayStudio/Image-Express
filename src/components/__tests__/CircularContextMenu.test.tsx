@@ -42,7 +42,6 @@ describe('CircularContextMenu', () => {
                 y={140}
                 isOpen={true}
                 activeTool="select"
-                activePanelMode="channels"
                 onClose={jest.fn()}
                 onSelectTool={jest.fn()}
             />
@@ -58,6 +57,14 @@ describe('CircularContextMenu', () => {
         expect(screen.queryByRole('button', { name: 'Burn Tool' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Magic Wand' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Spot Healing' })).not.toBeInTheDocument();
+    });
+
+    it('lights the family entry while one of its variants is active', () => {
+        render(
+            <CircularContextMenu x={160} y={140} isOpen={true} activeTool="burn" onClose={jest.fn()} onSelectTool={jest.fn()} />
+        );
+        expect(screen.getByRole('button', { name: 'Dodge Tool' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'Move' })).toHaveAttribute('aria-pressed', 'false');
     });
 
     it('enables and disables layer-order actions from the supplied layer state', () => {

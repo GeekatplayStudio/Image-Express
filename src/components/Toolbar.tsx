@@ -60,7 +60,6 @@ import AICritiqueModal from './AICritiqueModal';
 import BrandManagerModal from './BrandManagerModal';
 import UpscaleModal from './UpscaleModal';
 import CampaignManagerModal from './CampaignManagerModal';
-import AgentToolContextMenu from './AgentToolContextMenu';
 import SuperAgentModal from './SuperAgentModal';
 import ColorPickerModeHost from './ColorConstellation/ColorPickerModeHost';
 import BodyPortal from '@/components/ui/BodyPortal';
@@ -74,12 +73,14 @@ import FabricationLibraryModal from '@/components/fabrication/FabricationLibrary
 import ThreeDStampModal from '@/features/fabrication/stamp/ui/ThreeDStampModal';
 import { runCritiqueJump } from '@/lib/critique/critiqueJump';
 import {
-    CREATION_LIBRARY_TOOLS,
+    LIBRARY_TOOLS,
     CREATION_PRIMARY_TOOLS,
     TOOL_ALIAS_MAP,
     TOOL_GROUP_BY_ID,
     TOOL_GROUPS,
     WORKSPACE_UTILITY_TOOLS,
+    withShortcut,
+    ariaShortcut,
     type ToolbarToolGroupId,
 } from '@/components/toolbar/toolRegistry';
 
@@ -170,7 +171,6 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const adjustmentsButtonRef = useRef<HTMLButtonElement>(null);
     const extraButtonRef = useRef<HTMLButtonElement>(null);
     const [shapesMenuPos, setShapesMenuPos] = useState<{ left: number; top: number } | null>(null);
-    const [agentMenuPos, setAgentMenuPos] = useState<{ x: number; y: number } | null>(null);
     const [adjustmentMenuPos, setAdjustmentMenuPos] = useState<{ left: number; top: number } | null>(null);
     const [extraMenuPos, setExtraMenuPos] = useState<{ left: number; top: number } | null>(null);
     const [draggingMenu, setDraggingMenu] = useState<'shapes' | 'adjustments' | 'extra' | null>(null);
@@ -225,6 +225,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
         selection: TOOL_GROUP_BY_ID.selection.defaultTool,
         retouch: TOOL_GROUP_BY_ID.retouch.defaultTool,
         fill: TOOL_GROUP_BY_ID.fill.defaultTool,
+        ai: TOOL_GROUP_BY_ID.ai.defaultTool,
         fabrication: TOOL_GROUP_BY_ID.fabrication.defaultTool,
     });
     const [isRailHovered, setIsRailHovered] = useState(false);
@@ -1233,7 +1234,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
     const handleToolGroupButtonClick = (groupId: ToolbarToolGroupId) => {
         const group = TOOL_GROUP_BY_ID[groupId];
         const isGroupActive = group.tools.some((tool) => (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool);
-        if (isGroupActive) {
+        if (isGroupActive || group.clickOpensMenu) {
             if (openToolGroup === groupId) {
                 setOpenToolGroup(null);
                 setToolGroupMenuPos(null);
@@ -1877,7 +1878,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                             )}
-                            title={`${t(group.labelKey)} (${t(primaryTool.labelKey)})`}
+                            title={`${t(group.labelKey)}: ${withShortcut(t(primaryTool.labelKey), primaryTool)}`}
                             aria-label={`${t(group.labelKey)} (${t(primaryTool.labelKey)})`}
                         >
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
@@ -1909,7 +1910,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                             )}
-                            title={t(tool.labelKey)}
+                            title={withShortcut(t(tool.labelKey), tool)}
                             aria-label={t(tool.labelKey)}
                         >
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
@@ -1926,13 +1927,12 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
 
                 <div className="my-0.5 h-px w-full bg-border/60" />
 
-                {CREATION_LIBRARY_TOOLS.map((tool) => {
+                {LIBRARY_TOOLS.map((tool) => {
                     const isToolActive = (TOOL_ALIAS_MAP[tool.name] || tool.name) === normalizedActiveTool;
                     return (
                         <button
                             key={tool.name}
                             onClick={() => handleToolClick(tool.name)}
-                            onContextMenu={tool.name === 'super-agent' ? (event) => { event.preventDefault(); setAgentMenuPos({ x: event.clientX, y: event.clientY }); } : undefined}
                             className={cn(
                                 'rounded-sm flex transition-colors z-20',
                                 railButtonLayoutClass,
@@ -1940,7 +1940,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                             )}
-                            title={t(tool.labelKey)}
+                            title={withShortcut(t(tool.labelKey), tool)}
                             aria-label={t(tool.labelKey)}
                         >
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
@@ -1970,7 +1970,7 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                     ? "bg-tool-accent text-tool-accent-foreground"
                                     : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                             )}
-                            title={t(tool.labelKey)}
+                            title={withShortcut(t(tool.labelKey), tool)}
                             aria-label={t(tool.labelKey)}
                         >
                             <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
@@ -2048,6 +2048,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                             <button
                                 key={tool.name}
                                 onClick={() => handleToolGroupMenuSelect(openToolGroup, tool.name)}
+                                aria-label={t(tool.labelKey)}
+                                aria-keyshortcuts={ariaShortcut(tool)}
                                 className={cn(
                                     "flex items-center gap-2 p-2 rounded transition-colors text-[11px]",
                                     isToolActive
@@ -2056,7 +2058,8 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                                 )}
                             >
                                 <tool.icon size={15} />
-                                <span>{t(tool.labelKey)}</span>
+                                <span className="flex-1 text-left">{t(tool.labelKey)}</span>
+                                {tool.shortcut && <kbd aria-hidden="true" className="text-[10px] font-sans opacity-60">{tool.shortcut}</kbd>}
                             </button>
                         );
                     })}
@@ -2138,12 +2141,6 @@ const Toolbar = forwardRef<ToolbarHandle, ToolbarProps>(({
                     {activeTool === 'super-agent' && <SuperAgentModal canvas={canvas} onClose={() => setActiveTool('select')} />}
                     {activeTool === 'ai-upscale' && <UpscaleModal canvas={canvas} onClose={() => setActiveTool('select')} />}
                     {activeTool === 'campaign-manager' && <CampaignManagerModal canvas={canvas} onClose={() => setActiveTool('select')} />}
-                </BodyPortal>
-            )}
-
-            {agentMenuPos && (
-                <BodyPortal>
-                    <AgentToolContextMenu position={agentMenuPos} onSelect={(tool) => { setAgentMenuPos(null); handleToolClick(tool); }} onClose={() => setAgentMenuPos(null)} />
                 </BodyPortal>
             )}
 

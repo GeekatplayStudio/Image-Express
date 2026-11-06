@@ -4,6 +4,10 @@ import type { LayerOrderAction, LayerOrderState } from '@/components/CircularCon
 
 import type { PanelMode as PanelRailMode } from '@/components/properties/PanelModeRail';
 import type { ExtendedFabricObject } from '@/types';
+import {
+    CREATION_PRIMARY_TOOLS, FILL_TOOL_GROUP, RETOUCH_TOOL_GROUP, SELECTION_TOOL_GROUP, WORKSPACE_UTILITY_TOOLS,
+    type ToolbarToolDefinition,
+} from '@/components/toolbar/toolRegistry';
 import type { CanvasWithArtboard, PanelDockMode } from '@/components/Editor/editorView.types';
 import type { ToastOptions } from '@/providers/ToastProvider';
 import { applyRasterMaskToObject } from '@/lib/layerMasks';
@@ -336,17 +340,19 @@ export function useEditorMenuActions({
     }, [canvas, setZoom]);
 
     const handleShowShortcutsFromMenu = useCallback(() => {
+        const line = (labelKey: string, tools: ToolbarToolDefinition[]) => `${t(labelKey)}: ${tools
+            .filter((tool) => tool.shortcut)
+            .map((tool) => `${tool.shortcut} ${t(tool.labelKey)}`)
+            .join(' · ')}`;
+        const manualLine = (item: number) => `${t(`docs.shortcuts.item${item}.label`)}: ${t(`docs.shortcuts.item${item}.desc`)}`;
         void dialog.alert(
             [
-                'Tools: V Move · M Marquee · L Lasso · W Quick Select · Shift+W Wand · A Path Select',
-                'Create: T Text · U Shapes · P Pen · B Brush · G Gradient · I Eyedropper · C Crop · H Hand · Z Zoom',
-                'Retouch: J Healing · S Clone Stamp · R Blur · O Dodge · Y History Brush',
+                line(SELECTION_TOOL_GROUP.labelKey, SELECTION_TOOL_GROUP.tools),
+                line('tools.section.creation', [...CREATION_PRIMARY_TOOLS, ...FILL_TOOL_GROUP.tools]),
+                line(RETOUCH_TOOL_GROUP.labelKey, RETOUCH_TOOL_GROUP.tools),
+                line('tools.section.utilities', WORKSPACE_UTILITY_TOOLS),
                 '',
-                'History: Ctrl+Z Undo · Ctrl+Shift+Z / Ctrl+Y Redo',
-                'Layers: Ctrl+C Copy · Ctrl+X Cut · Ctrl+V Paste · Ctrl+J Duplicate · Ctrl+A Select All · Ctrl+D Deselect · Del Delete',
-                'Clipping: Ctrl+Alt+G Clip to layer below / release',
-                '',
-                'Canvas: Space+Drag Pan · Scroll Zoom · Double-click group to enter · Right-click layer row for layer actions',
+                ...[5, 6, 7, 1, 2].map(manualLine),
             ].join('\n'),
             { title: t('menuAct.shortcutsTitle') },
         );

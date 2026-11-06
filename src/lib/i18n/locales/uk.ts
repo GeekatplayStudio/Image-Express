@@ -3242,6 +3242,20 @@ const uk: LocaleDictionary = {
     'assets.status.sourceFailedHint': 'Це джерело не відповіло, тому його файли не показані. Оновіть, щоб повторити.',
     'assets.status.refreshing': 'Оновлення…',
     'assets.status.loadedIn': 'завантажено за {ms} мс',
+    'menu.tools': 'Інструменти',
+    'toolbar.aiBrandManager': 'ШІ-менеджер бренду',
+    'toolbar.group.ai': 'Інструменти ШІ',
+    'toolbar.short.agent': 'Агент',
+    'toolbar.short.brand': 'Бренд',
+    'toolbar.superAgent': 'Супер-агент',
+    'stack.pagesHint': 'Продовжуйте з того місця, де зупинилися: остання змінена сторінка йде першою.',
+    'stack.albumsHint': 'Усі альбоми на ваших полицях, спершу нові.',
+    'stack.bookshelvesHint': 'Цілі полиці альбомів. Відкрийте одну, щоб працювати всередині неї.',
+    'stack.noAlbums': 'Альбомів поки немає. Створіть альбом вище, і він з’явиться тут.',
+    'stack.noBookshelves': 'Книжкових полиць поки немає.',
+    'stackRow.previous': 'Назад',
+    'stackRow.next': 'Далі',
+    'vault.availableDrives': 'Диски:',
 };
 
 export default uk;

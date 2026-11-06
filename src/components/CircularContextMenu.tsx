@@ -36,7 +36,6 @@ interface CircularContextMenuProps {
     y: number;
     isOpen: boolean;
     activeTool?: string;
-    activePanelMode?: string;
     onClose: () => void;
     onSelectTool: (tool: string) => void;
     onLayerOrderAction?: (action: LayerOrderAction) => void;
@@ -69,6 +68,26 @@ type CircularMenuItem = {
 
 const GROUP_ORDER: Array<CircularMenuItem['group']> = ['select', 'retouch', 'create', 'library'];
 
+/**
+ * The ring shows one entry per family, so an entry also lights up while one of
+ * the variants it stands for is active (Wand under Quick Select, Burn under
+ * Dodge). Without this the ring showed nothing active for half the tools.
+ */
+const RING_FAMILIES: Record<string, string[]> = {
+    select: ['select', 'path-select', 'move'],
+    'quick-select': ['quick-select', 'wand', 'selection-brush'],
+    healing: ['healing', 'spot-healing', 'remove'],
+    'clone-stamp': ['clone-stamp', 'history-brush'],
+    blur: ['blur', 'sharpen'],
+    dodge: ['dodge', 'burn', 'sponge'],
+    gradient: ['gradient', 'fill-layer'],
+    'fabrication-library': FABRICATION_TOOL_GROUP.tools.map((tool) => tool.name),
+};
+
+export const isRingItemActive = (itemId: string, activeTool?: string) => (
+    Boolean(activeTool) && (itemId === activeTool || Boolean(RING_FAMILIES[itemId]?.includes(activeTool!)))
+);
+
 const LAYER_ORDER_ITEMS: Array<{
     id: LayerOrderAction;
     icon: LucideIcon;
@@ -86,7 +105,6 @@ export default function CircularContextMenu({
     y,
     isOpen,
     activeTool,
-    activePanelMode,
     onClose,
     onSelectTool,
     onLayerOrderAction,
@@ -228,6 +246,7 @@ export default function CircularContextMenu({
                 {/* Center Button (Close/Cancel) */}
                 <button
                     onClick={onClose}
+                    aria-label={t('common.close')}
                     className="absolute -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white dark:bg-zinc-800 rounded-full shadow-lg border border-zinc-200 dark:border-zinc-700 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors z-20"
                 >
                     <div className="w-2 h-2 rounded-full bg-zinc-400" />
@@ -262,6 +281,7 @@ export default function CircularContextMenu({
                                 transform: 'translate(-50%, -50%)',
                             }}
                             title={isEnabled ? t(item.labelKey) : t('circular.selectLayerHint')}
+                            aria-label={t(item.labelKey)}
                         >
                             <item.icon size={13} />
                         </button>
@@ -273,15 +293,14 @@ export default function CircularContextMenu({
                     const radian = (angle * Math.PI) / 180;
                     const bx = Math.cos(radian) * radius;
                     const by = Math.sin(radian) * radius;
-                    const isActive = activeTool === item.id
-                        || (item.id === 'fabrication-library' && FABRICATION_TOOL_GROUP.tools.some((tool) => tool.name === activeTool))
-                        || (item.id === 'channels' && activePanelMode === 'channels');
+                    const isActive = isRingItemActive(item.id, activeTool);
 
                     return (
                         <button
                             key={item.id}
                             type="button"
                             aria-pressed={isActive}
+                            aria-label={t(item.labelKey)}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onSelectTool(item.id);

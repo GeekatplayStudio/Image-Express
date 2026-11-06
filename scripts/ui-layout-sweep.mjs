@@ -94,7 +94,7 @@ for (const [w,h] of VIEWPORTS) {
   { const tg = page.getByRole('button', { name: 'Toggle top menu bar' }).first(); if (await tg.count()) { await tg.click({ force: true, timeout: 5000 }).catch(e => log(vp,'menus','toggle click failed: '+String(e.message).split('\n')[0])); await page.waitForTimeout(400); await shot('editor-menubar'); await lint('editor-menubar'); } else log(vp,'menus','no menu bar toggle'); }
 
   // top menus
-  for (const m of ['File','Edit','Image','Layer','Select','Filter','View','Window','Settings','Help']) {
+  for (const m of ['File','Edit','Image','Layer','Select','Tools','Filter','View','Window','Settings','Help']) {
     const btn = page.getByRole('button', { name: new RegExp(`^${m}\\b`, 'i') }).first();
     if (!(await btn.count()) || !(await btn.isVisible())) { log(vp, 'menus', `menu trigger "${m}" not visible`); continue; }
     await btn.click(); await page.waitForTimeout(300);
@@ -109,7 +109,7 @@ for (const [w,h] of VIEWPORTS) {
   log(vp, 'toolbar', `${toolButtons.length} toolbar/rail buttons found`);
 
   // Window menu → open every dialog-opening menu item across menus
-  for (const m of ['File','Edit','Image','Layer','Select','Filter','View','Window','Settings','Help']) {
+  for (const m of ['File','Edit','Image','Layer','Select','Tools','Filter','View','Window','Settings','Help']) {
     const btn = page.getByRole('button', { name: new RegExp(`^${m}\\b`, 'i') }).first();
     if (!(await btn.count()) || !(await btn.isVisible())) continue;
     await btn.click(); await page.waitForTimeout(250);

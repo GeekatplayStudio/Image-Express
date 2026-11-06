@@ -1,15 +1,15 @@
 {
   "note": "Missing-key count per locale. These may only decrease. Raise coverage, then run `npm run audit:i18n:update`.",
   "locales": {
-    "de": 2304,
-    "es": 1958,
-    "fr": 2304,
-    "it": 2304,
-    "ja": 2314,
-    "pl": 2304,
-    "pt": 2304,
-    "ru": 12,
-    "uk": 12,
-    "zh": 2314
+    "de": 2161,
+    "es": 1885,
+    "fr": 2161,
+    "it": 2161,
+    "ja": 2171,
+    "pl": 2161,
+    "pt": 2161,
+    "ru": 0,
+    "uk": 0,
+    "zh": 2171
   }
 }

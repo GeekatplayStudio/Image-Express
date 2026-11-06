@@ -78,14 +78,30 @@ pointer, double-click on empty canvas recenters the artboard there.
 Delete/Backspace is guarded so it never fires while editing text.
 
 ### Tools — Shipped
-Left rail with Photoshop-style flyouts: right-click Selection, Retouch, or
-Fill/Gradient to switch sub-tools. Fill/Gradient includes a **New Fill/Gradient
-Layer** mode.
+Every tool is reachable three ways, all built from one registry
+(`src/components/toolbar/toolRegistry.ts`), so they cannot drift apart:
 
-**Shortcuts:** `V` Move · `M` Marquee · `L` Lasso · `W` Quick Select ·
+- **Left rail.** Five families with Photoshop-style flyouts (a dot marks them):
+  Selection, Retouch, Fill/Gradient, **AI**, and Fabrication. Click an active
+  family or right-click any family to pick a variant. The AI family (AI Zone,
+  ComfyUI Workflows, AI Upscale, AI Critique, AI Brand Manager, Campaign
+  Manager, Super Agent) always opens its list on click, because each entry
+  opens its own window. Text, Shapes, Adjustment Layers, Pen and Brushes,
+  Gallery and Library, and Crop/Eyedropper/Zoom/Hand are direct buttons.
+  Tooltips show each tool's shortcut. Fill/Gradient includes a **New
+  Fill/Gradient Layer** mode.
+- **Tools menu** in the header: every rail tool in the same families, with its
+  shortcut.
+- **Right-click ring** on the canvas: the most-used tool of each family, lit
+  while any variant of that family is active, with layer ordering in the inner
+  circle.
+
+**Shortcuts:** `V` Move · `M` Marquee · `L` Lasso · `W`/`Q` Quick Select ·
 `Shift+W` Magic Wand · `K` Selection Brush · `A` Path Select · `T` Text ·
-`U` Shapes · `P` Pen · `B` Brush · `R` Blur · `J` Healing · `S` Clone Stamp ·
-`O` Dodge · `G` Gradient · `I` Eyedropper · `C` Crop · `H` Hand · `Z` Zoom.
+`U` Shapes · `P` Pen · `B` Brush · `G` Fill/Gradient · `J` Healing ·
+`S` Clone Stamp · `Y` History Brush · `R` Blur · `O` Dodge · `I` Eyedropper ·
+`C` Crop · `H` Hand · `Z` Zoom. Help → Keyboard shortcuts lists the same set,
+generated from the registry in the current language.
 `Ctrl/Cmd+J` duplicate · `Ctrl/Cmd+D` deselect · `Ctrl/Cmd+Z` undo ·
 `Ctrl/Cmd+Shift+Z` redo · `Ctrl/Cmd+S` save · Alt-drag duplicates.
 
@@ -214,8 +230,8 @@ forwarded per-request and never stored; provider-returned result URLs are
 re-validated against the outbound URL policy before the server fetches them.
 
 ### AI Campaign Manager — Shipped
-A campaign layer alongside the Brand Kit (Tools menu, or right-click the Super
-Agent toolbar button for the Super Agent / Campaign Manager picker). Each
+A campaign layer alongside the Brand Kit (the rail's AI family or the Tools
+menu). Each
 stored campaign holds allowed fonts, palette colors, campaign assets,
 reference images, and free-form **plain-language requirements**; multiple
 campaigns persist to `data/campaign/` on the server (localStorage as offline

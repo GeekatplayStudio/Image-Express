@@ -19,6 +19,36 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-05 - Tools: one registry for the rail, the Tools menu, shortcuts and the ring
+
+An audit of every way to reach a tool found them drifting apart:
+
+- **Campaign Manager was hidden.** Its only entry point was right-clicking the
+  Super Agent rail button. It is now in a new **AI** family on the rail, with
+  AI Zone, ComfyUI Workflows, AI Upscale, AI Critique, AI Brand Manager and
+  Super Agent. Clicking that family lists its tools instead of opening a window
+  blindly. The rail drops from 21 tool buttons to 16. The hidden picker
+  component is gone.
+- **The header had no Tools menu.** A hand-written one existed but was never
+  mounted, missed nine tools, filed retouch tools under "Creation", and showed
+  W for the Magic Wand. It is rebuilt from the registry, grouped like the rail,
+  with shortcuts, and mounted after Select.
+- **Shortcuts lived in three places.** The keyboard hook, the shortcuts dialog
+  and the manual each had their own list; the dialog and manual omitted Q, K
+  and Y. Shortcuts now live on the registry entries. Rail tooltips, flyouts and
+  the Tools menu show them, and the Help → Keyboard shortcuts dialog is
+  generated from them in the current language.
+- **The right-click ring** now lights a family entry while any of its variants
+  is active (Burn under Dodge, Wand under Quick Select) and gives every button
+  an accessible name. AI Brand Manager got its own icon instead of sharing the
+  Healing Brush shield.
+- **i18n.** The rail, flyouts, Tools menu, header menus, shape and adjustment
+  flyouts and the ring were English in seven locales (143 strings each) and
+  partly in Spanish. All 183 strings those surfaces use are now present in all
+  11 locales, and Russian and Ukrainian are at 100%. The in-app manual stays
+  English-only by design (`docs.*` is deferred in the parity audit); its
+  toolbar and shortcut chapters were rewritten to match.
+
 ## 2026-11-05 - Asset Library: thumbnails that stay, listings that cache, a status line
 
 The classic Asset Library was slow to open and showed bare icons where tiles

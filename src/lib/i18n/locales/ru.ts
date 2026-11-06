@@ -3242,6 +3242,20 @@ const ru: LocaleDictionary = {
     'assets.status.sourceFailedHint': 'Этот источник не ответил, поэтому его файлы не показаны. Обновите, чтобы повторить.',
     'assets.status.refreshing': 'Обновление…',
     'assets.status.loadedIn': 'загружено за {ms} мс',
+    'menu.tools': 'Инструменты',
+    'toolbar.aiBrandManager': 'ИИ-менеджер бренда',
+    'toolbar.group.ai': 'Инструменты ИИ',
+    'toolbar.short.agent': 'Агент',
+    'toolbar.short.brand': 'Бренд',
+    'toolbar.superAgent': 'Супер-агент',
+    'stack.pagesHint': 'Продолжайте с того места, где остановились: последняя изменённая страница идёт первой.',
+    'stack.albumsHint': 'Все альбомы на ваших полках, сначала новые.',
+    'stack.bookshelvesHint': 'Целые полки альбомов. Откройте одну, чтобы работать внутри неё.',
+    'stack.noAlbums': 'Альбомов пока нет. Создайте альбом выше, и он появится здесь.',
+    'stack.noBookshelves': 'Книжных полок пока нет.',
+    'stackRow.previous': 'Назад',
+    'stackRow.next': 'Вперёд',
+    'vault.availableDrives': 'Диски:',
 };
 
 export default ru;

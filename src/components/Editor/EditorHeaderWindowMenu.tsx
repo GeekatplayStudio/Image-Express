@@ -38,7 +38,7 @@ export default function EditorHeaderWindowMenu({
 }: EditorHeaderWindowMenuProps) {
     const { t } = useI18n();
     return (
-        <div className="relative order-8">
+        <div className="relative order-9">
             <button
                 onClick={toggleEditorMenu}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all text-muted-foreground hover:bg-background/80 hover:text-foreground"

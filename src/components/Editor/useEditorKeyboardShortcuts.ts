@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { TOOL_SHORTCUT_KEYS } from '@/components/toolbar/toolRegistry';
 import * as fabric from 'fabric';
 
 import type { ToolbarHandle } from '@/components/Toolbar';
@@ -219,29 +220,7 @@ export function useEditorKeyboardShortcuts({
             if (key === 'w') {
                 tool = event.shiftKey ? 'wand' : 'quick-select';
             } else {
-                const toolMap: Record<string, string> = {
-                    v: 'select',
-                    q: 'quick-select',
-                    k: 'selection-brush',
-                    m: 'marquee',
-                    l: 'lasso',
-                    j: 'healing',
-                    y: 'history-brush',
-                    b: 'paint',
-                    r: 'blur',
-                    o: 'dodge',
-                    s: 'clone-stamp',
-                    a: 'path-select',
-                    c: 'crop',
-                    i: 'eyedropper',
-                    g: 'gradient',
-                    h: 'hand',
-                    p: 'pen',
-                    t: 'text',
-                    u: 'shapes',
-                    z: 'zoom',
-                };
-                tool = toolMap[key];
+                tool = TOOL_SHORTCUT_KEYS[key];
             }
 
             if (!tool) return;

@@ -386,7 +386,7 @@ describe('Toolbar', () => {
     it('switches to gradient tool and updates cursor behavior', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Fill / Gradient Tools (Fill / Gradient)'));
+        fireEvent.click(screen.getByLabelText('Fill / Gradient Tools (Fill / Gradient)'));
 
         expect(setActiveToolSpy).toHaveBeenCalledWith('gradient');
         expect(canvas.defaultCursor).toBe('crosshair');
@@ -397,16 +397,16 @@ describe('Toolbar', () => {
     it('shows persistent workspace utility tools on the rail', () => {
         renderToolbar();
 
-        expect(screen.getByTitle('Crop')).toBeInTheDocument();
-        expect(screen.getByTitle('Eyedropper')).toBeInTheDocument();
-        expect(screen.getByTitle('Zoom')).toBeInTheDocument();
-        expect(screen.getByTitle('Hand')).toBeInTheDocument();
+        expect(screen.getByLabelText('Crop')).toBeInTheDocument();
+        expect(screen.getByLabelText('Eyedropper')).toBeInTheDocument();
+        expect(screen.getByLabelText('Zoom')).toBeInTheDocument();
+        expect(screen.getByLabelText('Hand')).toBeInTheDocument();
     });
 
-    it('opens the AI Critique modal from the creation rail and restores selection mode', () => {
+    it('opens the AI Critique modal from the AI group flyout and restores selection mode', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
-
-        fireEvent.click(screen.getByTitle('AI Critique'));
+        fireEvent.click(screen.getByLabelText('AI Tools (AI Zone)'));
+        fireEvent.click(screen.getByRole('button', { name: 'AI Critique' }));
 
         expect(setActiveToolSpy).toHaveBeenCalledWith('ai-critique');
         expect(canvas.defaultCursor).toBe('default');
@@ -415,11 +415,11 @@ describe('Toolbar', () => {
         expect(screen.getByTestId('mock-ai-critique-modal')).toBeInTheDocument();
     });
 
-    it('opens AI Zone from the creation rail and restores selection mode', () => {
+    it('opens AI Zone from the AI group flyout and restores selection mode', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
-
-        fireEvent.click(screen.getByTitle('AI Zone'));
-
+        fireEvent.click(screen.getByLabelText('AI Tools (AI Zone)')); // a click lists the AI tools, it does not launch one
+        expect(screen.getByRole('button', { name: 'Campaign Manager' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /^AI Zone/ }));
         expect(setActiveToolSpy).toHaveBeenCalledWith('ai-zone');
         expect(canvas.defaultCursor).toBe('default');
         expect(canvas.hoverCursor).toBe('move');
@@ -430,7 +430,7 @@ describe('Toolbar', () => {
     it('opens color wheel when eyedropper is selected and applies wheel colors as foreground', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Eyedropper'));
+        fireEvent.click(screen.getByLabelText('Eyedropper'));
         expect(setActiveToolSpy).toHaveBeenCalledWith('eyedropper');
         expect(screen.getByTestId('mock-color-wheel-tool')).toBeInTheDocument();
 
@@ -447,7 +447,7 @@ describe('Toolbar', () => {
     it('syncs eyedropper sampled color into the wheel selected color', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Eyedropper'));
+        fireEvent.click(screen.getByLabelText('Eyedropper'));
         expect(setActiveToolSpy).toHaveBeenCalledWith('eyedropper');
         expect(screen.getByTestId('mock-color-wheel-tool')).toBeInTheDocument();
 
@@ -472,7 +472,7 @@ describe('Toolbar', () => {
     it('applies zoom out cursor when zoom mode is out', () => {
         const { canvas, setActiveToolSpy } = renderToolbar({ zoomCursorMode: 'out' });
 
-        fireEvent.click(screen.getByTitle('Zoom'));
+        fireEvent.click(screen.getByLabelText('Zoom'));
 
         expect(setActiveToolSpy).toHaveBeenCalledWith('zoom');
         expect(canvas.defaultCursor).toBe('zoom-out');
@@ -496,7 +496,7 @@ describe('Toolbar', () => {
     it('adds text to the canvas from the text tool', () => {
         const { canvas } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Text'));
+        fireEvent.click(screen.getByLabelText('Text'));
 
         expect(canvas.add).toHaveBeenCalledTimes(1);
         expect(canvas.setActiveObject).toHaveBeenCalledTimes(1);
@@ -506,7 +506,7 @@ describe('Toolbar', () => {
     it('opens selection tool group flyout and switches to marquee', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Selection Tools (Move)'));
+        fireEvent.click(screen.getByLabelText('Selection Tools (Move)'));
         fireEvent.click(screen.getByRole('button', { name: 'Marquee' }));
 
         expect(setActiveToolSpy).toHaveBeenCalledWith('marquee');
@@ -518,10 +518,10 @@ describe('Toolbar', () => {
     it('opens retouch group and routes sharpen selection through flyout', () => {
         const { canvas, setActiveToolSpy } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Retouch Tools (Healing Brush)'));
+        fireEvent.click(screen.getByLabelText('Retouch Tools (Healing Brush)'));
         expect(setActiveToolSpy).toHaveBeenCalledWith('healing');
 
-        fireEvent.click(screen.getByTitle('Retouch Tools (Healing Brush)'));
+        fireEvent.click(screen.getByLabelText('Retouch Tools (Healing Brush)'));
         fireEvent.click(screen.getByRole('button', { name: 'Sharpen Tool' }));
 
         expect(setActiveToolSpy).toHaveBeenCalledWith('sharpen');
@@ -533,7 +533,7 @@ describe('Toolbar', () => {
     it('opens shapes menu and adds a rectangle', () => {
         const { canvas } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Shapes'));
+        fireEvent.click(screen.getByLabelText('Shapes'));
         fireEvent.click(screen.getByRole('button', { name: 'Rect' }));
 
         expect(canvas.add).toHaveBeenCalled();
@@ -544,7 +544,7 @@ describe('Toolbar', () => {
     it('adds a bent arrow from the shapes menu', () => {
         const { canvas } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Shapes'));
+        fireEvent.click(screen.getByLabelText('Shapes'));
         fireEvent.click(screen.getByRole('button', { name: 'Bent Arrow' }));
 
         expect(canvas.add).toHaveBeenCalled();
@@ -556,7 +556,7 @@ describe('Toolbar', () => {
         const onRequestPropertiesPanel = jest.fn();
         const { canvas } = renderToolbar({ onRequestPropertiesPanel });
 
-        fireEvent.click(screen.getByTitle('Shapes'));
+        fireEvent.click(screen.getByLabelText('Shapes'));
         fireEvent.click(screen.getByRole('button', { name: 'Cloud' }));
 
         expect(canvas.add).toHaveBeenCalled();
@@ -569,7 +569,7 @@ describe('Toolbar', () => {
         renderToolbar();
 
         expect(screen.queryByTitle('Layers')).not.toBeInTheDocument();
-        expect(screen.getByTitle('Adjustment Layers')).toBeInTheDocument();
+        expect(screen.getByLabelText('Adjustment Layers')).toBeInTheDocument();
         expect(screen.queryByTitle('Color')).not.toBeInTheDocument();
     });
 
@@ -577,7 +577,7 @@ describe('Toolbar', () => {
         const onRequestPropertiesPanel = jest.fn();
         const { canvas, setActiveToolSpy } = renderToolbar({ onRequestPropertiesPanel });
 
-        fireEvent.click(screen.getByTitle('Adjustment Layers'));
+        fireEvent.click(screen.getByLabelText('Adjustment Layers'));
         fireEvent.click(screen.getByRole('button', { name: 'Curves' }));
 
         expect(canvas.fire).toHaveBeenCalledWith('adjustment:create', { type: 'curves' });
@@ -589,7 +589,7 @@ describe('Toolbar', () => {
         const onRequestPropertiesPanel = jest.fn();
         const { canvas, setActiveToolSpy } = renderToolbar({ onRequestPropertiesPanel });
 
-        fireEvent.click(screen.getByTitle('Adjustment Layers'));
+        fireEvent.click(screen.getByLabelText('Adjustment Layers'));
         fireEvent.click(screen.getByRole('button', { name: 'Light and Color' }));
 
         expect(canvas.fire).toHaveBeenCalledWith('adjustment:create', { type: 'light-and-color' });
@@ -620,7 +620,7 @@ describe('Toolbar', () => {
     it('loads selected image assets onto the canvas', async () => {
         const { canvas } = renderToolbar();
 
-        fireEvent.click(screen.getByTitle('Gallery'));
+        fireEvent.click(screen.getByLabelText('Gallery'));
         fireEvent.click(screen.getByRole('button', { name: 'Pick Image' }));
 
         await waitFor(() => {
@@ -636,7 +636,7 @@ describe('Toolbar', () => {
         const onOpen3DEditor = jest.fn();
         const { setActiveToolSpy } = renderToolbar({ onOpen3DEditor });
 
-        fireEvent.click(screen.getByTitle('Gallery'));
+        fireEvent.click(screen.getByLabelText('Gallery'));
         fireEvent.click(screen.getByRole('button', { name: 'Pick Model' }));
 
         expect(onOpen3DEditor).toHaveBeenCalledWith('https://cdn.example/model.glb');
@@ -834,7 +834,7 @@ describe('Toolbar', () => {
 
     it('does not place pen anchors while holding space for pan', () => {
         const { canvas } = renderToolbar();
-        fireEvent.click(screen.getByTitle('Pen'));
+        fireEvent.click(screen.getByLabelText('Pen'));
 
         const mouseDownHandler = [...canvas.on.mock.calls]
             .reverse()
@@ -856,7 +856,7 @@ describe('Toolbar', () => {
 
     it('falls back to canvas.getScenePoint when mouse event lacks scenePoint', () => {
         const { canvas } = renderToolbar();
-        fireEvent.click(screen.getByTitle('Pen'));
+        fireEvent.click(screen.getByLabelText('Pen'));
 
         const mouseDownHandler = [...canvas.on.mock.calls]
             .reverse()
@@ -876,7 +876,7 @@ describe('Toolbar', () => {
 
     it('finalizes pen paths using top-left origin coordinates to avoid placement drift', () => {
         const { canvas } = renderToolbar();
-        fireEvent.click(screen.getByTitle('Pen'));
+        fireEvent.click(screen.getByLabelText('Pen'));
 
         const getLatestHandler = (eventName: string) => [...canvas.on.mock.calls]
             .reverse()
@@ -919,7 +919,7 @@ describe('Toolbar', () => {
 
     it('closes the path when clicking the start anchor, even with the Open/Closed toggle left at its default (open)', () => {
         const { canvas } = renderToolbar();
-        fireEvent.click(screen.getByTitle('Pen'));
+        fireEvent.click(screen.getByLabelText('Pen'));
 
         const getLatestHandler = (eventName: string) => [...canvas.on.mock.calls]
             .reverse()
@@ -956,7 +956,7 @@ describe('Toolbar', () => {
     it('closes the path on a click near (but not directly on) the start anchor, scaled for the current zoom', () => {
         const { canvas } = renderToolbar();
         canvas.getZoom.mockReturnValue(0.25);
-        fireEvent.click(screen.getByTitle('Pen'));
+        fireEvent.click(screen.getByLabelText('Pen'));
 
         const getLatestHandler = (eventName: string) => [...canvas.on.mock.calls]
             .reverse()
