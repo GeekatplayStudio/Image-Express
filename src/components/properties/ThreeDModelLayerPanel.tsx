@@ -12,7 +12,7 @@ import { Sun, Wand2, Box as BoxIcon, Maximize2 } from 'lucide-react';
 import * as fabric from 'fabric';
 import { useI18n } from '@/providers/I18nProvider';
 import type { ExtendedFabricObject, ThreeDSettings } from '@/types';
-import { bakeModelWithSettings } from '@/lib/threeDLayer/objectBake';
+import { bakeModelWithSettings, EDITOR_LIGHTING_FALLBACKS } from '@/lib/threeDLayer/modelSettingsBake';
 import { setLayerElementPreservingSize } from '@/lib/threeDLayer/bake';
 import {
     LIGHT_PRESETS,
@@ -30,18 +30,11 @@ interface ThreeDModelLayerPanelProps {
     onOpenFullEditor?: (modelUrl: string, layer: ExtendedFabricObject) => void;
 }
 
+// The editor's own fallbacks, so a layer saved before a setting existed
+// re-renders exactly as the editor would show it.
 const DEFAULTS: ThreeDSettings = {
-    lightPosition: { x: 5, y: 5, z: 5 },
-    lightIntensity: 1.2,
-    lightColor: '#ffffff',
-    castShadowEnabled: true,
-    castShadowBlur: 22,
-    castShadowIntensity: 0.35,
-    contactShadowEnabled: true,
-    contactShadowBlur: 8,
-    contactShadowIntensity: 0.6,
+    ...EDITOR_LIGHTING_FALLBACKS,
     resolution: { width: 1024, height: 1024 },
-    ambientIntensity: 0.35,
     modelRotationY: 0,
     modelScale: 1,
 };
@@ -69,7 +62,9 @@ export function ThreeDModelLayerPanel({ canvas, layer, onOpenFullEditor }: Three
     const [failed, setFailed] = useState(false);
     const bakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const bakeBusy = useRef(false);
-    const pendingSettings = useRef<ThreeDSettings | null>(null);
+    // A bake requested while one is running. `apply` is sticky: an edit made
+    // during the first preview-only render must still reach the layer.
+    const pendingBake = useRef<{ settings: ThreeDSettings; apply: boolean } | null>(null);
     const dragRef = useRef<{ startX: number; startY: number; azimuth: number; elevation: number } | null>(null);
 
     const layerId = layer.id;
@@ -82,7 +77,7 @@ export function ThreeDModelLayerPanel({ canvas, layer, onOpenFullEditor }: Three
 
     const runBake = useCallback(async (next: ThreeDSettings, applyToLayer: boolean) => {
         if (bakeBusy.current) {
-            pendingSettings.current = next;
+            pendingBake.current = { settings: next, apply: applyToLayer || Boolean(pendingBake.current?.apply) };
             return;
         }
         bakeBusy.current = true;
@@ -101,10 +96,10 @@ export function ThreeDModelLayerPanel({ canvas, layer, onOpenFullEditor }: Three
             setFailed(true);
         } finally {
             bakeBusy.current = false;
-            if (pendingSettings.current) {
-                const queued = pendingSettings.current;
-                pendingSettings.current = null;
-                void runBake(queued, applyToLayer);
+            if (pendingBake.current) {
+                const queued = pendingBake.current;
+                pendingBake.current = null;
+                void runBake(queued.settings, queued.apply);
             }
         }
     }, [canvas, layer, modelUrl]);

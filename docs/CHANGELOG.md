@@ -19,6 +19,31 @@ look for current behaviour or future plans.
 > consolidated to 18. Entries below predate that split and may reference docs
 > that no longer exist; their content now lives in the four files above.
 
+## 2026-11-05 - 3D layers keep their lighting when adjusted from the properties panel
+
+Moving any lighting or shadow control for a placed 3D model in the right-hand
+properties made the layer go dark. The panel re-renders the model offline, and
+that renderer had only the ambient and sun lights. The 3D View Editor that
+placed the model also has the HDR environment map, drei Stage's own lights,
+ACES filmic tone mapping and a contact shadow. Measured on the same settings,
+the old panel render had about half the editor's brightness (mean luminance
+63 vs 132) and the model sat off-frame.
+
+- `src/lib/threeDLayer/modelSettingsBake.ts` now rebuilds the editor scene:
+  environment, Stage lights, tone mapping, contact shadow, `<Center>` placement,
+  the editor's shadow frustum and floor, and the saved camera. Against a real
+  editor capture the luminance matches (134.0 vs 133.9); what differs is a
+  sub-pixel edge offset.
+- One shared WebGL renderer replaces a new context per bake, so a slider drag
+  cannot run into the browser's context limit and render black.
+- An edit made while the panel's first preview was still rendering was applied
+  only to the preview, never to the layer. Queued edits now keep their intent.
+- The 3D View Editor showed a reopened layer without its saved rotation and
+  scale (applied before the model mounted) and re-captured it that way. It now
+  applies them once the model loads.
+- The editor's remembered-lighting helpers moved to
+  `src/components/three/lightingDefaults.ts`.
+
 ## 2026-11-05 - Tools: one registry for the rail, the Tools menu, shortcuts and the ring
 
 An audit of every way to reach a tool found them drifting apart:

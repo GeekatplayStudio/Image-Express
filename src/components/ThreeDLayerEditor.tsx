@@ -16,6 +16,7 @@ import {
     type ModelBounds,
     type Vec3,
 } from '@/components/three/threeDLayerPresets';
+import { loadLightingDefaults, saveLightingDefaults, type LightingDefaults } from '@/components/three/lightingDefaults';
 
 // Re-exported: ThreeDModelLayerPanel imports these from here.
 export {
@@ -51,51 +52,6 @@ type CaptureGL = {
     camera: THREE.Camera;
     glInstance: THREE.WebGLRenderer;
 };
-
-/**
- * Lighting defaults remembered across sessions. Applied only when opening a NEW
- * model (e.g. from the asset library); layers reopened from the canvas keep the
- * settings saved on the layer itself. Camera, rotation, scale, and resolution
- * are deliberately per-model and never remembered here.
- */
-const LIGHTING_DEFAULTS_KEY = 'imageExpressThreeDLightingDefaults';
-
-type LightingDefaults = {
-    lightPosition: Vec3;
-    lightIntensity: number;
-    lightColor: string;
-    ambientIntensity: number;
-    environment: string;
-    envIntensity: number;
-    castShadowEnabled: boolean;
-    castShadowBlur: number;
-    castShadowIntensity: number;
-    contactShadowEnabled: boolean;
-    contactShadowBlur: number;
-    contactShadowIntensity: number;
-};
-
-const loadLightingDefaults = (): Partial<LightingDefaults> => {
-    if (typeof window === 'undefined') return {};
-    try {
-        const raw = window.localStorage.getItem(LIGHTING_DEFAULTS_KEY);
-        if (!raw) return {};
-        const parsed = JSON.parse(raw) as Partial<LightingDefaults>;
-        return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-        return {};
-    }
-};
-
-const saveLightingDefaults = (defaults: LightingDefaults) => {
-    if (typeof window === 'undefined') return;
-    try {
-        window.localStorage.setItem(LIGHTING_DEFAULTS_KEY, JSON.stringify(defaults));
-    } catch {
-        // Best effort — remembered lighting is a convenience.
-    }
-};
-
 
 export const ModelViewer = ({ url, onBounds }: { url: string; onBounds?: (bounds: ModelBounds) => void }) => {
     const { scene } = useGLTF(url, DRACO_DECODER_PATH);
@@ -391,16 +347,24 @@ const ThreeDLayerEditor = ({ modelUrl, existingObject, onSave, onClose }: ThreeD
 
     // Model transform is applied by mutating the group directly; the R3F
     // frameloop picks it up without recreating the Stage (which reloads env maps).
-    useEffect(() => {
-        if (!modelGroupRef.current) return;
-        modelGroupRef.current.rotation.y = (modelRotationY * Math.PI) / 180;
-        modelGroupRef.current.scale.setScalar(modelScale);
-    }, [modelRotationY, modelScale]);
+    // The group only exists once the model has loaded, so the transform is also
+    // applied from the bounds callback — otherwise a layer reopened with a
+    // saved rotation or scale showed (and re-captured) the model untransformed.
+    const transformRef = useRef({ rotationY: modelRotationY, scale: modelScale });
+    transformRef.current = { rotationY: modelRotationY, scale: modelScale };
+    const applyModelTransform = useCallback(() => {
+        const group = modelGroupRef.current;
+        if (!group) return;
+        group.rotation.y = (transformRef.current.rotationY * Math.PI) / 180;
+        group.scale.setScalar(transformRef.current.scale);
+    }, []);
+    useEffect(applyModelTransform, [modelRotationY, modelScale, applyModelTransform]);
 
     const handleModelBounds = useCallback((bounds: ModelBounds) => {
+        applyModelTransform();
         setGroundY(bounds.groundY);
         setModelRadius(bounds.radius);
-    }, []);
+    }, [applyModelTransform]);
 
     const stageContent = useMemo(() => (
         <Stage environment={{ files: environmentFile(environment) }} intensity={envIntensity} adjustCamera={false} shadows={false}>
