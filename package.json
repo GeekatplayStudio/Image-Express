@@ -171,7 +171,7 @@
     "jest-environment-jsdom": "30.5.2",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "wait-on": "^9.5.1"
   },
   "build": {
